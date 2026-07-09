@@ -1,0 +1,35 @@
+import { getSalesVelocity } from "./orders";
+import { getProducts } from "./products";
+
+export interface TopProduct {
+  sku: string;
+  title?: string;
+  asin?: string;
+  units: number;
+  salePrice: number | null;
+  cost: number | null;
+  revenue: number;
+  marginPct: number | null; // margem de contribuição = (preço − custo) ÷ preço
+}
+
+/**
+ * Produtos mais vendidos no período, com faturamento e margem.
+ * Cruza a velocidade de venda (unidades por SKU) com preço e custo dos produtos.
+ */
+export async function getTopProducts(days: number, limit = 10): Promise<TopProduct[]> {
+  const [velocity, products] = await Promise.all([getSalesVelocity({ days }), getProducts()]);
+  const bySku = new Map(products.map((p) => [p.id, p]));
+
+  const rows: TopProduct[] = Object.entries(velocity.unitsBySku).map(([sku, units]) => {
+    const p = bySku.get(sku);
+    const salePrice = p?.salePrice ?? null;
+    const cost = p?.cost ?? null;
+    const revenue = salePrice ? +(units * salePrice).toFixed(2) : 0;
+    const marginPct =
+      salePrice && salePrice > 0 && cost != null ? ((salePrice - cost) / salePrice) * 100 : null;
+    return { sku, title: p?.title, asin: p?.asin, units, salePrice, cost, revenue, marginPct };
+  });
+
+  rows.sort((a, b) => b.revenue - a.revenue || b.units - a.units);
+  return rows.slice(0, limit);
+}

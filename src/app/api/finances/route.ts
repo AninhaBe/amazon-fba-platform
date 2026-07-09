@@ -1,0 +1,16 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getFinanceSummary } from "@/lib/finances";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+export async function GET(req: NextRequest) {
+  try {
+    const days = Math.max(1, Math.min(180, Number(new URL(req.url).searchParams.get("days") || 30)));
+    const summary = await getFinanceSummary(days);
+    return NextResponse.json({ summary });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Erro desconhecido";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}

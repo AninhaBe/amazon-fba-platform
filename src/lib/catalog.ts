@@ -1,0 +1,92 @@
+import { spapiFetch, defaultMarketplaceId } from "./spapi";
+import { estimateStorage } from "./storage";
+
+interface Dimension {
+  unit: string;
+  value: number;
+}
+interface CatalogItemResponse {
+  asin?: string;
+  summaries?: { marketplaceId: string; itemName?: string; brand?: string }[];
+  images?: {
+    marketplaceId: string;
+    images: { link: string; height: number; width: number }[];
+  }[];
+  dimensions?: {
+    marketplaceId: string;
+    package?: {
+      height?: Dimension;
+      length?: Dimension;
+      width?: Dimension;
+      weight?: Dimension;
+    };
+  }[];
+}
+
+export interface ItemInfo {
+  asin: string;
+  title?: string;
+  brand?: string;
+  imageUrl?: string;
+  dimensionsCm?: { length: number; width: number; height: number };
+  volumeM3?: number;
+  storageTier?: "small" | "large";
+  storageRatePerM3?: number;
+  estimatedStorageFee?: number; // custo mensal cheio (1 unidade / 1 mês)
+}
+
+/** Converte uma dimensão para centímetros (a API pode vir em polegadas ou cm). */
+function toCm(d?: Dimension): number | undefined {
+  if (!d) return undefined;
+  const unit = d.unit?.toLowerCase();
+  if (unit === "inches" || unit === "in") return d.value * 2.54;
+  if (unit === "centimeters" || unit === "cm") return d.value;
+  if (unit === "millimeters" || unit === "mm") return d.value / 10;
+  return d.value; // assume cm se desconhecido
+}
+
+/**
+ * Busca nome/marca/imagem/dimensões de um ASIN e estima a tarifa de armazenagem.
+ * Operação: getCatalogItem — GET /catalog/2022-04-01/items/{asin}
+ */
+export async function getItemInfo(
+  asin: string,
+  marketplaceId = defaultMarketplaceId()
+): Promise<ItemInfo> {
+  const data = await spapiFetch<CatalogItemResponse>(
+    `/catalog/2022-04-01/items/${encodeURIComponent(asin)}`,
+    { query: { marketplaceIds: marketplaceId, includedData: "summaries,images,dimensions" } }
+  );
+
+  const summary = data.summaries?.[0];
+  const imageSet = data.images?.[0]?.images ?? [];
+  const biggest = imageSet.slice().sort((a, b) => b.width - a.width)[0];
+
+  const pkg = data.dimensions?.[0]?.package;
+  const length = toCm(pkg?.length);
+  const width = toCm(pkg?.width);
+  const height = toCm(pkg?.height);
+
+  const info: ItemInfo = {
+    asin,
+    title: summary?.itemName,
+    brand: summary?.brand,
+    imageUrl: biggest?.link,
+  };
+
+  if (length && width && height) {
+    const dims = {
+      length: +length.toFixed(2),
+      width: +width.toFixed(2),
+      height: +height.toFixed(2),
+    };
+    const storage = estimateStorage(dims);
+    info.dimensionsCm = dims;
+    info.volumeM3 = storage.volumeM3;
+    info.storageTier = storage.tier;
+    info.storageRatePerM3 = storage.ratePerM3;
+    info.estimatedStorageFee = storage.monthlyFee;
+  }
+
+  return info;
+}
