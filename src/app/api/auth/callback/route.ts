@@ -1,0 +1,62 @@
+import { NextRequest, NextResponse } from "next/server";
+import { saveAccount } from "@/lib/accountStore";
+import { ACTIVE_COOKIE } from "@/lib/withAccount";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+// Retorno do consentimento: a Amazon manda spapi_oauth_code + selling_partner_id + state.
+export async function GET(req: NextRequest) {
+  const { searchParams, origin } = new URL(req.url);
+  const code = searchParams.get("spapi_oauth_code");
+  const sellerId = searchParams.get("selling_partner_id");
+  const state = searchParams.get("state");
+  const baseUrl = process.env.APP_BASE_URL || origin;
+
+  const fail = (msg: string) =>
+    NextResponse.redirect(`${baseUrl}/?connect_error=${encodeURIComponent(msg)}`);
+
+  // Confere o state (anti-CSRF)
+  const expected = req.cookies.get("oauth_state")?.value;
+  if (!state || !expected || state !== expected) {
+    return fail("Falha na verificação de segurança (state). Tente conectar novamente.");
+  }
+  if (!code || !sellerId) {
+    return fail("Autorização incompleta — código ou conta ausente.");
+  }
+
+  try {
+    // Troca o spapi_oauth_code por um refresh token (grant authorization_code).
+    const body = new URLSearchParams({
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: `${baseUrl}/api/auth/callback`,
+      client_id: process.env.LWA_CLIENT_ID || "",
+      client_secret: process.env.LWA_CLIENT_SECRET || "",
+    });
+    const res = await fetch("https://api.amazon.com/auth/o2/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body,
+    });
+    const data = await res.json();
+    if (!res.ok || !data.refresh_token) {
+      return fail(data.error_description || data.error || "Falha ao obter o token.");
+    }
+
+    await saveAccount({ sellerId, refreshToken: data.refresh_token });
+
+    // Define a conta ativa e limpa o state.
+    const redirect = NextResponse.redirect(`${baseUrl}/?connected=1`);
+    redirect.cookies.set(ACTIVE_COOKIE, sellerId, {
+      httpOnly: true,
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 365,
+      path: "/",
+    });
+    redirect.cookies.set("oauth_state", "", { maxAge: 0, path: "/" });
+    return redirect;
+  } catch (err) {
+    return fail(err instanceof Error ? err.message : "Erro inesperado.");
+  }
+}

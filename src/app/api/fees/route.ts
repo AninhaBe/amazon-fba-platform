@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getFeesEstimateForAsin } from "@/lib/fees";
+import { withAccountContext } from "@/lib/withAccount";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
+  return withAccountContext(req, async () => {
   try {
     const body = await req.json();
     const asin = String(body.asin || "").trim();
@@ -39,4 +41,5 @@ export async function POST(req: NextRequest) {
     const message = err instanceof Error ? err.message : "Erro desconhecido";
     return NextResponse.json({ error: message }, { status: 500 });
   }
+  });
 }

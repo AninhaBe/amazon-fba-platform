@@ -46,15 +46,17 @@ export async function runReport(
   const res = await fetch(doc.url); // URL pré-assinada — sem header de auth
   const buf = Buffer.from(await res.arrayBuffer());
   const raw = doc.compressionAlgorithm === "GZIP" ? zlib.gunzipSync(buf) : buf;
-  // Flat files da Amazon costumam vir em Latin-1 (ISO-8859-1).
-  return raw.toString("latin1");
+  // O relatório de anúncios vem em UTF-8 (com BOM).
+  return raw.toString("utf8");
 }
 
 /** Faz o parse de um TSV (cabeçalho na 1ª linha) em objetos por nome de coluna. */
 export function parseTsv(text: string): Record<string, string>[] {
-  const lines = text.split(/\r?\n/).filter((l) => l.length > 0);
+  // Remove BOM (UTF-8 ou o equivalente lido como latin1) do início.
+  const clean = text.replace(/^﻿/, "").replace(/^ï»¿/, "");
+  const lines = clean.split(/\r?\n/).filter((l) => l.length > 0);
   if (lines.length < 2) return [];
-  const headers = lines[0].split("\t");
+  const headers = lines[0].split("\t").map((h) => h.trim());
   return lines.slice(1).map((line) => {
     const cells = line.split("\t");
     const row: Record<string, string> = {};

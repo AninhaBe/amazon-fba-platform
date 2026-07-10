@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import { NavLinks } from "./components/Nav";
+import { AccountSwitcher } from "./components/AccountSwitcher";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -45,11 +46,8 @@ export default function RootLayout({
             <div className="flex-1 px-3 py-2">
               <NavLinks variant="sidebar" />
             </div>
-            <div className="border-t border-slate-100 px-5 py-4">
-              <p className="text-[11px] leading-relaxed text-slate-400">
-                Dados em tempo real via Amazon SP-API — Fees, Pricing, Orders, Finances e
-                FBA Inventory.
-              </p>
+            <div className="border-t border-slate-100 px-4 py-4">
+              <AccountSwitcher />
             </div>
           </aside>
 

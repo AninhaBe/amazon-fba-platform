@@ -1,0 +1,42 @@
+# Blueprint do Render — cria o web service com disco persistente.
+# No Render: New → Blueprint → aponte para este repositório.
+services:
+  - type: web
+    name: amazon-fba-platform
+    runtime: node
+    plan: starter # plano pago: necessário para disco persistente e ficar sempre no ar
+    region: oregon
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      # Aponta os dados (custos, contas OAuth) para o disco persistente montado.
+      - key: DATA_DIR
+        value: /var/data
+      - key: SPAPI_REGION
+        value: NA
+      - key: DEFAULT_MARKETPLACE_ID
+        value: A2Q3Y263D00KWC
+      - key: SPAPI_USE_SANDBOX
+        value: "false"
+      - key: SPAPI_APP_DRAFT
+        value: "true"
+      - key: SPAPI_SELLERCENTRAL_URL
+        value: https://sellercentral.amazon.com.br
+      # Segredos e valores por-ambiente: defina no painel do Render (não commitados).
+      - key: LWA_CLIENT_ID
+        sync: false
+      - key: LWA_CLIENT_SECRET
+        sync: false
+      - key: LWA_REFRESH_TOKEN
+        sync: false
+      - key: SPAPI_APP_ID
+        sync: false
+      # URL pública do próprio serviço, ex: https://amazon-fba-platform.onrender.com
+      - key: APP_BASE_URL
+        sync: false
+    disk:
+      name: data
+      mountPath: /var/data
+      sizeGB: 1

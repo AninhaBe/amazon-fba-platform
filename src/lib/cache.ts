@@ -2,6 +2,8 @@
 // Guarda a PROMISE — então várias rotas pedindo o mesmo dado ao mesmo tempo
 // compartilham uma única chamada à SP-API (evita estourar o rate limit).
 
+import { currentAccountId } from "./accountContext";
+
 interface Entry {
   at: number;
   value: Promise<unknown>;
@@ -9,7 +11,9 @@ interface Entry {
 
 const store = new Map<string, Entry>();
 
-export function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
+export function cached<T>(rawKey: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
+  // Namespacing por conta ativa: garante que a conta A nunca veja o cache da conta B.
+  const key = `${currentAccountId()}|${rawKey}`;
   const now = Date.now();
   const hit = store.get(key);
   if (hit && now - hit.at < ttlMs) {

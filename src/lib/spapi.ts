@@ -1,5 +1,8 @@
 // Cliente SP-API: renova o access_token via LWA e faz chamadas assinadas com Bearer.
 // A Amazon descontinuou a exigência de AWS SigV4/role ARN — hoje basta o token LWA.
+// Multi-conta: o token vem da conta ativa (AsyncLocalStorage); fallback para o .env.
+
+import { currentRefreshToken } from "./accountContext";
 
 const REGION_HOSTS: Record<string, string> = {
   NA: "https://sellingpartnerapi-na.amazon.com",
@@ -34,17 +37,14 @@ function baseUrl(): string {
   return host;
 }
 
-// --- Cache do access_token em memória (expira em ~1h) ---
-let cachedToken: { value: string; expiresAt: number } | null = null;
+// --- Cache do access_token por refresh token (expira em ~1h) ---
+const tokenCache = new Map<string, { value: string; expiresAt: number }>();
 
-export async function getAccessToken(): Promise<string> {
-  if (cachedToken && Date.now() < cachedToken.expiresAt - 60_000) {
-    return cachedToken.value;
-  }
-
+/** Troca um refresh token por um access token LWA. */
+export async function exchangeRefreshToken(refreshToken: string): Promise<string> {
   const body = new URLSearchParams({
     grant_type: "refresh_token",
-    refresh_token: env("LWA_REFRESH_TOKEN"),
+    refresh_token: refreshToken,
     client_id: env("LWA_CLIENT_ID"),
     client_secret: env("LWA_CLIENT_SECRET"),
   });
@@ -62,12 +62,21 @@ export async function getAccessToken(): Promise<string> {
       `Falha ao obter access_token LWA (${res.status}): ${data.error_description || data.error || "erro desconhecido"}`
     );
   }
+  return data.access_token as string;
+}
 
-  cachedToken = {
-    value: data.access_token,
-    expiresAt: Date.now() + (data.expires_in ?? 3600) * 1000,
-  };
-  return cachedToken.value;
+export async function getAccessToken(): Promise<string> {
+  // Token da conta ativa (OAuth); se não houver, usa o do .env (conta dona).
+  const refreshToken = currentRefreshToken() || env("LWA_REFRESH_TOKEN");
+
+  const cached = tokenCache.get(refreshToken);
+  if (cached && Date.now() < cached.expiresAt - 60_000) {
+    return cached.value;
+  }
+
+  const value = await exchangeRefreshToken(refreshToken);
+  tokenCache.set(refreshToken, { value, expiresAt: Date.now() + 3600 * 1000 });
+  return value;
 }
 
 export interface SpApiOptions {

@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOrders, summarizeOrders } from "@/lib/orders";
 import { cached } from "@/lib/cache";
+import { withAccountContext } from "@/lib/withAccount";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
+  return withAccountContext(req, async () => {
   try {
     const { searchParams } = new URL(req.url);
     const days = Math.max(1, Math.min(90, Number(searchParams.get("days") || 30)));
@@ -24,4 +26,5 @@ export async function GET(req: NextRequest) {
     const message = err instanceof Error ? err.message : "Erro desconhecido";
     return NextResponse.json({ error: message }, { status: 500 });
   }
+  });
 }

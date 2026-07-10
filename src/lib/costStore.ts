@@ -1,10 +1,11 @@
 import fs from "fs/promises";
 import path from "path";
+import { dataFile } from "./dataDir";
 
-// Cadastro de custos por produto, persistido em data/costs.json.
+// Cadastro de custos por produto, persistido em <DATA_DIR>/costs.json.
 // Chave = SellerSKU quando existe (bate com os pedidos), senão o ASIN.
 
-const FILE = path.join(process.cwd(), "data", "costs.json");
+const FILE = dataFile("costs.json");
 
 export interface CostEntry {
   id: string; // chave (SKU ou ASIN)
