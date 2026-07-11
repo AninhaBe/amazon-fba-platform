@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { PageHeader, pageIcons } from "../components/PageHeader";
 
 interface ProductResult {
   asin: string;
@@ -102,28 +103,29 @@ export default function PesquisaPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-orange-600">
-          Catalog Items · pesquisa de mercado
-        </p>
-        <h1 className="mt-1 text-3xl font-bold tracking-tight">Pesquisa de produtos</h1>
-        <p className="mt-2 max-w-2xl text-sm text-slate-500">
-          Busque qualquer termo como na Amazon e veja, de <strong>todos</strong> os anúncios,
-          quando cada um foi criado e sua posição de vendas (BSR). Dados oficiais da SP-API.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Catalog Items · pesquisa de mercado"
+        title="Pesquisa de produtos"
+        icon={pageIcons.search}
+        subtitle={
+          <>
+            Busque qualquer termo como na Amazon e veja, de <strong>todos</strong> os anúncios,
+            quando cada um foi criado e sua posição de vendas (BSR). Dados oficiais da SP-API.
+          </>
+        }
+      />
 
       <form onSubmit={run} className="flex gap-2">
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="ex: cadeira gamer, fone bluetooth, tapete de yoga…"
-          className="flex-1 rounded-lg border border-slate-300 px-4 py-2.5 focus:border-orange-500 focus:outline-none"
+          className="flex-1 rounded-lg border border-slate-300 px-4 py-2.5 focus:border-blue-500 focus:outline-none"
         />
         <button
           type="submit"
           disabled={loading}
-          className="rounded-lg bg-orange-600 px-6 py-2.5 font-medium text-white hover:bg-orange-700 disabled:opacity-50"
+          className="rounded-lg bg-blue-600 px-6 py-2.5 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
           {loading ? "Buscando…" : "Pesquisar"}
         </button>
@@ -131,7 +133,7 @@ export default function PesquisaPage() {
 
       <details className="group rounded-xl border border-slate-200 bg-slate-50 text-sm">
         <summary className="flex cursor-pointer items-center gap-2 px-4 py-3 font-medium text-slate-700 marker:content-['']">
-          <span className="text-orange-600 transition-transform group-open:rotate-90">▶</span>
+          <span className="text-blue-600 transition-transform group-open:rotate-90">▶</span>
           Entenda as colunas: por que “Anúncio criado” e “Idade da linha” diferem?
         </summary>
         <div className="space-y-3 border-t border-slate-200 px-4 py-3 text-slate-600">
@@ -186,7 +188,7 @@ export default function PesquisaPage() {
                   key={k}
                   onClick={() => setSort(k)}
                   className={`rounded-md px-3 py-1.5 font-medium ${
-                    sort === k ? "bg-orange-100 text-orange-700" : "text-slate-500 hover:text-slate-900"
+                    sort === k ? "bg-blue-100 text-blue-700" : "text-slate-500 hover:text-slate-900"
                   }`}
                 >
                   {label}
@@ -197,7 +199,7 @@ export default function PesquisaPage() {
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-2xl border border-slate-200/70 bg-white shadow-sm ring-1 ring-slate-900/[0.02]">
         <table className="w-full min-w-[640px] text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
@@ -293,7 +295,7 @@ export default function PesquisaPage() {
                       <div className="flex items-center justify-end gap-2">
                         <Link
                           href={`/calculadora?asin=${p.asin}`}
-                          className="whitespace-nowrap rounded-md bg-orange-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-orange-700"
+                          className="whitespace-nowrap rounded-md bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-700"
                         >
                           calcular
                         </Link>
@@ -301,7 +303,7 @@ export default function PesquisaPage() {
                           href={`https://www.amazon.com.br/dp/${p.asin}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="whitespace-nowrap rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:border-orange-400 hover:text-orange-600"
+                          className="whitespace-nowrap rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:border-blue-400 hover:text-blue-600"
                         >
                           abrir ↗
                         </a>

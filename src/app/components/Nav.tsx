@@ -96,7 +96,7 @@ export function NavLinks({ variant }: { variant: "sidebar" | "top" }) {
               href={it.href}
               className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                 active
-                  ? "bg-orange-50 text-orange-700"
+                  ? "bg-blue-50 text-blue-700"
                   : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
               }`}
             >
@@ -110,7 +110,7 @@ export function NavLinks({ variant }: { variant: "sidebar" | "top" }) {
   }
 
   return (
-    <nav className="flex flex-col gap-1">
+    <nav className="flex flex-col gap-0.5">
       {items.map((it) => {
         const active = pathname === it.href;
         return (
@@ -118,21 +118,28 @@ export function NavLinks({ variant }: { variant: "sidebar" | "top" }) {
             key={it.href}
             href={it.href}
             aria-current={active ? "page" : undefined}
-            className={`group flex items-start gap-3 rounded-xl px-3 py-2.5 transition-colors ${
+            className={`group relative flex items-center gap-3 rounded-xl px-2.5 py-2 ${
               active
-                ? "bg-orange-50 text-orange-700 ring-1 ring-orange-200"
-                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                ? "bg-blue-50 text-blue-700"
+                : "text-slate-600 hover:bg-slate-100/80 hover:text-slate-900"
             }`}
           >
+            {active && (
+              <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-blue-500" />
+            )}
             <span
-              className={`mt-0.5 shrink-0 ${active ? "text-orange-600" : "text-slate-400 group-hover:text-slate-600"}`}
+              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors ${
+                active
+                  ? "bg-white text-blue-600 shadow-sm ring-1 ring-blue-100"
+                  : "bg-slate-100 text-slate-500 group-hover:bg-white group-hover:text-slate-700 group-hover:shadow-sm"
+              }`}
             >
               {it.icon}
             </span>
             <span className="min-w-0">
-              <span className="block text-sm font-medium leading-tight">{it.label}</span>
+              <span className="block text-sm font-semibold leading-tight">{it.label}</span>
               <span
-                className={`block text-xs leading-tight ${active ? "text-orange-500" : "text-slate-400"}`}
+                className={`block text-[11px] leading-tight ${active ? "text-blue-500/80" : "text-slate-400"}`}
               >
                 {it.desc}
               </span>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { PageHeader, pageIcons } from "../components/PageHeader";
 
 interface ModeFees {
   totalFees: number;
@@ -172,20 +173,16 @@ export default function CalculatorPage() {
   const bestNet = columns.length ? Math.max(...columns.map((col) => col.net)) : 0;
 
   const inputCls =
-    "rounded-lg border border-slate-300 px-3 py-2 focus:border-orange-500 focus:outline-none";
+    "rounded-lg border border-slate-300 px-3 py-2 focus:border-blue-500 focus:outline-none";
 
   return (
     <div className="space-y-8">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-orange-600">
-          Product Fees · Pricing · Catalog
-        </p>
-        <h1 className="mt-1 text-3xl font-bold tracking-tight">Calculadora de lucro</h1>
-        <p className="mt-2 max-w-2xl text-sm text-slate-500">
-          Digite um ASIN e compare os três modos de logística lado a lado — FBA, Próprio (FBM)
-          e DBA — com as taxas reais da Amazon.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Product Fees · Pricing · Catalog"
+        title="Calculadora de lucro"
+        subtitle="Digite um ASIN e compare os três modos de logística lado a lado — FBA, Próprio (FBM) e DBA — com as taxas reais da Amazon."
+        icon={pageIcons.calculator}
+      />
 
       {/* Entradas compartilhadas */}
       <form
@@ -209,7 +206,7 @@ export default function CalculatorPage() {
               type="button"
               onClick={() => fetchPrice()}
               disabled={fetchingPrice}
-              className="whitespace-nowrap rounded-lg border border-orange-600 px-4 py-2 text-sm font-medium text-orange-600 hover:bg-orange-50 disabled:opacity-50"
+              className="whitespace-nowrap rounded-lg border border-blue-600 px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 disabled:opacity-50"
             >
               {fetchingPrice ? "Buscando…" : "Buscar preço"}
             </button>
@@ -278,7 +275,7 @@ export default function CalculatorPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-lg bg-orange-600 px-4 py-2 font-medium text-white hover:bg-orange-700 disabled:opacity-50"
+            className="w-full rounded-lg bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
           >
             {loading ? "Calculando…" : "Comparar logísticas"}
           </button>
@@ -424,7 +421,7 @@ function EditCost({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="0.00"
-        className="w-24 rounded-md border border-slate-300 px-2 py-1 text-right text-sm tabular-nums focus:border-orange-500 focus:outline-none"
+        className="w-24 rounded-md border border-slate-300 px-2 py-1 text-right text-sm tabular-nums focus:border-blue-500 focus:outline-none"
       />
     </label>
   );

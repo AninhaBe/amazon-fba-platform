@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { PageHeader, pageIcons } from "../components/PageHeader";
 
 interface OrderSummary {
   amazonOrderId: string;
@@ -106,26 +107,23 @@ export default function MonitorPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-orange-600">
-            Orders · Finances
-          </p>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight">Monitor da conta</h1>
-          <p className="mt-2 text-sm text-slate-500">
-            Pedidos recentes e o repasse financeiro real da sua conta.
-          </p>
-        </div>
-        <select
-          value={days}
-          onChange={(e) => setDays(Number(e.target.value))}
-          className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-        >
-          <option value={7}>Últimos 7 dias</option>
-          <option value={30}>Últimos 30 dias</option>
-          <option value={90}>Últimos 90 dias</option>
-        </select>
-      </div>
+      <PageHeader
+        eyebrow="Orders · Finances"
+        title="Monitor da conta"
+        subtitle="Pedidos recentes e o repasse financeiro real da sua conta."
+        icon={pageIcons.chart}
+        action={
+          <select
+            value={days}
+            onChange={(e) => setDays(Number(e.target.value))}
+            className="cursor-pointer rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 shadow-sm ring-1 ring-slate-900/[0.02] hover:border-slate-300"
+          >
+            <option value={7}>Últimos 7 dias</option>
+            <option value={30}>Últimos 30 dias</option>
+            <option value={90}>Últimos 90 dias</option>
+          </select>
+        }
+      />
 
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
@@ -207,7 +205,7 @@ export default function MonitorPage() {
             )}
 
             {finance.feeBreakdown.length > 0 && (
-              <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-4 lg:col-span-3">
+              <div className="rounded-2xl border border-slate-200/70 bg-white shadow-sm ring-1 ring-slate-900/[0.02] p-4 lg:col-span-3">
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Detalhamento das taxas efetivas
                 </p>
@@ -229,7 +227,7 @@ export default function MonitorPage() {
         )}
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-sm ring-1 ring-slate-900/[0.02]">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>

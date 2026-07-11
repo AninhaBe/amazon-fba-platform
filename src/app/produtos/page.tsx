@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { PageHeader, pageIcons } from "../components/PageHeader";
 
 interface Product {
   id: string;
@@ -98,18 +99,19 @@ export default function ProdutosPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-orange-600">
-          FBA Inventory · Catalog
-        </p>
-        <h1 className="mt-1 text-3xl font-bold tracking-tight">Produtos</h1>
-        <p className="mt-2 max-w-2xl text-sm text-slate-500">
-          Seus produtos são puxados automaticamente da conta (anúncios + estoque FBA), já com
-          o <strong className="text-slate-700">preço de venda</strong>. Você só cadastra o{" "}
-          <strong className="text-slate-700">custo</strong> — é ele que permite calcular o lucro
-          real das vendas.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="FBA Inventory · Catalog"
+        title="Produtos"
+        icon={pageIcons.box}
+        subtitle={
+          <>
+            Seus produtos são puxados automaticamente da conta (anúncios + estoque FBA), já com o{" "}
+            <strong className="text-slate-700">preço de venda</strong>. Você só cadastra o{" "}
+            <strong className="text-slate-700">custo</strong> — é ele que permite calcular o lucro
+            real das vendas.
+          </>
+        }
+      />
 
       {/* Adicionar por ASIN */}
       <form
@@ -122,13 +124,13 @@ export default function ProdutosPage() {
             value={newAsin}
             onChange={(e) => setNewAsin(e.target.value)}
             placeholder="B0XXXXXXXX"
-            className="rounded-lg border border-slate-300 px-3 py-2 focus:border-orange-500 focus:outline-none"
+            className="rounded-lg border border-slate-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
           />
         </label>
         <button
           type="submit"
           disabled={adding}
-          className="rounded-lg bg-orange-600 px-4 py-2 font-medium text-white hover:bg-orange-700 disabled:opacity-50"
+          className="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
           {adding ? "Adicionando…" : "Adicionar"}
         </button>
@@ -147,7 +149,7 @@ export default function ProdutosPage() {
         </p>
       )}
 
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-2xl border border-slate-200/70 bg-white shadow-sm ring-1 ring-slate-900/[0.02]">
         <table className="w-full min-w-[640px] text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
@@ -204,7 +206,7 @@ export default function ProdutosPage() {
                       className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                         p.source === "manual"
                           ? "bg-slate-100 text-slate-600"
-                          : "bg-orange-100 text-orange-700"
+                          : "bg-blue-100 text-blue-700"
                       }`}
                     >
                       {p.source === "manual" ? "Manual" : p.source === "fba" ? "FBA" : "Anúncio"}
@@ -227,7 +229,7 @@ export default function ProdutosPage() {
                         if (v !== (p.cost ?? 0)) saveCost(p, v);
                       }}
                       placeholder="0.00"
-                      className={`w-24 rounded-md border px-2 py-1 text-right text-sm tabular-nums focus:border-orange-500 focus:outline-none ${
+                      className={`w-24 rounded-md border px-2 py-1 text-right text-sm tabular-nums focus:border-blue-500 focus:outline-none ${
                         p.cost == null || p.cost === 0
                           ? "border-amber-300 bg-amber-50"
                           : "border-slate-300"

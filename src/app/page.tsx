@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { RevenueChart, type DailyPoint } from "./components/RevenueChart";
+import { PageHeader, pageIcons } from "./components/PageHeader";
 
 function money(v: number, currency = "BRL") {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(v);
@@ -121,68 +122,69 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-orange-600">
-            Visão geral
-          </p>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="mt-2 text-sm text-slate-500">
-            Resumo de vendas, lucro e estoque da sua conta Amazon.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={custom ? "custom" : String(days)}
-            onChange={(e) => {
-              if (e.target.value === "custom") {
-                setCustom(true);
-              } else {
-                setCustom(false);
-                setDays(Number(e.target.value));
-              }
-            }}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm"
-          >
-            <option value={7}>Últimos 7 dias</option>
-            <option value={30}>Últimos 30 dias</option>
-            <option value={90}>Últimos 90 dias</option>
-            <option value="custom">Personalizado…</option>
-          </select>
-          {custom && (
-            <div className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm shadow-sm">
-              <input
-                type="date"
-                value={from}
-                max={to || undefined}
-                onChange={(e) => setFrom(e.target.value)}
-                className="bg-transparent text-slate-700 focus:outline-none"
-              />
-              <span className="text-slate-400">até</span>
-              <input
-                type="date"
-                value={to}
-                min={from || undefined}
-                onChange={(e) => setTo(e.target.value)}
-                className="bg-transparent text-slate-700 focus:outline-none"
-              />
-            </div>
-          )}
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Visão geral"
+        title="Dashboard"
+        subtitle="Resumo de vendas, lucro e estoque da sua conta Amazon."
+        icon={pageIcons.dashboard}
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={custom ? "custom" : String(days)}
+              onChange={(e) => {
+                if (e.target.value === "custom") {
+                  setCustom(true);
+                } else {
+                  setCustom(false);
+                  setDays(Number(e.target.value));
+                }
+              }}
+              className="cursor-pointer rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 shadow-sm ring-1 ring-slate-900/[0.02] hover:border-slate-300"
+            >
+              <option value={7}>Últimos 7 dias</option>
+              <option value={30}>Últimos 30 dias</option>
+              <option value={90}>Últimos 90 dias</option>
+              <option value="custom">Personalizado…</option>
+            </select>
+            {custom && (
+              <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-sm shadow-sm ring-1 ring-slate-900/[0.02]">
+                <input
+                  type="date"
+                  value={from}
+                  max={to || undefined}
+                  onChange={(e) => setFrom(e.target.value)}
+                  className="bg-transparent text-slate-700 focus:outline-none"
+                />
+                <span className="text-slate-400">até</span>
+                <input
+                  type="date"
+                  value={to}
+                  min={from || undefined}
+                  onChange={(e) => setTo(e.target.value)}
+                  className="bg-transparent text-slate-700 focus:outline-none"
+                />
+              </div>
+            )}
+          </div>
+        }
+      />
       {custom && !periodQuery && (
         <p className="-mt-4 text-xs text-slate-400">Escolha a data inicial e final para filtrar.</p>
       )}
 
       {/* KPIs principais */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi label="Faturamento" value={money(revenue, currency)} sub={`${orders?.metrics.totalOrders ?? 0} pedidos`} loading={loading} />
-        <div className="rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 p-5 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-white/80">Lucro estimado</p>
-          <p className="mt-1 text-2xl font-bold tabular-nums text-white">
-            {loading ? "…" : money(estProfit, currency)}
+        <Kpi label="Faturamento" value={money(revenue, currency)} sub={`${orders?.metrics.totalOrders ?? 0} pedidos`} loading={loading} icon={kpiIcons.revenue} />
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 p-5 shadow-sm shadow-emerald-600/20 ring-1 ring-emerald-600/20">
+          <div className="pointer-events-none absolute -right-6 -top-8 h-24 w-24 rounded-full bg-white/10 blur-xl" />
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-white/85">Lucro estimado</p>
+            <span className="text-white/50">{kpiIcons.percent}</span>
+          </div>
+          <p className="mt-2 text-[27px] font-bold leading-none tabular-nums text-white">
+            {loading ? "···" : money(estProfit, currency)}
           </p>
-          <p className="mt-0.5 text-xs text-white/70">margem {marginPct.toFixed(1)}%</p>
+          <p className="mt-1.5 text-xs font-medium text-white/80">margem {marginPct.toFixed(1)}%</p>
         </div>
         <Kpi
           label="Estoque crítico"
@@ -190,6 +192,7 @@ export default function Dashboard() {
           sub={critical.length > 0 ? "repor com urgência" : "tudo sob controle"}
           tone={critical.length > 0 ? "danger" : "ok"}
           loading={loading}
+          icon={kpiIcons.stock}
         />
         <Kpi
           label="Produtos sem custo"
@@ -197,20 +200,22 @@ export default function Dashboard() {
           sub={noCost > 0 ? "cadastre para ver o lucro" : "todos cadastrados"}
           tone={noCost > 0 ? "warn" : "ok"}
           loading={productsLoading}
+          icon={kpiIcons.box}
         />
       </div>
 
       {/* Segunda fileira de KPIs */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <Kpi label="Número de vendas" value={String(salesCount)} sub="pedidos no período" loading={loading} />
-        <Kpi label="Unidades vendidas" value={String(unitsCount)} loading={loading} />
-        <Kpi label="Ticket médio" value={money(ticketMedio, currency)} sub="faturamento ÷ vendas" loading={loading} />
+        <Kpi label="Número de vendas" value={String(salesCount)} sub="pedidos no período" loading={loading} icon={kpiIcons.cart} />
+        <Kpi label="Unidades vendidas" value={String(unitsCount)} loading={loading} icon={kpiIcons.box} />
+        <Kpi label="Ticket médio" value={money(ticketMedio, currency)} sub="faturamento ÷ vendas" loading={loading} icon={kpiIcons.tag} />
         <Kpi
           label="ROI"
           value={cogs > 0 ? `${roiPct.toFixed(1)}%` : "—"}
           sub="lucro ÷ custo dos produtos"
           tone={roiPct > 0 ? "ok" : "default"}
           loading={loading}
+          icon={kpiIcons.percent}
         />
       </div>
 
@@ -306,7 +311,7 @@ export default function Dashboard() {
           <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
             Top produtos
           </h2>
-          <Link href="/produtos" className="text-xs font-medium text-orange-600 hover:underline">
+          <Link href="/produtos" className="text-xs font-medium text-blue-600 hover:underline">
             Ver produtos →
           </Link>
         </div>
@@ -371,12 +376,14 @@ function Kpi({
   sub,
   tone = "default",
   loading,
+  icon,
 }: {
   label: string;
   value: string;
   sub?: string;
   tone?: "default" | "ok" | "warn" | "danger";
   loading?: boolean;
+  icon?: React.ReactNode;
 }) {
   const toneCls =
     tone === "danger"
@@ -387,13 +394,56 @@ function Kpi({
           ? "text-emerald-600"
           : "text-slate-900";
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</p>
-      <p className={`mt-1 text-2xl font-bold tabular-nums ${toneCls}`}>{loading ? "…" : value}</p>
-      {sub && <p className="mt-0.5 text-xs text-slate-400">{sub}</p>}
+    <div className="group rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm ring-1 ring-slate-900/[0.02] transition-shadow hover:shadow-md">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{label}</p>
+        {icon && (
+          <span className="text-slate-300 transition-colors group-hover:text-blue-400">{icon}</span>
+        )}
+      </div>
+      <p className={`mt-2 text-[27px] font-bold leading-none tabular-nums ${toneCls}`}>
+        {loading ? <span className="text-slate-300">···</span> : value}
+      </p>
+      {sub && <p className="mt-1.5 text-xs text-slate-400">{sub}</p>}
     </div>
   );
 }
+
+const kpiIcons = {
+  revenue: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-5 w-5">
+      <path d="M4 19V5M4 19h16M8 15l3-4 3 2 4-6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  stock: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-5 w-5">
+      <path d="M20 7 12 3 4 7v10l8 4 8-4V7Z" strokeLinejoin="round" />
+      <path d="m4 7 8 4 8-4M12 11v10" strokeLinejoin="round" />
+    </svg>
+  ),
+  tag: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-5 w-5">
+      <path d="M20.6 13.4 12 22l-9-9V4h9l8.6 8.6a1.4 1.4 0 0 1 0 2Z" strokeLinejoin="round" />
+      <circle cx="7.5" cy="7.5" r="1.2" fill="currentColor" stroke="none" />
+    </svg>
+  ),
+  cart: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-5 w-5">
+      <path d="M3 4h2l2.4 12.4A2 2 0 0 0 9.4 18h8.5a2 2 0 0 0 2-1.6L21 8H6" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="10" cy="21" r="1" /><circle cx="18" cy="21" r="1" />
+    </svg>
+  ),
+  box: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-5 w-5">
+      <rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 9h18M9 4v5" strokeLinecap="round" />
+    </svg>
+  ),
+  percent: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-5 w-5">
+      <path d="M19 5 5 19" strokeLinecap="round" /><circle cx="7.5" cy="7.5" r="2.2" /><circle cx="16.5" cy="16.5" r="2.2" />
+    </svg>
+  ),
+};
 
 function Flow({ label, value, muted, accent }: { label: string; value: string; muted?: boolean; accent?: boolean }) {
   return (
@@ -422,11 +472,15 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-2 flex items-center justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">{title}</h2>
-        <Link href={href} className="text-xs font-medium text-orange-600 hover:underline">
-          {linkLabel} →
+    <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm ring-1 ring-slate-900/[0.02]">
+      <div className="mb-3 flex items-center justify-between border-b border-slate-100 pb-3">
+        <h2 className="text-[13px] font-semibold text-slate-700">{title}</h2>
+        <Link
+          href={href}
+          className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:gap-1.5 hover:text-blue-700"
+        >
+          {linkLabel}
+          <span aria-hidden>→</span>
         </Link>
       </div>
       {children}
@@ -459,10 +513,15 @@ function QuickLink({ href, label, desc }: { href: string; label: string; desc: s
   return (
     <Link
       href={href}
-      className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-colors hover:border-orange-300 hover:bg-orange-50"
+      className="group flex items-center justify-between rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.02] transition-all hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md"
     >
-      <p className="text-sm font-semibold text-slate-900">{label}</p>
-      <p className="text-xs text-slate-400">{desc}</p>
+      <div>
+        <p className="text-sm font-semibold text-slate-900">{label}</p>
+        <p className="text-xs text-slate-400">{desc}</p>
+      </div>
+      <span className="text-slate-300 transition-all group-hover:translate-x-0.5 group-hover:text-blue-500">
+        →
+      </span>
     </Link>
   );
 }

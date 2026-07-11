@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { PageHeader, pageIcons } from "../components/PageHeader";
 
 type StockStatus = "out" | "critical" | "low" | "ok" | "overstock" | "idle";
 
@@ -63,26 +64,23 @@ export default function EstoquePage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-orange-600">
-            FBA Inventory · Orders
-          </p>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight">Radar de estoque</h1>
-          <p className="mt-2 text-sm text-slate-500">
-            Estoque FBA cruzado com a velocidade de venda — quantos dias até acabar.
-          </p>
-        </div>
-        <select
-          value={days}
-          onChange={(e) => setDays(Number(e.target.value))}
-          className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-        >
-          <option value={7}>Ritmo dos últimos 7 dias</option>
-          <option value={30}>Ritmo dos últimos 30 dias</option>
-          <option value={90}>Ritmo dos últimos 90 dias</option>
-        </select>
-      </div>
+      <PageHeader
+        eyebrow="FBA Inventory · Orders"
+        title="Radar de estoque"
+        subtitle="Estoque FBA cruzado com a velocidade de venda — quantos dias até acabar."
+        icon={pageIcons.radar}
+        action={
+          <select
+            value={days}
+            onChange={(e) => setDays(Number(e.target.value))}
+            className="cursor-pointer rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 shadow-sm ring-1 ring-slate-900/[0.02] hover:border-slate-300"
+          >
+            <option value={7}>Ritmo dos últimos 7 dias</option>
+            <option value={30}>Ritmo dos últimos 30 dias</option>
+            <option value={90}>Ritmo dos últimos 90 dias</option>
+          </select>
+        }
+      />
 
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
@@ -91,7 +89,7 @@ export default function EstoquePage() {
       )}
 
       {!loading && !error && rows.length > 0 && (
-        <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-slate-200 bg-white shadow-sm p-4">
+        <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-slate-200/70 bg-white shadow-sm ring-1 ring-slate-900/[0.02] p-4">
           <span className="text-sm font-medium">
             {attention > 0 ? (
               <span className="text-red-600">⚠ {attention} SKU(s) precisam de atenção</span>
@@ -112,7 +110,7 @@ export default function EstoquePage() {
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-2xl border border-slate-200/70 bg-white shadow-sm ring-1 ring-slate-900/[0.02]">
         <table className="w-full min-w-[720px] text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
