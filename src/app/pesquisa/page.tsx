@@ -198,32 +198,31 @@ export default function PesquisaPage() {
       )}
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <table className="w-full min-w-[680px] text-sm">
+        <table className="w-full min-w-[640px] text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="px-4 py-3">Produto</th>
-              <th className="px-4 py-3 text-right">Preço</th>
-              <th className="px-4 py-3 text-right">Vend.</th>
-              <th className="px-4 py-3 text-right">Anúncio criado</th>
-              <th className="px-4 py-3 text-right">Idade da linha</th>
-              <th className="px-4 py-3 text-right">BSR</th>
-              <th className="px-4 py-3"></th>
+              <th className="px-3 py-3">Produto</th>
+              <th className="whitespace-nowrap px-3 py-3 text-right">Preço</th>
+              <th className="whitespace-nowrap px-3 py-3 text-right">Vend.</th>
+              <th className="whitespace-nowrap px-3 py-3 text-right">Idade / criação</th>
+              <th className="whitespace-nowrap px-3 py-3 text-right">BSR</th>
+              <th className="px-3 py-3 text-right">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {!searched ? (
               <tr>
-                <td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-400">
+                <td colSpan={6} className="px-4 py-12 text-center text-sm text-slate-400">
                   Digite um termo e pesquise para ver os anúncios.
                 </td>
               </tr>
             ) : loading && items.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-12 text-center text-slate-400">Buscando…</td>
+                <td colSpan={6} className="px-4 py-12 text-center text-slate-400">Buscando…</td>
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-12 text-center text-slate-400">Nada encontrado.</td>
+                <td colSpan={6} className="px-4 py-12 text-center text-slate-400">Nada encontrado.</td>
               </tr>
             ) : (
               sorted.map((p) => {
@@ -232,14 +231,14 @@ export default function PesquisaPage() {
                 const isNew = eff && Date.now() - new Date(eff).getTime() < 180 * 86400000;
                 return (
                   <tr key={p.asin} className="hover:bg-slate-50">
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-2.5">
                       <div className="flex items-center gap-3">
                         {p.imageUrl && (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={p.imageUrl} alt="" className="h-10 w-10 shrink-0 rounded object-contain" />
                         )}
                         <div className="min-w-0">
-                          <p className="max-w-[340px] truncate font-medium">
+                          <p className="max-w-[46ch] truncate font-medium">
                             {p.title || p.asin}
                             {p.isVariation && (
                               <span
@@ -257,38 +256,41 @@ export default function PesquisaPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums font-medium text-slate-700">
+                    <td className="px-3 py-2.5 text-right tabular-nums font-medium text-slate-700">
                       {money(p.price, p.currency)}
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-slate-600">
+                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">
                       {p.offerCount != null ? p.offerCount : "—"}
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-slate-600">
-                      {fmtDate(p.launchDate)}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      {age ? (
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                            isNew ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
-                          }`}
-                          title={
-                            p.isVariation && p.familyLaunchDate
-                              ? `Idade da linha (produto-pai ${p.parentAsin}), disponível desde ${fmtDate(p.familyLaunchDate)}`
-                              : `Disponível desde ${fmtDate(p.launchDate)}`
-                          }
-                        >
-                          {age}
+                    <td className="px-3 py-2.5 text-right">
+                      <div className="flex flex-col items-end gap-0.5">
+                        {age ? (
+                          <span
+                            className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${
+                              isNew ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
+                            }`}
+                            title={
+                              p.isVariation
+                                ? `Idade da linha (produto-pai ${p.parentAsin})`
+                                : "Idade do anúncio"
+                            }
+                          >
+                            {age}
+                            {p.isVariation && <span className="ml-1 opacity-60">·var</span>}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                        <span className="whitespace-nowrap text-[11px] text-slate-400">
+                          criado {fmtDate(p.launchDate)}
                         </span>
-                      ) : (
-                        "—"
-                      )}
+                      </div>
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-slate-600">
+                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">
                       {p.salesRank ? `#${p.salesRank.toLocaleString("pt-BR")}` : "—"}
                     </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-3">
+                    <td className="px-3 py-2.5 text-right">
+                      <div className="flex items-center justify-end gap-2">
                         <Link
                           href={`/calculadora?asin=${p.asin}`}
                           className="whitespace-nowrap rounded-md bg-orange-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-orange-700"
@@ -299,7 +301,7 @@ export default function PesquisaPage() {
                           href={`https://www.amazon.com.br/dp/${p.asin}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="whitespace-nowrap text-xs font-medium text-slate-400 hover:text-orange-600"
+                          className="whitespace-nowrap rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:border-orange-400 hover:text-orange-600"
                         >
                           abrir ↗
                         </a>

@@ -1,5 +1,6 @@
 import { spapiFetch } from "./spapi";
 import { swr } from "./swr";
+import type { Period } from "./period";
 
 // Finances API v0 — listFinancialEvents.
 // Agrega os eventos financeiros REAIS (repasses efetivos) da conta: receita,
@@ -64,14 +65,15 @@ export interface FinanceSummary {
  * Puxa e agrega os eventos financeiros dos últimos N dias.
  * Operação: listFinancialEvents — GET /finances/v0/financialEvents
  */
-export function getFinanceSummary(days: number): Promise<FinanceSummary> {
-  return swr(`finance:${days}`, 10 * 60_000, () => computeFinanceSummary(days), {
+export function getFinanceSummary(period: Period): Promise<FinanceSummary> {
+  return swr(`finance:${period.key}`, 10 * 60_000, () => computeFinanceSummary(period), {
     awaitIfEmpty: true,
   });
 }
 
-async function computeFinanceSummary(days: number): Promise<FinanceSummary> {
-  const postedAfter = new Date(Date.now() - days * 86_400_000).toISOString();
+async function computeFinanceSummary(period: Period): Promise<FinanceSummary> {
+  const postedAfter = period.startISO;
+  const postedBefore = period.endISO;
 
   let currency = "BRL";
   let revenue = 0;
@@ -87,7 +89,7 @@ async function computeFinanceSummary(days: number): Promise<FinanceSummary> {
   do {
     const query: Record<string, string | number | undefined> = nextToken
       ? { NextToken: nextToken }
-      : { PostedAfter: postedAfter, MaxResultsPerPage: 100 };
+      : { PostedAfter: postedAfter, PostedBefore: postedBefore, MaxResultsPerPage: 100 };
 
     const data = await spapiFetch<FinancialEventsResponse>(
       "/finances/v0/financialEvents",

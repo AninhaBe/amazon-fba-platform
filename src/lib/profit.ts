@@ -1,6 +1,7 @@
 import { getFinanceSummary, type FinanceSummary } from "./finances";
 import { getSalesVelocity } from "./orders";
 import { getCosts } from "./costStore";
+import type { Period } from "./period";
 
 export interface ProfitSummary {
   finance: FinanceSummary;
@@ -15,10 +16,10 @@ export interface ProfitSummary {
  * Lucro estimado do período: pega o repasse líquido real (Finances) e desconta
  * o custo das mercadorias vendidas (unidades vendidas por SKU × custo cadastrado).
  */
-export async function getProfitSummary(days: number): Promise<ProfitSummary> {
+export async function getProfitSummary(period: Period): Promise<ProfitSummary> {
   const [finance, velocity, costs] = await Promise.all([
-    getFinanceSummary(days),
-    getSalesVelocity({ days }),
+    getFinanceSummary(period),
+    getSalesVelocity({ period }),
     getCosts(),
   ]);
 

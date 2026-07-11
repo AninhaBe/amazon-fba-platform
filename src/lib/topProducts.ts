@@ -1,5 +1,6 @@
 import { getSalesVelocity } from "./orders";
 import { getProducts } from "./products";
+import type { Period } from "./period";
 
 export interface TopProduct {
   sku: string;
@@ -16,8 +17,8 @@ export interface TopProduct {
  * Produtos mais vendidos no período, com faturamento e margem.
  * Cruza a velocidade de venda (unidades por SKU) com preço e custo dos produtos.
  */
-export async function getTopProducts(days: number, limit = 10): Promise<TopProduct[]> {
-  const [velocity, products] = await Promise.all([getSalesVelocity({ days }), getProducts()]);
+export async function getTopProducts(period: Period, limit = 10): Promise<TopProduct[]> {
+  const [velocity, products] = await Promise.all([getSalesVelocity({ period }), getProducts()]);
   const bySku = new Map(products.map((p) => [p.id, p]));
 
   const rows: TopProduct[] = Object.entries(velocity.unitsBySku).map(([sku, units]) => {

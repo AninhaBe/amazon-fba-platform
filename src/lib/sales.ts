@@ -1,5 +1,6 @@
 import { spapiFetch, defaultMarketplaceId } from "./spapi";
 import { swr } from "./swr";
+import type { Period } from "./period";
 
 // Sales API v1 — getOrderMetrics. Série diária de faturamento para o gráfico.
 
@@ -30,17 +31,17 @@ function isoDate(d: Date): string {
 }
 
 export function getDailySales(
-  days: number,
+  period: Period,
   marketplaceId = defaultMarketplaceId()
 ): Promise<SalesSeries> {
-  return swr(`sales:${days}:${marketplaceId}`, 10 * 60_000, () => fetchDailySales(days, marketplaceId), {
+  return swr(`sales:${period.key}:${marketplaceId}`, 10 * 60_000, () => fetchDailySales(period, marketplaceId), {
     awaitIfEmpty: true,
   });
 }
 
-async function fetchDailySales(days: number, marketplaceId: string): Promise<SalesSeries> {
-  const end = new Date();
-  const start = new Date(Date.now() - days * 86_400_000);
+async function fetchDailySales(period: Period, marketplaceId: string): Promise<SalesSeries> {
+  const start = new Date(period.startISO);
+  const end = new Date(period.endISO);
   // Intervalo em fronteiras de dia no fuso do Brasil.
   const interval = `${isoDate(start)}T00:00:00-03:00--${isoDate(end)}T00:00:00-03:00`;
 

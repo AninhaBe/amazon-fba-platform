@@ -1,5 +1,6 @@
 import { getInventory, type StockItem } from "./inventory";
 import { getSalesVelocity } from "./orders";
+import type { Period } from "./period";
 
 export type StockStatus = "out" | "critical" | "low" | "ok" | "overstock" | "idle";
 
@@ -26,16 +27,16 @@ function classify(item: StockItem, perDay: number, daysRemaining: number | null)
 }
 
 /** Monta o radar de estoque: estoque atual + velocidade → dias restantes + status. */
-export async function getStockRadar(days: number): Promise<RadarRow[]> {
+export async function getStockRadar(period: Period): Promise<RadarRow[]> {
   // Estoque e velocidade em paralelo.
   const [inventory, velocity] = await Promise.all([
     getInventory(),
-    getSalesVelocity({ days }),
+    getSalesVelocity({ period }),
   ]);
 
   const rows: RadarRow[] = inventory.map((item) => {
     const unitsSold = velocity.unitsBySku[item.sellerSku] ?? 0;
-    const perDay = unitsSold / days;
+    const perDay = unitsSold / period.days;
     const daysRemaining = perDay > 0 ? item.fulfillable / perDay : null;
     return {
       ...item,

@@ -61,7 +61,7 @@ export default function RootLayout({
               <NavLinks variant="top" />
             </header>
 
-            <main className="mx-auto w-full max-w-5xl flex-1 px-5 py-8 sm:px-8">{children}</main>
+            <main className="mx-auto w-full max-w-7xl flex-1 px-5 py-8 sm:px-8">{children}</main>
           </div>
         </div>
       </body>

@@ -51,6 +51,9 @@ interface TopProduct {
 
 export default function Dashboard() {
   const [days, setDays] = useState(30);
+  const [custom, setCustom] = useState(false);
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<OrdersData | null>(null);
   const [profit, setProfit] = useState<ProfitData | null>(null);
@@ -61,7 +64,11 @@ export default function Dashboard() {
   const [productsLoading, setProductsLoading] = useState(true);
   const [errors, setErrors] = useState<string[]>([]);
 
+  // Query de período: preset (days) ou personalizado (from/to). null = aguardar datas.
+  const periodQuery = custom ? (from && to ? `from=${from}&to=${to}` : null) : `days=${days}`;
+
   useEffect(() => {
+    if (!periodQuery) return; // personalizado sem as duas datas ainda
     let active = true;
     setLoading(true);
     const errs: string[] = [];
@@ -76,10 +83,10 @@ export default function Dashboard() {
 
     // Chamadas rápidas — controlam o "loading" do dashboard.
     Promise.all([
-      safe<OrdersData>(`/api/orders?days=${days}`, setOrders, (d) => d as OrdersData, "pedidos"),
-      safe<ProfitData>(`/api/profit?days=${days}`, setProfit, (d) => (d as { summary: ProfitData }).summary, "financeiro"),
-      safe<RadarRow[]>(`/api/radar?days=${days}`, setRadar, (d) => (d as { rows: RadarRow[] }).rows, "estoque"),
-      safe<SalesSeries>(`/api/sales?days=${days}`, setSales, (d) => (d as { series: SalesSeries }).series, "vendas"),
+      safe<OrdersData>(`/api/orders?${periodQuery}`, setOrders, (d) => d as OrdersData, "pedidos"),
+      safe<ProfitData>(`/api/profit?${periodQuery}`, setProfit, (d) => (d as { summary: ProfitData }).summary, "financeiro"),
+      safe<RadarRow[]>(`/api/radar?${periodQuery}`, setRadar, (d) => (d as { rows: RadarRow[] }).rows, "estoque"),
+      safe<SalesSeries>(`/api/sales?${periodQuery}`, setSales, (d) => (d as { series: SalesSeries }).series, "vendas"),
     ]).then(() => {
       if (active) {
         setErrors(errs);
@@ -92,12 +99,12 @@ export default function Dashboard() {
     safe<ProductRow[]>(`/api/products`, setProducts, (d) => (d as { products: ProductRow[] }).products, "produtos").finally(
       () => active && setProductsLoading(false)
     );
-    safe<TopProduct[]>(`/api/top-products?days=${days}`, setTop, (d) => (d as { products: TopProduct[] }).products, "top produtos");
+    safe<TopProduct[]>(`/api/top-products?${periodQuery}`, setTop, (d) => (d as { products: TopProduct[] }).products, "top produtos");
 
     return () => {
       active = false;
     };
-  }, [days]);
+  }, [periodQuery]);
 
   const currency = profit?.finance.currency || orders?.metrics.currency || "BRL";
   const critical = radar.filter((r) => r.status === "critical" || r.status === "out");
@@ -124,16 +131,48 @@ export default function Dashboard() {
             Resumo de vendas, lucro e estoque da sua conta Amazon.
           </p>
         </div>
-        <select
-          value={days}
-          onChange={(e) => setDays(Number(e.target.value))}
-          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm"
-        >
-          <option value={7}>Últimos 7 dias</option>
-          <option value={30}>Últimos 30 dias</option>
-          <option value={90}>Últimos 90 dias</option>
-        </select>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={custom ? "custom" : String(days)}
+            onChange={(e) => {
+              if (e.target.value === "custom") {
+                setCustom(true);
+              } else {
+                setCustom(false);
+                setDays(Number(e.target.value));
+              }
+            }}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm"
+          >
+            <option value={7}>Últimos 7 dias</option>
+            <option value={30}>Últimos 30 dias</option>
+            <option value={90}>Últimos 90 dias</option>
+            <option value="custom">Personalizado…</option>
+          </select>
+          {custom && (
+            <div className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm shadow-sm">
+              <input
+                type="date"
+                value={from}
+                max={to || undefined}
+                onChange={(e) => setFrom(e.target.value)}
+                className="bg-transparent text-slate-700 focus:outline-none"
+              />
+              <span className="text-slate-400">até</span>
+              <input
+                type="date"
+                value={to}
+                min={from || undefined}
+                onChange={(e) => setTo(e.target.value)}
+                className="bg-transparent text-slate-700 focus:outline-none"
+              />
+            </div>
+          )}
+        </div>
       </div>
+      {custom && !periodQuery && (
+        <p className="-mt-4 text-xs text-slate-400">Escolha a data inicial e final para filtrar.</p>
+      )}
 
       {/* KPIs principais */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

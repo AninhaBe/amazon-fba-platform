@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOrders, summarizeOrders } from "@/lib/orders";
 import { cached } from "@/lib/cache";
+import { resolvePeriod } from "@/lib/period";
 import { withAccountContext } from "@/lib/withAccount";
 
 export const runtime = "nodejs";
@@ -9,14 +10,15 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   return withAccountContext(req, async () => {
   try {
-    const { searchParams } = new URL(req.url);
-    const days = Math.max(1, Math.min(90, Number(searchParams.get("days") || 30)));
+    const period = resolvePeriod(new URL(req.url).searchParams);
 
     // Cache/dedupe: monitor e dashboard pedem a mesma lista ao mesmo tempo.
-    const orders = await cached(`orders-list:${days}`, 120_000, async () => {
-      // A SP-API exige que CreatedAfter seja pelo menos 2 minutos antes de agora.
-      const createdAfter = new Date(Date.now() - days * 86_400_000).toISOString();
-      const res = await getOrders({ createdAfter, maxResults: 50 });
+    const orders = await cached(`orders-list:${period.key}`, 120_000, async () => {
+      const res = await getOrders({
+        createdAfter: period.startISO,
+        createdBefore: period.endISO,
+        maxResults: 50,
+      });
       return res.orders;
     });
     const metrics = summarizeOrders(orders);

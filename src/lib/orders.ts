@@ -1,5 +1,6 @@
 import { spapiFetch, defaultMarketplaceId } from "./spapi";
 import { cached } from "./cache";
+import type { Period } from "./period";
 
 export interface OrderSummary {
   amazonOrderId: string;
@@ -27,6 +28,7 @@ interface GetOrdersResponse {
  */
 export async function getOrders(params: {
   createdAfter: string; // ISO 8601, ex: 2026-06-01T00:00:00Z
+  createdBefore?: string; // fim do intervalo (ISO)
   marketplaceId?: string;
   orderStatuses?: string[];
   maxResults?: number;
@@ -34,6 +36,7 @@ export async function getOrders(params: {
 }): Promise<{ orders: OrderSummary[]; nextToken?: string }> {
   const {
     createdAfter,
+    createdBefore,
     marketplaceId = defaultMarketplaceId(),
     orderStatuses,
     maxResults = 50,
@@ -49,6 +52,7 @@ export async function getOrders(params: {
     query.NextToken = nextToken;
   } else {
     query.CreatedAfter = createdAfter;
+    if (createdBefore) query.CreatedBefore = createdBefore;
     if (orderStatuses?.length) query.OrderStatuses = orderStatuses.join(",");
   }
 
@@ -78,24 +82,22 @@ export interface SalesVelocity {
  * maxOrders para respeitar rate limits.
  */
 export function getSalesVelocity(params: {
-  days: number;
+  period: Period;
   marketplaceId?: string;
   maxOrders?: number;
 }): Promise<SalesVelocity> {
-  const { days, marketplaceId = defaultMarketplaceId(), maxOrders = 100 } = params;
+  const { period, marketplaceId = defaultMarketplaceId(), maxOrders = 100 } = params;
   // Cache/dedupe: profit e radar pedem isso ao mesmo tempo — compartilham 1 chamada.
-  return cached(`velocity:${days}:${marketplaceId}:${maxOrders}`, 120_000, () =>
-    computeSalesVelocity(days, marketplaceId, maxOrders)
+  return cached(`velocity:${period.key}:${marketplaceId}:${maxOrders}`, 120_000, () =>
+    computeSalesVelocity(period, marketplaceId, maxOrders)
   );
 }
 
 async function computeSalesVelocity(
-  days: number,
+  period: Period,
   marketplaceId: string,
   maxOrders: number
 ): Promise<SalesVelocity> {
-  const createdAfter = new Date(Date.now() - days * 86_400_000).toISOString();
-
   const unitsBySku: Record<string, number> = {};
   let nextToken: string | undefined;
   let processed = 0;
@@ -103,7 +105,8 @@ async function computeSalesVelocity(
 
   do {
     const page = await getOrders({
-      createdAfter,
+      createdAfter: period.startISO,
+      createdBefore: period.endISO,
       marketplaceId,
       orderStatuses: ["Shipped", "Unshipped", "PartiallyShipped"],
       maxResults: 50,
@@ -126,7 +129,7 @@ async function computeSalesVelocity(
     nextToken = processed >= maxOrders ? undefined : page.nextToken;
   } while (nextToken && ++guard < 20);
 
-  return { unitsBySku, days };
+  return { unitsBySku, days: period.days };
 }
 
 export interface OrderMetrics {
