@@ -29,6 +29,58 @@ export interface CurrentPrice {
   source: "buybox" | "lowest";
 }
 
+// ---- Preço competitivo + nº de ofertas em LOTE (até 20 ASINs por chamada) ----
+interface CompPriceResponse {
+  payload?: {
+    status?: string;
+    ASIN?: string;
+    Product?: {
+      CompetitivePricing?: {
+        CompetitivePrices?: { CompetitivePriceId?: string; Price?: { ListingPrice?: PriceAmount } }[];
+        NumberOfOfferListings?: { condition?: string; Count?: number }[];
+      };
+    };
+  }[];
+}
+
+export interface CompPrice {
+  price: number | null;
+  currency: string;
+  offerCount: number | null; // nº de ofertas "New" (≈ vendedores)
+}
+
+/**
+ * Preço competitivo (buy box) + nº de ofertas para vários ASINs de uma vez.
+ * Operação: getCompetitivePricing — GET /products/pricing/v0/competitivePrice
+ */
+export async function getCompetitivePricingBatch(
+  asins: string[],
+  marketplaceId = defaultMarketplaceId()
+): Promise<Map<string, CompPrice>> {
+  const map = new Map<string, CompPrice>();
+  if (!asins.length) return map;
+
+  const data = await spapiFetch<CompPriceResponse>("/products/pricing/v0/competitivePrice", {
+    query: { MarketplaceId: marketplaceId, ItemType: "Asin", Asins: asins.slice(0, 20).join(",") },
+  });
+
+  for (const p of data.payload ?? []) {
+    if (!p.ASIN) continue;
+    const cp = p.Product?.CompetitivePricing;
+    const listing = cp?.CompetitivePrices?.find((c) => c.CompetitivePriceId === "1")?.Price?.ListingPrice;
+    const offers =
+      cp?.NumberOfOfferListings?.find((o) => o.condition === "New")?.Count ??
+      cp?.NumberOfOfferListings?.find((o) => o.condition === "Any")?.Count ??
+      null;
+    map.set(p.ASIN, {
+      price: listing?.Amount ?? null,
+      currency: listing?.CurrencyCode ?? "BRL",
+      offerCount: offers,
+    });
+  }
+  return map;
+}
+
 /**
  * Puxa o preço atual de um ASIN no marketplace.
  * Operação: getItemOffers — GET /products/pricing/v0/items/{Asin}/offers

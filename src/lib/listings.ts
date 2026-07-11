@@ -1,5 +1,5 @@
 import { runReport, parseTsv } from "./reports";
-import { cached } from "./cache";
+import { swr } from "./swr";
 
 export interface Listing {
   sku: string;
@@ -10,11 +10,12 @@ export interface Listing {
 }
 
 /**
- * Lista TODOS os anúncios da conta (FBA e próprio) com preço de venda.
- * Relatório: GET_MERCHANT_LISTINGS_ALL_DATA. Cache de 10 min (relatório é lento).
+ * Lista TODOS os anúncios da conta com stale-while-revalidate.
+ * O relatório é lento (~20s), então NUNCA esperamos: devolve o cache na hora
+ * e atualiza em segundo plano. Relatório: GET_MERCHANT_LISTINGS_ALL_DATA.
  */
 export function getListings(): Promise<Listing[]> {
-  return cached("listings", 600_000, fetchListings);
+  return swr("listings", 30 * 60_000, fetchListings, { fallback: [] });
 }
 
 async function fetchListings(): Promise<Listing[]> {

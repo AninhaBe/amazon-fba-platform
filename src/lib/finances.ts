@@ -1,5 +1,5 @@
 import { spapiFetch } from "./spapi";
-import { cached } from "./cache";
+import { swr } from "./swr";
 
 // Finances API v0 — listFinancialEvents.
 // Agrega os eventos financeiros REAIS (repasses efetivos) da conta: receita,
@@ -65,7 +65,9 @@ export interface FinanceSummary {
  * Operação: listFinancialEvents — GET /finances/v0/financialEvents
  */
 export function getFinanceSummary(days: number): Promise<FinanceSummary> {
-  return cached(`finance:${days}`, 120_000, () => computeFinanceSummary(days));
+  return swr(`finance:${days}`, 10 * 60_000, () => computeFinanceSummary(days), {
+    awaitIfEmpty: true,
+  });
 }
 
 async function computeFinanceSummary(days: number): Promise<FinanceSummary> {

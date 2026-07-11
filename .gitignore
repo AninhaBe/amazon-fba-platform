@@ -42,3 +42,6 @@ next-env.d.ts
 
 # Dados locais (custos cadastrados)
 /data
+
+# ngrok binario local
+/.tools

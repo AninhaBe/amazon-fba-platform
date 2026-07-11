@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { saveAccount } from "@/lib/accountStore";
 import { ACTIVE_COOKIE } from "@/lib/withAccount";
+import { oauthClientCreds } from "@/lib/spapi";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,13 +27,15 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // Troca o spapi_oauth_code por um refresh token (grant authorization_code).
+    // Troca o spapi_oauth_code por um refresh token (grant authorization_code),
+    // usando as credenciais do app do OAuth (app-dash).
+    const creds = oauthClientCreds();
     const body = new URLSearchParams({
       grant_type: "authorization_code",
       code,
       redirect_uri: `${baseUrl}/api/auth/callback`,
-      client_id: process.env.LWA_CLIENT_ID || "",
-      client_secret: process.env.LWA_CLIENT_SECRET || "",
+      client_id: creds.id,
+      client_secret: creds.secret,
     });
     const res = await fetch("https://api.amazon.com/auth/o2/token", {
       method: "POST",

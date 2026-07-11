@@ -5,6 +5,10 @@ interface Dimension {
   unit: string;
   value: number;
 }
+interface RankEntry {
+  title?: string;
+  rank: number;
+}
 interface CatalogItemResponse {
   asin?: string;
   summaries?: { marketplaceId: string; itemName?: string; brand?: string }[];
@@ -21,6 +25,14 @@ interface CatalogItemResponse {
       weight?: Dimension;
     };
   }[];
+  attributes?: {
+    product_site_launch_date?: { value: string; marketplace_id: string }[];
+  };
+  salesRanks?: {
+    marketplaceId: string;
+    classificationRanks?: RankEntry[];
+    displayGroupRanks?: RankEntry[];
+  }[];
 }
 
 export interface ItemInfo {
@@ -28,6 +40,8 @@ export interface ItemInfo {
   title?: string;
   brand?: string;
   imageUrl?: string;
+  launchDate?: string; // data de disponibilização do anúncio (Date First Available)
+  salesRank?: { rank: number; category?: string }; // BSR
   dimensionsCm?: { length: number; width: number; height: number };
   volumeM3?: number;
   storageTier?: "small" | "large";
@@ -55,7 +69,12 @@ export async function getItemInfo(
 ): Promise<ItemInfo> {
   const data = await spapiFetch<CatalogItemResponse>(
     `/catalog/2022-04-01/items/${encodeURIComponent(asin)}`,
-    { query: { marketplaceIds: marketplaceId, includedData: "summaries,images,dimensions" } }
+    {
+      query: {
+        marketplaceIds: marketplaceId,
+        includedData: "summaries,images,dimensions,attributes,salesRanks",
+      },
+    }
   );
 
   const summary = data.summaries?.[0];
@@ -72,7 +91,14 @@ export async function getItemInfo(
     title: summary?.itemName,
     brand: summary?.brand,
     imageUrl: biggest?.link,
+    launchDate: data.attributes?.product_site_launch_date?.[0]?.value,
   };
+
+  const ranks = data.salesRanks?.[0];
+  const bestRank = ranks?.displayGroupRanks?.[0] ?? ranks?.classificationRanks?.[0];
+  if (bestRank) {
+    info.salesRank = { rank: bestRank.rank, category: bestRank.title };
+  }
 
   if (length && width && height) {
     const dims = {

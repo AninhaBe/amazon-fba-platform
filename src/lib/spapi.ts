@@ -2,7 +2,7 @@
 // A Amazon descontinuou a exigência de AWS SigV4/role ARN — hoje basta o token LWA.
 // Multi-conta: o token vem da conta ativa (AsyncLocalStorage); fallback para o .env.
 
-import { currentRefreshToken } from "./accountContext";
+import { currentAccount } from "./accountContext";
 
 const REGION_HOSTS: Record<string, string> = {
   NA: "https://sellingpartnerapi-na.amazon.com",
@@ -40,13 +40,25 @@ function baseUrl(): string {
 // --- Cache do access_token por refresh token (expira em ~1h) ---
 const tokenCache = new Map<string, { value: string; expiresAt: number }>();
 
-/** Troca um refresh token por um access token LWA. */
-export async function exchangeRefreshToken(refreshToken: string): Promise<string> {
+/** Credenciais LWA do app do OAuth (app-dash). Caem para as do .env se não definidas. */
+export function oauthClientCreds(): { id: string; secret: string } {
+  return {
+    id: process.env.OAUTH_CLIENT_ID || env("LWA_CLIENT_ID"),
+    secret: process.env.OAUTH_CLIENT_SECRET || env("LWA_CLIENT_SECRET"),
+  };
+}
+
+/** Troca um refresh token por um access token LWA, com as credenciais informadas. */
+export async function exchangeRefreshToken(
+  refreshToken: string,
+  clientId: string,
+  clientSecret: string
+): Promise<string> {
   const body = new URLSearchParams({
     grant_type: "refresh_token",
     refresh_token: refreshToken,
-    client_id: env("LWA_CLIENT_ID"),
-    client_secret: env("LWA_CLIENT_SECRET"),
+    client_id: clientId,
+    client_secret: clientSecret,
   });
 
   const res = await fetch(LWA_TOKEN_URL, {
@@ -66,15 +78,30 @@ export async function exchangeRefreshToken(refreshToken: string): Promise<string
 }
 
 export async function getAccessToken(): Promise<string> {
-  // Token da conta ativa (OAuth); se não houver, usa o do .env (conta dona).
-  const refreshToken = currentRefreshToken() || env("LWA_REFRESH_TOKEN");
+  const acct = currentAccount();
+  let refreshToken: string;
+  let clientId: string;
+  let clientSecret: string;
+
+  if (acct) {
+    // Conta conectada via OAuth → credenciais do app-dash.
+    refreshToken = acct.refreshToken;
+    const c = oauthClientCreds();
+    clientId = c.id;
+    clientSecret = c.secret;
+  } else {
+    // Conta dona → credenciais do .env (app antigo).
+    refreshToken = env("LWA_REFRESH_TOKEN");
+    clientId = env("LWA_CLIENT_ID");
+    clientSecret = env("LWA_CLIENT_SECRET");
+  }
 
   const cached = tokenCache.get(refreshToken);
   if (cached && Date.now() < cached.expiresAt - 60_000) {
     return cached.value;
   }
 
-  const value = await exchangeRefreshToken(refreshToken);
+  const value = await exchangeRefreshToken(refreshToken, clientId, clientSecret);
   tokenCache.set(refreshToken, { value, expiresAt: Date.now() + 3600 * 1000 });
   return value;
 }

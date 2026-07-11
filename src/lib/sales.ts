@@ -1,5 +1,5 @@
 import { spapiFetch, defaultMarketplaceId } from "./spapi";
-import { cached } from "./cache";
+import { swr } from "./swr";
 
 // Sales API v1 — getOrderMetrics. Série diária de faturamento para o gráfico.
 
@@ -33,9 +33,9 @@ export function getDailySales(
   days: number,
   marketplaceId = defaultMarketplaceId()
 ): Promise<SalesSeries> {
-  return cached(`sales:${days}:${marketplaceId}`, 120_000, () =>
-    fetchDailySales(days, marketplaceId)
-  );
+  return swr(`sales:${days}:${marketplaceId}`, 10 * 60_000, () => fetchDailySales(days, marketplaceId), {
+    awaitIfEmpty: true,
+  });
 }
 
 async function fetchDailySales(days: number, marketplaceId: string): Promise<SalesSeries> {

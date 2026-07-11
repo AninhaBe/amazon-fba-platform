@@ -1,5 +1,5 @@
 import { spapiFetch, defaultMarketplaceId } from "./spapi";
-import { cached } from "./cache";
+import { swr } from "./swr";
 
 // FBA Inventory API v1 — getInventorySummaries. Estoque em tempo real por SKU.
 
@@ -38,9 +38,12 @@ export interface StockItem {
   total: number;
 }
 
-/** Lista o estoque FBA por SKU (paginando tudo). Com cache/dedupe de 2 min. */
+/** Lista o estoque FBA por SKU. Cache em disco (SWR): espera na 1ª vez, instantâneo depois. */
 export function getInventory(marketplaceId = defaultMarketplaceId()): Promise<StockItem[]> {
-  return cached(`inventory:${marketplaceId}`, 120_000, () => fetchInventory(marketplaceId));
+  return swr(`inventory:${marketplaceId}`, 10 * 60_000, () => fetchInventory(marketplaceId), {
+    awaitIfEmpty: true,
+    fallback: [],
+  });
 }
 
 async function fetchInventory(marketplaceId: string): Promise<StockItem[]> {

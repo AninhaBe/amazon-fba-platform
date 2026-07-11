@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface ModeFees {
   totalFees: number;
@@ -60,17 +60,19 @@ export default function CalculatorPage() {
     estimatedStorageFee?: number;
   } | null>(null);
 
-  async function fetchPrice() {
-    if (!asin.trim()) {
+  async function fetchPrice(asinOverride?: string) {
+    const target = (asinOverride ?? asin).trim();
+    if (!target) {
       setPriceError("Informe o ASIN primeiro.");
       return;
     }
+    if (asinOverride) setAsin(asinOverride);
     setPriceError(null);
     setProduct(null);
     setFetchingPrice(true);
-    setLastFetchedAsin(asin.trim());
+    setLastFetchedAsin(target);
     try {
-      const res = await fetch(`/api/price?asin=${encodeURIComponent(asin.trim())}`);
+      const res = await fetch(`/api/price?asin=${encodeURIComponent(target)}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erro ao buscar preço.");
       setPrice(String(data.price.listingPrice));
@@ -91,6 +93,13 @@ export default function CalculatorPage() {
       setFetchingPrice(false);
     }
   }
+
+  // Ao abrir com ?asin=... (vindo da Pesquisa), preenche e já busca o preço.
+  useEffect(() => {
+    const a = new URLSearchParams(window.location.search).get("asin");
+    if (a) fetchPrice(a);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function calculate(e: React.FormEvent) {
     e.preventDefault();
@@ -198,7 +207,7 @@ export default function CalculatorPage() {
             />
             <button
               type="button"
-              onClick={fetchPrice}
+              onClick={() => fetchPrice()}
               disabled={fetchingPrice}
               className="whitespace-nowrap rounded-lg border border-orange-600 px-4 py-2 text-sm font-medium text-orange-600 hover:bg-orange-50 disabled:opacity-50"
             >
