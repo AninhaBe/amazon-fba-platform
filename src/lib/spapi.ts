@@ -18,6 +18,92 @@ const SANDBOX_HOSTS: Record<string, string> = {
 
 const LWA_TOKEN_URL = "https://api.amazon.com/auth/o2/token";
 
+// --- Erros tipados da SP-API ---
+// Traduzem o erro cru da Amazon numa mensagem para a equipe + metadados para o log.
+export type SpApiErrorCode =
+  | "AMAZON_AUTH_EXPIRED" // 401 / refresh token inválido → reconectar conta
+  | "AMAZON_FORBIDDEN" // 403 → verificar roles do app
+  | "AMAZON_NOT_FOUND" // 404
+  | "AMAZON_RATE_LIMIT" // 429 → tentar de novo
+  | "AMAZON_BAD_REQUEST" // 400
+  | "AMAZON_UNAVAILABLE" // 5xx → retry
+  | "AMAZON_ERROR"; // fallback
+
+export class SpApiError extends Error {
+  constructor(
+    public code: SpApiErrorCode,
+    public status: number,
+    public retryable: boolean,
+    /** Mensagem amigável, exibível para a equipe. */
+    public userMessage: string,
+    /** Endpoint chamado (ex.: /orders/v0/orders). */
+    public endpoint: string,
+    /** Detalhe técnico cru da Amazon — só para log, nunca para a UI. */
+    public technicalDetail: string,
+    /** x-amzn-RequestId da Amazon, útil para abrir caso no suporte. */
+    public amazonRequestId?: string
+  ) {
+    super(userMessage);
+    this.name = "SpApiError";
+  }
+}
+
+function friendlyForStatus(status: number): {
+  code: SpApiErrorCode;
+  retryable: boolean;
+  message: string;
+} {
+  switch (status) {
+    case 401:
+      return {
+        code: "AMAZON_AUTH_EXPIRED",
+        retryable: false,
+        message: "A conexão com a Amazon precisa ser renovada. Reconecte a conta.",
+      };
+    case 403:
+      return {
+        code: "AMAZON_FORBIDDEN",
+        retryable: false,
+        message:
+          "A conta não tem permissão para consultar esses dados (verifique as roles do app na Amazon).",
+      };
+    case 404:
+      return {
+        code: "AMAZON_NOT_FOUND",
+        retryable: false,
+        message: "A Amazon não encontrou esse recurso.",
+      };
+    case 429:
+      return {
+        code: "AMAZON_RATE_LIMIT",
+        retryable: true,
+        message:
+          "A Amazon está limitando temporariamente as consultas. Tente novamente em instantes.",
+      };
+    case 400:
+      return {
+        code: "AMAZON_BAD_REQUEST",
+        retryable: false,
+        message: "Requisição inválida à Amazon.",
+      };
+    case 500:
+    case 502:
+    case 503:
+    case 504:
+      return {
+        code: "AMAZON_UNAVAILABLE",
+        retryable: true,
+        message: "A Amazon está temporariamente indisponível. Tente novamente.",
+      };
+    default:
+      return {
+        code: "AMAZON_ERROR",
+        retryable: status >= 500,
+        message: "Não foi possível carregar os dados da Amazon.",
+      };
+  }
+}
+
 function env(name: string, required = true): string {
   const v = process.env[name];
   if (required && !v) {
@@ -70,8 +156,14 @@ export async function exchangeRefreshToken(
 
   const data = await res.json();
   if (!res.ok) {
-    throw new Error(
-      `Falha ao obter access_token LWA (${res.status}): ${data.error_description || data.error || "erro desconhecido"}`
+    // Falha no LWA quase sempre = refresh token revogado/expirado → reconectar.
+    throw new SpApiError(
+      "AMAZON_AUTH_EXPIRED",
+      res.status,
+      false,
+      "A conexão com a Amazon precisa ser renovada. Reconecte a conta.",
+      "lwa/token",
+      `${data.error || "erro"}: ${data.error_description || "sem detalhe"}`
     );
   }
   return data.access_token as string;
@@ -156,7 +248,20 @@ export async function spapiFetch<T = unknown>(
       const detail =
         data?.errors?.map((e: { message: string }) => e.message).join("; ") ||
         JSON.stringify(data);
-      throw new Error(`SP-API ${res.status} em ${path}: ${detail}`);
+      const amazonRequestId =
+        res.headers.get("x-amzn-RequestId") ||
+        res.headers.get("x-amzn-requestid") ||
+        undefined;
+      const f = friendlyForStatus(res.status);
+      throw new SpApiError(
+        f.code,
+        res.status,
+        f.retryable,
+        f.message,
+        path,
+        detail,
+        amazonRequestId
+      );
     }
     return data as T;
   }

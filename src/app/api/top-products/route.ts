@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { errorResponse } from "@/lib/apiError";
 import { getTopProducts } from "@/lib/topProducts";
 import { resolvePeriod } from "@/lib/period";
 import { withAccountContext } from "@/lib/withAccount";
@@ -12,8 +13,7 @@ export async function GET(req: NextRequest) {
       const products = await getTopProducts(resolvePeriod(new URL(req.url).searchParams), 10);
       return NextResponse.json({ products });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Erro desconhecido";
-      return NextResponse.json({ error: message }, { status: 500 });
+      return errorResponse(err);
     }
   });
 }

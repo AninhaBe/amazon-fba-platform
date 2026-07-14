@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { errorResponse } from "@/lib/apiError";
 import { getProducts } from "@/lib/products";
 import { withAccountContext } from "@/lib/withAccount";
 
@@ -11,8 +12,7 @@ export async function GET(req: NextRequest) {
       const products = await getProducts();
       return NextResponse.json({ products });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Erro desconhecido";
-      return NextResponse.json({ error: message }, { status: 500 });
+      return errorResponse(err);
     }
   });
 }

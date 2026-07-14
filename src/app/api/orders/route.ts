@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { errorResponse } from "@/lib/apiError";
 import { getOrders, summarizeOrders } from "@/lib/orders";
 import { cached } from "@/lib/cache";
 import { resolvePeriod } from "@/lib/period";
@@ -25,8 +26,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ metrics, orders });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Erro desconhecido";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return errorResponse(err);
   }
   });
 }

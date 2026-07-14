@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { errorResponse } from "@/lib/apiError";
 import { getFeesEstimateForAsin } from "@/lib/fees";
 import { withAccountContext } from "@/lib/withAccount";
 
@@ -38,8 +39,7 @@ export async function POST(req: NextRequest) {
       fbm: pack(fbm),
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Erro desconhecido";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return errorResponse(err);
   }
   });
 }
