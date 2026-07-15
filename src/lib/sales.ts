@@ -30,6 +30,14 @@ function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+// Wall clock no fuso do Brasil (-03:00, sem horário de verão desde 2019).
+// Desloca 3h e lê os campos UTC para obter a hora local de Brasília.
+function brOffsetIso(d: Date): string {
+  const br = new Date(d.getTime() - 3 * 3600_000);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${br.getUTCFullYear()}-${p(br.getUTCMonth() + 1)}-${p(br.getUTCDate())}T${p(br.getUTCHours())}:${p(br.getUTCMinutes())}:${p(br.getUTCSeconds())}-03:00`;
+}
+
 export function getDailySales(
   period: Period,
   marketplaceId = defaultMarketplaceId()
@@ -42,8 +50,10 @@ export function getDailySales(
 async function fetchDailySales(period: Period, marketplaceId: string): Promise<SalesSeries> {
   const start = new Date(period.startISO);
   const end = new Date(period.endISO);
-  // Intervalo em fronteiras de dia no fuso do Brasil.
-  const interval = `${isoDate(start)}T00:00:00-03:00--${isoDate(end)}T00:00:00-03:00`;
+  // Começa na fronteira do dia inicial e termina no horário ATUAL — assim o dia
+  // de hoje (ainda parcial) entra na série. granularity=Day devolve o bucket de
+  // hoje em aberto, refletindo as vendas até agora.
+  const interval = `${isoDate(start)}T00:00:00-03:00--${brOffsetIso(end)}`;
 
   const data = await spapiFetch<{ payload?: OrderMetric[] }>("/sales/v1/orderMetrics", {
     query: {
