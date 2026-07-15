@@ -1,8 +1,10 @@
 import fs from "fs/promises";
 import path from "path";
 import { dataFile } from "./dataDir";
+import { hasDb, dbQuery } from "./db";
 
-// Cadastro de custos por produto, persistido em <DATA_DIR>/costs.json.
+// Cadastro de custos por produto. Persistido no Postgres (Supabase) quando
+// DATABASE_URL está definido; senão, em <DATA_DIR>/costs.json (dev local).
 // Chave = SellerSKU quando existe (bate com os pedidos), senão o ASIN.
 
 const FILE = dataFile("costs.json");
@@ -41,11 +43,38 @@ export function costAt(entry: CostEntry, dateISO: string): number {
   return result;
 }
 
+// ---------- Postgres ----------
+
+interface CostRow {
+  id: string;
+  sku: string | null;
+  asin: string | null;
+  title: string | null;
+  image_url: string | null;
+  cost: string | number;
+  updated_at: Date | string;
+  history: CostChange[];
+}
+
+function rowToCost(r: CostRow): CostEntry {
+  return normalize({
+    id: r.id,
+    sku: r.sku ?? undefined,
+    asin: r.asin ?? undefined,
+    title: r.title ?? undefined,
+    imageUrl: r.image_url ?? undefined,
+    cost: Number(r.cost) || 0,
+    updatedAt: new Date(r.updated_at).toISOString(),
+    history: Array.isArray(r.history) ? r.history : [],
+  });
+}
+
+// ---------- Arquivo JSON (fallback local) ----------
+
 async function readAll(): Promise<Record<string, CostEntry>> {
   try {
     const txt = await fs.readFile(FILE, "utf8");
     const raw = JSON.parse(txt) as Record<string, CostEntry>;
-    // normaliza na leitura → arquivos antigos (sem history) continuam funcionando.
     const out: Record<string, CostEntry> = {};
     for (const [k, v] of Object.entries(raw)) out[k] = normalize(v);
     return out;
@@ -59,39 +88,77 @@ async function writeAll(data: Record<string, CostEntry>): Promise<void> {
   await fs.writeFile(FILE, JSON.stringify(data, null, 2), "utf8");
 }
 
+// ---------- API pública ----------
+
 export async function getCosts(): Promise<Record<string, CostEntry>> {
+  if (hasDb()) {
+    const rows = await dbQuery<CostRow>(
+      `SELECT id, sku, asin, title, image_url, cost, updated_at, history FROM product_costs`
+    );
+    const out: Record<string, CostEntry> = {};
+    for (const r of rows) out[r.id] = rowToCost(r);
+    return out;
+  }
   return readAll();
 }
 
 export async function setCost(
   entry: Omit<CostEntry, "updatedAt" | "history"> & { updatedAt?: string }
 ): Promise<CostEntry> {
-  const all = await readAll();
   const now = new Date().toISOString();
-  const existing = all[entry.id];
   const cost = Number(entry.cost) || 0;
 
-  // Só registra nova vigência quando o custo realmente muda (não a cada edição
-  // de título/imagem). Assim o histórico reflete mudanças de custo, não ruído.
-  const history = existing ? [...existing.history] : [];
-  const currentCost = history.length ? history[history.length - 1].cost : undefined;
-  if (currentCost === undefined || currentCost !== cost) {
-    history.push({ cost, from: now });
+  if (hasDb()) {
+    const existing = await dbQuery<{ history: CostChange[] }>(
+      `SELECT history FROM product_costs WHERE id = $1`,
+      [entry.id]
+    );
+    const history = existing[0] && Array.isArray(existing[0].history) ? [...existing[0].history] : [];
+    const currentCost = history.length ? history[history.length - 1].cost : undefined;
+    if (currentCost === undefined || currentCost !== cost) history.push({ cost, from: now });
+
+    const rows = await dbQuery<CostRow>(
+      `INSERT INTO product_costs (id, sku, asin, title, image_url, cost, updated_at, history)
+         VALUES ($1, $2, $3, $4, $5, $6, now(), $7::jsonb)
+       ON CONFLICT (id) DO UPDATE SET
+         sku       = COALESCE(EXCLUDED.sku, product_costs.sku),
+         asin      = COALESCE(EXCLUDED.asin, product_costs.asin),
+         title     = COALESCE(EXCLUDED.title, product_costs.title),
+         image_url = COALESCE(EXCLUDED.image_url, product_costs.image_url),
+         cost      = EXCLUDED.cost,
+         updated_at = now(),
+         history   = EXCLUDED.history
+       RETURNING id, sku, asin, title, image_url, cost, updated_at, history`,
+      [
+        entry.id,
+        entry.sku ?? null,
+        entry.asin ?? null,
+        entry.title ?? null,
+        entry.imageUrl ?? null,
+        cost,
+        JSON.stringify(history),
+      ]
+    );
+    return rowToCost(rows[0]);
   }
 
-  const merged: CostEntry = {
-    ...existing,
-    ...entry,
-    cost,
-    updatedAt: now,
-    history,
-  };
+  const all = await readAll();
+  const existing = all[entry.id];
+  const history = existing ? [...existing.history] : [];
+  const currentCost = history.length ? history[history.length - 1].cost : undefined;
+  if (currentCost === undefined || currentCost !== cost) history.push({ cost, from: now });
+
+  const merged: CostEntry = { ...existing, ...entry, cost, updatedAt: now, history };
   all[entry.id] = merged;
   await writeAll(all);
   return merged;
 }
 
 export async function removeCost(id: string): Promise<void> {
+  if (hasDb()) {
+    await dbQuery(`DELETE FROM product_costs WHERE id = $1`, [id]);
+    return;
+  }
   const all = await readAll();
   if (all[id]) {
     delete all[id];

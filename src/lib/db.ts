@@ -1,0 +1,63 @@
+import { Pool } from "pg";
+
+// Camada Postgres (Supabase). Quando DATABASE_URL está definido, os dados que
+// precisam persistir (contas conectadas + custos) vão para o banco; senão, os
+// stores caem no arquivo JSON local (dev sem banco continua funcionando).
+
+let pool: Pool | null = null;
+let schemaReady: Promise<void> | null = null;
+
+/** true quando há um banco configurado (produção/Render com Supabase). */
+export function hasDb(): boolean {
+  return !!process.env.DATABASE_URL;
+}
+
+function getPool(): Pool {
+  if (!pool) {
+    pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      // Supabase exige SSL. rejectUnauthorized:false evita erro de CA no Render.
+      ssl: { rejectUnauthorized: false },
+      max: 5,
+    });
+  }
+  return pool;
+}
+
+async function createSchema(): Promise<void> {
+  await getPool().query(`
+    CREATE TABLE IF NOT EXISTS accounts (
+      seller_id     TEXT PRIMARY KEY,
+      refresh_token TEXT NOT NULL,
+      name          TEXT,
+      marketplace   TEXT,
+      connected_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS product_costs (
+      id         TEXT PRIMARY KEY,
+      sku        TEXT,
+      asin       TEXT,
+      title      TEXT,
+      image_url  TEXT,
+      cost       NUMERIC(12,2) NOT NULL DEFAULT 0,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      history    JSONB NOT NULL DEFAULT '[]'::jsonb
+    );
+  `);
+}
+
+/** Garante que as tabelas existam (idempotente, roda uma vez por processo). */
+function ensureSchema(): Promise<void> {
+  if (!schemaReady) schemaReady = createSchema();
+  return schemaReady;
+}
+
+/** Executa uma query e retorna as linhas (cria o schema na primeira chamada). */
+export async function dbQuery<T = Record<string, unknown>>(
+  text: string,
+  params: unknown[] = []
+): Promise<T[]> {
+  await ensureSchema();
+  const res = await getPool().query(text, params);
+  return res.rows as T[];
+}

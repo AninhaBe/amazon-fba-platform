@@ -33,6 +33,16 @@ infra de SaaS antes de ter SaaS.
 
 ---
 
+### Persistência de contas + custos no Postgres (Supabase)
+- Motivado por um problema real: no Render (free) o disco é **efêmero**, então
+  `accounts.json`/`costs.json` sumiam a cada deploy (a conexão OAuth caía).
+- `src/lib/db.ts` (pool `pg` lazy + SSL Supabase + criação de schema idempotente).
+  `accountStore` e `costStore` gravam no Postgres quando `DATABASE_URL` está
+  definido; **fallback para JSON** no dev local (sem banco continua funcionando).
+- Tabelas: `accounts` e `product_costs` (custo + `history` em jsonb).
+- **Ainda NÃO** é a sincronização de pedidos — isso continua na Fase 1 abaixo.
+  Aqui foi só resolver a perda de estado (contas/custos).
+
 ## 🔜 Fase 1 — quando houver volume de pedidos real
 
 O maior ganho: **sincronizar para um banco em vez de consultar a Amazon a cada tela.**
