@@ -10,7 +10,8 @@ const FILE = dataFile("accounts.json");
 export interface Account {
   sellerId: string; // selling_partner_id devolvido pela Amazon
   refreshToken: string;
-  name?: string;
+  name?: string; // apelido definido pelo usuário (tem prioridade na exibição)
+  marketplace?: string; // nome do marketplace, preenchido automaticamente (ex.: "Amazon.com.br")
   connectedAt: string;
 }
 
@@ -41,6 +42,15 @@ export async function saveAccount(a: Omit<Account, "connectedAt"> & { connectedA
   all[a.sellerId] = merged;
   await writeAll(all);
   return merged;
+}
+
+/** Define (ou limpa) o apelido de uma conta, sem tocar em token/connectedAt. */
+export async function setAccountName(sellerId: string, name: string): Promise<void> {
+  const all = await readAll();
+  if (all[sellerId]) {
+    all[sellerId].name = name.trim() || undefined;
+    await writeAll(all);
+  }
 }
 
 export async function removeAccount(sellerId: string): Promise<void> {

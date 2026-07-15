@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { saveAccount } from "@/lib/accountStore";
 import { ACTIVE_COOKIE } from "@/lib/withAccount";
 import { oauthClientCreds } from "@/lib/spapi";
+import { runWithAccount } from "@/lib/accountContext";
+import { getMarketplaceName } from "@/lib/sellers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -47,7 +49,18 @@ export async function GET(req: NextRequest) {
       return fail(data.error_description || data.error || "Falha ao obter o token.");
     }
 
-    await saveAccount({ sellerId, refreshToken: data.refresh_token });
+    // Descobre o nome do marketplace usando o token da conta recém-conectada
+    // (falha silenciosa — não trava a conexão se a role não estiver concedida).
+    const marketplace = await runWithAccount(
+      { sellerId, refreshToken: data.refresh_token },
+      () => getMarketplaceName()
+    );
+
+    await saveAccount({
+      sellerId,
+      refreshToken: data.refresh_token,
+      marketplace: marketplace ?? undefined,
+    });
 
     // Define a conta ativa e limpa o state.
     const redirect = NextResponse.redirect(`${baseUrl}/?connected=1`);

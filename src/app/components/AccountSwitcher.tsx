@@ -2,14 +2,28 @@
 
 import { useEffect, useState } from "react";
 
+interface Acct {
+  sellerId: string;
+  name?: string;
+  marketplace?: string;
+  connectedAt: string;
+}
 interface AccountInfo {
   active: string | null;
   hasOwnerToken: boolean;
-  accounts: { sellerId: string; name?: string; connectedAt: string }[];
+  accounts: Acct[];
+}
+
+/** Nome exibível: apelido do usuário > marketplace > seller id. */
+function labelOf(a: Acct): string {
+  return a.name || a.marketplace || a.sellerId;
 }
 
 export function AccountSwitcher() {
   const [info, setInfo] = useState<AccountInfo | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
 
   async function load() {
     try {
@@ -33,10 +47,25 @@ export function AccountSwitcher() {
     window.location.reload();
   }
 
+  async function saveName(sellerId: string) {
+    setSaving(true);
+    await fetch("/api/auth/accounts", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sellerId, name: draft }),
+    });
+    setSaving(false);
+    setEditing(false);
+    await load();
+  }
+
   if (!info) return null;
 
-  const activeLabel = info.active
-    ? info.accounts.find((a) => a.sellerId === info.active)?.name || info.active
+  const activeAccount = info.active
+    ? info.accounts.find((a) => a.sellerId === info.active) ?? null
+    : null;
+  const activeLabel = activeAccount
+    ? labelOf(activeAccount)
     : info.hasOwnerToken
       ? "Minha conta"
       : "Nenhuma conta";
@@ -50,13 +79,58 @@ export function AccountSwitcher() {
             <path d="M5 20a7 7 0 0 1 14 0" strokeLinecap="round" />
           </svg>
         </span>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
             Conta ativa
           </p>
-          <p className="truncate text-sm font-semibold text-slate-700" title={activeLabel}>
-            {activeLabel}
-          </p>
+          {editing && activeAccount ? (
+            <div className="mt-1 flex items-center gap-1">
+              <input
+                autoFocus
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") saveName(activeAccount.sellerId);
+                  if (e.key === "Escape") setEditing(false);
+                }}
+                placeholder="Apelido da conta"
+                className="w-full rounded-md border border-slate-300 px-2 py-0.5 text-sm focus:border-blue-500 focus:outline-none"
+              />
+              <button
+                onClick={() => saveName(activeAccount.sellerId)}
+                disabled={saving}
+                className="text-xs font-semibold text-blue-600 hover:text-blue-700 disabled:opacity-50"
+              >
+                ok
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <p className="truncate text-sm font-semibold text-slate-700" title={activeLabel}>
+                {activeLabel}
+              </p>
+              {activeAccount && (
+                <button
+                  onClick={() => {
+                    setDraft(activeAccount.name ?? activeAccount.marketplace ?? "");
+                    setEditing(true);
+                  }}
+                  title="Renomear conta"
+                  className="text-slate-400 hover:text-blue-600"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-3.5 w-3.5">
+                    <path d="M12 20h9" strokeLinecap="round" />
+                    <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" strokeLinejoin="round" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          )}
+          {activeAccount && !editing && (
+            <p className="truncate font-mono text-[10px] text-slate-400" title={activeAccount.sellerId}>
+              {activeAccount.sellerId}
+            </p>
+          )}
         </div>
       </div>
 
@@ -69,7 +143,7 @@ export function AccountSwitcher() {
           {info.hasOwnerToken && <option value="">Minha conta (.env)</option>}
           {info.accounts.map((a) => (
             <option key={a.sellerId} value={a.sellerId}>
-              {a.name || a.sellerId}
+              {labelOf(a)}
             </option>
           ))}
         </select>

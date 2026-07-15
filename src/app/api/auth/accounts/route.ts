@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAccounts, removeAccount } from "@/lib/accountStore";
+import { getAccounts, removeAccount, setAccountName } from "@/lib/accountStore";
 import { ACTIVE_COOKIE } from "@/lib/withAccount";
 
 export const runtime = "nodejs";
@@ -15,9 +15,18 @@ export async function GET(req: NextRequest) {
     accounts: accounts.map((a) => ({
       sellerId: a.sellerId,
       name: a.name,
+      marketplace: a.marketplace,
       connectedAt: a.connectedAt,
     })),
   });
+}
+
+// Renomeia (apelido) uma conta conectada — PATCH { sellerId, name }.
+export async function PATCH(req: NextRequest) {
+  const { sellerId, name } = await req.json();
+  if (!sellerId) return NextResponse.json({ error: "Informe sellerId." }, { status: 400 });
+  await setAccountName(sellerId, String(name ?? ""));
+  return NextResponse.json({ ok: true });
 }
 
 // Troca a conta ativa (POST { sellerId } — "" volta para a conta dona/.env).
