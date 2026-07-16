@@ -81,11 +81,24 @@ Mesma arquitetura já existente:
 4. **Rate limit por QPS** por app → backoff (reusar o padrão do `spapiFetch`).
 5. Credenciais (`app_key`/`app_secret`, tokens) **só em env/Postgres**, nunca no código.
 
-## Próximo passo
+## ✅ Base construída (2026-07-16)
 
-Quando houver `app_key`/`app_secret` do Partner Center: construir `lib/tiktok.ts`
-(assinatura + tokens) + rotas OAuth, começando por **pedidos + financeiro** (o que
-alimenta o dashboard).
+- Credenciais validadas contra a TikTok (smoke-test no endpoint de token retornou
+  "invalid auth code", não erro de app → `app_key`/`app_secret` reconhecidos).
+- **Endpoint de token confirmado:** `https://auth.tiktok-shops.com/api/v2/token/get`
+  (o host sem hífen não existe).
+- `src/lib/tiktok.ts` — assinatura HMAC-SHA256, `exchangeAuthCode`,
+  `refreshAccessToken`, `tiktokFetch` (assinado), `getAuthorizedShops`.
+- `src/lib/tiktokStore.ts` — persiste lojas+tokens no Postgres (fallback JSON);
+  tabela `tiktok_shops` no schema.
+- Rotas: `/api/tiktok/login` (redireciona para `TIKTOK_AUTH_URL`) e
+  `/api/tiktok/callback` (troca o code → lista lojas → salva).
+- Env: `TIKTOK_APP_KEY`, `TIKTOK_APP_SECRET`, `TIKTOK_AUTH_URL`.
+
+**Falta para o primeiro dado real:** o vendedor autorizar a loja (gera o
+`auth_code`). Depois disso: mapear **pedidos + financeiro** para os shapes comuns.
+
+## Próximo passo
 
 ## Fontes
 

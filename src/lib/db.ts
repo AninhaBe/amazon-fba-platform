@@ -43,6 +43,17 @@ async function createSchema(): Promise<void> {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       history    JSONB NOT NULL DEFAULT '[]'::jsonb
     );
+    CREATE TABLE IF NOT EXISTS tiktok_shops (
+      shop_id            TEXT PRIMARY KEY,
+      shop_name          TEXT,
+      shop_cipher        TEXT,
+      region             TEXT,
+      access_token       TEXT NOT NULL,
+      refresh_token      TEXT NOT NULL,
+      access_expires_at  TIMESTAMPTZ,
+      refresh_expires_at TIMESTAMPTZ,
+      connected_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
   `);
 }
 
