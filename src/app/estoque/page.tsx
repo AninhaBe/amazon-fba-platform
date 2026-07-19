@@ -32,6 +32,9 @@ export default function EstoquePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [rows, setRows] = useState<RadarRow[]>([]);
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StockStatus | "all">("all");
+  const [sort, setSort] = useState<"urgency" | "stock" | "sales">("urgency");
 
   async function load(d: number) {
     setLoading(true);
@@ -49,8 +52,8 @@ export default function EstoquePage() {
   }
 
   useEffect(() => {
-    load(days);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const timer = window.setTimeout(() => void load(days), 0);
+    return () => window.clearTimeout(timer);
   }, [days]);
 
   const counts = rows.reduce(
@@ -61,6 +64,10 @@ export default function EstoquePage() {
     {} as Record<StockStatus, number>
   );
   const attention = (counts.critical || 0) + (counts.out || 0);
+  const urgency: Record<StockStatus, number> = { out: 0, critical: 1, low: 2, ok: 3, overstock: 4, idle: 5 };
+  const visibleRows = rows
+    .filter((row) => `${row.productName || ""} ${row.sellerSku} ${row.asin || ""}`.toLowerCase().includes(query.toLowerCase()) && (statusFilter === "all" || row.status === statusFilter))
+    .sort((a, b) => sort === "stock" ? b.fulfillable - a.fulfillable : sort === "sales" ? b.perDay - a.perDay : urgency[a.status] - urgency[b.status]);
 
   return (
     <div className="space-y-8">
@@ -83,7 +90,7 @@ export default function EstoquePage() {
       />
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           {error}
         </div>
       )}
@@ -107,6 +114,24 @@ export default function EstoquePage() {
               ) : null
             )}
           </div>
+        </div>
+      )}
+
+      {!loading && rows.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          <label className="min-w-52 flex-1">
+            <span className="sr-only">Buscar no estoque</span>
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar SKU, ASIN ou produto" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+          </label>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as StockStatus | "all")} aria-label="Filtrar status do estoque" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+            <option value="all">Todos os status</option>
+            {(Object.keys(STATUS_META) as StockStatus[]).map((status) => <option key={status} value={status}>{STATUS_META[status].label}</option>)}
+          </select>
+          <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} aria-label="Ordenar estoque" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+            <option value="urgency">Maior urgência</option>
+            <option value="stock">Maior estoque</option>
+            <option value="sales">Maior venda/dia</option>
+          </select>
         </div>
       )}
 
@@ -136,8 +161,10 @@ export default function EstoquePage() {
                   vender, o radar mostra aqui quantos dias faltam para cada SKU acabar.
                 </td>
               </tr>
+            ) : visibleRows.length === 0 ? (
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">Nenhum SKU corresponde aos filtros.</td></tr>
             ) : (
-              rows.map((r) => {
+              visibleRows.map((r) => {
                 const meta = STATUS_META[r.status];
                 return (
                   <tr key={r.sellerSku} className="hover:bg-slate-50">

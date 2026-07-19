@@ -98,7 +98,10 @@ export default function CalculatorPage() {
   // Ao abrir com ?asin=... (vindo da Pesquisa), preenche e já busca o preço.
   useEffect(() => {
     const a = new URLSearchParams(window.location.search).get("asin");
-    if (a) fetchPrice(a);
+    const timer = a ? window.setTimeout(() => void fetchPrice(a), 0) : undefined;
+    return () => {
+      if (timer) window.clearTimeout(timer);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

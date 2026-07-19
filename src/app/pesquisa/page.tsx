@@ -47,6 +47,7 @@ function ageLabel(iso?: string) {
 }
 
 type SortKey = "recentes" | "antigos" | "bsr";
+const REFERENCE_NOW = Date.now();
 
 export default function PesquisaPage() {
   const [q, setQ] = useState("");
@@ -173,7 +174,7 @@ export default function PesquisaPage() {
       </details>
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>
       )}
 
       {items.length > 0 && (
@@ -230,7 +231,7 @@ export default function PesquisaPage() {
               sorted.map((p) => {
                 const eff = effectiveDate(p);
                 const age = ageLabel(eff);
-                const isNew = eff && Date.now() - new Date(eff).getTime() < 180 * 86400000;
+                const isNew = eff && REFERENCE_NOW - new Date(eff).getTime() < 180 * 86400000;
                 return (
                   <tr key={p.asin} className="hover:bg-slate-50">
                     <td className="px-3 py-2.5">

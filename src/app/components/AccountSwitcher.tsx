@@ -24,39 +24,61 @@ export function AccountSwitcher() {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function load() {
     try {
       const res = await fetch("/api/auth/accounts");
-      setInfo(await res.json());
-    } catch {
-      /* silencioso */
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erro ao carregar contas.");
+      setInfo(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao carregar contas.");
     }
   }
 
   useEffect(() => {
-    load();
+    const timer = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   async function switchTo(sellerId: string) {
-    await fetch("/api/auth/accounts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sellerId }),
-    });
-    window.location.reload();
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/auth/accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sellerId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erro ao trocar de conta.");
+      window.location.reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao trocar de conta.");
+      setBusy(false);
+    }
   }
 
   async function saveName(sellerId: string) {
     setSaving(true);
-    await fetch("/api/auth/accounts", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sellerId, name: draft }),
-    });
-    setSaving(false);
-    setEditing(false);
-    await load();
+    setError(null);
+    try {
+      const res = await fetch("/api/auth/accounts", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sellerId, name: draft }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erro ao renomear conta.");
+      setEditing(false);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao renomear conta.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (!info) return null;
@@ -138,6 +160,8 @@ export function AccountSwitcher() {
         <select
           value={info.active ?? ""}
           onChange={(e) => switchTo(e.target.value)}
+          disabled={busy}
+          aria-label="Trocar conta Amazon ativa"
           className="w-full cursor-pointer rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-600 hover:border-slate-300"
         >
           {info.hasOwnerToken && <option value="">Minha conta (.env)</option>}
@@ -155,6 +179,11 @@ export function AccountSwitcher() {
       >
         <span className="text-sm leading-none">+</span> Conectar conta Amazon
       </a>
+      {error && (
+        <p role="alert" className="text-xs text-red-600">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

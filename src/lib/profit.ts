@@ -2,6 +2,7 @@ import { getFinanceSummary, type FinanceSummary } from "./finances";
 import { getSalesVelocity } from "./orders";
 import { getCosts } from "./costStore";
 import type { Period } from "./period";
+import { calculateHistoricalCostCoverage } from "./financialMath";
 
 export interface ProfitSummary {
   finance: FinanceSummary;
@@ -23,28 +24,10 @@ export async function getProfitSummary(period: Period): Promise<ProfitSummary> {
     getCosts(),
   ]);
 
-  let cogs = 0;
-  let unitsWithCost = 0;
-  let unitsWithoutCost = 0;
-  const skusMissingCost: string[] = [];
-
-  for (const [sku, units] of Object.entries(velocity.unitsBySku)) {
-    const cost = costs[sku]?.cost;
-    if (cost == null) {
-      unitsWithoutCost += units;
-      skusMissingCost.push(sku);
-    } else {
-      cogs += units * cost;
-      unitsWithCost += units;
-    }
-  }
+  const coverage = calculateHistoricalCostCoverage(finance.netProceeds, velocity.sales, costs);
 
   return {
     finance,
-    cogs: +cogs.toFixed(2),
-    estimatedProfit: +(finance.netProceeds - cogs).toFixed(2),
-    unitsWithCost,
-    unitsWithoutCost,
-    skusMissingCost,
+    ...coverage,
   };
 }

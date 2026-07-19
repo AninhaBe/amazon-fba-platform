@@ -23,6 +23,11 @@ export default function ProdutosPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [costFilter, setCostFilter] = useState<"all" | "missing" | "complete">("all");
+  const [sort, setSort] = useState<"title" | "stock" | "cost">("title");
+  const [draftCosts, setDraftCosts] = useState<Record<string, string>>({});
+  const [saveState, setSaveState] = useState<Record<string, "saving" | "saved" | "error">>({});
 
   // adicionar por ASIN
   const [newAsin, setNewAsin] = useState("");
@@ -37,6 +42,7 @@ export default function ProdutosPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erro ao carregar produtos.");
       setProducts(data.products);
+      setDraftCosts(Object.fromEntries(data.products.map((p: Product) => [p.id, p.cost == null ? "" : String(p.cost)])));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro desconhecido.");
     } finally {
@@ -45,24 +51,28 @@ export default function ProdutosPage() {
   }
 
   useEffect(() => {
-    load();
+    const timer = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   async function saveCost(p: Product, cost: number) {
-    // otimista
+    const previous = p.cost;
     setProducts((prev) => prev.map((x) => (x.id === p.id ? { ...x, cost } : x)));
-    await fetch("/api/costs", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        id: p.id,
-        sku: p.sku,
-        asin: p.asin,
-        title: p.title,
-        imageUrl: p.imageUrl,
-        cost,
-      }),
-    });
+    setSaveState((prev) => ({ ...prev, [p.id]: "saving" }));
+    try {
+      const res = await fetch("/api/costs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: p.id, sku: p.sku, asin: p.asin, title: p.title, imageUrl: p.imageUrl, cost }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erro ao salvar custo.");
+      setSaveState((prev) => ({ ...prev, [p.id]: "saved" }));
+    } catch {
+      setProducts((prev) => prev.map((x) => (x.id === p.id ? { ...x, cost: previous } : x)));
+      setDraftCosts((prev) => ({ ...prev, [p.id]: previous == null ? "" : String(previous) }));
+      setSaveState((prev) => ({ ...prev, [p.id]: "error" }));
+    }
   }
 
   async function addByAsin(e: React.FormEvent) {
@@ -73,29 +83,53 @@ export default function ProdutosPage() {
     setAddError(null);
     try {
       // Busca título/imagem no catálogo (reusa /api/price)
-      const info = await fetch(`/api/price?asin=${encodeURIComponent(asin)}`).then((r) => r.json());
+      const infoRes = await fetch(`/api/price?asin=${encodeURIComponent(asin)}`);
+      const info = await infoRes.json();
+      if (!infoRes.ok) throw new Error(info.error || "ASIN não encontrado.");
       const title = info?.info?.title;
       const imageUrl = info?.info?.imageUrl;
-      await fetch("/api/costs", {
+      const saveRes = await fetch("/api/costs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: asin, asin, title, imageUrl, cost: 0 }),
       });
+      const saved = await saveRes.json();
+      if (!saveRes.ok) throw new Error(saved.error || "Erro ao adicionar produto.");
       setNewAsin("");
       await load();
-    } catch {
-      setAddError("Não foi possível adicionar esse ASIN.");
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : "Não foi possível adicionar esse ASIN.");
     } finally {
       setAdding(false);
     }
   }
 
   async function remove(p: Product) {
+    if (!window.confirm(`Remover ${p.title || p.asin || p.id} da lista manual?`)) return;
+    const previous = products;
     setProducts((prev) => prev.filter((x) => x.id !== p.id));
-    await fetch(`/api/costs?id=${encodeURIComponent(p.id)}`, { method: "DELETE" });
+    try {
+      const res = await fetch(`/api/costs?id=${encodeURIComponent(p.id)}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erro ao remover produto.");
+    } catch (err) {
+      setProducts(previous);
+      setError(err instanceof Error ? err.message : "Erro ao remover produto.");
+    }
   }
 
   const withCost = products.filter((p) => p.cost != null && p.cost > 0).length;
+  const visibleProducts = products
+    .filter((p) => {
+      const matchesQuery = `${p.title || ""} ${p.sku || ""} ${p.asin || ""}`.toLowerCase().includes(query.toLowerCase());
+      const hasCost = p.cost != null && p.cost > 0;
+      return matchesQuery && (costFilter === "all" || (costFilter === "complete" ? hasCost : !hasCost));
+    })
+    .sort((a, b) => {
+      if (sort === "stock") return (b.fulfillable ?? -1) - (a.fulfillable ?? -1);
+      if (sort === "cost") return (b.cost ?? -1) - (a.cost ?? -1);
+      return (a.title || a.id).localeCompare(b.title || b.id, "pt-BR");
+    });
 
   return (
     <div className="space-y-8">
@@ -134,19 +168,37 @@ export default function ProdutosPage() {
         >
           {adding ? "Adicionando…" : "Adicionar"}
         </button>
-        {addError && <span className="w-full text-xs text-red-600">{addError}</span>}
+        {addError && <span role="alert" className="w-full text-xs text-red-600">{addError}</span>}
       </form>
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           {error}
         </div>
       )}
 
       {!loading && products.length > 0 && (
-        <p className="text-sm text-slate-500">
-          {products.length} produto(s) · {withCost} com custo cadastrado
-        </p>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <p className="text-sm text-slate-500">
+            {visibleProducts.length} de {products.length} produto(s) · {withCost} com custo cadastrado
+          </p>
+          <div className="flex flex-1 flex-wrap justify-end gap-2">
+            <label className="min-w-52 flex-1 sm:max-w-xs">
+              <span className="sr-only">Buscar produto</span>
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar SKU, ASIN ou título" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+            </label>
+            <select value={costFilter} onChange={(e) => setCostFilter(e.target.value as typeof costFilter)} aria-label="Filtrar por cadastro de custo" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+              <option value="all">Todos os custos</option>
+              <option value="missing">Sem custo</option>
+              <option value="complete">Com custo</option>
+            </select>
+            <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} aria-label="Ordenar produtos" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+              <option value="title">Ordenar por nome</option>
+              <option value="stock">Maior estoque</option>
+              <option value="cost">Maior custo</option>
+            </select>
+          </div>
+        </div>
       )}
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200/70 bg-white shadow-sm ring-1 ring-slate-900/[0.02]">
@@ -176,8 +228,10 @@ export default function ProdutosPage() {
                   acima.
                 </td>
               </tr>
+            ) : visibleProducts.length === 0 ? (
+              <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">Nenhum produto corresponde aos filtros.</td></tr>
             ) : (
-              products.map((p) => (
+              visibleProducts.map((p) => (
                 <tr key={p.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
@@ -219,22 +273,26 @@ export default function ProdutosPage() {
                     {p.salePrice != null ? money(p.salePrice) : "—"}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      defaultValue={p.cost ?? ""}
-                      onBlur={(e) => {
-                        const v = Number(e.target.value) || 0;
-                        if (v !== (p.cost ?? 0)) saveCost(p, v);
-                      }}
-                      placeholder="0.00"
-                      className={`w-24 rounded-md border px-2 py-1 text-right text-sm tabular-nums focus:border-blue-500 focus:outline-none ${
-                        p.cost == null || p.cost === 0
-                          ? "border-amber-300 bg-amber-50"
-                          : "border-slate-300"
-                      }`}
-                    />
+                    <div className="flex flex-col items-end gap-1">
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={draftCosts[p.id] ?? ""}
+                        onChange={(e) => setDraftCosts((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                        onBlur={(e) => {
+                          const v = Number(e.target.value);
+                          if (Number.isFinite(v) && v >= 0 && v !== (p.cost ?? 0)) void saveCost(p, v);
+                        }}
+                        aria-label={`Custo de ${p.title || p.id}`}
+                        aria-describedby={`cost-status-${p.id}`}
+                        placeholder="0.00"
+                        className={`w-24 rounded-md border px-2 py-1 text-right text-sm tabular-nums focus:border-blue-500 focus:outline-none ${p.cost == null || p.cost === 0 ? "border-amber-300 bg-amber-50" : "border-slate-300"}`}
+                      />
+                      <span id={`cost-status-${p.id}`} aria-live="polite" className={`text-[10px] ${saveState[p.id] === "error" ? "text-red-600" : "text-slate-400"}`}>
+                        {saveState[p.id] === "saving" ? "Salvando…" : saveState[p.id] === "saved" ? "Salvo" : saveState[p.id] === "error" ? "Falha ao salvar" : ""}
+                      </span>
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-right">
                     {p.source === "manual" && (

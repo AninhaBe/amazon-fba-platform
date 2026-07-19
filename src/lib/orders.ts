@@ -72,6 +72,7 @@ interface OrderItemsResponse {
 
 export interface SalesVelocity {
   unitsBySku: Record<string, number>; // unidades vendidas por SKU no período
+  sales: { sku: string; units: number; purchasedAt: string }[];
   days: number;
 }
 
@@ -99,6 +100,7 @@ async function computeSalesVelocity(
   maxOrders: number
 ): Promise<SalesVelocity> {
   const unitsBySku: Record<string, number> = {};
+  const sales: SalesVelocity["sales"] = [];
   let nextToken: string | undefined;
   let processed = 0;
   let guard = 0;
@@ -123,13 +125,14 @@ async function computeSalesVelocity(
         const sku = it.SellerSKU;
         if (!sku) continue;
         unitsBySku[sku] = (unitsBySku[sku] || 0) + (it.QuantityOrdered ?? 0);
+        sales.push({ sku, units: it.QuantityOrdered ?? 0, purchasedAt: order.purchaseDate });
       }
     }
 
     nextToken = processed >= maxOrders ? undefined : page.nextToken;
   } while (nextToken && ++guard < 20);
 
-  return { unitsBySku, days: period.days };
+  return { unitsBySku, sales, days: period.days };
 }
 
 export interface OrderMetrics {

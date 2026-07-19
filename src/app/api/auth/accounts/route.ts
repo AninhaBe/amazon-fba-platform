@@ -23,15 +23,25 @@ export async function GET(req: NextRequest) {
 
 // Renomeia (apelido) uma conta conectada — PATCH { sellerId, name }.
 export async function PATCH(req: NextRequest) {
-  const { sellerId, name } = await req.json();
-  if (!sellerId) return NextResponse.json({ error: "Informe sellerId." }, { status: 400 });
-  await setAccountName(sellerId, String(name ?? ""));
-  return NextResponse.json({ ok: true });
+  try {
+    const { sellerId, name } = await req.json();
+    if (!sellerId) return NextResponse.json({ error: "Informe sellerId." }, { status: 400 });
+    await setAccountName(sellerId, String(name ?? ""));
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Erro ao renomear conta." }, { status: 500 });
+  }
 }
 
 // Troca a conta ativa (POST { sellerId } — "" volta para a conta dona/.env).
 export async function POST(req: NextRequest) {
   const { sellerId } = await req.json();
+  if (sellerId) {
+    const accounts = await getAccounts();
+    if (!accounts.some((account) => account.sellerId === sellerId)) {
+      return NextResponse.json({ error: "Conta não encontrada." }, { status: 404 });
+    }
+  }
   const res = NextResponse.json({ ok: true, active: sellerId || null });
   if (sellerId) {
     res.cookies.set(ACTIVE_COOKIE, sellerId, {
@@ -48,12 +58,16 @@ export async function POST(req: NextRequest) {
 
 // Desconecta uma conta.
 export async function DELETE(req: NextRequest) {
-  const sellerId = new URL(req.url).searchParams.get("sellerId");
-  if (!sellerId) return NextResponse.json({ error: "Informe sellerId." }, { status: 400 });
-  await removeAccount(sellerId);
-  const res = NextResponse.json({ ok: true });
-  if (req.cookies.get(ACTIVE_COOKIE)?.value === sellerId) {
-    res.cookies.set(ACTIVE_COOKIE, "", { maxAge: 0, path: "/" });
+  try {
+    const sellerId = new URL(req.url).searchParams.get("sellerId");
+    if (!sellerId) return NextResponse.json({ error: "Informe sellerId." }, { status: 400 });
+    await removeAccount(sellerId);
+    const res = NextResponse.json({ ok: true });
+    if (req.cookies.get(ACTIVE_COOKIE)?.value === sellerId) {
+      res.cookies.set(ACTIVE_COOKIE, "", { maxAge: 0, path: "/" });
+    }
+    return res;
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Erro ao desconectar conta." }, { status: 500 });
   }
-  return res;
 }

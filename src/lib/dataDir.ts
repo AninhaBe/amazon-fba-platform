@@ -6,6 +6,9 @@ export function dataDir(): string {
   return process.env.DATA_DIR || path.join(process.cwd(), "data");
 }
 
-export function dataFile(name: string): string {
-  return path.join(dataDir(), name);
+export function dataFile(...segments: string[]): string {
+  const configured = process.env.DATA_DIR;
+  return configured
+    ? path.join(configured, ...segments)
+    : path.join(process.cwd(), "data", ...segments);
 }

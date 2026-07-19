@@ -64,6 +64,7 @@ export default function Dashboard() {
   const [top, setTop] = useState<TopProduct[]>([]);
   const [productsLoading, setProductsLoading] = useState(true);
   const [errors, setErrors] = useState<string[]>([]);
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
 
   // Query de período: preset (days) ou personalizado (from/to). null = aguardar datas.
   const periodQuery = custom ? (from && to ? `from=${from}&to=${to}` : null) : `days=${days}`;
@@ -71,7 +72,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (!periodQuery) return; // personalizado sem as duas datas ainda
     let active = true;
-    setLoading(true);
+    Promise.resolve().then(() => active && setLoading(true));
     const errs: string[] = [];
     const safe = <T,>(url: string, set: (v: T) => void, pick: (d: unknown) => T, name: string) =>
       fetch(url)
@@ -91,12 +92,13 @@ export default function Dashboard() {
     ]).then(() => {
       if (active) {
         setErrors(errs);
+        setUpdatedAt(new Date());
         setLoading(false);
       }
     });
 
     // Produtos e top produtos usam o relatório da Amazon (lento) — carregam em separado.
-    setProductsLoading(true);
+    Promise.resolve().then(() => active && setProductsLoading(true));
     safe<ProductRow[]>(`/api/products`, setProducts, (d) => (d as { products: ProductRow[] }).products, "produtos").finally(
       () => active && setProductsLoading(false)
     );
@@ -172,9 +174,17 @@ export default function Dashboard() {
         <p className="-mt-4 text-xs text-slate-400">Escolha a data inicial e final para filtrar.</p>
       )}
 
+      <Onboarding products={products.length} productsLoading={productsLoading} missingCosts={noCost} hasSales={salesCount > 0} />
+
+      {updatedAt && (
+        <p className="-mt-5 text-xs text-slate-400">
+          Atualizado às {updatedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}. Vendas: Sales API · pedidos: Orders API · lucro realizado: Finances API.
+        </p>
+      )}
+
       {/* KPIs principais */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi label="Faturamento" value={money(revenue, currency)} sub={`${orders?.metrics.totalOrders ?? 0} pedidos`} loading={loading} icon={kpiIcons.revenue} />
+        <Kpi label="Faturamento" value={money(revenue, currency)} sub={`${salesCount} vendas no período`} loading={loading} icon={kpiIcons.revenue} />
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 p-5 shadow-sm shadow-emerald-600/20 ring-1 ring-emerald-600/20">
           <div className="pointer-events-none absolute -right-6 -top-8 h-24 w-24 rounded-full bg-white/10 blur-xl" />
           <div className="flex items-start justify-between gap-2">
@@ -220,7 +230,7 @@ export default function Dashboard() {
       </div>
 
       {errors.length > 0 && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+        <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
           Não foi possível carregar: {errors.join(", ")}.
         </div>
       )}
@@ -523,5 +533,51 @@ function QuickLink({ href, label, desc }: { href: string; label: string; desc: s
         →
       </span>
     </Link>
+  );
+}
+
+function Onboarding({ products, productsLoading, missingCosts, hasSales }: { products: number; productsLoading: boolean; missingCosts: number; hasSales: boolean }) {
+  const [connection, setConnection] = useState<"loading" | "connected" | "missing">("loading");
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void fetch("/api/auth/accounts")
+        .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
+        .then(({ ok, data }) => setConnection(ok && (data.hasOwnerToken || data.accounts?.length > 0) ? "connected" : "missing"))
+        .catch(() => setConnection("missing"));
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  const complete = connection === "connected" && products > 0 && missingCosts === 0 && hasSales;
+  if (complete || connection === "loading") return null;
+
+  const steps = [
+    { done: connection === "connected", label: "Conectar uma conta Amazon", href: "/api/auth/login" },
+    { done: products > 0, label: productsLoading ? "Sincronizando produtos…" : "Sincronizar ou adicionar produtos", href: "/produtos" },
+    { done: products > 0 && missingCosts === 0, label: missingCosts > 0 ? `Cadastrar custo de ${missingCosts} produto(s)` : "Cadastrar custos dos produtos", href: "/produtos" },
+    { done: hasSales, label: "Consultar as primeiras vendas", href: "/monitor" },
+  ];
+
+  return (
+    <section aria-labelledby="setup-title" className="rounded-2xl border border-blue-200 bg-blue-50/70 p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Primeiros passos</p>
+          <h2 id="setup-title" className="mt-1 font-semibold text-slate-900">Prepare sua conta para obter números confiáveis</h2>
+        </div>
+        <span className="text-sm font-medium text-blue-700">{steps.filter((step) => step.done).length}/{steps.length} concluídos</span>
+      </div>
+      <ol className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {steps.map((step) => (
+          <li key={step.label}>
+            <Link href={step.href} className="flex h-full items-center gap-2 rounded-xl bg-white px-3 py-3 text-sm shadow-sm ring-1 ring-blue-100 hover:ring-blue-300">
+              <span aria-hidden className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs ${step.done ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-500"}`}>{step.done ? "✓" : "·"}</span>
+              <span className={step.done ? "text-slate-500 line-through" : "font-medium text-slate-700"}>{step.label}</span>
+            </Link>
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }

@@ -1,12 +1,12 @@
 import fs from "fs/promises";
 import path from "path";
-import { dataDir } from "./dataDir";
+import { dataFile } from "./dataDir";
 
 // Cache persistido em disco (<DATA_DIR>/cache/<key>.json), com timestamp.
 // Sobrevive a restart do servidor — bom para respostas caras (relatórios).
 
 function file(key: string): string {
-  return path.join(dataDir(), "cache", `${key.replace(/[^a-z0-9_-]/gi, "_")}.json`);
+  return dataFile("cache", `${key.replace(/[^a-z0-9_-]/gi, "_")}.json`);
 }
 
 export async function readCache<T>(key: string): Promise<{ at: number; value: T } | null> {

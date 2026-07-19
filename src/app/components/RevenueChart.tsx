@@ -84,8 +84,17 @@ export function RevenueChart({ points }: { points: DailyPoint[] }) {
         style={{ height: "auto" }}
         onMouseMove={onMove}
         onMouseLeave={() => setHover(null)}
+        onFocus={() => setHover(points.length - 1)}
+        onBlur={() => setHover(null)}
+        onKeyDown={(event) => {
+          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+          event.preventDefault();
+          const current = hover ?? points.length - 1;
+          setHover(Math.max(0, Math.min(points.length - 1, current + (event.key === "ArrowRight" ? 1 : -1))));
+        }}
+        tabIndex={0}
         role="img"
-        aria-label="Faturamento diário no período"
+        aria-label="Faturamento diário no período. Use as setas para consultar cada dia."
       >
         <defs>
           <linearGradient id="revFill" x1="0" y1="0" x2="0" y2="1">

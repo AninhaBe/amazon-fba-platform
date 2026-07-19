@@ -70,6 +70,8 @@ export default function MonitorPage() {
   const [finance, setFinance] = useState<FinanceSummary | null>(null);
   const [profit, setProfit] = useState<ProfitSummary | null>(null);
   const [financeError, setFinanceError] = useState<string | null>(null);
+  const [orderQuery, setOrderQuery] = useState("");
+  const [orderStatus, setOrderStatus] = useState("all");
 
   async function load(d: number) {
     setLoading(true);
@@ -101,9 +103,14 @@ export default function MonitorPage() {
   }
 
   useEffect(() => {
-    load(days);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const timer = window.setTimeout(() => void load(days), 0);
+    return () => window.clearTimeout(timer);
   }, [days]);
+
+  const visibleOrders = orders.filter((order) =>
+    order.amazonOrderId.toLowerCase().includes(orderQuery.toLowerCase()) &&
+    (orderStatus === "all" || order.orderStatus === orderStatus)
+  );
 
   return (
     <div className="space-y-8">
@@ -126,7 +133,7 @@ export default function MonitorPage() {
       />
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           {error}
         </div>
       )}
@@ -148,7 +155,7 @@ export default function MonitorPage() {
         </div>
 
         {financeError ? (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
+          <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
             {financeError}
           </div>
         ) : finance && finance.orderCount === 0 ? (
@@ -197,7 +204,7 @@ export default function MonitorPage() {
             {profit && profit.unitsWithoutCost > 0 && (
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 lg:col-span-3">
                 ⚠ {profit.unitsWithoutCost} unidade(s) vendida(s) sem custo cadastrado — o lucro
-                está subestimado.{" "}
+                está superestimado.{" "}
                 <a href="/produtos" className="font-semibold underline">
                   Cadastrar custos em Produtos
                 </a>
@@ -227,8 +234,22 @@ export default function MonitorPage() {
         )}
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-sm ring-1 ring-slate-900/[0.02]">
-        <table className="w-full text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold">Pedidos</h2>
+        <div className="flex flex-1 flex-wrap justify-end gap-2">
+          <label className="min-w-48 sm:max-w-xs sm:flex-1">
+            <span className="sr-only">Buscar pedido</span>
+            <input value={orderQuery} onChange={(e) => setOrderQuery(e.target.value)} placeholder="Buscar número do pedido" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+          </label>
+          <select value={orderStatus} onChange={(e) => setOrderStatus(e.target.value)} aria-label="Filtrar status do pedido" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+            <option value="all">Todos os status</option>
+            {[...new Set(orders.map((order) => order.orderStatus))].map((status) => <option key={status} value={status}>{status}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto rounded-2xl border border-slate-200/70 bg-white shadow-sm ring-1 ring-slate-900/[0.02]">
+        <table className="w-full min-w-[680px] text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
               <th className="px-4 py-3">Pedido</th>
@@ -251,8 +272,10 @@ export default function MonitorPage() {
                   Nenhum pedido no período.
                 </td>
               </tr>
+            ) : visibleOrders.length === 0 ? (
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">Nenhum pedido corresponde aos filtros.</td></tr>
             ) : (
-              orders.map((o) => (
+              visibleOrders.map((o) => (
                 <tr key={o.amazonOrderId} className="hover:bg-slate-50">
                   <td className="px-4 py-3 font-mono text-xs">{o.amazonOrderId}</td>
                   <td className="px-4 py-3 text-slate-600">
