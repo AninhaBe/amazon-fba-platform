@@ -138,7 +138,8 @@ export default function Dashboard() {
   const unitsCount = sales?.totalUnits ?? 0;
   const estProfit = profit?.estimatedProfit ?? 0;
   const cogs = profit?.cogs ?? 0;
-  const marginPct = revenue > 0 ? (estProfit / revenue) * 100 : 0;
+  const reconciledRevenue = profit?.finance.revenue ?? 0;
+  const marginPct = reconciledRevenue > 0 ? (estProfit / reconciledRevenue) * 100 : 0;
   const ticketMedio = salesCount > 0 ? revenue / salesCount : 0;
   const roiPct = cogs > 0 ? (estProfit / cogs) * 100 : 0;
   const revenueTrend = getRevenueTrend(sales?.points ?? []);
@@ -166,13 +167,13 @@ export default function Dashboard() {
         <Kpi label="Faturamento" value={money(revenue, currency)} sub={`${salesCount} vendas no período`} loading={loading} trend={revenueTrend} />
         <div className="metric-cell metric-primary relative overflow-hidden p-5">
           <div className="flex items-start justify-between gap-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">Lucro estimado</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">Lucro conciliado</p>
             <span className="text-emerald-600/50">{kpiIcons.percent}</span>
           </div>
           <p className="mt-2 text-[27px] font-bold leading-none tabular-nums text-emerald-800">
             {loading ? "···" : money(estProfit, currency)}
           </p>
-          <p className="mt-1.5 text-xs font-medium text-emerald-700/80">margem {marginPct.toFixed(1)}%</p>
+          <p className="mt-1.5 text-xs font-medium text-emerald-700/80">margem {marginPct.toFixed(1)}% sobre vendas conciliadas</p>
         </div>
         <Kpi
           label="Estoque crítico"

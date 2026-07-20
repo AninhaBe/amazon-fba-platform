@@ -64,6 +64,7 @@ export function getAmazonProfitability(period: Period): Promise<ProfitabilityRes
     return {
       lines: lines.sort((a, b) => b.date.localeCompare(a.date)),
       coverage: { completeLines: lines.filter((line) => line.complete).length, totalLines: lines.length },
+      scope: { processedOrders: orders.length, completePeriod: !page.nextToken && page.orders.filter((order) => order.orderStatus !== "Canceled").length <= 40 },
     };
   });
 }

@@ -1,6 +1,7 @@
 import { spapiFetch } from "./spapi";
 import { swr } from "./swr";
 import type { Period } from "./period";
+import { collectAllNextTokenPages, splitDateRange } from "./nextTokenPagination";
 
 // Finances API v0 — listFinancialEvents.
 // Agrega os eventos financeiros REAIS (repasses efetivos) da conta: receita,
@@ -100,18 +101,24 @@ async function computeFinanceSummary(period: Period): Promise<FinanceSummary> {
   const feeMap = new Map<string, number>();
   const itemLineMap = new Map<string, FinanceItemLine>();
 
-  let nextToken: string | undefined;
-  let guard = 0;
+  const safePostedBefore = new Date(Math.min(new Date(postedBefore).getTime(), Date.now() - 3 * 60_000));
+  const ranges = splitDateRange(new Date(postedAfter), safePostedBefore);
+  const pages: FinancialEventsResponse[] = [];
+  for (const range of ranges) {
+    pages.push(...await collectAllNextTokenPages(
+      (nextToken) => spapiFetch<FinancialEventsResponse>(
+        "/finances/v0/financialEvents",
+        {
+          query: nextToken
+            ? { NextToken: nextToken }
+            : { PostedAfter: range.from.toISOString(), PostedBefore: range.to.toISOString(), MaxResultsPerPage: 100 },
+        }
+      ),
+      (page) => page.payload?.NextToken
+    ));
+  }
 
-  do {
-    const query: Record<string, string | number | undefined> = nextToken
-      ? { NextToken: nextToken }
-      : { PostedAfter: postedAfter, PostedBefore: postedBefore, MaxResultsPerPage: 100 };
-
-    const data = await spapiFetch<FinancialEventsResponse>(
-      "/finances/v0/financialEvents",
-      { query }
-    );
+  for (const data of pages) {
     const ev = data.payload?.FinancialEvents;
 
     for (const s of ev?.ShipmentEventList ?? []) {
@@ -123,13 +130,14 @@ async function computeFinanceSummary(period: Period): Promise<FinanceSummary> {
           orderItemId: item.OrderItemId,
           sku: item.SellerSKU,
           postedDate: s.PostedDate || postedBefore,
-          quantity: item.QuantityShipped ?? 0,
+          quantity: 0,
           revenue: 0,
           buyerShipping: 0,
           fees: 0,
           promotions: 0,
           currency,
         };
+        line.quantity += item.QuantityShipped ?? 0;
         for (const c of item.ItemChargeList ?? []) {
           const amt = n(c.ChargeAmount);
           if (c.ChargeAmount?.CurrencyCode) {
@@ -165,8 +173,7 @@ async function computeFinanceSummary(period: Period): Promise<FinanceSummary> {
       }
     }
 
-    nextToken = data.payload?.NextToken;
-  } while (nextToken && ++guard < 20);
+  }
 
   const round = (v: number) => +v.toFixed(2);
   const netProceeds = revenue - fees - promotions - refunds;

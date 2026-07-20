@@ -9,8 +9,8 @@ import { MarketplaceIcon } from "./components/MarketplaceIcon";
 interface ProviderConnection { id: string; }
 interface Provider { id: string; name: string; configured: boolean; connections: ProviderConnection[]; }
 interface AmazonProfit { estimatedProfit: number; finance: { revenue: number; currency: string; }; }
-interface AmazonOrders { metrics: { totalOrders: number; totalRevenue: number; currency: string; }; }
-interface MercadoLivreOverview { metrics: { revenue30d: number; orders30d: number; activeListings: number; currency: string; revenueCoverage: { complete: boolean; capturedOrders: number; totalOrders: number; }; }; profit: { estimatedProfit: number; unitsWithoutCost: number; }; }
+interface AmazonSales { series: { totalRevenue: number; totalOrders: number; currency: string; }; }
+interface MercadoLivreOverview { metrics: { revenue30d: number; orders30d: number; activeListings: number; currency: string; revenueCoverage: { complete: boolean; capturedOrders: number; totalOrders: number; }; }; profit: { estimatedProfit: number; unitsWithoutCost: number; coverage: { processedOrders: number; paidOrders: number; complete: boolean; }; }; }
 interface ChannelSnapshot {
   id: "amazon" | "mercado_livre";
   name: string;
@@ -52,19 +52,22 @@ export default function OverviewDashboard() {
         const mercadoLivre: ChannelSnapshot = { id: "mercado_livre", name: "Mercado Livre", href: "/mercado-livre", connected: !!mercadoLivreProvider?.connections.length, revenue: null, profit: null, orders: null, currency: "BRL", note: "Faturamento, pedidos e lucro estimado" };
 
         const tasks: Promise<void>[] = [];
-        if (amazon.connected) tasks.push(Promise.all([json<{ summary: AmazonProfit }>("/api/profit?days=30"), json<AmazonOrders>("/api/orders?days=30")]).then(([profit, orders]) => {
-          amazon.revenue = profit.summary.finance.revenue || orders.metrics.totalRevenue;
+        if (amazon.connected) tasks.push(Promise.all([json<{ summary: AmazonProfit }>("/api/profit?days=30"), json<AmazonSales>("/api/sales?days=30")]).then(([profit, sales]) => {
+          amazon.revenue = sales.series.totalRevenue;
           amazon.profit = profit.summary.estimatedProfit;
-          amazon.orders = orders.metrics.totalOrders;
-          amazon.currency = profit.summary.finance.currency || orders.metrics.currency;
+          amazon.orders = sales.series.totalOrders;
+          amazon.currency = sales.series.currency || profit.summary.finance.currency;
+          amazon.note = "Faturamento completo; lucro conforme eventos já conciliados pela Amazon";
         }).catch((error) => { amazon.error = error instanceof Error ? error.message : "Dados indisponíveis"; }));
         if (mercadoLivre.connected) tasks.push(json<{ overview: MercadoLivreOverview }>("/api/integrations/mercado-livre/overview").then(({ overview }) => {
           mercadoLivre.revenue = overview.metrics.revenue30d;
-          mercadoLivre.profit = overview.profit.estimatedProfit;
+          mercadoLivre.profit = overview.profit.coverage.complete ? overview.profit.estimatedProfit : null;
           mercadoLivre.orders = overview.metrics.orders30d;
           mercadoLivre.currency = overview.metrics.currency;
           mercadoLivre.note = overview.metrics.revenueCoverage.complete
-            ? overview.profit.unitsWithoutCost > 0
+            ? !overview.profit.coverage.complete
+              ? `Faturamento completo; lucro processado em ${overview.profit.coverage.processedOrders} de ${overview.profit.coverage.paidOrders} vendas`
+              : overview.profit.unitsWithoutCost > 0
               ? `Lucro parcial: ${overview.profit.unitsWithoutCost} unidade(s) sem custo`
               : "Faturamento, pedidos e lucro estimado"
             : `Faturamento parcial: ${overview.metrics.revenueCoverage.capturedOrders} de ${overview.metrics.revenueCoverage.totalOrders} pedidos`;

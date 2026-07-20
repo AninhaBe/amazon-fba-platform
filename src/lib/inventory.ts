@@ -1,5 +1,6 @@
 import { spapiFetch, defaultMarketplaceId } from "./spapi";
 import { swr } from "./swr";
+import { collectAllNextTokenPages } from "./nextTokenPagination";
 
 // FBA Inventory API v1 — getInventorySummaries. Estoque em tempo real por SKU.
 
@@ -48,15 +49,20 @@ export function getInventory(marketplaceId = defaultMarketplaceId()): Promise<St
 
 async function fetchInventory(marketplaceId: string): Promise<StockItem[]> {
   const items: StockItem[] = [];
-  let nextToken: string | undefined;
-  let guard = 0;
+  const pages = await collectAllNextTokenPages(
+    (nextToken) => spapiFetch<InventoryResponse>("/fba/inventory/v1/summaries", {
+      query: {
+        granularityType: "Marketplace",
+        granularityId: marketplaceId,
+        marketplaceIds: marketplaceId,
+        details: "true",
+        nextToken,
+      },
+    }),
+    (page) => page.pagination?.nextToken || page.payload?.nextToken
+  );
 
-  do {
-    const query: Record<string, string | number | undefined> = nextToken
-      ? { granularityType: "Marketplace", granularityId: marketplaceId, marketplaceIds: marketplaceId, details: "true", nextToken }
-      : { granularityType: "Marketplace", granularityId: marketplaceId, marketplaceIds: marketplaceId, details: "true" };
-
-    const data = await spapiFetch<InventoryResponse>("/fba/inventory/v1/summaries", { query });
+  for (const data of pages) {
 
     for (const s of data.payload?.inventorySummaries ?? []) {
       const d = s.inventoryDetails ?? {};
@@ -75,9 +81,7 @@ async function fetchInventory(marketplaceId: string): Promise<StockItem[]> {
         total: s.totalQuantity ?? 0,
       });
     }
-
-    nextToken = data.pagination?.nextToken || data.payload?.nextToken;
-  } while (nextToken && ++guard < 20);
+  }
 
   return items;
 }

@@ -45,6 +45,12 @@ services:
         sync: false
       - key: MELI_CLIENT_SECRET
         sync: false
+      - key: TIKTOK_APP_KEY
+        sync: false
+      - key: TIKTOK_APP_SECRET
+        sync: false
+      - key: TIKTOK_SERVICE_ID
+        sync: false
       # URL pública do próprio serviço, ex: https://amazon-fba-platform.onrender.com
       - key: APP_BASE_URL
         sync: false

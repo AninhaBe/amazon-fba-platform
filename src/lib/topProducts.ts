@@ -20,12 +20,16 @@ export interface TopProduct {
 export async function getTopProducts(period: Period, limit = 10): Promise<TopProduct[]> {
   const [velocity, products] = await Promise.all([getSalesVelocity({ period }), getProducts()]);
   const bySku = new Map(products.map((p) => [p.id, p]));
+  const revenueBySku = new Map<string, number>();
+  for (const sale of velocity.sales) {
+    revenueBySku.set(sale.sku, (revenueBySku.get(sale.sku) ?? 0) + (sale.revenue ?? 0));
+  }
 
   const rows: TopProduct[] = Object.entries(velocity.unitsBySku).map(([sku, units]) => {
     const p = bySku.get(sku);
     const salePrice = p?.salePrice ?? null;
     const cost = p?.cost ?? null;
-    const revenue = salePrice ? +(units * salePrice).toFixed(2) : 0;
+    const revenue = +(revenueBySku.get(sku) ?? 0).toFixed(2);
     const marginPct =
       salePrice && salePrice > 0 && cost != null ? ((salePrice - cost) / salePrice) * 100 : null;
     return { sku, title: p?.title, asin: p?.asin, units, salePrice, cost, revenue, marginPct };

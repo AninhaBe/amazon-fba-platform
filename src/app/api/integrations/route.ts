@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAccounts } from "@/lib/accountStore";
-import { getTiktokShops } from "@/lib/tiktokStore";
+import { getTiktokShops, removeTiktokShop } from "@/lib/tiktokStore";
+import { tiktokConfigured } from "@/lib/tiktok";
 import { getIntegrations, publicConnection, removeIntegration } from "@/lib/integrations/integrationStore";
 import { mercadoLivreConfigured } from "@/lib/integrations/mercadoLivre";
 import { PROVIDERS } from "@/lib/integrations/registry";
@@ -57,7 +58,7 @@ export async function GET() {
           : provider.id === "mercado_livre"
             ? mercadoLivreConfigured()
             : provider.id === "tiktok_shop"
-              ? !!(process.env.TIKTOK_APP_KEY && process.env.TIKTOK_APP_SECRET && process.env.TIKTOK_AUTH_URL)
+              ? tiktokConfigured()
               : false,
         connections: connections.filter((connection) => connection.provider === provider.id),
       })),
@@ -73,6 +74,10 @@ export async function DELETE(req: NextRequest) {
   try {
     const id = new URL(req.url).searchParams.get("id");
     if (!id) return NextResponse.json({ error: "Informe a conexão." }, { status: 400 });
+    if (id.startsWith("tiktok_shop:")) {
+      await removeTiktokShop(id.slice("tiktok_shop:".length));
+      return NextResponse.json({ ok: true });
+    }
     if (!id.startsWith("mercado_livre:")) {
       return NextResponse.json({ error: "Esta conexão deve ser removida pelo gerenciador específico do canal." }, { status: 400 });
     }

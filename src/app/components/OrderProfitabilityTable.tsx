@@ -37,7 +37,7 @@ function Breakdown({ line }: { line: ProfitabilityLine }) {
   </div>;
 }
 
-export function OrderProfitabilityTable({ lines, loading = false, error = null }: { lines: ProfitabilityLine[]; loading?: boolean; error?: string | null }) {
+export function OrderProfitabilityTable({ lines, loading = false, error = null, scopeNote }: { lines: ProfitabilityLine[]; loading?: boolean; error?: string | null; scopeNote?: string }) {
   const [query, setQuery] = useState("");
   const [resultFilter, setResultFilter] = useState<"all" | "positive" | "negative" | "incomplete">("all");
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -50,7 +50,7 @@ export function OrderProfitabilityTable({ lines, loading = false, error = null }
 
   return <section className="profitability-view" aria-labelledby="profitability-title">
     <header className="profitability-heading">
-      <div><p className="section-kicker">Resultado por venda</p><h2 id="profitability-title">Rentabilidade dos pedidos</h2><p>Veja o que entrou, os custos identificados e quanto sobrou em cada produto vendido.</p></div>
+      <div><p className="section-kicker">Resultado por venda</p><h2 id="profitability-title">Rentabilidade dos pedidos</h2><p>{scopeNote || "Veja o que entrou, os custos identificados e quanto sobrou em cada produto vendido."}</p></div>
       {!loading && lines.length > 0 && <span>{complete} de {lines.length} vendas com cálculo completo</span>}
     </header>
     <div className="profitability-filters">

@@ -3,6 +3,7 @@ import { getIntegration, saveIntegration } from "./integrationStore";
 import type { IntegrationConnection } from "./types";
 import { costAt, getCosts } from "../costStore";
 import { allocateByWeight, calculateContribution, type ProfitabilityLine } from "../profitability";
+import { collectMercadoLivreOrders } from "./mercadoLivreOrders";
 
 const API_BASE = "https://api.mercadolibre.com";
 const AUTH_BASE = "https://auth.mercadolivre.com.br/authorization";
@@ -753,24 +754,21 @@ export async function getMercadoLivreOverview(connection: IntegrationConnection,
   const accountId = encodeURIComponent(connection.externalAccountId);
   const to = period?.to ?? new Date();
   const from = period?.from ?? new Date(to.getTime() - 30 * 86_400_000);
-  const orderResource = (offset: number) => `/orders/search?seller=${accountId}&order.date_created.from=${encodeURIComponent(from.toISOString())}&order.date_created.to=${encodeURIComponent(to.toISOString())}&sort=date_desc&limit=50&offset=${offset}`;
-  const [user, productsData, firstOrderPage] = await Promise.all([
-    mercadoLivreFetch<MercadoLivreUser>(connection, "/users/me"),
-    getMercadoLivreProducts(connection),
+  const fetchOrderPage = (rangeFrom: Date, rangeTo: Date, offset: number, limit: number) =>
     mercadoLivreFetch<{ paging?: { total?: number }; results?: MercadoLivreOrder[] }>(
       connection,
-      orderResource(0)
-    ),
+      `/orders/search?seller=${accountId}&order.date_created.from=${encodeURIComponent(rangeFrom.toISOString())}&order.date_created.to=${encodeURIComponent(rangeTo.toISOString())}&sort=date_desc&limit=${limit}&offset=${offset}`
+    );
+  const [user, productsData, collectedOrders] = await Promise.all([
+    mercadoLivreFetch<MercadoLivreUser>(connection, "/users/me"),
+    getMercadoLivreProducts(connection),
+    collectMercadoLivreOrders({ from, to, fetchPage: fetchOrderPage }),
   ]);
-  const totalOrders = firstOrderPage.paging?.total ?? firstOrderPage.results?.length ?? 0;
-  const capturedLimit = Math.min(totalOrders, 1_000);
-  const offsets = Array.from({ length: Math.max(0, Math.ceil(capturedLimit / 50) - 1) }, (_, index) => (index + 1) * 50);
-  const additionalPages = await Promise.all(offsets.map((offset) =>
-    mercadoLivreFetch<{ results?: MercadoLivreOrder[] }>(connection, orderResource(offset))
-  ));
-  const orders = [firstOrderPage, ...additionalPages].flatMap((page) => page.results ?? []).slice(0, capturedLimit);
+  const totalOrders = collectedOrders.total;
+  const orders = collectedOrders.orders.sort((a, b) => b.date_created.localeCompare(a.date_created));
   const paidOrders = orders.filter((order) => order.status === "paid");
-  const shipmentIds = [...new Set(paidOrders
+  const detailedPaidOrders = paidOrders.slice(0, 1_000);
+  const shipmentIds = [...new Set(detailedPaidOrders
     .map((order) => order.shipping?.id == null ? null : String(order.shipping.id))
     .filter((shipmentId): shipmentId is string => shipmentId !== null))];
   const shipmentCosts = await getShipmentCosts(connection, shipmentIds);
@@ -781,12 +779,23 @@ export async function getMercadoLivreOverview(connection: IntegrationConnection,
   let sellerShipping = 0;
   let buyerShipping = 0;
   let unitsWithoutCost = 0;
-  const productTotals = new Map<string, { id: string; sku: string | null; title: string; units: number; revenue: number; cost: number; contribution: number; complete: boolean }>();
+  const productTotals = new Map<string, { id: string; sku: string | null; title: string; units: number; revenue: number; processedRevenue: number; cost: number; contribution: number; calculationsComplete: boolean }>();
   const unitsByItem = new Map<string, number>();
   const profitabilityLines: ProfitabilityLine[] = [];
 
+  for (const order of paidOrders) {
+    for (const line of order.order_items) {
+      const productKey = line.item.seller_sku || line.item.id;
+      const current = productTotals.get(productKey) ?? { id: line.item.id, sku: line.item.seller_sku ?? null, title: line.item.title, units: 0, revenue: 0, processedRevenue: 0, cost: 0, contribution: 0, calculationsComplete: true };
+      current.units += line.quantity;
+      current.revenue += line.unit_price * line.quantity;
+      productTotals.set(productKey, current);
+      unitsByItem.set(line.item.id, (unitsByItem.get(line.item.id) ?? 0) + line.quantity);
+    }
+  }
+
   type LineReference = { key: string; order: MercadoLivreOrder; line: MercadoLivreOrder["order_items"][number]; revenue: number; shipmentId: string | null };
-  const lineReferences: LineReference[] = paidOrders.flatMap((order) => order.order_items.map((line, index) => ({
+  const lineReferences: LineReference[] = detailedPaidOrders.flatMap((order) => order.order_items.map((line, index) => ({
     key: `${order.id}:${line.item.id}:${index}`,
     order,
     line,
@@ -847,14 +856,12 @@ export async function getMercadoLivreOverview(connection: IntegrationConnection,
       fees += lineFees;
       if (unitCost > 0) cogs += unitCost * line.quantity;
       else unitsWithoutCost += line.quantity;
-      const current = productTotals.get(productKey) ?? { id: line.item.id, sku: line.item.seller_sku ?? null, title: line.item.title, units: 0, revenue: 0, cost: 0, contribution: 0, complete: true };
-      current.units += line.quantity;
-      current.revenue += line.unit_price * line.quantity;
+      const current = productTotals.get(productKey) ?? { id: line.item.id, sku: line.item.seller_sku ?? null, title: line.item.title, units: line.quantity, revenue: lineRevenue, processedRevenue: 0, cost: 0, contribution: 0, calculationsComplete: true };
+      current.processedRevenue += lineRevenue;
       current.cost += unitCost * line.quantity;
       current.contribution += lineResult.contribution ?? 0;
-      current.complete = current.complete && lineResult.complete;
+      current.calculationsComplete = current.calculationsComplete && lineResult.complete;
       productTotals.set(productKey, current);
-      unitsByItem.set(line.item.id, (unitsByItem.get(line.item.id) ?? 0) + line.quantity);
       profitabilityLines.push({
         id: reference.key,
         orderId: String(order.id),
@@ -880,10 +887,11 @@ export async function getMercadoLivreOverview(connection: IntegrationConnection,
       });
   }
   const revenue = paidOrders.reduce((total, order) => total + (order.total_amount || 0), 0);
-  const taxes = revenue * taxRate / 100;
+  const processedRevenue = detailedPaidOrders.reduce((total, order) => total + (order.total_amount || 0), 0);
+  const taxes = processedRevenue * taxRate / 100;
   sellerShipping = +sellerShipping.toFixed(2);
   buyerShipping = +buyerShipping.toFixed(2);
-  const estimatedProfit = revenue - fees - cogs - taxes - sellerShipping;
+  const estimatedProfit = processedRevenue - fees - cogs - taxes - sellerShipping;
   const daily = new Map<string, { date: string; revenue: number; orders: number; units: number }>();
   for (const order of paidOrders) {
     const date = brazilDateKey(order.date_created);
@@ -929,7 +937,7 @@ export async function getMercadoLivreOverview(connection: IntegrationConnection,
       paidOrders: paidOrders.length,
       revenue30d: revenue,
       currency: orders[0]?.currency_id ?? "BRL",
-      revenueCoverage: { capturedOrders: orders.length, totalOrders, complete: orders.length >= totalOrders },
+      revenueCoverage: { capturedOrders: orders.length, totalOrders, complete: collectedOrders.complete },
     },
     profit: {
       fees,
@@ -939,8 +947,10 @@ export async function getMercadoLivreOverview(connection: IntegrationConnection,
       sellerShipping,
       buyerShipping,
       shippingCostsComplete: shipmentCosts.size === shipmentIds.length && [...shipmentCosts.values()].every(Boolean),
+      revenueProcessed: processedRevenue,
+      coverage: { processedOrders: detailedPaidOrders.length, paidOrders: paidOrders.length, complete: detailedPaidOrders.length >= paidOrders.length },
       estimatedProfit,
-      marginPct: revenue > 0 ? estimatedProfit / revenue * 100 : 0,
+      marginPct: processedRevenue > 0 ? estimatedProfit / processedRevenue * 100 : 0,
       unitsWithoutCost,
     },
     dailySales,
@@ -948,12 +958,22 @@ export async function getMercadoLivreOverview(connection: IntegrationConnection,
     topProducts: [...productTotals.values()]
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 8)
-      .map((product) => ({
-        ...product,
-        marginPct: product.complete && product.revenue > 0
-          ? product.contribution / product.revenue * 100
-          : null,
-      })),
+      .map((product) => {
+        const complete = product.calculationsComplete && Math.abs(product.processedRevenue - product.revenue) < 0.01;
+        return {
+          id: product.id,
+          sku: product.sku,
+          title: product.title,
+          units: product.units,
+          revenue: product.revenue,
+          cost: product.cost,
+          contribution: product.contribution,
+          complete,
+          marginPct: complete && product.revenue > 0
+            ? product.contribution / product.revenue * 100
+            : null,
+        };
+      }),
     profitabilityLines,
     recentOrders: orders.slice(0, 10).map((order) => ({
       id: String(order.id),

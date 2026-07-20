@@ -1,6 +1,7 @@
 import { defaultMarketplaceId, spapiFetch } from "./spapi";
 import { swr } from "./swr";
 import type { Period } from "./period";
+import { collectAllNextTokenPages, splitDateRange } from "./nextTokenPagination";
 
 interface CurrencyAmount {
   currencyAmount?: number;
@@ -68,24 +69,30 @@ export function getTransactionSummary(period: Period): Promise<TransactionSummar
 }
 
 async function fetchTransactions(period: Period): Promise<TransactionSummary> {
-  // listTransactions aceita no máximo 180 dias por consulta.
-  const earliest = Date.now() - 180 * 86_400_000;
-  const postedAfter = new Date(Math.max(new Date(period.startISO).getTime(), earliest)).toISOString();
-  const postedBefore = period.endISO;
+  // listTransactions aceita no máximo 180 dias por consulta; filtros maiores
+  // são divididos sem descartar a parte mais antiga do período.
+  const postedAfter = period.startISO;
+  const safePostedBefore = new Date(Math.min(new Date(period.endISO).getTime(), Date.now() - 3 * 60_000));
+  const postedBefore = safePostedBefore.toISOString();
   const marketplaceId = defaultMarketplaceId();
   const transactions: FinancialTransaction[] = [];
-  let nextToken: string | undefined;
-  let page = 0;
+  const ranges = splitDateRange(new Date(postedAfter), safePostedBefore);
+  const pages: ListTransactionsResponse[] = [];
+  for (const range of ranges) {
+    pages.push(...await collectAllNextTokenPages(
+      (nextToken) => spapiFetch<ListTransactionsResponse>(
+        "/finances/2024-06-19/transactions",
+        {
+          query: nextToken
+            ? { nextToken }
+            : { postedAfter: range.from.toISOString(), postedBefore: range.to.toISOString(), marketplaceId },
+        }
+      ),
+      (page) => page.payload?.nextToken
+    ));
+  }
 
-  do {
-    const data = await spapiFetch<ListTransactionsResponse>(
-      "/finances/2024-06-19/transactions",
-      {
-        query: nextToken
-          ? { nextToken }
-          : { postedAfter, postedBefore, marketplaceId },
-      }
-    );
+  for (const data of pages) {
 
     for (const transaction of data.payload?.transactions ?? []) {
       const orderId = transaction.relatedIdentifiers?.find((identifier) =>
@@ -105,9 +112,7 @@ async function fetchTransactions(period: Period): Promise<TransactionSummary> {
       });
     }
 
-    nextToken = data.payload?.nextToken;
-    page += 1;
-  } while (nextToken && page < 50);
+  }
 
   transactions.sort((a, b) => b.postedDate.localeCompare(a.postedDate));
   const released = transactions.filter((transaction) => transaction.status === "RELEASED");

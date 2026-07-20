@@ -40,6 +40,18 @@ com lucro, pedidos, estoque, custos e desempenho separados por workspace.
    Para permitir que um colega conecte a **própria** conta via OAuth, preencha também
    `SPAPI_APP_ID`, `OAUTH_CLIENT_ID/SECRET` e `APP_BASE_URL` (veja o `.env.local.example`).
 
+   Para habilitar a conexão com a **TikTok Shop Brasil**, crie o app no Partner Center,
+   cadastre `https://SEU_DOMINIO/api/tiktok/callback` como Redirect URL e configure:
+
+   ```
+   TIKTOK_APP_KEY=...
+   TIKTOK_APP_SECRET=...
+   TIKTOK_SERVICE_ID=...
+   ```
+
+   O SellerCore gera e valida um `state` de uso único no fluxo de autorização. Tokens
+   e lojas autorizadas permanecem criptografados e isolados por workspace.
+
 2. Instale e rode:
 
    ```bash

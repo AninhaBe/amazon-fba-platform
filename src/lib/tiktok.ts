@@ -11,6 +11,34 @@ import crypto from "crypto";
 
 const TOKEN_BASE = "https://auth.tiktok-shops.com/api/v2/token"; // confirmado no smoke-test
 const API_BASE = "https://open-api.tiktokglobalshop.com";
+const AUTH_BASE = "https://services.tiktokshop.com/open/authorize";
+export const TIKTOK_OAUTH_STATE_COOKIE = "sellercore_tiktok_oauth_state";
+
+export function tiktokConfigured(): boolean {
+  return !!(
+    process.env.TIKTOK_APP_KEY &&
+    process.env.TIKTOK_APP_SECRET &&
+    (process.env.TIKTOK_SERVICE_ID || process.env.TIKTOK_AUTH_URL)
+  );
+}
+
+/** Monta a autorização ROW (inclui Brasil) e sempre injeta um state novo. */
+export function tiktokAuthorizationUrl(state: string): string {
+  const configuredUrl = process.env.TIKTOK_AUTH_URL;
+  const serviceId = process.env.TIKTOK_SERVICE_ID;
+
+  if (!configuredUrl && !serviceId) {
+    throw new Error("Configure TIKTOK_SERVICE_ID no ambiente.");
+  }
+
+  const url = configuredUrl ? new URL(configuredUrl) : new URL(AUTH_BASE);
+  if (serviceId) url.searchParams.set("service_id", serviceId);
+  if (!url.searchParams.get("service_id")) {
+    throw new Error("A autorização do TikTok Shop precisa conter service_id.");
+  }
+  url.searchParams.set("state", state);
+  return url.toString();
+}
 
 function creds(): { key: string; secret: string } {
   const key = process.env.TIKTOK_APP_KEY;

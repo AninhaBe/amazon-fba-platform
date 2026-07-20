@@ -33,9 +33,10 @@ export const PROVIDERS: ProviderDefinition[] = [
     id: "tiktok_shop",
     name: "TikTok Shop",
     shortName: "TTS",
-    description: "Canal planejado para catálogo, pedidos, estoque e preços.",
-    capabilities: ["catalog", "orders", "inventory", "pricing"],
-    availability: "planned",
+    description: "Pedidos, produtos, estoque, preços e operação da TikTok Shop.",
+    capabilities: ["catalog", "orders", "inventory", "pricing", "finance"],
+    availability: "available",
+    connectHref: "/api/tiktok/login",
   },
   {
     id: "shopee",

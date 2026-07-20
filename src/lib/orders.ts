@@ -2,6 +2,8 @@ import { spapiFetch, defaultMarketplaceId } from "./spapi";
 import { cached } from "./cache";
 import type { Period } from "./period";
 import { normalizeAmazonOrder, type AmazonOrderResponse, type OrderSummary } from "./amazonOrder";
+import { getFinanceSummary } from "./finances";
+import { collectAllNextTokenPages } from "./nextTokenPagination";
 
 export type { OrderSummary } from "./amazonOrder";
 
@@ -78,72 +80,46 @@ export interface AmazonOrderItem {
 
 export function getOrderItems(amazonOrderId: string): Promise<AmazonOrderItem[]> {
   return cached(`order-items:${amazonOrderId}`, 5 * 60_000, async () => {
-    const data = await spapiFetch<OrderItemsResponse>(
-      `/orders/v0/orders/${encodeURIComponent(amazonOrderId)}/orderItems`
+    const pages = await collectAllNextTokenPages(
+      (nextToken) => spapiFetch<OrderItemsResponse>(
+        `/orders/v0/orders/${encodeURIComponent(amazonOrderId)}/orderItems`,
+        { query: nextToken ? { NextToken: nextToken } : undefined }
+      ),
+      (page) => page.payload?.NextToken
     );
-    return data.payload?.OrderItems ?? [];
+    return pages.flatMap((page) => page.payload?.OrderItems ?? []);
   });
 }
 
 export interface SalesVelocity {
   unitsBySku: Record<string, number>; // unidades vendidas por SKU no período
-  sales: { sku: string; units: number; purchasedAt: string }[];
+  sales: { sku: string; units: number; purchasedAt: string; revenue?: number }[];
   days: number;
 }
 
 /**
- * Calcula unidades vendidas por SKU nos últimos N dias (para velocidade de venda).
- * Percorre os pedidos e soma os itens. Ignora pedidos cancelados.
- * Nota: faz 1 chamada de itens por pedido (getOrderItems), então é limitado a
- * maxOrders para respeitar rate limits.
+ * Calcula unidades enviadas por SKU a partir de todas as linhas financeiras
+ * conciliadas no período, sem amostragem de pedidos.
  */
 export function getSalesVelocity(params: {
   period: Period;
   marketplaceId?: string;
-  maxOrders?: number;
 }): Promise<SalesVelocity> {
-  const { period, marketplaceId = defaultMarketplaceId(), maxOrders = 100 } = params;
-  // Cache/dedupe: profit e radar pedem isso ao mesmo tempo — compartilham 1 chamada.
-  return cached(`velocity:${period.key}:${marketplaceId}:${maxOrders}`, 120_000, () =>
-    computeSalesVelocity(period, marketplaceId, maxOrders)
+  const { period, marketplaceId = defaultMarketplaceId() } = params;
+  return cached(`velocity:${period.key}:${marketplaceId}:finance`, 120_000, () =>
+    computeSalesVelocity(period)
   );
 }
 
-async function computeSalesVelocity(
-  period: Period,
-  marketplaceId: string,
-  maxOrders: number
-): Promise<SalesVelocity> {
+async function computeSalesVelocity(period: Period): Promise<SalesVelocity> {
   const unitsBySku: Record<string, number> = {};
   const sales: SalesVelocity["sales"] = [];
-  let nextToken: string | undefined;
-  let processed = 0;
-  let guard = 0;
-
-  do {
-    const page = await getOrders({
-      createdAfter: period.startISO,
-      createdBefore: period.endISO,
-      marketplaceId,
-      orderStatuses: ["Shipped", "Unshipped", "PartiallyShipped"],
-      maxResults: 50,
-      nextToken,
-    });
-
-    for (const order of page.orders) {
-      if (processed >= maxOrders) break;
-      processed++;
-      const items = await getOrderItems(order.amazonOrderId);
-      for (const it of items) {
-        const sku = it.SellerSKU;
-        if (!sku) continue;
-        unitsBySku[sku] = (unitsBySku[sku] || 0) + (it.QuantityOrdered ?? 0);
-        sales.push({ sku, units: it.QuantityOrdered ?? 0, purchasedAt: order.purchaseDate });
-      }
-    }
-
-    nextToken = processed >= maxOrders ? undefined : page.nextToken;
-  } while (nextToken && ++guard < 20);
+  const finance = await getFinanceSummary(period);
+  for (const line of finance.itemLines) {
+    if (!line.sku || line.quantity <= 0) continue;
+    unitsBySku[line.sku] = (unitsBySku[line.sku] || 0) + line.quantity;
+    sales.push({ sku: line.sku, units: line.quantity, purchasedAt: line.postedDate, revenue: line.revenue });
+  }
 
   return { unitsBySku, sales, days: period.days };
 }

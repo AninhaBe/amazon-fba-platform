@@ -62,6 +62,9 @@ export default function IntegracoesPage() {
       if (query.get("connected") === "mercado_livre") {
         setMessage({ tone: "success", text: "Mercado Livre conectado com sucesso." });
         window.history.replaceState({}, "", "/integracoes");
+      } else if (query.get("connected") === "tiktok_shop") {
+        setMessage({ tone: "success", text: "TikTok Shop conectada com sucesso." });
+        window.history.replaceState({}, "", "/integracoes");
       } else if (query.get("error")) {
         setMessage({ tone: "error", text: query.get("error") || "Não foi possível concluir a conexão." });
         window.history.replaceState({}, "", "/integracoes");
@@ -147,7 +150,7 @@ export default function IntegracoesPage() {
                             <strong>{connection.displayName || connection.externalAccountId}</strong>
                             <small>{connection.region || connection.externalAccountId}</small>
                           </span>
-                          {provider.id === "mercado_livre" && (
+                          {(provider.id === "mercado_livre" || provider.id === "tiktok_shop") && (
                             <button type="button" onClick={() => void disconnect(connection)} disabled={busy === connection.id} className="connection-remove">
                               {busy === connection.id ? "Removendo…" : "Desconectar"}
                             </button>

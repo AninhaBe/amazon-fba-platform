@@ -13,6 +13,7 @@ interface Metrics {
   currency: string;
   fbaOrders: number;
   pendingItems: number;
+  recentOrderCount: number;
 }
 
 interface FinanceSummary {
@@ -83,6 +84,7 @@ export default function MonitorPage() {
   const [profitabilityLines, setProfitabilityLines] = useState<ProfitabilityLine[]>([]);
   const [profitabilityLoading, setProfitabilityLoading] = useState(true);
   const [profitabilityError, setProfitabilityError] = useState<string | null>(null);
+  const [profitabilityScope, setProfitabilityScope] = useState<string | undefined>();
 
   async function load(periodQuery: string) {
     setError(null);
@@ -125,6 +127,7 @@ export default function MonitorPage() {
       .then(({ ok, data }) => {
         if (!ok) throw new Error(data.error || "Não foi possível calcular as vendas.");
         setProfitabilityLines(data.lines);
+        setProfitabilityScope(data.scope?.completePeriod ? undefined : `Exibindo os ${data.scope?.processedOrders ?? data.lines.length} pedidos mais recentes. Os totais financeiros acima consideram o período completo.`);
       })
       .catch((err) => setProfitabilityError(err instanceof Error ? err.message : "Erro desconhecido."))
       .finally(() => setProfitabilityLoading(false));
@@ -161,8 +164,8 @@ export default function MonitorPage() {
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <Stat label="Pedidos" value={String(metrics.totalOrders)} />
           <Stat label="Faturamento" value={money(metrics.totalRevenue, metrics.currency)} />
-          <Stat label="Pedidos FBA" value={String(metrics.fbaOrders)} />
-          <Stat label="Itens a enviar" value={String(metrics.pendingItems)} />
+          <Stat label="FBA nos recentes" value={String(metrics.fbaOrders)} />
+          <Stat label="Itens a enviar nos recentes" value={String(metrics.pendingItems)} />
         </div>
       )}
 
@@ -334,7 +337,7 @@ export default function MonitorPage() {
         )}
       </section>
 
-      <OrderProfitabilityTable lines={profitabilityLines} loading={profitabilityLoading} error={profitabilityError} />
+      <OrderProfitabilityTable lines={profitabilityLines} loading={profitabilityLoading} error={profitabilityError} scopeNote={profitabilityScope} />
     </div>
   );
 }
