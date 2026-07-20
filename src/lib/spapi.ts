@@ -65,7 +65,7 @@ function friendlyForStatus(status: number): {
         code: "AMAZON_FORBIDDEN",
         retryable: false,
         message:
-          "A conta não tem permissão para consultar esses dados (verifique as roles do app na Amazon).",
+          "A conexão desta conta não tem permissão para consultar esses dados. Reconecte a conta ou fale com o suporte.",
       };
     case 404:
       return {
@@ -84,7 +84,7 @@ function friendlyForStatus(status: number): {
       return {
         code: "AMAZON_BAD_REQUEST",
         retryable: false,
-        message: "Requisição inválida à Amazon.",
+        message: "Não foi possível concluir esta consulta. Verifique os dados e tente novamente.",
       };
     case 500:
     case 502:

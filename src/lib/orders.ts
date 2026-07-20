@@ -65,9 +65,30 @@ export async function getOrders(params: {
 
 interface OrderItemsResponse {
   payload?: {
-    OrderItems?: { SellerSKU?: string; ASIN?: string; QuantityOrdered?: number }[];
+    OrderItems?: AmazonOrderItem[];
     NextToken?: string;
   };
+}
+
+export interface AmazonOrderItem {
+  OrderItemId?: string;
+  SellerSKU?: string;
+  ASIN?: string;
+  Title?: string;
+  QuantityOrdered?: number;
+  QuantityShipped?: number;
+  ItemPrice?: { CurrencyCode?: string; Amount?: string };
+  ShippingPrice?: { CurrencyCode?: string; Amount?: string };
+  PromotionDiscount?: { CurrencyCode?: string; Amount?: string };
+}
+
+export function getOrderItems(amazonOrderId: string): Promise<AmazonOrderItem[]> {
+  return cached(`order-items:${amazonOrderId}`, 5 * 60_000, async () => {
+    const data = await spapiFetch<OrderItemsResponse>(
+      `/orders/v0/orders/${encodeURIComponent(amazonOrderId)}/orderItems`
+    );
+    return data.payload?.OrderItems ?? [];
+  });
 }
 
 export interface SalesVelocity {
@@ -118,10 +139,8 @@ async function computeSalesVelocity(
     for (const order of page.orders) {
       if (processed >= maxOrders) break;
       processed++;
-      const data = await spapiFetch<OrderItemsResponse>(
-        `/orders/v0/orders/${encodeURIComponent(order.amazonOrderId)}/orderItems`
-      );
-      for (const it of data.payload?.OrderItems ?? []) {
+      const items = await getOrderItems(order.amazonOrderId);
+      for (const it of items) {
         const sku = it.SellerSKU;
         if (!sku) continue;
         unitsBySku[sku] = (unitsBySku[sku] || 0) + (it.QuantityOrdered ?? 0);

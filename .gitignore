@@ -45,3 +45,13 @@ next-env.d.ts
 
 # ngrok binario local
 /.tools
+
+# Ferramentas locais de agentes e referencias de design
+/.agents
+/.claude
+/.codex
+/ui-ux-pro-max-skill
+/skills-lock.json
+
+# Artefatos locais de auditoria visual
+/.revenue-chart-check.png

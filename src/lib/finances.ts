@@ -20,7 +20,9 @@ interface Fee {
   FeeAmount?: Money;
 }
 interface ShipmentItem {
+  OrderItemId?: string;
   SellerSKU?: string;
+  QuantityShipped?: number;
   ItemChargeList?: Charge[];
   ItemFeeList?: Fee[];
   PromotionList?: { PromotionAmount?: Money }[];
@@ -59,6 +61,20 @@ export interface FinanceSummary {
   netProceeds: number; // repasse líquido = receita - taxas - promoções - reembolsos
   orderCount: number;
   feeBreakdown: { type: string; amount: number }[];
+  itemLines: FinanceItemLine[];
+}
+
+export interface FinanceItemLine {
+  orderId: string;
+  orderItemId?: string;
+  sku?: string;
+  postedDate: string;
+  quantity: number;
+  revenue: number;
+  buyerShipping: number;
+  fees: number;
+  promotions: number;
+  currency: string;
 }
 
 /**
@@ -82,6 +98,7 @@ async function computeFinanceSummary(period: Period): Promise<FinanceSummary> {
   let refunds = 0;
   const orders = new Set<string>();
   const feeMap = new Map<string, number>();
+  const itemLineMap = new Map<string, FinanceItemLine>();
 
   let nextToken: string | undefined;
   let guard = 0;
@@ -100,19 +117,43 @@ async function computeFinanceSummary(period: Period): Promise<FinanceSummary> {
     for (const s of ev?.ShipmentEventList ?? []) {
       if (s.AmazonOrderId) orders.add(s.AmazonOrderId);
       for (const item of s.ShipmentItemList ?? []) {
+        const lineKey = `${s.AmazonOrderId || ""}:${item.OrderItemId || item.SellerSKU || ""}`;
+        const line = itemLineMap.get(lineKey) ?? {
+          orderId: s.AmazonOrderId || "",
+          orderItemId: item.OrderItemId,
+          sku: item.SellerSKU,
+          postedDate: s.PostedDate || postedBefore,
+          quantity: item.QuantityShipped ?? 0,
+          revenue: 0,
+          buyerShipping: 0,
+          fees: 0,
+          promotions: 0,
+          currency,
+        };
         for (const c of item.ItemChargeList ?? []) {
           const amt = n(c.ChargeAmount);
-          if (c.ChargeAmount?.CurrencyCode) currency = c.ChargeAmount.CurrencyCode;
-          if (c.ChargeType === "Principal") revenue += amt;
+          if (c.ChargeAmount?.CurrencyCode) {
+            currency = c.ChargeAmount.CurrencyCode;
+            line.currency = currency;
+          }
+          if (c.ChargeType === "Principal") {
+            revenue += amt;
+            line.revenue += amt;
+          }
+          if (c.ChargeType === "ShippingCharge") line.buyerShipping += amt;
         }
         for (const f of item.ItemFeeList ?? []) {
           const amt = n(f.FeeAmount); // normalmente negativo
           fees += -amt;
+          line.fees += -amt;
           feeMap.set(f.FeeType || "Outra", (feeMap.get(f.FeeType || "Outra") || 0) + -amt);
         }
         for (const p of item.PromotionList ?? []) {
-          promotions += -n(p.PromotionAmount);
+          const amount = -n(p.PromotionAmount);
+          promotions += amount;
+          line.promotions += amount;
         }
+        itemLineMap.set(lineKey, line);
       }
     }
 
@@ -141,5 +182,12 @@ async function computeFinanceSummary(period: Period): Promise<FinanceSummary> {
     feeBreakdown: [...feeMap.entries()]
       .map(([type, amount]) => ({ type, amount: round(amount) }))
       .sort((a, b) => b.amount - a.amount),
+    itemLines: [...itemLineMap.values()].map((line) => ({
+      ...line,
+      revenue: round(line.revenue),
+      buyerShipping: round(line.buyerShipping),
+      fees: round(line.fees),
+      promotions: round(line.promotions),
+    })),
   };
 }

@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
 
   if (!appId) {
     return NextResponse.json(
-      { error: "Configure SPAPI_APP_ID no .env.local (Application ID do seu app SP-API)." },
+      { error: "A conexão de contas ainda não foi configurada. Entre em contato com o suporte." },
       { status: 500 }
     );
   }

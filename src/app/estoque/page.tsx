@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { PageHeader, pageIcons } from "../components/PageHeader";
+import { TableLoading } from "../components/LoadingState";
+import { EmptyState } from "../components/EmptyState";
 
 type StockStatus = "out" | "critical" | "low" | "ok" | "overstock" | "idle";
 
@@ -70,7 +72,7 @@ export default function EstoquePage() {
     .sort((a, b) => sort === "stock" ? b.fulfillable - a.fulfillable : sort === "sales" ? b.perDay - a.perDay : urgency[a.status] - urgency[b.status]);
 
   return (
-    <div className="space-y-8">
+    <div className="inventory-page space-y-8">
       <PageHeader
         eyebrow="FBA Inventory · Orders"
         title="Radar de estoque"
@@ -91,7 +93,10 @@ export default function EstoquePage() {
 
       {error && (
         <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          {error}
+          <p>{error}</p>
+          <button type="button" onClick={() => void load(days)} className="mt-3 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white">
+            Tentar novamente
+          </button>
         </div>
       )}
 
@@ -99,9 +104,9 @@ export default function EstoquePage() {
         <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-slate-200/70 bg-white shadow-sm ring-1 ring-slate-900/[0.02] p-4">
           <span className="text-sm font-medium">
             {attention > 0 ? (
-              <span className="text-red-600">⚠ {attention} SKU(s) precisam de atenção</span>
+              <span className="inline-flex items-center gap-2 text-red-600"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true"><path d="M10 3 18 17H2L10 3Z" strokeLinejoin="round"/><path d="M10 8v4m0 2.5v.1" strokeLinecap="round"/></svg>{attention} SKU(s) precisam de atenção</span>
             ) : (
-              <span className="text-emerald-600">✓ Nenhum SKU em ruptura iminente</span>
+              <span className="inline-flex items-center gap-2 text-emerald-600"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="m7 10 2 2 4-4" strokeLinecap="round" strokeLinejoin="round"/></svg>Nenhum SKU em ruptura iminente</span>
             )}
           </span>
           <div className="flex flex-wrap gap-3 text-xs text-slate-500">
@@ -118,7 +123,7 @@ export default function EstoquePage() {
       )}
 
       {!loading && rows.length > 0 && (
-        <div className="flex flex-wrap gap-2">
+        <div className="filter-toolbar flex flex-wrap gap-2" role="search" aria-label="Filtros de estoque">
           <label className="min-w-52 flex-1">
             <span className="sr-only">Buscar no estoque</span>
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar SKU, ASIN ou produto" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
@@ -137,32 +142,28 @@ export default function EstoquePage() {
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200/70 bg-white shadow-sm ring-1 ring-slate-900/[0.02]">
         <table className="w-full min-w-[720px] text-sm">
+          <caption className="sr-only">Estoque disponível, velocidade de venda e risco de ruptura por SKU</caption>
           <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="px-4 py-3">Produto / SKU</th>
-              <th className="px-4 py-3 text-right">Disponível</th>
-              <th className="px-4 py-3 text-right">A caminho</th>
-              <th className="px-4 py-3 text-right">Vende/dia</th>
-              <th className="px-4 py-3 text-right">Acaba em</th>
-              <th className="px-4 py-3">Status</th>
+              <th scope="col" className="px-4 py-3">Produto / SKU</th>
+              <th scope="col" className="px-4 py-3 text-right">Disponível</th>
+              <th scope="col" className="px-4 py-3 text-right">A caminho</th>
+              <th scope="col" className="px-4 py-3 text-right">Vende/dia</th>
+              <th scope="col" className="px-4 py-3 text-right">Acaba em</th>
+              <th scope="col" className="px-4 py-3">Status</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
-                  Carregando estoque e velocidade de venda…
-                </td>
+                <td colSpan={6} className="px-4 py-8"><TableLoading label="Carregando estoque e velocidade de venda" /></td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
-                  Nenhum produto no estoque FBA. Quando você enviar mercadoria e começar a
-                  vender, o radar mostra aqui quantos dias faltam para cada SKU acabar.
-                </td>
+                <td colSpan={6} className="px-4 py-6"><EmptyState title="Seu estoque FBA aparecerá aqui" description="Quando houver mercadoria e vendas, o radar calcula automaticamente quantos dias restam para cada SKU." /></td>
               </tr>
             ) : visibleRows.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">Nenhum SKU corresponde aos filtros.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-6"><EmptyState kind="search" title="Nenhum SKU encontrado" description="Limpe a busca ou selecione outro status para ampliar os resultados." /></td></tr>
             ) : (
               visibleRows.map((r) => {
                 const meta = STATUS_META[r.status];

@@ -20,16 +20,21 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** Cria um relatório, aguarda o processamento e devolve o conteúdo como texto (TSV). */
 export async function runReport(
   reportType: string,
-  marketplaceId = defaultMarketplaceId()
+  marketplaceId = defaultMarketplaceId(),
+  options: {
+    dataStartTime?: string;
+    dataEndTime?: string;
+    reportOptions?: Record<string, string>;
+  } = {}
 ): Promise<string> {
   const created = await spapiFetch<CreateReportResp>("/reports/2021-06-30/reports", {
     method: "POST",
-    body: { reportType, marketplaceIds: [marketplaceId] },
+    body: { reportType, marketplaceIds: [marketplaceId], ...options },
   });
 
-  // Poll até DONE (máx ~45s).
+  // Poll até DONE (máx ~2 min; relatórios analíticos costumam levar mais tempo).
   let documentId: string | undefined;
-  for (let i = 0; i < 15; i++) {
+  for (let i = 0; i < 40; i++) {
     const rep = await spapiFetch<ReportResp>(`/reports/2021-06-30/reports/${created.reportId}`);
     if (rep.processingStatus === "DONE") {
       documentId = rep.reportDocumentId;

@@ -130,12 +130,13 @@ export function RevenueChart({ points }: { points: DailyPoint[] }) {
         {/* Rótulos X */}
         {xLabels.map((p) => {
           const i = points.indexOf(p);
+          const anchor = i === 0 ? "start" : i === points.length - 1 ? "end" : "middle";
           return (
             <text
               key={p.date}
               x={x(i)}
               y={H - 8}
-              textAnchor="middle"
+              textAnchor={anchor}
               className="fill-slate-400"
               fontSize={13}
             >
@@ -189,7 +190,9 @@ export function RevenueChart({ points }: { points: DailyPoint[] }) {
       {/* Tooltip */}
       {hp && (
         <div
-          className="pointer-events-none absolute top-2 z-10 -translate-x-1/2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-md"
+          className={`pointer-events-none absolute top-2 z-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-md ${
+            hover === 0 ? "" : hover === points.length - 1 ? "-translate-x-full" : "-translate-x-1/2"
+          }`}
           style={{ left: `${hoverLeftPct}%` }}
         >
           <p className="font-semibold text-slate-900">{shortDate(hp.date)}</p>

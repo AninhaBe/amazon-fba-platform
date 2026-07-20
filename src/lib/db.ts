@@ -54,6 +54,24 @@ async function createSchema(): Promise<void> {
       refresh_expires_at TIMESTAMPTZ,
       connected_at       TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+    CREATE TABLE IF NOT EXISTS integrations (
+      id                 TEXT PRIMARY KEY,
+      provider           TEXT NOT NULL,
+      external_account_id TEXT NOT NULL,
+      display_name       TEXT,
+      mode               TEXT NOT NULL DEFAULT 'local',
+      region             TEXT,
+      access_token       TEXT,
+      refresh_token      TEXT,
+      access_expires_at  TIMESTAMPTZ,
+      refresh_expires_at TIMESTAMPTZ,
+      scopes             JSONB NOT NULL DEFAULT '[]'::jsonb,
+      metadata           JSONB NOT NULL DEFAULT '{}'::jsonb,
+      status             TEXT NOT NULL DEFAULT 'connected',
+      connected_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE(provider, external_account_id)
+    );
   `);
 }
 

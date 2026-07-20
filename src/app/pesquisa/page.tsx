@@ -3,6 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { PageHeader, pageIcons } from "../components/PageHeader";
+import { TableLoading } from "../components/LoadingState";
+import { EmptyState } from "../components/EmptyState";
 
 interface ProductResult {
   asin: string;
@@ -58,26 +60,34 @@ export default function PesquisaPage() {
   const [nextToken, setNextToken] = useState<string | undefined>();
   const [sort, setSort] = useState<SortKey>("recentes");
   const [searched, setSearched] = useState(false);
+  const [searchedQuery, setSearchedQuery] = useState("");
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
 
-  async function run(e?: React.FormEvent) {
-    e?.preventDefault();
-    if (!q.trim()) return;
+  async function search(query: string) {
+    if (!query.trim()) return;
     setLoading(true);
     setError(null);
     setSearched(true);
     try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(q.trim())}`);
+      const res = await fetch(`/api/search?q=${encodeURIComponent(query.trim())}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erro na busca.");
       setItems(data.items);
       setTotal(data.total);
       setNextToken(data.nextToken);
+      setSearchedQuery(query.trim());
+      setUpdatedAt(new Date());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro desconhecido.");
       setItems([]);
     } finally {
       setLoading(false);
     }
+  }
+
+  function run(e?: React.FormEvent) {
+    e?.preventDefault();
+    void search(q);
   }
 
   async function loadMore() {
@@ -103,20 +113,20 @@ export default function PesquisaPage() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="research-page space-y-6">
       <PageHeader
-        eyebrow="Catalog Items · pesquisa de mercado"
+        eyebrow="Inteligência de mercado"
         title="Pesquisa de produtos"
         icon={pageIcons.search}
         subtitle={
           <>
             Busque qualquer termo como na Amazon e veja, de <strong>todos</strong> os anúncios,
-            quando cada um foi criado e sua posição de vendas (BSR). Dados oficiais da SP-API.
+            quando cada um foi criado e sua posição de vendas atual. Dados sincronizados do marketplace.
           </>
         }
       />
 
-      <form onSubmit={run} className="flex gap-2">
+      <form onSubmit={run} className="search-deck flex gap-2 border-y border-slate-300 py-5">
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -167,23 +177,42 @@ export default function PesquisaPage() {
           </p>
           <p className="text-xs text-slate-400">
             Ressalva honesta: se o vendedor <em>relistou</em> o produto do zero (ASIN novo, sem
-            variação), a data reseta e a SP-API não tem como saber a idade real — só a avaliação
-            mais antiga revelaria, e reviews não vêm pela API oficial.
+            variação), a data reseta e a fonte não informa a idade real — somente a avaliação
+            mais antiga poderia indicar isso, mas o histórico de reviews não está disponível.
           </p>
         </div>
       </details>
 
       {error && (
-        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          <p>{error}</p>
+          <button type="button" onClick={() => void search(searchedQuery || q)} className="mt-3 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white">
+            Tentar novamente
+          </button>
+        </div>
       )}
 
       {items.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-slate-500">
-            {items.length} de ~{total.toLocaleString("pt-BR")} resultados
-          </p>
-          <div className="flex gap-1 rounded-lg border border-slate-200 bg-white p-1 text-xs">
-            {([["recentes", "Mais novos"], ["antigos", "Mais antigos"], ["bsr", "Melhor BSR"]] as const).map(
+        <div className="filter-toolbar flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm text-slate-500">{items.length} de ~{total.toLocaleString("pt-BR")} resultados</p>
+            {updatedAt && (
+              <p className="mt-0.5 text-xs text-slate-400">
+                Consultado às {updatedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+              </p>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void search(searchedQuery)}
+              disabled={loading}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-600 hover:border-blue-400 hover:text-blue-600 disabled:opacity-50"
+            >
+              {loading ? "Atualizando…" : "Atualizar resultados"}
+            </button>
+            <div className="flex gap-1 rounded-lg border border-slate-200 bg-white p-1 text-xs">
+            {([["recentes", "Mais novos"], ["antigos", "Mais antigos"], ["bsr", "Melhor posição"]] as const).map(
               ([k, label]) => (
                 <button
                   key={k}
@@ -196,37 +225,47 @@ export default function PesquisaPage() {
                 </button>
               )
             )}
+            </div>
           </div>
         </div>
       )}
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200/70 bg-white shadow-sm ring-1 ring-slate-900/[0.02]">
-        <table className="w-full min-w-[640px] text-sm">
+        <table className="w-full min-w-[760px] text-sm">
+          <caption className="sr-only">Resultados da pesquisa de anúncios da Amazon</caption>
           <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="px-3 py-3">Produto</th>
-              <th className="whitespace-nowrap px-3 py-3 text-right">Preço</th>
-              <th className="whitespace-nowrap px-3 py-3 text-right">Vend.</th>
-              <th className="whitespace-nowrap px-3 py-3 text-right">Idade / criação</th>
-              <th className="whitespace-nowrap px-3 py-3 text-right">BSR</th>
-              <th className="px-3 py-3 text-right">Ações</th>
+              <th scope="col" className="px-3 py-3">Produto</th>
+              <th scope="col" className="whitespace-nowrap px-3 py-3 text-right">Preço</th>
+              <th
+                scope="col"
+                className="whitespace-nowrap px-3 py-3 text-right"
+                title="Quantidade de ofertas ativas concorrendo neste produto"
+              >
+                Concorrentes
+              </th>
+              <th scope="col" className="whitespace-nowrap px-3 py-3 text-right">Idade / criação</th>
+              <th
+                scope="col"
+                className="whitespace-nowrap px-3 py-3 text-right"
+                title="Posição atual de vendas na categoria. Quanto menor, melhor."
+              >
+                Posição de vendas
+              </th>
+              <th scope="col" className="px-3 py-3 text-right">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {!searched ? (
               <tr>
-                <td colSpan={6} className="px-4 py-12 text-center text-sm text-slate-400">
-                  Digite um termo e pesquise para ver os anúncios.
-                </td>
+                <td colSpan={6} className="px-4 py-6"><EmptyState kind="search" title="Pesquise o mercado Amazon" description="Digite um produto, marca ou palavra-chave para comparar anúncios, preços e concorrência." /></td>
               </tr>
             ) : loading && items.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-12 text-center text-slate-400">Buscando…</td>
+                <td colSpan={6} className="px-4 py-8"><TableLoading label="Buscando anúncios" /></td>
               </tr>
             ) : items.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-4 py-12 text-center text-slate-400">Nada encontrado.</td>
-              </tr>
+              <tr><td colSpan={6} className="px-4 py-6"><EmptyState kind="search" title="Nenhum anúncio encontrado" description="Tente uma palavra mais ampla, outra grafia ou remova detalhes do termo pesquisado." /></td></tr>
             ) : (
               sorted.map((p) => {
                 const eff = effectiveDate(p);
@@ -290,7 +329,16 @@ export default function PesquisaPage() {
                       </div>
                     </td>
                     <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">
-                      {p.salesRank ? `#${p.salesRank.toLocaleString("pt-BR")}` : "—"}
+                      {p.salesRank ? (
+                        <div className="flex flex-col items-end gap-0.5">
+                          <strong className="font-semibold text-slate-700">#{p.salesRank.toLocaleString("pt-BR")}</strong>
+                          {p.salesRankCategory && (
+                            <span className="max-w-[22ch] truncate text-[11px] text-slate-400" title={p.salesRankCategory}>
+                              em {p.salesRankCategory}
+                            </span>
+                          )}
+                        </div>
+                      ) : "—"}
                     </td>
                     <td className="px-3 py-2.5 text-right">
                       <div className="flex items-center justify-end gap-2">
@@ -339,7 +387,8 @@ export default function PesquisaPage() {
             usa a data do produto-pai (a família compartilha as avaliações, por isso a data do
             anúncio pode ser mais recente que reviews antigas).
           </p>
-          <p>Badge verde = linha com menos de 6 meses. BSR menor = vende mais na categoria.</p>
+          <p>Badge verde = linha com menos de 6 meses. Quanto menor a posição, maior a força de vendas dentro daquela categoria.</p>
+          <p>Para uma comparação justa, avalie posições de produtos pertencentes à mesma categoria.</p>
         </div>
       )}
     </div>

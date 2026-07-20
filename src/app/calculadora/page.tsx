@@ -179,23 +179,24 @@ export default function CalculatorPage() {
     "rounded-lg border border-slate-300 px-3 py-2 focus:border-blue-500 focus:outline-none";
 
   return (
-    <div className="space-y-8">
+    <div className="calculator-page space-y-8">
       <PageHeader
-        eyebrow="Product Fees · Pricing · Catalog"
+        eyebrow="Simulação de rentabilidade"
         title="Calculadora de lucro"
-        subtitle="Digite um ASIN e compare os três modos de logística lado a lado — FBA, Próprio (FBM) e DBA — com as taxas reais da Amazon."
+        subtitle="Digite um ASIN e compare FBA, logística própria e DBA com os custos e tarifas da sua operação."
         icon={pageIcons.calculator}
       />
 
       {/* Entradas compartilhadas */}
       <form
         onSubmit={calculate}
-        className="grid grid-cols-1 gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:grid-cols-3"
+        className="decision-sheet grid grid-cols-1 gap-4 border-y border-slate-300 py-6 sm:grid-cols-3"
       >
         <div className="flex flex-col gap-1 sm:col-span-3">
-          <span className="text-sm font-medium">ASIN do produto</span>
+          <label htmlFor="calculator-asin" className="text-sm font-medium">ASIN do produto</label>
           <div className="flex gap-2">
             <input
+              id="calculator-asin"
               required
               value={asin}
               onChange={(e) => setAsin(e.target.value)}
@@ -214,7 +215,7 @@ export default function CalculatorPage() {
               {fetchingPrice ? "Buscando…" : "Buscar preço"}
             </button>
           </div>
-          {priceError && <span className="text-xs text-red-600">{priceError}</span>}
+          {priceError && <span role="alert" className="text-xs text-red-600">{priceError}</span>}
           {product && (
             <div className="mt-2 flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
               {product.imageUrl && (
@@ -286,116 +287,76 @@ export default function CalculatorPage() {
       </form>
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           {error}
         </div>
       )}
 
       {/* Comparação lado a lado */}
       {result && (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          {columns.map((col) => {
-            const isBest = col.net === bestNet && num(price) > 0;
-            const positive = col.net >= 0;
-            return (
-              <div
-                key={col.key}
-                className={`flex flex-col rounded-2xl border bg-white p-5 shadow-sm ${
-                  isBest ? "border-emerald-400 ring-2 ring-emerald-200" : "border-slate-200"
-                }`}
-              >
-                <div className="flex flex-col items-center text-center">
-                  <span
-                    className={`mb-2 rounded-full px-2 py-0.5 text-xs font-semibold ${
-                      isBest ? "bg-emerald-100 text-emerald-700" : "invisible"
-                    }`}
-                  >
-                    Melhor lucro
-                  </span>
-                  <h3 className="text-lg font-bold">{col.label}</h3>
-                  <p className="text-xs text-slate-400">{col.hint}</p>
-                </div>
+        <section className="logistics-board">
+          <div className="logistics-board-heading">
+            <div>
+              <p className="section-kicker">Cenários calculados</p>
+              <h2>Comparação por modalidade</h2>
+            </div>
+            <p>Edite os custos variáveis em cada opção; o resultado é atualizado na hora.</p>
+          </div>
 
-                {/* Lucro + margem em destaque */}
-                <div
-                  className={`mt-4 rounded-xl p-4 text-center ${
-                    positive
-                      ? "bg-gradient-to-br from-emerald-500 to-emerald-600"
-                      : "bg-gradient-to-br from-red-500 to-red-600"
-                  }`}
-                >
-                  <p className="text-xs font-medium text-white/80">Lucro líquido / unidade</p>
-                  <p className="text-3xl font-bold tabular-nums text-white">
-                    {money(col.net, result.currency)}
-                  </p>
-                  <div className="mt-3 grid grid-cols-2 gap-3 border-t border-white/25 pt-3">
+          <div className="logistics-comparison">
+            {columns.map((col) => {
+              const isBest = col.net === bestNet && num(price) > 0;
+              const positive = col.net >= 0;
+              return (
+                <article key={col.key} className={`logistics-option ${isBest ? "is-best" : ""}`}>
+                  <header className="logistics-option-heading">
                     <div>
-                      <p className="text-[11px] font-medium uppercase tracking-wide text-white/70">
-                        Margem
-                      </p>
-                      <p className="text-2xl font-bold tabular-nums text-white">
-                        {col.marginPct.toFixed(1)}%
-                      </p>
+                      <h3>{col.label}</h3>
+                      <p>{col.hint}</p>
                     </div>
+                    {isBest && <span className="best-option">Melhor resultado</span>}
+                  </header>
+
+                  <div className={`logistics-result ${positive ? "is-positive" : "is-negative"}`}>
                     <div>
-                      <p className="text-[11px] font-medium uppercase tracking-wide text-white/70">
-                        ROI
-                      </p>
-                      <p className="text-2xl font-bold tabular-nums text-white">
-                        {num(cost) > 0 ? `${col.roiPct.toFixed(1)}%` : "—"}
-                      </p>
+                      <p>Lucro por unidade</p>
+                      <strong>{money(col.net, result.currency)}</strong>
                     </div>
+                    <dl>
+                      <div><dt>Margem</dt><dd>{col.marginPct.toFixed(1)}%</dd></div>
+                      <div><dt>ROI</dt><dd>{num(cost) > 0 ? `${col.roiPct.toFixed(1)}%` : "—"}</dd></div>
+                    </dl>
                   </div>
-                </div>
 
-                {/* Detalhamento */}
-                <ul className="mt-4 space-y-2 text-sm">
-                  <li className="flex justify-between font-medium text-slate-900">
-                    <span>Preço de venda</span>
-                    <span className="tabular-nums">{money(num(price), result.currency)}</span>
-                  </li>
-                  {col.lines.map((l) => (
-                    <li key={l.label} className="flex justify-between text-slate-500">
-                      <span>{l.label}</span>
-                      <span className="tabular-nums">− {money(l.value, result.currency)}</span>
-                    </li>
-                  ))}
-                  <li className="flex justify-between text-slate-500">
-                    <span>Custo do produto</span>
-                    <span className="tabular-nums">− {money(num(cost), result.currency)}</span>
-                  </li>
-                  <li className="flex justify-between border-t border-slate-200 pt-2 font-semibold">
-                    <span>Lucro líquido</span>
-                    <span className={`tabular-nums ${positive ? "text-emerald-600" : "text-red-600"}`}>
-                      {money(col.net, result.currency)}
-                    </span>
-                  </li>
-                </ul>
+                  <ul className="logistics-breakdown">
+                    <li className="is-revenue"><span>Preço de venda</span><strong>{money(num(price), result.currency)}</strong></li>
+                    {col.lines.map((line) => (
+                      <li key={line.label}><span>{line.label}</span><span>− {money(line.value, result.currency)}</span></li>
+                    ))}
+                    <li><span>Custo do produto</span><span>− {money(num(cost), result.currency)}</span></li>
+                  </ul>
 
-                {/* Custos editáveis específicos do modo */}
-                <div className="mt-4 space-y-2 border-t border-slate-100 pt-3">
-                  {col.key === "FBA" && (
-                    <>
-                      <EditCost label="Armazenagem/mês (R$)" value={storage} onChange={setStorage} />
-                      <EditCost label="Frete até o centro (R$)" value={fbaShip} onChange={setFbaShip} />
-                    </>
-                  )}
-                  {col.key === "FBM" && (
-                    <EditCost label="Seu envio ao cliente (R$)" value={fbmShip} onChange={setFbmShip} />
-                  )}
-                  {col.key === "DBA" && (
-                    <EditCost label="Coleta + entrega DBA (R$)" value={dbaFee} onChange={setDbaFee} />
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                  <div className="logistics-editable">
+                    <p>Custos sob seu controle</p>
+                    {col.key === "FBA" && (
+                      <>
+                        <EditCost label="Armazenagem/mês (R$)" value={storage} onChange={setStorage} />
+                        <EditCost label="Frete até o centro (R$)" value={fbaShip} onChange={setFbaShip} />
+                      </>
+                    )}
+                    {col.key === "FBM" && <EditCost label="Seu envio ao cliente (R$)" value={fbmShip} onChange={setFbmShip} />}
+                    {col.key === "DBA" && <EditCost label="Coleta + entrega DBA (R$)" value={dbaFee} onChange={setDbaFee} />}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
       )}
 
       {result && (
         <p className="text-xs text-slate-400">
-          Comissão e logística FBA vêm cravadas da Amazon (Product Fees API). Armazenagem,
+          Comissão e logística FBA são calculadas automaticamente. Armazenagem,
           frete e a taxa DBA são custos que você controla — edite em cada coluna e o lucro
           recalcula na hora. O DBA usa a mesma comissão; a taxa de coleta/entrega é a da
           tabela DBA da sua conta.

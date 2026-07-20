@@ -16,22 +16,23 @@ export function PageHeader({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-4">
+    <div className="page-heading flex flex-wrap items-end justify-between gap-5">
       <div className="flex items-start gap-4">
-        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-sm shadow-blue-600/25 ring-1 ring-inset ring-white/20">
+        <span className="page-glyph flex h-11 w-11 shrink-0 items-center justify-center">
           {icon}
         </span>
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-blue-600">
+          <p className="page-kicker text-xs font-semibold uppercase tracking-[0.14em]">
             {eyebrow}
           </p>
-          <h1 className="mt-0.5 text-[26px] font-bold leading-tight tracking-tight text-slate-900">
+          <h1 className="mt-1.5 text-balance text-[30px] font-bold leading-[1.08] tracking-[-0.035em] text-slate-900 lg:text-[34px]">
             {title}
           </h1>
-          {subtitle && <p className="mt-1.5 max-w-2xl text-sm text-slate-500">{subtitle}</p>}
+          {subtitle && <p className="mt-2.5 max-w-3xl text-pretty text-[15px] leading-relaxed text-slate-600">{subtitle}</p>}
         </div>
       </div>
-      {action && <div className="shrink-0">{action}</div>}
+      {action && <div className="page-actions shrink-0">{action}</div>}
+      <span className="coreline" aria-hidden="true"><i /><i /><i /></span>
     </div>
   );
 }
@@ -58,6 +59,12 @@ export const pageIcons: Record<string, ReactNode> = {
       <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" strokeLinecap="round" />
     </svg>
   ),
+  performance: (
+    <svg viewBox="0 0 24 24" {...sw} className="h-6 w-6">
+      <path d="M4 19V9m5 10V5m5 14v-7m5 7V3" strokeLinecap="round" />
+      <path d="m3 7 5-3 5 5 7-7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
   radar: (
     <svg viewBox="0 0 24 24" {...sw} className="h-6 w-6">
       <path d="M3 9l9-5 9 5-9 5-9-5Z" strokeLinejoin="round" />
@@ -75,6 +82,13 @@ export const pageIcons: Record<string, ReactNode> = {
     <svg viewBox="0 0 24 24" {...sw} className="h-6 w-6">
       <circle cx="11" cy="11" r="7" />
       <path d="m21 21-4.3-4.3" strokeLinecap="round" />
+    </svg>
+  ),
+  integrations: (
+    <svg viewBox="0 0 24 24" {...sw} className="h-6 w-6">
+      <path d="M8 7V4m4 3V4M6 7h8v3a4 4 0 0 1-4 4v3" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M10 17v3h8a2 2 0 0 0 2-2v-2" strokeLinecap="round" />
+      <circle cx="20" cy="13" r="2" />
     </svg>
   ),
 };

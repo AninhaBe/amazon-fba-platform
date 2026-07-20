@@ -2,15 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { PageHeader, pageIcons } from "../components/PageHeader";
-
-interface OrderSummary {
-  amazonOrderId: string;
-  purchaseDate: string;
-  orderStatus: string;
-  fulfillmentChannel?: string;
-  numberOfItemsUnshipped?: number;
-  orderTotal?: { CurrencyCode: string; Amount: string };
-}
+import { PanelLoading } from "../components/LoadingState";
+import { OrderProfitabilityTable } from "../components/OrderProfitabilityTable";
+import type { ProfitabilityLine } from "@/lib/profitability";
 
 interface Metrics {
   totalOrders: number;
@@ -40,6 +34,28 @@ interface ProfitSummary {
   skusMissingCost: string[];
 }
 
+interface FinancialTransaction {
+  id: string;
+  type: string;
+  status: string;
+  description: string;
+  postedDate: string;
+  amount: number;
+  currency: string;
+  orderId?: string;
+  sku?: string;
+}
+
+interface TransactionSummary {
+  currency: string;
+  releasedAmount: number;
+  deferredAmount: number;
+  releasedCount: number;
+  deferredCount: number;
+  transactionCount: number;
+  recent: FinancialTransaction[];
+}
+
 const FEE_LABELS: Record<string, string> = {
   Commission: "Comissão",
   FBAPerUnitFulfillmentFee: "FBA — coleta/embalagem",
@@ -54,36 +70,31 @@ function money(v: number, currency: string) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(v);
 }
 
-const STATUS_COLOR: Record<string, string> = {
-  Shipped: "bg-emerald-100 text-emerald-700",
-  Pending: "bg-amber-100 text-amber-700",
-  Unshipped: "bg-blue-100 text-blue-700",
-  Canceled: "bg-red-100 text-red-700",
-};
-
 export default function MonitorPage() {
   const [days, setDays] = useState(30);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
-  const [orders, setOrders] = useState<OrderSummary[]>([]);
   const [finance, setFinance] = useState<FinanceSummary | null>(null);
   const [profit, setProfit] = useState<ProfitSummary | null>(null);
   const [financeError, setFinanceError] = useState<string | null>(null);
-  const [orderQuery, setOrderQuery] = useState("");
-  const [orderStatus, setOrderStatus] = useState("all");
+  const [transactions, setTransactions] = useState<TransactionSummary | null>(null);
+  const [transactionsError, setTransactionsError] = useState<string | null>(null);
+  const [profitabilityLines, setProfitabilityLines] = useState<ProfitabilityLine[]>([]);
+  const [profitabilityLoading, setProfitabilityLoading] = useState(true);
+  const [profitabilityError, setProfitabilityError] = useState<string | null>(null);
 
   async function load(d: number) {
-    setLoading(true);
     setError(null);
     setFinanceError(null);
+    setTransactionsError(null);
+    setProfitabilityLoading(true);
+    setProfitabilityError(null);
     // Pedidos e lucro (financeiro + custos) em paralelo; um não derruba o outro.
     const ordersReq = fetch(`/api/orders?days=${d}`)
       .then((r) => r.json().then((data) => ({ ok: r.ok, data })))
       .then(({ ok, data }) => {
         if (!ok) throw new Error(data.error || "Erro ao carregar pedidos.");
         setMetrics(data.metrics);
-        setOrders(data.orders);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Erro desconhecido."));
 
@@ -98,8 +109,26 @@ export default function MonitorPage() {
         setFinanceError(err instanceof Error ? err.message : "Erro desconhecido.")
       );
 
-    await Promise.all([ordersReq, profitReq]);
-    setLoading(false);
+    const transactionsReq = fetch(`/api/transactions?days=${d}`)
+      .then((r) => r.json().then((data) => ({ ok: r.ok, data })))
+      .then(({ ok, data }) => {
+        if (!ok) throw new Error(data.error || "Erro ao carregar transações.");
+        setTransactions(data.summary);
+      })
+      .catch((err) =>
+        setTransactionsError(err instanceof Error ? err.message : "Erro desconhecido.")
+      );
+
+    const profitabilityReq = fetch(`/api/order-profitability?days=${d}`)
+      .then((r) => r.json().then((data) => ({ ok: r.ok, data })))
+      .then(({ ok, data }) => {
+        if (!ok) throw new Error(data.error || "Não foi possível calcular as vendas.");
+        setProfitabilityLines(data.lines);
+      })
+      .catch((err) => setProfitabilityError(err instanceof Error ? err.message : "Erro desconhecido."))
+      .finally(() => setProfitabilityLoading(false));
+
+    await Promise.all([ordersReq, profitReq, transactionsReq, profitabilityReq]);
   }
 
   useEffect(() => {
@@ -107,13 +136,8 @@ export default function MonitorPage() {
     return () => window.clearTimeout(timer);
   }, [days]);
 
-  const visibleOrders = orders.filter((order) =>
-    order.amazonOrderId.toLowerCase().includes(orderQuery.toLowerCase()) &&
-    (orderStatus === "all" || order.orderStatus === orderStatus)
-  );
-
   return (
-    <div className="space-y-8">
+    <div className="monitor-page space-y-8">
       <PageHeader
         eyebrow="Orders · Finances"
         title="Monitor da conta"
@@ -134,7 +158,10 @@ export default function MonitorPage() {
 
       {error && (
         <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          {error}
+          <p>{error}</p>
+          <button type="button" onClick={() => void load(days)} className="mt-3 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white">
+            Tentar novamente
+          </button>
         </div>
       )}
 
@@ -147,11 +174,11 @@ export default function MonitorPage() {
         </div>
       )}
 
-      {/* Financeiro realizado (Finances API) */}
+      {/* Financeiro realizado */}
       <div className="space-y-3">
         <div className="flex items-baseline justify-between">
           <h2 className="text-lg font-semibold">Financeiro realizado</h2>
-          <span className="text-xs text-slate-400">repasses efetivos · Finances API</span>
+          <span className="text-xs text-slate-400">repasses efetivos · dados conciliados</span>
         </div>
 
         {financeError ? (
@@ -228,82 +255,94 @@ export default function MonitorPage() {
             )}
           </div>
         ) : (
-          <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-400">
-            Carregando…
-          </div>
+          <PanelLoading label="Carregando resumo financeiro" />
         )}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold">Pedidos</h2>
-        <div className="flex flex-1 flex-wrap justify-end gap-2">
-          <label className="min-w-48 sm:max-w-xs sm:flex-1">
-            <span className="sr-only">Buscar pedido</span>
-            <input value={orderQuery} onChange={(e) => setOrderQuery(e.target.value)} placeholder="Buscar número do pedido" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
-          </label>
-          <select value={orderStatus} onChange={(e) => setOrderStatus(e.target.value)} aria-label="Filtrar status do pedido" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
-            <option value="all">Todos os status</option>
-            {[...new Set(orders.map((order) => order.orderStatus))].map((status) => <option key={status} value={status}>{status}</option>)}
-          </select>
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <div>
+            <h2 className="text-lg font-semibold">Conciliação de transações</h2>
+            <p className="mt-0.5 text-sm text-slate-500">
+              Valores liberados e diferidos na movimentação financeira mais recente.
+            </p>
+          </div>
+          <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
+            Dados financeiros atualizados
+          </span>
         </div>
-      </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-slate-200/70 bg-white shadow-sm ring-1 ring-slate-900/[0.02]">
-        <table className="w-full min-w-[680px] text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-            <tr>
-              <th className="px-4 py-3">Pedido</th>
-              <th className="px-4 py-3">Data</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Canal</th>
-              <th className="px-4 py-3 text-right">Total</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {loading ? (
-              <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
-                  Carregando…
-                </td>
-              </tr>
-            ) : orders.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
-                  Nenhum pedido no período.
-                </td>
-              </tr>
-            ) : visibleOrders.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">Nenhum pedido corresponde aos filtros.</td></tr>
-            ) : (
-              visibleOrders.map((o) => (
-                <tr key={o.amazonOrderId} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 font-mono text-xs">{o.amazonOrderId}</td>
-                  <td className="px-4 py-3 text-slate-600">
-                    {new Date(o.purchaseDate).toLocaleDateString("pt-BR")}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs ${
-                        STATUS_COLOR[o.orderStatus] || "bg-slate-100 text-slate-600"
-                      }`}
-                    >
-                      {o.orderStatus}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-slate-600">
-                    {o.fulfillmentChannel === "AFN" ? "FBA" : "Próprio"}
-                  </td>
-                  <td className="px-4 py-3 text-right font-medium">
-                    {o.orderTotal
-                      ? money(parseFloat(o.orderTotal.Amount), o.orderTotal.CurrencyCode)
-                      : "—"}
-                  </td>
-                </tr>
-              ))
+        {transactionsError ? (
+          <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            {transactionsError}
+          </div>
+        ) : transactions ? (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <Stat label="Saldo liberado" value={money(transactions.releasedAmount, transactions.currency)} />
+              <Stat label="Saldo diferido" value={money(transactions.deferredAmount, transactions.currency)} />
+              <Stat label="Transações" value={String(transactions.transactionCount)} />
+            </div>
+
+            {transactions.recent.length > 0 && (
+              <div className="overflow-x-auto rounded-2xl border border-slate-200/70 bg-white shadow-sm ring-1 ring-slate-900/[0.02]">
+                <table className="w-full min-w-[720px] text-sm">
+                  <caption className="sr-only">Transações financeiras recentes</caption>
+                  <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                    <tr>
+                      <th scope="col" className="px-4 py-3">Data</th>
+                      <th scope="col" className="px-4 py-3">Transação</th>
+                      <th scope="col" className="px-4 py-3">Pedido / SKU</th>
+                      <th scope="col" className="px-4 py-3">Status</th>
+                      <th scope="col" className="px-4 py-3 text-right">Valor</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {transactions.recent.map((transaction) => (
+                      <tr key={transaction.id} className="hover:bg-slate-50">
+                        <td className="whitespace-nowrap px-4 py-3 text-slate-600">
+                          {new Date(transaction.postedDate).toLocaleDateString("pt-BR")}
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-slate-800">{transaction.description}</p>
+                          <p className="text-xs text-slate-400">{transaction.type}</p>
+                        </td>
+                        <td className="px-4 py-3 font-mono text-xs text-slate-600">
+                          {transaction.orderId || transaction.sku || "—"}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                            transaction.status === "RELEASED"
+                              ? "bg-emerald-100 text-emerald-700"
+                              : transaction.status === "DEFERRED"
+                                ? "bg-amber-100 text-amber-700"
+                                : "bg-slate-100 text-slate-600"
+                          }`}>
+                            {transaction.status === "RELEASED"
+                              ? "Liberada"
+                              : transaction.status === "DEFERRED"
+                                ? "Diferida"
+                                : transaction.status}
+                          </span>
+                        </td>
+                        <td className={`px-4 py-3 text-right font-semibold tabular-nums ${
+                          transaction.amount < 0 ? "text-red-600" : "text-emerald-700"
+                        }`}>
+                          {money(transaction.amount, transaction.currency)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
-          </tbody>
-        </table>
-      </div>
+          </div>
+        ) : (
+          <PanelLoading label="Carregando transações" />
+        )}
+      </section>
+
+      <OrderProfitabilityTable lines={profitabilityLines} loading={profitabilityLoading} error={profitabilityError} />
     </div>
   );
 }

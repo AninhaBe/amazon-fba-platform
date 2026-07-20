@@ -53,5 +53,6 @@ export function resolvePeriod(sp: URLSearchParams): Period {
   const from = sp.get("from");
   const to = sp.get("to");
   if (from && to) return periodFromRange(from, to);
-  return periodFromDays(Number(sp.get("days") || 30));
+  const days = sp.get("days") || "30";
+  return periodFromDays(days === "today" ? 1 : Number(days));
 }

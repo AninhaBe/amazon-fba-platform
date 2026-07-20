@@ -18,3 +18,9 @@ test("resolve intervalo customizado antes do preset", () => {
   const period = resolvePeriod(new URLSearchParams("days=90&from=2026-07-01&to=2026-07-03"));
   assert.equal(period.custom, true);
 });
+
+test("resolve o filtro Hoje como um dia", () => {
+  const period = resolvePeriod(new URLSearchParams("days=today"));
+  assert.equal(period.days, 1);
+  assert.equal(period.custom, false);
+});

@@ -81,7 +81,14 @@ export function AccountSwitcher() {
     }
   }
 
-  if (!info) return null;
+  if (!info) {
+    return (
+      <div role="status" aria-label="Carregando contas" className="account-loading" aria-busy="true">
+        <span />
+        <span />
+      </div>
+    );
+  }
 
   const activeAccount = info.active
     ? info.accounts.find((a) => a.sellerId === info.active) ?? null
@@ -103,7 +110,7 @@ export function AccountSwitcher() {
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-            Conta ativa
+            Conta Amazon ativa
           </p>
           {editing && activeAccount ? (
             <div className="mt-1 flex items-center gap-1">
@@ -121,6 +128,7 @@ export function AccountSwitcher() {
               <button
                 onClick={() => saveName(activeAccount.sellerId)}
                 disabled={saving}
+                aria-label="Salvar nome da conta"
                 className="text-xs font-semibold text-blue-600 hover:text-blue-700 disabled:opacity-50"
               >
                 ok
@@ -138,7 +146,8 @@ export function AccountSwitcher() {
                     setEditing(true);
                   }}
                   title="Renomear conta"
-                  className="text-slate-400 hover:text-blue-600"
+                  aria-label="Renomear conta"
+                  className="icon-hit-area text-slate-400 hover:text-blue-600"
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-3.5 w-3.5">
                     <path d="M12 20h9" strokeLinecap="round" />
@@ -164,7 +173,7 @@ export function AccountSwitcher() {
           aria-label="Trocar conta Amazon ativa"
           className="w-full cursor-pointer rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-600 hover:border-slate-300"
         >
-          {info.hasOwnerToken && <option value="">Minha conta (.env)</option>}
+          {info.hasOwnerToken && <option value="">Conta principal</option>}
           {info.accounts.map((a) => (
             <option key={a.sellerId} value={a.sellerId}>
               {labelOf(a)}
@@ -173,12 +182,6 @@ export function AccountSwitcher() {
         </select>
       )}
 
-      <a
-        href="/api/auth/login"
-        className="flex items-center justify-center gap-1.5 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 px-3 py-2 text-center text-xs font-semibold text-white shadow-sm shadow-blue-600/25 hover:from-blue-600 hover:to-blue-700"
-      >
-        <span className="text-sm leading-none">+</span> Conectar conta Amazon
-      </a>
       {error && (
         <p role="alert" className="text-xs text-red-600">
           {error}

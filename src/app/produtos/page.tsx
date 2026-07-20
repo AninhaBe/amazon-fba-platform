@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { PageHeader, pageIcons } from "../components/PageHeader";
+import { TableLoading } from "../components/LoadingState";
+import { EmptyState } from "../components/EmptyState";
 
 interface Product {
   id: string;
@@ -132,7 +134,7 @@ export default function ProdutosPage() {
     });
 
   return (
-    <div className="space-y-8">
+    <div className="products-page space-y-8">
       <PageHeader
         eyebrow="FBA Inventory · Catalog"
         title="Produtos"
@@ -150,7 +152,7 @@ export default function ProdutosPage() {
       {/* Adicionar por ASIN */}
       <form
         onSubmit={addByAsin}
-        className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+        className="catalog-entry flex flex-wrap items-end gap-3 border-y border-slate-300 py-5"
       >
         <label className="flex flex-1 flex-col gap-1">
           <span className="text-sm font-medium">Adicionar produto por ASIN</span>
@@ -173,12 +175,15 @@ export default function ProdutosPage() {
 
       {error && (
         <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          {error}
+          <p>{error}</p>
+          <button type="button" onClick={() => void load()} className="mt-3 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white">
+            Tentar novamente
+          </button>
         </div>
       )}
 
       {!loading && products.length > 0 && (
-        <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="filter-toolbar flex flex-wrap items-end justify-between gap-3">
           <p className="text-sm text-slate-500">
             {visibleProducts.length} de {products.length} produto(s) · {withCost} com custo cadastrado
           </p>
@@ -203,33 +208,28 @@ export default function ProdutosPage() {
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200/70 bg-white shadow-sm ring-1 ring-slate-900/[0.02]">
         <table className="w-full min-w-[640px] text-sm">
+          <caption className="sr-only">Produtos, estoque, preço de venda e custo cadastrado</caption>
           <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="px-4 py-3">Produto</th>
-              <th className="px-4 py-3">Origem</th>
-              <th className="px-4 py-3 text-right">Estoque</th>
-              <th className="px-4 py-3 text-right">Preço venda</th>
-              <th className="px-4 py-3 text-right">Custo (R$)</th>
-              <th className="px-4 py-3"></th>
+              <th scope="col" className="px-4 py-3">Produto</th>
+              <th scope="col" className="px-4 py-3">Origem</th>
+              <th scope="col" className="px-4 py-3 text-right">Estoque</th>
+              <th scope="col" className="px-4 py-3 text-right">Preço venda</th>
+              <th scope="col" className="px-4 py-3 text-right">Custo (R$)</th>
+              <th scope="col" className="px-4 py-3"><span className="sr-only">Ações</span></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
-                  Puxando anúncios da conta… (o relatório da Amazon pode levar alguns segundos)
-                </td>
+                <td colSpan={6} className="px-4 py-8"><TableLoading label="Puxando anúncios da conta Amazon" /></td>
               </tr>
             ) : products.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-400">
-                  Nenhum produto encontrado na conta ainda. Quando você tiver anúncios ativos,
-                  eles aparecem aqui automaticamente. Enquanto isso, dá pra adicionar por ASIN
-                  acima.
-                </td>
+                <td colSpan={6} className="px-4 py-6"><EmptyState title="Nenhum produto sincronizado" description="Anúncios ativos aparecem automaticamente. Você também pode começar adicionando um produto pelo ASIN acima." /></td>
               </tr>
             ) : visibleProducts.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">Nenhum produto corresponde aos filtros.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-6"><EmptyState kind="search" title="Nenhum produto encontrado" description="Ajuste a busca ou altere o filtro de custos." /></td></tr>
             ) : (
               visibleProducts.map((p) => (
                 <tr key={p.id} className="hover:bg-slate-50">

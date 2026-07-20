@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Source clone used to install/reference the external design skill.
+    "ui-ux-pro-max-skill/**",
+    ".codex/**",
   ]),
 ]);
 
