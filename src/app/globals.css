@@ -95,6 +95,35 @@ select,
     transform 0.16s ease;
 }
 
+/* Todos os botões respondem antes e durante o clique. */
+button:not(:disabled),
+a[href][class*="bg-blue-"],
+a[href][class*="bg-gradient"] {
+  cursor: pointer;
+}
+
+button:disabled { cursor: not-allowed; }
+
+@media (hover: hover) {
+  button:not(:disabled):hover,
+  a[href][class*="bg-blue-"]:hover,
+  a[href][class*="bg-gradient"]:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 12px rgba(38, 49, 58, .16);
+  }
+
+  button:not(:disabled):not([class*="bg-blue-"]):not([class*="bg-gradient"]):hover {
+    background-color: oklch(0.955 0.006 239.82);
+  }
+}
+
+button:not(:disabled):active,
+a[href][class*="bg-blue-"]:active,
+a[href][class*="bg-gradient"]:active {
+  transform: scale(.96);
+  box-shadow: 0 1px 3px rgba(38, 49, 58, .12);
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;
