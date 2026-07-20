@@ -109,7 +109,7 @@ export async function saveIntegration(
          (id, provider, external_account_id, display_name, mode, region, access_token,
           refresh_token, access_expires_at, refresh_expires_at, scopes, metadata, status,
           connected_at, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,now(),now())
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12::jsonb,$13,now(),now())
        ON CONFLICT (id) DO UPDATE SET
          display_name       = COALESCE(EXCLUDED.display_name, integrations.display_name),
          mode               = EXCLUDED.mode,
@@ -127,7 +127,8 @@ export async function saveIntegration(
                  connected_at, updated_at`,
       [item.id, item.provider, item.externalAccountId, item.displayName ?? null, item.mode,
        item.region ?? null, protectSecret(item.accessToken) ?? null, protectSecret(item.refreshToken) ?? null,
-       item.accessExpiresAt ?? null, item.refreshExpiresAt ?? null, item.scopes, item.metadata,
+       item.accessExpiresAt ?? null, item.refreshExpiresAt ?? null,
+       JSON.stringify(item.scopes), JSON.stringify(item.metadata),
        item.status]
     );
     return rowToConnection(rows[0]);

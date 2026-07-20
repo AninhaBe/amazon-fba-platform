@@ -1,21 +1,13 @@
 import { spapiFetch, defaultMarketplaceId } from "./spapi";
 import { cached } from "./cache";
 import type { Period } from "./period";
+import { normalizeAmazonOrder, type AmazonOrderResponse, type OrderSummary } from "./amazonOrder";
 
-export interface OrderSummary {
-  amazonOrderId: string;
-  purchaseDate: string;
-  orderStatus: string;
-  fulfillmentChannel?: string; // AFN = FBA, MFN = próprio
-  salesChannel?: string;
-  numberOfItemsShipped?: number;
-  numberOfItemsUnshipped?: number;
-  orderTotal?: { CurrencyCode: string; Amount: string };
-}
+export type { OrderSummary } from "./amazonOrder";
 
 interface GetOrdersResponse {
   payload: {
-    Orders: OrderSummary[];
+    Orders: AmazonOrderResponse[];
     NextToken?: string;
     LastUpdatedBefore?: string;
     CreatedBefore?: string;
@@ -58,7 +50,9 @@ export async function getOrders(params: {
 
   const data = await spapiFetch<GetOrdersResponse>("/orders/v0/orders", { query });
   return {
-    orders: data.payload?.Orders ?? [],
+    orders: (data.payload?.Orders ?? [])
+      .map(normalizeAmazonOrder)
+      .filter((order): order is OrderSummary => order !== null),
     nextToken: data.payload?.NextToken,
   };
 }
