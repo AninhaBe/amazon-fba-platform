@@ -287,7 +287,7 @@ export default function ProdutosPage() {
                         aria-label={`Custo de ${p.title || p.id}`}
                         aria-describedby={`cost-status-${p.id}`}
                         placeholder="0.00"
-                        className={`w-24 rounded-md border px-2 py-1 text-right text-sm tabular-nums focus:border-blue-500 focus:outline-none ${p.cost == null || p.cost === 0 ? "border-amber-300 bg-amber-50" : "border-slate-300"}`}
+                        className={`product-cost-input w-24 rounded-md border px-2 py-1 text-right text-sm tabular-nums focus:outline-none ${p.cost == null || p.cost === 0 ? "is-missing" : "border-slate-300"}`}
                       />
                       <span id={`cost-status-${p.id}`} aria-live="polite" className={`text-[10px] ${saveState[p.id] === "error" ? "text-red-600" : "text-slate-400"}`}>
                         {saveState[p.id] === "saving" ? "Salvando…" : saveState[p.id] === "saved" ? "Salvo" : saveState[p.id] === "error" ? "Falha ao salvar" : ""}

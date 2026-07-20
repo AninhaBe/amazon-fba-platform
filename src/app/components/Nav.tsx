@@ -21,7 +21,6 @@ const icons = {
   box: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5"><path d="M3 9l9-5 9 5-9 5-9-5Z" strokeLinejoin="round" /><path d="M3 9v6l9 5 9-5V9M12 14v6" strokeLinejoin="round" /></svg>,
   search: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" strokeLinecap="round" /></svg>,
   tag: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5"><path d="M20 13 13 20 4 11V4h7l9 9Z" strokeLinejoin="round" /><circle cx="8" cy="8" r="1.2" /></svg>,
-  cart: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5"><path d="M4 5h2l2 11h10l2-8H7" strokeLinecap="round" strokeLinejoin="round" /><circle cx="10" cy="20" r="1" /><circle cx="18" cy="20" r="1" /></svg>,
 };
 
 const navigation: Record<WorkspaceId, NavItem[]> = {
@@ -30,7 +29,7 @@ const navigation: Record<WorkspaceId, NavItem[]> = {
     { href: "/integracoes", label: "Integrações", desc: "Contas e canais", icon: icons.integrations },
   ],
   amazon: [
-    { href: "/amazon", label: "Dashboard Amazon", desc: "Visão do canal", icon: icons.dashboard, exact: true },
+    { href: "/amazon", label: "Dashboard", desc: "Visão do canal", icon: icons.dashboard, exact: true },
     { href: "/amazon/calculadora", label: "Calculadora", desc: "Lucro por ASIN", icon: icons.calculator },
     { href: "/amazon/monitor", label: "Monitor da conta", desc: "Pedidos e financeiro", icon: icons.chart },
     { href: "/amazon/desempenho", label: "Desempenho", desc: "Visitas e conversão", icon: icons.performance },
@@ -39,12 +38,12 @@ const navigation: Record<WorkspaceId, NavItem[]> = {
     { href: "/amazon/produtos", label: "Produtos", desc: "Custos por SKU", icon: icons.tag },
   ],
   mercado_livre: [
-    { href: "/mercado-livre", label: "Dashboard Mercado Livre", desc: "Visão do canal", icon: icons.dashboard, exact: true },
+    { href: "/mercado-livre", label: "Dashboard", desc: "Visão do canal", icon: icons.dashboard, exact: true },
     { href: "/mercado-livre/calculadora", label: "Calculadora", desc: "Preço e margem", icon: icons.calculator },
+    { href: "/mercado-livre/monitor", label: "Monitor da conta", desc: "Pedidos e financeiro", icon: icons.chart },
     { href: "/mercado-livre/estoque", label: "Radar de estoque", desc: "Cobertura e ruptura", icon: icons.box },
     { href: "/mercado-livre/anuncios", label: "Anúncios", desc: "Catálogo publicado", icon: icons.tag },
-    { href: "/mercado-livre/vendas", label: "Vendas", desc: "Pedidos recentes", icon: icons.cart },
-    { href: "/mercado-livre/produtos", label: "Custos e impostos", desc: "Lucro do canal", icon: icons.calculator },
+    { href: "/mercado-livre/produtos", label: "Produtos", desc: "Custos e impostos", icon: icons.tag },
   ],
 };
 

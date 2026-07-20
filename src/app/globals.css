@@ -371,6 +371,26 @@ button[class*="bg-blue-"]:hover, a[class*="bg-blue-"]:hover { background: var(--
 .compact-metric p { color: var(--ink-muted); font-size: 12px; font-weight: 650; letter-spacing: .055em; text-transform: uppercase; }
 .compact-metric strong { color: var(--ink); font-size: 16px; font-weight: 720; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
+.operation-pending {
+  display: grid;
+  grid-template-columns: 36px minmax(190px, .55fr) minmax(320px, 1.45fr);
+  align-items: center;
+  gap: 14px;
+  border-radius: var(--radius-md);
+  background: color-mix(in oklch, var(--channel-accent-soft) 58%, white);
+  padding: 12px 14px;
+  box-shadow: var(--shadow-surface);
+}
+.operation-pending-mark { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 10px; background: var(--channel-accent); color: var(--channel-on-accent); font-size: 16px; font-weight: 850; }
+.operation-pending-heading h2 { color: var(--ink); font-size: 13px; font-weight: 760; letter-spacing: -.01em; }
+.operation-pending-heading p { margin-block-start: 2px; color: var(--ink-muted); font-size: 11px; }
+.operation-pending ul { display: flex; min-width: 0; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
+.operation-pending li { min-width: min(100%, 190px); }
+.operation-pending a { display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: 12px; border-radius: var(--radius-sm); background: var(--paper); padding: 8px 11px; box-shadow: 0 0 0 1px oklch(0 0 0 / .055); color: var(--ink-soft); font-size: 12px; font-weight: 680; transition-property: box-shadow, scale; transition-duration: 150ms; transition-timing-function: ease-out; }
+.operation-pending a:hover { box-shadow: var(--shadow-hover); }
+.operation-pending a:active { scale: .96; }
+.operation-pending a b { flex: none; color: var(--channel-accent-dark); font-size: 14px; }
+
 .work-panel, .revenue-section, .decision-sheet, .catalog-entry, .search-deck, .logistics-board {
   border: 0 !important;
   border-radius: var(--radius-md) !important;
@@ -671,9 +691,48 @@ summary:hover { background: var(--paper-soft); }
 .meli-tax-card > small.is-error { color: var(--danger); }
 .meli-products-page table th, .meli-products-page table td { padding: 12px 16px; }
 .meli-products-page table td:last-child input { width: 108px; min-height: 36px; border: 1px solid var(--line-strong); border-radius: 7px; padding-inline: 9px; text-align: end; font-size: 13px; font-variant-numeric: tabular-nums; }
-.meli-products-page table td:last-child input.is-missing { border-color: oklch(0.79 0.095 78); background: oklch(0.975 0.035 82); }
+.product-cost-input.is-missing { border-color: var(--danger) !important; background: oklch(0.975 0.018 25); }
+.product-cost-input.is-missing:hover { border-color: var(--danger) !important; }
+.product-cost-input.is-missing:focus { border-color: var(--danger) !important; box-shadow: 0 0 0 3px oklch(0.58 0.19 25 / .13); }
 .meli-products-page table td:last-child small { min-height: 12px; color: var(--ink-muted); font-size: 9px; }
-.stock-status { display: inline-flex; border-radius: 999px; background: var(--positive-soft); padding: 5px 8px; color: var(--positive); font-size: 10px; font-weight: 750; white-space: nowrap; }
+
+/* Catálogo operacional do Mercado Livre. */
+.listing-refresh { min-height: 44px; border-radius: var(--radius-sm); background: var(--meli-dark); padding-inline: 15px; color: white; font-size: 12px; font-weight: 750; transition-property: background-color, scale; transition-duration: 150ms; transition-timing-function: ease-out; }
+.listing-refresh:hover { background: color-mix(in oklch, var(--meli-dark) 88%, black); }
+.listing-refresh:active { scale: .96; }
+.listing-refresh:disabled { cursor: wait; opacity: .62; }
+.listing-coverage-note { display: flex; align-items: center; gap: 10px; border-radius: var(--radius-md); background: var(--meli-soft); padding: 12px 14px; box-shadow: var(--shadow-surface); color: var(--meli-dark); }
+.listing-coverage-note > span { display: grid; width: 28px; height: 28px; flex: none; place-items: center; border-radius: 9px; background: var(--meli); font-size: 13px; font-weight: 850; }
+.listing-coverage-note p { font-size: 12px; line-height: 1.5; text-wrap: pretty; }
+.listing-controls { display: grid; grid-template-columns: minmax(260px, 1fr) repeat(3, minmax(170px, auto)); gap: 8px; border-radius: var(--radius-md); background: var(--paper); padding: 9px; box-shadow: var(--shadow-surface); }
+.listing-controls input, .listing-controls select { width: 100%; min-height: 44px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: white; padding-inline: 11px; color: var(--ink); font-size: 13px; }
+.listing-search { min-width: 0; }
+.listing-table-shell { overflow: hidden; border-radius: var(--radius-lg); background: var(--paper); box-shadow: var(--shadow-surface); }
+.listing-table-shell > header { display: flex; align-items: end; justify-content: space-between; gap: 24px; padding: 19px 21px; border-block-end: 1px solid var(--line); }
+.listing-table-shell > header h2 { margin-block-start: 4px; color: var(--ink); font-size: 19px; font-weight: 760; letter-spacing: -.025em; line-height: 1.1; text-wrap: balance; }
+.listing-table-shell > header > p { color: var(--ink-muted); font-size: 12px; }
+.listing-table { width: 100%; min-width: 1120px; font-size: 12px; }
+.listing-table th { white-space: nowrap; }
+.listing-table td { padding: 13px 14px !important; vertical-align: middle; }
+.listing-product { display: flex; min-width: 310px; max-width: 440px; align-items: center; gap: 11px; }
+.listing-product img, .listing-image-fallback { width: 48px; height: 48px; flex: none; border-radius: 9px; background: var(--paper-soft); object-fit: contain; outline: 1px solid oklch(0 0 0 / .1); outline-offset: -1px; }
+.listing-image-fallback { display: grid; place-items: center; color: var(--meli-dark); font-size: 10px; font-weight: 800; }
+.listing-product > div { min-width: 0; }
+.listing-product strong { display: block; overflow: hidden; color: var(--ink); font-size: 13px; font-weight: 700; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.listing-product small, .listing-kind small, .listing-logistics small { display: block; margin-block-start: 3px; color: var(--ink-muted); font-size: 10px; line-height: 1.25; }
+.listing-status { display: inline-flex; min-height: 26px; align-items: center; border-radius: 999px; background: var(--paper-soft); padding-inline: 9px; color: var(--ink-soft); font-size: 10px; font-weight: 750; white-space: nowrap; }
+.listing-status.is-active { background: var(--positive-soft); color: var(--positive); }
+.listing-status.is-paused { background: oklch(0.965 0.045 78); color: var(--warning); }
+.listing-status.is-closed, .listing-status.is-inactive { background: oklch(0.96 0.025 25); color: var(--danger); }
+.listing-status.is-under_review { background: var(--brand-soft); color: var(--brand-dark); }
+.listing-kind strong, .listing-logistics strong { color: var(--ink-soft); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.listing-open { display: grid; width: 40px; height: 40px; place-items: center; border-radius: 10px; background: var(--paper-soft); color: var(--meli-dark); font-size: 16px; font-weight: 750; transition-property: background-color, scale; transition-duration: 150ms; transition-timing-function: ease-out; }
+.listing-open:hover { background: var(--meli-soft); }
+.listing-open:active { scale: .96; }
+.listing-open.is-disabled { color: var(--ink-muted); }
+.inventory-table tbody td { padding: 14px 16px !important; vertical-align: middle; }
+.inventory-status-cell { min-width: 112px; vertical-align: middle; }
+.stock-status { display: inline-flex; min-height: 26px; align-items: center; justify-content: center; border-radius: 999px; background: var(--positive-soft); padding: 5px 9px; color: var(--positive); font-size: 10px; font-weight: 750; line-height: 1; white-space: nowrap; }
 .stock-status.is-critical { background: oklch(0.965 0.045 78); color: var(--warning); }
 .stock-status.is-out { background: oklch(0.96 0.025 25); color: var(--danger); }
 .stock-coverage-note { display: grid; grid-template-columns: minmax(260px, .9fr) minmax(300px, 1.1fr); align-items: center; gap: 18px; margin-block: 12px 18px; border-radius: var(--radius-md); background: var(--paper-soft); padding: 13px 15px; box-shadow: inset 0 0 0 1px var(--line); }
@@ -681,9 +740,10 @@ summary:hover { background: var(--paper-soft); }
 .stock-coverage-note > div > span { display: grid; width: 30px; height: 30px; flex: none; place-items: center; border-radius: 9px; background: var(--channel-accent-soft); color: var(--channel-accent-dark); font-size: 18px; font-weight: 750; }
 .stock-coverage-note strong { display: block; margin-block-end: 2px; color: var(--ink); font-size: 12px; font-weight: 750; }
 .stock-coverage-note p { max-width: 68ch; color: var(--ink-muted); font-size: 12px; line-height: 1.5; text-wrap: pretty; }
-.stock-coverage-value strong, .stock-coverage-value small { display: block; }
-.stock-coverage-value strong { color: var(--ink-soft); font-weight: 700; }
-.stock-coverage-value small { margin-block-start: 2px; color: var(--ink-muted); font-size: 10px; }
+.stock-coverage-value { min-width: 92px; vertical-align: middle; }
+.stock-coverage-value strong, .stock-coverage-value small { display: block; white-space: nowrap; }
+.stock-coverage-value strong { color: var(--ink-soft); font-weight: 700; line-height: 1.25; }
+.stock-coverage-value small { margin-block-start: 5px; color: var(--ink-muted); font-size: 10px; line-height: 1.25; }
 
 /* Rentabilidade por venda: leitura progressiva em vez de planilha infinita. */
 .profitability-view { display: grid; gap: 14px; }
@@ -1029,10 +1089,18 @@ summary:hover { background: var(--paper-soft); }
   .profitability-heading { align-items: flex-start; flex-direction: column; gap: 9px; }
   .profit-breakdown { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .stock-coverage-note { grid-template-columns: 1fr; gap: 8px; }
+  .listing-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .listing-search { grid-column: 1 / -1; }
 }
 
 @media (max-width: 767px) {
   button, select, input:not([type="checkbox"]):not([type="radio"]), .mobile-nav-item { min-height: 44px; }
+  .operation-pending { grid-template-columns: 36px minmax(0, 1fr); align-items: start; }
+  .operation-pending ul { grid-column: 1 / -1; justify-content: stretch; }
+  .operation-pending li { min-width: 100%; }
+  .listing-controls { grid-template-columns: 1fr; }
+  .listing-search { grid-column: auto; }
+  .listing-table-shell > header { align-items: start; flex-direction: column; gap: 5px; }
   .filter-toolbar > label, .filter-toolbar > div { min-width: 100%; }
   .filter-toolbar select { flex: 1; }
   .operations-canvas { padding-block-start: 24px; }

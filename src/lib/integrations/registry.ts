@@ -6,7 +6,7 @@ export interface ProviderDefinition {
   shortName: string;
   description: string;
   capabilities: IntegrationCapability[];
-  availability: "available" | "foundation" | "planned";
+  availability: "available" | "planned";
   connectHref?: string;
 }
 
@@ -33,10 +33,9 @@ export const PROVIDERS: ProviderDefinition[] = [
     id: "tiktok_shop",
     name: "TikTok Shop",
     shortName: "TTS",
-    description: "Estrutura OAuth existente, preparada para catálogo e pedidos.",
+    description: "Canal planejado para catálogo, pedidos, estoque e preços.",
     capabilities: ["catalog", "orders", "inventory", "pricing"],
-    availability: "foundation",
-    connectHref: "/api/tiktok/login",
+    availability: "planned",
   },
   {
     id: "shopee",

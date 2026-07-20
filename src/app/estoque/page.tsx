@@ -141,7 +141,7 @@ export default function EstoquePage() {
       )}
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200/70 bg-white shadow-sm ring-1 ring-slate-900/[0.02]">
-        <table className="w-full min-w-[720px] text-sm">
+        <table className="inventory-table w-full min-w-[720px] text-sm">
           <caption className="sr-only">Estoque disponível, velocidade de venda e risco de ruptura por SKU</caption>
           <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
@@ -150,7 +150,7 @@ export default function EstoquePage() {
               <th scope="col" className="px-4 py-3 text-right">A caminho</th>
               <th scope="col" className="px-4 py-3 text-right">Vende/dia</th>
               <th scope="col" className="px-4 py-3 text-right">Acaba em</th>
-              <th scope="col" className="px-4 py-3">Status</th>
+              <th scope="col" className="px-4 py-3 text-center">Status</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -169,7 +169,7 @@ export default function EstoquePage() {
                 const meta = STATUS_META[r.status];
                 return (
                   <tr key={r.sellerSku} className="hover:bg-slate-50">
-                    <td className="px-4 py-3">
+                    <td className="inventory-status-cell px-4 py-3 text-center">
                       <p className="max-w-[280px] truncate font-medium">
                         {r.productName || r.sellerSku}
                       </p>

@@ -7,6 +7,7 @@ import { PageHeader, pageIcons } from "../components/PageHeader";
 import { InlineLoading, PanelLoading } from "../components/LoadingState";
 import { EmptyState } from "../components/EmptyState";
 import { DashboardPeriodFilter, useDashboardPeriod } from "../components/DashboardPeriodFilter";
+import { OperationPending, type OperationPendingItem } from "../components/OperationPending";
 
 function money(v: number, currency = "BRL") {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(v);
@@ -152,13 +153,13 @@ export default function Dashboard() {
       />
       <DashboardPeriodFilter {...period.filterProps} />
 
-      <Onboarding products={products.length} productsLoading={productsLoading} missingCosts={noCost} hasSales={salesCount > 0} />
-
       {updatedAt && (
         <p className="-mt-5 text-xs text-slate-400">
           Atualizado às {updatedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}. Dados de vendas, pedidos e financeiro sincronizados.
         </p>
       )}
+
+      <AmazonPending products={products.length} productsLoading={productsLoading} missingCosts={noCost} />
 
       {/* KPIs principais */}
       <div className="metric-grid grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-4">
@@ -241,7 +242,7 @@ export default function Dashboard() {
       </section>
 
       {/* Duas colunas: alertas de estoque + pedidos recentes */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
         <Panel title="Estoque crítico" href="/amazon/estoque" linkLabel="Ver radar">
           {loading ? (
             <InlineLoading label="Carregando estoque crítico" />
@@ -558,7 +559,7 @@ function QuickLink({ href, label, desc }: { href: string; label: string; desc: s
   );
 }
 
-function Onboarding({ products, productsLoading, missingCosts, hasSales }: { products: number; productsLoading: boolean; missingCosts: number; hasSales: boolean }) {
+function AmazonPending({ products, productsLoading, missingCosts }: { products: number; productsLoading: boolean; missingCosts: number }) {
   const [connection, setConnection] = useState<"loading" | "connected" | "missing">("loading");
 
   useEffect(() => {
@@ -571,35 +572,12 @@ function Onboarding({ products, productsLoading, missingCosts, hasSales }: { pro
     return () => window.clearTimeout(timer);
   }, []);
 
-  const complete = connection === "connected" && products > 0 && missingCosts === 0 && hasSales;
-  if (complete || connection === "loading") return null;
+  if (connection === "loading") return null;
 
-  const steps = [
-    { done: connection === "connected", label: "Conectar um canal de venda", href: "/integracoes" },
-    { done: products > 0, label: productsLoading ? "Sincronizando produtos…" : "Sincronizar ou adicionar produtos", href: "/amazon/produtos" },
-    { done: products > 0 && missingCosts === 0, label: missingCosts > 0 ? `Cadastrar custo de ${missingCosts} produto(s)` : "Cadastrar custos dos produtos", href: "/amazon/produtos" },
-    { done: hasSales, label: "Consultar as primeiras vendas", href: "/amazon/monitor" },
-  ];
+  const items: OperationPendingItem[] = [];
+  if (connection === "missing") items.push({ label: "Conectar a conta Amazon", href: "/integracoes" });
+  if (connection === "connected" && !productsLoading && products === 0) items.push({ label: "Sincronizar os produtos da Amazon", href: "/amazon/produtos" });
+  if (products > 0 && missingCosts > 0) items.push({ label: `Cadastrar custo de ${missingCosts} produto(s)`, href: "/amazon/produtos" });
 
-  return (
-    <section aria-labelledby="setup-title" className="rounded-2xl border border-blue-200 bg-blue-50/70 p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Primeiros passos</p>
-          <h2 id="setup-title" className="mt-1 font-semibold text-slate-900">Prepare sua conta para obter números confiáveis</h2>
-        </div>
-        <span className="text-sm font-medium text-blue-700">{steps.filter((step) => step.done).length}/{steps.length} concluídos</span>
-      </div>
-      <ol className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        {steps.map((step) => (
-          <li key={step.label}>
-            <Link href={step.href} className="flex h-full items-center gap-2 rounded-xl bg-white px-3 py-3 text-sm shadow-sm ring-1 ring-blue-100 hover:ring-blue-300">
-              <span aria-hidden className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs ${step.done ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-500"}`}>{step.done ? "✓" : "·"}</span>
-              <span className={step.done ? "text-slate-500 line-through" : "font-medium text-slate-700"}>{step.label}</span>
-            </Link>
-          </li>
-        ))}
-      </ol>
-    </section>
-  );
+  return <OperationPending items={items} />;
 }

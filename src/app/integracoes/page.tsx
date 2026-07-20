@@ -20,7 +20,7 @@ interface Provider {
   shortName: string;
   description: string;
   capabilities: string[];
-  availability: "available" | "foundation" | "planned";
+  availability: "available" | "planned";
   connectHref?: string;
   configured: boolean;
   connections: Connection[];

@@ -8,6 +8,7 @@ import { PageHeader, pageIcons } from "./PageHeader";
 import { RevenueChart, type DailyPoint } from "./RevenueChart";
 import { DashboardPeriodFilter, useDashboardPeriod } from "./DashboardPeriodFilter";
 import { OrderProfitabilityTable } from "./OrderProfitabilityTable";
+import { OperationPending } from "./OperationPending";
 import type { ProfitabilityLine } from "@/lib/profitability";
 
 interface Overview {
@@ -24,8 +25,7 @@ interface Overview {
 
 const views = {
   dashboard: { eyebrow: "Operação Mercado Livre", title: "Dashboard Mercado Livre", subtitle: "Faturamento, pedidos e anúncios da sua conta do Mercado Livre Brasil.", icon: pageIcons.dashboard },
-  anuncios: { eyebrow: "Catálogo Mercado Livre", title: "Anúncios", subtitle: "Visão do catálogo publicado e preparação para a sincronização por anúncio.", icon: pageIcons.search },
-  vendas: { eyebrow: "Pedidos Mercado Livre", title: "Vendas", subtitle: "Pedidos mais recentes recebidos diretamente da conta conectada.", icon: pageIcons.chart },
+  monitor: { eyebrow: "Pedidos e financeiro Mercado Livre", title: "Monitor da conta", subtitle: "Pedidos recentes e o resultado financeiro real da sua conta.", icon: pageIcons.chart },
   estoque: { eyebrow: "Operação Mercado Livre", title: "Radar de estoque", subtitle: "Cobertura dos anúncios ativos com base no estoque e no ritmo de vendas do período.", icon: pageIcons.box },
 } as const;
 
@@ -79,12 +79,12 @@ export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
   return (
     <div className="dashboard-page meli-workspace space-y-8">
       <PageHeader eyebrow={page.eyebrow} title={page.title} subtitle={page.subtitle} icon={page.icon} action={overview && <span className="meli-account-chip"><i aria-hidden="true" />{overview.account.nickname}<small>{overview.account.siteId}</small></span>} />
-      {(view === "dashboard" || view === "vendas" || view === "estoque") && (
+      {(view === "dashboard" || view === "monitor" || view === "estoque") && (
         <DashboardPeriodFilter {...period.filterProps} />
       )}
       {loading ? <PanelLoading label="Consultando Mercado Livre" /> : error || !overview ? (
         <EmptyState title="Conecte sua conta do Mercado Livre" description={error || "Autorize o SellerCore para começar a importar anúncios e pedidos."} action={<Link href="/integracoes" className="meli-primary-action">Gerenciar integração <span aria-hidden="true">→</span></Link>} />
-      ) : view === "dashboard" ? <Dashboard overview={overview} updatedAt={updatedAt} /> : view === "anuncios" ? <Listings overview={overview} /> : view === "estoque" ? <Inventory overview={overview} /> : <Sales overview={overview} />}
+      ) : view === "dashboard" ? <Dashboard overview={overview} updatedAt={updatedAt} /> : view === "estoque" ? <Inventory overview={overview} /> : <Monitor overview={overview} />}
     </div>
   );
 }
@@ -97,6 +97,8 @@ function Dashboard({ overview, updatedAt }: { overview: Overview; updatedAt: Dat
   const roi = overview.profit.cogs > 0 ? overview.profit.estimatedProfit / overview.profit.cogs * 100 : null;
   return <>
     {updatedAt && <p className="-mt-5 text-xs text-slate-400">Atualizado às {updatedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}. Dados de vendas, pedidos e financeiro sincronizados.</p>}
+
+    <OperationPending items={overview.metrics.productsWithoutCost > 0 ? [{ label: `Cadastrar custo de ${overview.metrics.productsWithoutCost} produto(s)`, href: "/mercado-livre/produtos" }] : []} />
 
     <section className="metric-grid grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-4" aria-label="Indicadores Mercado Livre">
       <Metric label="Faturamento" value={money(overview.metrics.revenue30d, overview.metrics.currency)} sub={coverage.complete ? `${overview.metrics.paidOrders} vendas no período` : `${coverage.capturedOrders} de ${coverage.totalOrders} pedidos considerados`} />
@@ -139,11 +141,11 @@ function Dashboard({ overview, updatedAt }: { overview: Overview; updatedAt: Dat
       </aside>
     </section>
 
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+    <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
       <Panel title="Estoque crítico" href="/mercado-livre/estoque" linkLabel="Ver radar">
         {critical.length === 0 ? <Empty>Nenhum produto em ruptura iminente.</Empty> : <ul className="divide-y divide-slate-100">{critical.slice(0, 6).map((product) => <li key={product.id} className="flex items-center justify-between py-2.5 text-sm"><span className="min-w-0 truncate pr-3">{product.title || product.sku || product.id}</span><span className="shrink-0 font-semibold text-red-600">{product.status === "out" ? "esgotado" : `${product.daysRemaining} dias`}</span></li>)}</ul>}
       </Panel>
-      <Panel title="Pedidos recentes" href="/mercado-livre/vendas" linkLabel="Ver vendas">
+      <Panel title="Pedidos recentes" href="/mercado-livre/monitor" linkLabel="Abrir monitor">
         {overview.recentOrders.length === 0 ? <Empty>Nenhum pedido no período.</Empty> : <ul className="divide-y divide-slate-100">{overview.recentOrders.slice(0, 6).map((order) => <li key={order.id} className="flex items-center justify-between py-2.5 text-sm"><span className="min-w-0"><span className="block truncate font-mono text-xs text-slate-500">#{order.id}</span><span className="text-xs text-slate-400">{new Date(order.createdAt).toLocaleDateString("pt-BR")} · {orderStatus(order.status)}</span></span><span className="shrink-0 font-medium tabular-nums">{money(order.total, order.currency)}</span></li>)}</ul>}
       </Panel>
     </div>
@@ -154,7 +156,7 @@ function Dashboard({ overview, updatedAt }: { overview: Overview; updatedAt: Dat
     </div>
 
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-      <QuickLink href="/mercado-livre/vendas" label="Vendas" desc="Pedidos e faturamento" />
+      <QuickLink href="/mercado-livre/monitor" label="Monitor" desc="Pedidos e financeiro" />
       <QuickLink href="/mercado-livre/estoque" label="Radar" desc="Estoque × velocidade" />
       <QuickLink href="/mercado-livre/anuncios" label="Anúncios" desc="Catálogo publicado" />
       <QuickLink href="/mercado-livre/produtos" label="Produtos" desc="Custos e impostos" />
@@ -213,23 +215,39 @@ function Inventory({ overview }: { overview: Overview }) {
         <div><span aria-hidden="true">÷</span><p><strong>Como calculamos</strong>Cobertura = estoque atual ÷ média de unidades vendidas por dia.</p></div>
         <p>A média diária usa as vendas pagas e o menor intervalo entre o período selecionado e a idade do anúncio. Pausas e dias históricos sem estoque ainda não são descontados.</p>
       </aside>
-      {overview.stockRadar.length === 0 ? <Empty>Nenhum produto ativo encontrado.</Empty> : <div className="overflow-x-auto"><table className="w-full min-w-[680px] text-sm"><caption className="sr-only">Cobertura de estoque dos produtos do Mercado Livre</caption><thead><tr><th>Produto</th><th>SKU</th><th className="text-right">Estoque</th><th className="text-right">Vendidos</th><th className="text-right">Cobertura</th><th>Status</th></tr></thead><tbody>{overview.stockRadar.map((product) => <tr key={product.id}><td><strong className="block max-w-[320px] truncate" title={product.title}>{product.title}</strong></td><td className="font-mono text-xs">{product.sku || product.id}</td><td className="text-right tabular-nums">{product.availableQuantity}</td><td className="text-right tabular-nums">{product.unitsSold}</td><td className="stock-coverage-value text-right tabular-nums"><strong>{product.daysRemaining == null ? "—" : `${product.daysRemaining} dias`}</strong><small>base: {product.calculationDays} dias</small></td><td><span className={`stock-status is-${product.status}`}>{product.status === "out" ? "Esgotado" : product.status === "critical" ? "Crítico" : "Saudável"}</span></td></tr>)}</tbody></table></div>}
+      {overview.stockRadar.length === 0 ? <Empty>Nenhum produto ativo encontrado.</Empty> : <div className="overflow-x-auto"><table className="inventory-table w-full min-w-[680px] text-sm"><caption className="sr-only">Cobertura de estoque dos produtos do Mercado Livre</caption><thead><tr><th>Produto</th><th>SKU</th><th className="text-right">Estoque</th><th className="text-right">Vendidos</th><th className="text-right">Cobertura</th><th className="text-center">Status</th></tr></thead><tbody>{overview.stockRadar.map((product) => <tr key={product.id}><td><strong className="block max-w-[320px] truncate" title={product.title}>{product.title}</strong></td><td className="font-mono text-xs">{product.sku || product.id}</td><td className="text-right tabular-nums">{product.availableQuantity}</td><td className="text-right tabular-nums">{product.unitsSold}</td><td className="stock-coverage-value text-right tabular-nums"><strong>{product.daysRemaining == null ? "—" : `${product.daysRemaining} dias`}</strong><small>base: {product.calculationDays} dias</small></td><td className="inventory-status-cell text-center"><span className={`stock-status is-${product.status}`}>{product.status === "out" ? "Esgotado" : product.status === "critical" ? "Crítico" : "Saudável"}</span></td></tr>)}</tbody></table></div>}
     </section>
   </>;
 }
 
-function Listings({ overview }: { overview: Overview }) {
-  return <section className="meli-focus-panel">
-    <div className="meli-focus-number"><span>Anúncios encontrados</span><strong>{overview.metrics.activeListings.toLocaleString("pt-BR")}</strong></div>
-    <div><p className="section-kicker">Primeiro estágio</p><h2>Catálogo conectado</h2><p>A conta já entrega a quantidade de anúncios. A próxima sincronização trará título, SKU, preço, estoque, status e saúde de cada publicação para esta tela.</p><Link href="/mercado-livre">Voltar ao dashboard <span aria-hidden="true">→</span></Link></div>
-  </section>;
-}
-
-function Sales({ overview }: { overview: Overview }) {
+function Monitor({ overview }: { overview: Overview }) {
+  const netReceived = overview.metrics.revenue30d - overview.profit.fees - overview.profit.sellerShipping;
   return <>
-    <section className="meli-kpis is-compact" aria-label="Resumo de vendas Mercado Livre">
-      <article><p>Faturamento no período</p><strong>{money(overview.metrics.revenue30d, overview.metrics.currency)}</strong><small>{overview.period.label}</small></article>
-      <article><p>Pedidos no período</p><strong>{overview.metrics.orders30d.toLocaleString("pt-BR")}</strong><small>{overview.period.label}</small></article>
+    <section className="metric-grid grid grid-cols-2 gap-4 lg:grid-cols-4" aria-label="Resumo do monitor Mercado Livre">
+      <Metric label="Pedidos" value={overview.metrics.orders30d.toLocaleString("pt-BR")} sub={overview.period.label} />
+      <Metric label="Faturamento" value={money(overview.metrics.revenue30d, overview.metrics.currency)} sub="produtos vendidos" />
+      <Metric label="Total recebido" value={money(netReceived, overview.metrics.currency)} sub="após tarifa e frete" />
+      <Metric label="Margem de contribuição" value={money(overview.profit.estimatedProfit, overview.metrics.currency)} sub={`${percent(overview.profit.marginPct)} do faturamento`} />
+    </section>
+
+    <section className="work-panel space-y-4" aria-labelledby="meli-financial-title">
+      <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-slate-100 pb-3">
+        <div>
+          <p className="section-kicker">Financeiro realizado</p>
+          <h2 id="meli-financial-title" className="mt-1 text-lg font-semibold text-slate-900">Do faturamento à margem</h2>
+        </div>
+        <span className="text-xs text-slate-400">valores conciliados do Mercado Livre</span>
+      </div>
+      <div className="financial-lines">
+        <Flow label="Faturamento dos produtos" value={money(overview.metrics.revenue30d, overview.metrics.currency)} />
+        <Flow label="Tarifa de venda" value={money(overview.profit.fees, overview.metrics.currency)} sign="−" />
+        <Flow label="Frete pago pelo vendedor" value={money(overview.profit.sellerShipping, overview.metrics.currency)} sign="−" />
+        <Flow label="Total recebido" value={money(netReceived, overview.metrics.currency)} sign="=" />
+        <Flow label="Custo dos produtos" value={money(overview.profit.cogs, overview.metrics.currency)} sign="−" />
+        <Flow label={`Impostos (${overview.profit.taxRate.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%)`} value={money(overview.profit.taxes, overview.metrics.currency)} sign="−" />
+        <Flow label="Margem de contribuição" value={money(overview.profit.estimatedProfit, overview.metrics.currency)} sign="=" accent />
+      </div>
+      {overview.profit.buyerShipping > 0 && <p className="text-xs text-slate-400">O comprador pagou {money(overview.profit.buyerShipping, overview.metrics.currency)} de frete no período; esse valor é exibido separadamente e não compõe o faturamento dos produtos.</p>}
     </section>
     {!overview.profit.shippingCostsComplete && <div className="meli-profit-warning"><span aria-hidden="true">!</span><p>Alguns fretes ainda não foram conciliados. Essas vendas aparecem com cálculo incompleto para não superestimar a margem.</p></div>}
     <OrderProfitabilityTable lines={overview.profitabilityLines} />

@@ -39,8 +39,11 @@ export interface MercadoLivreItem {
   sold_quantity: number;
   status: string;
   start_time?: string;
+  last_updated?: string;
   category_id?: string;
   listing_type_id?: string;
+  catalog_listing?: boolean;
+  catalog_product_id?: string | null;
   shipping?: { mode?: string; logistic_type?: string; free_shipping?: boolean };
   seller_id?: number | string;
   permalink?: string;
@@ -84,7 +87,16 @@ export interface MercadoLivreProduct {
   soldQuantity: number;
   status: string;
   activeSince: string | null;
+  lastUpdated: string | null;
   thumbnail: string | null;
+  permalink: string | null;
+  userProductId: string | null;
+  listingTypeId: string | null;
+  logisticType: string | null;
+  shippingMode: string | null;
+  freeShipping: boolean;
+  catalogListing: boolean;
+  catalogProductId: string | null;
   cost: number | null;
 }
 
@@ -163,7 +175,16 @@ export async function getMercadoLivreProducts(connection: IntegrationConnection)
         soldQuantity: body.sold_quantity,
         status: body.status,
         activeSince: body.start_time ?? null,
+        lastUpdated: body.last_updated ?? null,
         thumbnail: body.thumbnail ?? null,
+        permalink: body.permalink ?? null,
+        userProductId: body.user_product_id ?? null,
+        listingTypeId: body.listing_type_id ?? null,
+        logisticType: body.shipping?.logistic_type ?? null,
+        shippingMode: body.shipping?.mode ?? null,
+        freeShipping: body.shipping?.free_shipping ?? false,
+        catalogListing: body.catalog_listing ?? false,
+        catalogProductId: body.catalog_product_id ?? null,
         cost: costEntry?.cost && costEntry.cost > 0 ? costEntry.cost : null,
       };
     });

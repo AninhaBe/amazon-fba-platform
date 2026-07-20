@@ -1,5 +1,5 @@
-import { MercadoLivreWorkspace } from "../../components/MercadoLivreWorkspace";
+import { permanentRedirect } from "next/navigation";
 
 export default function MercadoLivreSalesPage() {
-  return <MercadoLivreWorkspace view="vendas" />;
+  permanentRedirect("/mercado-livre/monitor");
 }

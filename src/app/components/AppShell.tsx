@@ -22,14 +22,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <p className="rail-label px-3 pb-3 text-xs font-semibold uppercase tracking-[0.13em]">{labels[workspace]}</p>
           <NavLinks variant="sidebar" />
         </div>
-        {workspace !== "mercado_livre" && <div className="rail-account px-4 py-4">
+        <div className="rail-account px-4 py-4">
           {workspace === "amazon" ? <AccountSwitcher /> : (
             <Link href="/integracoes" className="workspace-account-link">
-              <span className="workspace-account-mark" aria-hidden="true"><MarketplaceIcon provider="sellercore" size={22} /></span>
-              <span><small>Ecossistema SellerCore</small><strong>Ver integrações</strong></span>
+              <span className="workspace-account-mark" aria-hidden="true"><MarketplaceIcon provider={workspace === "mercado_livre" ? "mercado_livre" : "sellercore"} size={24} /></span>
+              <span>
+                <small>{workspace === "mercado_livre" ? "Conta Mercado Livre" : "Ecossistema SellerCore"}</small>
+                <strong>{workspace === "mercado_livre" ? "Gerenciar integração" : "Ver integrações"}</strong>
+              </span>
             </Link>
           )}
-        </div>}
+        </div>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="mobile-console sticky top-0 z-20 px-4 pt-3 lg:hidden">

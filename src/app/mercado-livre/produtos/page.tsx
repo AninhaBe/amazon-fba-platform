@@ -106,8 +106,8 @@ export default function MercadoLivreProdutosPage() {
 
   return <div className="products-page meli-products-page space-y-8">
     <PageHeader
-      eyebrow="Rentabilidade Mercado Livre"
-      title="Custos e impostos"
+      eyebrow="Produtos Mercado Livre"
+      title="Produtos"
       subtitle="Cadastre o custo de compra de cada produto e a alíquota média da sua empresa para calcular o lucro do canal."
       icon={pageIcons.box}
     />
@@ -150,7 +150,7 @@ export default function MercadoLivreProdutosPage() {
             <td className="text-right tabular-nums">{product.availableQuantity}</td>
             <td className="text-right tabular-nums">{product.soldQuantity}</td>
             <td className="text-right tabular-nums">{money(product.price, product.currency)}</td>
-            <td><div className="flex flex-col items-end gap-1"><input type="number" min="0" step="0.01" value={draftCosts[product.costId] ?? ""} onChange={(event) => setDraftCosts((current) => ({ ...current, [product.costId]: event.target.value }))} onBlur={(event) => { const value = Number(event.target.value); if (Number.isFinite(value) && value >= 0 && value !== (product.cost ?? 0)) void saveCost(product, value); }} placeholder="0,00" aria-label={`Custo de ${product.title}`} className={product.cost ? "has-cost" : "is-missing"} /><small aria-live="polite">{saveState[product.costId] === "saving" ? "Salvando…" : saveState[product.costId] === "saved" ? "Salvo" : saveState[product.costId] === "error" ? "Falha ao salvar" : ""}</small></div></td>
+            <td><div className="flex flex-col items-end gap-1"><input type="number" min="0" step="0.01" value={draftCosts[product.costId] ?? ""} onChange={(event) => setDraftCosts((current) => ({ ...current, [product.costId]: event.target.value }))} onBlur={(event) => { const value = Number(event.target.value); if (Number.isFinite(value) && value >= 0 && value !== (product.cost ?? 0)) void saveCost(product, value); }} placeholder="0,00" aria-label={`Custo de ${product.title}`} className={`product-cost-input ${product.cost ? "has-cost" : "is-missing"}`} /><small aria-live="polite">{saveState[product.costId] === "saving" ? "Salvando…" : saveState[product.costId] === "saved" ? "Salvo" : saveState[product.costId] === "error" ? "Falha ao salvar" : ""}</small></div></td>
           </tr>)}
         </tbody>
       </table>

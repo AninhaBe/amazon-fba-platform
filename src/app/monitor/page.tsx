@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { PageHeader, pageIcons } from "../components/PageHeader";
 import { PanelLoading } from "../components/LoadingState";
 import { OrderProfitabilityTable } from "../components/OrderProfitabilityTable";
+import { DashboardPeriodFilter, useDashboardPeriod } from "../components/DashboardPeriodFilter";
 import type { ProfitabilityLine } from "@/lib/profitability";
 
 interface Metrics {
@@ -71,7 +72,7 @@ function money(v: number, currency: string) {
 }
 
 export default function MonitorPage() {
-  const [days, setDays] = useState(30);
+  const period = useDashboardPeriod();
   const [error, setError] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [finance, setFinance] = useState<FinanceSummary | null>(null);
@@ -83,14 +84,14 @@ export default function MonitorPage() {
   const [profitabilityLoading, setProfitabilityLoading] = useState(true);
   const [profitabilityError, setProfitabilityError] = useState<string | null>(null);
 
-  async function load(d: number) {
+  async function load(periodQuery: string) {
     setError(null);
     setFinanceError(null);
     setTransactionsError(null);
     setProfitabilityLoading(true);
     setProfitabilityError(null);
     // Pedidos e lucro (financeiro + custos) em paralelo; um não derruba o outro.
-    const ordersReq = fetch(`/api/orders?days=${d}`)
+    const ordersReq = fetch(`/api/orders?${periodQuery}`)
       .then((r) => r.json().then((data) => ({ ok: r.ok, data })))
       .then(({ ok, data }) => {
         if (!ok) throw new Error(data.error || "Erro ao carregar pedidos.");
@@ -98,7 +99,7 @@ export default function MonitorPage() {
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Erro desconhecido."));
 
-    const profitReq = fetch(`/api/profit?days=${d}`)
+    const profitReq = fetch(`/api/profit?${periodQuery}`)
       .then((r) => r.json().then((data) => ({ ok: r.ok, data })))
       .then(({ ok, data }) => {
         if (!ok) throw new Error(data.error || "Erro ao carregar financeiro.");
@@ -109,7 +110,7 @@ export default function MonitorPage() {
         setFinanceError(err instanceof Error ? err.message : "Erro desconhecido.")
       );
 
-    const transactionsReq = fetch(`/api/transactions?days=${d}`)
+    const transactionsReq = fetch(`/api/transactions?${periodQuery}`)
       .then((r) => r.json().then((data) => ({ ok: r.ok, data })))
       .then(({ ok, data }) => {
         if (!ok) throw new Error(data.error || "Erro ao carregar transações.");
@@ -119,7 +120,7 @@ export default function MonitorPage() {
         setTransactionsError(err instanceof Error ? err.message : "Erro desconhecido.")
       );
 
-    const profitabilityReq = fetch(`/api/order-profitability?days=${d}`)
+    const profitabilityReq = fetch(`/api/order-profitability?${periodQuery}`)
       .then((r) => r.json().then((data) => ({ ok: r.ok, data })))
       .then(({ ok, data }) => {
         if (!ok) throw new Error(data.error || "Não foi possível calcular as vendas.");
@@ -132,34 +133,25 @@ export default function MonitorPage() {
   }
 
   useEffect(() => {
-    const timer = window.setTimeout(() => void load(days), 0);
+    const timer = window.setTimeout(() => void load(period.query), 0);
     return () => window.clearTimeout(timer);
-  }, [days]);
+  }, [period.query]);
 
   return (
     <div className="monitor-page space-y-8">
       <PageHeader
-        eyebrow="Orders · Finances"
+        eyebrow="Pedidos e financeiro Amazon"
         title="Monitor da conta"
-        subtitle="Pedidos recentes e o repasse financeiro real da sua conta."
+        subtitle="Pedidos recentes e o resultado financeiro real da sua conta."
         icon={pageIcons.chart}
-        action={
-          <select
-            value={days}
-            onChange={(e) => setDays(Number(e.target.value))}
-            className="cursor-pointer rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 shadow-sm ring-1 ring-slate-900/[0.02] hover:border-slate-300"
-          >
-            <option value={7}>Últimos 7 dias</option>
-            <option value={30}>Últimos 30 dias</option>
-            <option value={90}>Últimos 90 dias</option>
-          </select>
-        }
       />
+
+      <DashboardPeriodFilter {...period.filterProps} />
 
       {error && (
         <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           <p>{error}</p>
-          <button type="button" onClick={() => void load(days)} className="mt-3 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white">
+          <button type="button" onClick={() => void load(period.query)} className="mt-3 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white">
             Tentar novamente
           </button>
         </div>
