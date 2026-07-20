@@ -8,11 +8,14 @@ import { Logo } from "./Logo";
 import { NavLinks } from "./Nav";
 import { workspaceFromPath } from "@/lib/integrations/workspaces";
 import { MarketplaceIcon } from "./MarketplaceIcon";
+import { LogoutButton } from "./LogoutButton";
 
 const labels = { overview: "Central multicanal", amazon: "Operação Amazon", mercado_livre: "Operação Mercado Livre" };
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const workspace = workspaceFromPath(usePathname());
+  const pathname = usePathname();
+  const workspace = workspaceFromPath(pathname);
+  if (pathname.startsWith("/login")) return <>{children}</>;
   return (
     <div className="app-shell flex min-h-screen" data-channel={workspace}>
       <aside className="operations-rail sticky top-0 hidden h-screen w-56 shrink-0 flex-col lg:flex">
@@ -32,11 +35,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </span>
             </Link>
           )}
+          <LogoutButton />
         </div>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="mobile-console sticky top-0 z-20 px-4 pt-3 lg:hidden">
-          <div className="mb-2 flex items-center justify-between gap-4"><Logo compact /><ChannelSwitcher compact /></div>
+          <div className="mb-2 flex items-center justify-between gap-4"><Logo compact /><div className="flex items-center gap-2"><ChannelSwitcher compact /><LogoutButton compact /></div></div>
           <NavLinks variant="top" />
         </header>
         <main id="main-content" tabIndex={-1} className="operations-canvas mx-auto w-full max-w-[1500px] flex-1 px-5 py-7 sm:px-8 lg:px-10 lg:py-9">{children}</main>

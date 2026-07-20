@@ -3,6 +3,7 @@
 // compartilham uma única chamada à SP-API (evita estourar o rate limit).
 
 import { currentAccountId } from "./accountContext";
+import { optionalWorkspaceId } from "./workspaceScope";
 
 interface Entry {
   at: number;
@@ -13,7 +14,7 @@ const store = new Map<string, Entry>();
 
 export function cached<T>(rawKey: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
   // Namespacing por conta ativa: garante que a conta A nunca veja o cache da conta B.
-  const key = `${currentAccountId()}|${rawKey}`;
+  const key = `${optionalWorkspaceId() ?? "public"}|${currentAccountId()}|${rawKey}`;
   const now = Date.now();
   const hit = store.get(key);
   if (hit && now - hit.at < ttlMs) {

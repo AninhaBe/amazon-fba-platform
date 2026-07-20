@@ -4,12 +4,14 @@ import { ACTIVE_COOKIE } from "@/lib/withAccount";
 import { oauthClientCreds } from "@/lib/spapi";
 import { runWithAccount } from "@/lib/accountContext";
 import { getMarketplaceName } from "@/lib/sellers";
+import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // Retorno do consentimento: a Amazon manda spapi_oauth_code + selling_partner_id + state.
 export async function GET(req: NextRequest) {
+  return withAuthenticatedWorkspace(async () => {
   const { searchParams, origin } = new URL(req.url);
   const code = searchParams.get("spapi_oauth_code");
   const sellerId = searchParams.get("selling_partner_id");
@@ -75,4 +77,5 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     return fail(err instanceof Error ? err.message : "Erro inesperado.");
   }
+  });
 }

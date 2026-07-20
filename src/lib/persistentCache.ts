@@ -1,12 +1,14 @@
 import fs from "fs/promises";
 import path from "path";
 import { dataFile } from "./dataDir";
+import { optionalWorkspaceId } from "./workspaceScope";
 
 // Cache persistido em disco (<DATA_DIR>/cache/<key>.json), com timestamp.
 // Sobrevive a restart do servidor — bom para respostas caras (relatórios).
 
 function file(key: string): string {
-  return dataFile("cache", `${key.replace(/[^a-z0-9_-]/gi, "_")}.json`);
+  const scopedKey = `${optionalWorkspaceId() ?? "public"}_${key}`;
+  return dataFile("cache", `${scopedKey.replace(/[^a-z0-9_-]/gi, "_")}.json`);
 }
 
 export async function readCache<T>(key: string): Promise<{ at: number; value: T } | null> {

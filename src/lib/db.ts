@@ -72,6 +72,65 @@ async function createSchema(): Promise<void> {
       updated_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
       UNIQUE(provider, external_account_id)
     );
+    -- Estruturas multiusuário. As tabelas legadas acima são preservadas, mas não
+    -- são mais consultadas: registros antigos ficam em quarentena até reconexão.
+    CREATE TABLE IF NOT EXISTS workspace_accounts (
+      workspace_id TEXT NOT NULL,
+      seller_id     TEXT NOT NULL,
+      refresh_token TEXT NOT NULL,
+      name          TEXT,
+      marketplace   TEXT,
+      connected_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (workspace_id, seller_id)
+    );
+    CREATE TABLE IF NOT EXISTS workspace_product_costs (
+      workspace_id TEXT NOT NULL,
+      id         TEXT NOT NULL,
+      sku        TEXT,
+      asin       TEXT,
+      title      TEXT,
+      image_url  TEXT,
+      cost       NUMERIC(12,2) NOT NULL DEFAULT 0,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      history    JSONB NOT NULL DEFAULT '[]'::jsonb,
+      PRIMARY KEY (workspace_id, id)
+    );
+    CREATE TABLE IF NOT EXISTS workspace_integrations (
+      workspace_id       TEXT NOT NULL,
+      id                 TEXT NOT NULL,
+      provider           TEXT NOT NULL,
+      external_account_id TEXT NOT NULL,
+      display_name       TEXT,
+      mode               TEXT NOT NULL DEFAULT 'local',
+      region             TEXT,
+      access_token       TEXT,
+      refresh_token      TEXT,
+      access_expires_at  TIMESTAMPTZ,
+      refresh_expires_at TIMESTAMPTZ,
+      scopes             JSONB NOT NULL DEFAULT '[]'::jsonb,
+      metadata           JSONB NOT NULL DEFAULT '{}'::jsonb,
+      status             TEXT NOT NULL DEFAULT 'connected',
+      connected_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (workspace_id, id),
+      UNIQUE(workspace_id, provider, external_account_id)
+    );
+    CREATE TABLE IF NOT EXISTS workspace_tiktok_shops (
+      workspace_id       TEXT NOT NULL,
+      shop_id            TEXT NOT NULL,
+      shop_name          TEXT,
+      shop_cipher        TEXT,
+      region             TEXT,
+      access_token       TEXT NOT NULL,
+      refresh_token      TEXT NOT NULL,
+      access_expires_at  TIMESTAMPTZ,
+      refresh_expires_at TIMESTAMPTZ,
+      connected_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (workspace_id, shop_id)
+    );
+    CREATE INDEX IF NOT EXISTS workspace_accounts_owner_idx ON workspace_accounts(workspace_id);
+    CREATE INDEX IF NOT EXISTS workspace_costs_owner_idx ON workspace_product_costs(workspace_id);
+    CREATE INDEX IF NOT EXISTS workspace_integrations_owner_idx ON workspace_integrations(workspace_id);
   `);
 }
 

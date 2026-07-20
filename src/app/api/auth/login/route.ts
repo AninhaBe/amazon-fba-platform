@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -6,6 +7,7 @@ export const dynamic = "force-dynamic";
 // Inicia o fluxo OAuth da SP-API (website authorization workflow).
 // Redireciona o vendedor para a tela de consentimento do Seller Central.
 export async function GET(req: NextRequest) {
+  return withAuthenticatedWorkspace(async () => {
   const appId = process.env.SPAPI_APP_ID;
   const baseUrl = process.env.APP_BASE_URL || new URL(req.url).origin;
   const consentBase =
@@ -39,4 +41,5 @@ export async function GET(req: NextRequest) {
     path: "/",
   });
   return res;
+  });
 }

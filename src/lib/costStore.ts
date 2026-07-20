@@ -2,6 +2,7 @@ import fs from "fs/promises";
 import path from "path";
 import { dataFile } from "./dataDir";
 import { hasDb, dbQuery } from "./db";
+import { currentWorkspaceId } from "./workspaceScope";
 
 // Cadastro de custos por produto. Persistido no Postgres (Supabase) quando
 // DATABASE_URL está definido; senão, em <DATA_DIR>/costs.json (dev local).
@@ -71,11 +72,13 @@ function rowToCost(r: CostRow): CostEntry {
 
 // ---------- Arquivo JSON (fallback local) ----------
 
-async function readAll(): Promise<Record<string, CostEntry>> {
+type StoredCost = CostEntry & { workspaceId?: string };
+
+async function readAll(): Promise<Record<string, StoredCost>> {
   try {
     const txt = await fs.readFile(FILE, "utf8");
-    const raw = JSON.parse(txt) as Record<string, CostEntry>;
-    const out: Record<string, CostEntry> = {};
+    const raw = JSON.parse(txt) as Record<string, StoredCost>;
+    const out: Record<string, StoredCost> = {};
     for (const [k, v] of Object.entries(raw)) out[k] = normalize(v);
     return out;
   } catch {
@@ -83,7 +86,7 @@ async function readAll(): Promise<Record<string, CostEntry>> {
   }
 }
 
-async function writeAll(data: Record<string, CostEntry>): Promise<void> {
+async function writeAll(data: Record<string, StoredCost>): Promise<void> {
   await fs.mkdir(path.dirname(FILE), { recursive: true });
   await fs.writeFile(FILE, JSON.stringify(data, null, 2), "utf8");
 }
@@ -91,15 +94,23 @@ async function writeAll(data: Record<string, CostEntry>): Promise<void> {
 // ---------- API pública ----------
 
 export async function getCosts(): Promise<Record<string, CostEntry>> {
+  const workspaceId = currentWorkspaceId();
   if (hasDb()) {
     const rows = await dbQuery<CostRow>(
-      `SELECT id, sku, asin, title, image_url, cost, updated_at, history FROM product_costs`
+      `SELECT id, sku, asin, title, image_url, cost, updated_at, history
+         FROM workspace_product_costs WHERE workspace_id = $1`,
+      [workspaceId]
     );
     const out: Record<string, CostEntry> = {};
     for (const r of rows) out[r.id] = rowToCost(r);
     return out;
   }
-  return readAll();
+  const all = await readAll();
+  return Object.fromEntries(
+    Object.values(all)
+      .filter((entry) => entry.workspaceId === workspaceId)
+      .map((entry) => [entry.id, entry])
+  );
 }
 
 export async function setCost(
@@ -107,29 +118,31 @@ export async function setCost(
 ): Promise<CostEntry> {
   const now = new Date().toISOString();
   const cost = Number(entry.cost) || 0;
+  const workspaceId = currentWorkspaceId();
 
   if (hasDb()) {
     const existing = await dbQuery<{ history: CostChange[] }>(
-      `SELECT history FROM product_costs WHERE id = $1`,
-      [entry.id]
+      `SELECT history FROM workspace_product_costs WHERE workspace_id = $1 AND id = $2`,
+      [workspaceId, entry.id]
     );
     const history = existing[0] && Array.isArray(existing[0].history) ? [...existing[0].history] : [];
     const currentCost = history.length ? history[history.length - 1].cost : undefined;
     if (currentCost === undefined || currentCost !== cost) history.push({ cost, from: now });
 
     const rows = await dbQuery<CostRow>(
-      `INSERT INTO product_costs (id, sku, asin, title, image_url, cost, updated_at, history)
-         VALUES ($1, $2, $3, $4, $5, $6, now(), $7::jsonb)
-       ON CONFLICT (id) DO UPDATE SET
-         sku       = COALESCE(EXCLUDED.sku, product_costs.sku),
-         asin      = COALESCE(EXCLUDED.asin, product_costs.asin),
-         title     = COALESCE(EXCLUDED.title, product_costs.title),
-         image_url = COALESCE(EXCLUDED.image_url, product_costs.image_url),
+      `INSERT INTO workspace_product_costs (workspace_id, id, sku, asin, title, image_url, cost, updated_at, history)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, now(), $8::jsonb)
+       ON CONFLICT (workspace_id, id) DO UPDATE SET
+         sku       = COALESCE(EXCLUDED.sku, workspace_product_costs.sku),
+         asin      = COALESCE(EXCLUDED.asin, workspace_product_costs.asin),
+         title     = COALESCE(EXCLUDED.title, workspace_product_costs.title),
+         image_url = COALESCE(EXCLUDED.image_url, workspace_product_costs.image_url),
          cost      = EXCLUDED.cost,
          updated_at = now(),
          history   = EXCLUDED.history
        RETURNING id, sku, asin, title, image_url, cost, updated_at, history`,
       [
+        workspaceId,
         entry.id,
         entry.sku ?? null,
         entry.asin ?? null,
@@ -143,25 +156,28 @@ export async function setCost(
   }
 
   const all = await readAll();
-  const existing = all[entry.id];
+  const key = `${workspaceId}:${entry.id}`;
+  const existing = all[key];
   const history = existing ? [...existing.history] : [];
   const currentCost = history.length ? history[history.length - 1].cost : undefined;
   if (currentCost === undefined || currentCost !== cost) history.push({ cost, from: now });
 
-  const merged: CostEntry = { ...existing, ...entry, cost, updatedAt: now, history };
-  all[entry.id] = merged;
+  const merged: StoredCost = { ...existing, ...entry, workspaceId, cost, updatedAt: now, history };
+  all[key] = merged;
   await writeAll(all);
   return merged;
 }
 
 export async function removeCost(id: string): Promise<void> {
+  const workspaceId = currentWorkspaceId();
   if (hasDb()) {
-    await dbQuery(`DELETE FROM product_costs WHERE id = $1`, [id]);
+    await dbQuery(`DELETE FROM workspace_product_costs WHERE workspace_id = $1 AND id = $2`, [workspaceId, id]);
     return;
   }
   const all = await readAll();
-  if (all[id]) {
-    delete all[id];
+  const key = `${workspaceId}:${id}`;
+  if (all[key]) {
+    delete all[key];
     await writeAll(all);
   }
 }

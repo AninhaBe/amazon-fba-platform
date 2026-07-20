@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getIntegration, getIntegrations } from "@/lib/integrations/integrationStore";
 import { getMercadoLivreProducts } from "@/lib/integrations/mercadoLivre";
+import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
+  return withAuthenticatedWorkspace(async () => {
   try {
     const requested = new URL(req.url).searchParams.get("connectionId");
     const connection = requested
@@ -21,4 +23,5 @@ export async function GET(req: NextRequest) {
       { status: 502 }
     );
   }
+  });
 }

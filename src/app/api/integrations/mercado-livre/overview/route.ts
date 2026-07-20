@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getIntegration, getIntegrations } from "@/lib/integrations/integrationStore";
 import { getMercadoLivreOverview } from "@/lib/integrations/mercadoLivre";
+import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,6 +44,7 @@ function requestedPeriod(url: URL) {
 }
 
 export async function GET(req: NextRequest) {
+  return withAuthenticatedWorkspace(async () => {
   try {
     const url = new URL(req.url);
     const requested = url.searchParams.get("connectionId");
@@ -59,4 +61,5 @@ export async function GET(req: NextRequest) {
       { status: error instanceof RangeError ? 400 : 502 }
     );
   }
+  });
 }

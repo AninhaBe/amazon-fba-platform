@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectionId } from "@/lib/integrations/types";
 import { saveIntegration } from "@/lib/integrations/integrationStore";
 import { exchangeMercadoLivreCode, mercadoLivreFetch, type MercadoLivreUser } from "@/lib/integrations/mercadoLivre";
+import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
+  return withAuthenticatedWorkspace(async () => {
   const { searchParams, origin } = new URL(req.url);
   const baseUrl = process.env.APP_BASE_URL || origin;
   const uiBaseUrl = process.env.APP_UI_BASE_URL || baseUrl;
@@ -51,4 +53,5 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     return fail(error instanceof Error ? error.message : "Erro ao conectar o Mercado Livre.");
   }
+  });
 }

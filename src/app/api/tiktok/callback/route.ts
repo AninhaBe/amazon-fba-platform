@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { exchangeAuthCode, getAuthorizedShops, epochToIso } from "@/lib/tiktok";
 import { saveTiktokShop } from "@/lib/tiktokStore";
+import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,6 +9,7 @@ export const dynamic = "force-dynamic";
 // Retorno da autorização do TikTok Shop: chega com ?code=... (auth_code).
 // Troca por access_token, lista as lojas autorizadas (pega o shop_cipher) e salva.
 export async function GET(req: NextRequest) {
+  return withAuthenticatedWorkspace(async () => {
   const { searchParams, origin } = new URL(req.url);
   const code = searchParams.get("code") || searchParams.get("auth_code");
   const baseUrl = process.env.APP_BASE_URL || origin;
@@ -45,4 +47,5 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     return fail(err instanceof Error ? err.message : "Erro inesperado ao conectar o TikTok.");
   }
+  });
 }

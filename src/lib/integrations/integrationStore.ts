@@ -4,6 +4,7 @@ import { dataFile } from "../dataDir";
 import { dbQuery, hasDb } from "../db";
 import { protectSecret, revealSecret } from "./secrets";
 import type { IntegrationConnection, IntegrationProvider, PublicIntegrationConnection } from "./types";
+import { currentWorkspaceId } from "../workspaceScope";
 
 const FILE = dataFile("integrations.json");
 
@@ -45,9 +46,11 @@ function rowToConnection(row: IntegrationRow): IntegrationConnection {
   };
 }
 
-async function readFile(): Promise<Record<string, IntegrationConnection>> {
+type StoredConnection = IntegrationConnection & { workspaceId?: string };
+
+async function readFile(): Promise<Record<string, StoredConnection>> {
   try {
-    const stored = JSON.parse(await fs.readFile(FILE, "utf8")) as Record<string, IntegrationConnection>;
+    const stored = JSON.parse(await fs.readFile(FILE, "utf8")) as Record<string, StoredConnection>;
     return Object.fromEntries(Object.entries(stored).map(([id, item]) => [id, {
       ...item,
       accessToken: revealSecret(item.accessToken),
@@ -59,7 +62,7 @@ async function readFile(): Promise<Record<string, IntegrationConnection>> {
   }
 }
 
-async function writeFile(items: Record<string, IntegrationConnection>): Promise<void> {
+async function writeFile(items: Record<string, StoredConnection>): Promise<void> {
   await fs.mkdir(path.dirname(FILE), { recursive: true });
   const protectedItems = Object.fromEntries(Object.entries(items).map(([id, item]) => [id, {
     ...item,
@@ -70,62 +73,65 @@ async function writeFile(items: Record<string, IntegrationConnection>): Promise<
 }
 
 export async function getIntegrations(provider?: IntegrationProvider): Promise<IntegrationConnection[]> {
+  const workspaceId = currentWorkspaceId();
   if (hasDb()) {
     const rows = await dbQuery<IntegrationRow>(
       `SELECT id, provider, external_account_id, display_name, mode, region, access_token,
               refresh_token, access_expires_at, refresh_expires_at, scopes, metadata, status,
               connected_at, updated_at
-         FROM integrations
-        WHERE ($1::text IS NULL OR provider = $1)
+         FROM workspace_integrations
+        WHERE workspace_id = $1 AND ($2::text IS NULL OR provider = $2)
         ORDER BY connected_at`,
-      [provider ?? null]
+      [workspaceId, provider ?? null]
     );
     return rows.map(rowToConnection);
   }
-  const items = Object.values(await readFile());
+  const items = Object.values(await readFile()).filter((item) => item.workspaceId === workspaceId);
   return provider ? items.filter((item) => item.provider === provider) : items;
 }
 
 export async function getIntegration(id: string): Promise<IntegrationConnection | undefined> {
+  const workspaceId = currentWorkspaceId();
   if (hasDb()) {
     const rows = await dbQuery<IntegrationRow>(
       `SELECT id, provider, external_account_id, display_name, mode, region, access_token,
               refresh_token, access_expires_at, refresh_expires_at, scopes, metadata, status,
-              connected_at, updated_at FROM integrations WHERE id = $1`,
-      [id]
+              connected_at, updated_at FROM workspace_integrations WHERE workspace_id = $1 AND id = $2`,
+      [workspaceId, id]
     );
     return rows[0] ? rowToConnection(rows[0]) : undefined;
   }
-  return (await readFile())[id];
+  return (await readFile())[`${workspaceId}:${id}`];
 }
 
 export async function saveIntegration(
   item: Omit<IntegrationConnection, "connectedAt" | "updatedAt"> & Partial<Pick<IntegrationConnection, "connectedAt" | "updatedAt">>
 ): Promise<IntegrationConnection> {
   const now = new Date().toISOString();
+  const workspaceId = currentWorkspaceId();
   if (hasDb()) {
     const rows = await dbQuery<IntegrationRow>(
-      `INSERT INTO integrations
-         (id, provider, external_account_id, display_name, mode, region, access_token,
+      `INSERT INTO workspace_integrations
+         (workspace_id, id, provider, external_account_id, display_name, mode, region, access_token,
           refresh_token, access_expires_at, refresh_expires_at, scopes, metadata, status,
           connected_at, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12::jsonb,$13,now(),now())
-       ON CONFLICT (id) DO UPDATE SET
-         display_name       = COALESCE(EXCLUDED.display_name, integrations.display_name),
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13::jsonb,$14,now(),now())
+       ON CONFLICT (workspace_id, id) DO UPDATE SET
+         display_name       = COALESCE(EXCLUDED.display_name, workspace_integrations.display_name),
          mode               = EXCLUDED.mode,
-         region             = COALESCE(EXCLUDED.region, integrations.region),
-         access_token       = COALESCE(EXCLUDED.access_token, integrations.access_token),
-         refresh_token      = COALESCE(EXCLUDED.refresh_token, integrations.refresh_token),
-         access_expires_at  = COALESCE(EXCLUDED.access_expires_at, integrations.access_expires_at),
-         refresh_expires_at = COALESCE(EXCLUDED.refresh_expires_at, integrations.refresh_expires_at),
+         region             = COALESCE(EXCLUDED.region, workspace_integrations.region),
+         access_token       = COALESCE(EXCLUDED.access_token, workspace_integrations.access_token),
+         refresh_token      = COALESCE(EXCLUDED.refresh_token, workspace_integrations.refresh_token),
+         access_expires_at  = COALESCE(EXCLUDED.access_expires_at, workspace_integrations.access_expires_at),
+         refresh_expires_at = COALESCE(EXCLUDED.refresh_expires_at, workspace_integrations.refresh_expires_at),
          scopes             = EXCLUDED.scopes,
-         metadata           = integrations.metadata || EXCLUDED.metadata,
+         metadata           = workspace_integrations.metadata || EXCLUDED.metadata,
          status             = EXCLUDED.status,
          updated_at         = now()
        RETURNING id, provider, external_account_id, display_name, mode, region, access_token,
                  refresh_token, access_expires_at, refresh_expires_at, scopes, metadata, status,
                  connected_at, updated_at`,
-      [item.id, item.provider, item.externalAccountId, item.displayName ?? null, item.mode,
+      [workspaceId, item.id, item.provider, item.externalAccountId, item.displayName ?? null, item.mode,
        item.region ?? null, protectSecret(item.accessToken) ?? null, protectSecret(item.refreshToken) ?? null,
        item.accessExpiresAt ?? null, item.refreshExpiresAt ?? null,
        JSON.stringify(item.scopes), JSON.stringify(item.metadata),
@@ -135,25 +141,27 @@ export async function saveIntegration(
   }
 
   const all = await readFile();
+  const key = `${workspaceId}:${item.id}`;
   const saved: IntegrationConnection = {
-    ...all[item.id],
+    ...all[key],
     ...item,
-    metadata: { ...(all[item.id]?.metadata ?? {}), ...item.metadata },
-    connectedAt: all[item.id]?.connectedAt ?? item.connectedAt ?? now,
+    metadata: { ...(all[key]?.metadata ?? {}), ...item.metadata },
+    connectedAt: all[key]?.connectedAt ?? item.connectedAt ?? now,
     updatedAt: now,
   };
-  all[item.id] = saved;
+  all[key] = { ...saved, workspaceId };
   await writeFile(all);
   return saved;
 }
 
 export async function removeIntegration(id: string): Promise<void> {
+  const workspaceId = currentWorkspaceId();
   if (hasDb()) {
-    await dbQuery(`DELETE FROM integrations WHERE id = $1`, [id]);
+    await dbQuery(`DELETE FROM workspace_integrations WHERE workspace_id = $1 AND id = $2`, [workspaceId, id]);
     return;
   }
   const all = await readFile();
-  delete all[id];
+  delete all[`${workspaceId}:${id}`];
   await writeFile(all);
 }
 

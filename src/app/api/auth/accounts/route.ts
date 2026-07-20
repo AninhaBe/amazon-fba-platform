@@ -1,17 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAccounts, removeAccount, setAccountName } from "@/lib/accountStore";
 import { ACTIVE_COOKIE } from "@/lib/withAccount";
+import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // Lista as contas conectadas + qual está ativa. Não expõe os refresh tokens.
 export async function GET(req: NextRequest) {
+  return withAuthenticatedWorkspace(async () => {
   const accounts = await getAccounts();
   const active = req.cookies.get(ACTIVE_COOKIE)?.value ?? null;
   return NextResponse.json({
     active,
-    hasOwnerToken: !!process.env.LWA_REFRESH_TOKEN,
+    hasOwnerToken: false,
     accounts: accounts.map((a) => ({
       sellerId: a.sellerId,
       name: a.name,
@@ -19,10 +21,12 @@ export async function GET(req: NextRequest) {
       connectedAt: a.connectedAt,
     })),
   });
+  });
 }
 
 // Renomeia (apelido) uma conta conectada — PATCH { sellerId, name }.
 export async function PATCH(req: NextRequest) {
+  return withAuthenticatedWorkspace(async () => {
   try {
     const { sellerId, name } = await req.json();
     if (!sellerId) return NextResponse.json({ error: "Informe sellerId." }, { status: 400 });
@@ -31,10 +35,12 @@ export async function PATCH(req: NextRequest) {
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Erro ao renomear conta." }, { status: 500 });
   }
+  });
 }
 
 // Troca a conta ativa (POST { sellerId } — "" volta para a conta dona/.env).
 export async function POST(req: NextRequest) {
+  return withAuthenticatedWorkspace(async () => {
   const { sellerId } = await req.json();
   if (sellerId) {
     const accounts = await getAccounts();
@@ -54,10 +60,12 @@ export async function POST(req: NextRequest) {
     res.cookies.set(ACTIVE_COOKIE, "", { maxAge: 0, path: "/" });
   }
   return res;
+  });
 }
 
 // Desconecta uma conta.
 export async function DELETE(req: NextRequest) {
+  return withAuthenticatedWorkspace(async () => {
   try {
     const sellerId = new URL(req.url).searchParams.get("sellerId");
     if (!sellerId) return NextResponse.json({ error: "Informe sellerId." }, { status: 400 });
@@ -70,4 +78,5 @@ export async function DELETE(req: NextRequest) {
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Erro ao desconectar conta." }, { status: 500 });
   }
+  });
 }

@@ -4,11 +4,13 @@ import { getTiktokShops } from "@/lib/tiktokStore";
 import { getIntegrations, publicConnection, removeIntegration } from "@/lib/integrations/integrationStore";
 import { mercadoLivreConfigured } from "@/lib/integrations/mercadoLivre";
 import { PROVIDERS } from "@/lib/integrations/registry";
+import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  return withAuthenticatedWorkspace(async () => {
   try {
     const [generic, amazonAccounts, tiktokShops] = await Promise.all([
       getIntegrations(),
@@ -16,19 +18,6 @@ export async function GET() {
       getTiktokShops(),
     ]);
     const connections = [
-      ...(process.env.LWA_REFRESH_TOKEN ? [{
-        id: "amazon:default",
-        provider: "amazon",
-        externalAccountId: "default",
-        displayName: "Conta principal",
-        mode: "local",
-        region: process.env.DEFAULT_MARKETPLACE_ID === "A2Q3Y263D00KWC" ? "Amazon.com.br" : process.env.SPAPI_REGION || "NA",
-        scopes: [],
-        metadata: {},
-        status: "connected",
-        connectedAt: "environment",
-        updatedAt: "environment",
-      }] : []),
       ...amazonAccounts.map((account) => ({
         id: `amazon:${account.sellerId}`,
         provider: "amazon",
@@ -76,9 +65,11 @@ export async function GET() {
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Erro ao carregar integrações." }, { status: 500 });
   }
+  });
 }
 
 export async function DELETE(req: NextRequest) {
+  return withAuthenticatedWorkspace(async () => {
   try {
     const id = new URL(req.url).searchParams.get("id");
     if (!id) return NextResponse.json({ error: "Informe a conexão." }, { status: 400 });
@@ -90,4 +81,5 @@ export async function DELETE(req: NextRequest) {
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Erro ao remover integração." }, { status: 500 });
   }
+  });
 }

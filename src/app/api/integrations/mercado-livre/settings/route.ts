@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getIntegration, getIntegrations, saveIntegration } from "@/lib/integrations/integrationStore";
 import { mercadoLivreTaxRate } from "@/lib/integrations/mercadoLivre";
+import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,14 +12,17 @@ async function selectedConnection(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
+  return withAuthenticatedWorkspace(async () => {
   const connection = await selectedConnection(req);
   if (!connection || connection.provider !== "mercado_livre") {
     return NextResponse.json({ error: "Nenhuma conta do Mercado Livre conectada." }, { status: 404 });
   }
   return NextResponse.json({ taxRate: mercadoLivreTaxRate(connection) });
+  });
 }
 
 export async function POST(req: NextRequest) {
+  return withAuthenticatedWorkspace(async () => {
   try {
     const connection = await selectedConnection(req);
     if (!connection || connection.provider !== "mercado_livre") {
@@ -37,4 +41,5 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
+  });
 }

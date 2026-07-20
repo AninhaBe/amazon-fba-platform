@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getIntegration, getIntegrations } from "@/lib/integrations/integrationStore";
 import { getMercadoLivrePublicListing, getMercadoLivreSaleFee, getMercadoLivreSaleFeeForContext } from "@/lib/integrations/mercadoLivre";
+import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
+  return withAuthenticatedWorkspace(async () => {
   try {
     const body = await req.json();
     const requested = new URL(req.url).searchParams.get("connectionId");
@@ -42,4 +44,5 @@ export async function POST(req: NextRequest) {
       { status: 502 }
     );
   }
+  });
 }

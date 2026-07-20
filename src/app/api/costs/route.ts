@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCosts, setCost, removeCost } from "@/lib/costStore";
+import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  return NextResponse.json({ costs: await getCosts() });
+  return withAuthenticatedWorkspace(async () => NextResponse.json({ costs: await getCosts() }));
 }
 
 export async function POST(req: NextRequest) {
+  return withAuthenticatedWorkspace(async () => {
   try {
     const body = await req.json();
     const id = String(body.id || body.sku || body.asin || "").trim();
@@ -33,9 +35,11 @@ export async function POST(req: NextRequest) {
     const message = err instanceof Error ? err.message : "Erro desconhecido";
     return NextResponse.json({ error: message }, { status: 500 });
   }
+  });
 }
 
 export async function DELETE(req: NextRequest) {
+  return withAuthenticatedWorkspace(async () => {
   try {
     const id = new URL(req.url).searchParams.get("id");
     if (!id) return NextResponse.json({ error: "Informe o id." }, { status: 400 });
@@ -45,4 +49,5 @@ export async function DELETE(req: NextRequest) {
     const message = err instanceof Error ? err.message : "Erro desconhecido";
     return NextResponse.json({ error: message }, { status: 500 });
   }
+  });
 }

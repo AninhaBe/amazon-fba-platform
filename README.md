@@ -1,8 +1,7 @@
-# SellerCore — Inteligência para vendedores Amazon
+# SellerCore — Inteligência para operações multicanal
 
-Plataforma em **Next.js** que usa a **Amazon Selling Partner API (SP-API)** para reunir,
-num só lugar, o que um vendedor FBA precisa acompanhar: lucro real, monitoramento da
-conta, estoque, produtos com custo e pesquisa de mercado.
+Plataforma em **Next.js** para centralizar Amazon, Mercado Livre e futuros canais,
+com lucro, pedidos, estoque, custos e desempenho separados por workspace.
 
 ## Funcionalidades
 
@@ -17,7 +16,16 @@ conta, estoque, produtos com custo e pesquisa de mercado.
 
 ## Como rodar
 
-1. Copie `.env.local.example` para `.env.local` e preencha as credenciais LWA
+1. Copie `.env.local.example` para `.env.local` e configure primeiro a autenticação:
+
+   ```
+   NEXT_PUBLIC_SUPABASE_URL=https://SEU_PROJETO.supabase.co
+   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+   DATABASE_URL=postgresql://...
+   INTEGRATION_TOKEN_KEY=uma-chave-longa-e-estável
+   ```
+
+   Depois preencha as credenciais LWA
    (**nunca comite esse arquivo** — ele já está no `.gitignore`):
 
    ```
@@ -41,12 +49,14 @@ conta, estoque, produtos com custo e pesquisa de mercado.
 
 3. Acesse http://localhost:3000
 
-## Contas e multi-conta
+## Autenticação e isolamento
 
-- A **conta dona** usa o `LWA_REFRESH_TOKEN` do `.env.local`.
-- Colegas podem conectar a própria conta pelo fluxo **OAuth** (`/api/auth/login`), sem
-  compartilhar credenciais. A conta ativa fica num cookie; cada conta tem seu próprio
-  cache e contexto (isolamento via `AsyncLocalStorage`).
+- Cada pessoa cria uma conta pelo Supabase Auth e recebe um workspace próprio.
+- Contas Amazon, integrações, custos, lojas TikTok e caches são sempre escopados pelo
+  usuário autenticado. O bloqueio existe nas páginas, nas rotas e junto aos stores.
+- Registros das tabelas legadas permanecem em quarentena e não são listados. Após a
+  atualização, reconecte cada marketplace dentro do usuário correto.
+- No Supabase, cadastre `https://SEU_DOMINIO/auth/confirm` entre as Redirect URLs.
 
 ## Onde pegar as credenciais
 
@@ -58,7 +68,8 @@ No **Developer Central / Seller Central → Apps** você registra um app SP-API 
 | Camada | Arquivos |
 |---|---|
 | **Cliente SP-API** | `src/lib/spapi.ts` (token LWA + chamadas autenticadas + **erros tipados** `SpApiError`) |
-| **Contexto de conta** | `accountContext.ts`, `accountStore.ts`, `withAccount.ts` (multi-conta via ALS) |
+| **Autenticação/workspace** | `supabase/*`, `workspaceContext.ts`, `proxy.ts` (sessão SSR + isolamento via ALS) |
+| **Contexto Amazon** | `accountContext.ts`, `accountStore.ts`, `withAccount.ts` |
 | **Cache** | `cache.ts` (dedupe em memória), `swr.ts` + `persistentCache.ts` (stale-while-revalidate em disco), `dataDir.ts` |
 | **Domínio** | `fees.ts`, `pricing.ts`, `catalog.ts`, `storage.ts`, `orders.ts`, `finances.ts`, `sales.ts`, `inventory.ts`, `radar.ts`, `profit.ts`, `topProducts.ts`, `search.ts`, `reports.ts`, `listings.ts`, `products.ts`, `costStore.ts` |
 | **Período** | `period.ts` (presets vs. intervalo custom) |

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -6,6 +7,7 @@ export const dynamic = "force-dynamic";
 // Redireciona para a tela de autorização do TikTok Shop.
 // A URL de autorização (com service_id) vem do Partner Center → TIKTOK_AUTH_URL.
 export async function GET() {
+  return withAuthenticatedWorkspace(async () => {
   const authUrl = process.env.TIKTOK_AUTH_URL;
   if (!authUrl) {
     return NextResponse.json(
@@ -17,4 +19,5 @@ export async function GET() {
     );
   }
   return NextResponse.redirect(authUrl);
+  });
 }
