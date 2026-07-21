@@ -933,6 +933,8 @@ summary:hover { background: var(--paper-soft); }
 }
 .integration-connect:hover { background: var(--brand-dark); transform: translateY(-1px); }
 .integration-connect:active { transform: scale(.96); }
+.integration-active-state { display: flex; min-height: 44px; align-items: center; gap: 8px; border-radius: var(--radius-sm); background: var(--positive-soft); padding: 0 13px; color: var(--positive); font-size: 12px; font-weight: 700; }
+.integration-active-state > span { display: grid; width: 20px; height: 20px; place-items: center; border-radius: 999px; background: var(--positive); color: white; font-size: 11px; }
 .integration-disabled { display: flex; min-height: 44px; align-items: center; border-radius: var(--radius-sm); background: var(--paper-soft); padding: 0 13px; color: var(--ink-muted); font-size: 12px; font-weight: 600; }
 .integration-architecture {
   display: grid;

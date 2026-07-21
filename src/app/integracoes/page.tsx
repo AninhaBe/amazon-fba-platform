@@ -163,9 +163,11 @@ export default function IntegracoesPage() {
                   <footer>
                     {planned ? (
                       <span className="integration-disabled">Integração preparada para a próxima fase</span>
+                    ) : connected ? (
+                      <span className="integration-active-state"><span aria-hidden="true">✓</span> Integração ativa nesta conta</span>
                     ) : provider.configured && provider.connectHref ? (
                       <a href={provider.connectHref} className="integration-connect">
-                        {connected ? "Conectar outra conta" : `Conectar ${provider.name}`}
+                        Conectar {provider.name}
                         <span aria-hidden="true">→</span>
                       </a>
                     ) : (
