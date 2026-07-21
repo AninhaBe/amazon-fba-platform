@@ -5,6 +5,7 @@ const publicPaths = [
   "/login",
   "/auth/confirm",
   "/api/health",
+  "/api/cron/mercado-livre-sync",
   "/api/webhooks/mercado-livre",
 ];
 

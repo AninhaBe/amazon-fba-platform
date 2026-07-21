@@ -82,7 +82,9 @@ export async function GET(req: NextRequest) {
       if (sync.status !== "complete" && sync.status !== "error" && sync.status !== "unavailable") {
         after(() => runWithWorkspace(workspaceId, async () => {
           try {
-            await runMercadoLivreSyncBatch(connection);
+            // Em funções serverless, o cron continua o histórico em lotes
+            // duráveis. O primeiro lote curto antecipa dados para quem abriu a tela.
+            await runMercadoLivreSyncBatch(connection, process.env.VERCEL ? 4 : 64);
           } catch (error) {
             console.error("Falha ao avançar sincronização do Mercado Livre", {
               connectionId: connection.id,

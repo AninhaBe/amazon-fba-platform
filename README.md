@@ -103,8 +103,9 @@ No **Developer Central / Seller Central → Apps** você registra um app SP-API 
 
 ## Deploy
 
-Há um `render.yaml` (Render) com disco persistente em `DATA_DIR=/var/data` para o cache e
-os custos. Qualquer host que rode Next.js e ofereça um volume gravável serve.
+- **Vercel:** veja o [guia de deploy e migração](./docs/vercel-deploy.md). As funções
+  rodam em São Paulo e um cron continua a sincronização incremental do Mercado Livre.
+- **Render (legado/rollback):** o `render.yaml` mantém o serviço atual e seu disco.
 
 ## Roadmap / ideias
 

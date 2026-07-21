@@ -18,7 +18,11 @@ function getPool(): Pool {
       connectionString: process.env.DATABASE_URL,
       // Supabase exige SSL. rejectUnauthorized:false evita erro de CA no Render.
       ssl: { rejectUnauthorized: false },
-      max: 5,
+      // Cada instância serverless pode criar seu próprio pool. Mantê-lo pequeno
+      // evita multiplicar conexões no Supavisor quando a Vercel escala a aplicação.
+      max: process.env.VERCEL ? 2 : 5,
+      idleTimeoutMillis: 10_000,
+      connectionTimeoutMillis: 10_000,
     });
   }
   return pool;
