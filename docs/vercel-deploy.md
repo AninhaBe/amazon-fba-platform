@@ -14,9 +14,10 @@ só acontece depois que o deploy da Vercel estiver validado.
 
 ## 2. Variáveis de ambiente
 
-Copie para **Settings > Environment Variables** as variáveis do Render, para os
-ambientes Production e Preview. Não configure `DATA_DIR`: a Vercel não possui disco
-persistente e os dados de produção ficam no PostgreSQL.
+Copie para **Settings > Environment Variables** as variáveis do Render no ambiente
+Production. Não exponha o banco e os segredos de produção em Preview; quando precisar
+de previews funcionais, use credenciais e banco separados. Não configure `DATA_DIR`:
+a Vercel não possui disco persistente e os dados de produção ficam no PostgreSQL.
 
 Crie também `CRON_SECRET` com um valor aleatório longo. Como credenciais foram
 expostas durante a configuração, gere novos valores para a senha do banco,
