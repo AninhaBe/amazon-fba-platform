@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { EmptyState } from "./EmptyState";
 import { PanelLoading } from "./LoadingState";
 import { PageHeader, pageIcons } from "./PageHeader";
@@ -31,6 +31,12 @@ interface SyncStatus {
   error: string | null;
 }
 
+interface CachedPeriod {
+  overview: Overview;
+  syncStatus: SyncStatus | null;
+  updatedAt: Date;
+}
+
 const views = {
   dashboard: { eyebrow: "Operação Mercado Livre", title: "Dashboard Mercado Livre", subtitle: "Faturamento, pedidos e anúncios da sua conta do Mercado Livre Brasil.", icon: pageIcons.dashboard },
   monitor: { eyebrow: "Pedidos e financeiro Mercado Livre", title: "Monitor da conta", subtitle: "Pedidos recentes e o resultado financeiro real da sua conta.", icon: pageIcons.chart },
@@ -58,14 +64,25 @@ export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [retryKey, setRetryKey] = useState(0);
+  const periodCache = useRef(new Map<string, CachedPeriod>());
   const period = useDashboardPeriod();
   const page = views[view];
 
   useEffect(() => {
     const controller = new AbortController();
+    const cacheKey = `${view}:${period.query}`;
+    const cached = periodCache.current.get(cacheKey);
     const wait = (milliseconds: number) => new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds));
     const timer = window.setTimeout(() => {
-      setLoading(true);
+      if (cached) {
+        setOverview(cached.overview);
+        setSyncStatus(cached.syncStatus);
+        setUpdatedAt(cached.updatedAt);
+        setConnectionPresent(true);
+        setLoading(false);
+      } else {
+        setLoading(true);
+      }
       setError(null);
       void (async () => {
         const readJson = async (response: Response) => {
@@ -85,11 +102,20 @@ export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
           if (data.connectionId) setConnectionPresent(true);
           if (data.sync) setSyncStatus(data.sync as SyncStatus);
           if (data.overview) {
-            setOverview(data.overview);
-            setUpdatedAt(data.updatedAt ? new Date(data.updatedAt) : new Date());
+            const nextOverview = data.overview as Overview;
+            const nextSync = data.sync ? data.sync as SyncStatus : null;
+            const nextUpdatedAt = data.updatedAt ? new Date(data.updatedAt) : new Date();
+            periodCache.current.set(cacheKey, {
+              overview: nextOverview,
+              syncStatus: nextSync,
+              updatedAt: nextUpdatedAt,
+            });
+            setOverview(nextOverview);
+            setUpdatedAt(nextUpdatedAt);
             setLoading(false);
             break;
           }
+          if (cached) break;
           if (!data.sync || data.sync.status === "complete" || data.sync.status === "unavailable") break;
           if (data.sync.status === "error") throw new Error(data.sync.error || "A sincronização do Mercado Livre foi interrompida.");
           await wait(1_500);
@@ -97,6 +123,9 @@ export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
       })()
         .catch((reason) => {
           if (reason instanceof DOMException && reason.name === "AbortError") return;
+          // Uma falha de revalidação não deve esconder um período que o
+          // usuário acabou de consultar e que continua válido no cache da tela.
+          if (cached) return;
           setError(reason instanceof Error ? reason.message : "Não foi possível consultar o Mercado Livre.");
         })
         .finally(() => {

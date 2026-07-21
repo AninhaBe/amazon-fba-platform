@@ -313,14 +313,14 @@ export async function runMercadoLivreSyncBatch(
   maxSteps = 64
 ): Promise<MercadoLivreSyncStatus> {
   let status = await requestMercadoLivreSync(connection.id);
-  let attempted = false;
   for (let step = 0; step < maxSteps; step += 1) {
     if (status.status === "complete" || status.status === "error" || status.status === "unavailable") break;
-    attempted = true;
     status = await runMercadoLivreSyncStep(connection, false, false);
     if (status.busy) break;
   }
-  if (attempted) await invalidateMercadoLivreOverviewSnapshots(connection.id);
+  // Não apaga os snapshots a cada lote do histórico. Eles expiram sozinhos em
+  // dois minutos e carregam o status atual da sincronização separadamente.
+  // Webhooks, custos e sincronizações manuais continuam invalidando imediatamente.
   return status;
 }
 
