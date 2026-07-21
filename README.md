@@ -82,7 +82,7 @@ No **Developer Central / Seller Central → Apps** você registra um app SP-API 
 | **Cliente SP-API** | `src/lib/spapi.ts` (token LWA + chamadas autenticadas + **erros tipados** `SpApiError`) |
 | **Autenticação/workspace** | `supabase/*`, `workspaceContext.ts`, `proxy.ts` (sessão SSR + isolamento via ALS) |
 | **Contexto Amazon** | `accountContext.ts`, `accountStore.ts`, `withAccount.ts` |
-| **Cache** | `cache.ts` (dedupe em memória), `swr.ts` + `persistentCache.ts` (stale-while-revalidate em disco), `dataDir.ts` |
+| **Cache** | `cache.ts` (dedupe em memória), `swr.ts` + `persistentCache.ts` (stale-while-revalidate no PostgreSQL; arquivo apenas no dev), `dataDir.ts` |
 | **Domínio** | `fees.ts`, `pricing.ts`, `catalog.ts`, `storage.ts`, `orders.ts`, `finances.ts`, `sales.ts`, `inventory.ts`, `radar.ts`, `profit.ts`, `topProducts.ts`, `search.ts`, `reports.ts`, `listings.ts`, `products.ts`, `costStore.ts` |
 | **Período** | `period.ts` (presets vs. intervalo custom) |
 | **Rotas** | `src/app/api/*` (fees, price, orders, finances, sales, radar, products, top-products, profit, search, costs, auth) |

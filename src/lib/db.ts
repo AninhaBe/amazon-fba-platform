@@ -213,6 +213,13 @@ async function createSchema(): Promise<void> {
       generated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
       PRIMARY KEY (workspace_id, provider, connection_id, period_key)
     );
+    CREATE TABLE IF NOT EXISTS workspace_persistent_cache (
+      workspace_id TEXT NOT NULL,
+      cache_key    TEXT NOT NULL,
+      payload      JSONB NOT NULL,
+      cached_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (workspace_id, cache_key)
+    );
     CREATE INDEX IF NOT EXISTS workspace_accounts_owner_idx ON workspace_accounts(workspace_id);
     CREATE INDEX IF NOT EXISTS workspace_costs_owner_idx ON workspace_product_costs(workspace_id);
     CREATE INDEX IF NOT EXISTS workspace_integrations_owner_idx ON workspace_integrations(workspace_id);
@@ -227,6 +234,8 @@ async function createSchema(): Promise<void> {
       ON workspace_marketplace_events(workspace_id, provider, status, received_at);
     CREATE INDEX IF NOT EXISTS workspace_marketplace_overview_snapshots_age_idx
       ON workspace_marketplace_overview_snapshots(workspace_id, provider, connection_id, generated_at DESC);
+    CREATE INDEX IF NOT EXISTS workspace_persistent_cache_age_idx
+      ON workspace_persistent_cache(workspace_id, cached_at DESC);
   `);
 }
 
