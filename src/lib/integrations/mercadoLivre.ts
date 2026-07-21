@@ -295,20 +295,53 @@ async function validConnection(connection: IntegrationConnection): Promise<Integ
 
 export async function mercadoLivreFetch<T>(connection: IntegrationConnection, resource: string): Promise<T> {
   let current = await validConnection(connection);
-  const request = () => fetch(`${API_BASE}${resource}`, {
-    headers: { Authorization: `Bearer ${current.accessToken}`, Accept: "application/json" },
-    cache: "no-store",
-  });
-  let response = await request();
-  if (response.status === 401) {
-    current = await refreshConnection({ ...current, accessExpiresAt: new Date(0).toISOString() });
-    response = await request();
+  let refreshed = false;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    let response: Response;
+    try {
+      response = await fetch(`${API_BASE}${resource}`, {
+        headers: { Authorization: `Bearer ${current.accessToken}`, Accept: "application/json" },
+        cache: "no-store",
+        signal: AbortSignal.timeout(10_000),
+      });
+    } catch (error) {
+      if (attempt < 2) {
+        await new Promise((resolve) => setTimeout(resolve, 350 * 2 ** attempt));
+        continue;
+      }
+      if (error instanceof Error && error.name === "TimeoutError") {
+        throw new Error("O Mercado Livre demorou para responder. Tente novamente em instantes.");
+      }
+      throw error;
+    }
+    if (response.status === 401 && !refreshed) {
+      current = await refreshConnection({ ...current, accessExpiresAt: new Date(0).toISOString() });
+      refreshed = true;
+      continue;
+    }
+
+    const contentType = response.headers.get("content-type") || "";
+    const transient = response.status === 429 || response.status >= 500 || !contentType.includes("json");
+    if (transient && attempt < 2) {
+      const retryAfter = Number(response.headers.get("retry-after"));
+      const delay = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1_000 : 350 * 2 ** attempt;
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      continue;
+    }
+
+    const text = await response.text();
+    let data: { message?: string; error?: string } & T;
+    try {
+      data = (text ? JSON.parse(text) : {}) as { message?: string; error?: string } & T;
+    } catch {
+      throw new Error("O Mercado Livre respondeu temporariamente em um formato inesperado. Tente novamente em instantes.");
+    }
+    if (!response.ok && response.status !== 206) {
+      throw new Error(data.message || data.error || `Mercado Livre respondeu ${response.status}.`);
+    }
+    return data as T;
   }
-  const data = await response.json();
-  if (!response.ok && response.status !== 206) {
-    throw new Error(data.message || data.error || `Mercado Livre respondeu ${response.status}.`);
-  }
-  return data as T;
+  throw new Error("O Mercado Livre está temporariamente indisponível. Tente novamente em instantes.");
 }
 
 interface MercadoLivreListingPrice {

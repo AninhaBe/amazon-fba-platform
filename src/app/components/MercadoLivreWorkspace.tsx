@@ -52,6 +52,7 @@ export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
   const [overview, setOverview] = useState<Overview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [connectionPresent, setConnectionPresent] = useState(false);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [retryKey, setRetryKey] = useState(0);
   const period = useDashboardPeriod();
@@ -65,16 +66,31 @@ export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
       setError(null);
       void (async () => {
         let overviewAvailable = false;
+        const readJson = async (response: Response) => {
+          const text = await response.text();
+          try {
+            return text ? JSON.parse(text) : {};
+          } catch {
+            throw new Error(response.status >= 500
+              ? "O serviço demorou para responder. Os últimos dados salvos continuam preservados."
+              : "A sessão expirou ou a resposta do servidor foi interrompida. Atualize a página e tente novamente.");
+          }
+        };
         while (!controller.signal.aborted) {
           if (!overviewAvailable) {
             const response = await fetch(`/api/integrations/mercado-livre/overview?${period.query}`, { cache: "no-store", signal: controller.signal });
-            const data = await response.json();
+            const data = await readJson(response);
             if (!response.ok && response.status !== 202) throw new Error(data.error || "Não foi possível consultar o Mercado Livre.");
+            if (data.connectionId) setConnectionPresent(true);
             if (data.overview) {
               overviewAvailable = true;
               setOverview(data.overview);
               setUpdatedAt(data.updatedAt ? new Date(data.updatedAt) : new Date());
               setLoading(false);
+              // O período pedido já está disponível. Fazemos só uma etapa curta
+              // em segundo plano, sem continuar puxando um ano de histórico.
+              void fetch("/api/integrations/mercado-livre/sync", { method: "POST", cache: "no-store" }).catch(() => undefined);
+              break;
             }
             if (!data.sync || data.sync.status === "complete" || data.sync.status === "unavailable") break;
           }
@@ -84,7 +100,7 @@ export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
             cache: "no-store",
             signal: controller.signal,
           });
-          const data = await response.json();
+          const data = await readJson(response);
           if (!response.ok) throw new Error(data.error || "Não foi possível sincronizar o Mercado Livre.");
           const nextSync = data.sync as SyncStatus;
           if (nextSync.status === "error") throw new Error(nextSync.error || "A sincronização do Mercado Livre foi interrompida.");
@@ -117,6 +133,8 @@ export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
       )}
       {loading ? <PanelLoading label="Carregando dados do Mercado Livre" /> : error ? (
         <EmptyState title="Não foi possível atualizar o Mercado Livre" description={error} action={<button type="button" onClick={() => setRetryKey((key) => key + 1)} className="meli-primary-action">Tentar novamente <span aria-hidden="true">↻</span></button>} />
+      ) : !overview && connectionPresent ? (
+        <EmptyState title="Conta conectada, dados em preparação" description="A integração está ativa. O SellerCore está organizando os pedidos do período solicitado." action={<button type="button" onClick={() => setRetryKey((key) => key + 1)} className="meli-primary-action">Atualizar dados <span aria-hidden="true">↻</span></button>} />
       ) : !overview ? (
         <EmptyState title="Conecte sua conta do Mercado Livre" description="Autorize o SellerCore para começar a importar anúncios e pedidos." action={<Link href="/integracoes" className="meli-primary-action">Gerenciar integração <span aria-hidden="true">→</span></Link>} />
       ) : view === "dashboard" ? <Dashboard overview={overview} updatedAt={updatedAt} /> : view === "estoque" ? <Inventory overview={overview} /> : <Monitor overview={overview} />}

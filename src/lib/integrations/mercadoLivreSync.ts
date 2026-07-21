@@ -17,6 +17,7 @@ const HISTORY_DAYS = 366;
 const WINDOW_DAYS = 7;
 const PAGE_SIZE = 50;
 const SHIPMENT_CONCURRENCY = 5;
+const SHIPMENT_BATCH_SIZE = 5;
 const FRESH_FOR_MS = 10 * 60_000;
 const COVERAGE_TOLERANCE_MS = 15 * 60_000;
 
@@ -172,11 +173,23 @@ async function syncProducts(connection: IntegrationConnection): Promise<void> {
   );
 }
 
-async function syncShipmentCosts(connection: IntegrationConnection, orders: MercadoLivreOrder[]): Promise<void> {
-  const shipmentIds = [...new Set(orders
-    .filter((order) => order.status === "paid")
-    .map((order) => order.shipping?.id == null ? null : String(order.shipping.id))
-    .filter((id): id is string => id !== null))];
+async function syncMissingShipmentCosts(connection: IntegrationConnection): Promise<void> {
+  const shipmentRows = await dbQuery<{ shipment_id: string }>(
+    `SELECT DISTINCT orders.payload #>> '{shipping,id}' AS shipment_id
+       FROM workspace_marketplace_orders orders
+       LEFT JOIN workspace_marketplace_shipments shipments
+         ON shipments.workspace_id = orders.workspace_id
+        AND shipments.provider = orders.provider
+        AND shipments.connection_id = orders.connection_id
+        AND shipments.external_shipment_id = orders.payload #>> '{shipping,id}'
+      WHERE orders.workspace_id = $1 AND orders.provider = $2 AND orders.connection_id = $3
+        AND orders.status = 'paid' AND orders.payload #>> '{shipping,id}' IS NOT NULL
+        AND shipments.external_shipment_id IS NULL
+      ORDER BY shipment_id DESC
+      LIMIT $4`,
+    [currentWorkspaceId(), PROVIDER, connection.id, SHIPMENT_BATCH_SIZE]
+  );
+  const shipmentIds = shipmentRows.map((row) => row.shipment_id);
   const records: Array<{ external_shipment_id: string; payload: MercadoLivreShipmentCosts }> = [];
   for (let index = 0; index < shipmentIds.length; index += SHIPMENT_CONCURRENCY) {
     const batch = shipmentIds.slice(index, index + SHIPMENT_CONCURRENCY);
@@ -220,7 +233,7 @@ export async function runMercadoLivreSyncStep(connection: IntegrationConnection)
   if (!row) return publicStatus(await getSyncRow(connection.id), true);
 
   try {
-    const productsDue = !row.products_synced_at || Date.now() - new Date(row.products_synced_at).getTime() > 60 * 60_000;
+    const productsDue = !row.products_synced_at || Date.now() - new Date(row.products_synced_at).getTime() > 6 * 60 * 60_000;
     if (productsDue) await syncProducts(connection);
 
     const from = new Date(row.cursor_from);
@@ -234,7 +247,6 @@ export async function runMercadoLivreSyncStep(connection: IntegrationConnection)
     const orders = page.results ?? [];
     const total = page.paging?.total ?? orders.length;
     await saveOrders(connection.id, orders);
-    await syncShipmentCosts(connection, orders);
 
     const pageComplete = offset + orders.length >= total || orders.length < PAGE_SIZE;
     const targetFrom = new Date(row.target_from);
@@ -269,6 +281,9 @@ export async function runMercadoLivreSyncStep(connection: IntegrationConnection)
         [currentWorkspaceId(), PROVIDER, connection.id, offset + orders.length, orders.length]
       );
     }
+    // Frete é uma conciliação complementar. Processamos poucos registros por
+    // passo, depois de salvar e avançar os pedidos, sem bloquear o faturamento.
+    await syncMissingShipmentCosts(connection);
   } catch (error) {
     await dbQuery(
       `UPDATE workspace_marketplace_syncs
