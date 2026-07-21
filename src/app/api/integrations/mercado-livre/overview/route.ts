@@ -95,6 +95,23 @@ export async function GET(req: NextRequest) {
       }
       const snapshot = await loadMercadoLivreOverviewSnapshot<Overview>(connection.id, snapshotKey);
       if (snapshot) {
+        if (snapshot.stale) {
+          after(() => runWithWorkspace(workspaceId, async () => {
+            try {
+              const latest = await loadMercadoLivreSource(connection, period);
+              if (!latest.source) return;
+              const refreshed = await getMercadoLivreOverview(connection, period, latest.source);
+              if (view !== "monitor") refreshed.profitabilityLines = [];
+              await saveMercadoLivreOverviewSnapshot(connection.id, snapshotKey, refreshed);
+            } catch (error) {
+              console.error("Falha ao revalidar snapshot do Mercado Livre", {
+                connectionId: connection.id,
+                period: snapshotKey,
+                reason: error instanceof Error ? error.message : "Erro desconhecido",
+              });
+            }
+          }));
+        }
         const response = timedJson({
           connectionId: connection.id,
           overview: snapshot.payload,
@@ -102,7 +119,7 @@ export async function GET(req: NextRequest) {
           updatedAt: snapshot.generatedAt,
           cached: true,
         }, startedAt);
-        response.headers.set("X-SellerCore-Cache", "HIT");
+        response.headers.set("X-SellerCore-Cache", snapshot.stale ? "STALE" : "HIT");
         return response;
       }
       const cached = await loadMercadoLivreSource(connection, period);

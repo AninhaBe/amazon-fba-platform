@@ -10,17 +10,22 @@ interface SnapshotRow<T> {
 export async function loadMercadoLivreOverviewSnapshot<T>(
   connectionId: string,
   periodKey: string
-): Promise<{ payload: T; generatedAt: string } | null> {
+): Promise<{ payload: T; generatedAt: string; stale: boolean } | null> {
   if (!hasDb()) return null;
   const rows = await dbQuery<SnapshotRow<T>>(
     `SELECT payload, generated_at
        FROM workspace_marketplace_overview_snapshots
-      WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3 AND period_key = $4
-        AND generated_at >= now() - interval '2 minutes'`,
+      WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3 AND period_key = $4`,
     [currentWorkspaceId(), PROVIDER, connectionId, periodKey]
   );
   const row = rows[0];
-  return row ? { payload: row.payload, generatedAt: new Date(row.generated_at).toISOString() } : null;
+  if (!row) return null;
+  const generatedAt = new Date(row.generated_at);
+  return {
+    payload: row.payload,
+    generatedAt: generatedAt.toISOString(),
+    stale: Date.now() - generatedAt.getTime() >= 2 * 60_000,
+  };
 }
 
 export async function saveMercadoLivreOverviewSnapshot<T>(
