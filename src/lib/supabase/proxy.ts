@@ -1,7 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const publicPaths = ["/login", "/auth/confirm", "/api/health"];
+const publicPaths = [
+  "/login",
+  "/auth/confirm",
+  "/api/health",
+  "/api/webhooks/mercado-livre",
+];
 
 export async function updateSession(request: NextRequest) {
   const configured = !!(
