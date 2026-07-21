@@ -18,10 +18,13 @@ Copie para **Settings > Environment Variables** as variáveis do Render, para os
 ambientes Production e Preview. Não configure `DATA_DIR`: a Vercel não possui disco
 persistente e os dados de produção ficam no PostgreSQL.
 
-Crie também `CRON_SECRET` com um valor aleatório longo. Não reutilize credenciais de
-marketplace. Como credenciais foram expostas durante a configuração, gere novos
-valores para a senha do banco, `INTEGRATION_TOKEN_KEY`, `MELI_CLIENT_SECRET` e os
-segredos OAuth antes de concluir a migração.
+Crie também `CRON_SECRET` com um valor aleatório longo. Como credenciais foram
+expostas durante a configuração, gere novos valores para a senha do banco,
+`MELI_CLIENT_SECRET` e os segredos OAuth antes de concluir a migração.
+
+Na primeira subida, mantenha exatamente a mesma `INTEGRATION_TOKEN_KEY`: ela é
+necessária para abrir os tokens que já estão criptografados no banco. Para rotacioná-la
+depois, troque a chave e reconecte todas as contas de marketplace imediatamente.
 
 Na Vercel, use em `DATABASE_URL` a URI **Transaction pooler** copiada em
 **Supabase > Connect** (porta `6543`), indicada para funções serverless. Não altere
