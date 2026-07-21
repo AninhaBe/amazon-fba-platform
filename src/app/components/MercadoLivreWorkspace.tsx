@@ -85,6 +85,7 @@ export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
       }
       setError(null);
       void (async () => {
+        let attempts = 0;
         const readJson = async (response: Response) => {
           const text = await response.text();
           try {
@@ -96,6 +97,7 @@ export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
           }
         };
         while (!controller.signal.aborted) {
+          attempts += 1;
           const response = await fetch(`/api/integrations/mercado-livre/overview?${period.query}&view=${view}`, { cache: "no-store", signal: controller.signal });
           const data = await readJson(response);
           if (!response.ok && response.status !== 202) throw new Error(data.error || "Não foi possível consultar o Mercado Livre.");
@@ -116,6 +118,11 @@ export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
             break;
           }
           if (cached) break;
+          if (data.preparing) {
+            if (attempts >= 40) throw new Error("A preparação dos indicadores está demorando mais que o esperado. Tente novamente em instantes.");
+            await wait(1_500);
+            continue;
+          }
           if (!data.sync || data.sync.status === "complete" || data.sync.status === "unavailable") break;
           if (data.sync.status === "error") throw new Error(data.sync.error || "A sincronização do Mercado Livre foi interrompida.");
           await wait(1_500);

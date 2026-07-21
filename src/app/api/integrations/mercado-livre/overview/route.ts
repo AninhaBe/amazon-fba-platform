@@ -129,6 +129,25 @@ export async function GET(req: NextRequest) {
         response.headers.set("X-SellerCore-Cache", snapshot.stale ? "STALE" : "HIT");
         return response;
       }
+      if (!period.cacheKey.startsWith("custom:")) {
+        after(() => runWithWorkspace(workspaceId, async () => {
+          try {
+            await materializeMercadoLivrePresetOverviews(connection);
+          } catch (error) {
+            console.error("Falha ao preparar dashboards do Mercado Livre", {
+              connectionId: connection.id,
+              reason: error instanceof Error ? error.message : "Erro desconhecido",
+            });
+          }
+        }));
+        const response = timedJson(
+          { connectionId: connection.id, overview: null, sync, preparing: true },
+          startedAt,
+          { status: 202 }
+        );
+        response.headers.set("X-SellerCore-Cache", "MISS-PREPARING");
+        return response;
+      }
       const cached = await loadMercadoLivreSource(connection, period);
       if (!cached.source) {
         return timedJson(
