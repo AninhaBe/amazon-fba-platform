@@ -25,8 +25,10 @@ interface Overview {
 
 interface SyncStatus {
   status: "pending" | "syncing" | "complete" | "error" | "unavailable";
+  progress: number;
+  processedOrders: number;
+  lastSuccessAt: string | null;
   error: string | null;
-  busy?: boolean;
 }
 
 const views = {
@@ -54,6 +56,7 @@ export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
   const [error, setError] = useState<string | null>(null);
   const [connectionPresent, setConnectionPresent] = useState(false);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [retryKey, setRetryKey] = useState(0);
   const period = useDashboardPeriod();
   const page = views[view];
@@ -65,7 +68,6 @@ export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
       setLoading(true);
       setError(null);
       void (async () => {
-        let overviewAvailable = false;
         const readJson = async (response: Response) => {
           const text = await response.text();
           try {
@@ -77,38 +79,20 @@ export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
           }
         };
         while (!controller.signal.aborted) {
-          if (!overviewAvailable) {
-            const response = await fetch(`/api/integrations/mercado-livre/overview?${period.query}`, { cache: "no-store", signal: controller.signal });
-            const data = await readJson(response);
-            if (!response.ok && response.status !== 202) throw new Error(data.error || "Não foi possível consultar o Mercado Livre.");
-            if (data.connectionId) setConnectionPresent(true);
-            if (data.overview) {
-              overviewAvailable = true;
-              setOverview(data.overview);
-              setUpdatedAt(data.updatedAt ? new Date(data.updatedAt) : new Date());
-              setLoading(false);
-              // O período pedido já está disponível. Fazemos só uma etapa curta
-              // em segundo plano, sem continuar puxando um ano de histórico.
-              void fetch("/api/integrations/mercado-livre/sync", { method: "POST", cache: "no-store" }).catch(() => undefined);
-              break;
-            }
-            if (!data.sync || data.sync.status === "complete" || data.sync.status === "unavailable") break;
-          }
-
-          const response = await fetch("/api/integrations/mercado-livre/sync", {
-            method: "POST",
-            cache: "no-store",
-            signal: controller.signal,
-          });
+          const response = await fetch(`/api/integrations/mercado-livre/overview?${period.query}&view=${view}`, { cache: "no-store", signal: controller.signal });
           const data = await readJson(response);
-          if (!response.ok) throw new Error(data.error || "Não foi possível sincronizar o Mercado Livre.");
-          const nextSync = data.sync as SyncStatus;
-          if (nextSync.status === "error") throw new Error(nextSync.error || "A sincronização do Mercado Livre foi interrompida.");
-          if (nextSync.status === "complete") {
-            if (!overviewAvailable) continue;
+          if (!response.ok && response.status !== 202) throw new Error(data.error || "Não foi possível consultar o Mercado Livre.");
+          if (data.connectionId) setConnectionPresent(true);
+          if (data.sync) setSyncStatus(data.sync as SyncStatus);
+          if (data.overview) {
+            setOverview(data.overview);
+            setUpdatedAt(data.updatedAt ? new Date(data.updatedAt) : new Date());
+            setLoading(false);
             break;
           }
-          await wait(nextSync.busy ? 750 : 250);
+          if (!data.sync || data.sync.status === "complete" || data.sync.status === "unavailable") break;
+          if (data.sync.status === "error") throw new Error(data.sync.error || "A sincronização do Mercado Livre foi interrompida.");
+          await wait(1_500);
         }
       })()
         .catch((reason) => {
@@ -123,13 +107,18 @@ export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [period.query, retryKey]);
+  }, [period.query, retryKey, view]);
 
   return (
     <div className="dashboard-page meli-workspace space-y-8">
       <PageHeader eyebrow={page.eyebrow} title={page.title} subtitle={page.subtitle} icon={page.icon} action={overview && <span className="meli-account-chip"><i aria-hidden="true" />{overview.account.nickname}<small>{overview.account.siteId}</small></span>} />
       {(view === "dashboard" || view === "monitor" || view === "estoque") && (
         <DashboardPeriodFilter {...period.filterProps} />
+      )}
+      {overview && syncStatus && syncStatus.status !== "complete" && syncStatus.status !== "unavailable" && (
+        <p className="-mt-5 text-xs text-amber-700">
+          Histórico sendo atualizado em segundo plano: {syncStatus.progress}% concluído. Os dados já disponíveis aparecem abaixo.
+        </p>
       )}
       {loading ? <PanelLoading label="Carregando dados do Mercado Livre" /> : error ? (
         <EmptyState title="Não foi possível atualizar o Mercado Livre" description={error} action={<button type="button" onClick={() => setRetryKey((key) => key + 1)} className="meli-primary-action">Tentar novamente <span aria-hidden="true">↻</span></button>} />
@@ -150,12 +139,12 @@ function Dashboard({ overview, updatedAt }: { overview: Overview; updatedAt: Dat
   const critical = overview.stockRadar.filter((product) => product.status === "critical" || product.status === "out");
   const roi = overview.profit.cogs > 0 ? overview.profit.estimatedProfit / overview.profit.cogs * 100 : null;
   return <>
-    {updatedAt && <p className="-mt-5 text-xs text-slate-400">Atualizado às {updatedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}. Dados de vendas, pedidos e financeiro sincronizados.</p>}
+    {updatedAt && <p className="-mt-5 text-xs text-slate-400">Atualizado às {updatedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}. Dados disponíveis no SellerCore.</p>}
 
     <OperationPending items={overview.metrics.productsWithoutCost > 0 ? [{ label: `Cadastrar custo de ${overview.metrics.productsWithoutCost} produto(s)`, href: "/mercado-livre/produtos" }] : []} />
 
     <section className="metric-grid grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-4" aria-label="Indicadores Mercado Livre">
-      <Metric label="Faturamento" value={money(overview.metrics.revenue30d, overview.metrics.currency)} sub={coverage.complete ? `${overview.metrics.paidOrders} vendas no período` : `${coverage.capturedOrders} de ${coverage.totalOrders} pedidos considerados`} />
+      <Metric label="Faturamento" value={money(overview.metrics.revenue30d, overview.metrics.currency)} sub={coverage.complete ? `${overview.metrics.paidOrders} vendas no período` : `${coverage.capturedOrders} pedidos capturados; histórico em andamento`} />
       <div className="metric-cell metric-primary relative overflow-hidden p-5">
         <div className="flex items-start justify-between gap-2"><p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">{profitCoverage.complete ? "Lucro estimado" : "Lucro processado"}</p><span className="text-emerald-600/50">{dashboardKpiIcons.percent}</span></div>
         <p className="mt-2 text-[27px] font-bold leading-none tabular-nums text-emerald-800">{money(overview.profit.estimatedProfit, overview.metrics.currency)}</p>
@@ -192,7 +181,7 @@ function Dashboard({ overview, updatedAt }: { overview: Overview; updatedAt: Dat
         </div>
         <Link href="/mercado-livre/produtos" className="meli-financial-link">Configurar custos e imposto <span aria-hidden="true">→</span></Link>
         {overview.profit.unitsWithoutCost > 0 && <p className="text-xs leading-relaxed text-amber-700">{overview.profit.unitsWithoutCost} unidade(s) vendida(s) ainda estão sem custo cadastrado.</p>}
-        {!profitCoverage.complete && <p className="text-xs leading-relaxed text-amber-700">O faturamento acima do gráfico está completo. O lucro não é extrapolado enquanto tarifas e fretes das demais vendas não forem processados.</p>}
+        {!profitCoverage.complete && <p className="text-xs leading-relaxed text-amber-700">O SellerCore mostra somente os valores já capturados e não extrapola o lucro enquanto o histórico, as tarifas e os fretes não estiverem completos.</p>}
       </aside>
     </section>
 
@@ -305,7 +294,7 @@ function Monitor({ overview }: { overview: Overview }) {
       </div>
       {overview.profit.buyerShipping > 0 && <p className="text-xs text-slate-400">O comprador pagou {money(overview.profit.buyerShipping, overview.metrics.currency)} de frete no período; esse valor é exibido separadamente e não compõe o faturamento dos produtos.</p>}
     </section>
-    {!profitCoverage.complete && <div className="meli-profit-warning"><span aria-hidden="true">!</span><p>O faturamento total do período está completo. Este detalhamento financeiro cobre {profitCoverage.processedOrders} de {profitCoverage.paidOrders} vendas e não foi extrapolado.</p></div>}
+    {!profitCoverage.complete && <div className="meli-profit-warning"><span aria-hidden="true">!</span><p>Este detalhamento usa somente os pedidos já capturados e cobre {profitCoverage.processedOrders} de {profitCoverage.paidOrders} vendas disponíveis, sem extrapolar valores.</p></div>}
     {!overview.profit.shippingCostsComplete && <div className="meli-profit-warning"><span aria-hidden="true">!</span><p>Alguns fretes ainda não foram conciliados. Essas vendas aparecem com cálculo incompleto para não superestimar a margem.</p></div>}
     <OrderProfitabilityTable lines={overview.profitabilityLines} />
   </>;

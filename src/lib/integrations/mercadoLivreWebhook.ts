@@ -10,6 +10,7 @@ import {
   type MercadoLivreShipmentCosts,
 } from "./mercadoLivre";
 import type { MercadoLivreNotification } from "./mercadoLivreNotification";
+import { invalidateMercadoLivreOverviewSnapshots } from "./mercadoLivreOverviewCache";
 
 const PROVIDER = "mercado_livre";
 const SUPPORTED_TOPICS = new Set(["orders_v2", "items", "items_prices", "shipments"]);
@@ -228,6 +229,15 @@ export async function processMercadoLivreEvent(event: QueuedMercadoLivreEvent): 
   if (!row) return;
   try {
     await processResource(row);
+    await runWithWorkspace(row.workspace_id, async () => {
+      await invalidateMercadoLivreOverviewSnapshots(row.connection_id);
+      await dbQuery(
+        `UPDATE workspace_marketplace_syncs
+            SET last_success_at = now(), updated_at = now()
+          WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
+        [row.workspace_id, PROVIDER, row.connection_id]
+      );
+    });
     await dbQuery(
       `UPDATE workspace_marketplace_events
           SET status = 'complete', processing_at = NULL, processed_at = now(), last_error = NULL

@@ -1,9 +1,15 @@
+import { after } from "next/server";
 import { NextRequest, NextResponse } from "next/server";
 import { getIntegration, getIntegrations } from "@/lib/integrations/integrationStore";
 import { getMercadoLivreOverview } from "@/lib/integrations/mercadoLivre";
-import { loadMercadoLivreSource, requestMercadoLivreSync } from "@/lib/integrations/mercadoLivreSync";
+import { loadMercadoLivreSource, requestMercadoLivreSync, runMercadoLivreSyncBatch } from "@/lib/integrations/mercadoLivreSync";
+import {
+  loadMercadoLivreOverviewSnapshot,
+  saveMercadoLivreOverviewSnapshot,
+} from "@/lib/integrations/mercadoLivreOverviewCache";
 import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
 import { hasDb } from "@/lib/db";
+import { currentWorkspaceId, runWithWorkspace } from "@/lib/workspaceScope";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,20 +39,30 @@ function requestedPeriod(url: URL) {
       from,
       to,
       label: `${from.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })} a ${to.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}`,
+      cacheKey: `custom:${fromValue}:${toValue}`,
     };
   }
 
   const to = new Date();
   if (daysParam === "today") {
     const brazilDate = new Date(to.getTime() - 3 * 60 * 60 * 1_000).toISOString().slice(0, 10);
-    return { from: new Date(`${brazilDate}T00:00:00-03:00`), to, label: "Hoje" };
+    return { from: new Date(`${brazilDate}T00:00:00-03:00`), to, label: "Hoje", cacheKey: `today:${brazilDate}` };
   }
   if (!ALLOWED_DAYS.has(daysValue)) throw new RangeError("Selecione Hoje ou um período de 7, 15 ou 30 dias.");
-  return { from: new Date(to.getTime() - daysValue * DAY), to, label: `Últimos ${daysValue} dias` };
+  return { from: new Date(to.getTime() - daysValue * DAY), to, label: `Últimos ${daysValue} dias`, cacheKey: `days:${daysValue}` };
+}
+
+type Overview = Awaited<ReturnType<typeof getMercadoLivreOverview>>;
+
+function timedJson(body: unknown, startedAt: number, init?: ResponseInit) {
+  const response = NextResponse.json(body, init);
+  response.headers.set("Server-Timing", `total;dur=${(performance.now() - startedAt).toFixed(1)}`);
+  return response;
 }
 
 export async function GET(req: NextRequest) {
   return withAuthenticatedWorkspace(async () => {
+  const startedAt = performance.now();
   try {
     const url = new URL(req.url);
     const requested = url.searchParams.get("connectionId");
@@ -57,26 +73,62 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Nenhuma conta do Mercado Livre conectada." }, { status: 404 });
     }
     const period = requestedPeriod(url);
+    const requestedView = url.searchParams.get("view");
+    const view = requestedView === "monitor" || requestedView === "estoque" ? requestedView : "dashboard";
+    const snapshotKey = `${period.cacheKey}:view:${view}`;
     if (hasDb()) {
-      await requestMercadoLivreSync(connection.id);
+      const workspaceId = currentWorkspaceId();
+      const sync = await requestMercadoLivreSync(connection.id);
+      if (sync.status !== "complete" && sync.status !== "error" && sync.status !== "unavailable") {
+        after(() => runWithWorkspace(workspaceId, async () => {
+          try {
+            await runMercadoLivreSyncBatch(connection);
+          } catch (error) {
+            console.error("Falha ao avançar sincronização do Mercado Livre", {
+              connectionId: connection.id,
+              reason: error instanceof Error ? error.message : "Erro desconhecido",
+            });
+          }
+        }));
+      }
+      const snapshot = await loadMercadoLivreOverviewSnapshot<Overview>(connection.id, snapshotKey);
+      if (snapshot) {
+        const response = timedJson({
+          connectionId: connection.id,
+          overview: snapshot.payload,
+          sync,
+          updatedAt: snapshot.generatedAt,
+          cached: true,
+        }, startedAt);
+        response.headers.set("X-SellerCore-Cache", "HIT");
+        return response;
+      }
       const cached = await loadMercadoLivreSource(connection, period);
       if (!cached.source) {
-        return NextResponse.json(
+        return timedJson(
           { connectionId: connection.id, overview: null, sync: cached.sync },
+          startedAt,
           { status: 202 }
         );
       }
-      return NextResponse.json({
+      const overview = await getMercadoLivreOverview(connection, period, cached.source);
+      if (view !== "monitor") overview.profitabilityLines = [];
+      const generatedAt = await saveMercadoLivreOverviewSnapshot(connection.id, snapshotKey, overview);
+      const response = timedJson({
         connectionId: connection.id,
-        overview: await getMercadoLivreOverview(connection, period, cached.source),
+        overview,
         sync: cached.sync,
-        updatedAt: cached.sync.lastSuccessAt,
-      });
+        updatedAt: cached.sync.lastSuccessAt || generatedAt,
+        cached: false,
+      }, startedAt);
+      response.headers.set("X-SellerCore-Cache", "MISS");
+      return response;
     }
-    return NextResponse.json({ connectionId: connection.id, overview: await getMercadoLivreOverview(connection, period) });
+    return timedJson({ connectionId: connection.id, overview: await getMercadoLivreOverview(connection, period) }, startedAt);
   } catch (error) {
-    return NextResponse.json(
+    return timedJson(
       { error: error instanceof Error ? error.message : "Erro ao consultar Mercado Livre." },
+      startedAt,
       { status: error instanceof RangeError ? 400 : 502 }
     );
   }

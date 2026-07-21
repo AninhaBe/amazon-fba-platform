@@ -9,6 +9,7 @@ import {
   type MercadoLivrePeriod,
   type MercadoLivreShipmentCosts,
 } from "./mercadoLivre";
+import { invalidateMercadoLivreOverviewSnapshots } from "./mercadoLivreOverviewCache";
 
 const PROVIDER = "mercado_livre";
 const DAY = 86_400_000;
@@ -18,7 +19,7 @@ const WINDOW_DAYS = 7;
 const PAGE_SIZE = 50;
 const SHIPMENT_CONCURRENCY = 5;
 const SHIPMENT_BATCH_SIZE = 5;
-const FRESH_FOR_MS = 10 * 60_000;
+const FRESH_FOR_MS = 6 * 60 * 60_000;
 const COVERAGE_TOLERANCE_MS = 15 * 60_000;
 
 interface SyncRow {
@@ -91,6 +92,12 @@ async function getSyncRow(connectionId: string): Promise<SyncRow | undefined> {
 
 export async function ensureMercadoLivreSyncState(connectionId: string): Promise<MercadoLivreSyncStatus> {
   if (!hasDb()) return publicStatus();
+  return publicStatus(await ensureSyncRow(connectionId));
+}
+
+async function ensureSyncRow(connectionId: string): Promise<SyncRow> {
+  const existing = await getSyncRow(connectionId);
+  if (existing) return existing;
   const now = new Date();
   const targetFrom = new Date(now.getTime() - HISTORY_DAYS * DAY);
   const cursorFrom = new Date(Math.max(targetFrom.getTime(), now.getTime() - WINDOW_DAYS * DAY));
@@ -101,12 +108,13 @@ export async function ensureMercadoLivreSyncState(connectionId: string): Promise
      ON CONFLICT (workspace_id, provider, connection_id) DO NOTHING`,
     [currentWorkspaceId(), PROVIDER, connectionId, targetFrom, now, cursorFrom]
   );
-  return publicStatus(await getSyncRow(connectionId));
+  const created = await getSyncRow(connectionId);
+  if (!created) throw new Error("Não foi possível iniciar a sincronização do Mercado Livre.");
+  return created;
 }
 
 export async function requestMercadoLivreSync(connectionId: string): Promise<MercadoLivreSyncStatus> {
-  await ensureMercadoLivreSyncState(connectionId);
-  const row = await getSyncRow(connectionId);
+  const row = await ensureSyncRow(connectionId);
   const lastSuccess = row?.last_success_at ? new Date(row.last_success_at).getTime() : 0;
   if (row?.status === "complete" && Date.now() - lastSuccess > FRESH_FOR_MS) {
     const now = new Date();
@@ -216,9 +224,13 @@ async function syncMissingShipmentCosts(connection: IntegrationConnection): Prom
   }
 }
 
-export async function runMercadoLivreSyncStep(connection: IntegrationConnection): Promise<MercadoLivreSyncStatus> {
+export async function runMercadoLivreSyncStep(
+  connection: IntegrationConnection,
+  invalidateSnapshot = true,
+  prepareSync = true
+): Promise<MercadoLivreSyncStatus> {
   if (!hasDb()) return publicStatus();
-  await requestMercadoLivreSync(connection.id);
+  if (prepareSync) await requestMercadoLivreSync(connection.id);
   const leased = await dbQuery<SyncRow>(
     `UPDATE workspace_marketplace_syncs
         SET lease_until = now() + interval '5 minutes', status = 'syncing', updated_at = now()
@@ -292,7 +304,24 @@ export async function runMercadoLivreSyncStep(connection: IntegrationConnection)
       [currentWorkspaceId(), PROVIDER, connection.id, error instanceof Error ? error.message : "Falha ao sincronizar Mercado Livre."]
     );
   }
+  if (invalidateSnapshot) await invalidateMercadoLivreOverviewSnapshots(connection.id);
   return publicStatus(await getSyncRow(connection.id));
+}
+
+export async function runMercadoLivreSyncBatch(
+  connection: IntegrationConnection,
+  maxSteps = 64
+): Promise<MercadoLivreSyncStatus> {
+  let status = await requestMercadoLivreSync(connection.id);
+  let attempted = false;
+  for (let step = 0; step < maxSteps; step += 1) {
+    if (status.status === "complete" || status.status === "error" || status.status === "unavailable") break;
+    attempted = true;
+    status = await runMercadoLivreSyncStep(connection, false, false);
+    if (status.busy) break;
+  }
+  if (attempted) await invalidateMercadoLivreOverviewSnapshots(connection.id);
+  return status;
 }
 
 export async function loadMercadoLivreSource(
@@ -300,28 +329,32 @@ export async function loadMercadoLivreSource(
   period: MercadoLivrePeriod
 ): Promise<{ source: MercadoLivreOverviewSource | null; sync: MercadoLivreSyncStatus }> {
   if (!hasDb()) return { source: null, sync: publicStatus() };
-  await ensureMercadoLivreSyncState(connection.id);
-  const row = await getSyncRow(connection.id);
+  const row = await ensureSyncRow(connection.id);
   const coveredFrom = row?.covered_from ? new Date(row.covered_from).getTime() : Number.POSITIVE_INFINITY;
   const coveredTo = row?.covered_to ? new Date(row.covered_to).getTime() : 0;
   const periodCovered = coveredFrom <= period.from.getTime()
     && coveredTo + COVERAGE_TOLERANCE_MS >= period.to.getTime()
     && !!row?.products_synced_at;
-  if (!row || !periodCovered) return { source: null, sync: publicStatus(row) };
+  if (!row) return { source: null, sync: publicStatus(row) };
 
-  const orderRows = await dbQuery<{ payload: MercadoLivreOrder }>(
-    `SELECT payload FROM workspace_marketplace_orders
-      WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
-        AND occurred_at >= $4 AND occurred_at <= $5
-      ORDER BY occurred_at DESC`,
-    [currentWorkspaceId(), PROVIDER, connection.id, period.from, period.to]
-  );
-  const productRows = await dbQuery<{ payload: MercadoLivreOverviewSource["productsData"]["products"][number] }>(
-    `SELECT payload FROM workspace_marketplace_products
-      WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
-      ORDER BY synced_at DESC`,
-    [currentWorkspaceId(), PROVIDER, connection.id]
-  );
+  const [orderRows, productRows] = await Promise.all([
+    dbQuery<{ payload: MercadoLivreOrder }>(
+      `SELECT payload FROM workspace_marketplace_orders
+        WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
+          AND occurred_at >= $4 AND occurred_at <= $5
+        ORDER BY occurred_at DESC`,
+      [currentWorkspaceId(), PROVIDER, connection.id, period.from, period.to]
+    ),
+    dbQuery<{ payload: MercadoLivreOverviewSource["productsData"]["products"][number] }>(
+      `SELECT payload FROM workspace_marketplace_products
+        WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
+        ORDER BY synced_at DESC`,
+      [currentWorkspaceId(), PROVIDER, connection.id]
+    ),
+  ]);
+  if (!row.products_synced_at && !orderRows.length && !productRows.length) {
+    return { source: null, sync: publicStatus(row) };
+  }
   const orders = orderRows.map((item) => item.payload);
   const paidOrders = orders.filter((order) => order.status === "paid").slice(0, 1_000);
   const shipmentIds = [...new Set(paidOrders
@@ -349,7 +382,7 @@ export async function loadMercadoLivreSource(
     },
     orders,
     totalOrders: orders.length,
-    ordersComplete: true,
+    ordersComplete: periodCovered,
     shipmentCosts: new Map(shipmentRows.map((item) => [item.external_shipment_id, item.payload])),
   };
   return { source, sync: publicStatus(row) };

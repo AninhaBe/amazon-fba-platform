@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCosts, setCost, removeCost } from "@/lib/costStore";
 import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
+import { invalidateMercadoLivreOverviewSnapshots } from "@/lib/integrations/mercadoLivreOverviewCache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,6 +31,7 @@ export async function POST(req: NextRequest) {
       imageUrl: body.imageUrl,
       cost,
     });
+    await invalidateMercadoLivreOverviewSnapshots();
     return NextResponse.json({ entry });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erro desconhecido";
@@ -44,6 +46,7 @@ export async function DELETE(req: NextRequest) {
     const id = new URL(req.url).searchParams.get("id");
     if (!id) return NextResponse.json({ error: "Informe o id." }, { status: 400 });
     await removeCost(id);
+    await invalidateMercadoLivreOverviewSnapshots();
     return NextResponse.json({ ok: true });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erro desconhecido";

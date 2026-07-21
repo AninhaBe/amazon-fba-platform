@@ -54,11 +54,18 @@ consumidor do SellerCore. As notificações devem ser complementadas por uma
 reconciliação periódica, porque nem toda mudança operacional de FBA possui um
 evento específico e entregas podem atrasar.
 
-## Próxima etapa de performance
+## Performance e histórico
 
-O webhook reduz sincronizações completas após pedidos e alterações, mas a UI
-atual do Mercado Livre ainda possui um loop de bootstrap que chama `/overview`
-e `/sync` enquanto o histórico inicial não está coberto. Esse loop deve ser
-substituído por um job de background com polling de status em intervalo maior.
-As páginas Amazon também precisam passar a ler snapshots persistidos no banco,
-deixando SP-API apenas para workers, reconciliação e ações explícitas.
+As telas do Mercado Livre leem primeiro os dados já persistidos e aceitam
+exibir cobertura parcial durante a carga inicial. O endpoint `/overview`
+continua a importação depois de responder, sem fazer o navegador executar cada
+etapa do histórico, e mantém snapshots por conta, período e tela durante dois
+minutos. Sincronizações, webhooks e alterações de custo invalidam esses
+snapshots.
+
+A reconciliação automática passou de dez minutos para seis horas, pois os
+eventos cobrem as mudanças rotineiras. O próximo passo de infraestrutura é
+mover a execução pós-resposta para um Background Worker ou Cron Job dedicado,
+permitindo continuar cargas longas mesmo sem uma tela aberta. As páginas Amazon
+também precisam passar a ler snapshots persistidos no banco, deixando SP-API
+apenas para workers, reconciliação e ações explícitas.
