@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getIntegration, getIntegrations } from "@/lib/integrations/integrationStore";
 import { getMercadoLivreOverview } from "@/lib/integrations/mercadoLivre";
+import { loadMercadoLivreSource, requestMercadoLivreSync } from "@/lib/integrations/mercadoLivreSync";
 import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
+import { hasDb } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -54,7 +56,24 @@ export async function GET(req: NextRequest) {
     if (!connection || connection.provider !== "mercado_livre") {
       return NextResponse.json({ error: "Nenhuma conta do Mercado Livre conectada." }, { status: 404 });
     }
-    return NextResponse.json({ connectionId: connection.id, overview: await getMercadoLivreOverview(connection, requestedPeriod(url)) });
+    const period = requestedPeriod(url);
+    if (hasDb()) {
+      await requestMercadoLivreSync(connection.id);
+      const cached = await loadMercadoLivreSource(connection, period);
+      if (!cached.source) {
+        return NextResponse.json(
+          { connectionId: connection.id, overview: null, sync: cached.sync },
+          { status: 202 }
+        );
+      }
+      return NextResponse.json({
+        connectionId: connection.id,
+        overview: await getMercadoLivreOverview(connection, period, cached.source),
+        sync: cached.sync,
+        updatedAt: cached.sync.lastSuccessAt,
+      });
+    }
+    return NextResponse.json({ connectionId: connection.id, overview: await getMercadoLivreOverview(connection, period) });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Erro ao consultar Mercado Livre." },

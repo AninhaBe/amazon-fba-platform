@@ -128,9 +128,67 @@ async function createSchema(): Promise<void> {
       connected_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
       PRIMARY KEY (workspace_id, shop_id)
     );
+    CREATE TABLE IF NOT EXISTS workspace_marketplace_orders (
+      workspace_id       TEXT NOT NULL,
+      provider           TEXT NOT NULL,
+      connection_id      TEXT NOT NULL,
+      external_order_id  TEXT NOT NULL,
+      status             TEXT NOT NULL,
+      occurred_at        TIMESTAMPTZ NOT NULL,
+      payload            JSONB NOT NULL,
+      synced_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (workspace_id, provider, connection_id, external_order_id)
+    );
+    CREATE TABLE IF NOT EXISTS workspace_marketplace_shipments (
+      workspace_id        TEXT NOT NULL,
+      provider            TEXT NOT NULL,
+      connection_id       TEXT NOT NULL,
+      external_shipment_id TEXT NOT NULL,
+      payload             JSONB NOT NULL,
+      synced_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (workspace_id, provider, connection_id, external_shipment_id)
+    );
+    CREATE TABLE IF NOT EXISTS workspace_marketplace_products (
+      workspace_id       TEXT NOT NULL,
+      provider           TEXT NOT NULL,
+      connection_id      TEXT NOT NULL,
+      external_product_id TEXT NOT NULL,
+      status             TEXT NOT NULL,
+      payload            JSONB NOT NULL,
+      synced_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (workspace_id, provider, connection_id, external_product_id)
+    );
+    CREATE TABLE IF NOT EXISTS workspace_marketplace_syncs (
+      workspace_id       TEXT NOT NULL,
+      provider           TEXT NOT NULL,
+      connection_id      TEXT NOT NULL,
+      status             TEXT NOT NULL DEFAULT 'pending',
+      target_from        TIMESTAMPTZ NOT NULL,
+      target_to          TIMESTAMPTZ NOT NULL,
+      covered_from       TIMESTAMPTZ,
+      covered_to         TIMESTAMPTZ,
+      cursor_from        TIMESTAMPTZ NOT NULL,
+      cursor_to          TIMESTAMPTZ NOT NULL,
+      cursor_offset      INTEGER NOT NULL DEFAULT 0,
+      processed_orders   INTEGER NOT NULL DEFAULT 0,
+      products_synced_at TIMESTAMPTZ,
+      products_total     INTEGER NOT NULL DEFAULT 0,
+      active_products    INTEGER NOT NULL DEFAULT 0,
+      products_complete  BOOLEAN NOT NULL DEFAULT false,
+      lease_until        TIMESTAMPTZ,
+      last_error         TEXT,
+      last_success_at    TIMESTAMPTZ,
+      created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (workspace_id, provider, connection_id)
+    );
     CREATE INDEX IF NOT EXISTS workspace_accounts_owner_idx ON workspace_accounts(workspace_id);
     CREATE INDEX IF NOT EXISTS workspace_costs_owner_idx ON workspace_product_costs(workspace_id);
     CREATE INDEX IF NOT EXISTS workspace_integrations_owner_idx ON workspace_integrations(workspace_id);
+    CREATE INDEX IF NOT EXISTS workspace_marketplace_orders_period_idx
+      ON workspace_marketplace_orders(workspace_id, provider, connection_id, occurred_at DESC);
+    CREATE INDEX IF NOT EXISTS workspace_marketplace_products_status_idx
+      ON workspace_marketplace_products(workspace_id, provider, connection_id, status);
   `);
 }
 

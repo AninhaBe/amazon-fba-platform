@@ -23,6 +23,17 @@ interface Overview {
   recentOrders: Array<{ id: string; packId: string | null; status: string; createdAt: string; total: number; currency: string; items: number; }>;
 }
 
+interface SyncStatus {
+  status: "pending" | "syncing" | "complete" | "error" | "unavailable";
+  progress: number;
+  processedOrders: number;
+  coveredFrom: string | null;
+  coveredTo: string | null;
+  lastSuccessAt: string | null;
+  error: string | null;
+  busy?: boolean;
+}
+
 const views = {
   dashboard: { eyebrow: "Operação Mercado Livre", title: "Dashboard Mercado Livre", subtitle: "Faturamento, pedidos e anúncios da sua conta do Mercado Livre Brasil.", icon: pageIcons.dashboard },
   monitor: { eyebrow: "Pedidos e financeiro Mercado Livre", title: "Monitor da conta", subtitle: "Pedidos recentes e o resultado financeiro real da sua conta.", icon: pageIcons.chart },
@@ -47,22 +58,51 @@ export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  const [sync, setSync] = useState<SyncStatus | null>(null);
   const [retryKey, setRetryKey] = useState(0);
   const period = useDashboardPeriod();
   const page = views[view];
 
   useEffect(() => {
     const controller = new AbortController();
+    const wait = (milliseconds: number) => new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds));
     const timer = window.setTimeout(() => {
       setLoading(true);
       setError(null);
-      void fetch(`/api/integrations/mercado-livre/overview?${period.query}`, { cache: "no-store", signal: controller.signal })
-        .then(async (response) => {
+      void (async () => {
+        let overviewAvailable = false;
+        while (!controller.signal.aborted) {
+          if (!overviewAvailable) {
+            const response = await fetch(`/api/integrations/mercado-livre/overview?${period.query}`, { cache: "no-store", signal: controller.signal });
+            const data = await response.json();
+            if (!response.ok && response.status !== 202) throw new Error(data.error || "Não foi possível consultar o Mercado Livre.");
+            setSync(data.sync ?? null);
+            if (data.overview) {
+              overviewAvailable = true;
+              setOverview(data.overview);
+              setUpdatedAt(data.updatedAt ? new Date(data.updatedAt) : new Date());
+              setLoading(false);
+            }
+            if (!data.sync || data.sync.status === "complete" || data.sync.status === "unavailable") break;
+          }
+
+          const response = await fetch("/api/integrations/mercado-livre/sync", {
+            method: "POST",
+            cache: "no-store",
+            signal: controller.signal,
+          });
           const data = await response.json();
-          if (!response.ok) throw new Error(data.error || "Não foi possível consultar o Mercado Livre.");
-          setOverview(data.overview);
-          setUpdatedAt(new Date());
-        })
+          if (!response.ok) throw new Error(data.error || "Não foi possível sincronizar o Mercado Livre.");
+          const nextSync = data.sync as SyncStatus;
+          setSync(nextSync);
+          if (nextSync.status === "error") throw new Error(nextSync.error || "A sincronização do Mercado Livre foi interrompida.");
+          if (nextSync.status === "complete") {
+            if (!overviewAvailable) continue;
+            break;
+          }
+          await wait(nextSync.busy ? 750 : 250);
+        }
+      })()
         .catch((reason) => {
           if (reason instanceof DOMException && reason.name === "AbortError") return;
           setError(reason instanceof Error ? reason.message : "Não foi possível consultar o Mercado Livre.");
@@ -83,12 +123,30 @@ export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
       {(view === "dashboard" || view === "monitor" || view === "estoque") && (
         <DashboardPeriodFilter {...period.filterProps} />
       )}
-      {loading ? <PanelLoading label="Consultando Mercado Livre" /> : error ? (
+      {sync && sync.status !== "complete" && sync.status !== "unavailable" && sync.status !== "error" && <SyncNotice sync={sync} />}
+      {loading ? <PanelLoading label={sync ? `Importando histórico · ${sync.progress}%` : "Consultando Mercado Livre"} /> : error ? (
         <EmptyState title="Não foi possível atualizar o Mercado Livre" description={error} action={<button type="button" onClick={() => setRetryKey((key) => key + 1)} className="meli-primary-action">Tentar novamente <span aria-hidden="true">↻</span></button>} />
       ) : !overview ? (
         <EmptyState title="Conecte sua conta do Mercado Livre" description="Autorize o SellerCore para começar a importar anúncios e pedidos." action={<Link href="/integracoes" className="meli-primary-action">Gerenciar integração <span aria-hidden="true">→</span></Link>} />
       ) : view === "dashboard" ? <Dashboard overview={overview} updatedAt={updatedAt} /> : view === "estoque" ? <Inventory overview={overview} /> : <Monitor overview={overview} />}
     </div>
+  );
+}
+
+function SyncNotice({ sync }: { sync: SyncStatus }) {
+  return (
+    <aside className="rounded-2xl bg-white p-2 shadow-[0_0_0_1px_oklch(0_0_0/0.06),0_1px_2px_-1px_oklch(0_0_0/0.06),0_2px_4px_oklch(0_0_0/0.04)]" aria-live="polite">
+      <div className="rounded-xl bg-yellow-50 px-4 py-3">
+        <div className="flex items-center justify-between gap-4 text-xs">
+          <p className="font-semibold text-yellow-900">Sincronizando histórico</p>
+          <span className="shrink-0 font-semibold tabular-nums text-yellow-800">{sync.progress}%</span>
+        </div>
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-yellow-200/70">
+          <div className="h-full rounded-full bg-yellow-500 transition-[width] duration-300 ease-out" style={{ width: `${sync.progress}%` }} />
+        </div>
+        <p className="mt-2 text-xs leading-relaxed text-yellow-800/80">{sync.processedOrders.toLocaleString("pt-BR")} pedidos salvos. Você já pode usar os períodos concluídos enquanto o restante é importado.</p>
+      </div>
+    </aside>
   );
 }
 

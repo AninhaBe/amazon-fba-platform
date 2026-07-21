@@ -72,7 +72,7 @@ export interface MercadoLivreOrder {
   }>;
 }
 
-interface MercadoLivreShipmentCosts {
+export interface MercadoLivreShipmentCosts {
   receiver?: { cost?: number | null };
   senders?: Array<{ user_id?: number | string; cost?: number | null }>;
 }
@@ -750,7 +750,20 @@ export interface MercadoLivrePeriod {
   label: string;
 }
 
-export async function getMercadoLivreOverview(connection: IntegrationConnection, period?: MercadoLivrePeriod) {
+export interface MercadoLivreOverviewSource {
+  user: MercadoLivreUser;
+  productsData: Awaited<ReturnType<typeof getMercadoLivreProducts>>;
+  orders: MercadoLivreOrder[];
+  totalOrders: number;
+  ordersComplete: boolean;
+  shipmentCosts: Map<string, MercadoLivreShipmentCosts | null>;
+}
+
+export async function getMercadoLivreOverview(
+  connection: IntegrationConnection,
+  period?: MercadoLivrePeriod,
+  source?: MercadoLivreOverviewSource
+) {
   const accountId = encodeURIComponent(connection.externalAccountId);
   const to = period?.to ?? new Date();
   const from = period?.from ?? new Date(to.getTime() - 30 * 86_400_000);
@@ -759,11 +772,17 @@ export async function getMercadoLivreOverview(connection: IntegrationConnection,
       connection,
       `/orders/search?seller=${accountId}&order.date_created.from=${encodeURIComponent(rangeFrom.toISOString())}&order.date_created.to=${encodeURIComponent(rangeTo.toISOString())}&sort=date_desc&limit=${limit}&offset=${offset}`
     );
-  const [user, productsData, collectedOrders] = await Promise.all([
-    mercadoLivreFetch<MercadoLivreUser>(connection, "/users/me"),
-    getMercadoLivreProducts(connection),
-    collectMercadoLivreOrders({ from, to, fetchPage: fetchOrderPage }),
-  ]);
+  const [user, productsData, collectedOrders] = source
+    ? [
+        source.user,
+        source.productsData,
+        { orders: source.orders, total: source.totalOrders, complete: source.ordersComplete },
+      ] as const
+    : await Promise.all([
+        mercadoLivreFetch<MercadoLivreUser>(connection, "/users/me"),
+        getMercadoLivreProducts(connection),
+        collectMercadoLivreOrders({ from, to, fetchPage: fetchOrderPage }),
+      ]);
   const totalOrders = collectedOrders.total;
   const orders = collectedOrders.orders.sort((a, b) => b.date_created.localeCompare(a.date_created));
   const paidOrders = orders.filter((order) => order.status === "paid");
@@ -771,8 +790,14 @@ export async function getMercadoLivreOverview(connection: IntegrationConnection,
   const shipmentIds = [...new Set(detailedPaidOrders
     .map((order) => order.shipping?.id == null ? null : String(order.shipping.id))
     .filter((shipmentId): shipmentId is string => shipmentId !== null))];
-  const shipmentCosts = await getShipmentCosts(connection, shipmentIds);
+  const shipmentCosts = source?.shipmentCosts ?? await getShipmentCosts(connection, shipmentIds);
   const costs = await getCosts();
+  if (source) {
+    for (const product of productsData.products) {
+      const entry = mercadoLivreCostEntry(costs, connection.id, product.id, product.sku);
+      product.cost = entry?.cost && entry.cost > 0 ? entry.cost : null;
+    }
+  }
   const taxRate = mercadoLivreTaxRate(connection);
   let fees = 0;
   let cogs = 0;

@@ -3,6 +3,7 @@ import { connectionId } from "@/lib/integrations/types";
 import { saveIntegration } from "@/lib/integrations/integrationStore";
 import { exchangeMercadoLivreCode, mercadoLivreFetch, type MercadoLivreUser } from "@/lib/integrations/mercadoLivre";
 import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
+import { ensureMercadoLivreSyncState } from "@/lib/integrations/mercadoLivreSync";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,12 +41,13 @@ export async function GET(req: NextRequest) {
       updatedAt: new Date().toISOString(),
     };
     const user = await mercadoLivreFetch<MercadoLivreUser>(temporary, "/users/me");
-    await saveIntegration({
+    const connection = await saveIntegration({
       ...temporary,
       displayName: user.nickname,
       region: user.site_id ?? "MLB",
       metadata: { nickname: user.nickname, countryId: user.country_id ?? "BR", siteId: user.site_id ?? "MLB" },
     });
+    await ensureMercadoLivreSyncState(connection.id);
     const response = NextResponse.redirect(`${uiBaseUrl}/integracoes?connected=mercado_livre`);
     response.cookies.set("meli_oauth_state", "", { maxAge: 0, path: "/" });
     response.cookies.set("meli_pkce_verifier", "", { maxAge: 0, path: "/" });
