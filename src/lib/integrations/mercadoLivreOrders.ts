@@ -40,7 +40,7 @@ export async function collectMercadoLivreOrders<T extends { id: number | string 
   from,
   to,
   fetchPage,
-  pageSize = 1_000,
+  pageSize = 50,
   concurrency = 5,
   maxResultsPerRange = 10_000,
 }: CollectOrdersInput<T>): Promise<CollectedMercadoLivreOrders<T>> {

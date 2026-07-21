@@ -47,6 +47,7 @@ export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
   const period = useDashboardPeriod();
   const page = views[view];
 
@@ -74,7 +75,7 @@ export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [period.query]);
+  }, [period.query, retryKey]);
 
   return (
     <div className="dashboard-page meli-workspace space-y-8">
@@ -82,8 +83,10 @@ export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
       {(view === "dashboard" || view === "monitor" || view === "estoque") && (
         <DashboardPeriodFilter {...period.filterProps} />
       )}
-      {loading ? <PanelLoading label="Consultando Mercado Livre" /> : error || !overview ? (
-        <EmptyState title="Conecte sua conta do Mercado Livre" description={error || "Autorize o SellerCore para começar a importar anúncios e pedidos."} action={<Link href="/integracoes" className="meli-primary-action">Gerenciar integração <span aria-hidden="true">→</span></Link>} />
+      {loading ? <PanelLoading label="Consultando Mercado Livre" /> : error ? (
+        <EmptyState title="Não foi possível atualizar o Mercado Livre" description={error} action={<button type="button" onClick={() => setRetryKey((key) => key + 1)} className="meli-primary-action">Tentar novamente <span aria-hidden="true">↻</span></button>} />
+      ) : !overview ? (
+        <EmptyState title="Conecte sua conta do Mercado Livre" description="Autorize o SellerCore para começar a importar anúncios e pedidos." action={<Link href="/integracoes" className="meli-primary-action">Gerenciar integração <span aria-hidden="true">→</span></Link>} />
       ) : view === "dashboard" ? <Dashboard overview={overview} updatedAt={updatedAt} /> : view === "estoque" ? <Inventory overview={overview} /> : <Monitor overview={overview} />}
     </div>
   );
