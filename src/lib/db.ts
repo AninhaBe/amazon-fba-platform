@@ -220,6 +220,14 @@ async function createSchema(): Promise<void> {
       cached_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
       PRIMARY KEY (workspace_id, cache_key)
     );
+    CREATE TABLE IF NOT EXISTS workspace_marketplace_materialization_leases (
+      workspace_id  TEXT NOT NULL,
+      provider      TEXT NOT NULL,
+      connection_id TEXT NOT NULL,
+      lease_until   TIMESTAMPTZ,
+      updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (workspace_id, provider, connection_id)
+    );
     CREATE INDEX IF NOT EXISTS workspace_accounts_owner_idx ON workspace_accounts(workspace_id);
     CREATE INDEX IF NOT EXISTS workspace_costs_owner_idx ON workspace_product_costs(workspace_id);
     CREATE INDEX IF NOT EXISTS workspace_integrations_owner_idx ON workspace_integrations(workspace_id);

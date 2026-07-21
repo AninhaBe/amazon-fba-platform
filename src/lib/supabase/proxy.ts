@@ -18,7 +18,8 @@ export async function updateSession(request: NextRequest) {
   const isApi = request.nextUrl.pathname.startsWith("/api/");
 
   if (isPublic && request.nextUrl.pathname === "/api/health") {
-    return NextResponse.json({ ok: true });
+    const commit = process.env.RENDER_GIT_COMMIT || process.env.VERCEL_GIT_COMMIT_SHA;
+    return NextResponse.json({ ok: true, version: commit?.slice(0, 7) || "local" });
   }
 
   if (!configured) {

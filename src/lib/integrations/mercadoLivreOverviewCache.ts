@@ -49,14 +49,16 @@ export async function invalidateMercadoLivreOverviewSnapshots(connectionId?: str
   if (!hasDb()) return;
   if (connectionId) {
     await dbQuery(
-      `DELETE FROM workspace_marketplace_overview_snapshots
+      `UPDATE workspace_marketplace_overview_snapshots
+          SET generated_at = LEAST(generated_at, now() - interval '3 minutes')
         WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
       [currentWorkspaceId(), PROVIDER, connectionId]
     );
     return;
   }
   await dbQuery(
-    `DELETE FROM workspace_marketplace_overview_snapshots
+    `UPDATE workspace_marketplace_overview_snapshots
+        SET generated_at = LEAST(generated_at, now() - interval '3 minutes')
       WHERE workspace_id = $1 AND provider = $2`,
     [currentWorkspaceId(), PROVIDER]
   );

@@ -7,6 +7,7 @@ import {
   loadMercadoLivreOverviewSnapshot,
   saveMercadoLivreOverviewSnapshot,
 } from "@/lib/integrations/mercadoLivreOverviewCache";
+import { materializeMercadoLivrePresetOverviews } from "@/lib/integrations/mercadoLivreOverviewMaterializer";
 import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
 import { hasDb } from "@/lib/db";
 import { currentWorkspaceId, runWithWorkspace } from "@/lib/workspaceScope";
@@ -79,12 +80,14 @@ export async function GET(req: NextRequest) {
     if (hasDb()) {
       const workspaceId = currentWorkspaceId();
       const sync = await requestMercadoLivreSync(connection.id);
-      if (sync.status !== "complete" && sync.status !== "error" && sync.status !== "unavailable") {
+      const syncNeedsWork = sync.status !== "complete" && sync.status !== "error" && sync.status !== "unavailable";
+      if (syncNeedsWork) {
         after(() => runWithWorkspace(workspaceId, async () => {
           try {
             // Em funções serverless, o cron continua o histórico em lotes
             // duráveis. O primeiro lote curto antecipa dados para quem abriu a tela.
             await runMercadoLivreSyncBatch(connection, process.env.VERCEL ? 4 : 64);
+            await materializeMercadoLivrePresetOverviews(connection);
           } catch (error) {
             console.error("Falha ao avançar sincronização do Mercado Livre", {
               connectionId: connection.id,
@@ -98,6 +101,10 @@ export async function GET(req: NextRequest) {
         if (snapshot.stale) {
           after(() => runWithWorkspace(workspaceId, async () => {
             try {
+              if (!period.cacheKey.startsWith("custom:")) {
+                await materializeMercadoLivrePresetOverviews(connection);
+                return;
+              }
               const latest = await loadMercadoLivreSource(connection, period);
               if (!latest.source) return;
               const refreshed = await getMercadoLivreOverview(connection, period, latest.source);
@@ -133,6 +140,11 @@ export async function GET(req: NextRequest) {
       const overview = await getMercadoLivreOverview(connection, period, cached.source);
       if (view !== "monitor") overview.profitabilityLines = [];
       const generatedAt = await saveMercadoLivreOverviewSnapshot(connection.id, snapshotKey, overview);
+      if (!syncNeedsWork && !period.cacheKey.startsWith("custom:")) {
+        after(() => runWithWorkspace(workspaceId, () =>
+          materializeMercadoLivrePresetOverviews(connection).then(() => undefined)
+        ));
+      }
       const response = timedJson({
         connectionId: connection.id,
         overview,
