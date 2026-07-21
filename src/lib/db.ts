@@ -182,6 +182,24 @@ async function createSchema(): Promise<void> {
       updated_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
       PRIMARY KEY (workspace_id, provider, connection_id)
     );
+    CREATE TABLE IF NOT EXISTS workspace_marketplace_events (
+      workspace_id  TEXT NOT NULL,
+      provider      TEXT NOT NULL,
+      event_key     TEXT NOT NULL,
+      connection_id TEXT NOT NULL,
+      topic         TEXT NOT NULL,
+      resource      TEXT NOT NULL,
+      payload       JSONB NOT NULL,
+      status        TEXT NOT NULL DEFAULT 'pending',
+      attempts      INTEGER NOT NULL DEFAULT 0,
+      received_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+      processing_at TIMESTAMPTZ,
+      processed_at  TIMESTAMPTZ,
+      last_error    TEXT,
+      PRIMARY KEY (workspace_id, provider, event_key)
+    );
+    ALTER TABLE workspace_marketplace_events
+      ADD COLUMN IF NOT EXISTS processing_at TIMESTAMPTZ;
     CREATE INDEX IF NOT EXISTS workspace_accounts_owner_idx ON workspace_accounts(workspace_id);
     CREATE INDEX IF NOT EXISTS workspace_costs_owner_idx ON workspace_product_costs(workspace_id);
     CREATE INDEX IF NOT EXISTS workspace_integrations_owner_idx ON workspace_integrations(workspace_id);
@@ -189,6 +207,8 @@ async function createSchema(): Promise<void> {
       ON workspace_marketplace_orders(workspace_id, provider, connection_id, occurred_at DESC);
     CREATE INDEX IF NOT EXISTS workspace_marketplace_products_status_idx
       ON workspace_marketplace_products(workspace_id, provider, connection_id, status);
+    CREATE INDEX IF NOT EXISTS workspace_marketplace_events_pending_idx
+      ON workspace_marketplace_events(workspace_id, provider, status, received_at);
   `);
 }
 
