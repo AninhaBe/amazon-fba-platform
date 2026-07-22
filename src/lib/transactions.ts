@@ -200,11 +200,66 @@ export interface FinanceSummaryFromTransactions {
 //   Refunded Sales  → ProductCharges (negativo)
 //   Refunded Expenses → AmazonFees (positivo, tarifa devolvida)
 // Transações do tipo "Transfer" são repasses ao banco (dinheiro já contado
-// saindo) — não entram no resultado do período.
+// saindo). "DEFERRED_RELEASED" é a liberação de vendas retidas em períodos
+// anteriores — já contadas quando foram postadas (status DEFERRED). Ambas são
+// ignoradas para não contar a mesma venda duas vezes: o resultado é por
+// competência (RELEASED + DEFERRED = vendas postadas no período).
 const TRANSFER_TYPE = "Transfer";
+const RELEASED_FROM_PREVIOUS = "DEFERRED_RELEASED";
+
+function isPeriodSale(transaction: ApiTransaction): boolean {
+  return transaction.transactionType !== TRANSFER_TYPE
+    && transaction.transactionStatus !== RELEASED_FROM_PREVIOUS;
+}
 
 function amountOf(node: Breakdown): number {
   return node.breakdownAmount?.currencyAmount ?? 0;
+}
+
+function orderIdOf(transaction: ApiTransaction): string | undefined {
+  return transaction.relatedIdentifiers?.find((identifier) =>
+    identifier.relatedIdentifierName?.toUpperCase().includes("ORDER")
+  )?.relatedIdentifierValue;
+}
+
+interface ParsedTransaction {
+  revenue: number;
+  fees: number;
+  refunds: number;
+  reimbursements: number;
+  feeMap: Map<string, number>;
+}
+
+// Extrai receita/taxas/reembolsos de UMA transação a partir da árvore de
+// breakdowns (Sales/Expenses → ProductCharges/AmazonFees). Compartilhado pelo
+// resumo do período e pela conciliação por pedido.
+function parseTransactionFinancials(transaction: ApiTransaction): ParsedTransaction {
+  const parsed: ParsedTransaction = { revenue: 0, fees: 0, refunds: 0, reimbursements: 0, feeMap: new Map() };
+  for (const top of transaction.breakdowns ?? []) {
+    const kind = top.breakdownType;
+    if (kind === "Sales" || kind === "Refunded Sales") {
+      for (const child of top.breakdowns ?? []) {
+        const value = amountOf(child);
+        if (child.breakdownType === "ProductCharges") {
+          if (value >= 0) parsed.revenue += value;
+          else parsed.refunds += -value; // "Refunded Sales" traz ProductCharges negativo
+        } else if (child.breakdownType?.includes("Reimbursement")) {
+          parsed.reimbursements += value;
+        }
+        // FundTransfer não ocorre aqui (tipo Transfer é filtrado antes)
+      }
+    } else if (kind === "Expenses" || kind === "Refunded Expenses") {
+      // Expenses → AmazonFees → cada tarifa nomeada (nível certo p/ detalhar).
+      for (const feesNode of top.breakdowns ?? []) {
+        for (const fee of feesNode.breakdowns ?? []) {
+          const magnitude = -amountOf(fee); // tarifas vêm negativas → positivo
+          parsed.fees += magnitude;
+          parsed.feeMap.set(fee.breakdownType ?? "Outra", (parsed.feeMap.get(fee.breakdownType ?? "Outra") ?? 0) + magnitude);
+        }
+      }
+    }
+  }
+  return parsed;
 }
 
 function computeFinanceFromTransactions(rawTransactions: ApiTransaction[]): FinanceSummaryFromTransactions {
@@ -218,39 +273,19 @@ function computeFinanceFromTransactions(rawTransactions: ApiTransaction[]): Fina
   const feeMap = new Map<string, number>();
 
   for (const transaction of rawTransactions) {
-    if (transaction.transactionType === TRANSFER_TYPE) continue; // repasse ao banco
+    if (!isPeriodSale(transaction)) continue;
     const txCurrency = transaction.totalAmount?.currencyCode;
     if (txCurrency) currency = txCurrency;
     netProceeds += transaction.totalAmount?.currencyAmount ?? 0;
-    const orderId = transaction.relatedIdentifiers?.find((identifier) =>
-      identifier.relatedIdentifierName?.toUpperCase().includes("ORDER")
-    )?.relatedIdentifierValue;
+    const orderId = orderIdOf(transaction);
     if (orderId) orders.add(orderId);
 
-    for (const top of transaction.breakdowns ?? []) {
-      const kind = top.breakdownType;
-      if (kind === "Sales" || kind === "Refunded Sales") {
-        for (const child of top.breakdowns ?? []) {
-          const value = amountOf(child);
-          if (child.breakdownType === "ProductCharges") {
-            if (value >= 0) revenue += value;
-            else refunds += -value; // "Refunded Sales" traz ProductCharges negativo
-          } else if (child.breakdownType?.includes("Reimbursement")) {
-            reimbursements += value;
-          }
-          // FundTransfer não ocorre aqui (tipo Transfer já foi pulado)
-        }
-      } else if (kind === "Expenses" || kind === "Refunded Expenses") {
-        // Expenses → AmazonFees → cada tarifa nomeada (nível certo p/ detalhar).
-        for (const feesNode of top.breakdowns ?? []) {
-          for (const fee of feesNode.breakdowns ?? []) {
-            const magnitude = -amountOf(fee); // tarifas vêm negativas → positivo
-            fees += magnitude;
-            feeMap.set(fee.breakdownType ?? "Outra", (feeMap.get(fee.breakdownType ?? "Outra") ?? 0) + magnitude);
-          }
-        }
-      }
-    }
+    const parsed = parseTransactionFinancials(transaction);
+    revenue += parsed.revenue;
+    fees += parsed.fees;
+    refunds += parsed.refunds;
+    reimbursements += parsed.reimbursements;
+    for (const [type, amount] of parsed.feeMap) feeMap.set(type, (feeMap.get(type) ?? 0) + amount);
   }
 
   return {
@@ -274,6 +309,43 @@ export function getFinanceSummaryFromTransactions(period: Period): Promise<Finan
     `finance-tx:${period.key}`,
     5 * 60_000,
     async () => computeFinanceFromTransactions(await fetchRawTransactions(period)),
+    { awaitIfEmpty: true }
+  );
+}
+
+// ---------- Taxas por pedido (para a tabela de rentabilidade) ----------
+
+export interface OrderFinancials {
+  fees: number;    // total de taxas da Amazon no pedido, positivo
+  refunds: number; // produto reembolsado no pedido, positivo
+  currency: string;
+}
+
+function computeOrderFinancials(rawTransactions: ApiTransaction[]): Record<string, OrderFinancials> {
+  const byOrder: Record<string, OrderFinancials> = {};
+  for (const transaction of rawTransactions) {
+    if (!isPeriodSale(transaction)) continue;
+    const orderId = orderIdOf(transaction);
+    if (!orderId) continue;
+    const parsed = parseTransactionFinancials(transaction);
+    const entry = byOrder[orderId] ?? { fees: 0, refunds: 0, currency: transaction.totalAmount?.currencyCode ?? "BRL" };
+    entry.fees += parsed.fees;
+    entry.refunds += parsed.refunds;
+    byOrder[orderId] = entry;
+  }
+  for (const orderId of Object.keys(byOrder)) {
+    byOrder[orderId].fees = round(byOrder[orderId].fees);
+    byOrder[orderId].refunds = round(byOrder[orderId].refunds);
+  }
+  return byOrder;
+}
+
+/** Taxas/reembolsos por pedido (orderId → totais), a partir da Transactions API. */
+export function getOrderFinancialsFromTransactions(period: Period): Promise<Record<string, OrderFinancials>> {
+  return swr(
+    `order-fin-tx:${period.key}`,
+    5 * 60_000,
+    async () => computeOrderFinancials(await fetchRawTransactions(period)),
     { awaitIfEmpty: true }
   );
 }
