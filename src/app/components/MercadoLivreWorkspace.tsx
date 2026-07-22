@@ -314,8 +314,8 @@ function Monitor({ overview }: { overview: Overview }) {
   const netReceived = overview.profit.revenueProcessed - overview.profit.fees - overview.profit.sellerShipping;
   return <div className="dashboard-sections space-y-8">
     <section className="metric-grid grid grid-cols-2 gap-4 lg:grid-cols-4" aria-label="Resumo do monitor Mercado Livre">
-      <Metric label="Pedidos" value={overview.metrics.orders30d.toLocaleString("pt-BR")} sub={overview.period.label} />
-      <Metric label="Faturamento" value={<AnimatedNumber value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub="produtos vendidos" />
+      <Metric label="Vendas brutas" value={<AnimatedNumber value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={`${overview.metrics.paidOrders} aprovadas + ${overview.metrics.cancelledOrders} canceladas`} />
+      <Metric label="Canceladas" value={money(overview.metrics.cancelledRevenue, overview.metrics.currency)} sub={`${overview.metrics.cancelledOrders} pedido(s) no período`} tone={overview.metrics.cancelledRevenue > 0 ? "danger" : "ok"} />
       <Metric label={profitCoverage.complete ? "Total recebido" : "Total recebido processado"} value={money(netReceived, overview.metrics.currency)} sub="após tarifa e frete" />
       <Metric label={profitCoverage.complete ? "Margem de contribuição" : "Margem processada"} value={money(overview.profit.estimatedProfit, overview.metrics.currency)} sub={profitCoverage.complete ? `${percent(overview.profit.marginPct)} do faturamento` : `${profitCoverage.processedOrders} de ${profitCoverage.paidOrders} vendas`} />
     </section>

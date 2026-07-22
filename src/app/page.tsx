@@ -13,7 +13,7 @@ interface ProviderConnection { id: string; }
 interface Provider { id: string; name: string; configured: boolean; connections: ProviderConnection[]; }
 interface AmazonProfit { estimatedProfit: number; unitsWithoutCost: number; finance: { currency: string; }; }
 interface AmazonSales { series: { totalRevenue: number; totalOrders: number; currency: string; points?: DailyPoint[]; }; }
-interface MercadoLivreOverview { metrics: { revenue30d: number; orders30d: number; activeListings: number; currency: string; revenueCoverage: { complete: boolean; capturedOrders: number; totalOrders: number; }; }; profit: { estimatedProfit: number; unitsWithoutCost: number; coverage: { processedOrders: number; paidOrders: number; complete: boolean; }; }; dailySales?: DailyPoint[]; }
+interface MercadoLivreOverview { metrics: { revenue30d: number; orders30d: number; activeListings: number; cancelledRevenue: number; cancelledOrders: number; currency: string; revenueCoverage: { complete: boolean; capturedOrders: number; totalOrders: number; }; }; profit: { estimatedProfit: number; unitsWithoutCost: number; coverage: { processedOrders: number; paidOrders: number; complete: boolean; }; }; dailySales?: DailyPoint[]; }
 
 // Soma as séries diárias dos canais numa linha só — a visão que só a central
 // pode dar. Datas presentes em um canal e ausentes no outro entram como estão.
@@ -38,6 +38,7 @@ interface ChannelSnapshot {
   revenue: number | null;
   profit: number | null;
   profitPartial?: boolean;
+  cancelled?: number;
   orders: number | null;
   currency: string;
   note: string;
@@ -93,6 +94,7 @@ export default function OverviewDashboard() {
         if (mercadoLivre.connected) tasks.push(json<{ overview: MercadoLivreOverview }>("/api/integrations/mercado-livre/overview").then(({ overview }) => {
           channelSeries.push(overview.dailySales);
           mercadoLivre.revenue = overview.metrics.revenue30d;
+          mercadoLivre.cancelled = overview.metrics.cancelledRevenue;
           mercadoLivre.profit = overview.profit.estimatedProfit;
           mercadoLivre.profitPartial = !overview.profit.coverage.complete || overview.profit.unitsWithoutCost > 0;
           mercadoLivre.orders = overview.metrics.orders30d;
@@ -161,9 +163,9 @@ export default function OverviewDashboard() {
               <article key={channel.id} className={`channel-overview-card is-${channel.id}`}>
                 <header><span className="channel-overview-mark" aria-hidden="true"><MarketplaceIcon provider={channel.id} size={25} /></span><div><h3>{channel.name}</h3><p>{channel.connected ? "Canal conectado" : "Aguardando conexão"}</p></div><span className={`channel-health${channel.connected ? " is-connected" : ""}`}>{channel.connected ? "Ativo" : "Conectar"}</span></header>
                 {channel.connected ? <>
-                  <div className="channel-value"><span>Faturamento</span><strong>{channel.error ? "Indisponível" : money(channel.revenue, channel.currency)}</strong></div>
+                  <div className="channel-value"><span>Vendas brutas</span><strong>{channel.error ? "Indisponível" : money(channel.revenue, channel.currency)}</strong></div>
                   <div className="channel-share" aria-label={`Participação relativa de ${channel.name}`}><i style={{ width: `${((channel.revenue ?? 0) / maxRevenue) * 100}%` }} /></div>
-                  <dl><div><dt>Pedidos</dt><dd>{channel.orders?.toLocaleString("pt-BR") ?? "—"}</dd></div><div><dt>{channel.profitPartial ? "Lucro parcial" : "Lucro"}</dt><dd>{money(channel.profit, channel.currency)}</dd></div></dl>
+                  <dl><div><dt>Pedidos</dt><dd>{channel.orders?.toLocaleString("pt-BR") ?? "—"}</dd></div><div><dt>{channel.profitPartial ? "Lucro parcial" : "Lucro"}</dt><dd>{money(channel.profit, channel.currency)}</dd></div>{channel.cancelled != null && channel.cancelled > 0 ? <div><dt>Canceladas</dt><dd className="text-red-600">{money(channel.cancelled, channel.currency)}</dd></div> : null}</dl>
                   <p className="channel-note">{channel.error || channel.note}</p>
                 </> : <div className="channel-card-empty"><p>Conecte sua conta para incluir este canal no dashboard geral.</p></div>}
                 <Link href={channel.connected ? channel.href : "/integracoes"}>{channel.connected ? `Abrir ${channel.name}` : `Conectar ${channel.name}`} <span aria-hidden="true">→</span></Link>
