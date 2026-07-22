@@ -1,6 +1,7 @@
 import type { OrderSummary } from "../amazonOrder";
 import type { AmazonOrderItem } from "../orders";
-import type { CanonicalOrder, CanonicalOrderItem, CanonicalOrderStatus } from "./canonical";
+import type { FinanceFee, FinanceMoney, OrderFinancialEvents } from "../finances";
+import type { CanonicalFee, CanonicalFeeType, CanonicalOrder, CanonicalOrderItem, CanonicalOrderStatus } from "./canonical";
 
 // Normalização Amazon → canônico (docs/canonical-schema.md). Funções puras.
 // O header do pedido chega primeiro (getOrders, rápido); os itens chegam por
@@ -52,6 +53,63 @@ export interface NormalizedAmazonItems {
   gross: number;
   buyerShipping: number;
   currency: string | null;
+}
+
+// Taxonomia canônica (docs/canonical-schema.md). O código original do FeeType
+// sempre vai em provider_fee_code; aqui só se decide a categoria.
+function feeTypeOf(providerFeeType: string): CanonicalFeeType {
+  if (providerFeeType === "Commission") return "commission";
+  if (providerFeeType === "RefundCommission") return "refund";
+  if (providerFeeType.startsWith("FBA")) return "fulfillment";
+  if (providerFeeType.startsWith("Shipping")) return "shipping_seller";
+  if (providerFeeType.includes("Tax")) return "taxes_withheld";
+  return "other";
+}
+
+function financeAmount(money?: FinanceMoney): number {
+  const amount = Number(money?.Amount);
+  return Number.isFinite(amount) ? amount : 0;
+}
+
+/**
+ * Converte os eventos financeiros de UM pedido em fees canônicas agregadas por
+ * (fee_type, provider_fee_code). Na Finances API, cobrança vem negativa;
+ * no canônico, positivo = debitado do vendedor — por isso o sinal inverte.
+ * Estornos de principal entram como fee `refund` (valor devolvido ao cliente);
+ * ajustes de tarifa em estornos entram na própria categoria, como crédito.
+ */
+export function normalizeAmazonFinanceFees(
+  events: OrderFinancialEvents,
+  currency = "BRL"
+): CanonicalFee[] {
+  const totals = new Map<string, CanonicalFee>();
+  const add = (feeType: CanonicalFeeType, providerFeeCode: string, amount: number) => {
+    if (amount === 0) return;
+    const key = `${feeType}:${providerFeeCode}`;
+    const current = totals.get(key) ?? { feeType, providerFeeCode, amount: 0, currency };
+    current.amount = round2(current.amount + amount);
+    totals.set(key, current);
+  };
+  const addFees = (fees: FinanceFee[] | undefined) => {
+    for (const fee of fees ?? []) {
+      const code = fee.FeeType ?? "desconhecido";
+      add(feeTypeOf(code), code, -financeAmount(fee.FeeAmount));
+    }
+  };
+
+  for (const event of events.ShipmentEventList ?? []) {
+    for (const item of event.ShipmentItemList ?? []) addFees(item.ItemFeeList);
+  }
+  for (const event of events.RefundEventList ?? []) {
+    for (const item of event.ShipmentItemAdjustmentList ?? []) {
+      addFees(item.ItemFeeAdjustmentList ?? item.ItemFeeList);
+      for (const charge of item.ItemChargeAdjustmentList ?? item.ItemChargeList ?? []) {
+        // Principal devolvido chega negativo; a fee refund registra o débito.
+        if (charge.ChargeType === "Principal") add("refund", "RefundPrincipal", -financeAmount(charge.ChargeAmount));
+      }
+    }
+  }
+  return [...totals.values()].filter((fee) => fee.amount !== 0);
 }
 
 export function normalizeAmazonOrderItems(orderItems: AmazonOrderItem[]): NormalizedAmazonItems {

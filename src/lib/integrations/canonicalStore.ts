@@ -1,7 +1,7 @@
 import { dbQuery } from "../db";
 import { currentWorkspaceId } from "../workspaceScope";
 import { allocateByWeight } from "../profitability";
-import type { CanonicalOrder, CanonicalProduct } from "./canonical";
+import type { CanonicalFee, CanonicalOrder, CanonicalProduct } from "./canonical";
 import type { IntegrationProvider } from "./types";
 
 // Persistência do modelo canônico (docs/canonical-schema.md).
@@ -269,6 +269,36 @@ export async function applyCanonicalOrderItems(
       pending.map((application) => application.externalOrderId),
       JSON.stringify(orderRecords),
     ]
+  );
+}
+
+/**
+ * Upsert das fees conciliadas de um lote de pedidos (ex.: Finances da Amazon).
+ * Cada chamada traz o TOTAL corrente por (pedido, tipo, código) — ajustes
+ * posteriores substituem o valor, nunca acumulam em dobro.
+ */
+export async function upsertCanonicalOrderFees(
+  scope: CanonicalScope,
+  orders: Array<{ externalOrderId: string; fees: CanonicalFee[] }>
+): Promise<void> {
+  const records = orders.flatMap((order) => order.fees.map((fee) => ({
+    external_order_id: order.externalOrderId,
+    fee_type: fee.feeType,
+    provider_fee_code: fee.providerFeeCode,
+    amount: fee.amount,
+    currency: fee.currency,
+  })));
+  if (!records.length) return;
+  await dbQuery(
+    `INSERT INTO workspace_channel_order_fees
+       (workspace_id, provider, connection_id, external_order_id, fee_type, provider_fee_code, amount, currency)
+     SELECT $1, $2, $3, p.external_order_id, p.fee_type, p.provider_fee_code, p.amount, p.currency
+       FROM jsonb_to_recordset($4::jsonb) AS p(
+         external_order_id text, fee_type text, provider_fee_code text, amount numeric, currency text
+       )
+     ON CONFLICT (workspace_id, provider, connection_id, external_order_id, fee_type, provider_fee_code)
+       DO UPDATE SET amount = EXCLUDED.amount, currency = EXCLUDED.currency`,
+    [currentWorkspaceId(), scope.provider, scope.connectionId, JSON.stringify(records)]
   );
 }
 

@@ -39,17 +39,26 @@ export async function runScheduledAmazonSync(
           OR (sync.status = 'error' AND sync.updated_at < now() - interval '30 minutes')
           OR (sync.status = 'complete'
             AND COALESCE(sync.last_success_at, sync.updated_at) < now() - interval '6 hours')
-          -- Completo mas com itens pendentes de conciliação: continua refinando.
+          -- Completo mas com itens ou fees pendentes: continua refinando.
           OR (sync.status = 'complete' AND EXISTS (
             SELECT 1 FROM workspace_channel_orders orders
              WHERE orders.workspace_id = sync.workspace_id AND orders.provider = sync.provider
                AND orders.connection_id = sync.connection_id
                AND orders.status IN ('paid', 'shipped', 'delivered')
-               AND NOT EXISTS (
-                 SELECT 1 FROM workspace_channel_order_items items
-                  WHERE items.workspace_id = orders.workspace_id AND items.provider = orders.provider
-                    AND items.connection_id = orders.connection_id
-                    AND items.external_order_id = orders.external_order_id
+               AND (
+                 NOT EXISTS (
+                   SELECT 1 FROM workspace_channel_order_items items
+                    WHERE items.workspace_id = orders.workspace_id AND items.provider = orders.provider
+                      AND items.connection_id = orders.connection_id
+                      AND items.external_order_id = orders.external_order_id
+                 )
+                 OR (orders.occurred_at < now() - interval '2 days' AND NOT EXISTS (
+                   SELECT 1 FROM workspace_channel_order_fees fees
+                    WHERE fees.workspace_id = orders.workspace_id AND fees.provider = orders.provider
+                      AND fees.connection_id = orders.connection_id
+                      AND fees.external_order_id = orders.external_order_id
+                      AND fees.fee_type = 'commission'
+                 ))
                )
           ))
         )

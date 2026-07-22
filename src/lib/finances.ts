@@ -26,6 +26,9 @@ interface ShipmentItem {
   QuantityShipped?: number;
   ItemChargeList?: Charge[];
   ItemFeeList?: Fee[];
+  // Em eventos de estorno a SP-API usa as listas de ajuste.
+  ItemChargeAdjustmentList?: Charge[];
+  ItemFeeAdjustmentList?: Fee[];
   PromotionList?: { PromotionAmount?: Money }[];
 }
 interface ShipmentEvent {
@@ -51,6 +54,31 @@ interface FinancialEventsResponse {
 function n(m?: Money): number {
   if (!m || m.Amount == null) return 0;
   return typeof m.Amount === "number" ? m.Amount : parseFloat(m.Amount) || 0;
+}
+
+export type { Money as FinanceMoney, Fee as FinanceFee, ShipmentItem as FinanceShipmentItem };
+export interface OrderFinancialEvents {
+  ShipmentEventList?: ShipmentEvent[];
+  RefundEventList?: RefundEvent[];
+}
+
+/**
+ * Eventos financeiros de um pedido específico (comissão, tarifas FBA, frete,
+ * estornos). Operação: listFinancialEventsByOrderId —
+ * GET /finances/v0/orders/{orderId}/financialEvents
+ */
+export async function getOrderFinancialEvents(amazonOrderId: string): Promise<OrderFinancialEvents> {
+  const pages = await collectAllNextTokenPages(
+    (nextToken) => spapiFetch<FinancialEventsResponse>(
+      `/finances/v0/orders/${encodeURIComponent(amazonOrderId)}/financialEvents`,
+      { query: nextToken ? { NextToken: nextToken } : { MaxResultsPerPage: 100 } }
+    ),
+    (page) => page.payload?.NextToken
+  );
+  return {
+    ShipmentEventList: pages.flatMap((page) => page.payload?.FinancialEvents?.ShipmentEventList ?? []),
+    RefundEventList: pages.flatMap((page) => page.payload?.FinancialEvents?.RefundEventList ?? []),
+  };
 }
 
 export interface FinanceSummary {

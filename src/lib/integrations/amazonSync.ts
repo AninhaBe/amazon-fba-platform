@@ -2,10 +2,16 @@ import { dbQuery, hasDb } from "../db";
 import { currentWorkspaceId } from "../workspaceScope";
 import { runWithAccount, type AccountCtx } from "../accountContext";
 import { getOrders, getOrderItems } from "../orders";
-import { normalizeAmazonOrderHeader, normalizeAmazonOrderItems } from "./amazonCanonical";
+import { getOrderFinancialEvents } from "../finances";
+import {
+  normalizeAmazonFinanceFees,
+  normalizeAmazonOrderHeader,
+  normalizeAmazonOrderItems,
+} from "./amazonCanonical";
 import {
   applyCanonicalOrderItems,
   saveCanonicalOrderHeaders,
+  upsertCanonicalOrderFees,
   type OrderItemsApplication,
 } from "./canonicalStore";
 
@@ -24,6 +30,7 @@ const HISTORY_DAYS = 366;
 const WINDOW_DAYS = 7;
 const PAGE_SIZE = 100;
 const ITEM_BATCH_SIZE = 10;
+const FEES_BATCH_SIZE = 8;
 const FRESH_FOR_MS = 6 * 60 * 60_000;
 // A SP-API exige CreatedBefore com pelo menos 2 minutos de idade; 3 dá folga.
 const CREATED_BEFORE_LAG_MS = 3 * 60_000;
@@ -132,6 +139,41 @@ async function syncMissingOrderItems(connectionId: string): Promise<void> {
   await applyCanonicalOrderItems({ provider: PROVIDER, connectionId }, applications);
 }
 
+// Conciliação de fees: pedidos com receita, sem comissão registrada e velhos o
+// bastante para o financeiro já ter sido publicado, mais recentes antes.
+async function syncMissingOrderFees(connectionId: string): Promise<void> {
+  const rows = await dbQuery<{ external_order_id: string; currency: string }>(
+    `SELECT o.external_order_id, o.currency FROM workspace_channel_orders o
+      WHERE o.workspace_id = $1 AND o.provider = $2 AND o.connection_id = $3
+        AND o.status IN ('paid', 'shipped', 'delivered')
+        AND o.occurred_at < now() - interval '2 days'
+        AND NOT EXISTS (
+          SELECT 1 FROM workspace_channel_order_fees f
+           WHERE f.workspace_id = o.workspace_id AND f.provider = o.provider
+             AND f.connection_id = o.connection_id AND f.external_order_id = o.external_order_id
+             AND f.fee_type = 'commission'
+        )
+      ORDER BY o.occurred_at DESC
+      LIMIT $4`,
+    [currentWorkspaceId(), PROVIDER, connectionId, FEES_BATCH_SIZE]
+  );
+  const applications: Array<{ externalOrderId: string; fees: ReturnType<typeof normalizeAmazonFinanceFees> }> = [];
+  for (const row of rows) {
+    try {
+      const fees = normalizeAmazonFinanceFees(await getOrderFinancialEvents(row.external_order_id), row.currency);
+      // Sem comissão publicada = financeiro ainda não conciliou este pedido;
+      // fica para a próxima passada (a idade mínima já filtra os recentes).
+      if (fees.some((fee) => fee.feeType === "commission")) {
+        applications.push({ externalOrderId: row.external_order_id, fees });
+      }
+    } catch {
+      // Rate limit ou indisponibilidade: encerra o lote e tenta depois.
+      break;
+    }
+  }
+  await upsertCanonicalOrderFees({ provider: PROVIDER, connectionId }, applications);
+}
+
 export async function runAmazonSyncStep(account: AccountCtx): Promise<void> {
   if (!hasDb()) return;
   const connectionId = amazonConnectionId(account.sellerId);
@@ -146,9 +188,12 @@ export async function runAmazonSyncStep(account: AccountCtx): Promise<void> {
   );
   const row = leased[0];
   if (!row) {
-    // Sem trabalho de janela (completo ou outro processo na frente): a
-    // conciliação de itens ainda pode avançar.
-    await runWithAccount(account, () => syncMissingOrderItems(connectionId));
+    // Sem trabalho de janela (completo ou outro processo na frente): as
+    // conciliações de itens e fees ainda podem avançar.
+    await runWithAccount(account, async () => {
+      await syncMissingOrderItems(connectionId);
+      await syncMissingOrderFees(connectionId);
+    });
     return;
   }
 
@@ -197,7 +242,10 @@ export async function runAmazonSyncStep(account: AccountCtx): Promise<void> {
         [currentWorkspaceId(), PROVIDER, connectionId, from, nextFrom, nextTo, page.orders.length]
       );
     }
-    await runWithAccount(account, () => syncMissingOrderItems(connectionId));
+    await runWithAccount(account, async () => {
+      await syncMissingOrderItems(connectionId);
+      await syncMissingOrderFees(connectionId);
+    });
   } catch (error) {
     await dbQuery(
       `UPDATE workspace_marketplace_syncs

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  normalizeAmazonFinanceFees,
   normalizeAmazonOrderHeader,
   normalizeAmazonOrderItems,
 } from "../src/lib/integrations/amazonCanonical.ts";
@@ -70,4 +71,68 @@ test("normaliza itens descontando promoção e separando frete do comprador", ()
     unitPrice: 45, // 90 ÷ 2
   });
   assert.equal(normalized.items[1].sku, null);
+});
+
+test("normaliza fees da Finances API para a taxonomia canônica", () => {
+  const fees = normalizeAmazonFinanceFees({
+    ShipmentEventList: [
+      {
+        AmazonOrderId: "701-1",
+        ShipmentItemList: [
+          {
+            ItemFeeList: [
+              { FeeType: "Commission", FeeAmount: { CurrencyCode: "BRL", Amount: "-12.50" } },
+              { FeeType: "FBAPerUnitFulfillmentFee", FeeAmount: { Amount: "-8.20" } },
+              { FeeType: "ShippingChargeback", FeeAmount: { Amount: "-5.00" } },
+              { FeeType: "SalesTaxCollectionFee", FeeAmount: { Amount: "-0.75" } },
+              { FeeType: "CodigoNovoDesconhecido", FeeAmount: { Amount: "-1.00" } },
+              { FeeType: "GiftWrapZero", FeeAmount: { Amount: "0" } },
+            ],
+          },
+        ],
+      },
+      // Segundo envio do mesmo pedido: agrega na mesma linha.
+      {
+        AmazonOrderId: "701-1",
+        ShipmentItemList: [
+          { ItemFeeList: [{ FeeType: "Commission", FeeAmount: { Amount: "-2.50" } }] },
+        ],
+      },
+    ],
+  }, "BRL");
+
+  const byCode = Object.fromEntries(fees.map((fee) => [fee.providerFeeCode, fee]));
+  assert.equal(byCode.Commission.feeType, "commission");
+  assert.equal(byCode.Commission.amount, 15); // 12,50 + 2,50, sinal invertido
+  assert.equal(byCode.FBAPerUnitFulfillmentFee.feeType, "fulfillment");
+  assert.equal(byCode.FBAPerUnitFulfillmentFee.amount, 8.2);
+  assert.equal(byCode.ShippingChargeback.feeType, "shipping_seller");
+  assert.equal(byCode.SalesTaxCollectionFee.feeType, "taxes_withheld");
+  assert.equal(byCode.CodigoNovoDesconhecido.feeType, "other");
+  assert.equal(byCode.GiftWrapZero, undefined); // valor zero não vira linha
+});
+
+test("estorno vira fee refund e devolve a comissão como crédito", () => {
+  const fees = normalizeAmazonFinanceFees({
+    RefundEventList: [
+      {
+        AmazonOrderId: "701-2",
+        ShipmentItemAdjustmentList: [
+          {
+            ItemChargeAdjustmentList: [
+              { ChargeType: "Principal", ChargeAmount: { Amount: "-49.90" } },
+            ],
+            ItemFeeAdjustmentList: [
+              { FeeType: "Commission", FeeAmount: { Amount: "6.00" } },
+            ],
+          },
+        ],
+      },
+    ],
+  }, "BRL");
+
+  const byCode = Object.fromEntries(fees.map((fee) => [fee.providerFeeCode, fee]));
+  assert.equal(byCode.RefundPrincipal.feeType, "refund");
+  assert.equal(byCode.RefundPrincipal.amount, 49.9); // débito do vendedor
+  assert.equal(byCode.Commission.amount, -6); // comissão devolvida = crédito
 });
