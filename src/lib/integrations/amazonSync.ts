@@ -25,6 +25,12 @@ const WINDOW_DAYS = 7;
 const PAGE_SIZE = 100;
 const ITEM_BATCH_SIZE = 10;
 const FRESH_FOR_MS = 6 * 60 * 60_000;
+// A SP-API exige CreatedBefore com pelo menos 2 minutos de idade; 3 dá folga.
+const CREATED_BEFORE_LAG_MS = 3 * 60_000;
+
+function syncHorizon(): Date {
+  return new Date(Date.now() - CREATED_BEFORE_LAG_MS);
+}
 
 export function amazonConnectionId(sellerId: string): string {
   return `amazon:${sellerId}`;
@@ -59,7 +65,7 @@ async function getSyncRow(connectionId: string): Promise<SyncRow | undefined> {
 async function ensureSyncRow(connectionId: string): Promise<SyncRow> {
   const existing = await getSyncRow(connectionId);
   if (existing) return existing;
-  const now = new Date();
+  const now = syncHorizon();
   const targetFrom = new Date(now.getTime() - HISTORY_DAYS * DAY);
   const cursorFrom = new Date(Math.max(targetFrom.getTime(), now.getTime() - WINDOW_DAYS * DAY));
   await dbQuery(
@@ -78,7 +84,7 @@ async function requestAmazonSync(connectionId: string): Promise<SyncRow> {
   const row = await ensureSyncRow(connectionId);
   const lastSuccess = row.last_success_at ? new Date(row.last_success_at).getTime() : 0;
   if (row.status === "complete" && Date.now() - lastSuccess > FRESH_FOR_MS) {
-    const now = new Date();
+    const now = syncHorizon();
     const coveredTo = row.covered_to ? new Date(row.covered_to) : new Date(row.target_to);
     await dbQuery(
       `UPDATE workspace_marketplace_syncs
