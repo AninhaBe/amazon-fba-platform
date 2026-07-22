@@ -567,6 +567,50 @@ button[class*="bg-blue-"]:hover, a[class*="bg-blue-"]:hover { background: var(--
 .account-loading span:first-child { width: 68%; }
 @keyframes skeleton-sweep { to { transform: translateX(100%); } }
 
+/* Esqueleto estrutural: espelha KPIs, gráfico e tabela nas posições finais. */
+.dashboard-skeleton { display: grid; gap: 24px; }
+.skeleton-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); overflow: hidden; border-radius: var(--radius-lg); background: var(--paper); box-shadow: var(--shadow-surface); }
+.skeleton-cell { display: grid; min-height: 132px; align-content: center; gap: 12px; border-inline-end: 1px solid var(--line); padding: 20px; }
+.skeleton-cell:last-child { border-inline-end: 0; }
+.skeleton-cell i, .skeleton-panel > i {
+  position: relative;
+  display: block;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--line);
+}
+.skeleton-cell i.is-strong { height: 22px; border-radius: 7px; }
+.skeleton-cell i::after, .skeleton-panel > i::after, .skeleton-chart::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, oklch(1 0 0 / .75), transparent);
+  animation: skeleton-sweep 1.4s ease-in-out infinite;
+}
+.skeleton-panel { display: grid; gap: 16px; border-radius: var(--radius-lg); background: var(--paper); padding: 22px; box-shadow: var(--shadow-surface); }
+.skeleton-panel > i { height: 13px; }
+.skeleton-chart { position: relative; display: block; height: 210px; overflow: hidden; border-radius: var(--radius-sm); background: var(--paper-soft); }
+.skeleton-table { display: grid; gap: 12px; border-radius: var(--radius-lg); background: var(--paper); padding: 22px; box-shadow: var(--shadow-surface); }
+
+/* Entrada dos dados: seções sobem 6px em sequência, uma vez, nada saltitante. */
+@keyframes section-rise { from { opacity: 0; translate: 0 6px; } to { opacity: 1; translate: 0 0; } }
+.dashboard-sections > * { animation: section-rise .4s cubic-bezier(.2, 0, 0, 1) both; }
+.dashboard-sections > :nth-child(2) { animation-delay: 50ms; }
+.dashboard-sections > :nth-child(3) { animation-delay: 100ms; }
+.dashboard-sections > :nth-child(4) { animation-delay: 150ms; }
+.dashboard-sections > :nth-child(5) { animation-delay: 200ms; }
+.dashboard-sections > :nth-child(n+6) { animation-delay: 240ms; }
+
+/* Sincronização em segundo plano: pílula com progresso, sem gritar. */
+.sync-chip { display: flex; align-items: center; gap: 12px; border-radius: var(--radius-sm); background: var(--paper-warm); padding: 10px 14px; box-shadow: inset 0 0 0 1px oklch(0.84 0.075 76 / .6); }
+.sync-chip p { color: oklch(0.43 0.08 65); font-size: 12px; line-height: 1.4; }
+.sync-chip-track { position: relative; display: block; width: 88px; height: 6px; flex: 0 0 auto; overflow: hidden; border-radius: 999px; background: oklch(0.9 0.04 80); }
+.sync-chip-track i { position: absolute; inset-block: 0; inset-inline-start: 0; border-radius: 999px; background: var(--warning); transition: width .6s cubic-bezier(.2, 0, 0, 1); }
+.sync-chip-track.is-indeterminate i { width: 40%; animation: sync-indeterminate 1.6s cubic-bezier(.4, 0, .6, 1) infinite; }
+@keyframes sync-indeterminate { from { translate: -110% 0; } to { translate: 270% 0; } }
+
 /* Ferramentas específicas dentro do mesmo sistema. */
 .calculator-page > .grid.lg\:grid-cols-3 { gap: 12px; }
 .calculator-page > .grid.lg\:grid-cols-3 > div,
@@ -646,6 +690,15 @@ summary:hover { background: var(--paper-soft); }
   background: var(--paper);
   padding: 7px;
   box-shadow: var(--shadow-surface);
+}
+/* Fora do fluxo (não interage com o space-y do pai), mas ancorada na posição
+   estática logo acima do filtro — exatamente o ponto que o observer vigia. */
+.dashboard-period-sentinel { position: absolute; width: 1px; height: 1px; margin: 0 !important; visibility: hidden; }
+/* Trocar o período é a interação principal: no desktop o filtro acompanha o
+   scroll e ganha elevação quando cola no topo (classe via IntersectionObserver). */
+@media (min-width: 1024px) {
+  .dashboard-period-filter { position: sticky; inset-block-start: 10px; z-index: var(--layer-nav); transition-property: box-shadow; transition-duration: 200ms; }
+  .dashboard-period-filter.is-stuck { box-shadow: var(--shadow-hover), 0 14px 30px -18px oklch(0.28 0.035 247 / .3); }
 }
 .dashboard-period-presets { display: flex; flex-wrap: wrap; gap: 3px; border-radius: 9px; background: var(--paper-soft); padding: 3px; }
 .dashboard-period-presets button { min-height: 40px; border-radius: 7px; padding-inline: 13px; color: var(--ink-muted); font-size: 12px; font-weight: 700; }
@@ -1158,6 +1211,15 @@ summary:hover { background: var(--paper-soft); }
   .profit-sale-details { padding: 10px; }
 }
 
+/* Entre o celular estreito (1 coluna) e o desktop (4 colunas), os KPIs ficam
+   2×2 — quatro lado a lado abaixo de 768px esmaga números de 21–28px. */
+@media (min-width: 421px) and (max-width: 767px) {
+  .central-kpis, .meli-kpis, .skeleton-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .central-kpis article, .meli-kpis article, .skeleton-cell { border-block-end: 1px solid var(--line); }
+  .central-kpis article:nth-child(2n), .meli-kpis article:nth-child(2n), .skeleton-cell:nth-child(2n) { border-inline-end: 0; }
+  .central-kpis article:nth-last-child(-n+2), .meli-kpis article:nth-last-child(-n+2), .skeleton-cell:nth-last-child(-n+2) { border-block-end: 0; }
+}
+
 @media (max-width: 620px) {
   .meli-calculator-form { grid-template-columns: 1fr; padding: 17px; }
   .meli-field-grid, .meli-target-row { grid-template-columns: 1fr; }
@@ -1186,9 +1248,9 @@ summary:hover { background: var(--paper-soft); }
   .compact-metric { display: block; padding: 12px; }
   .compact-metric strong { display: block; margin-block-start: 3px; font-size: 16px; }
   .empty-state { min-height: 150px; padding: 20px 12px; }
-  .central-kpis, .meli-kpis, .meli-kpis.is-compact { grid-template-columns: 1fr; }
-  .central-kpis article, .meli-kpis article { min-height: 110px; border-inline-end: 0; border-block-end: 1px solid var(--line); }
-  .central-kpis article:last-child, .meli-kpis article:last-child { border-block-end: 0; }
+  .central-kpis, .meli-kpis, .meli-kpis.is-compact, .skeleton-kpis { grid-template-columns: 1fr; }
+  .central-kpis article, .meli-kpis article, .skeleton-cell { min-height: 110px; border-inline-end: 0; border-block-end: 1px solid var(--line); }
+  .central-kpis article:last-child, .meli-kpis article:last-child, .skeleton-cell:last-child { border-block-end: 0; }
   .central-empty { grid-template-columns: 1fr; text-align: center; }
   .central-empty > span { margin-inline: auto; }
   .channel-value strong { font-size: 26px; }

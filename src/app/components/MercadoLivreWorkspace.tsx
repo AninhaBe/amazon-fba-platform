@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { AnimatedNumber } from "./AnimatedNumber";
 import { EmptyState } from "./EmptyState";
-import { PanelLoading } from "./LoadingState";
+import { DashboardSkeleton } from "./LoadingState";
 import { PageHeader, pageIcons } from "./PageHeader";
 import { RevenueChart, type DailyPoint } from "./RevenueChart";
 import { DashboardPeriodFilter, useDashboardPeriod } from "./DashboardPeriodFilter";
@@ -153,14 +154,21 @@ export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
         <DashboardPeriodFilter {...period.filterProps} />
       )}
       {overview && syncStatus && syncStatus.status !== "complete" && syncStatus.status !== "unavailable" && (
-        <p className="-mt-5 text-xs text-amber-700">
-          Histórico sendo atualizado em segundo plano: {syncStatus.progress}% concluído. Os dados já disponíveis aparecem abaixo.
-        </p>
+        <div className="sync-chip -mt-5" role="status">
+          <span className="sync-chip-track" aria-hidden="true"><i style={{ width: `${syncStatus.progress}%` }} /></span>
+          <p>Histórico: {syncStatus.progress}% importado — os dados abaixo já estão disponíveis.</p>
+        </div>
       )}
-      {loading ? <PanelLoading label="Carregando dados do Mercado Livre" /> : error ? (
+      {loading ? <DashboardSkeleton label="Carregando dados do Mercado Livre" chart={view === "dashboard"} rows={view === "dashboard" ? 4 : 6} /> : error ? (
         <EmptyState title="Não foi possível atualizar o Mercado Livre" description={error} action={<button type="button" onClick={() => setRetryKey((key) => key + 1)} className="meli-primary-action">Tentar novamente <span aria-hidden="true">↻</span></button>} />
       ) : !overview && connectionPresent ? (
-        <EmptyState title="Conta conectada, dados em preparação" description="A integração está ativa. O SellerCore está organizando os pedidos do período solicitado." action={<button type="button" onClick={() => setRetryKey((key) => key + 1)} className="meli-primary-action">Atualizar dados <span aria-hidden="true">↻</span></button>} />
+        <div className="space-y-4">
+          <div className="sync-chip" role="status">
+            <span className="sync-chip-track is-indeterminate" aria-hidden="true"><i /></span>
+            <p>Conta conectada — organizando os pedidos do período. Os indicadores aparecem aqui em instantes.</p>
+          </div>
+          <DashboardSkeleton label="Preparando os indicadores do período" chart={view === "dashboard"} />
+        </div>
       ) : !overview ? (
         <EmptyState title="Conecte sua conta do Mercado Livre" description="Autorize o SellerCore para começar a importar anúncios e pedidos." action={<Link href="/integracoes" className="meli-primary-action">Gerenciar integração <span aria-hidden="true">→</span></Link>} />
       ) : view === "dashboard" ? <Dashboard overview={overview} updatedAt={updatedAt} /> : view === "estoque" ? <Inventory overview={overview} /> : <Monitor overview={overview} />}
@@ -175,16 +183,16 @@ function Dashboard({ overview, updatedAt }: { overview: Overview; updatedAt: Dat
   const units = overview.dailySales.reduce((total, point) => total + point.units, 0);
   const critical = overview.stockRadar.filter((product) => product.status === "critical" || product.status === "out");
   const roi = overview.profit.cogs > 0 ? overview.profit.estimatedProfit / overview.profit.cogs * 100 : null;
-  return <>
+  return <div className="dashboard-sections space-y-8">
     {updatedAt && <p className="-mt-5 text-xs text-slate-400">Atualizado às {updatedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}. Dados disponíveis no SellerCore.</p>}
 
     <OperationPending items={overview.metrics.productsWithoutCost > 0 ? [{ label: `Cadastrar custo de ${overview.metrics.productsWithoutCost} produto(s)`, href: "/mercado-livre/produtos" }] : []} />
 
     <section className="metric-grid grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-4" aria-label="Indicadores Mercado Livre">
-      <Metric label="Faturamento" value={money(overview.metrics.revenue30d, overview.metrics.currency)} sub={coverage.complete ? `${overview.metrics.paidOrders} vendas no período` : `${coverage.capturedOrders} pedidos capturados; histórico em andamento`} />
+      <Metric label="Faturamento" value={<AnimatedNumber value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={coverage.complete ? `${overview.metrics.paidOrders} vendas no período` : `${coverage.capturedOrders} pedidos capturados; histórico em andamento`} />
       <div className="metric-cell metric-primary relative overflow-hidden p-5">
         <div className="flex items-start justify-between gap-2"><p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">{profitCoverage.complete ? "Lucro estimado" : "Lucro processado"}</p><span className="text-emerald-600/50">{dashboardKpiIcons.percent}</span></div>
-        <p className="mt-2 text-[27px] font-bold leading-none tabular-nums text-emerald-800">{money(overview.profit.estimatedProfit, overview.metrics.currency)}</p>
+        <p className="mt-2 text-[27px] font-bold leading-none tabular-nums text-emerald-800"><AnimatedNumber value={overview.profit.estimatedProfit} format={(amount) => money(amount, overview.metrics.currency)} /></p>
         <p className="mt-1.5 text-xs font-medium text-emerald-700/80">{profitCoverage.complete ? `margem ${percent(overview.profit.marginPct)}` : `${profitCoverage.processedOrders} de ${profitCoverage.paidOrders} vendas`}</p>
       </div>
       <Metric label="Estoque crítico" value={critical.length.toLocaleString("pt-BR")} sub={critical.length ? "repor com urgência" : "tudo sob controle"} tone={critical.length ? "danger" : "ok"} icon={dashboardKpiIcons.stock} />
@@ -242,10 +250,10 @@ function Dashboard({ overview, updatedAt }: { overview: Overview; updatedAt: Dat
       <QuickLink href="/mercado-livre/anuncios" label="Anúncios" desc="Catálogo publicado" />
       <QuickLink href="/mercado-livre/produtos" label="Produtos" desc="Custos e impostos" />
     </div>
-  </>;
+  </div>;
 }
 
-function Metric({ label, value, sub, tone = "default", icon }: { label: string; value: string; sub: string; tone?: "default" | "warn" | "ok" | "danger"; icon?: React.ReactNode }) {
+function Metric({ label, value, sub, tone = "default", icon }: { label: string; value: React.ReactNode; sub: string; tone?: "default" | "warn" | "ok" | "danger"; icon?: React.ReactNode }) {
   const color = tone === "danger" ? "text-red-600" : tone === "warn" ? "text-amber-600" : tone === "ok" ? "text-slate-700" : "text-slate-900";
   return <article className="metric-cell group p-5"><div className="flex items-start justify-between gap-2"><p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{label}</p>{icon && <span className="text-slate-300 transition-colors group-hover:text-yellow-500">{icon}</span>}</div><p className={`mt-2 text-[27px] font-bold leading-none tabular-nums ${color}`}>{value}</p><p className="mt-1.5 text-xs text-slate-400">{sub}</p></article>;
 }
@@ -284,7 +292,7 @@ function QuickLink({ href, label, desc }: { href: string; label: string; desc: s
 
 function Inventory({ overview }: { overview: Overview }) {
   const critical = overview.stockRadar.filter((product) => product.status === "critical" || product.status === "out").length;
-  return <>
+  return <div className="dashboard-sections space-y-8">
     <section className="metric-grid grid grid-cols-1 gap-0 sm:grid-cols-3" aria-label="Resumo de estoque Mercado Livre">
       <Metric label="Produtos ativos" value={overview.stockRadar.length.toLocaleString("pt-BR")} sub="monitorados no radar" icon={dashboardKpiIcons.box} />
       <Metric label="Estoque crítico" value={critical.toLocaleString("pt-BR")} sub={critical ? "repor com urgência" : "tudo sob controle"} tone={critical ? "danger" : "ok"} icon={dashboardKpiIcons.stock} />
@@ -298,16 +306,16 @@ function Inventory({ overview }: { overview: Overview }) {
       </aside>
       {overview.stockRadar.length === 0 ? <Empty>Nenhum produto ativo encontrado.</Empty> : <div className="overflow-x-auto"><table className="inventory-table w-full min-w-[680px] text-sm"><caption className="sr-only">Cobertura de estoque dos produtos do Mercado Livre</caption><thead><tr><th>Produto</th><th>SKU</th><th className="text-right">Estoque</th><th className="text-right">Vendidos</th><th className="text-right">Cobertura</th><th className="text-center">Status</th></tr></thead><tbody>{overview.stockRadar.map((product) => <tr key={product.id}><td><strong className="block max-w-[320px] truncate" title={product.title}>{product.title}</strong></td><td className="font-mono text-xs">{product.sku || product.id}</td><td className="text-right tabular-nums">{product.availableQuantity}</td><td className="text-right tabular-nums">{product.unitsSold}</td><td className="stock-coverage-value text-right tabular-nums"><strong>{product.daysRemaining == null ? "—" : `${product.daysRemaining} dias`}</strong><small>base: {product.calculationDays} dias</small></td><td className="inventory-status-cell text-center"><span className={`stock-status is-${product.status}`}>{product.status === "out" ? "Esgotado" : product.status === "critical" ? "Crítico" : "Saudável"}</span></td></tr>)}</tbody></table></div>}
     </section>
-  </>;
+  </div>;
 }
 
 function Monitor({ overview }: { overview: Overview }) {
   const profitCoverage = overview.profit.coverage;
   const netReceived = overview.profit.revenueProcessed - overview.profit.fees - overview.profit.sellerShipping;
-  return <>
+  return <div className="dashboard-sections space-y-8">
     <section className="metric-grid grid grid-cols-2 gap-4 lg:grid-cols-4" aria-label="Resumo do monitor Mercado Livre">
       <Metric label="Pedidos" value={overview.metrics.orders30d.toLocaleString("pt-BR")} sub={overview.period.label} />
-      <Metric label="Faturamento" value={money(overview.metrics.revenue30d, overview.metrics.currency)} sub="produtos vendidos" />
+      <Metric label="Faturamento" value={<AnimatedNumber value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub="produtos vendidos" />
       <Metric label={profitCoverage.complete ? "Total recebido" : "Total recebido processado"} value={money(netReceived, overview.metrics.currency)} sub="após tarifa e frete" />
       <Metric label={profitCoverage.complete ? "Margem de contribuição" : "Margem processada"} value={money(overview.profit.estimatedProfit, overview.metrics.currency)} sub={profitCoverage.complete ? `${percent(overview.profit.marginPct)} do faturamento` : `${profitCoverage.processedOrders} de ${profitCoverage.paidOrders} vendas`} />
     </section>
@@ -334,5 +342,5 @@ function Monitor({ overview }: { overview: Overview }) {
     {!profitCoverage.complete && <div className="meli-profit-warning"><span aria-hidden="true">!</span><p>Este detalhamento usa somente os pedidos já capturados e cobre {profitCoverage.processedOrders} de {profitCoverage.paidOrders} vendas disponíveis, sem extrapolar valores.</p></div>}
     {!overview.profit.shippingCostsComplete && <div className="meli-profit-warning"><span aria-hidden="true">!</span><p>Alguns fretes ainda não foram conciliados. Essas vendas aparecem com cálculo incompleto para não superestimar a margem.</p></div>}
     <OrderProfitabilityTable lines={overview.profitabilityLines} />
-  </>;
+  </div>;
 }

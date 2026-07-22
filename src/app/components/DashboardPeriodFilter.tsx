@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export type DashboardPeriodOption = "today" | "7" | "15" | "30" | "custom";
 
@@ -61,7 +61,22 @@ export function DashboardPeriodFilter({ selected, from, to, error, onPreset, onC
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
   const options = [{ value: "today", label: "Hoje" }, { value: "7", label: "7 dias" }, { value: "15", label: "15 dias" }, { value: "30", label: "30 dias" }] as const;
 
-  return <section className="dashboard-period-filter" aria-label="Período dos indicadores">
+  // O filtro é a interação principal do dashboard: fica sticky no desktop e
+  // ganha elevação quando "cola" no topo. A sentinela 1px acima dele detecta
+  // o momento exato sem escutar scroll.
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const [stuck, setStuck] = useState(false);
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(([entry]) => setStuck(!entry.isIntersecting), { threshold: 0 });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, []);
+
+  return <>
+    <div ref={sentinelRef} aria-hidden="true" className="dashboard-period-sentinel" />
+    <section className={`dashboard-period-filter${stuck ? " is-stuck" : ""}`} aria-label="Período dos indicadores">
     <div className="dashboard-period-presets" role="group" aria-label="Períodos rápidos">
       {options.map((option) => <button key={option.value} type="button" aria-pressed={selected === option.value} className={selected === option.value ? "is-active" : ""} onClick={() => onPreset(option.value)}>{option.label}</button>)}
       <button type="button" aria-pressed={selected === "custom"} className={selected === "custom" ? "is-active" : ""} onClick={onCustom}>Personalizado</button>
@@ -73,5 +88,6 @@ export function DashboardPeriodFilter({ selected, from, to, error, onPreset, onC
       <button type="button" className="dashboard-period-apply" onClick={onApply}>Aplicar período</button>
       {error && <p role="alert">{error}</p>}
     </div>}
-  </section>;
+    </section>
+  </>;
 }
