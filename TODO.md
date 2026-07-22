@@ -35,10 +35,19 @@ conforme for concluindo.
   em Produtos (2922 unidades sem custo), então o lucro aparece = repasse
   líquido (sem descontar produto). Cadastrar custos dos SKUs Amazon, ou
   investigar se é descasamento de chave de custo.
-- [ ] Re-basear também na Transactions API: as **taxas por pedido** da tabela
-  "Resultado por venda" (`amazonProfitability.ts`, ainda usa v0) e a
-  conciliação de fees canônicas da Amazon (`getOrderFinancialEvents`, v0). O
-  endpoint `/api/finances` (v0, órfão, sem uso na UI) pode ser removido.
+- [x] **Taxas por pedido** ("Resultado por venda") re-baseadas na Transactions
+  API, rateadas por receita entre os itens.
+- [x] **Opção A: faturamento unificado na Transactions API.** Faturamento,
+  pedidos, unidades, série diária e COGS agora vêm todos das transações (data
+  de postagem, por competência), mesma fonte do lucro — receita e lucro
+  reconciliam. Rótulo do lucro vira "Repasse líquido / antes do custo" quando
+  faltam custos, nos dois canais. `/api/sales` não é mais usado no dashboard/
+  central (segue servindo `/api/orders`).
+- [ ] Conciliação de **fees canônicas da Amazon** (`getOrderFinancialEvents`,
+  v0) precisa migrar para a Transactions API — fase 5 do canônico. O endpoint
+  `/api/finances` (v0, órfão) pode ser removido.
+- [ ] Limpeza opcional: `getSalesVelocity`/`getDailySales` (v0) não alimentam
+  mais o dashboard; revisar se ainda valem para o radar de estoque.
 - [ ] **Trocar as rotas do dashboard Amazon** (`/api/orders`, `/api/sales`,
   `/api/profit`, `/api/top-products`) para ler do SQL canônico — é o que
   torna a Amazon rápida como o Mercado Livre ficou. Antes, validar os números
