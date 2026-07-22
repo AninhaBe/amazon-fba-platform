@@ -73,6 +73,7 @@ export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
     const cacheKey = `${view}:${period.query}`;
     const cached = periodCache.current.get(cacheKey);
     const wait = (milliseconds: number) => new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds));
+    const pollingDelay = (attempt: number) => Math.min(5_000, 1_500 + Math.max(0, attempt - 1) * 500);
     const timer = window.setTimeout(() => {
       if (cached) {
         setOverview(cached.overview);
@@ -120,12 +121,12 @@ export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
           if (cached) break;
           if (data.preparing) {
             if (attempts >= 40) throw new Error("A preparação dos indicadores está demorando mais que o esperado. Tente novamente em instantes.");
-            await wait(1_500);
+            await wait(pollingDelay(attempts));
             continue;
           }
           if (!data.sync || data.sync.status === "complete" || data.sync.status === "unavailable") break;
           if (data.sync.status === "error") throw new Error(data.sync.error || "A sincronização do Mercado Livre foi interrompida.");
-          await wait(1_500);
+          await wait(pollingDelay(attempts));
         }
       })()
         .catch((reason) => {

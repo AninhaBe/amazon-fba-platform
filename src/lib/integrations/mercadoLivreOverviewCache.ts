@@ -2,6 +2,7 @@ import { dbQuery, hasDb } from "../db";
 import { currentWorkspaceId } from "../workspaceScope";
 
 const PROVIDER = "mercado_livre";
+const SNAPSHOT_FRESH_MS = 15 * 60_000;
 interface SnapshotRow<T> {
   payload: T;
   generated_at: Date | string;
@@ -24,7 +25,7 @@ export async function loadMercadoLivreOverviewSnapshot<T>(
   return {
     payload: row.payload,
     generatedAt: generatedAt.toISOString(),
-    stale: Date.now() - generatedAt.getTime() >= 2 * 60_000,
+    stale: Date.now() - generatedAt.getTime() >= SNAPSHOT_FRESH_MS,
   };
 }
 
@@ -50,7 +51,7 @@ export async function invalidateMercadoLivreOverviewSnapshots(connectionId?: str
   if (connectionId) {
     await dbQuery(
       `UPDATE workspace_marketplace_overview_snapshots
-          SET generated_at = LEAST(generated_at, now() - interval '3 minutes')
+          SET generated_at = LEAST(generated_at, now() - interval '16 minutes')
         WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
       [currentWorkspaceId(), PROVIDER, connectionId]
     );
@@ -58,7 +59,7 @@ export async function invalidateMercadoLivreOverviewSnapshots(connectionId?: str
   }
   await dbQuery(
     `UPDATE workspace_marketplace_overview_snapshots
-        SET generated_at = LEAST(generated_at, now() - interval '3 minutes')
+        SET generated_at = LEAST(generated_at, now() - interval '16 minutes')
       WHERE workspace_id = $1 AND provider = $2`,
     [currentWorkspaceId(), PROVIDER]
   );

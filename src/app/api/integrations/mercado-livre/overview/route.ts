@@ -79,6 +79,55 @@ export async function GET(req: NextRequest) {
     const snapshotKey = `${period.cacheKey}:view:${view}`;
     if (hasDb()) {
       const workspaceId = currentWorkspaceId();
+      const snapshot = await loadMercadoLivreOverviewSnapshot<Overview>(connection.id, snapshotKey);
+      if (snapshot) {
+        after(() => runWithWorkspace(workspaceId, async () => {
+          if (snapshot.stale) {
+            try {
+              if (!period.cacheKey.startsWith("custom:")) {
+                await materializeMercadoLivrePresetOverviews(connection, {
+                  periodKey: period.cacheKey,
+                  view,
+                });
+              } else {
+                const latest = await loadMercadoLivreSource(connection, period);
+                if (latest.source) {
+                  const refreshed = await getMercadoLivreOverview(connection, period, latest.source);
+                  if (view !== "monitor") refreshed.profitabilityLines = [];
+                  await saveMercadoLivreOverviewSnapshot(connection.id, snapshotKey, refreshed);
+                }
+              }
+            } catch (error) {
+              console.error("Falha ao revalidar snapshot do Mercado Livre", {
+                connectionId: connection.id,
+                period: snapshotKey,
+                reason: error instanceof Error ? error.message : "Erro desconhecido",
+              });
+            }
+          }
+          try {
+            const backgroundSync = await requestMercadoLivreSync(connection.id);
+            const needsWork = backgroundSync.status !== "complete"
+              && backgroundSync.status !== "error"
+              && backgroundSync.status !== "unavailable";
+            if (needsWork) await runMercadoLivreSyncBatch(connection, process.env.VERCEL ? 4 : 8);
+          } catch (error) {
+            console.error("Falha ao verificar sincronização do Mercado Livre", {
+              connectionId: connection.id,
+              reason: error instanceof Error ? error.message : "Erro desconhecido",
+            });
+          }
+        }));
+        const response = timedJson({
+          connectionId: connection.id,
+          overview: snapshot.payload,
+          updatedAt: snapshot.generatedAt,
+          cached: true,
+        }, startedAt);
+        response.headers.set("X-SellerCore-Cache", snapshot.stale ? "STALE" : "HIT");
+        return response;
+      }
+
       const sync = await requestMercadoLivreSync(connection.id);
       const syncNeedsWork = sync.status !== "complete" && sync.status !== "error" && sync.status !== "unavailable";
       if (syncNeedsWork) {
@@ -105,42 +154,6 @@ export async function GET(req: NextRequest) {
             });
           }
         }));
-      }
-      const snapshot = await loadMercadoLivreOverviewSnapshot<Overview>(connection.id, snapshotKey);
-      if (snapshot) {
-        if (snapshot.stale) {
-          after(() => runWithWorkspace(workspaceId, async () => {
-            try {
-              if (!period.cacheKey.startsWith("custom:")) {
-                await materializeMercadoLivrePresetOverviews(connection, {
-                  periodKey: period.cacheKey,
-                  view,
-                });
-                return;
-              }
-              const latest = await loadMercadoLivreSource(connection, period);
-              if (!latest.source) return;
-              const refreshed = await getMercadoLivreOverview(connection, period, latest.source);
-              if (view !== "monitor") refreshed.profitabilityLines = [];
-              await saveMercadoLivreOverviewSnapshot(connection.id, snapshotKey, refreshed);
-            } catch (error) {
-              console.error("Falha ao revalidar snapshot do Mercado Livre", {
-                connectionId: connection.id,
-                period: snapshotKey,
-                reason: error instanceof Error ? error.message : "Erro desconhecido",
-              });
-            }
-          }));
-        }
-        const response = timedJson({
-          connectionId: connection.id,
-          overview: snapshot.payload,
-          sync,
-          updatedAt: snapshot.generatedAt,
-          cached: true,
-        }, startedAt);
-        response.headers.set("X-SellerCore-Cache", snapshot.stale ? "STALE" : "HIT");
-        return response;
       }
       if (!period.cacheKey.startsWith("custom:")) {
         if (!syncNeedsWork) {
