@@ -10,6 +10,7 @@ import { DashboardPeriodFilter, useDashboardPeriod } from "../components/Dashboa
 import { OperationPending, type OperationPendingItem } from "../components/OperationPending";
 import { Metric as Kpi, getRevenueTrend } from "../components/Metric";
 import { AnimatedNumber } from "../components/AnimatedNumber";
+import { brDate, brTime } from "@/lib/datetime";
 import { Boxes, ChartSpline, PackageOpen, Percent, ShoppingCart, Tag } from "lucide-react";
 import { readJson } from "../../lib/readJson";
 
@@ -186,7 +187,7 @@ export default function Dashboard() {
 
       {updatedAt && (
         <p className="-mt-5 text-xs text-slate-400">
-          Atualizado às {updatedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}. Dados de vendas, pedidos e financeiro sincronizados.
+          Atualizado às {brTime(updatedAt)}. Dados de vendas, pedidos e financeiro sincronizados.
         </p>
       )}
 
@@ -310,7 +311,7 @@ export default function Dashboard() {
                       {o.amazonOrderId}
                     </span>
                     <span className="text-xs text-slate-400">
-                      {new Date(o.purchaseDate).toLocaleDateString("pt-BR")} · {o.orderStatus}
+                      {brDate(o.purchaseDate)} · {o.orderStatus}
                     </span>
                   </span>
                   <span className="shrink-0 font-medium tabular-nums">

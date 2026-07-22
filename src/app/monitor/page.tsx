@@ -7,6 +7,7 @@ import { OrderProfitabilityTable } from "../components/OrderProfitabilityTable";
 import { DashboardPeriodFilter, useDashboardPeriod } from "../components/DashboardPeriodFilter";
 import type { ProfitabilityLine } from "@/lib/profitability";
 import { readJson } from "@/lib/readJson";
+import { brDate } from "@/lib/datetime";
 
 interface Metrics {
   totalOrders: number;
@@ -297,7 +298,7 @@ export default function MonitorPage() {
                     {transactions.recent.map((transaction) => (
                       <tr key={transaction.id} className="hover:bg-slate-50">
                         <td className="whitespace-nowrap px-4 py-3 text-slate-600">
-                          {new Date(transaction.postedDate).toLocaleDateString("pt-BR")}
+                          {brDate(transaction.postedDate)}
                         </td>
                         <td className="px-4 py-3">
                           <p className="font-medium text-slate-800">{transaction.description}</p>

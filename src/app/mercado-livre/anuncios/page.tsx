@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { EmptyState } from "../../components/EmptyState";
 import { PanelLoading } from "../../components/LoadingState";
 import { PageHeader, pageIcons } from "../../components/PageHeader";
+import { brDate } from "@/lib/datetime";
 
 interface Listing {
   id: string;
@@ -72,7 +73,7 @@ function logistics(listing: Listing) {
 }
 
 function formatDate(value: string | null) {
-  return value ? new Date(value).toLocaleDateString("pt-BR") : "—";
+  return value ? brDate(value) : "—";
 }
 
 export default function MercadoLivreListingsPage() {

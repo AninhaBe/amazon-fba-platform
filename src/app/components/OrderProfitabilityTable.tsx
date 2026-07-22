@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { ProfitabilityLine } from "@/lib/profitability";
+import { brDate } from "@/lib/datetime";
 import { EmptyState } from "./EmptyState";
 import { TableLoading } from "./LoadingState";
 
@@ -74,7 +75,7 @@ function ProfitabilitySale({ line, expanded, onToggle }: { line: ProfitabilityLi
         <small>Pedido #{line.orderId}</small>
       </div>
       <div className="profit-sale-meta" aria-label="Informações da venda">
-        <span>{new Date(line.date).toLocaleDateString("pt-BR")}</span>
+        <span>{brDate(line.date)}</span>
         <span>{line.fulfillment || statusLabel(line.status)}</span>
         <span>{line.quantity} {line.quantity === 1 ? "unidade" : "unidades"} × {money(line.unitPrice, line.currency)}</span>
       </div>

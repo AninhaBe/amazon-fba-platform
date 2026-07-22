@@ -11,6 +11,7 @@ import { DashboardPeriodFilter, useDashboardPeriod } from "./DashboardPeriodFilt
 import { OrderProfitabilityTable } from "./OrderProfitabilityTable";
 import { OperationPending } from "./OperationPending";
 import { Flow, Metric, getRevenueTrend } from "./Metric";
+import { brDate, brTime } from "@/lib/datetime";
 import { Boxes, PackageOpen, Percent } from "lucide-react";
 import type { ProfitabilityLine } from "@/lib/profitability";
 
@@ -195,7 +196,7 @@ function Dashboard({ overview, updatedAt }: { overview: Overview; updatedAt: Dat
   // Sem custos cadastrados o "lucro" é só margem antes do produto — não engana.
   const costsIncomplete = overview.profit.unitsWithoutCost > 0;
   return <div className="dashboard-sections space-y-8">
-    {updatedAt && <p className="-mt-5 text-xs text-slate-400">Atualizado às {updatedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}{overview.metrics.lastSaleAt ? ` · última venda contabilizada às ${new Date(overview.metrics.lastSaleAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}` : ""}. Compare no mesmo horário com o painel do Mercado Livre.</p>}
+    {updatedAt && <p className="-mt-5 text-xs text-slate-400">Atualizado às {brTime(updatedAt)}{overview.metrics.lastSaleAt ? ` · última venda contabilizada às ${brTime(overview.metrics.lastSaleAt, true)}` : ""}. Compare no mesmo horário com o painel do Mercado Livre.</p>}
 
     <OperationPending items={overview.metrics.productsWithoutCost > 0 ? [{ label: `Cadastrar custo de ${overview.metrics.productsWithoutCost} produto(s)`, href: "/mercado-livre/produtos" }] : []} />
 
@@ -243,7 +244,7 @@ function Dashboard({ overview, updatedAt }: { overview: Overview; updatedAt: Dat
         {critical.length === 0 ? <Empty>Nenhum produto em ruptura iminente.</Empty> : <ul className="divide-y divide-slate-100">{critical.slice(0, 6).map((product) => <li key={product.id} className="flex items-center justify-between py-2.5 text-sm"><span className="min-w-0 truncate pr-3">{product.title || product.sku || product.id}</span><span className="shrink-0 font-semibold text-red-600">{product.status === "out" ? "esgotado" : `${product.daysRemaining} dias`}</span></li>)}</ul>}
       </Panel>
       <Panel title="Pedidos recentes" href="/mercado-livre/monitor" linkLabel="Abrir monitor">
-        {overview.recentOrders.length === 0 ? <Empty>Nenhum pedido no período.</Empty> : <ul className="divide-y divide-slate-100">{overview.recentOrders.slice(0, 6).map((order) => <li key={order.id} className="flex items-center justify-between py-2.5 text-sm"><span className="min-w-0"><span className="block truncate font-mono text-xs text-slate-500">#{order.id}</span><span className="text-xs text-slate-400">{new Date(order.createdAt).toLocaleDateString("pt-BR")} · {orderStatus(order.status)}</span></span><span className="shrink-0 font-medium tabular-nums">{money(order.total, order.currency)}</span></li>)}</ul>}
+        {overview.recentOrders.length === 0 ? <Empty>Nenhum pedido no período.</Empty> : <ul className="divide-y divide-slate-100">{overview.recentOrders.slice(0, 6).map((order) => <li key={order.id} className="flex items-center justify-between py-2.5 text-sm"><span className="min-w-0"><span className="block truncate font-mono text-xs text-slate-500">#{order.id}</span><span className="text-xs text-slate-400">{brDate(order.createdAt)} · {orderStatus(order.status)}</span></span><span className="shrink-0 font-medium tabular-nums">{money(order.total, order.currency)}</span></li>)}</ul>}
       </Panel>
     </div>
 

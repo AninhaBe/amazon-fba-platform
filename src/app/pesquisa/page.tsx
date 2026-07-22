@@ -6,6 +6,7 @@ import { PageHeader, pageIcons } from "../components/PageHeader";
 import { TableLoading } from "../components/LoadingState";
 import { EmptyState } from "../components/EmptyState";
 import { readJson } from "../../lib/readJson";
+import { brDate, brTime } from "../../lib/datetime";
 
 interface ProductResult {
   asin: string;
@@ -36,7 +37,7 @@ function effectiveDate(p: ProductResult) {
 
 function fmtDate(iso?: string) {
   if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("pt-BR");
+  return brDate(iso);
 }
 
 function ageLabel(iso?: string) {
@@ -199,7 +200,7 @@ export default function PesquisaPage() {
             <p className="text-sm text-slate-500">{items.length} de ~{total.toLocaleString("pt-BR")} resultados</p>
             {updatedAt && (
               <p className="mt-0.5 text-xs text-slate-400">
-                Consultado às {updatedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                Consultado às {brTime(updatedAt)}
               </p>
             )}
           </div>
