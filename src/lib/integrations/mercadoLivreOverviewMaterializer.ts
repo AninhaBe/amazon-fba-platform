@@ -8,6 +8,12 @@ import type { IntegrationConnection } from "./types";
 const PROVIDER = "mercado_livre";
 const DAY = 86_400_000;
 const VIEWS = ["dashboard", "estoque", "monitor"] as const;
+type MaterializedView = typeof VIEWS[number];
+
+export interface MaterializationPriority {
+  periodKey: string;
+  view: MaterializedView;
+}
 
 interface PresetPeriod extends MercadoLivrePeriod {
   cacheKey: string;
@@ -69,7 +75,8 @@ async function releaseLease(connectionId: string): Promise<void> {
 }
 
 export async function materializeMercadoLivrePresetOverviews(
-  connection: IntegrationConnection
+  connection: IntegrationConnection,
+  priority?: MaterializationPriority
 ): Promise<boolean> {
   if (!hasDb() || !await acquireLease(connection.id)) return false;
   try {
@@ -77,14 +84,24 @@ export async function materializeMercadoLivrePresetOverviews(
     const broadPeriod = periods.at(-1)!;
     const loaded = await loadMercadoLivreSource(connection, broadPeriod);
     if (!loaded.source) return false;
+    const orderedPeriods = priority
+      ? [...periods].sort((left, right) =>
+          Number(right.cacheKey === priority.periodKey) - Number(left.cacheKey === priority.periodKey)
+        )
+      : periods;
+    const orderedViews = priority
+      ? [...VIEWS].sort((left, right) =>
+          Number(right === priority.view) - Number(left === priority.view)
+        )
+      : VIEWS;
 
-    for (const period of periods) {
+    for (const period of orderedPeriods) {
       const overview = await getMercadoLivreOverview(
         connection,
         period,
         sourceForPeriod(loaded.source, period)
       );
-      for (const view of VIEWS) {
+      for (const view of orderedViews) {
         const payload = view === "monitor"
           ? overview
           : { ...overview, profitabilityLines: [] };

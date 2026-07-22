@@ -84,10 +84,20 @@ export async function GET(req: NextRequest) {
       if (syncNeedsWork) {
         after(() => runWithWorkspace(workspaceId, async () => {
           try {
-            // Em funções serverless, o cron continua o histórico em lotes
-            // duráveis. O primeiro lote curto antecipa dados para quem abriu a tela.
-            await runMercadoLivreSyncBatch(connection, process.env.VERCEL ? 4 : 64);
-            await materializeMercadoLivrePresetOverviews(connection);
+            // A leitura solicitada tem prioridade sobre a importação histórica.
+            await materializeMercadoLivrePresetOverviews(connection, {
+              periodKey: period.cacheKey,
+              view,
+            });
+          } catch (error) {
+            console.error("Falha ao preparar leitura do Mercado Livre", {
+              connectionId: connection.id,
+              reason: error instanceof Error ? error.message : "Erro desconhecido",
+            });
+          }
+          try {
+            // Lotes menores evitam que o trabalho histórico monopolize o Render.
+            await runMercadoLivreSyncBatch(connection, process.env.VERCEL ? 4 : 8);
           } catch (error) {
             console.error("Falha ao avançar sincronização do Mercado Livre", {
               connectionId: connection.id,
@@ -102,7 +112,10 @@ export async function GET(req: NextRequest) {
           after(() => runWithWorkspace(workspaceId, async () => {
             try {
               if (!period.cacheKey.startsWith("custom:")) {
-                await materializeMercadoLivrePresetOverviews(connection);
+                await materializeMercadoLivrePresetOverviews(connection, {
+                  periodKey: period.cacheKey,
+                  view,
+                });
                 return;
               }
               const latest = await loadMercadoLivreSource(connection, period);
@@ -130,16 +143,21 @@ export async function GET(req: NextRequest) {
         return response;
       }
       if (!period.cacheKey.startsWith("custom:")) {
-        after(() => runWithWorkspace(workspaceId, async () => {
-          try {
-            await materializeMercadoLivrePresetOverviews(connection);
-          } catch (error) {
-            console.error("Falha ao preparar dashboards do Mercado Livre", {
-              connectionId: connection.id,
-              reason: error instanceof Error ? error.message : "Erro desconhecido",
-            });
-          }
-        }));
+        if (!syncNeedsWork) {
+          after(() => runWithWorkspace(workspaceId, async () => {
+            try {
+              await materializeMercadoLivrePresetOverviews(connection, {
+                periodKey: period.cacheKey,
+                view,
+              });
+            } catch (error) {
+              console.error("Falha ao preparar dashboards do Mercado Livre", {
+                connectionId: connection.id,
+                reason: error instanceof Error ? error.message : "Erro desconhecido",
+              });
+            }
+          }));
+        }
         const response = timedJson(
           { connectionId: connection.id, overview: null, sync, preparing: true },
           startedAt,
@@ -161,7 +179,10 @@ export async function GET(req: NextRequest) {
       const generatedAt = await saveMercadoLivreOverviewSnapshot(connection.id, snapshotKey, overview);
       if (!syncNeedsWork && !period.cacheKey.startsWith("custom:")) {
         after(() => runWithWorkspace(workspaceId, () =>
-          materializeMercadoLivrePresetOverviews(connection).then(() => undefined)
+          materializeMercadoLivrePresetOverviews(connection, {
+            periodKey: period.cacheKey,
+            view,
+          }).then(() => undefined)
         ));
       }
       const response = timedJson({
