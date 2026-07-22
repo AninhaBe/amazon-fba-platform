@@ -799,7 +799,9 @@ export async function getMercadoLivreOverview(
 ) {
   const accountId = encodeURIComponent(connection.externalAccountId);
   const to = period?.to ?? new Date();
-  const from = period?.from ?? new Date(to.getTime() - 30 * 86_400_000);
+  // Padrão: dia-calendário em São Paulo (00:00 de 30 dias atrás), como o painel do ML.
+  const from = period?.from
+    ?? new Date(`${new Date(to.getTime() - 3 * 60 * 60_000 - 30 * 86_400_000).toISOString().slice(0, 10)}T00:00:00-03:00`);
   const fetchOrderPage = (rangeFrom: Date, rangeTo: Date, offset: number, limit: number) =>
     mercadoLivreFetch<{ paging?: { total?: number }; results?: MercadoLivreOrder[] }>(
       connection,

@@ -45,7 +45,9 @@ function requestedPeriod(url: URL) {
     return { from: new Date(`${brazilDate}T00:00:00-03:00`), to, label: "Hoje" };
   }
   if (!ALLOWED_DAYS.has(daysValue)) throw new RangeError("Selecione Hoje ou um período de 7, 15 ou 30 dias.");
-  return { from: new Date(to.getTime() - daysValue * DAY), to, label: `Últimos ${daysValue} dias` };
+  // Dia-calendário em São Paulo (00:00 de N dias atrás), como o painel do ML — janela rolante de N*24h descarta o começo do dia-limite.
+  const startDate = new Date(to.getTime() - 3 * 60 * 60 * 1_000 - daysValue * DAY).toISOString().slice(0, 10);
+  return { from: new Date(`${startDate}T00:00:00-03:00`), to, label: `Últimos ${daysValue} dias` };
 }
 
 function timedJson(body: unknown, startedAt: number, init?: ResponseInit) {

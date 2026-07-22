@@ -28,12 +28,16 @@ function presetPeriods(now = new Date()): PresetPeriod[] {
       label: "Hoje",
       cacheKey: `today:${brazilDate}`,
     },
-    ...[7, 15, 30].map((days) => ({
-      from: new Date(now.getTime() - days * DAY),
-      to: now,
-      label: `Últimos ${days} dias`,
-      cacheKey: `days:${days}`,
-    })),
+    ...[7, 15, 30].map((days) => {
+      // Dia-calendário em São Paulo (00:00 de N dias atrás), como o painel do ML.
+      const startDate = new Date(now.getTime() - 3 * 60 * 60_000 - days * DAY).toISOString().slice(0, 10);
+      return {
+        from: new Date(`${startDate}T00:00:00-03:00`),
+        to: now,
+        label: `Últimos ${days} dias`,
+        cacheKey: `days:${days}`,
+      };
+    }),
   ];
 }
 

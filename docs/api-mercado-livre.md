@@ -23,6 +23,7 @@ Faturamento ML = vendas APROVADAS + CANCELADAS (paid_amount dos itens, SEM frete
 - `REVENUE_STATUSES = [paid, shipped, delivered]` = só aprovadas (exibida como métrica separada).
 - **Não** somar frete do comprador no faturamento. **Não** excluir canceladas do faturamento bruto — o painel do ML conta as duas.
 - Painel do ML opera no fuso `America/Sao_Paulo` — todo agrupamento por dia usa `AT TIME ZONE 'America/Sao_Paulo'` no SQL; exibição usa `brTime`/`brDate` (`src/lib/datetime.ts`).
+- **"Últimos N dias" = dia-calendário, não janela rolante** (validado 2026-07-22, diferença de R$ 46,99): o painel conta desde **00:00 de N dias atrás** (fuso SP), não `now − N×24h`. Janela rolante descarta o começo do dia-limite e o valor "para de bater". Corrigido em `overview/route.ts`, `mercadoLivreOverviewMaterializer.ts` e no fallback de `mercadoLivre.ts`.
 
 ## Anúncios / itens
 
