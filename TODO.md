@@ -25,18 +25,16 @@ conforme for concluindo.
 - [x] Cron para avançar histórico e itens sem visitas ao dashboard
 - [x] **Fees via Finances API** — comissão, tarifa FBA, frete e estornos viram
   fees canônicas por pedido, conciliadas em background junto do sync
-- [ ] **VALIDAR o re-base na Transactions API** (feito, mas sem validação ao
-  vivo). A Finances v0 passou a devolver valores zerados nesta conta, então o
-  painel financeiro e o lucro foram re-baseados na Transactions API
-  2024-06-19 (`getFinanceSummaryFromTransactions`). Números-chave confiáveis:
-  repasse líquido (soma dos totais das transações) e lucro (repasse − custo).
-  **Incerto até validar:** o split receita bruta × taxas, que sai da árvore de
-  `breakdowns` por palavra-chave — não pude confirmar os nomes/sinais dos
-  campos porque os tokens das contas com vendas expiraram. Ao reconectar,
-  comparar o painel com o "saldo liberado" da tabela de transações (~R$ 65k).
-- [ ] **Reconectar as contas Amazon** — as duas contas (`AO62LVXJMX3AA`,
-  `A15NQMF7A6J1Y0`) estão com token LWA expirado; chamadas ao vivo à SP-API
-  falham. Os números exibidos hoje vêm do cache.
+- [x] **Re-base na Transactions API validado ao vivo.** Painel financeiro e
+  lucro re-baseados na Transactions API 2024-06-19
+  (`getFinanceSummaryFromTransactions`) — a Finances v0 devolvia valores
+  zerados. Parser reconstruído sobre a estrutura real (Sales/Expenses →
+  ProductCharges/AmazonFees), validado contra dados reais: receita R$ 104,7k,
+  taxas R$ 44,9k (FBA + comissão…), líquido R$ 57,4k, consistência interna ~1%.
+- [ ] **COGS zerado para a Amazon** — os SKUs vendidos não têm custo cadastrado
+  em Produtos (2922 unidades sem custo), então o lucro aparece = repasse
+  líquido (sem descontar produto). Cadastrar custos dos SKUs Amazon, ou
+  investigar se é descasamento de chave de custo.
 - [ ] Re-basear também na Transactions API: as **taxas por pedido** da tabela
   "Resultado por venda" (`amazonProfitability.ts`, ainda usa v0) e a
   conciliação de fees canônicas da Amazon (`getOrderFinancialEvents`, v0). O

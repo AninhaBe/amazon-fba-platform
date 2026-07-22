@@ -182,107 +182,73 @@ async function fetchTransactions(period: Period): Promise<TransactionSummary> {
 // zerados nesta conta — a Amazon migrou o detalhe financeiro para a Transactions
 // API. Este resumo re-baseia receita/taxas/reembolsos/repasse nessa fonte.
 
-export interface FinanceItemLine {
-  orderId: string;
-  sku?: string;
-  quantity: number;
-  revenue: number;
-  postedDate: string;
-  currency: string;
-}
-
 export interface FinanceSummaryFromTransactions {
   currency: string;
-  revenue: number;
-  fees: number;
-  promotions: number;
-  refunds: number;
-  netProceeds: number;
+  revenue: number;      // vendas brutas de produto (ProductCharges)
+  fees: number;         // taxas da Amazon (comissão, FBA, armazenagem, ads…), positivo
+  refunds: number;      // produto reembolsado ao comprador, positivo
+  reimbursements: number; // ressarcimentos de estoque FBA, positivo
+  netProceeds: number;  // resultado líquido do período (exclui transferências ao banco)
   orderCount: number;
   feeBreakdown: { type: string; amount: number }[];
-  itemLines: FinanceItemLine[];
   source: "transactions-2024-06-19";
 }
 
-type FeeCategory = "revenue" | "fees" | "refund" | "tax" | "shipping" | "promotion" | "other";
+// Estrutura real da Transactions API 2024-06-19 (confirmada ao vivo):
+//   Sales           → { ProductCharges | FBAInventoryReimbursement | FundTransfer }
+//   Expenses        → AmazonFees → { Commission, FBAPerUnitFulfillmentFee, ... } → { Base, Tax }
+//   Refunded Sales  → ProductCharges (negativo)
+//   Refunded Expenses → AmazonFees (positivo, tarifa devolvida)
+// Transações do tipo "Transfer" são repasses ao banco (dinheiro já contado
+// saindo) — não entram no resultado do período.
+const TRANSFER_TYPE = "Transfer";
 
-// Classificação por palavra-chave: robusta a variações de texto da Amazon
-// ("Amazon Fees", "FBA Fees", "MarketplaceFacilitatorTax", "Sales"...).
-function categorizeBreakdown(type: string): FeeCategory {
-  const t = type.toLowerCase();
-  if (t.includes("refund")) return "refund";
-  if (t.includes("fee")) return "fees";
-  if (t.includes("tax")) return "tax";
-  if (t.includes("promo")) return "promotion";
-  if (t.includes("ship")) return "shipping";
-  if (t.includes("sale") || t.includes("principal") || t.includes("product")) return "revenue";
-  return "other";
-}
-
-// Soma apenas as folhas da árvore de breakdowns (nós sem filhos), evitando
-// contar duas vezes um pai que já é a soma dos filhos.
-function walkLeafBreakdowns(breakdowns: Breakdown[] | undefined, visit: (type: string, amount: number) => void) {
-  for (const node of breakdowns ?? []) {
-    if (node.breakdowns?.length) {
-      walkLeafBreakdowns(node.breakdowns, visit);
-    } else if (node.breakdownType) {
-      visit(node.breakdownType, node.breakdownAmount?.currencyAmount ?? 0);
-    }
-  }
+function amountOf(node: Breakdown): number {
+  return node.breakdownAmount?.currencyAmount ?? 0;
 }
 
 function computeFinanceFromTransactions(rawTransactions: ApiTransaction[]): FinanceSummaryFromTransactions {
   let currency = "BRL";
   let revenue = 0;
   let fees = 0;
-  let promotions = 0;
   let refunds = 0;
+  let reimbursements = 0;
   let netProceeds = 0;
   const orders = new Set<string>();
   const feeMap = new Map<string, number>();
-  const itemLineMap = new Map<string, FinanceItemLine>();
 
   for (const transaction of rawTransactions) {
+    if (transaction.transactionType === TRANSFER_TYPE) continue; // repasse ao banco
     const txCurrency = transaction.totalAmount?.currencyCode;
     if (txCurrency) currency = txCurrency;
-    // Repasse líquido = soma dos totais das transações (cada total já vem
-    // líquido de suas taxas). Campo confiável — é o mesmo que a tabela usa.
     netProceeds += transaction.totalAmount?.currencyAmount ?? 0;
     const orderId = transaction.relatedIdentifiers?.find((identifier) =>
       identifier.relatedIdentifierName?.toUpperCase().includes("ORDER")
     )?.relatedIdentifierValue;
     if (orderId) orders.add(orderId);
 
-    const visit = (type: string, amount: number) => {
-      switch (categorizeBreakdown(type)) {
-        case "revenue": revenue += amount; break;
-        case "fees": fees += -amount; feeMap.set(type, (feeMap.get(type) ?? 0) + -amount); break;
-        case "refund": refunds += -amount; break;
-        case "promotion": promotions += -amount; break;
-        // frete do vendedor e impostos entram no líquido, mas não compõem a
-        // receita bruta nem as taxas exibidas.
-        default: break;
-      }
-    };
-    walkLeafBreakdowns(transaction.breakdowns, visit);
-    for (const item of transaction.items ?? []) {
-      walkLeafBreakdowns(item.breakdowns, visit);
-      const context = item.contexts?.find((c) => c.sku || c.quantityShipped != null);
-      const sku = context?.sku;
-      const quantity = context?.quantityShipped ?? 0;
-      if (sku && quantity > 0) {
-        const key = `${orderId ?? ""}:${sku}`;
-        const line = itemLineMap.get(key) ?? {
-          orderId: orderId ?? "",
-          sku,
-          quantity: 0,
-          revenue: 0,
-          postedDate: transaction.postedDate ?? "",
-          currency,
-        };
-        line.quantity += quantity;
-        line.revenue += item.totalAmount?.currencyAmount ?? 0;
-        itemLineMap.set(key, line);
+    for (const top of transaction.breakdowns ?? []) {
+      const kind = top.breakdownType;
+      if (kind === "Sales" || kind === "Refunded Sales") {
+        for (const child of top.breakdowns ?? []) {
+          const value = amountOf(child);
+          if (child.breakdownType === "ProductCharges") {
+            if (value >= 0) revenue += value;
+            else refunds += -value; // "Refunded Sales" traz ProductCharges negativo
+          } else if (child.breakdownType?.includes("Reimbursement")) {
+            reimbursements += value;
+          }
+          // FundTransfer não ocorre aqui (tipo Transfer já foi pulado)
+        }
+      } else if (kind === "Expenses" || kind === "Refunded Expenses") {
+        // Expenses → AmazonFees → cada tarifa nomeada (nível certo p/ detalhar).
+        for (const feesNode of top.breakdowns ?? []) {
+          for (const fee of feesNode.breakdowns ?? []) {
+            const magnitude = -amountOf(fee); // tarifas vêm negativas → positivo
+            fees += magnitude;
+            feeMap.set(fee.breakdownType ?? "Outra", (feeMap.get(fee.breakdownType ?? "Outra") ?? 0) + magnitude);
+          }
+        }
       }
     }
   }
@@ -291,14 +257,14 @@ function computeFinanceFromTransactions(rawTransactions: ApiTransaction[]): Fina
     currency,
     revenue: round(revenue),
     fees: round(fees),
-    promotions: round(promotions),
     refunds: round(refunds),
+    reimbursements: round(reimbursements),
     netProceeds: round(netProceeds),
     orderCount: orders.size,
     feeBreakdown: [...feeMap.entries()]
       .map(([type, amount]) => ({ type, amount: round(amount) }))
+      .filter((entry) => Math.abs(entry.amount) >= 0.01)
       .sort((a, b) => b.amount - a.amount),
-    itemLines: [...itemLineMap.values()],
     source: "transactions-2024-06-19",
   };
 }
