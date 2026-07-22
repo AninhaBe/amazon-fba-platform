@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { readJson } from "../../lib/readJson";
 
 interface Acct {
   sellerId: string;
@@ -30,7 +31,7 @@ export function AccountSwitcher() {
   async function load() {
     try {
       const res = await fetch("/api/auth/accounts");
-      const data = await res.json();
+      const data = await readJson(res);
       if (!res.ok) throw new Error(data.error || "Erro ao carregar contas.");
       setInfo(data);
     } catch (err) {
@@ -52,7 +53,7 @@ export function AccountSwitcher() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sellerId }),
       });
-      const data = await res.json();
+      const data = await readJson(res);
       if (!res.ok) throw new Error(data.error || "Erro ao trocar de conta.");
       window.location.reload();
     } catch (err) {
@@ -70,7 +71,7 @@ export function AccountSwitcher() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sellerId, name: draft }),
       });
-      const data = await res.json();
+      const data = await readJson(res);
       if (!res.ok) throw new Error(data.error || "Erro ao renomear conta.");
       setEditing(false);
       await load();

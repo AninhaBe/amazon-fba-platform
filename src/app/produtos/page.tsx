@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { PageHeader, pageIcons } from "../components/PageHeader";
 import { TableLoading } from "../components/LoadingState";
 import { EmptyState } from "../components/EmptyState";
+import { readJson } from "../../lib/readJson";
 
 interface Product {
   id: string;
@@ -41,7 +42,7 @@ export default function ProdutosPage() {
     setError(null);
     try {
       const res = await fetch("/api/products");
-      const data = await res.json();
+      const data = await readJson(res);
       if (!res.ok) throw new Error(data.error || "Erro ao carregar produtos.");
       setProducts(data.products);
       setDraftCosts(Object.fromEntries(data.products.map((p: Product) => [p.id, p.cost == null ? "" : String(p.cost)])));
@@ -67,7 +68,7 @@ export default function ProdutosPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: p.id, sku: p.sku, asin: p.asin, title: p.title, imageUrl: p.imageUrl, cost }),
       });
-      const data = await res.json();
+      const data = await readJson(res);
       if (!res.ok) throw new Error(data.error || "Erro ao salvar custo.");
       setSaveState((prev) => ({ ...prev, [p.id]: "saved" }));
     } catch {
@@ -86,7 +87,7 @@ export default function ProdutosPage() {
     try {
       // Busca título/imagem no catálogo (reusa /api/price)
       const infoRes = await fetch(`/api/price?asin=${encodeURIComponent(asin)}`);
-      const info = await infoRes.json();
+      const info = await readJson(infoRes);
       if (!infoRes.ok) throw new Error(info.error || "ASIN não encontrado.");
       const title = info?.info?.title;
       const imageUrl = info?.info?.imageUrl;
@@ -95,7 +96,7 @@ export default function ProdutosPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: asin, asin, title, imageUrl, cost: 0 }),
       });
-      const saved = await saveRes.json();
+      const saved = await readJson(saveRes);
       if (!saveRes.ok) throw new Error(saved.error || "Erro ao adicionar produto.");
       setNewAsin("");
       await load();
@@ -112,7 +113,7 @@ export default function ProdutosPage() {
     setProducts((prev) => prev.filter((x) => x.id !== p.id));
     try {
       const res = await fetch(`/api/costs?id=${encodeURIComponent(p.id)}`, { method: "DELETE" });
-      const data = await res.json();
+      const data = await readJson(res);
       if (!res.ok) throw new Error(data.error || "Erro ao remover produto.");
     } catch (err) {
       setProducts(previous);

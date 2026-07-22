@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { PageHeader, pageIcons } from "../components/PageHeader";
 import { TableLoading } from "../components/LoadingState";
 import { EmptyState } from "../components/EmptyState";
+import { readJson } from "../../lib/readJson";
 
 type StockStatus = "out" | "critical" | "low" | "ok" | "overstock" | "idle";
 
@@ -43,7 +44,7 @@ export default function EstoquePage() {
     setError(null);
     try {
       const res = await fetch(`/api/radar?days=${d}`);
-      const data = await res.json();
+      const data = await readJson(res);
       if (!res.ok) throw new Error(data.error || "Erro ao carregar o radar.");
       setRows(data.rows);
     } catch (err) {

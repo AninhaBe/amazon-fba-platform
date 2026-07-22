@@ -6,6 +6,7 @@ import { PanelLoading } from "../components/LoadingState";
 import { OrderProfitabilityTable } from "../components/OrderProfitabilityTable";
 import { DashboardPeriodFilter, useDashboardPeriod } from "../components/DashboardPeriodFilter";
 import type { ProfitabilityLine } from "@/lib/profitability";
+import { readJson } from "@/lib/readJson";
 
 interface Metrics {
   totalOrders: number;
@@ -94,7 +95,7 @@ export default function MonitorPage() {
     setProfitabilityError(null);
     // Pedidos e lucro (financeiro + custos) em paralelo; um não derruba o outro.
     const ordersReq = fetch(`/api/orders?${periodQuery}`)
-      .then((r) => r.json().then((data) => ({ ok: r.ok, data })))
+      .then((r) => readJson(r).then((data) => ({ ok: r.ok, data })))
       .then(({ ok, data }) => {
         if (!ok) throw new Error(data.error || "Erro ao carregar pedidos.");
         setMetrics(data.metrics);
@@ -102,7 +103,7 @@ export default function MonitorPage() {
       .catch((err) => setError(err instanceof Error ? err.message : "Erro desconhecido."));
 
     const profitReq = fetch(`/api/profit?${periodQuery}`)
-      .then((r) => r.json().then((data) => ({ ok: r.ok, data })))
+      .then((r) => readJson(r).then((data) => ({ ok: r.ok, data })))
       .then(({ ok, data }) => {
         if (!ok) throw new Error(data.error || "Erro ao carregar financeiro.");
         setProfit(data.summary);
@@ -113,7 +114,7 @@ export default function MonitorPage() {
       );
 
     const transactionsReq = fetch(`/api/transactions?${periodQuery}`)
-      .then((r) => r.json().then((data) => ({ ok: r.ok, data })))
+      .then((r) => readJson(r).then((data) => ({ ok: r.ok, data })))
       .then(({ ok, data }) => {
         if (!ok) throw new Error(data.error || "Erro ao carregar transações.");
         setTransactions(data.summary);
@@ -123,7 +124,7 @@ export default function MonitorPage() {
       );
 
     const profitabilityReq = fetch(`/api/order-profitability?${periodQuery}`)
-      .then((r) => r.json().then((data) => ({ ok: r.ok, data })))
+      .then((r) => readJson(r).then((data) => ({ ok: r.ok, data })))
       .then(({ ok, data }) => {
         if (!ok) throw new Error(data.error || "Não foi possível calcular as vendas.");
         setProfitabilityLines(data.lines);

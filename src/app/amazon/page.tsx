@@ -11,6 +11,7 @@ import { OperationPending, type OperationPendingItem } from "../components/Opera
 import { Metric as Kpi, getRevenueTrend } from "../components/Metric";
 import { AnimatedNumber } from "../components/AnimatedNumber";
 import { Boxes, ChartSpline, PackageOpen, Percent, ShoppingCart, Tag } from "lucide-react";
+import { readJson } from "../../lib/readJson";
 
 function money(v: number, currency = "BRL") {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(v);
@@ -116,7 +117,7 @@ export default function Dashboard() {
     const errs: string[] = [];
     const safe = <T,>(url: string, set: (v: T) => void, pick: (d: unknown) => T, name: string) =>
       fetch(url)
-        .then((r) => r.json().then((d) => ({ ok: r.ok, d })))
+        .then((r) => readJson(r).then((d) => ({ ok: r.ok, d })))
         .then(({ ok, d }) => {
           if (!ok) throw new Error((d as { error?: string })?.error || name);
           if (active) set(pick(d));
@@ -501,7 +502,7 @@ function AmazonPending({ products, productsLoading, missingCosts }: { products: 
   useEffect(() => {
     const timer = window.setTimeout(() => {
       void fetch("/api/auth/accounts")
-        .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
+        .then((res) => readJson(res).then((data) => ({ ok: res.ok, data })))
         .then(({ ok, data }) => setConnection(ok && (data.hasOwnerToken || data.accounts?.length > 0) ? "connected" : "missing"))
         .catch(() => setConnection("missing"));
     }, 0);

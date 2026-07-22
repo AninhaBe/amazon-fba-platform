@@ -5,6 +5,7 @@ import Link from "next/link";
 import { PageHeader, pageIcons } from "../components/PageHeader";
 import { TableLoading } from "../components/LoadingState";
 import { EmptyState } from "../components/EmptyState";
+import { readJson } from "../../lib/readJson";
 
 interface ProductResult {
   asin: string;
@@ -70,7 +71,7 @@ export default function PesquisaPage() {
     setSearched(true);
     try {
       const res = await fetch(`/api/search?q=${encodeURIComponent(query.trim())}`);
-      const data = await res.json();
+      const data = await readJson(res);
       if (!res.ok) throw new Error(data.error || "Erro na busca.");
       setItems(data.items);
       setTotal(data.total);
@@ -95,7 +96,7 @@ export default function PesquisaPage() {
     setLoading(true);
     try {
       const res = await fetch(`/api/search?q=${encodeURIComponent(q.trim())}&pageToken=${encodeURIComponent(nextToken)}`);
-      const data = await res.json();
+      const data = await readJson(res);
       if (res.ok) {
         setItems((prev) => [...prev, ...data.items]);
         setNextToken(data.nextToken);

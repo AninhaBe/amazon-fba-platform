@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { PageHeader, pageIcons } from "../components/PageHeader";
+import { readJson } from "../../lib/readJson";
 
 interface ModeFees {
   totalFees: number;
@@ -74,7 +75,7 @@ export default function CalculatorPage() {
     setLastFetchedAsin(target);
     try {
       const res = await fetch(`/api/price?asin=${encodeURIComponent(target)}`);
-      const data = await res.json();
+      const data = await readJson(res);
       if (!res.ok) throw new Error(data.error || "Erro ao buscar preço.");
       setPrice(String(data.price.listingPrice));
       if (data.info?.estimatedStorageFee != null) setStorage(String(data.info.estimatedStorageFee));
@@ -116,7 +117,7 @@ export default function CalculatorPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ asin, price: num(price) }),
       });
-      const data = await res.json();
+      const data = await readJson(res);
       if (!res.ok) throw new Error(data.error || "Erro ao calcular.");
       setResult(data);
     } catch (err) {
