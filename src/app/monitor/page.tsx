@@ -174,7 +174,7 @@ export default function MonitorPage() {
       <div className="space-y-3">
         <div className="flex items-baseline justify-between">
           <h2 className="text-lg font-semibold">Financeiro realizado</h2>
-          <span className="text-xs text-slate-400">repasses efetivos · dados conciliados</span>
+          <span className="text-xs text-slate-400">repasses da Amazon · base de postagem (difere do faturamento)</span>
         </div>
 
         {financeError ? (
@@ -190,7 +190,7 @@ export default function MonitorPage() {
         ) : finance ? (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <div className="grid grid-cols-2 gap-4 lg:col-span-2">
-              <Stat label="Receita (vendas)" value={money(finance.revenue, finance.currency)} />
+              <Stat label="Receita conciliada" value={money(finance.revenue, finance.currency)} />
               <Stat
                 label="Taxas efetivas"
                 value={`- ${money(finance.fees, finance.currency)}`}

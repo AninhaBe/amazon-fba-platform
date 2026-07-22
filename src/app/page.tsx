@@ -10,7 +10,8 @@ import { RevenueChart, type DailyPoint } from "./components/RevenueChart";
 
 interface ProviderConnection { id: string; }
 interface Provider { id: string; name: string; configured: boolean; connections: ProviderConnection[]; }
-interface AmazonProfit { estimatedProfit: number; unitsWithoutCost: number; finance: { revenue: number; currency: string; orderCount: number; daily?: DailyPoint[]; }; }
+interface AmazonProfit { estimatedProfit: number; unitsWithoutCost: number; finance: { currency: string; }; }
+interface AmazonSales { series: { totalRevenue: number; totalOrders: number; currency: string; points?: DailyPoint[]; }; }
 interface MercadoLivreOverview { metrics: { revenue30d: number; orders30d: number; activeListings: number; currency: string; revenueCoverage: { complete: boolean; capturedOrders: number; totalOrders: number; }; }; profit: { estimatedProfit: number; unitsWithoutCost: number; coverage: { processedOrders: number; paidOrders: number; complete: boolean; }; }; dailySales?: DailyPoint[]; }
 
 // Soma as séries diárias dos canais numa linha só — a visão que só a central
@@ -75,14 +76,14 @@ export default function OverviewDashboard() {
 
         const tasks: Promise<void>[] = [];
         const channelSeries: Array<DailyPoint[] | undefined> = [];
-        if (amazon.connected) tasks.push(json<{ summary: AmazonProfit }>("/api/profit?days=30").then(({ summary }) => {
-          channelSeries.push(summary.finance.daily);
-          amazon.revenue = summary.finance.revenue;
-          amazon.profit = summary.unitsWithoutCost > 0 ? null : summary.estimatedProfit;
-          amazon.orders = summary.finance.orderCount;
-          amazon.currency = summary.finance.currency;
-          amazon.note = summary.unitsWithoutCost > 0
-            ? `Lucro indisponível: ${summary.unitsWithoutCost} unidade(s) sem custo cadastrado`
+        if (amazon.connected) tasks.push(Promise.all([json<{ summary: AmazonProfit }>("/api/profit?days=30"), json<AmazonSales>("/api/sales?days=30")]).then(([profit, sales]) => {
+          channelSeries.push(sales.series.points);
+          amazon.revenue = sales.series.totalRevenue; // data do pedido = Seller Central
+          amazon.profit = profit.summary.unitsWithoutCost > 0 ? null : profit.summary.estimatedProfit;
+          amazon.orders = sales.series.totalOrders;
+          amazon.currency = sales.series.currency || profit.summary.finance.currency;
+          amazon.note = profit.summary.unitsWithoutCost > 0
+            ? `Lucro indisponível: ${profit.summary.unitsWithoutCost} unidade(s) sem custo cadastrado`
             : "Faturamento, pedidos e lucro estimado";
         }).catch((error) => { amazon.error = error instanceof Error ? error.message : "Dados indisponíveis"; }));
         if (mercadoLivre.connected) tasks.push(json<{ overview: MercadoLivreOverview }>("/api/integrations/mercado-livre/overview").then(({ overview }) => {

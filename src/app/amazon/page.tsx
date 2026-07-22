@@ -46,6 +46,17 @@ interface ProductRow {
   id: string;
   cost: number | null;
 }
+// Faturamento e vendas vêm da Sales API (orderMetrics, data do pedido) para
+// BATER com o "Vendas brutas" do Seller Central. O lado financeiro (taxas,
+// repasse, lucro) vem das transações — base diferente, como as abas Vendas e
+// Pagamentos do próprio Seller Central.
+interface SalesSeries {
+  currency: string;
+  points: DailyPoint[];
+  totalRevenue: number;
+  totalOrders: number;
+  totalUnits: number;
+}
 interface TopProduct {
   sku: string;
   title?: string;
@@ -59,6 +70,7 @@ interface DashSnapshot {
   orders: OrdersData | null;
   profit: ProfitData | null;
   radar: RadarRow[];
+  sales: SalesSeries | null;
   top: TopProduct[];
   updatedAt: Date;
 }
@@ -76,6 +88,7 @@ export default function Dashboard() {
   const [profit, setProfit] = useState<ProfitData | null>(initialDash?.profit ?? null);
   const [radar, setRadar] = useState<RadarRow[]>(initialDash?.radar ?? []);
   const [products, setProducts] = useState<ProductRow[]>(productsCache ?? []);
+  const [sales, setSales] = useState<SalesSeries | null>(initialDash?.sales ?? null);
   const [top, setTop] = useState<TopProduct[]>(initialDash?.top ?? []);
   const [productsLoading, setProductsLoading] = useState(!productsCache);
   const [errors, setErrors] = useState<string[]>([]);
@@ -92,6 +105,7 @@ export default function Dashboard() {
         setOrders(cached.orders);
         setProfit(cached.profit);
         setRadar(cached.radar);
+        setSales(cached.sales);
         setTop(cached.top);
         setUpdatedAt(cached.updatedAt);
         setLoading(false);
@@ -103,6 +117,7 @@ export default function Dashboard() {
       orders: cached?.orders ?? null,
       profit: cached?.profit ?? null,
       radar: cached?.radar ?? [],
+      sales: cached?.sales ?? null,
       top: cached?.top ?? [],
     };
     const store = () => dashCache.set(periodQuery, { ...next, updatedAt: new Date() });
@@ -121,6 +136,7 @@ export default function Dashboard() {
       safe<OrdersData>(`/api/orders?${periodQuery}`, (v) => { next.orders = v; setOrders(v); }, (d) => d as OrdersData, "pedidos"),
       safe<ProfitData>(`/api/profit?${periodQuery}`, (v) => { next.profit = v; setProfit(v); }, (d) => (d as { summary: ProfitData }).summary, "financeiro"),
       safe<RadarRow[]>(`/api/radar?${periodQuery}`, (v) => { next.radar = v; setRadar(v); }, (d) => (d as { rows: RadarRow[] }).rows, "estoque"),
+      safe<SalesSeries>(`/api/sales?${periodQuery}`, (v) => { next.sales = v; setSales(v); }, (d) => (d as { series: SalesSeries }).series, "vendas"),
     ]).then(() => {
       if (active) {
         setErrors(errs);
@@ -145,11 +161,10 @@ export default function Dashboard() {
   const currency = profit?.finance.currency || orders?.metrics.currency || "BRL";
   const critical = radar.filter((r) => r.status === "critical" || r.status === "out");
   const noCost = products.filter((p) => p.cost == null || p.cost === 0).length;
-  // Faturamento, vendas e unidades vêm todos das transações (mesma fonte do
-  // lucro), então receita e lucro reconciliam sempre.
-  const revenue = profit?.finance.revenue ?? 0;
-  const salesCount = profit?.finance.orderCount ?? 0;
-  const unitsCount = profit?.finance.units ?? 0;
+  // Faturamento/vendas/unidades pela Sales API (data do pedido) = Seller Central.
+  const revenue = sales?.totalRevenue ?? orders?.metrics.totalRevenue ?? 0;
+  const salesCount = sales?.totalOrders ?? orders?.metrics.totalOrders ?? 0;
+  const unitsCount = sales?.totalUnits ?? 0;
   const estProfit = profit?.estimatedProfit ?? 0;
   const cogs = profit?.cogs ?? 0;
   const missingCostUnits = profit?.unitsWithoutCost ?? 0;
@@ -157,7 +172,7 @@ export default function Dashboard() {
   const marginPct = revenue > 0 ? (estProfit / revenue) * 100 : 0;
   const ticketMedio = salesCount > 0 ? revenue / salesCount : 0;
   const roiPct = cogs > 0 ? (estProfit / cogs) * 100 : 0;
-  const revenueTrend = getRevenueTrend(profit?.finance.daily ?? []);
+  const revenueTrend = getRevenueTrend(sales?.points ?? []);
 
   return (
     <div className="dashboard-page space-y-8">
@@ -241,21 +256,21 @@ export default function Dashboard() {
           {loading ? (
             <span className="skeleton-chart" role="status" aria-label="Carregando evolução do faturamento" />
           ) : (
-            <RevenueChart points={profit?.finance.daily ?? []} />
+            <RevenueChart points={sales?.points ?? []} />
           )}
         </div>
 
-        <aside className="financial-composition" aria-label="Composição do resultado financeiro">
+        <aside className="financial-composition" aria-label="Financeiro conciliado do período">
           <div>
-            <p className="section-kicker">Composição financeira</p>
-            <h2 className="mt-1 text-lg font-semibold text-slate-900">Do faturamento ao lucro</h2>
-            <p className="mt-1 text-xs leading-relaxed text-slate-400">Valores efetivamente identificados no período.</p>
+            <p className="section-kicker">Financeiro conciliado</p>
+            <h2 className="mt-1 text-lg font-semibold text-slate-900">Repasses, taxas e {costsIncomplete ? "resultado" : "lucro"}</h2>
+            <p className="mt-1 text-xs leading-relaxed text-slate-400">Base dos repasses da Amazon (data de postagem) — difere do faturamento acima, que segue a data do pedido como o Seller Central.</p>
           </div>
           <div className="financial-lines">
-            <Flow label="Receita real" value={loading ? "…" : money(profit?.finance.revenue ?? 0, currency)} />
+            <Flow label="Receita conciliada" value={loading ? "…" : money(profit?.finance.revenue ?? 0, currency)} />
             <Flow label="Taxas Amazon" value={loading ? "…" : money(profit?.finance.fees ?? 0, currency)} muted sign="−" />
             <Flow label="Custo dos produtos" value={loading ? "…" : money(profit?.cogs ?? 0, currency)} muted sign="−" />
-            <Flow label="Lucro estimado" value={loading ? "…" : money(profit?.estimatedProfit ?? 0, currency)} accent sign="=" />
+            <Flow label={costsIncomplete ? "Repasse líquido" : "Lucro estimado"} value={loading ? "…" : money(profit?.estimatedProfit ?? 0, currency)} accent sign="=" />
           </div>
         </aside>
       </section>
