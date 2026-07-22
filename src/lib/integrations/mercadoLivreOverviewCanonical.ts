@@ -22,6 +22,9 @@ import type { IntegrationConnection } from "./types";
 const PROVIDER = "mercado_livre";
 const DETAILED_ORDER_LIMIT = 1_000;
 const REVENUE_STATUSES = ["paid", "shipped", "delivered"];
+// "Vendas brutas" do painel do ML = aprovadas + canceladas, só produto (sem
+// frete). Confirmado ao centavo contra o Mercado Livre e o Mercado Turbo.
+const GROSS_STATUSES = ["paid", "shipped", "delivered", "cancelled"];
 const COVERAGE_TOLERANCE_MS = 15 * 60_000;
 
 export type MercadoLivreOverview = Awaited<ReturnType<typeof getMercadoLivreOverview>>;
@@ -102,15 +105,15 @@ export async function getMercadoLivreOverviewFromCanonical(
     dbQuery<TotalsRow>(
       `SELECT COUNT(*)::int AS total_orders,
               COUNT(*) FILTER (WHERE status = ANY($6::text[]))::int AS paid_orders,
-              -- Faturamento = produto + frete do comprador, para bater com o
-              -- "Vendas brutas" do painel do Mercado Livre.
-              SUM(gross + COALESCE(buyer_shipping, 0)) FILTER (WHERE status = ANY($6::text[])) AS paid_revenue,
+              -- Faturamento = "Vendas brutas" do painel do ML = aprovadas +
+              -- canceladas, só produto (sem frete).
+              SUM(gross) FILTER (WHERE status = ANY($7::text[])) AS paid_revenue,
               MAX(occurred_at) FILTER (WHERE status = ANY($6::text[])) AS last_sale_at,
               MAX(currency) AS currency
          FROM workspace_channel_orders
         WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
           AND occurred_at >= $4 AND occurred_at <= $5`,
-      [...scopeParams(connection.id, period), REVENUE_STATUSES]
+      [...scopeParams(connection.id, period), REVENUE_STATUSES, GROSS_STATUSES]
     ),
   ]);
   const syncRow = syncRows[0];
@@ -120,7 +123,7 @@ export async function getMercadoLivreOverviewFromCanonical(
   const [dailyRows, recentRows, productTotalsRows, lineRows, productRows, costs] = await Promise.all([
     dbQuery<DailyRow>(
       `SELECT to_char(o.occurred_at AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD') AS date,
-              SUM(o.gross + COALESCE(o.buyer_shipping, 0)) AS revenue,
+              SUM(o.gross) AS revenue,
               COUNT(*)::int AS orders,
               COALESCE(SUM(u.units), 0)::int AS units
          FROM workspace_channel_orders o
@@ -132,7 +135,7 @@ export async function getMercadoLivreOverviewFromCanonical(
         WHERE o.workspace_id = $1 AND o.provider = $2 AND o.connection_id = $3
           AND o.occurred_at >= $4 AND o.occurred_at <= $5 AND o.status = ANY($6::text[])
         GROUP BY 1`,
-      [...scopeParams(connection.id, period), REVENUE_STATUSES]
+      [...scopeParams(connection.id, period), GROSS_STATUSES]
     ),
     dbQuery<RecentRow>(
       `SELECT o.external_order_id, o.pack_id, o.provider_status, o.occurred_at, o.gross, o.currency,
