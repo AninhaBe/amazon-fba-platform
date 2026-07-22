@@ -18,7 +18,7 @@ import type { ProfitabilityLine } from "@/lib/profitability";
 interface Overview {
   account: { id: string; nickname: string; siteId: string; };
   period: { from: string; to: string; label: string; };
-  metrics: { activeListings: number; productsWithoutCost: number; orders30d: number; paidOrders: number; revenue30d: number; lastSaleAt: string | null; currency: string; revenueCoverage: { capturedOrders: number; totalOrders: number; complete: boolean; }; };
+  metrics: { activeListings: number; productsWithoutCost: number; orders30d: number; paidOrders: number; revenue30d: number; approvedRevenue: number; cancelledRevenue: number; cancelledOrders: number; lastSaleAt: string | null; currency: string; revenueCoverage: { capturedOrders: number; totalOrders: number; complete: boolean; }; };
   profit: { fees: number; cogs: number; taxes: number; taxRate: number; sellerShipping: number; buyerShipping: number; shippingCostsComplete: boolean; revenueProcessed: number; coverage: { processedOrders: number; paidOrders: number; complete: boolean; }; estimatedProfit: number; marginPct: number; unitsWithoutCost: number; };
   dailySales: DailyPoint[];
   topProducts: Array<{ id: string; sku: string | null; title: string; units: number; revenue: number; cost: number; contribution: number; complete: boolean; marginPct: number | null; }>;
@@ -201,7 +201,7 @@ function Dashboard({ overview, updatedAt }: { overview: Overview; updatedAt: Dat
     <OperationPending items={overview.metrics.productsWithoutCost > 0 ? [{ label: `Cadastrar custo de ${overview.metrics.productsWithoutCost} produto(s)`, href: "/mercado-livre/produtos" }] : []} />
 
     <section className="metric-grid grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-4" aria-label="Indicadores Mercado Livre">
-      <Metric label="Faturamento" value={<AnimatedNumber value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={coverage.complete ? `${overview.metrics.paidOrders} vendas no período` : `${coverage.capturedOrders} pedidos capturados; histórico em andamento`} trend={getRevenueTrend(overview.dailySales)} />
+      <Metric label="Vendas brutas" value={<AnimatedNumber value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={coverage.complete ? `${overview.metrics.paidOrders} aprovadas + ${overview.metrics.cancelledOrders} canceladas` : `${coverage.capturedOrders} pedidos capturados; histórico em andamento`} trend={getRevenueTrend(overview.dailySales)} />
       <div className="metric-cell metric-primary relative overflow-hidden p-5">
         <div className="flex items-start justify-between gap-2"><p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">{costsIncomplete ? "Margem antes do custo" : profitCoverage.complete ? "Lucro estimado" : "Lucro processado"}</p><span className="metric-icon">{dashboardKpiIcons.percent}</span></div>
         <p className="mt-2 text-[27px] font-bold leading-none tabular-nums text-emerald-800"><AnimatedNumber value={overview.profit.estimatedProfit} format={(amount) => money(amount, overview.metrics.currency)} /></p>
@@ -218,7 +218,8 @@ function Dashboard({ overview, updatedAt }: { overview: Overview; updatedAt: Dat
           <span className="text-sm font-semibold tabular-nums text-slate-900">{money(overview.metrics.revenue30d, overview.metrics.currency)} <span className="font-normal text-slate-400">no período</span></span>
         </div>
         <div className="chart-inline-stats" aria-label="Indicadores complementares">
-          <span><small>Vendas</small><strong>{overview.metrics.paidOrders.toLocaleString("pt-BR")}</strong></span>
+          <span><small>Aprovadas</small><strong>{money(overview.metrics.approvedRevenue, overview.metrics.currency)}</strong></span>
+          <span><small>Canceladas</small><strong className={overview.metrics.cancelledRevenue > 0 ? "text-red-600" : undefined}>{money(overview.metrics.cancelledRevenue, overview.metrics.currency)}</strong></span>
           <span><small>Unidades</small><strong>{units.toLocaleString("pt-BR")}</strong></span>
           <span><small>Ticket médio</small><strong>{money(ticket, overview.metrics.currency)}</strong></span>
           <span><small>ROI</small><strong>{roi == null ? "—" : `${roi.toFixed(1)}%`}</strong></span>

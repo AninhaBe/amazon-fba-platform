@@ -42,6 +42,9 @@ interface TotalsRow {
   total_orders: number;
   paid_orders: number;
   paid_revenue: string | null;
+  approved_revenue: string | null;
+  cancelled_revenue: string | null;
+  cancelled_orders: number;
   currency: string | null;
   last_sale_at: Date | string | null;
 }
@@ -108,6 +111,9 @@ export async function getMercadoLivreOverviewFromCanonical(
               -- Faturamento = "Vendas brutas" do painel do ML = aprovadas +
               -- canceladas, só produto (sem frete).
               SUM(gross) FILTER (WHERE status = ANY($7::text[])) AS paid_revenue,
+              SUM(gross) FILTER (WHERE status = ANY($6::text[])) AS approved_revenue,
+              SUM(gross) FILTER (WHERE status = 'cancelled') AS cancelled_revenue,
+              COUNT(*) FILTER (WHERE status = 'cancelled')::int AS cancelled_orders,
               MAX(occurred_at) FILTER (WHERE status = ANY($6::text[])) AS last_sale_at,
               MAX(currency) AS currency
          FROM workspace_channel_orders
@@ -365,6 +371,9 @@ export async function getMercadoLivreOverviewFromCanonical(
       orders30d: totals.total_orders,
       paidOrders: totals.paid_orders,
       revenue30d: revenue,
+      approvedRevenue: Number(totals.approved_revenue ?? 0),
+      cancelledRevenue: Number(totals.cancelled_revenue ?? 0),
+      cancelledOrders: totals.cancelled_orders,
       lastSaleAt: totals.last_sale_at ? new Date(totals.last_sale_at).toISOString() : null,
       currency,
       revenueCoverage: { capturedOrders: totals.total_orders, totalOrders: totals.total_orders, complete: periodCovered },
