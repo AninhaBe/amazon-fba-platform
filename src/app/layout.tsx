@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
-import { Geist } from "next/font/google";
+import { Inter } from "next/font/google";
 import { AppShell } from "./components/AppShell";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Inter variável: desenhada para UI densa de números — excelente legibilidade
+// em tamanhos pequenos e tabular figures de qualidade para os KPIs.
+const interSans = Inter({
+  variable: "--font-app-sans",
   subsets: ["latin"],
 });
 
@@ -15,7 +17,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="pt-BR" data-scroll-behavior="smooth" className={`${geistSans.variable} h-full antialiased`} suppressHydrationWarning>
+    <html lang="pt-BR" data-scroll-behavior="smooth" className={`${interSans.variable} h-full antialiased`} suppressHydrationWarning>
       <body className="min-h-full text-slate-900" suppressHydrationWarning>
         <a href="#main-content" className="skip-link">
           Pular para o conteúdo

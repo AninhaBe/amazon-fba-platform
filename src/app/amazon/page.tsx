@@ -9,6 +9,7 @@ import { EmptyState } from "../components/EmptyState";
 import { DashboardPeriodFilter, useDashboardPeriod } from "../components/DashboardPeriodFilter";
 import { OperationPending, type OperationPendingItem } from "../components/OperationPending";
 import { Metric as Kpi, getRevenueTrend } from "../components/Metric";
+import { Boxes, ChartSpline, PackageOpen, Percent, ShoppingCart, Tag } from "lucide-react";
 
 function money(v: number, currency = "BRL") {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(v);
@@ -378,40 +379,14 @@ export default function Dashboard() {
 }
 
 
+const kpiIconProps = { className: "h-5 w-5", strokeWidth: 1.7, "aria-hidden": true } as const;
 const kpiIcons = {
-  revenue: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-5 w-5">
-      <path d="M4 19V5M4 19h16M8 15l3-4 3 2 4-6" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  ),
-  stock: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-5 w-5">
-      <path d="M20 7 12 3 4 7v10l8 4 8-4V7Z" strokeLinejoin="round" />
-      <path d="m4 7 8 4 8-4M12 11v10" strokeLinejoin="round" />
-    </svg>
-  ),
-  tag: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-5 w-5">
-      <path d="M20.6 13.4 12 22l-9-9V4h9l8.6 8.6a1.4 1.4 0 0 1 0 2Z" strokeLinejoin="round" />
-      <circle cx="7.5" cy="7.5" r="1.2" fill="currentColor" stroke="none" />
-    </svg>
-  ),
-  cart: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-5 w-5">
-      <path d="M3 4h2l2.4 12.4A2 2 0 0 0 9.4 18h8.5a2 2 0 0 0 2-1.6L21 8H6" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="10" cy="21" r="1" /><circle cx="18" cy="21" r="1" />
-    </svg>
-  ),
-  box: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-5 w-5">
-      <rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 9h18M9 4v5" strokeLinecap="round" />
-    </svg>
-  ),
-  percent: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-5 w-5">
-      <path d="M19 5 5 19" strokeLinecap="round" /><circle cx="7.5" cy="7.5" r="2.2" /><circle cx="16.5" cy="16.5" r="2.2" />
-    </svg>
-  ),
+  revenue: <ChartSpline {...kpiIconProps} />,
+  stock: <Boxes {...kpiIconProps} />,
+  tag: <Tag {...kpiIconProps} />,
+  cart: <ShoppingCart {...kpiIconProps} />,
+  box: <PackageOpen {...kpiIconProps} />,
+  percent: <Percent {...kpiIconProps} />,
 };
 
 function CompactMetric({ label, value, loading }: { label: string; value: string; loading?: boolean }) {

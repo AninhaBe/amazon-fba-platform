@@ -11,6 +11,7 @@ import { DashboardPeriodFilter, useDashboardPeriod } from "./DashboardPeriodFilt
 import { OrderProfitabilityTable } from "./OrderProfitabilityTable";
 import { OperationPending } from "./OperationPending";
 import { Flow, Metric, getRevenueTrend } from "./Metric";
+import { Boxes, PackageOpen, Percent } from "lucide-react";
 import type { ProfitabilityLine } from "@/lib/profitability";
 
 interface Overview {
@@ -260,10 +261,11 @@ function Dashboard({ overview, updatedAt }: { overview: Overview; updatedAt: Dat
   </div>;
 }
 
+const kpiIconProps = { className: "h-5 w-5", strokeWidth: 1.7, "aria-hidden": true } as const;
 const dashboardKpiIcons = {
-  stock: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-5 w-5"><path d="M20 7 12 3 4 7v10l8 4 8-4V7Z" strokeLinejoin="round" /><path d="m4 7 8 4 8-4M12 11v10" strokeLinejoin="round" /></svg>,
-  box: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-5 w-5"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 9h18M9 4v5" strokeLinecap="round" /></svg>,
-  percent: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-5 w-5"><path d="M19 5 5 19" strokeLinecap="round" /><circle cx="7.5" cy="7.5" r="2.2" /><circle cx="16.5" cy="16.5" r="2.2" /></svg>,
+  stock: <Boxes {...kpiIconProps} />,
+  box: <PackageOpen {...kpiIconProps} />,
+  percent: <Percent {...kpiIconProps} />,
 };
 
 function Panel({ title, href, linkLabel, children }: { title: string; href: string; linkLabel: string; children: React.ReactNode }) {

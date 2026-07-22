@@ -2,6 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import {
+  Cable,
+  Calculator,
+  ChartColumn,
+  LayoutDashboard,
+  Package,
+  Search,
+  Tag,
+  TrendingUp,
+} from "lucide-react";
 import { workspaceFromPath, type WorkspaceId } from "@/lib/integrations/workspaces";
 
 interface NavItem {
@@ -12,15 +22,16 @@ interface NavItem {
   exact?: boolean;
 }
 
+const iconProps = { className: "h-5 w-5", strokeWidth: 1.8, "aria-hidden": true } as const;
 const icons = {
-  dashboard: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5"><rect x="3" y="3" width="8" height="9" rx="1.5" /><rect x="13" y="3" width="8" height="5" rx="1.5" /><rect x="13" y="10" width="8" height="11" rx="1.5" /><rect x="3" y="14" width="8" height="7" rx="1.5" /></svg>,
-  integrations: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5"><path d="M8 7V4m4 3V4M6 7h8v3a4 4 0 0 1-4 4v3" strokeLinecap="round" strokeLinejoin="round" /><path d="M10 17v3h8a2 2 0 0 0 2-2v-2" strokeLinecap="round" /><circle cx="20" cy="13" r="2" /></svg>,
-  calculator: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5"><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M8 7h8M8 11h2M12 11h4M8 15h2M12 15h4" strokeLinecap="round" /></svg>,
-  chart: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" strokeLinecap="round" /></svg>,
-  performance: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5"><path d="M4 19V9m5 10V5m5 14v-7m5 7V3" strokeLinecap="round" /><path d="m3 7 5-3 5 5 7-7" strokeLinecap="round" strokeLinejoin="round" /></svg>,
-  box: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5"><path d="M3 9l9-5 9 5-9 5-9-5Z" strokeLinejoin="round" /><path d="M3 9v6l9 5 9-5V9M12 14v6" strokeLinejoin="round" /></svg>,
-  search: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" strokeLinecap="round" /></svg>,
-  tag: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5"><path d="M20 13 13 20 4 11V4h7l9 9Z" strokeLinejoin="round" /><circle cx="8" cy="8" r="1.2" /></svg>,
+  dashboard: <LayoutDashboard {...iconProps} />,
+  integrations: <Cable {...iconProps} />,
+  calculator: <Calculator {...iconProps} />,
+  chart: <ChartColumn {...iconProps} />,
+  performance: <TrendingUp {...iconProps} />,
+  box: <Package {...iconProps} />,
+  search: <Search {...iconProps} />,
+  tag: <Tag {...iconProps} />,
 };
 
 const navigation: Record<WorkspaceId, NavItem[]> = {

@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme inline {
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-app-sans);
 }
 
 :root {
@@ -54,7 +54,7 @@ body {
     radial-gradient(circle at 76% -10%, oklch(0.94 0.025 246 / .5), transparent 30rem),
     var(--canvas);
   color: var(--ink);
-  font-family: var(--font-geist-sans), "Segoe UI", sans-serif;
+  font-family: var(--font-app-sans), "Segoe UI", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
