@@ -36,6 +36,7 @@ interface ChannelSnapshot {
   connected: boolean;
   revenue: number | null;
   profit: number | null;
+  profitPartial?: boolean;
   orders: number | null;
   currency: string;
   note: string;
@@ -79,17 +80,20 @@ export default function OverviewDashboard() {
         if (amazon.connected) tasks.push(Promise.all([json<{ summary: AmazonProfit }>("/api/profit?days=30"), json<AmazonSales>("/api/sales?days=30")]).then(([profit, sales]) => {
           channelSeries.push(sales.series.points);
           amazon.revenue = sales.series.totalRevenue; // data do pedido = Seller Central
-          amazon.profit = profit.summary.unitsWithoutCost > 0 ? null : profit.summary.estimatedProfit;
+          // Reflete os custos já cadastrados (não some enquanto faltam alguns).
+          amazon.profit = profit.summary.estimatedProfit;
+          amazon.profitPartial = profit.summary.unitsWithoutCost > 0;
           amazon.orders = sales.series.totalOrders;
           amazon.currency = sales.series.currency || profit.summary.finance.currency;
           amazon.note = profit.summary.unitsWithoutCost > 0
-            ? `Lucro indisponível: ${profit.summary.unitsWithoutCost} unidade(s) sem custo cadastrado`
+            ? `Lucro parcial: ${profit.summary.unitsWithoutCost} unidade(s) sem custo cadastrado`
             : "Faturamento, pedidos e lucro estimado";
         }).catch((error) => { amazon.error = error instanceof Error ? error.message : "Dados indisponíveis"; }));
         if (mercadoLivre.connected) tasks.push(json<{ overview: MercadoLivreOverview }>("/api/integrations/mercado-livre/overview").then(({ overview }) => {
           channelSeries.push(overview.dailySales);
           mercadoLivre.revenue = overview.metrics.revenue30d;
-          mercadoLivre.profit = overview.profit.coverage.complete ? overview.profit.estimatedProfit : null;
+          mercadoLivre.profit = overview.profit.estimatedProfit;
+          mercadoLivre.profitPartial = !overview.profit.coverage.complete || overview.profit.unitsWithoutCost > 0;
           mercadoLivre.orders = overview.metrics.orders30d;
           mercadoLivre.currency = overview.metrics.currency;
           mercadoLivre.note = overview.metrics.revenueCoverage.complete
@@ -158,7 +162,7 @@ export default function OverviewDashboard() {
                 {channel.connected ? <>
                   <div className="channel-value"><span>Faturamento</span><strong>{channel.error ? "Indisponível" : money(channel.revenue, channel.currency)}</strong></div>
                   <div className="channel-share" aria-label={`Participação relativa de ${channel.name}`}><i style={{ width: `${((channel.revenue ?? 0) / maxRevenue) * 100}%` }} /></div>
-                  <dl><div><dt>Pedidos</dt><dd>{channel.orders?.toLocaleString("pt-BR") ?? "—"}</dd></div><div><dt>Lucro</dt><dd>{money(channel.profit, channel.currency)}</dd></div></dl>
+                  <dl><div><dt>Pedidos</dt><dd>{channel.orders?.toLocaleString("pt-BR") ?? "—"}</dd></div><div><dt>{channel.profitPartial ? "Lucro parcial" : "Lucro"}</dt><dd>{money(channel.profit, channel.currency)}</dd></div></dl>
                   <p className="channel-note">{channel.error || channel.note}</p>
                 </> : <div className="channel-card-empty"><p>Conecte sua conta para incluir este canal no dashboard geral.</p></div>}
                 <Link href={channel.connected ? channel.href : "/integracoes"}>{channel.connected ? `Abrir ${channel.name}` : `Conectar ${channel.name}`} <span aria-hidden="true">→</span></Link>
