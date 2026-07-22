@@ -10,6 +10,17 @@ import {
   type MercadoLivreShipmentCosts,
 } from "./mercadoLivre";
 import { invalidateMercadoLivreOverviewSnapshots } from "./mercadoLivreOverviewCache";
+import {
+  canonicalShipmentCosts,
+  normalizeMercadoLivreOrder,
+  normalizeMercadoLivreProduct,
+} from "./mercadoLivreCanonical";
+import {
+  applyCanonicalShipmentCosts,
+  canonicalBestEffort,
+  saveCanonicalOrders,
+  saveCanonicalProducts,
+} from "./canonicalStore";
 
 const PROVIDER = "mercado_livre";
 const DAY = 86_400_000;
@@ -130,8 +141,9 @@ export async function requestMercadoLivreSync(connectionId: string): Promise<Mer
   return publicStatus(await getSyncRow(connectionId));
 }
 
-async function saveOrders(connectionId: string, orders: MercadoLivreOrder[]): Promise<void> {
+async function saveOrders(connection: IntegrationConnection, orders: MercadoLivreOrder[]): Promise<void> {
   if (!orders.length) return;
+  const connectionId = connection.id;
   const records = orders.map((order) => ({
     external_order_id: String(order.id),
     status: order.status,
@@ -150,6 +162,14 @@ async function saveOrders(connectionId: string, orders: MercadoLivreOrder[]): Pr
        payload = EXCLUDED.payload, synced_at = now()`,
     [currentWorkspaceId(), PROVIDER, connectionId, JSON.stringify(records)]
   );
+  // Gravação dupla durante a migração (docs/canonical-schema.md), best-effort:
+  // uma falha aqui não pode derrubar o sync que já salvou na tabela atual.
+  // O raw fica só na tabela legada; o frete entra depois, quando o shipment
+  // sincroniza — o COALESCE do store preserva o valor já conhecido.
+  await canonicalBestEffort("sync:orders", () => saveCanonicalOrders(
+    { provider: PROVIDER, connectionId, storeRaw: false },
+    orders.map((order) => normalizeMercadoLivreOrder(order, { sellerId: connection.externalAccountId }))
+  ));
 }
 
 async function syncProducts(connection: IntegrationConnection): Promise<void> {
@@ -171,6 +191,10 @@ async function syncProducts(connection: IntegrationConnection): Promise<void> {
          status = EXCLUDED.status, payload = EXCLUDED.payload, synced_at = now()`,
       [currentWorkspaceId(), PROVIDER, connection.id, JSON.stringify(records)]
     );
+    await canonicalBestEffort("sync:products", () => saveCanonicalProducts(
+      { provider: PROVIDER, connectionId: connection.id, storeRaw: false },
+      data.products.map(normalizeMercadoLivreProduct)
+    ));
   }
   await dbQuery(
     `UPDATE workspace_marketplace_syncs
@@ -182,8 +206,9 @@ async function syncProducts(connection: IntegrationConnection): Promise<void> {
 }
 
 async function syncMissingShipmentCosts(connection: IntegrationConnection): Promise<void> {
-  const shipmentRows = await dbQuery<{ shipment_id: string }>(
-    `SELECT DISTINCT orders.payload #>> '{shipping,id}' AS shipment_id
+  const shipmentRows = await dbQuery<{ shipment_id: string; order_ids: string[] }>(
+    `SELECT orders.payload #>> '{shipping,id}' AS shipment_id,
+            array_agg(orders.external_order_id) AS order_ids
        FROM workspace_marketplace_orders orders
        LEFT JOIN workspace_marketplace_shipments shipments
          ON shipments.workspace_id = orders.workspace_id
@@ -193,10 +218,12 @@ async function syncMissingShipmentCosts(connection: IntegrationConnection): Prom
       WHERE orders.workspace_id = $1 AND orders.provider = $2 AND orders.connection_id = $3
         AND orders.status = 'paid' AND orders.payload #>> '{shipping,id}' IS NOT NULL
         AND shipments.external_shipment_id IS NULL
+      GROUP BY shipment_id
       ORDER BY shipment_id DESC
       LIMIT $4`,
     [currentWorkspaceId(), PROVIDER, connection.id, SHIPMENT_BATCH_SIZE]
   );
+  const orderIdsByShipment = new Map(shipmentRows.map((row) => [row.shipment_id, row.order_ids]));
   const shipmentIds = shipmentRows.map((row) => row.shipment_id);
   const records: Array<{ external_shipment_id: string; payload: MercadoLivreShipmentCosts }> = [];
   for (let index = 0; index < shipmentIds.length; index += SHIPMENT_CONCURRENCY) {
@@ -221,6 +248,15 @@ async function syncMissingShipmentCosts(connection: IntegrationConnection): Prom
          payload = EXCLUDED.payload, synced_at = now()`,
       [currentWorkspaceId(), PROVIDER, connection.id, JSON.stringify(records)]
     );
+    await canonicalBestEffort("sync:shipments", () => applyCanonicalShipmentCosts(
+      { provider: PROVIDER, connectionId: connection.id },
+      records.map((record) => ({
+        orderIds: orderIdsByShipment.get(record.external_shipment_id) ?? [],
+        ...canonicalShipmentCosts(record.payload, connection.externalAccountId),
+        providerFeeCode: "shipment_sender_cost",
+        externalRef: record.external_shipment_id,
+      }))
+    ));
   }
 }
 
@@ -258,7 +294,7 @@ export async function runMercadoLivreSyncStep(
     );
     const orders = page.results ?? [];
     const total = page.paging?.total ?? orders.length;
-    await saveOrders(connection.id, orders);
+    await saveOrders(connection, orders);
 
     const pageComplete = offset + orders.length >= total || orders.length < PAGE_SIZE;
     const targetFrom = new Date(row.target_from);

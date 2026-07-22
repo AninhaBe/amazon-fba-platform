@@ -11,6 +11,18 @@ import {
 } from "./mercadoLivre";
 import type { MercadoLivreNotification } from "./mercadoLivreNotification";
 import { invalidateMercadoLivreOverviewSnapshots } from "./mercadoLivreOverviewCache";
+import type { IntegrationConnection } from "./types";
+import {
+  canonicalShipmentCosts,
+  normalizeMercadoLivreOrder,
+  normalizeMercadoLivreProduct,
+} from "./mercadoLivreCanonical";
+import {
+  applyCanonicalShipmentCosts,
+  canonicalBestEffort,
+  saveCanonicalOrders,
+  saveCanonicalProducts,
+} from "./canonicalStore";
 
 const PROVIDER = "mercado_livre";
 const SUPPORTED_TOPICS = new Set(["orders_v2", "items", "items_prices", "shipments"]);
@@ -169,6 +181,28 @@ async function saveProduct(workspaceId: string, connectionId: string, product: M
   );
 }
 
+// Roteia os custos do shipment para todos os pedidos que o compartilham
+// (packs) — o store rateia por receita, como o overview faz hoje.
+async function applyShipmentToCanonical(
+  workspaceId: string,
+  connection: IntegrationConnection,
+  shipmentId: string,
+  costs: MercadoLivreShipmentCosts
+) {
+  const rows = await dbQuery<{ external_order_id: string }>(
+    `SELECT external_order_id FROM workspace_marketplace_orders
+      WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
+        AND status = 'paid' AND payload #>> '{shipping,id}' = $4`,
+    [workspaceId, PROVIDER, connection.id, shipmentId]
+  );
+  await applyCanonicalShipmentCosts({ provider: PROVIDER, connectionId: connection.id }, [{
+    orderIds: rows.map((item) => item.external_order_id),
+    ...canonicalShipmentCosts(costs, connection.externalAccountId),
+    providerFeeCode: "shipment_sender_cost",
+    externalRef: shipmentId,
+  }]);
+}
+
 async function processResource(row: EventRow) {
   await runWithWorkspace(row.workspace_id, async () => {
     const connection = await getIntegration(row.connection_id);
@@ -177,11 +211,17 @@ async function processResource(row: EventRow) {
     if (row.topic === "orders_v2" && /^\/orders\/\d+$/.test(row.resource)) {
       const order = await mercadoLivreFetch<MercadoLivreOrder>(connection, row.resource);
       await saveOrder(row.workspace_id, row.connection_id, order);
+      await canonicalBestEffort("webhook:order", () => saveCanonicalOrders(
+        { provider: PROVIDER, connectionId: row.connection_id, storeRaw: false },
+        [normalizeMercadoLivreOrder(order, { sellerId: connection.externalAccountId })]
+      ));
       const shipmentId = order.shipping?.id == null ? null : String(order.shipping.id);
       if (shipmentId) {
         try {
           const costs = await mercadoLivreFetch<MercadoLivreShipmentCosts>(connection, `/shipments/${encodeURIComponent(shipmentId)}/costs`);
           await saveShipment(row.workspace_id, row.connection_id, shipmentId, costs);
+          await canonicalBestEffort("webhook:order-shipment", () =>
+            applyShipmentToCanonical(row.workspace_id, connection, shipmentId, costs));
         } catch {
           // A conciliação periódica cobre custos ainda indisponíveis no momento do evento.
         }
@@ -200,7 +240,12 @@ async function processResource(row: EventRow) {
       const itemId = row.resource.match(/\/items\/(MLB\d+)/i)?.[1]?.toUpperCase();
       if (!itemId) throw new Error("Recurso de anúncio não reconhecido.");
       const item = await mercadoLivreFetch<MercadoLivreItem>(connection, `/items/${encodeURIComponent(itemId)}`);
-      await saveProduct(row.workspace_id, row.connection_id, webhookProduct(row.connection_id, item));
+      const product = webhookProduct(row.connection_id, item);
+      await saveProduct(row.workspace_id, row.connection_id, product);
+      await canonicalBestEffort("webhook:product", () => saveCanonicalProducts(
+        { provider: PROVIDER, connectionId: row.connection_id, storeRaw: false },
+        [normalizeMercadoLivreProduct(product)]
+      ));
       return;
     }
 
@@ -209,6 +254,8 @@ async function processResource(row: EventRow) {
       if (!shipmentId) throw new Error("Recurso de remessa não reconhecido.");
       const costs = await mercadoLivreFetch<MercadoLivreShipmentCosts>(connection, `/shipments/${shipmentId}/costs`);
       await saveShipment(row.workspace_id, row.connection_id, shipmentId, costs);
+      await canonicalBestEffort("webhook:shipment", () =>
+        applyShipmentToCanonical(row.workspace_id, connection, shipmentId, costs));
       return;
     }
 
