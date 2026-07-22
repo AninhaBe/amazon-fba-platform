@@ -108,6 +108,11 @@ export function normalizeMercadoLivreOrder(
       currency,
     });
     buyerShipping = costs.buyerShipping;
+  } else if (order.shipping?.id == null) {
+    // Pedido sem shipment (retirada, acordo direto): frete conhecido e zero —
+    // diferente de "shipment existe mas os custos ainda não sincronizaram".
+    fees.push({ feeType: "shipping_seller", providerFeeCode: "no_shipment", amount: 0, currency });
+    buyerShipping = 0;
   }
 
   return {

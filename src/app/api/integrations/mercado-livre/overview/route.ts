@@ -2,12 +2,8 @@ import { after } from "next/server";
 import { NextRequest, NextResponse } from "next/server";
 import { getIntegration, getIntegrations } from "@/lib/integrations/integrationStore";
 import { getMercadoLivreOverview } from "@/lib/integrations/mercadoLivre";
-import { loadMercadoLivreSource, requestMercadoLivreSync, runMercadoLivreSyncBatch } from "@/lib/integrations/mercadoLivreSync";
-import {
-  loadMercadoLivreOverviewSnapshot,
-  saveMercadoLivreOverviewSnapshot,
-} from "@/lib/integrations/mercadoLivreOverviewCache";
-import { materializeMercadoLivrePresetOverviews } from "@/lib/integrations/mercadoLivreOverviewMaterializer";
+import { getMercadoLivreOverviewFromCanonical } from "@/lib/integrations/mercadoLivreOverviewCanonical";
+import { requestMercadoLivreSync, runMercadoLivreSyncBatch } from "@/lib/integrations/mercadoLivreSync";
 import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
 import { hasDb } from "@/lib/db";
 import { currentWorkspaceId, runWithWorkspace } from "@/lib/workspaceScope";
@@ -40,20 +36,17 @@ function requestedPeriod(url: URL) {
       from,
       to,
       label: `${from.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })} a ${to.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}`,
-      cacheKey: `custom:${fromValue}:${toValue}`,
     };
   }
 
   const to = new Date();
   if (daysParam === "today") {
     const brazilDate = new Date(to.getTime() - 3 * 60 * 60 * 1_000).toISOString().slice(0, 10);
-    return { from: new Date(`${brazilDate}T00:00:00-03:00`), to, label: "Hoje", cacheKey: `today:${brazilDate}` };
+    return { from: new Date(`${brazilDate}T00:00:00-03:00`), to, label: "Hoje" };
   }
   if (!ALLOWED_DAYS.has(daysValue)) throw new RangeError("Selecione Hoje ou um período de 7, 15 ou 30 dias.");
-  return { from: new Date(to.getTime() - daysValue * DAY), to, label: `Últimos ${daysValue} dias`, cacheKey: `days:${daysValue}` };
+  return { from: new Date(to.getTime() - daysValue * DAY), to, label: `Últimos ${daysValue} dias` };
 }
-
-type Overview = Awaited<ReturnType<typeof getMercadoLivreOverview>>;
 
 function timedJson(body: unknown, startedAt: number, init?: ResponseInit) {
   const response = NextResponse.json(body, init);
@@ -76,76 +69,20 @@ export async function GET(req: NextRequest) {
     const period = requestedPeriod(url);
     const requestedView = url.searchParams.get("view");
     const view = requestedView === "monitor" || requestedView === "estoque" ? requestedView : "dashboard";
-    const snapshotKey = `${period.cacheKey}:view:${view}`;
     if (hasDb()) {
       const workspaceId = currentWorkspaceId();
-      const snapshot = await loadMercadoLivreOverviewSnapshot<Overview>(connection.id, snapshotKey);
-      if (snapshot) {
-        after(() => runWithWorkspace(workspaceId, async () => {
-          if (snapshot.stale) {
-            try {
-              if (!period.cacheKey.startsWith("custom:")) {
-                await materializeMercadoLivrePresetOverviews(connection, {
-                  periodKey: period.cacheKey,
-                  view,
-                });
-              } else {
-                const latest = await loadMercadoLivreSource(connection, period);
-                if (latest.source) {
-                  const refreshed = await getMercadoLivreOverview(connection, period, latest.source);
-                  if (view !== "monitor") refreshed.profitabilityLines = [];
-                  await saveMercadoLivreOverviewSnapshot(connection.id, snapshotKey, refreshed);
-                }
-              }
-            } catch (error) {
-              console.error("Falha ao revalidar snapshot do Mercado Livre", {
-                connectionId: connection.id,
-                period: snapshotKey,
-                reason: error instanceof Error ? error.message : "Erro desconhecido",
-              });
-            }
-          }
-          try {
-            const backgroundSync = await requestMercadoLivreSync(connection.id);
-            const needsWork = backgroundSync.status !== "complete"
-              && backgroundSync.status !== "error"
-              && backgroundSync.status !== "unavailable";
-            if (needsWork) await runMercadoLivreSyncBatch(connection, process.env.VERCEL ? 4 : 8);
-          } catch (error) {
-            console.error("Falha ao verificar sincronização do Mercado Livre", {
-              connectionId: connection.id,
-              reason: error instanceof Error ? error.message : "Erro desconhecido",
-            });
-          }
-        }));
-        const response = timedJson({
-          connectionId: connection.id,
-          overview: snapshot.payload,
-          updatedAt: snapshot.generatedAt,
-          cached: true,
-        }, startedAt);
-        response.headers.set("X-SellerCore-Cache", snapshot.stale ? "STALE" : "HIT");
-        return response;
-      }
-
-      const sync = await requestMercadoLivreSync(connection.id);
+      // A leitura vem direto do modelo canônico (SQL indexado) — rápido o
+      // bastante para dispensar snapshots e materializer, inclusive em
+      // períodos personalizados. O sync avança o histórico em segundo plano,
+      // fora do caminho da resposta.
+      const [sync, overview] = await Promise.all([
+        requestMercadoLivreSync(connection.id),
+        getMercadoLivreOverviewFromCanonical(connection, period),
+      ]);
       const syncNeedsWork = sync.status !== "complete" && sync.status !== "error" && sync.status !== "unavailable";
       if (syncNeedsWork) {
         after(() => runWithWorkspace(workspaceId, async () => {
           try {
-            // A leitura solicitada tem prioridade sobre a importação histórica.
-            await materializeMercadoLivrePresetOverviews(connection, {
-              periodKey: period.cacheKey,
-              view,
-            });
-          } catch (error) {
-            console.error("Falha ao preparar leitura do Mercado Livre", {
-              connectionId: connection.id,
-              reason: error instanceof Error ? error.message : "Erro desconhecido",
-            });
-          }
-          try {
-            // Lotes menores evitam que o trabalho histórico monopolize o Render.
             await runMercadoLivreSyncBatch(connection, process.env.VERCEL ? 4 : 8);
           } catch (error) {
             console.error("Falha ao avançar sincronização do Mercado Livre", {
@@ -155,57 +92,24 @@ export async function GET(req: NextRequest) {
           }
         }));
       }
-      if (!period.cacheKey.startsWith("custom:")) {
-        if (!syncNeedsWork) {
-          after(() => runWithWorkspace(workspaceId, async () => {
-            try {
-              await materializeMercadoLivrePresetOverviews(connection, {
-                periodKey: period.cacheKey,
-                view,
-              });
-            } catch (error) {
-              console.error("Falha ao preparar dashboards do Mercado Livre", {
-                connectionId: connection.id,
-                reason: error instanceof Error ? error.message : "Erro desconhecido",
-              });
-            }
-          }));
-        }
+      if (!overview) {
         const response = timedJson(
-          { connectionId: connection.id, overview: null, sync, preparing: true },
+          { connectionId: connection.id, overview: null, sync, preparing: syncNeedsWork || undefined },
           startedAt,
           { status: 202 }
         );
-        response.headers.set("X-SellerCore-Cache", "MISS-PREPARING");
+        response.headers.set("X-SellerCore-Cache", "EMPTY");
         return response;
       }
-      const cached = await loadMercadoLivreSource(connection, period);
-      if (!cached.source) {
-        return timedJson(
-          { connectionId: connection.id, overview: null, sync: cached.sync },
-          startedAt,
-          { status: 202 }
-        );
-      }
-      const overview = await getMercadoLivreOverview(connection, period, cached.source);
       if (view !== "monitor") overview.profitabilityLines = [];
-      const generatedAt = await saveMercadoLivreOverviewSnapshot(connection.id, snapshotKey, overview);
-      if (!syncNeedsWork && !period.cacheKey.startsWith("custom:")) {
-        after(() => runWithWorkspace(workspaceId, () =>
-          materializeMercadoLivrePresetOverviews(connection, {
-            periodKey: period.cacheKey,
-            view,
-          }).then(() => undefined)
-        ));
-      }
       const response = timedJson({
         connectionId: connection.id,
         overview,
-        sync: cached.sync,
-        updatedAt: cached.sync.lastSuccessAt || generatedAt,
+        sync,
+        updatedAt: sync.lastSuccessAt || new Date().toISOString(),
         cached: false,
       }, startedAt);
-      response.headers.set("X-SellerCore-Cache", "MISS");
+      response.headers.set("X-SellerCore-Cache", "SQL");
       return response;
     }
     return timedJson({ connectionId: connection.id, overview: await getMercadoLivreOverview(connection, period) }, startedAt);

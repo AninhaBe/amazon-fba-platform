@@ -90,6 +90,13 @@ test("sem custos do shipment, frete fica desconhecido em vez de zero", () => {
   assert.equal(order.fees.some((fee) => fee.feeType === "shipping_seller"), false);
 });
 
+test("pedido sem shipment tem frete conhecido igual a zero", () => {
+  const order = normalizeMercadoLivreOrder(baseOrder({ shipping: undefined }), { shipment: null, sellerId: SELLER_ID });
+  assert.equal(order.buyerShipping, 0);
+  const shipping = order.fees.find((fee) => fee.feeType === "shipping_seller");
+  assert.deepEqual(shipping, { feeType: "shipping_seller", providerFeeCode: "no_shipment", amount: 0, currency: "BRL" });
+});
+
 test("sem sender da conta, usa a soma dos senders como frete do vendedor", () => {
   const order = normalizeMercadoLivreOrder(baseOrder(), {
     shipment: { receiver: { cost: null }, senders: [{ user_id: 1, cost: 10.1 }, { user_id: 2, cost: 5.55 }] },

@@ -105,7 +105,7 @@ export function mercadoLivreCostId(connectionId: string, productId: string, sku?
   return `mercado_livre:${connectionId}:${sku ? `sku:${sku}` : `item:${productId}`}`;
 }
 
-function mercadoLivreCostEntry(
+export function mercadoLivreCostEntry(
   costs: Awaited<ReturnType<typeof getCosts>>,
   connectionId: string,
   productId: string,
@@ -130,7 +130,7 @@ function sellerSku(item: MercadoLivreItem): string | null {
     || null;
 }
 
-function brazilDateKey(date: Date | string): string {
+export function brazilDateKey(date: Date | string): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Sao_Paulo",
     year: "numeric",
