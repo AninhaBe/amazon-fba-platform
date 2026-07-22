@@ -101,7 +101,9 @@ export async function getMercadoLivreOverviewFromCanonical(
     dbQuery<TotalsRow>(
       `SELECT COUNT(*)::int AS total_orders,
               COUNT(*) FILTER (WHERE status = ANY($6::text[]))::int AS paid_orders,
-              SUM(gross) FILTER (WHERE status = ANY($6::text[])) AS paid_revenue,
+              -- Faturamento = produto + frete do comprador, para bater com o
+              -- "Vendas brutas" do painel do Mercado Livre.
+              SUM(gross + COALESCE(buyer_shipping, 0)) FILTER (WHERE status = ANY($6::text[])) AS paid_revenue,
               MAX(currency) AS currency
          FROM workspace_channel_orders
         WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
@@ -116,7 +118,7 @@ export async function getMercadoLivreOverviewFromCanonical(
   const [dailyRows, recentRows, productTotalsRows, lineRows, productRows, costs] = await Promise.all([
     dbQuery<DailyRow>(
       `SELECT to_char(o.occurred_at AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD') AS date,
-              SUM(o.gross) AS revenue,
+              SUM(o.gross + COALESCE(o.buyer_shipping, 0)) AS revenue,
               COUNT(*)::int AS orders,
               COALESCE(SUM(u.units), 0)::int AS units
          FROM workspace_channel_orders o

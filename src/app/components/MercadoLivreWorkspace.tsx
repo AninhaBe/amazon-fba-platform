@@ -335,7 +335,7 @@ function Monitor({ overview }: { overview: Overview }) {
         <Flow label={`Impostos (${overview.profit.taxRate.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%)`} value={money(overview.profit.taxes, overview.metrics.currency)} sign="−" />
         <Flow label="Margem de contribuição" value={money(overview.profit.estimatedProfit, overview.metrics.currency)} sign="=" accent />
       </div>
-      {overview.profit.buyerShipping > 0 && <p className="text-xs text-slate-400">O comprador pagou {money(overview.profit.buyerShipping, overview.metrics.currency)} de frete no período; esse valor é exibido separadamente e não compõe o faturamento dos produtos.</p>}
+      {overview.profit.buyerShipping > 0 && <p className="text-xs text-slate-400">O frete pago pelo comprador ({money(overview.profit.buyerShipping, overview.metrics.currency)}) entra no faturamento (como no &quot;Vendas brutas&quot; do Mercado Livre), mas não no lucro — o cálculo considera o frete que o vendedor efetivamente paga.</p>}
     </section>
     {!profitCoverage.complete && <div className="meli-profit-warning"><span aria-hidden="true">!</span><p>Este detalhamento usa somente os pedidos já capturados e cobre {profitCoverage.processedOrders} de {profitCoverage.paidOrders} vendas disponíveis, sem extrapolar valores.</p></div>}
     {!overview.profit.shippingCostsComplete && <div className="meli-profit-warning"><span aria-hidden="true">!</span><p>Alguns fretes ainda não foram conciliados. Essas vendas aparecem com cálculo incompleto para não superestimar a margem.</p></div>}
