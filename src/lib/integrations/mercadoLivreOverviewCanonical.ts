@@ -40,6 +40,7 @@ interface TotalsRow {
   paid_orders: number;
   paid_revenue: string | null;
   currency: string | null;
+  last_sale_at: Date | string | null;
 }
 
 interface DailyRow { date: string; revenue: string; orders: number; units: number }
@@ -104,6 +105,7 @@ export async function getMercadoLivreOverviewFromCanonical(
               -- Faturamento = produto + frete do comprador, para bater com o
               -- "Vendas brutas" do painel do Mercado Livre.
               SUM(gross + COALESCE(buyer_shipping, 0)) FILTER (WHERE status = ANY($6::text[])) AS paid_revenue,
+              MAX(occurred_at) FILTER (WHERE status = ANY($6::text[])) AS last_sale_at,
               MAX(currency) AS currency
          FROM workspace_channel_orders
         WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
@@ -360,6 +362,7 @@ export async function getMercadoLivreOverviewFromCanonical(
       orders30d: totals.total_orders,
       paidOrders: totals.paid_orders,
       revenue30d: revenue,
+      lastSaleAt: totals.last_sale_at ? new Date(totals.last_sale_at).toISOString() : null,
       currency,
       revenueCoverage: { capturedOrders: totals.total_orders, totalOrders: totals.total_orders, complete: periodCovered },
     },

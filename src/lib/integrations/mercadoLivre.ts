@@ -994,6 +994,7 @@ export async function getMercadoLivreOverview(
       orders30d: totalOrders,
       paidOrders: paidOrders.length,
       revenue30d: revenue,
+      lastSaleAt: paidOrders[0]?.date_created ? new Date(paidOrders[0].date_created).toISOString() : null,
       currency: orders[0]?.currency_id ?? "BRL",
       revenueCoverage: { capturedOrders: orders.length, totalOrders, complete: collectedOrders.complete },
     },

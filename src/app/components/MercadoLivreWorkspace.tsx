@@ -17,7 +17,7 @@ import type { ProfitabilityLine } from "@/lib/profitability";
 interface Overview {
   account: { id: string; nickname: string; siteId: string; };
   period: { from: string; to: string; label: string; };
-  metrics: { activeListings: number; productsWithoutCost: number; orders30d: number; paidOrders: number; revenue30d: number; currency: string; revenueCoverage: { capturedOrders: number; totalOrders: number; complete: boolean; }; };
+  metrics: { activeListings: number; productsWithoutCost: number; orders30d: number; paidOrders: number; revenue30d: number; lastSaleAt: string | null; currency: string; revenueCoverage: { capturedOrders: number; totalOrders: number; complete: boolean; }; };
   profit: { fees: number; cogs: number; taxes: number; taxRate: number; sellerShipping: number; buyerShipping: number; shippingCostsComplete: boolean; revenueProcessed: number; coverage: { processedOrders: number; paidOrders: number; complete: boolean; }; estimatedProfit: number; marginPct: number; unitsWithoutCost: number; };
   dailySales: DailyPoint[];
   topProducts: Array<{ id: string; sku: string | null; title: string; units: number; revenue: number; cost: number; contribution: number; complete: boolean; marginPct: number | null; }>;
@@ -195,7 +195,7 @@ function Dashboard({ overview, updatedAt }: { overview: Overview; updatedAt: Dat
   // Sem custos cadastrados o "lucro" é só margem antes do produto — não engana.
   const costsIncomplete = overview.profit.unitsWithoutCost > 0;
   return <div className="dashboard-sections space-y-8">
-    {updatedAt && <p className="-mt-5 text-xs text-slate-400">Atualizado às {updatedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}. Dados disponíveis no SellerCore.</p>}
+    {updatedAt && <p className="-mt-5 text-xs text-slate-400">Atualizado às {updatedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}{overview.metrics.lastSaleAt ? ` · última venda contabilizada às ${new Date(overview.metrics.lastSaleAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}` : ""}. Compare no mesmo horário com o painel do Mercado Livre.</p>}
 
     <OperationPending items={overview.metrics.productsWithoutCost > 0 ? [{ label: `Cadastrar custo de ${overview.metrics.productsWithoutCost} produto(s)`, href: "/mercado-livre/produtos" }] : []} />
 
