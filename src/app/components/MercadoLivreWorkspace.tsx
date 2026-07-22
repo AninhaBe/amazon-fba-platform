@@ -10,6 +10,7 @@ import { RevenueChart, type DailyPoint } from "./RevenueChart";
 import { DashboardPeriodFilter, useDashboardPeriod } from "./DashboardPeriodFilter";
 import { OrderProfitabilityTable } from "./OrderProfitabilityTable";
 import { OperationPending } from "./OperationPending";
+import { Flow, Metric, getRevenueTrend } from "./Metric";
 import type { ProfitabilityLine } from "@/lib/profitability";
 
 interface Overview {
@@ -196,21 +197,14 @@ function Dashboard({ overview, updatedAt }: { overview: Overview; updatedAt: Dat
     <OperationPending items={overview.metrics.productsWithoutCost > 0 ? [{ label: `Cadastrar custo de ${overview.metrics.productsWithoutCost} produto(s)`, href: "/mercado-livre/produtos" }] : []} />
 
     <section className="metric-grid grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-4" aria-label="Indicadores Mercado Livre">
-      <Metric label="Faturamento" value={<AnimatedNumber value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={coverage.complete ? `${overview.metrics.paidOrders} vendas no período` : `${coverage.capturedOrders} pedidos capturados; histórico em andamento`} />
+      <Metric label="Faturamento" value={<AnimatedNumber value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={coverage.complete ? `${overview.metrics.paidOrders} vendas no período` : `${coverage.capturedOrders} pedidos capturados; histórico em andamento`} trend={getRevenueTrend(overview.dailySales)} />
       <div className="metric-cell metric-primary relative overflow-hidden p-5">
         <div className="flex items-start justify-between gap-2"><p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">{profitCoverage.complete ? "Lucro estimado" : "Lucro processado"}</p><span className="text-emerald-600/50">{dashboardKpiIcons.percent}</span></div>
         <p className="mt-2 text-[27px] font-bold leading-none tabular-nums text-emerald-800"><AnimatedNumber value={overview.profit.estimatedProfit} format={(amount) => money(amount, overview.metrics.currency)} /></p>
         <p className="mt-1.5 text-xs font-medium text-emerald-700/80">{profitCoverage.complete ? `margem ${percent(overview.profit.marginPct)}` : `${profitCoverage.processedOrders} de ${profitCoverage.paidOrders} vendas`}</p>
       </div>
-      <Metric label="Estoque crítico" value={critical.length.toLocaleString("pt-BR")} sub={critical.length ? "repor com urgência" : "tudo sob controle"} tone={critical.length ? "danger" : "ok"} icon={dashboardKpiIcons.stock} />
+      <Metric label="Estoque crítico" value={critical.length.toLocaleString("pt-BR")} sub={critical.length ? "repor com urgência — ver radar" : "tudo sob controle — ver radar"} tone={critical.length ? "danger" : "ok"} icon={dashboardKpiIcons.stock} href="/mercado-livre/estoque" />
       <Metric label="Produtos sem custo" value={overview.metrics.productsWithoutCost.toLocaleString("pt-BR")} sub={overview.metrics.productsWithoutCost ? "cadastre para ver o lucro" : "todos cadastrados"} tone={overview.metrics.productsWithoutCost ? "warn" : "ok"} icon={dashboardKpiIcons.box} />
-    </section>
-
-    <section className="secondary-metrics" aria-label="Indicadores complementares">
-      <CompactMetric label="Vendas" value={overview.metrics.paidOrders.toLocaleString("pt-BR")} />
-      <CompactMetric label="Unidades" value={units.toLocaleString("pt-BR")} />
-      <CompactMetric label="Ticket médio" value={money(ticket, overview.metrics.currency)} />
-      <CompactMetric label="ROI" value={roi == null ? "—" : `${roi.toFixed(1)}%`} />
     </section>
 
     <section className="performance-panel">
@@ -219,18 +213,22 @@ function Dashboard({ overview, updatedAt }: { overview: Overview; updatedAt: Dat
           <div><p className="section-kicker">Desempenho diário</p><h2 className="mt-1 text-lg font-semibold text-slate-900">Evolução do faturamento</h2></div>
           <span className="text-sm font-semibold tabular-nums text-slate-900">{money(overview.metrics.revenue30d, overview.metrics.currency)} <span className="font-normal text-slate-400">no período</span></span>
         </div>
+        <div className="chart-inline-stats" aria-label="Indicadores complementares">
+          <span><small>Vendas</small><strong>{overview.metrics.paidOrders.toLocaleString("pt-BR")}</strong></span>
+          <span><small>Unidades</small><strong>{units.toLocaleString("pt-BR")}</strong></span>
+          <span><small>Ticket médio</small><strong>{money(ticket, overview.metrics.currency)}</strong></span>
+          <span><small>ROI</small><strong>{roi == null ? "—" : `${roi.toFixed(1)}%`}</strong></span>
+        </div>
         <RevenueChart points={overview.dailySales} />
       </div>
-      <aside className="financial-composition" aria-label="Composição do resultado financeiro">
-        <div><p className="section-kicker">Composição financeira</p><h2 className="mt-1 text-lg font-semibold text-slate-900">Do faturamento ao lucro</h2><p className="mt-1 text-xs leading-relaxed text-slate-400">{profitCoverage.complete ? "Valores efetivamente identificados no período." : `Detalhamento processado em ${profitCoverage.processedOrders} de ${profitCoverage.paidOrders} vendas.`}</p></div>
+      <aside className="financial-composition" aria-label="Resumo do resultado financeiro">
+        <div><p className="section-kicker">Resultado do período</p><h2 className="mt-1 text-lg font-semibold text-slate-900">Do faturamento ao lucro</h2><p className="mt-1 text-xs leading-relaxed text-slate-400">{profitCoverage.complete ? "Valores efetivamente identificados no período." : `Detalhamento processado em ${profitCoverage.processedOrders} de ${profitCoverage.paidOrders} vendas.`}</p></div>
         <div className="financial-lines">
           <Flow label={profitCoverage.complete ? "Receita paga" : "Receita processada"} value={money(overview.profit.revenueProcessed, overview.metrics.currency)} />
-          <Flow label="Comissão de venda" value={money(overview.profit.fees, overview.metrics.currency)} sign="−" />
-          <Flow label="Frete do vendedor" value={money(overview.profit.sellerShipping, overview.metrics.currency)} sign="−" />
-          <Flow label="Custo dos produtos" value={money(overview.profit.cogs, overview.metrics.currency)} sign="−" />
-          <Flow label={`Impostos (${overview.profit.taxRate.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%)`} value={money(overview.profit.taxes, overview.metrics.currency)} sign="−" />
+          <Flow label="Custos do canal e do produto" value={money(overview.profit.fees + overview.profit.sellerShipping + overview.profit.cogs + overview.profit.taxes, overview.metrics.currency)} sign="−" />
           <Flow label={profitCoverage.complete ? "Lucro estimado" : "Lucro processado"} value={money(overview.profit.estimatedProfit, overview.metrics.currency)} sign="=" accent />
         </div>
+        <Link href="/mercado-livre/monitor" className="meli-financial-link">Ver composição completa no monitor <span aria-hidden="true">→</span></Link>
         <Link href="/mercado-livre/produtos" className="meli-financial-link">Configurar custos e imposto <span aria-hidden="true">→</span></Link>
         {overview.profit.unitsWithoutCost > 0 && <p className="text-xs leading-relaxed text-amber-700">{overview.profit.unitsWithoutCost} unidade(s) vendida(s) ainda estão sem custo cadastrado.</p>}
         {!profitCoverage.complete && <p className="text-xs leading-relaxed text-amber-700">O SellerCore mostra somente os valores já capturados e não extrapola o lucro enquanto o histórico, as tarifas e os fretes não estiverem completos.</p>}
@@ -251,26 +249,15 @@ function Dashboard({ overview, updatedAt }: { overview: Overview; updatedAt: Dat
       {overview.topProducts.length === 0 ? <Empty>Sem vendas no período para ranquear.</Empty> : <div className="overflow-x-auto"><table className="w-full min-w-[520px] text-sm"><caption className="sr-only">Produtos com melhor desempenho no período</caption><thead className="text-left text-xs uppercase tracking-wide text-slate-400"><tr><th scope="col" className="pb-2 pr-3 font-medium">#</th><th scope="col" className="pb-2 pr-3 font-medium">Produto</th><th scope="col" className="pb-2 px-3 text-right font-medium">Un</th><th scope="col" className="pb-2 px-3 text-right font-medium">Faturamento</th><th scope="col" className="pb-2 pl-3 text-right font-medium">Margem</th></tr></thead><tbody className="divide-y divide-slate-100">{overview.topProducts.map((product, index) => <tr key={`${product.id}:${product.sku || ""}`}><td className="py-2.5 pr-3 tabular-nums text-slate-400">{index + 1}</td><td className="py-2.5 pr-3"><span className="block max-w-[260px] truncate font-medium" title={product.title}>{product.title}</span></td><td className="py-2.5 px-3 text-right tabular-nums text-slate-600">{product.units}</td><td className="py-2.5 px-3 text-right tabular-nums font-medium">{money(product.revenue, overview.metrics.currency)}</td><td className="py-2.5 pl-3 text-right"><MarginBadge pct={product.marginPct} /></td></tr>)}</tbody></table><p className="mt-3 text-xs text-slate-400">O faturamento considera todas as vendas do período. A margem aparece somente quando todos os custos daquele produto foram processados.</p></div>}
     </div>
 
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+    {/* No desktop a sidebar já cobre estes atalhos; no mobile a nav é scroll
+        horizontal e os cartões ajudam. */}
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:hidden">
       <QuickLink href="/mercado-livre/monitor" label="Monitor" desc="Pedidos e financeiro" />
       <QuickLink href="/mercado-livre/estoque" label="Radar" desc="Estoque × velocidade" />
       <QuickLink href="/mercado-livre/anuncios" label="Anúncios" desc="Catálogo publicado" />
       <QuickLink href="/mercado-livre/produtos" label="Produtos" desc="Custos e impostos" />
     </div>
   </div>;
-}
-
-function Metric({ label, value, sub, tone = "default", icon }: { label: string; value: React.ReactNode; sub: string; tone?: "default" | "warn" | "ok" | "danger"; icon?: React.ReactNode }) {
-  const color = tone === "danger" ? "text-red-600" : tone === "warn" ? "text-amber-600" : tone === "ok" ? "text-slate-700" : "text-slate-900";
-  return <article className="metric-cell group p-5"><div className="flex items-start justify-between gap-2"><p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{label}</p>{icon && <span className="text-slate-300 transition-colors group-hover:text-yellow-500">{icon}</span>}</div><p className={`mt-2 text-[27px] font-bold leading-none tabular-nums ${color}`}>{value}</p><p className="mt-1.5 text-xs text-slate-400">{sub}</p></article>;
-}
-
-function CompactMetric({ label, value }: { label: string; value: string }) {
-  return <div className="compact-metric"><p>{label}</p><strong>{value}</strong></div>;
-}
-
-function Flow({ label, value, sign, accent = false }: { label: string; value: string; sign?: "−" | "="; accent?: boolean }) {
-  return <div className={`financial-line ${accent ? "is-result" : ""}`}><span className="financial-sign" aria-hidden="true">{sign}</span><p className="text-xs font-medium text-slate-500">{label}</p><p className={`text-sm font-bold tabular-nums ${accent ? "text-emerald-700" : sign ? "text-slate-500" : "text-slate-900"}`}>{value}</p></div>;
 }
 
 const dashboardKpiIcons = {

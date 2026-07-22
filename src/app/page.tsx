@@ -6,12 +6,29 @@ import { AnimatedNumber } from "./components/AnimatedNumber";
 import { PageHeader, pageIcons } from "./components/PageHeader";
 import { DashboardSkeleton } from "./components/LoadingState";
 import { MarketplaceIcon } from "./components/MarketplaceIcon";
+import { RevenueChart, type DailyPoint } from "./components/RevenueChart";
 
 interface ProviderConnection { id: string; }
 interface Provider { id: string; name: string; configured: boolean; connections: ProviderConnection[]; }
 interface AmazonProfit { estimatedProfit: number; finance: { revenue: number; currency: string; }; }
-interface AmazonSales { series: { totalRevenue: number; totalOrders: number; currency: string; }; }
-interface MercadoLivreOverview { metrics: { revenue30d: number; orders30d: number; activeListings: number; currency: string; revenueCoverage: { complete: boolean; capturedOrders: number; totalOrders: number; }; }; profit: { estimatedProfit: number; unitsWithoutCost: number; coverage: { processedOrders: number; paidOrders: number; complete: boolean; }; }; }
+interface AmazonSales { series: { totalRevenue: number; totalOrders: number; currency: string; points?: DailyPoint[]; }; }
+interface MercadoLivreOverview { metrics: { revenue30d: number; orders30d: number; activeListings: number; currency: string; revenueCoverage: { complete: boolean; capturedOrders: number; totalOrders: number; }; }; profit: { estimatedProfit: number; unitsWithoutCost: number; coverage: { processedOrders: number; paidOrders: number; complete: boolean; }; }; dailySales?: DailyPoint[]; }
+
+// Soma as séries diárias dos canais numa linha só — a visão que só a central
+// pode dar. Datas presentes em um canal e ausentes no outro entram como estão.
+function mergeDailySeries(series: Array<DailyPoint[] | undefined>): DailyPoint[] {
+  const byDate = new Map<string, DailyPoint>();
+  for (const points of series) {
+    for (const point of points ?? []) {
+      const current = byDate.get(point.date) ?? { date: point.date, revenue: 0, orders: 0, units: 0 };
+      current.revenue += point.revenue;
+      current.orders += point.orders;
+      current.units += point.units;
+      byDate.set(point.date, current);
+    }
+  }
+  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
 interface ChannelSnapshot {
   id: "amazon" | "mercado_livre";
   name: string;
@@ -39,10 +56,11 @@ async function json<T>(url: string): Promise<T> {
 
 // Escopo de módulo: ao navegar para um canal e voltar, a central renderiza o
 // consolidado já conhecido no primeiro paint e revalida em segundo plano.
-let centralCache: { channels: ChannelSnapshot[]; updatedAt: Date } | null = null;
+let centralCache: { channels: ChannelSnapshot[]; series: DailyPoint[]; updatedAt: Date } | null = null;
 
 export default function OverviewDashboard() {
   const [channels, setChannels] = useState<ChannelSnapshot[]>(centralCache?.channels ?? []);
+  const [series, setSeries] = useState<DailyPoint[]>(centralCache?.series ?? []);
   const [loading, setLoading] = useState(!centralCache);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(centralCache?.updatedAt ?? null);
 
@@ -57,7 +75,9 @@ export default function OverviewDashboard() {
         const mercadoLivre: ChannelSnapshot = { id: "mercado_livre", name: "Mercado Livre", href: "/mercado-livre", connected: !!mercadoLivreProvider?.connections.length, revenue: null, profit: null, orders: null, currency: "BRL", note: "Faturamento, pedidos e lucro estimado" };
 
         const tasks: Promise<void>[] = [];
+        const channelSeries: Array<DailyPoint[] | undefined> = [];
         if (amazon.connected) tasks.push(Promise.all([json<{ summary: AmazonProfit }>("/api/profit?days=30"), json<AmazonSales>("/api/sales?days=30")]).then(([profit, sales]) => {
+          channelSeries.push(sales.series.points);
           amazon.revenue = sales.series.totalRevenue;
           amazon.profit = profit.summary.estimatedProfit;
           amazon.orders = sales.series.totalOrders;
@@ -65,6 +85,7 @@ export default function OverviewDashboard() {
           amazon.note = "Faturamento completo; lucro conforme eventos já conciliados pela Amazon";
         }).catch((error) => { amazon.error = error instanceof Error ? error.message : "Dados indisponíveis"; }));
         if (mercadoLivre.connected) tasks.push(json<{ overview: MercadoLivreOverview }>("/api/integrations/mercado-livre/overview").then(({ overview }) => {
+          channelSeries.push(overview.dailySales);
           mercadoLivre.revenue = overview.metrics.revenue30d;
           mercadoLivre.profit = overview.profit.coverage.complete ? overview.profit.estimatedProfit : null;
           mercadoLivre.orders = overview.metrics.orders30d;
@@ -79,8 +100,10 @@ export default function OverviewDashboard() {
         }).catch((error) => { mercadoLivre.error = error instanceof Error ? error.message : "Dados indisponíveis"; }));
         await Promise.all(tasks);
         const refreshedAt = new Date();
-        centralCache = { channels: [amazon, mercadoLivre], updatedAt: refreshedAt };
+        const merged = mergeDailySeries(channelSeries);
+        centralCache = { channels: [amazon, mercadoLivre], series: merged, updatedAt: refreshedAt };
         setChannels([amazon, mercadoLivre]);
+        setSeries(merged);
         setUpdatedAt(refreshedAt);
       } catch {
         // Uma falha de revalidação não apaga o consolidado já exibido.
@@ -113,6 +136,16 @@ export default function OverviewDashboard() {
           <article><p>Pedidos</p><strong>{totals.orders.toLocaleString("pt-BR")}</strong><small>Últimos 30 dias</small></article>
           <article><p>Canais conectados</p><strong>{totals.connected}</strong><small>de {channels.length} disponíveis nesta fase</small></article>
         </section>
+
+        {series.length > 0 && (
+          <section className="central-revenue-panel" aria-labelledby="central-revenue-title">
+            <div className="mb-2 flex items-baseline justify-between gap-4">
+              <div><p className="section-kicker">Todos os canais</p><h2 id="central-revenue-title" className="mt-1 text-lg font-semibold text-slate-900">Faturamento consolidado por dia</h2></div>
+              <span className="text-sm font-semibold tabular-nums text-slate-900">{money(totals.revenue)} <span className="font-normal text-slate-400">nos últimos 30 dias</span></span>
+            </div>
+            <RevenueChart points={series} />
+          </section>
+        )}
 
         <section aria-labelledby="channel-comparison-title">
           <div className="central-section-heading"><div><p className="section-kicker">Comparação por canal</p><h2 id="channel-comparison-title">Onde sua operação acontece</h2></div><p>Valores indisponíveis permanecem explícitos e nunca entram como zero no consolidado.</p></div>

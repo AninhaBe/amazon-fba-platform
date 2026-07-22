@@ -567,6 +567,21 @@ button[class*="bg-blue-"]:hover, a[class*="bg-blue-"]:hover { background: var(--
 .account-loading span:first-child { width: 68%; }
 @keyframes skeleton-sweep { to { transform: translateX(100%); } }
 
+/* Stats compactas no cabeçalho do gráfico (antes eram uma seção própria). */
+.chart-inline-stats { display: flex; flex-wrap: wrap; gap: 4px 22px; margin-block: 6px 12px; }
+.chart-inline-stats > span { display: inline-flex; align-items: baseline; gap: 7px; }
+.chart-inline-stats small { color: var(--ink-muted); font-size: 11px; font-weight: 650; }
+.chart-inline-stats strong { color: var(--ink); font-size: 13px; font-weight: 750; font-variant-numeric: tabular-nums; }
+
+/* KPI clicável (ex.: estoque crítico → radar). */
+.metric-cell-link { color: inherit; }
+.metric-cell-link:hover { background: color-mix(in oklch, var(--channel-accent-soft) 55%, white); box-shadow: var(--shadow-hover); }
+.metric-cell .metric-icon { transition-property: color; transition-duration: 160ms; }
+.metric-cell:hover .metric-icon { color: var(--channel-accent-dark); }
+
+/* Gráfico consolidado da central. */
+.central-revenue-panel { border-radius: var(--radius-lg); background: var(--paper); padding: 22px; box-shadow: var(--shadow-surface); }
+
 /* Esqueleto estrutural: espelha KPIs, gráfico e tabela nas posições finais. */
 .dashboard-skeleton { display: grid; gap: 24px; }
 .skeleton-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); overflow: hidden; border-radius: var(--radius-lg); background: var(--paper); box-shadow: var(--shadow-surface); }
