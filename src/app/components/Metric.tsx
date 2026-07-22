@@ -64,7 +64,7 @@ export function Metric({ label, value, sub, tone = "default", loading, icon, tre
     <>
       <div className="flex items-start justify-between gap-2">
         <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{label}</p>
-        {trend ? <TrendIndicator trend={trend} /> : icon && <span className="metric-icon text-slate-300">{icon}</span>}
+        {trend ? <TrendIndicator trend={trend} /> : icon && <span className="metric-icon">{icon}</span>}
       </div>
       <p className={`mt-2 text-[27px] font-bold leading-none tabular-nums ${toneCls}`}>
         {loading ? <span className="text-slate-300">···</span> : value}

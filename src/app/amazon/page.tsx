@@ -190,7 +190,7 @@ export default function Dashboard() {
         <div className="metric-cell metric-primary relative overflow-hidden p-5">
           <div className="flex items-start justify-between gap-2">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">Lucro conciliado</p>
-            <span className="text-emerald-600/50">{kpiIcons.percent}</span>
+            <span className="metric-icon">{kpiIcons.percent}</span>
           </div>
           <p className="mt-2 text-[27px] font-bold leading-none tabular-nums text-emerald-800">
             {loading ? "···" : <AnimatedNumber value={estProfit} format={(amount) => money(amount, currency)} />}

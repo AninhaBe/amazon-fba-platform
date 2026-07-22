@@ -164,7 +164,17 @@ a[href][class*="bg-gradient"]:active { transform: scale(.96); }
   border-radius: 999px;
   background: transparent;
 }
-.rail-nav-icon { color: oklch(0.59 0.055 247); }
+.rail-nav-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: oklch(1 0 0 / .65);
+  color: oklch(0.52 0.06 247);
+  box-shadow: inset 0 0 0 1px oklch(0.28 0.035 247 / .06);
+  transition-property: background-color, color;
+  transition-duration: 160ms;
+}
+.rail-nav-item:hover .rail-nav-icon { background: white; color: var(--channel-accent-dark); }
 .rail-nav-desc { color: var(--ink-muted); }
 .rail-nav-item:hover { background: oklch(1 0 0 / .72); color: var(--ink); }
 .rail-nav-item.is-active {
@@ -175,6 +185,14 @@ a[href][class*="bg-gradient"]:active { transform: scale(.96); }
 .rail-nav-item.is-active::before { background: var(--channel-on-accent); opacity: .72; }
 .rail-nav-item.is-active .rail-nav-icon,
 .rail-nav-item.is-active .rail-nav-desc { color: var(--channel-on-accent); }
+.rail-nav-item.is-active .rail-nav-icon {
+  background: color-mix(in oklch, var(--channel-on-accent) 16%, transparent);
+  box-shadow: none;
+}
+.rail-nav-item.is-active:hover .rail-nav-icon {
+  background: color-mix(in oklch, var(--channel-on-accent) 24%, transparent);
+  color: var(--channel-on-accent);
+}
 .rail-nav-item.is-active .rail-nav-desc { opacity: .78; }
 
 .channel-switcher {
@@ -576,8 +594,26 @@ button[class*="bg-blue-"]:hover, a[class*="bg-blue-"]:hover { background: var(--
 /* KPI clicável (ex.: estoque crítico → radar). */
 .metric-cell-link { color: inherit; }
 .metric-cell-link:hover { background: color-mix(in oklch, var(--channel-accent-soft) 55%, white); box-shadow: var(--shadow-hover); }
-.metric-cell .metric-icon { transition-property: color; transition-duration: 160ms; }
-.metric-cell:hover .metric-icon { color: var(--channel-accent-dark); }
+
+/* Chip do ícone: fundo suave no acento do canal (raio 10 = raio interno 8 + 2
+   de respiro dentro do cartão de raio 16). */
+.metric-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  place-items: center;
+  margin-block-start: -4px;
+  border-radius: 10px;
+  background: var(--channel-accent-soft);
+  color: var(--channel-accent-dark);
+  transition-property: background-color, color;
+  transition-duration: 160ms;
+}
+.metric-cell:hover .metric-icon {
+  background: color-mix(in oklch, var(--channel-accent-soft) 70%, var(--channel-accent) 14%);
+}
+.metric-primary .metric-icon { background: var(--positive-soft); color: var(--positive); }
 
 /* Gráfico consolidado da central. */
 .central-revenue-panel { border-radius: var(--radius-lg); background: var(--paper); padding: 22px; box-shadow: var(--shadow-surface); }
