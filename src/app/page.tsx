@@ -37,10 +37,14 @@ async function json<T>(url: string): Promise<T> {
   return data as T;
 }
 
+// Escopo de módulo: ao navegar para um canal e voltar, a central renderiza o
+// consolidado já conhecido no primeiro paint e revalida em segundo plano.
+let centralCache: { channels: ChannelSnapshot[]; updatedAt: Date } | null = null;
+
 export default function OverviewDashboard() {
-  const [channels, setChannels] = useState<ChannelSnapshot[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  const [channels, setChannels] = useState<ChannelSnapshot[]>(centralCache?.channels ?? []);
+  const [loading, setLoading] = useState(!centralCache);
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(centralCache?.updatedAt ?? null);
 
   useEffect(() => {
     const timer = window.setTimeout(async () => {
@@ -74,10 +78,13 @@ export default function OverviewDashboard() {
             : `Faturamento parcial: ${overview.metrics.revenueCoverage.capturedOrders} de ${overview.metrics.revenueCoverage.totalOrders} pedidos`;
         }).catch((error) => { mercadoLivre.error = error instanceof Error ? error.message : "Dados indisponíveis"; }));
         await Promise.all(tasks);
+        const refreshedAt = new Date();
+        centralCache = { channels: [amazon, mercadoLivre], updatedAt: refreshedAt };
         setChannels([amazon, mercadoLivre]);
-        setUpdatedAt(new Date());
+        setUpdatedAt(refreshedAt);
       } catch {
-        setChannels([]);
+        // Uma falha de revalidação não apaga o consolidado já exibido.
+        if (!centralCache) setChannels([]);
       } finally {
         setLoading(false);
       }

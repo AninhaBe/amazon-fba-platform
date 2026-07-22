@@ -75,24 +75,61 @@ function getRevenueTrend(points: DailyPoint[]): RevenueTrend | null {
   return { direction, percentage };
 }
 
+interface DashSnapshot {
+  orders: OrdersData | null;
+  profit: ProfitData | null;
+  radar: RadarRow[];
+  sales: SalesSeries | null;
+  top: TopProduct[];
+  updatedAt: Date;
+}
+
+// Escopo de módulo: sobrevive à navegação entre canais. Ao voltar, o período
+// já visto renderiza no primeiro paint e a revalidação roda em segundo plano.
+const dashCache = new Map<string, DashSnapshot>();
+let productsCache: ProductRow[] | null = null;
+
 export default function Dashboard() {
   const period = useDashboardPeriod();
-  const [loading, setLoading] = useState(true);
-  const [orders, setOrders] = useState<OrdersData | null>(null);
-  const [profit, setProfit] = useState<ProfitData | null>(null);
-  const [radar, setRadar] = useState<RadarRow[]>([]);
-  const [products, setProducts] = useState<ProductRow[]>([]);
-  const [sales, setSales] = useState<SalesSeries | null>(null);
-  const [top, setTop] = useState<TopProduct[]>([]);
-  const [productsLoading, setProductsLoading] = useState(true);
+  const [initialDash] = useState(() => dashCache.get(period.query));
+  const [loading, setLoading] = useState(!initialDash);
+  const [orders, setOrders] = useState<OrdersData | null>(initialDash?.orders ?? null);
+  const [profit, setProfit] = useState<ProfitData | null>(initialDash?.profit ?? null);
+  const [radar, setRadar] = useState<RadarRow[]>(initialDash?.radar ?? []);
+  const [products, setProducts] = useState<ProductRow[]>(productsCache ?? []);
+  const [sales, setSales] = useState<SalesSeries | null>(initialDash?.sales ?? null);
+  const [top, setTop] = useState<TopProduct[]>(initialDash?.top ?? []);
+  const [productsLoading, setProductsLoading] = useState(!productsCache);
   const [errors, setErrors] = useState<string[]>([]);
-  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(initialDash?.updatedAt ?? null);
 
   const periodQuery = period.query;
 
   useEffect(() => {
     let active = true;
-    Promise.resolve().then(() => active && setLoading(true));
+    const cached = dashCache.get(periodQuery);
+    Promise.resolve().then(() => {
+      if (!active) return;
+      if (cached) {
+        setOrders(cached.orders);
+        setProfit(cached.profit);
+        setRadar(cached.radar);
+        setSales(cached.sales);
+        setTop(cached.top);
+        setUpdatedAt(cached.updatedAt);
+        setLoading(false);
+      } else {
+        setLoading(true);
+      }
+    });
+    const next: Omit<DashSnapshot, "updatedAt"> = {
+      orders: cached?.orders ?? null,
+      profit: cached?.profit ?? null,
+      radar: cached?.radar ?? [],
+      sales: cached?.sales ?? null,
+      top: cached?.top ?? [],
+    };
+    const store = () => dashCache.set(periodQuery, { ...next, updatedAt: new Date() });
     const errs: string[] = [];
     const safe = <T,>(url: string, set: (v: T) => void, pick: (d: unknown) => T, name: string) =>
       fetch(url)
@@ -105,24 +142,25 @@ export default function Dashboard() {
 
     // Chamadas rápidas — controlam o "loading" do dashboard.
     Promise.all([
-      safe<OrdersData>(`/api/orders?${periodQuery}`, setOrders, (d) => d as OrdersData, "pedidos"),
-      safe<ProfitData>(`/api/profit?${periodQuery}`, setProfit, (d) => (d as { summary: ProfitData }).summary, "financeiro"),
-      safe<RadarRow[]>(`/api/radar?${periodQuery}`, setRadar, (d) => (d as { rows: RadarRow[] }).rows, "estoque"),
-      safe<SalesSeries>(`/api/sales?${periodQuery}`, setSales, (d) => (d as { series: SalesSeries }).series, "vendas"),
+      safe<OrdersData>(`/api/orders?${periodQuery}`, (v) => { next.orders = v; setOrders(v); }, (d) => d as OrdersData, "pedidos"),
+      safe<ProfitData>(`/api/profit?${periodQuery}`, (v) => { next.profit = v; setProfit(v); }, (d) => (d as { summary: ProfitData }).summary, "financeiro"),
+      safe<RadarRow[]>(`/api/radar?${periodQuery}`, (v) => { next.radar = v; setRadar(v); }, (d) => (d as { rows: RadarRow[] }).rows, "estoque"),
+      safe<SalesSeries>(`/api/sales?${periodQuery}`, (v) => { next.sales = v; setSales(v); }, (d) => (d as { series: SalesSeries }).series, "vendas"),
     ]).then(() => {
       if (active) {
         setErrors(errs);
         setUpdatedAt(new Date());
         setLoading(false);
+        store();
       }
     });
 
     // Produtos e top produtos usam o relatório da Amazon (lento) — carregam em separado.
-    Promise.resolve().then(() => active && setProductsLoading(true));
-    safe<ProductRow[]>(`/api/products`, setProducts, (d) => (d as { products: ProductRow[] }).products, "produtos").finally(
+    if (!productsCache) Promise.resolve().then(() => active && setProductsLoading(true));
+    safe<ProductRow[]>(`/api/products`, (v) => { productsCache = v; setProducts(v); }, (d) => (d as { products: ProductRow[] }).products, "produtos").finally(
       () => active && setProductsLoading(false)
     );
-    safe<TopProduct[]>(`/api/top-products?${periodQuery}`, setTop, (d) => (d as { products: TopProduct[] }).products, "top produtos");
+    safe<TopProduct[]>(`/api/top-products?${periodQuery}`, (v) => { next.top = v; setTop(v); store(); }, (d) => (d as { products: TopProduct[] }).products, "top produtos");
 
     return () => {
       active = false;
