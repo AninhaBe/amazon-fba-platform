@@ -149,6 +149,129 @@ export async function saveCanonicalOrders(scope: CanonicalScope, orders: Canonic
   );
 }
 
+/**
+ * Upsert de headers de pedido para canais em que os itens chegam depois
+ * (Amazon: getOrders traz o header; getOrderItems é conciliado aos poucos).
+ * Quando o pedido já tem linhas, gross/buyer_shipping refinados são
+ * preservados — o header traria de volta a aproximação do OrderTotal.
+ */
+export async function saveCanonicalOrderHeaders(scope: CanonicalScope, orders: CanonicalOrder[]): Promise<void> {
+  if (!orders.length) return;
+  const records = orders.map((order) => ({
+    external_order_id: order.externalOrderId,
+    status: order.status,
+    provider_status: order.providerStatus,
+    occurred_at: order.occurredAt,
+    closed_at: order.closedAt,
+    currency: order.currency,
+    gross: order.gross,
+    buyer_shipping: order.buyerShipping,
+    fulfillment: order.fulfillment,
+    pack_id: order.packId,
+    raw: scope.storeRaw === false ? null : order.raw,
+  }));
+  await dbQuery(
+    `INSERT INTO workspace_channel_orders
+       (workspace_id, provider, connection_id, external_order_id, status, provider_status,
+        occurred_at, closed_at, currency, gross, buyer_shipping, fulfillment, pack_id, raw, synced_at)
+     SELECT $1, $2, $3, p.external_order_id, p.status, p.provider_status, p.occurred_at,
+            p.closed_at, p.currency, p.gross, p.buyer_shipping, p.fulfillment, p.pack_id, p.raw, now()
+       FROM jsonb_to_recordset($4::jsonb) AS p(
+         external_order_id text, status text, provider_status text, occurred_at timestamptz,
+         closed_at timestamptz, currency text, gross numeric, buyer_shipping numeric,
+         fulfillment text, pack_id text, raw jsonb
+       )
+     ON CONFLICT (workspace_id, provider, connection_id, external_order_id) DO UPDATE SET
+       status = EXCLUDED.status, provider_status = EXCLUDED.provider_status,
+       occurred_at = EXCLUDED.occurred_at, closed_at = EXCLUDED.closed_at,
+       currency = EXCLUDED.currency,
+       gross = CASE WHEN EXISTS (
+                 SELECT 1 FROM workspace_channel_order_items i
+                  WHERE i.workspace_id = workspace_channel_orders.workspace_id
+                    AND i.provider = workspace_channel_orders.provider
+                    AND i.connection_id = workspace_channel_orders.connection_id
+                    AND i.external_order_id = workspace_channel_orders.external_order_id
+               ) THEN workspace_channel_orders.gross ELSE EXCLUDED.gross END,
+       buyer_shipping = COALESCE(workspace_channel_orders.buyer_shipping, EXCLUDED.buyer_shipping),
+       fulfillment = EXCLUDED.fulfillment, pack_id = EXCLUDED.pack_id,
+       raw = COALESCE(EXCLUDED.raw, workspace_channel_orders.raw), synced_at = now()`,
+    [currentWorkspaceId(), scope.provider, scope.connectionId, JSON.stringify(records)]
+  );
+}
+
+export interface OrderItemsApplication {
+  externalOrderId: string;
+  items: Array<{ externalProductId: string; sku: string | null; title: string; qty: number; unitPrice: number }>;
+  /** Receita dos produtos calculada das linhas; substitui a aproximação do header. */
+  gross: number;
+  buyerShipping: number;
+}
+
+/** Aplica linhas conciliadas e refina gross/buyer_shipping — um statement, atômico. */
+export async function applyCanonicalOrderItems(
+  scope: CanonicalScope,
+  applications: OrderItemsApplication[]
+): Promise<void> {
+  const pending = applications.filter((application) => application.items.length);
+  if (!pending.length) return;
+  const workspaceId = currentWorkspaceId();
+  const itemRecords = pending.flatMap((application) => application.items.map((item, index) => ({
+    external_order_id: application.externalOrderId,
+    line_no: index + 1,
+    external_product_id: item.externalProductId,
+    sku: item.sku,
+    title: item.title,
+    qty: item.qty,
+    unit_price: item.unitPrice,
+  })));
+  const orderRecords = pending.map((application) => ({
+    external_order_id: application.externalOrderId,
+    gross: application.gross,
+    buyer_shipping: application.buyerShipping,
+  }));
+  await dbQuery(
+    `WITH items_payload AS (
+       SELECT * FROM jsonb_to_recordset($4::jsonb) AS item(
+         external_order_id text, line_no smallint, external_product_id text,
+         sku text, title text, qty integer, unit_price numeric
+       )
+     ),
+     upsert_items AS (
+       INSERT INTO workspace_channel_order_items
+         (workspace_id, provider, connection_id, external_order_id, line_no,
+          external_product_id, sku, title, qty, unit_price)
+       SELECT $1, $2, $3, p.external_order_id, p.line_no,
+              p.external_product_id, p.sku, p.title, p.qty, p.unit_price
+         FROM items_payload p
+       ON CONFLICT (workspace_id, provider, connection_id, external_order_id, line_no) DO UPDATE SET
+         external_product_id = EXCLUDED.external_product_id, sku = EXCLUDED.sku,
+         title = EXCLUDED.title, qty = EXCLUDED.qty, unit_price = EXCLUDED.unit_price
+     ),
+     stale_items AS (
+       DELETE FROM workspace_channel_order_items items
+        WHERE items.workspace_id = $1 AND items.provider = $2 AND items.connection_id = $3
+          AND items.external_order_id = ANY($5::text[])
+          AND items.line_no > COALESCE((
+            SELECT max(p.line_no) FROM items_payload p
+             WHERE p.external_order_id = items.external_order_id
+          ), 0)
+     )
+     UPDATE workspace_channel_orders orders
+        SET gross = refined.gross, buyer_shipping = refined.buyer_shipping, synced_at = now()
+       FROM jsonb_to_recordset($6::jsonb) AS refined(external_order_id text, gross numeric, buyer_shipping numeric)
+      WHERE orders.workspace_id = $1 AND orders.provider = $2 AND orders.connection_id = $3
+        AND orders.external_order_id = refined.external_order_id`,
+    [
+      workspaceId,
+      scope.provider,
+      scope.connectionId,
+      JSON.stringify(itemRecords),
+      pending.map((application) => application.externalOrderId),
+      JSON.stringify(orderRecords),
+    ]
+  );
+}
+
 export interface ShipmentCostsApplication {
   /** Pedidos que compartilham o shipment (packs têm mais de um). */
   orderIds: string[];
