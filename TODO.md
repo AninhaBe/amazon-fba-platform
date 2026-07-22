@@ -23,9 +23,8 @@ conforme for concluindo.
 
 - [x] Ingestão de pedidos (headers via `getOrders`, itens conciliados em background)
 - [x] Cron para avançar histórico e itens sem visitas ao dashboard
-- [ ] **Fees via Finances API** — comissão, tarifa FBA, frete: viram linhas de
-  fee canônicas (`commission`, `fulfillment`, `shipping_seller`), habilitando o
-  cálculo de lucro com a cobertura "X de Y processados" que o ML já usa
+- [x] **Fees via Finances API** — comissão, tarifa FBA, frete e estornos viram
+  fees canônicas por pedido, conciliadas em background junto do sync
 - [ ] **Trocar as rotas do dashboard Amazon** (`/api/orders`, `/api/sales`,
   `/api/profit`, `/api/top-products`) para ler do SQL canônico — é o que
   torna a Amazon rápida como o Mercado Livre ficou. Antes, validar os números
