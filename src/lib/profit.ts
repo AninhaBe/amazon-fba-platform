@@ -1,5 +1,4 @@
 import { getFinanceSummaryFromTransactions, type FinanceSummaryFromTransactions } from "./transactions";
-import { getSalesVelocity } from "./orders";
 import { getCosts } from "./costStore";
 import type { Period } from "./period";
 import { calculateHistoricalCostCoverage } from "./financialMath";
@@ -14,23 +13,18 @@ export interface ProfitSummary {
 }
 
 /**
- * Lucro estimado do período. O dinheiro (receita, taxas, repasse líquido) vem
- * da Transactions API 2024-06-19 — a Finances v0 passou a devolver valores
- * zerados nesta conta. As unidades vendidas por SKU vêm da velocidade de
- * venda, e o custo das mercadorias sai do cruzamento com os custos cadastrados
- * na vigência de cada venda.
+ * Lucro estimado do período, tudo a partir da Transactions API 2024-06-19
+ * (a Finances v0 devolve valores zerados). Dinheiro (receita, taxas, repasse)
+ * e unidades por SKU vêm da mesma fonte; o custo das mercadorias sai do
+ * cruzamento com os custos cadastrados na vigência de cada venda.
  */
 export async function getProfitSummary(period: Period): Promise<ProfitSummary> {
-  const [finance, velocity, costs] = await Promise.all([
+  const [finance, costs] = await Promise.all([
     getFinanceSummaryFromTransactions(period),
-    getSalesVelocity({ period }),
     getCosts(),
   ]);
 
-  const sales = velocity.sales
-    .filter((line): line is typeof line & { sku: string } => !!line.sku && line.units > 0)
-    .map((line) => ({ sku: line.sku, units: line.units, purchasedAt: line.purchasedAt }));
-  const coverage = calculateHistoricalCostCoverage(finance.netProceeds, sales, costs);
+  const coverage = calculateHistoricalCostCoverage(finance.netProceeds, finance.salesLines, costs);
 
   return {
     finance,

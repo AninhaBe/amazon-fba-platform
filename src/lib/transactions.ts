@@ -182,6 +182,19 @@ async function fetchTransactions(period: Period): Promise<TransactionSummary> {
 // zerados nesta conta — a Amazon migrou o detalhe financeiro para a Transactions
 // API. Este resumo re-baseia receita/taxas/reembolsos/repasse nessa fonte.
 
+export interface FinanceDailyPoint {
+  date: string;
+  revenue: number;
+  orders: number;
+  units: number;
+}
+
+export interface FinanceSaleLine {
+  sku: string;
+  units: number;
+  purchasedAt: string;
+}
+
 export interface FinanceSummaryFromTransactions {
   currency: string;
   revenue: number;      // vendas brutas de produto (ProductCharges)
@@ -190,8 +203,20 @@ export interface FinanceSummaryFromTransactions {
   reimbursements: number; // ressarcimentos de estoque FBA, positivo
   netProceeds: number;  // resultado líquido do período (exclui transferências ao banco)
   orderCount: number;
+  units: number;
+  daily: FinanceDailyPoint[];      // série por data de postagem (fuso do Brasil)
+  salesLines: FinanceSaleLine[];   // unidades vendidas por SKU, para o COGS
   feeBreakdown: { type: string; amount: number }[];
   source: "transactions-2024-06-19";
+}
+
+function brazilDay(iso: string): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(iso));
 }
 
 // Estrutura real da Transactions API 2024-06-19 (confirmada ao vivo):
@@ -262,15 +287,24 @@ function parseTransactionFinancials(transaction: ApiTransaction): ParsedTransact
   return parsed;
 }
 
-function computeFinanceFromTransactions(rawTransactions: ApiTransaction[]): FinanceSummaryFromTransactions {
+interface DailyBucket {
+  revenue: number;
+  units: number;
+  orders: Set<string>;
+}
+
+function computeFinanceFromTransactions(rawTransactions: ApiTransaction[], period: Period): FinanceSummaryFromTransactions {
   let currency = "BRL";
   let revenue = 0;
   let fees = 0;
   let refunds = 0;
   let reimbursements = 0;
   let netProceeds = 0;
+  let units = 0;
   const orders = new Set<string>();
   const feeMap = new Map<string, number>();
+  const dailyMap = new Map<string, DailyBucket>();
+  const saleUnits = new Map<string, { sku: string; units: number; purchasedAt: string }>();
 
   for (const transaction of rawTransactions) {
     if (!isPeriodSale(transaction)) continue;
@@ -286,6 +320,41 @@ function computeFinanceFromTransactions(rawTransactions: ApiTransaction[]): Fina
     refunds += parsed.refunds;
     reimbursements += parsed.reimbursements;
     for (const [type, amount] of parsed.feeMap) feeMap.set(type, (feeMap.get(type) ?? 0) + amount);
+
+    const day = transaction.postedDate ? brazilDay(transaction.postedDate) : null;
+    const bucket = day ? (dailyMap.get(day) ?? { revenue: 0, units: 0, orders: new Set<string>() }) : null;
+    if (bucket) {
+      bucket.revenue += parsed.revenue;
+      if (orderId) bucket.orders.add(orderId);
+    }
+    // Unidades e linhas por SKU (para o COGS) vêm do ProductContext dos itens.
+    for (const item of transaction.items ?? []) {
+      for (const ctx of item.contexts ?? []) {
+        if (ctx.contextType !== "ProductContext" || !ctx.sku || !ctx.quantityShipped) continue;
+        units += ctx.quantityShipped;
+        if (bucket) bucket.units += ctx.quantityShipped;
+        const key = ctx.sku;
+        const line = saleUnits.get(key) ?? { sku: ctx.sku, units: 0, purchasedAt: transaction.postedDate ?? "" };
+        line.units += ctx.quantityShipped;
+        // guarda a data de venda mais antiga (para casar o custo vigente)
+        if (transaction.postedDate && (!line.purchasedAt || transaction.postedDate < line.purchasedAt)) {
+          line.purchasedAt = transaction.postedDate;
+        }
+        saleUnits.set(key, line);
+      }
+    }
+    if (day && bucket) dailyMap.set(day, bucket);
+  }
+
+  // Série diária contínua no período (dias sem venda entram zerados).
+  const daily: FinanceDailyPoint[] = [];
+  const cursor = new Date(`${brazilDay(period.startISO)}T12:00:00Z`);
+  const lastDay = brazilDay(period.endISO);
+  while (cursor.toISOString().slice(0, 10) <= lastDay) {
+    const date = cursor.toISOString().slice(0, 10);
+    const bucket = dailyMap.get(date);
+    daily.push({ date, revenue: round(bucket?.revenue ?? 0), orders: bucket?.orders.size ?? 0, units: bucket?.units ?? 0 });
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
 
   return {
@@ -296,6 +365,9 @@ function computeFinanceFromTransactions(rawTransactions: ApiTransaction[]): Fina
     reimbursements: round(reimbursements),
     netProceeds: round(netProceeds),
     orderCount: orders.size,
+    units,
+    daily,
+    salesLines: [...saleUnits.values()],
     feeBreakdown: [...feeMap.entries()]
       .map(([type, amount]) => ({ type, amount: round(amount) }))
       .filter((entry) => Math.abs(entry.amount) >= 0.01)
@@ -308,7 +380,7 @@ export function getFinanceSummaryFromTransactions(period: Period): Promise<Finan
   return swr(
     `finance-tx:${period.key}`,
     5 * 60_000,
-    async () => computeFinanceFromTransactions(await fetchRawTransactions(period)),
+    async () => computeFinanceFromTransactions(await fetchRawTransactions(period), period),
     { awaitIfEmpty: true }
   );
 }

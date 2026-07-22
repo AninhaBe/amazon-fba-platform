@@ -27,7 +27,10 @@ interface OrdersData {
   }[];
 }
 interface ProfitData {
-  finance: { revenue: number; fees: number; netProceeds: number; currency: string; orderCount: number };
+  finance: {
+    revenue: number; fees: number; refunds: number; netProceeds: number; currency: string;
+    orderCount: number; units: number; daily: DailyPoint[];
+  };
   cogs: number;
   estimatedProfit: number;
   unitsWithoutCost: number;
@@ -43,13 +46,6 @@ interface ProductRow {
   id: string;
   cost: number | null;
 }
-interface SalesSeries {
-  currency: string;
-  points: DailyPoint[];
-  totalRevenue: number;
-  totalOrders: number;
-  totalUnits: number;
-}
 interface TopProduct {
   sku: string;
   title?: string;
@@ -63,7 +59,6 @@ interface DashSnapshot {
   orders: OrdersData | null;
   profit: ProfitData | null;
   radar: RadarRow[];
-  sales: SalesSeries | null;
   top: TopProduct[];
   updatedAt: Date;
 }
@@ -81,7 +76,6 @@ export default function Dashboard() {
   const [profit, setProfit] = useState<ProfitData | null>(initialDash?.profit ?? null);
   const [radar, setRadar] = useState<RadarRow[]>(initialDash?.radar ?? []);
   const [products, setProducts] = useState<ProductRow[]>(productsCache ?? []);
-  const [sales, setSales] = useState<SalesSeries | null>(initialDash?.sales ?? null);
   const [top, setTop] = useState<TopProduct[]>(initialDash?.top ?? []);
   const [productsLoading, setProductsLoading] = useState(!productsCache);
   const [errors, setErrors] = useState<string[]>([]);
@@ -98,7 +92,6 @@ export default function Dashboard() {
         setOrders(cached.orders);
         setProfit(cached.profit);
         setRadar(cached.radar);
-        setSales(cached.sales);
         setTop(cached.top);
         setUpdatedAt(cached.updatedAt);
         setLoading(false);
@@ -110,7 +103,6 @@ export default function Dashboard() {
       orders: cached?.orders ?? null,
       profit: cached?.profit ?? null,
       radar: cached?.radar ?? [],
-      sales: cached?.sales ?? null,
       top: cached?.top ?? [],
     };
     const store = () => dashCache.set(periodQuery, { ...next, updatedAt: new Date() });
@@ -129,7 +121,6 @@ export default function Dashboard() {
       safe<OrdersData>(`/api/orders?${periodQuery}`, (v) => { next.orders = v; setOrders(v); }, (d) => d as OrdersData, "pedidos"),
       safe<ProfitData>(`/api/profit?${periodQuery}`, (v) => { next.profit = v; setProfit(v); }, (d) => (d as { summary: ProfitData }).summary, "financeiro"),
       safe<RadarRow[]>(`/api/radar?${periodQuery}`, (v) => { next.radar = v; setRadar(v); }, (d) => (d as { rows: RadarRow[] }).rows, "estoque"),
-      safe<SalesSeries>(`/api/sales?${periodQuery}`, (v) => { next.sales = v; setSales(v); }, (d) => (d as { series: SalesSeries }).series, "vendas"),
     ]).then(() => {
       if (active) {
         setErrors(errs);
@@ -154,17 +145,19 @@ export default function Dashboard() {
   const currency = profit?.finance.currency || orders?.metrics.currency || "BRL";
   const critical = radar.filter((r) => r.status === "critical" || r.status === "out");
   const noCost = products.filter((p) => p.cost == null || p.cost === 0).length;
-  // Usa a série consolidada do período e recorre ao resumo de pedidos quando necessário.
-  const revenue = sales?.totalRevenue ?? orders?.metrics.totalRevenue ?? 0;
-  const salesCount = sales?.totalOrders ?? orders?.metrics.totalOrders ?? 0;
-  const unitsCount = sales?.totalUnits ?? 0;
+  // Faturamento, vendas e unidades vêm todos das transações (mesma fonte do
+  // lucro), então receita e lucro reconciliam sempre.
+  const revenue = profit?.finance.revenue ?? 0;
+  const salesCount = profit?.finance.orderCount ?? 0;
+  const unitsCount = profit?.finance.units ?? 0;
   const estProfit = profit?.estimatedProfit ?? 0;
   const cogs = profit?.cogs ?? 0;
-  const reconciledRevenue = profit?.finance.revenue ?? 0;
-  const marginPct = reconciledRevenue > 0 ? (estProfit / reconciledRevenue) * 100 : 0;
+  const missingCostUnits = profit?.unitsWithoutCost ?? 0;
+  const costsIncomplete = missingCostUnits > 0;
+  const marginPct = revenue > 0 ? (estProfit / revenue) * 100 : 0;
   const ticketMedio = salesCount > 0 ? revenue / salesCount : 0;
   const roiPct = cogs > 0 ? (estProfit / cogs) * 100 : 0;
-  const revenueTrend = getRevenueTrend(sales?.points ?? []);
+  const revenueTrend = getRevenueTrend(profit?.finance.daily ?? []);
 
   return (
     <div className="dashboard-page space-y-8">
@@ -190,13 +183,15 @@ export default function Dashboard() {
         <Kpi label="Faturamento" value={<AnimatedNumber value={revenue} format={(amount) => money(amount, currency)} />} sub={`${salesCount} vendas no período`} loading={loading} trend={revenueTrend} />
         <div className="metric-cell metric-primary relative overflow-hidden p-5">
           <div className="flex items-start justify-between gap-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">Lucro conciliado</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">{costsIncomplete ? "Repasse líquido" : "Lucro conciliado"}</p>
             <span className="metric-icon">{kpiIcons.percent}</span>
           </div>
           <p className="mt-2 text-[27px] font-bold leading-none tabular-nums text-emerald-800">
             {loading ? "···" : <AnimatedNumber value={estProfit} format={(amount) => money(amount, currency)} />}
           </p>
-          <p className="mt-1.5 text-xs font-medium text-emerald-700/80">margem {marginPct.toFixed(1)}% sobre vendas conciliadas</p>
+          <p className={`mt-1.5 text-xs font-medium ${costsIncomplete ? "text-amber-700" : "text-emerald-700/80"}`}>
+            {costsIncomplete ? "antes do custo dos produtos — cadastre custos para o lucro real" : `margem ${marginPct.toFixed(1)}% sobre vendas conciliadas`}
+          </p>
         </div>
         <Kpi
           label="Estoque crítico"
@@ -239,14 +234,14 @@ export default function Dashboard() {
               <h2 className="mt-1 text-lg font-semibold text-slate-900">Evolução do faturamento</h2>
             </div>
             <span className="text-sm font-semibold tabular-nums text-slate-900">
-              {money(sales?.totalRevenue ?? 0, currency)}{" "}
+              {money(revenue, currency)}{" "}
               <span className="font-normal text-slate-400">no período</span>
             </span>
           </div>
           {loading ? (
             <span className="skeleton-chart" role="status" aria-label="Carregando evolução do faturamento" />
           ) : (
-            <RevenueChart points={sales?.points ?? []} />
+            <RevenueChart points={profit?.finance.daily ?? []} />
           )}
         </div>
 

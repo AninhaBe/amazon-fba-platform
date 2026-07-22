@@ -192,6 +192,8 @@ function Dashboard({ overview, updatedAt }: { overview: Overview; updatedAt: Dat
   const units = overview.dailySales.reduce((total, point) => total + point.units, 0);
   const critical = overview.stockRadar.filter((product) => product.status === "critical" || product.status === "out");
   const roi = overview.profit.cogs > 0 ? overview.profit.estimatedProfit / overview.profit.cogs * 100 : null;
+  // Sem custos cadastrados o "lucro" é só margem antes do produto — não engana.
+  const costsIncomplete = overview.profit.unitsWithoutCost > 0;
   return <div className="dashboard-sections space-y-8">
     {updatedAt && <p className="-mt-5 text-xs text-slate-400">Atualizado às {updatedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}. Dados disponíveis no SellerCore.</p>}
 
@@ -200,9 +202,9 @@ function Dashboard({ overview, updatedAt }: { overview: Overview; updatedAt: Dat
     <section className="metric-grid grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-4" aria-label="Indicadores Mercado Livre">
       <Metric label="Faturamento" value={<AnimatedNumber value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={coverage.complete ? `${overview.metrics.paidOrders} vendas no período` : `${coverage.capturedOrders} pedidos capturados; histórico em andamento`} trend={getRevenueTrend(overview.dailySales)} />
       <div className="metric-cell metric-primary relative overflow-hidden p-5">
-        <div className="flex items-start justify-between gap-2"><p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">{profitCoverage.complete ? "Lucro estimado" : "Lucro processado"}</p><span className="metric-icon">{dashboardKpiIcons.percent}</span></div>
+        <div className="flex items-start justify-between gap-2"><p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">{costsIncomplete ? "Margem antes do custo" : profitCoverage.complete ? "Lucro estimado" : "Lucro processado"}</p><span className="metric-icon">{dashboardKpiIcons.percent}</span></div>
         <p className="mt-2 text-[27px] font-bold leading-none tabular-nums text-emerald-800"><AnimatedNumber value={overview.profit.estimatedProfit} format={(amount) => money(amount, overview.metrics.currency)} /></p>
-        <p className="mt-1.5 text-xs font-medium text-emerald-700/80">{profitCoverage.complete ? `margem ${percent(overview.profit.marginPct)}` : `${profitCoverage.processedOrders} de ${profitCoverage.paidOrders} vendas`}</p>
+        <p className={`mt-1.5 text-xs font-medium ${costsIncomplete ? "text-amber-700" : "text-emerald-700/80"}`}>{costsIncomplete ? "cadastre custos para o lucro real" : profitCoverage.complete ? `margem ${percent(overview.profit.marginPct)}` : `${profitCoverage.processedOrders} de ${profitCoverage.paidOrders} vendas`}</p>
       </div>
       <Metric label="Estoque crítico" value={critical.length.toLocaleString("pt-BR")} sub={critical.length ? "repor com urgência — ver radar" : "tudo sob controle — ver radar"} tone={critical.length ? "danger" : "ok"} icon={dashboardKpiIcons.stock} href="/mercado-livre/estoque" />
       <Metric label="Produtos sem custo" value={overview.metrics.productsWithoutCost.toLocaleString("pt-BR")} sub={overview.metrics.productsWithoutCost ? "cadastre para ver o lucro" : "todos cadastrados"} tone={overview.metrics.productsWithoutCost ? "warn" : "ok"} icon={dashboardKpiIcons.box} />
