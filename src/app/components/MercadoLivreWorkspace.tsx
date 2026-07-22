@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatedNumber } from "./AnimatedNumber";
 import { EmptyState } from "./EmptyState";
 import { DashboardSkeleton } from "./LoadingState";
@@ -38,6 +38,11 @@ interface CachedPeriod {
   updatedAt: Date;
 }
 
+// Escopo de módulo: sobrevive à navegação entre canais (o componente desmonta
+// ao ir para a Amazon e voltar). Ao retornar, o período já visto aparece na
+// hora e a revalidação acontece em segundo plano. Um reload limpa tudo.
+const periodCache = new Map<string, CachedPeriod>();
+
 const views = {
   dashboard: { eyebrow: "Operação Mercado Livre", title: "Dashboard Mercado Livre", subtitle: "Faturamento, pedidos e anúncios da sua conta do Mercado Livre Brasil.", icon: pageIcons.dashboard },
   monitor: { eyebrow: "Pedidos e financeiro Mercado Livre", title: "Monitor da conta", subtitle: "Pedidos recentes e o resultado financeiro real da sua conta.", icon: pageIcons.chart },
@@ -58,21 +63,23 @@ function orderStatus(status: string) {
 }
 
 export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
-  const [overview, setOverview] = useState<Overview | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [connectionPresent, setConnectionPresent] = useState(false);
-  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
-  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
-  const [retryKey, setRetryKey] = useState(0);
-  const periodCache = useRef(new Map<string, CachedPeriod>());
   const period = useDashboardPeriod();
+  // Ao voltar de outro canal, o período já visto renderiza no primeiro paint
+  // (sem flash de skeleton); a revalidação segue em segundo plano.
+  const [initialCached] = useState(() => periodCache.get(`${view}:${period.query}`));
+  const [overview, setOverview] = useState<Overview | null>(initialCached?.overview ?? null);
+  const [loading, setLoading] = useState(!initialCached);
+  const [error, setError] = useState<string | null>(null);
+  const [connectionPresent, setConnectionPresent] = useState(!!initialCached);
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(initialCached?.updatedAt ?? null);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(initialCached?.syncStatus ?? null);
+  const [retryKey, setRetryKey] = useState(0);
   const page = views[view];
 
   useEffect(() => {
     const controller = new AbortController();
     const cacheKey = `${view}:${period.query}`;
-    const cached = periodCache.current.get(cacheKey);
+    const cached = periodCache.get(cacheKey);
     const wait = (milliseconds: number) => new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds));
     const pollingDelay = (attempt: number) => Math.min(5_000, 1_500 + Math.max(0, attempt - 1) * 500);
     const timer = window.setTimeout(() => {
@@ -109,7 +116,7 @@ export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
             const nextOverview = data.overview as Overview;
             const nextSync = data.sync ? data.sync as SyncStatus : null;
             const nextUpdatedAt = data.updatedAt ? new Date(data.updatedAt) : new Date();
-            periodCache.current.set(cacheKey, {
+            periodCache.set(cacheKey, {
               overview: nextOverview,
               syncStatus: nextSync,
               updatedAt: nextUpdatedAt,
