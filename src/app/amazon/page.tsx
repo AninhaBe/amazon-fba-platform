@@ -4,11 +4,12 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { RevenueChart, type DailyPoint } from "../components/RevenueChart";
 import { PageHeader, pageIcons } from "../components/PageHeader";
-import { InlineLoading, PanelLoading } from "../components/LoadingState";
+import { InlineLoading } from "../components/LoadingState";
 import { EmptyState } from "../components/EmptyState";
 import { DashboardPeriodFilter, useDashboardPeriod } from "../components/DashboardPeriodFilter";
 import { OperationPending, type OperationPendingItem } from "../components/OperationPending";
 import { Metric as Kpi, getRevenueTrend } from "../components/Metric";
+import { AnimatedNumber } from "../components/AnimatedNumber";
 import { Boxes, ChartSpline, PackageOpen, Percent, ShoppingCart, Tag } from "lucide-react";
 
 function money(v: number, currency = "BRL") {
@@ -182,16 +183,17 @@ export default function Dashboard() {
 
       <AmazonPending products={products.length} productsLoading={productsLoading} missingCosts={noCost} />
 
+      <div className="dashboard-sections space-y-8">
       {/* KPIs principais */}
       <div className="metric-grid grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi label="Faturamento" value={money(revenue, currency)} sub={`${salesCount} vendas no período`} loading={loading} trend={revenueTrend} />
+        <Kpi label="Faturamento" value={<AnimatedNumber value={revenue} format={(amount) => money(amount, currency)} />} sub={`${salesCount} vendas no período`} loading={loading} trend={revenueTrend} />
         <div className="metric-cell metric-primary relative overflow-hidden p-5">
           <div className="flex items-start justify-between gap-2">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">Lucro conciliado</p>
             <span className="text-emerald-600/50">{kpiIcons.percent}</span>
           </div>
           <p className="mt-2 text-[27px] font-bold leading-none tabular-nums text-emerald-800">
-            {loading ? "···" : money(estProfit, currency)}
+            {loading ? "···" : <AnimatedNumber value={estProfit} format={(amount) => money(amount, currency)} />}
           </p>
           <p className="mt-1.5 text-xs font-medium text-emerald-700/80">margem {marginPct.toFixed(1)}% sobre vendas conciliadas</p>
         </div>
@@ -241,7 +243,7 @@ export default function Dashboard() {
             </span>
           </div>
           {loading ? (
-            <PanelLoading label="Carregando evolução do faturamento" />
+            <span className="skeleton-chart" role="status" aria-label="Carregando evolução do faturamento" />
           ) : (
             <RevenueChart points={sales?.points ?? []} />
           )}
@@ -367,12 +369,13 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* Atalhos */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      {/* Atalhos: no desktop a sidebar já cobre; no mobile os cartões ajudam. */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:hidden">
         <QuickLink href="/amazon/calculadora" label="Calculadora" desc="Lucro por ASIN" />
         <QuickLink href="/amazon/monitor" label="Monitor" desc="Vendas e financeiro" />
         <QuickLink href="/amazon/estoque" label="Radar" desc="Estoque × velocidade" />
         <QuickLink href="/amazon/produtos" label="Produtos" desc="Custos por SKU" />
+      </div>
       </div>
     </div>
   );
