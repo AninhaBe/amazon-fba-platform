@@ -146,10 +146,10 @@ export default function EstoquePage() {
           <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
               <th scope="col" className="px-4 py-3">Produto / SKU</th>
-              <th scope="col" className="px-4 py-3 text-right">Disponível</th>
-              <th scope="col" className="px-4 py-3 text-right">A caminho</th>
-              <th scope="col" className="px-4 py-3 text-right">Vende/dia</th>
-              <th scope="col" className="px-4 py-3 text-right">Acaba em</th>
+              <th scope="col" className="px-4 py-3 text-center">Disponível</th>
+              <th scope="col" className="px-4 py-3 text-center">A caminho</th>
+              <th scope="col" className="px-4 py-3 text-center">Vende/dia</th>
+              <th scope="col" className="px-4 py-3 text-center">Acaba em</th>
               <th scope="col" className="px-4 py-3 text-center">Status</th>
             </tr>
           </thead>
@@ -169,25 +169,25 @@ export default function EstoquePage() {
                 const meta = STATUS_META[r.status];
                 return (
                   <tr key={r.sellerSku} className="hover:bg-slate-50">
-                    <td className="inventory-status-cell px-4 py-3 text-center">
+                    <td className="px-4 py-3">
                       <p className="max-w-[280px] truncate font-medium">
                         {r.productName || r.sellerSku}
                       </p>
                       <p className="font-mono text-xs text-slate-400">{r.sellerSku}</p>
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums font-medium">
+                    <td className="px-4 py-3 text-center tabular-nums font-medium">
                       {r.fulfillable}
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-slate-500">
+                    <td className="px-4 py-3 text-center tabular-nums text-slate-500">
                       {r.inbound || "—"}
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-slate-600">
+                    <td className="px-4 py-3 text-center tabular-nums text-slate-600">
                       {r.perDay > 0 ? r.perDay.toFixed(1) : "—"}
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums font-semibold">
+                    <td className="px-4 py-3 text-center tabular-nums font-semibold">
                       {r.daysRemaining == null ? "—" : `${r.daysRemaining} dias`}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="inventory-status-cell px-4 py-3 text-center">
                       <span
                         className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${meta.chip}`}
                       >

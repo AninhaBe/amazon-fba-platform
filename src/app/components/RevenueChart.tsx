@@ -11,7 +11,8 @@ export interface DailyPoint {
 
 const W = 1000;
 const H = 320;
-const PAD = { top: 20, right: 16, bottom: 28, left: 56 };
+// left comporta o rótulo mais largo ("R$ 18,3k") sem cortar o "R$".
+const PAD = { top: 20, right: 16, bottom: 28, left: 72 };
 
 function brl(v: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);

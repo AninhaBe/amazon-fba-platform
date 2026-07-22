@@ -47,6 +47,28 @@ export interface FinancialTransaction {
   sku?: string;
 }
 
+// A SP-API devolve tipo/descrição em inglês; traduzimos os termos conhecidos e
+// mantemos o original como fallback (nunca esconde um tipo novo).
+const TRANSACTION_LABELS: Record<string, string> = {
+  "order payment": "Pagamento de pedido",
+  "shipment": "Envio",
+  "refund": "Reembolso",
+  "adjustment": "Ajuste",
+  "service fee": "Taxa de serviço",
+  "servicefee": "Taxa de serviço",
+  "fba inventory fee": "Taxa de estoque FBA",
+  "storage fee": "Taxa de armazenagem",
+  "subscription fee": "Taxa de assinatura",
+  "chargeback": "Estorno",
+  "reserved": "Valor reservado",
+  "deferred": "Diferido",
+};
+
+function humanizeTransaction(value?: string): string | undefined {
+  if (!value) return value;
+  return TRANSACTION_LABELS[value.trim().toLowerCase()] ?? value;
+}
+
 export interface TransactionSummary {
   currency: string;
   releasedAmount: number;
@@ -101,9 +123,9 @@ async function fetchTransactions(period: Period): Promise<TransactionSummary> {
       const context = transaction.items?.flatMap((item) => item.contexts ?? [])[0];
       transactions.push({
         id: transaction.transactionId || `${transaction.postedDate}-${transactions.length}`,
-        type: transaction.transactionType || "OTHER",
+        type: humanizeTransaction(transaction.transactionType) || "Outros",
         status: transaction.transactionStatus || "UNKNOWN",
-        description: transaction.description || transaction.transactionType || "Transação",
+        description: humanizeTransaction(transaction.description || transaction.transactionType) || "Transação",
         postedDate: transaction.postedDate || postedBefore,
         amount: round(transaction.totalAmount?.currencyAmount ?? 0),
         currency: transaction.totalAmount?.currencyCode || "BRL",
