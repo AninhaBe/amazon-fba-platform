@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 
 // Rola o número do valor exibido até o novo em ~550ms (ease-out). Na primeira
-// aparição parte de zero; em troca de período, parte do valor anterior — o
-// movimento comunica "mesmo indicador, novo recorte". Sob
+// aparição mostra o valor real de imediato (sem contar do zero — em valores
+// altos a contagem parece bug); só anima em troca de período, partindo do valor
+// anterior — o movimento comunica "mesmo indicador, novo recorte". Sob
 // prefers-reduced-motion o valor final aparece de imediato.
 
 const DURATION_MS = 550;
@@ -14,8 +15,8 @@ function easeOutCubic(progress: number): number {
 }
 
 export function AnimatedNumber({ value, format }: { value: number; format: (value: number) => string }) {
-  const [displayed, setDisplayed] = useState(0);
-  const displayedRef = useRef(0);
+  const [displayed, setDisplayed] = useState(value);
+  const displayedRef = useRef(value);
   const frameRef = useRef(0);
 
   useEffect(() => {
