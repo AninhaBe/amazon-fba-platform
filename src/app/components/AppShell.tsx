@@ -20,7 +20,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (pathname.startsWith("/login")) return <>{children}</>;
   return (
     <div className="app-shell flex min-h-screen" data-channel={workspace}>
-      <aside className="operations-rail sticky top-0 hidden h-screen w-64 shrink-0 lg:flex">
+      <aside className="operations-rail sticky top-0 hidden h-screen w-72 shrink-0 lg:flex">
         <ChannelRail />
         <div className="rail-panel flex min-w-0 flex-1 flex-col">
           <div className="rail-panel-head px-4 py-5">
@@ -33,7 +33,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="rail-account px-3 py-4">
             {workspace === "amazon" ? <AccountSwitcher /> : (
               <Link href="/integracoes" className="workspace-account-link">
-                <span className="workspace-account-mark" aria-hidden="true"><MarketplaceIcon provider={workspace === "mercado_livre" ? "mercado_livre" : "sellercore"} size={24} /></span>
+                <span className="workspace-account-mark" aria-hidden="true"><MarketplaceIcon provider={workspace === "mercado_livre" ? "mercado_livre" : "sellercore"} size={30} app /></span>
                 <span>
                   <small>{workspace === "mercado_livre" ? "Conta Mercado Livre" : "Ecossistema SellerCore"}</small>
                   <strong>{workspace === "mercado_livre" ? "Gerenciar integração" : "Ver integrações"}</strong>

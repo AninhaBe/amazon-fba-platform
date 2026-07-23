@@ -30,7 +30,7 @@ export function ChannelRail() {
             aria-current={workspace === channel.id ? "page" : undefined}
             className={`channel-rail-tab channel-${channel.id}${workspace === channel.id ? " is-active" : ""}`}
           >
-            <span aria-hidden="true"><MarketplaceIcon provider={channel.provider} size={28} /></span>
+            <span aria-hidden="true"><MarketplaceIcon provider={channel.provider} size={30} app /></span>
           </Link>
         ))}
         <Link href="/integracoes" title="Adicionar canal" aria-label="Adicionar ou gerenciar integrações" className="channel-rail-add">

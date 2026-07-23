@@ -125,7 +125,7 @@ export default function IntegracoesPage() {
               return (
                 <article key={provider.id} className={`integration-card provider-${provider.id}${connected ? " is-connected" : ""}`}>
                   <header>
-                    <span className="provider-mark" aria-hidden="true"><MarketplaceIcon provider={provider.id} size={30} /></span>
+                    <span className="provider-mark" aria-hidden="true"><MarketplaceIcon provider={provider.id} size={40} app /></span>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <h3>{provider.name}</h3>

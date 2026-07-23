@@ -122,12 +122,12 @@ function ItemLink({ item, active, tabIndex }: { item: NavItem; active: boolean; 
       href={item.href}
       aria-current={active ? "page" : undefined}
       tabIndex={tabIndex}
-      className={`rail-nav-item group relative flex items-center gap-3 px-3 py-2.5${active ? " is-active" : ""}`}
+      className={`rail-nav-item group relative flex items-center gap-2.5 px-2.5 py-2.5${active ? " is-active" : ""}`}
     >
       <span className="rail-nav-icon flex h-6 w-6 shrink-0 items-center justify-center">{item.icon}</span>
       <span className="min-w-0">
-        <span className="block text-sm font-semibold leading-tight">{item.label}</span>
-        <span className="rail-nav-desc mt-1 block text-xs leading-tight">{item.desc}</span>
+        <span className="block overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-semibold leading-tight">{item.label}</span>
+        <span className="rail-nav-desc mt-1 block overflow-hidden text-ellipsis whitespace-nowrap text-xs leading-tight">{item.desc}</span>
       </span>
     </Link>
   );

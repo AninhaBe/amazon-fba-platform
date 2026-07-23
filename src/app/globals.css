@@ -207,10 +207,12 @@ a[href][class*="bg-gradient"]:active { transform: scale(.96); }
 }
 .rail-nav-icon {
   color: var(--ink-muted);
-  transition-property: color;
-  transition-duration: 140ms;
+  transition: transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1), color 140ms;
 }
-.rail-nav-item:hover .rail-nav-icon { color: var(--ink); }
+/* Magnify estilo Dock do macOS também nos ícones do menu */
+.rail-nav-item:hover .rail-nav-icon { color: var(--ink); transform: scale(1.12); }
+.rail-nav-item:active .rail-nav-icon { transform: scale(1.05); }
+@media (prefers-reduced-motion: reduce) { .rail-nav-icon { transition: transform 100ms ease, color 140ms; } }
 .rail-nav-desc { color: var(--ink-muted); }
 .rail-nav-item:hover { background: oklch(1 0 0 / .72); color: var(--ink); }
 .rail-nav-item.is-active {
@@ -237,8 +239,8 @@ a[href][class*="bg-gradient"]:active { transform: scale(.96); }
   border-inline-end: 1px solid var(--line);
   background: oklch(0.955 0.014 246);
 }
-.channel-rail-brand { display: grid; place-items: center; width: 34px; height: 34px; margin-block-end: 10px; border-radius: 10px; transition: background-color 140ms; }
-.channel-rail-brand:hover { background: oklch(1 0 0 / .6); }
+.channel-rail-brand { display: grid; place-items: center; width: 34px; height: 34px; margin-block-end: 10px; transition: opacity 140ms; }
+.channel-rail-brand:hover { opacity: .72; }
 .channel-rail-tabs { display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .channel-rail-tab {
   position: relative;
@@ -251,13 +253,20 @@ a[href][class*="bg-gradient"]:active { transform: scale(.96); }
   transition-property: background-color, box-shadow, transform;
   transition-duration: 150ms;
 }
-.channel-rail-tab > span { display: grid; place-items: center; width: 30px; height: 30px; transform: scale(.88); transition: transform 150ms cubic-bezier(.2, 0, 0, 1); }
+.channel-rail-tab > span { display: grid; place-items: center; width: 32px; height: 32px; transform: scale(.92); transition: transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1); }
 .channel-rail-tab .marketplace-icon { object-fit: contain; }
-.channel-rail-tab:hover { background: oklch(1 0 0 / .62); }
-.channel-rail-tab:active { transform: scale(.96); }
-.channel-rail-tab.is-active { background: color-mix(in oklch, var(--tab-accent) 15%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--tab-accent) 26%, transparent); }
+/* TikTok já traz seu próprio quadrado preto no SVG; arredonda pra casar */
+.channel-rail-tab .marketplace-app-tiktok_shop { border-radius: 7px; }
+/* O oval do ML é largo/baixo; aumenta pra ficar com presença igual aos quadrados */
+.marketplace-app-mercado_livre { transform: scale(1.2); }
+.channel-rail-tab.is-active { background: color-mix(in oklch, var(--tab-accent) 16%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--tab-accent) 26%, transparent); }
 .channel-rail-tab.is-active > span { transform: scale(1); }
-.channel-rail-tab.is-active::before { content: ""; position: absolute; inset-inline-start: -8px; inset-block: 11px; width: 3px; border-radius: 999px; background: var(--tab-accent); }
+.channel-rail-tab.is-active::before { content: ""; position: absolute; inset-inline-start: -8px; inset-block: 9px; width: 3px; border-radius: 999px; background: var(--tab-accent); }
+/* Magnify estilo Dock do macOS: o ícone salta ao passar o mouse (vence ativo e inativo) */
+.channel-rail-tab:hover { z-index: 2; }
+.channel-rail-tab:hover > span { transform: scale(1.2); }
+.channel-rail-tab:active > span { transform: scale(1.1); }
+@media (prefers-reduced-motion: reduce) { .channel-rail-tab > span { transition: transform 100ms ease; } }
 .channel-rail .channel-overview { --tab-accent: var(--brand); }
 .channel-rail .channel-amazon { --tab-accent: var(--amazon); }
 .channel-rail .channel-mercado_livre { --tab-accent: var(--meli); }
@@ -326,7 +335,7 @@ a[href][class*="bg-gradient"]:active { transform: scale(.96); }
 
 .workspace-account-link { display: flex; min-height: 58px; align-items: center; gap: 10px; border-radius: var(--radius-md); background: oklch(1 0 0 / .65); padding: 9px 10px; box-shadow: var(--shadow-surface); }
 .workspace-account-link:hover { background: white; box-shadow: var(--shadow-hover); transform: translateY(-1px); }
-.workspace-account-mark { display: grid; width: 34px; height: 34px; flex: none; place-items: center; border-radius: 9px; background: var(--channel-accent); color: var(--channel-on-accent); font-size: 10px; font-weight: 850; }
+.workspace-account-mark { display: grid; width: 34px; height: 34px; flex: none; place-items: center; }
 .workspace-account-link small, .workspace-account-link strong { display: block; }
 .workspace-account-link small { color: var(--ink-muted); font-size: 9px; font-weight: 700; letter-spacing: .065em; text-transform: uppercase; }
 .workspace-account-link strong { margin-block-start: 2px; color: var(--ink); font-size: 12px; }
@@ -361,17 +370,6 @@ a[href][class*="bg-gradient"]:active { transform: scale(.96); }
   background: linear-gradient(145deg, white, var(--channel-accent-soft));
   box-shadow: 0 6px 16px oklch(0.4 0.09 248 / .1);
   color: var(--channel-accent-dark);
-}
-.page-glyph::after {
-  content: "";
-  position: absolute;
-  inset-block-start: 7px;
-  inset-inline-end: 7px;
-  width: 5px;
-  height: 5px;
-  border: 1px solid white;
-  border-radius: 999px;
-  background: var(--channel-accent);
 }
 .page-kicker { color: var(--channel-accent-dark); }
 .page-heading h1 { color: var(--ink) !important; }
@@ -1078,22 +1076,13 @@ summary:hover { background: var(--paper-soft); }
 .integration-card > header { display: flex; gap: 14px; padding: 20px 20px 16px; }
 .provider-mark {
   display: inline-flex;
-  width: 48px;
-  height: 48px;
+  width: 44px;
+  height: 44px;
   flex: none;
   align-items: center;
   justify-content: center;
-  border-radius: 14px;
-  background: color-mix(in oklch, var(--provider-color) 13%, white);
-  color: color-mix(in oklch, var(--provider-color) 85%, black);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: -.02em;
 }
-.provider-mark .marketplace-icon-amazon { width: 28px; height: 28px; }
-.provider-mark .marketplace-icon-mercado_livre { width: 32px; height: 32px; }
-.provider-mark .marketplace-icon-shopee { width: 29px; height: 29px; }
-.provider-mark .marketplace-icon-tiktok_shop { width: 28px; height: 28px; }
+.provider-mark .marketplace-app { object-fit: contain; }
 .integration-card h3 { color: var(--ink); font-size: 17px; font-weight: 730; letter-spacing: -.02em; }
 .integration-card header p { max-width: 48ch; margin-block-start: 5px; color: var(--ink-muted); font-size: 13px; line-height: 1.5; text-wrap: pretty; }
 .connection-status { display: inline-flex; align-items: center; border-radius: 999px; background: var(--brand-soft); padding: 4px 7px; color: var(--brand-dark); font-size: 11px; font-weight: 700; }

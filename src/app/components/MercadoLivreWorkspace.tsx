@@ -6,6 +6,7 @@ import { AnimatedNumber } from "./AnimatedNumber";
 import { EmptyState } from "./EmptyState";
 import { DashboardSkeleton } from "./LoadingState";
 import { PageHeader, pageIcons } from "./PageHeader";
+import { MarketplaceIcon } from "./MarketplaceIcon";
 import { RevenueChart, type DailyPoint } from "./RevenueChart";
 import { DashboardPeriodFilter, useDashboardPeriod } from "./DashboardPeriodFilter";
 import { OrderProfitabilityTable } from "./OrderProfitabilityTable";
@@ -47,7 +48,7 @@ interface CachedPeriod {
 const periodCache = new Map<string, CachedPeriod>();
 
 const views = {
-  dashboard: { eyebrow: "Operação Mercado Livre", title: "Dashboard Mercado Livre", subtitle: "Faturamento, pedidos e anúncios da sua conta do Mercado Livre Brasil.", icon: pageIcons.dashboard },
+  dashboard: { eyebrow: "Operação Mercado Livre", title: "Dashboard Mercado Livre", subtitle: "Faturamento, pedidos e anúncios da sua conta do Mercado Livre Brasil.", icon: <MarketplaceIcon provider="mercado_livre" app size={30} /> },
   monitor: { eyebrow: "Pedidos e financeiro Mercado Livre", title: "Monitor da conta", subtitle: "Pedidos recentes e o resultado financeiro real da sua conta.", icon: pageIcons.chart },
   estoque: { eyebrow: "Operação Mercado Livre", title: "Radar de estoque", subtitle: "Cobertura dos anúncios ativos com base no estoque e no ritmo de vendas do período.", icon: pageIcons.box },
 } as const;
@@ -292,6 +293,19 @@ function QuickLink({ href, label, desc }: { href: string; label: string; desc: s
 
 function Inventory({ overview }: { overview: Overview }) {
   const critical = overview.stockRadar.filter((product) => product.status === "critical" || product.status === "out").length;
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "out" | "critical" | "ok">("all");
+  const [sort, setSort] = useState<"urgency" | "stock" | "sales">("urgency");
+  const urgencyRank: Record<"out" | "critical" | "ok", number> = { out: 0, critical: 1, ok: 2 };
+  const rows = [...overview.stockRadar]
+    .filter((product) => `${product.title || ""} ${product.sku || ""} ${product.id}`.toLowerCase().includes(query.toLowerCase()) && (statusFilter === "all" || product.status === statusFilter))
+    .sort((a, b) =>
+      sort === "stock"
+        ? b.availableQuantity - a.availableQuantity
+        : sort === "sales"
+          ? b.unitsSold - a.unitsSold
+          : (urgencyRank[a.status] - urgencyRank[b.status]) || ((a.daysRemaining ?? Number.POSITIVE_INFINITY) - (b.daysRemaining ?? Number.POSITIVE_INFINITY))
+    );
   return <div className="dashboard-sections space-y-8">
     <section className="metric-grid grid grid-cols-1 gap-0 sm:grid-cols-3" aria-label="Resumo de estoque Mercado Livre">
       <Metric label="Produtos ativos" value={overview.stockRadar.length.toLocaleString("pt-BR")} sub="monitorados no radar" icon={dashboardKpiIcons.box} />
@@ -304,7 +318,14 @@ function Inventory({ overview }: { overview: Overview }) {
         <div><span aria-hidden="true">÷</span><p><strong>Como calculamos</strong>Cobertura = estoque atual ÷ média de unidades vendidas por dia.</p></div>
         <p>A média diária usa as vendas pagas e o menor intervalo entre o período selecionado e a idade do anúncio. Pausas e dias históricos sem estoque ainda não são descontados.</p>
       </aside>
-      {overview.stockRadar.length === 0 ? <Empty>Nenhum produto ativo encontrado.</Empty> : <div className="overflow-x-auto"><table className="inventory-table w-full min-w-[680px] text-sm"><caption className="sr-only">Cobertura de estoque dos produtos do Mercado Livre</caption><thead><tr><th>Produto</th><th>SKU</th><th className="text-center">Estoque</th><th className="text-center">Vendidos</th><th className="text-center">Cobertura</th><th className="text-center">Status</th></tr></thead><tbody>{overview.stockRadar.map((product) => <tr key={product.id}><td><strong className="block max-w-[320px] truncate" title={product.title}>{product.title}</strong></td><td className="font-mono text-xs">{product.sku || product.id}</td><td className="text-center tabular-nums">{product.availableQuantity}</td><td className="text-center tabular-nums">{product.unitsSold}</td><td className="stock-coverage-value text-center tabular-nums"><strong>{product.daysRemaining == null ? "—" : `${product.daysRemaining} dias`}</strong><small>base: {product.calculationDays} dias</small></td><td className="inventory-status-cell text-center"><span className={`stock-status is-${product.status}`}>{product.status === "out" ? "Esgotado" : product.status === "critical" ? "Crítico" : "Saudável"}</span></td></tr>)}</tbody></table></div>}
+      {overview.stockRadar.length === 0 ? <Empty>Nenhum produto ativo encontrado.</Empty> : <>
+        <div className="filter-toolbar mb-4 flex flex-wrap gap-2" role="search" aria-label="Filtros de estoque">
+          <label className="min-w-52 flex-1"><span className="sr-only">Buscar no estoque</span><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar SKU ou produto" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-yellow-500 focus:outline-none" /></label>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)} aria-label="Filtrar status do estoque" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"><option value="all">Todos os status</option><option value="out">Esgotado</option><option value="critical">Crítico</option><option value="ok">Saudável</option></select>
+          <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} aria-label="Ordenar estoque" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"><option value="urgency">Maior urgência</option><option value="stock">Maior estoque</option><option value="sales">Mais vendidos</option></select>
+        </div>
+        {rows.length === 0 ? <Empty>Nenhum produto encontrado. Limpe a busca ou troque o status.</Empty> : <div className="overflow-x-auto"><table className="inventory-table w-full min-w-[680px] text-sm"><caption className="sr-only">Cobertura de estoque dos produtos do Mercado Livre</caption><thead><tr><th>Produto</th><th>SKU</th><th className="text-center">Estoque</th><th className="text-center">Vendidos</th><th className="text-center">Cobertura</th><th className="text-center">Status</th></tr></thead><tbody>{rows.map((product) => <tr key={product.id}><td><strong className="block max-w-[320px] truncate" title={product.title}>{product.title}</strong></td><td className="font-mono text-xs">{product.sku || product.id}</td><td className="text-center tabular-nums">{product.availableQuantity}</td><td className="text-center tabular-nums">{product.unitsSold}</td><td className="stock-coverage-value text-center tabular-nums"><strong>{product.daysRemaining == null ? "—" : `${product.daysRemaining} dias`}</strong><small>base: {product.calculationDays} dias</small></td><td className="inventory-status-cell text-center"><span className={`stock-status is-${product.status}`}>{product.status === "out" ? "Esgotado" : product.status === "critical" ? "Crítico" : "Saudável"}</span></td></tr>)}</tbody></table></div>}
+      </>}
     </section>
   </div>;
 }
