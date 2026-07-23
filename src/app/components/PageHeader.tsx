@@ -16,29 +16,27 @@ import { workspaceFromPath } from "@/lib/integrations/workspaces";
 import { MarketplaceIcon } from "./MarketplaceIcon";
 
 // Cabeçalho padrão das páginas: eyebrow + título + subtítulo, com um slot de ação.
-// Em páginas de um canal (Amazon/ML) o ícone vira automaticamente o logo do
-// marketplace (sem chip); na Central usa o ícone de função passado, dentro do chip.
+// O ícone é sempre o logo do workspace, sem chip: Amazon/ML mostram o logo do
+// marketplace; a Central mostra o logo do SellerCore.
 export function PageHeader({
   eyebrow,
   title,
   subtitle,
-  icon,
   action,
 }: {
   eyebrow: string;
   title: string;
   subtitle?: ReactNode;
-  icon: ReactNode;
+  icon?: ReactNode; // aceito por compatibilidade; o glifo agora é sempre o logo do canal
   action?: ReactNode;
 }) {
   const workspace = workspaceFromPath(usePathname());
-  const channel = workspace === "amazon" ? "amazon" : workspace === "mercado_livre" ? "mercado_livre" : null;
-  const glyph = channel ? <MarketplaceIcon provider={channel} app size={40} /> : icon;
+  const provider = workspace === "amazon" ? "amazon" : workspace === "mercado_livre" ? "mercado_livre" : "sellercore";
   return (
     <div className="page-heading flex flex-wrap items-end justify-between gap-5">
       <div className="flex items-start gap-4">
-        <span className={`page-glyph flex h-11 w-11 shrink-0 items-center justify-center${channel ? " is-bare" : ""}`}>
-          {glyph}
+        <span className="page-glyph is-bare flex h-11 w-11 shrink-0 items-center justify-center">
+          <MarketplaceIcon provider={provider} app size={40} />
         </span>
         <div className="min-w-0">
           <p className="page-kicker text-xs font-semibold uppercase tracking-[0.14em]">
