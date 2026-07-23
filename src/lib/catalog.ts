@@ -60,6 +60,36 @@ function toCm(d?: Dimension): number | undefined {
 }
 
 /**
+ * Busca a imagem (capa) de vários ASINs de uma vez — searchCatalogItems aceita
+ * até 20 identifiers por chamada. Retorna { asin: url } (só os que têm imagem).
+ * Operação: searchCatalogItems — GET /catalog/2022-04-01/items?identifiers=...
+ */
+export async function getCatalogImages(
+  asins: string[],
+  marketplaceId = defaultMarketplaceId()
+): Promise<Record<string, string>> {
+  const unique = Array.from(new Set(asins.filter(Boolean)));
+  const out: Record<string, string> = {};
+  for (let i = 0; i < unique.length; i += 20) {
+    const batch = unique.slice(i, i + 20);
+    try {
+      const data = await spapiFetch<{ items?: { asin?: string; images?: { images?: { link: string; width: number }[] }[] }[] }>(
+        "/catalog/2022-04-01/items",
+        { query: { identifiers: batch.join(","), identifiersType: "ASIN", marketplaceIds: marketplaceId, includedData: "images", pageSize: 20 } }
+      );
+      for (const item of data.items ?? []) {
+        const imgs = item.images?.[0]?.images ?? [];
+        const biggest = imgs.slice().sort((a, b) => b.width - a.width)[0];
+        if (item.asin && biggest?.link) out[item.asin] = biggest.link;
+      }
+    } catch {
+      // Lote que falhar segue sem imagem — não derruba a lista inteira.
+    }
+  }
+  return out;
+}
+
+/**
  * Busca nome/marca/imagem/dimensões de um ASIN e estima a tarifa de armazenagem.
  * Operação: getCatalogItem — GET /catalog/2022-04-01/items/{asin}
  */

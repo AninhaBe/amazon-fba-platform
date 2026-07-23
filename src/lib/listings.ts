@@ -1,4 +1,5 @@
 import { runReport, parseTsv } from "./reports";
+import { getCatalogImages } from "./catalog";
 import { swr } from "./swr";
 
 export interface Listing {
@@ -26,7 +27,7 @@ async function fetchListings(): Promise<Listing[]> {
   const tsv = await runReport("GET_MERCHANT_LISTINGS_ALL_DATA");
   const rows = parseTsv(tsv);
 
-  return rows
+  const listings = rows
     .map((r) => {
       // Nomes de coluna do flat file (variam levemente por marketplace).
       const sku = r["seller-sku"] || r["sku"] || "";
@@ -48,7 +49,19 @@ async function fetchListings(): Promise<Listing[]> {
         fulfillment,
         imageUrl: r["image-url"] || undefined,
         openDate: r["open-date"] || undefined,
-      };
+      } satisfies Listing;
     })
     .filter((l) => l.sku);
+
+  // O relatório costuma vir sem imagem: busca a capa por ASIN na Catalog Items
+  // API (em lote). Limita para não exagerar em contas com catálogo enorme.
+  const missing = listings.filter((l) => l.asin && !l.imageUrl).map((l) => l.asin as string).slice(0, 200);
+  if (missing.length) {
+    const images = await getCatalogImages(missing);
+    for (const listing of listings) {
+      if (listing.asin && !listing.imageUrl && images[listing.asin]) listing.imageUrl = images[listing.asin];
+    }
+  }
+
+  return listings;
 }
