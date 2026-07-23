@@ -882,7 +882,7 @@ summary:hover { background: var(--paper-soft); }
 .meli-tax-card > small { grid-column: 2 / -1; min-height: 14px; margin-block-start: -10px; color: var(--positive); font-size: 10px; }
 .meli-tax-card > small.is-error { color: var(--danger); }
 .meli-products-page table th, .meli-products-page table td { padding: 12px 16px; }
-.meli-products-page table td:last-child input { width: 108px; min-height: 36px; border: 1px solid var(--line-strong); border-radius: 7px; padding-inline: 9px; text-align: end; font-size: 13px; font-variant-numeric: tabular-nums; }
+.meli-products-page table td:last-child input { width: 108px; min-height: 36px; border: 1px solid var(--line-strong); border-radius: 7px; padding-inline: 9px; text-align: center; font-size: 13px; font-variant-numeric: tabular-nums; }
 .product-cost-input.is-missing { border-color: var(--danger) !important; background: oklch(0.975 0.018 25); }
 .product-cost-input.is-missing:hover { border-color: var(--danger) !important; }
 .product-cost-input.is-missing:focus { border-color: var(--danger) !important; box-shadow: 0 0 0 3px oklch(0.58 0.19 25 / .13); }
@@ -924,6 +924,10 @@ summary:hover { background: var(--paper-soft); }
 .listing-open.is-disabled { color: var(--ink-muted); }
 .inventory-table thead th { padding: 11px 16px; }
 .inventory-table tbody td { padding: 14px 16px !important; vertical-align: middle; }
+/* Alinhamento consistente: cabeçalho e conteúdo centralizados; 1ª coluna (produto/nome) fica à esquerda. */
+.listing-table :is(th, td), .inventory-table :is(th, td), .products-page table :is(th, td) { text-align: center; }
+.listing-table :is(th, td):first-child, .inventory-table :is(th, td):first-child, .products-page table :is(th, td):first-child { text-align: start; }
+.products-page table input { text-align: center; }
 .inventory-status-cell { min-width: 112px; vertical-align: middle; }
 .stock-status { display: inline-flex; min-height: 26px; align-items: center; justify-content: center; border-radius: 999px; background: var(--positive-soft); padding: 5px 9px; color: var(--positive); font-size: 10px; font-weight: 750; line-height: 1; white-space: nowrap; }
 .stock-status.is-critical { background: oklch(0.965 0.045 78); color: var(--warning); }
