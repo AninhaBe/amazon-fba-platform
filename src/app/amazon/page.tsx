@@ -196,14 +196,14 @@ export default function Dashboard() {
       <div className="dashboard-sections space-y-8">
       {/* KPIs principais */}
       <div className="metric-grid grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi label="Faturamento" value={<AnimatedNumber value={revenue} format={(amount) => money(amount, currency)} />} sub={`${salesCount} vendas no período`} loading={loading} trend={revenueTrend} />
+        <Kpi label="Faturamento" value={<AnimatedNumber id="amz-revenue" value={revenue} format={(amount) => money(amount, currency)} />} sub={`${salesCount} vendas no período`} loading={loading} trend={revenueTrend} />
         <div className="metric-cell metric-primary relative overflow-hidden p-5">
           <div className="flex items-start justify-between gap-2">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">{costsIncomplete ? "Repasse líquido" : "Lucro conciliado"}</p>
             <span className="metric-icon">{kpiIcons.percent}</span>
           </div>
           <p className="mt-2 text-[27px] font-bold leading-none tabular-nums text-emerald-800">
-            {loading ? "···" : <AnimatedNumber value={estProfit} format={(amount) => money(amount, currency)} />}
+            {loading ? "···" : <AnimatedNumber id="amz-profit" value={estProfit} format={(amount) => money(amount, currency)} />}
           </p>
           <p className={`mt-1.5 text-xs font-medium ${costsIncomplete ? "text-amber-700" : "text-emerald-700/80"}`}>
             {costsIncomplete ? "antes do custo dos produtos — cadastre custos para o lucro real" : `margem ${marginPct.toFixed(1)}% sobre vendas conciliadas`}

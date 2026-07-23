@@ -140,8 +140,8 @@ export default function OverviewDashboard() {
         <section className="central-empty"><span>SC</span><div><p className="section-kicker">Primeira conexão</p><h2>Monte sua central de vendas</h2><p>Conecte Amazon ou Mercado Livre para começar a consolidar faturamento e pedidos.</p></div><Link href="/integracoes">Conectar um canal <b aria-hidden="true">→</b></Link></section>
       ) : <div className="dashboard-sections space-y-8">
         <section className="central-kpis" aria-label="Indicadores consolidados">
-          <article><p>Faturamento conhecido</p><strong><AnimatedNumber value={totals.revenue} format={(amount) => money(amount)} /></strong><small>Soma dos canais com dados disponíveis</small></article>
-          <article><p>Lucro conhecido</p><strong>{totals.profitSources ? <AnimatedNumber value={totals.profit} format={(amount) => money(amount)} /> : "Indisponível"}</strong><small>{totals.profitSources} de {totals.connected} canais com cálculo de lucro</small></article>
+          <article><p>Faturamento conhecido</p><strong><AnimatedNumber id="central-revenue" value={totals.revenue} format={(amount) => money(amount)} /></strong><small>Soma dos canais com dados disponíveis</small></article>
+          <article><p>Lucro conhecido</p><strong>{totals.profitSources ? <AnimatedNumber id="central-profit" value={totals.profit} format={(amount) => money(amount)} /> : "Indisponível"}</strong><small>{totals.profitSources} de {totals.connected} canais com cálculo de lucro</small></article>
           <article><p>Pedidos</p><strong>{totals.orders.toLocaleString("pt-BR")}</strong><small>Últimos 30 dias</small></article>
           <article><p>Canais conectados</p><strong>{totals.connected}</strong><small>de {channels.length} disponíveis nesta fase</small></article>
         </section>
