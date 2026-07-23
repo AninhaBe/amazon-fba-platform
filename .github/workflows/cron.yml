@@ -1,0 +1,51 @@
+name: Sync agendado (SellerCore)
+
+# Dispara os endpoints de sincronização que já existem no app. Necessário porque
+# o deploy é no Render, que ignora os crons do vercel.json — sem isto, o backfill
+# canônico (Amazon/ML) só avança quando alguém abre o dashboard.
+#
+# Requisitos (uma vez):
+#   - No Render: definir a env var CRON_SECRET (valor aleatório) e redeploy.
+#   - No GitHub (Settings → Secrets and variables → Actions → New repository secret):
+#       APP_BASE_URL = https://<seu-app>.onrender.com   (sem barra no fim)
+#       CRON_SECRET  = o MESMO valor definido no Render
+#
+# Observação: o agendamento do GitHub Actions é best-effort e pode atrasar alguns
+# minutos sob carga; para backfill de histórico isso é irrelevante. O mínimo de
+# intervalo do GitHub é 5 minutos.
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {} # permite rodar manualmente pela aba Actions (para testar)
+
+concurrency:
+  group: sellercore-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    env:
+      APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+    steps:
+      - name: Verifica os segredos
+        run: |
+          if [ -z "$APP_BASE_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "::error::Defina os secrets APP_BASE_URL e CRON_SECRET no repositório."
+            exit 1
+          fi
+
+      - name: Sync Mercado Livre
+        run: |
+          curl -sS --fail-with-body --max-time 250 \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "${APP_BASE_URL%/}/api/cron/mercado-livre-sync"
+
+      - name: Sync Amazon
+        run: |
+          curl -sS --fail-with-body --max-time 250 \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "${APP_BASE_URL%/}/api/cron/amazon-sync"
