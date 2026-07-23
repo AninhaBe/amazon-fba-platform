@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { EmptyState } from "../../components/EmptyState";
 import { PanelLoading } from "../../components/LoadingState";
 import { PageHeader, pageIcons } from "../../components/PageHeader";
+import { SortButton, type SortDir } from "../../components/SortButton";
 import { brDate } from "@/lib/datetime";
 
 interface Listing {
@@ -38,7 +39,7 @@ interface ListingsResponse {
 
 type StatusFilter = "all" | "active" | "paused" | "closed" | "out";
 type ListingFilter = "all" | "classic" | "premium" | "catalog";
-type SortKey = "updated" | "sold" | "stock" | "price";
+type SortCol = "updated" | "sold" | "stock" | "price";
 
 const statusLabels: Record<string, string> = {
   active: "Ativo",
@@ -83,7 +84,17 @@ export default function MercadoLivreListingsPage() {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
   const [kind, setKind] = useState<ListingFilter>("all");
-  const [sort, setSort] = useState<SortKey>("updated");
+  const [logistic, setLogistic] = useState("all");
+  const [sortCol, setSortCol] = useState<SortCol>("updated");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+
+  function toggleSort(col: SortCol) {
+    if (sortCol === col) setSortDir((dir) => (dir === "asc" ? "desc" : "asc"));
+    else {
+      setSortCol(col);
+      setSortDir("desc");
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -106,23 +117,26 @@ export default function MercadoLivreListingsPage() {
   }, [load]);
 
   const products = useMemo(() => data?.products ?? [], [data]);
+  const logisticOptions = useMemo(() => Array.from(new Set(products.map((product) => logistics(product)))).sort((a, b) => a.localeCompare(b, "pt-BR")), [products]);
   const paused = products.filter((product) => product.status === "paused").length;
   const withoutStock = products.filter((product) => product.status === "active" && product.availableQuantity <= 0).length;
   const catalog = products.filter((product) => product.catalogListing).length;
 
   const visible = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase("pt-BR");
+    const dir = sortDir === "asc" ? 1 : -1;
     return [...products]
       .filter((product) => !normalized || `${product.title} ${product.id} ${product.sku || ""} ${product.userProductId || ""}`.toLocaleLowerCase("pt-BR").includes(normalized))
       .filter((product) => status === "all" || (status === "out" ? product.status === "active" && product.availableQuantity <= 0 : product.status === status))
       .filter((product) => kind === "all" || (kind === "catalog" ? product.catalogListing : kind === "premium" ? listingType(product.listingTypeId) === "Premium" : listingType(product.listingTypeId) === "Clássico"))
+      .filter((product) => logistic === "all" || logistics(product) === logistic)
       .sort((a, b) => {
-        if (sort === "sold") return b.soldQuantity - a.soldQuantity;
-        if (sort === "stock") return a.availableQuantity - b.availableQuantity;
-        if (sort === "price") return b.price - a.price;
-        return new Date(b.lastUpdated || b.activeSince || 0).getTime() - new Date(a.lastUpdated || a.activeSince || 0).getTime();
+        if (sortCol === "sold") return (a.soldQuantity - b.soldQuantity) * dir;
+        if (sortCol === "stock") return (a.availableQuantity - b.availableQuantity) * dir;
+        if (sortCol === "price") return (a.price - b.price) * dir;
+        return (new Date(a.lastUpdated || a.activeSince || 0).getTime() - new Date(b.lastUpdated || b.activeSince || 0).getTime()) * dir;
       });
-  }, [kind, products, query, sort, status]);
+  }, [kind, logistic, products, query, sortCol, sortDir, status]);
 
   return (
     <div className="meli-listings-page space-y-8">
@@ -151,7 +165,7 @@ export default function MercadoLivreListingsPage() {
             <label className="listing-search"><span className="sr-only">Buscar anúncio</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar título, SKU, MLB ou MLBU" /></label>
             <select value={status} onChange={(event) => setStatus(event.target.value as StatusFilter)} aria-label="Filtrar status"><option value="all">Todos os status</option><option value="active">Ativos</option><option value="paused">Pausados</option><option value="closed">Encerrados</option><option value="out">Sem estoque</option></select>
             <select value={kind} onChange={(event) => setKind(event.target.value as ListingFilter)} aria-label="Filtrar modalidade"><option value="all">Todas as modalidades</option><option value="classic">Clássico</option><option value="premium">Premium</option><option value="catalog">Catálogo</option></select>
-            <select value={sort} onChange={(event) => setSort(event.target.value as SortKey)} aria-label="Ordenar anúncios"><option value="updated">Atualizados recentemente</option><option value="sold">Mais vendidos</option><option value="stock">Menor estoque</option><option value="price">Maior preço</option></select>
+            <select value={logistic} onChange={(event) => setLogistic(event.target.value)} aria-label="Filtrar logística"><option value="all">Toda logística</option>{logisticOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select>
           </section>
 
           <section className="listing-table-shell" aria-labelledby="listing-results-title">
@@ -163,7 +177,7 @@ export default function MercadoLivreListingsPage() {
               <div className="overflow-x-auto">
                 <table className="listing-table">
                   <caption className="sr-only">Anúncios publicados no Mercado Livre</caption>
-                  <thead><tr><th>Produto</th><th>Status</th><th>Modalidade</th><th className="text-right">Preço</th><th className="text-right">Estoque</th><th className="text-right">Vendidos</th><th>Logística</th><th><span className="sr-only">Ações</span></th></tr></thead>
+                  <thead><tr><th>Produto</th><th>Status</th><th>Modalidade</th><th><SortButton label="Preço" col="price" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} /></th><th><SortButton label="Estoque" col="stock" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} /></th><th><SortButton label="Vendidos" col="sold" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} /></th><th>Logística</th><th><span className="sr-only">Ações</span></th></tr></thead>
                   <tbody>{visible.map((product) => (
                     <tr key={product.id}>
                       <td><div className="listing-product">

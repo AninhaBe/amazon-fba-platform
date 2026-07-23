@@ -897,6 +897,7 @@ summary:hover { background: var(--paper-soft); }
 .listing-coverage-note > span { display: grid; width: 28px; height: 28px; flex: none; place-items: center; border-radius: 9px; background: var(--meli); font-size: 13px; font-weight: 850; }
 .listing-coverage-note p { font-size: 12px; line-height: 1.5; text-wrap: pretty; }
 .listing-controls { display: grid; grid-template-columns: minmax(260px, 1fr) repeat(3, minmax(170px, auto)); gap: 8px; border-radius: var(--radius-md); background: var(--paper); padding: 9px; box-shadow: var(--shadow-surface); }
+.listing-controls.cols-3 { grid-template-columns: minmax(260px, 1fr) repeat(2, minmax(170px, auto)); }
 .listing-controls input, .listing-controls select { width: 100%; min-height: 44px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: white; padding-inline: 11px; color: var(--ink); font-size: 13px; }
 .listing-search { min-width: 0; }
 .listing-table-shell { overflow: hidden; border-radius: var(--radius-lg); background: var(--paper); box-shadow: var(--shadow-surface); }
@@ -905,6 +906,11 @@ summary:hover { background: var(--paper-soft); }
 .listing-table-shell > header > p { color: var(--ink-muted); font-size: 12px; }
 .listing-table { width: 100%; min-width: 1120px; font-size: 12px; }
 .listing-table th { padding: 11px 18px; white-space: nowrap; }
+.th-sort { display: inline-flex; align-items: center; gap: 5px; margin: 0 auto; padding: 0; border: 0; background: none; font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; cursor: pointer; transition: color 130ms; }
+.th-sort:hover, .th-sort.is-active { color: var(--meli-dark); }
+.sort-arrows { display: inline-flex; flex-direction: column; gap: 1px; line-height: .55; }
+.sort-arrows i { font-size: 7px; font-style: normal; opacity: .3; transition: opacity 130ms; }
+.sort-arrows i.is-on { opacity: 1; }
 .listing-table td { padding: 13px 18px !important; vertical-align: middle; }
 .listing-product { display: flex; min-width: 310px; max-width: 440px; align-items: center; gap: 11px; }
 .listing-product img, .listing-image-fallback { width: 48px; height: 48px; flex: none; border-radius: 9px; background: var(--paper-soft); object-fit: contain; outline: 1px solid oklch(0 0 0 / .1); outline-offset: -1px; }
@@ -917,6 +923,8 @@ summary:hover { background: var(--paper-soft); }
 .listing-status.is-paused { background: oklch(0.965 0.045 78); color: var(--warning); }
 .listing-status.is-closed, .listing-status.is-inactive { background: oklch(0.96 0.025 25); color: var(--danger); }
 .listing-status.is-under_review { background: var(--brand-soft); color: var(--brand-dark); }
+.amz-fulfillment { display: inline-flex; min-height: 24px; align-items: center; border-radius: 999px; padding-inline: 9px; font-size: 10px; font-weight: 780; background: var(--paper-soft); color: var(--ink-muted); }
+.amz-fulfillment.is-fba { background: var(--amazon-soft); color: var(--amazon-dark); }
 .listing-kind strong, .listing-logistics strong { color: var(--ink-soft); font-size: 12px; font-weight: 700; white-space: nowrap; }
 .listing-open { display: grid; width: 40px; height: 40px; place-items: center; border-radius: 10px; background: var(--paper-soft); color: var(--meli-dark); font-size: 16px; font-weight: 750; transition-property: background-color, scale; transition-duration: 150ms; transition-timing-function: ease-out; }
 .listing-open:hover { background: var(--meli-soft); }

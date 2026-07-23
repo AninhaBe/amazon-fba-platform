@@ -13,6 +13,7 @@ import {
   Megaphone,
   Radar,
   Search,
+  SquarePen,
   TrendingUp,
 } from "lucide-react";
 import { workspaceFromPath, type WorkspaceId } from "@/lib/integrations/workspaces";
@@ -39,6 +40,7 @@ const icons = {
   monitor: <Activity {...iconProps} />,
   performance: <TrendingUp {...iconProps} />,
   ads: <Megaphone {...iconProps} />,
+  create: <SquarePen {...iconProps} />,
   products: <Boxes {...iconProps} />,
   stock: <Radar {...iconProps} />,
   search: <Search {...iconProps} />,
@@ -68,7 +70,8 @@ const navigation: Record<WorkspaceId, NavGroup[]> = {
       title: "Catálogo",
       tone: "emerald",
       items: [
-        { href: "/amazon/anuncios", label: "Anúncios", desc: "Criar e publicar", icon: icons.ads },
+        { href: "/amazon/catalogo", label: "Anúncios", desc: "Catálogo publicado", icon: icons.ads },
+        { href: "/amazon/anuncios", label: "Criar anúncio", desc: "Publicar oferta", icon: icons.create },
         { href: "/amazon/produtos", label: "Produtos", desc: "Custos por SKU", icon: icons.products },
         { href: "/amazon/estoque", label: "Radar de estoque", desc: "Cobertura FBA", icon: icons.stock },
         { href: "/amazon/pesquisa", label: "Pesquisa", desc: "Anúncios da Amazon", icon: icons.search },

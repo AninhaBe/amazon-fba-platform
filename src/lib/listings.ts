@@ -7,6 +7,10 @@ export interface Listing {
   title?: string;
   price: number | null; // preço de venda anunciado
   quantity: number | null;
+  status?: string; // Active | Inactive | Incomplete
+  fulfillment?: "fba" | "fbm"; // AMAZON_* = FBA (Logística da Amazon); DEFAULT/vazio = FBM (você envia)
+  imageUrl?: string;
+  openDate?: string;
 }
 
 /**
@@ -32,7 +36,19 @@ async function fetchListings(): Promise<Listing[]> {
       const qtyRaw = r["quantity"] || "";
       const price = priceRaw ? parseFloat(priceRaw.replace(",", ".")) : null;
       const quantity = qtyRaw ? parseInt(qtyRaw, 10) : null;
-      return { sku, asin, title, price: Number.isFinite(price) ? price : null, quantity };
+      const channelRaw = (r["fulfillment-channel"] || r["fulfilment-channel"] || "").toUpperCase();
+      const fulfillment: Listing["fulfillment"] = channelRaw.startsWith("AMAZON") ? "fba" : channelRaw ? "fbm" : undefined;
+      return {
+        sku,
+        asin,
+        title,
+        price: Number.isFinite(price) ? price : null,
+        quantity: Number.isFinite(quantity as number) ? quantity : null,
+        status: r["status"] || undefined,
+        fulfillment,
+        imageUrl: r["image-url"] || undefined,
+        openDate: r["open-date"] || undefined,
+      };
     })
     .filter((l) => l.sku);
 }
