@@ -12,7 +12,7 @@ const sources: Record<Exclude<MarketplaceIconProvider, "sellercore">, string> = 
 
 // Variante "app icon": quadrado arredondado na cor da marca com o logo oficial dentro.
 const appSources: Record<MarketplaceIconProvider, string> = {
-  sellercore: "/brands/app/sellercore.svg",
+  sellercore: "/brands/sellercore-logo.png",
   amazon: "/brands/app/amazon.svg",
   mercado_livre: "/brands/app/mercado-livre.svg",
   shopee: "/brands/app/shopee.svg",

@@ -1,13 +1,8 @@
 export function LogoMark({ className = "h-9 w-9" }: { className?: string }) {
   return (
-    <span
-      className={`seller-mark inline-flex items-center justify-center text-white ${className}`}
-    >
-      <svg viewBox="0 0 32 32" fill="none" className="h-full w-full" aria-hidden>
-        <rect x="3.5" y="3.5" width="25" height="25" rx="8" stroke="currentColor" strokeWidth="1.5" />
-        <path d="M8 22V16.5l5-4.5 4 3 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-        <circle className="seller-mark-core" cx="17" cy="15" r="3.25" />
-      </svg>
+    <span className={`inline-flex items-center justify-center ${className}`}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/brands/sellercore-logo.png" alt="" aria-hidden="true" className="h-full w-full object-contain" />
     </span>
   );
 }
