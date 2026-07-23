@@ -1,0 +1,378 @@
+import { dbQuery, hasDb } from "../db";
+import { currentWorkspaceId } from "../workspaceScope";
+import { currentAccountId } from "../accountContext";
+import { getCosts, costAt } from "../costStore";
+import { allocateByWeight, calculateContribution, type ProfitabilityLine } from "../profitability";
+import type { Period } from "../period";
+import { amazonConnectionId } from "./amazonSync";
+
+// Overview da Amazon servido pelo modelo canônico (fase 5 da migração,
+// docs/canonical-schema.md). Espelha o mercadoLivreOverviewCanonical: agregados
+// em SQL sobre workspace_channel_orders/items/fees + linhas magras para o lucro,
+// sem payload jsonb. Diferenças da Amazon: sem alíquota de imposto do vendedor
+// (tax = 0) e sem frete do vendedor (sellerShipping = null); fulfillment
+// platform = FBA / seller = Próprio; custo resolve por sku ?? asin.
+//
+// Este módulo é apenas leitura e ainda NÃO está plugado nas rotas — a troca das
+// rotas do dashboard para o canônico (com fallback à SP-API enquanto não há
+// cobertura) é a etapa seguinte. O faturamento headline continua vindo do
+// Sales API (orderMetrics) para manter o match ao centavo com o Seller Central.
+
+const PROVIDER = "amazon";
+const DETAILED_ORDER_LIMIT = 1_000;
+const REVENUE_STATUSES = ["paid", "shipped", "delivered"];
+const GROSS_STATUSES = ["paid", "shipped", "delivered", "cancelled"];
+const COVERAGE_TOLERANCE_MS = 15 * 60_000;
+
+export interface AmazonCanonicalTopProduct {
+  sku: string;
+  asin: string;
+  title: string;
+  units: number;
+  salePrice: number | null;
+  cost: number | null;
+  revenue: number;
+  marginPct: number | null;
+}
+
+export interface AmazonCanonicalOverview {
+  sellerId: string;
+  connectionId: string;
+  currency: string;
+  /** Período totalmente coberto pelo sync (senão, quem consome deve cair na SP-API). */
+  covered: boolean;
+  metrics: {
+    totalOrders: number;
+    paidOrders: number;
+    fbaOrders: number;
+    cancelledOrders: number;
+    revenue: number; // gross canônico (referência; headline segue no Sales API)
+    cancelledRevenue: number;
+    lastSaleAt: string | null;
+  };
+  /** Unidades vendidas por SKU no período — insumo da velocidade do radar. */
+  velocityBySku: Record<string, number>;
+  topProducts: AmazonCanonicalTopProduct[];
+  profit: {
+    revenueProcessed: number;
+    fees: number;
+    cogs: number;
+    estimatedProfit: number;
+    unitsWithCost: number;
+    unitsWithoutCost: number;
+    coverage: { processedOrders: number; paidOrders: number; complete: boolean };
+  };
+  profitabilityLines: ProfitabilityLine[];
+  profitabilityScope: { processedOrders: number; completePeriod: boolean };
+  recentOrders: Array<{
+    amazonOrderId: string;
+    purchaseDate: string;
+    orderStatus: string;
+    orderTotal: { CurrencyCode: string; Amount: string };
+  }>;
+}
+
+interface SyncMetaRow {
+  covered_from: Date | string | null;
+  covered_to: Date | string | null;
+}
+
+interface TotalsRow {
+  total_orders: number;
+  paid_orders: number;
+  fba_orders: number;
+  paid_revenue: string | null;
+  cancelled_revenue: string | null;
+  cancelled_orders: number;
+  currency: string | null;
+  last_sale_at: Date | string | null;
+}
+
+interface VelocityRow { sku: string | null; external_product_id: string; units: number }
+
+interface ProductTotalsRow {
+  external_product_id: string;
+  sku: string | null;
+  title: string;
+  units: number;
+  revenue: string;
+}
+
+interface RecentRow {
+  external_order_id: string;
+  provider_status: string;
+  occurred_at: Date | string;
+  gross: string;
+  currency: string;
+}
+
+interface DetailedLineRow {
+  external_order_id: string;
+  occurred_at: Date | string;
+  provider_status: string;
+  currency: string;
+  buyer_shipping: string | null;
+  fulfillment: string | null;
+  line_no: number;
+  external_product_id: string;
+  sku: string | null;
+  title: string;
+  qty: number;
+  unit_price: string;
+  fees: string | null;
+}
+
+function scopeParams(connectionId: string, period: Period): unknown[] {
+  return [currentWorkspaceId(), PROVIDER, connectionId, new Date(period.startISO), new Date(period.endISO)];
+}
+
+export async function getAmazonOverviewFromCanonical(period: Period): Promise<AmazonCanonicalOverview | null> {
+  if (!hasDb()) return null;
+  const sellerId = currentAccountId();
+  if (!sellerId) return null;
+  const connectionId = amazonConnectionId(sellerId);
+  const workspaceId = currentWorkspaceId();
+
+  const [syncRows, totalsRows] = await Promise.all([
+    dbQuery<SyncMetaRow>(
+      `SELECT covered_from, covered_to
+         FROM workspace_marketplace_syncs
+        WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
+      [workspaceId, PROVIDER, connectionId]
+    ),
+    dbQuery<TotalsRow>(
+      `SELECT COUNT(*)::int AS total_orders,
+              COUNT(*) FILTER (WHERE status = ANY($6::text[]))::int AS paid_orders,
+              COUNT(*) FILTER (WHERE status = ANY($6::text[]) AND fulfillment = 'platform')::int AS fba_orders,
+              SUM(gross) FILTER (WHERE status = ANY($6::text[])) AS paid_revenue,
+              SUM(gross) FILTER (WHERE status = 'cancelled') AS cancelled_revenue,
+              COUNT(*) FILTER (WHERE status = 'cancelled')::int AS cancelled_orders,
+              MAX(occurred_at) FILTER (WHERE status = ANY($6::text[])) AS last_sale_at,
+              MAX(currency) AS currency
+         FROM workspace_channel_orders
+        WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
+          AND occurred_at >= $4 AND occurred_at <= $5`,
+      [...scopeParams(connectionId, period), REVENUE_STATUSES]
+    ),
+  ]);
+  const syncRow = syncRows[0];
+  const totals = totalsRows[0];
+  // Sem sync algum e sem pedidos no período → nada canônico para servir.
+  if (!syncRow && (!totals || totals.total_orders === 0)) return null;
+
+  const [velocityRows, productTotalsRows, recentRows, lineRows, costs] = await Promise.all([
+    dbQuery<VelocityRow>(
+      `SELECT i.sku, i.external_product_id, SUM(i.qty)::int AS units
+         FROM workspace_channel_order_items i
+         JOIN workspace_channel_orders o
+           ON o.workspace_id = i.workspace_id AND o.provider = i.provider
+          AND o.connection_id = i.connection_id AND o.external_order_id = i.external_order_id
+        WHERE i.workspace_id = $1 AND i.provider = $2 AND i.connection_id = $3
+          AND o.occurred_at >= $4 AND o.occurred_at <= $5 AND o.status = ANY($6::text[])
+        GROUP BY i.sku, i.external_product_id`,
+      [...scopeParams(connectionId, period), REVENUE_STATUSES]
+    ),
+    dbQuery<ProductTotalsRow>(
+      `SELECT i.external_product_id, i.sku, MIN(i.title) AS title,
+              SUM(i.qty)::int AS units, SUM(i.qty * i.unit_price) AS revenue
+         FROM workspace_channel_order_items i
+         JOIN workspace_channel_orders o
+           ON o.workspace_id = i.workspace_id AND o.provider = i.provider
+          AND o.connection_id = i.connection_id AND o.external_order_id = i.external_order_id
+        WHERE i.workspace_id = $1 AND i.provider = $2 AND i.connection_id = $3
+          AND o.occurred_at >= $4 AND o.occurred_at <= $5 AND o.status = ANY($6::text[])
+        GROUP BY i.external_product_id, i.sku`,
+      [...scopeParams(connectionId, period), REVENUE_STATUSES]
+    ),
+    dbQuery<RecentRow>(
+      `SELECT external_order_id, provider_status, occurred_at, gross, currency
+         FROM workspace_channel_orders
+        WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
+          AND occurred_at >= $4 AND occurred_at <= $5
+        ORDER BY occurred_at DESC
+        LIMIT 10`,
+      scopeParams(connectionId, period)
+    ),
+    dbQuery<DetailedLineRow>(
+      `WITH detailed AS (
+         SELECT external_order_id, occurred_at, provider_status, currency, buyer_shipping, fulfillment
+           FROM workspace_channel_orders
+          WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
+            AND occurred_at >= $4 AND occurred_at <= $5 AND status = ANY($6::text[])
+          ORDER BY occurred_at DESC
+          LIMIT $7
+       )
+       SELECT d.external_order_id, d.occurred_at, d.provider_status, d.currency,
+              d.buyer_shipping, d.fulfillment,
+              i.line_no, i.external_product_id, i.sku, i.title, i.qty, i.unit_price,
+              ff.amount AS fees
+         FROM detailed d
+         JOIN workspace_channel_order_items i
+           ON i.workspace_id = $1 AND i.provider = $2 AND i.connection_id = $3
+          AND i.external_order_id = d.external_order_id
+         LEFT JOIN LATERAL (
+           SELECT SUM(amount) AS amount FROM workspace_channel_order_fees f
+            WHERE f.workspace_id = $1 AND f.provider = $2 AND f.connection_id = $3
+              AND f.external_order_id = d.external_order_id AND f.fee_type <> 'refund'
+         ) ff ON true
+        ORDER BY d.occurred_at DESC, d.external_order_id, i.line_no`,
+      [...scopeParams(connectionId, period), REVENUE_STATUSES, DETAILED_ORDER_LIMIT]
+    ),
+    getCosts(),
+  ]);
+
+  const currency = totals.currency ?? "BRL";
+
+  // Cobertura: o período está dentro da janela já importada pelo sync.
+  const coveredFrom = syncRow?.covered_from ? new Date(syncRow.covered_from).getTime() : Number.POSITIVE_INFINITY;
+  const coveredTo = syncRow?.covered_to ? new Date(syncRow.covered_to).getTime() : 0;
+  const periodCovered =
+    coveredFrom <= new Date(period.startISO).getTime() &&
+    coveredTo + COVERAGE_TOLERANCE_MS >= new Date(period.endISO).getTime();
+
+  const velocityBySku: Record<string, number> = {};
+  for (const row of velocityRows) {
+    const key = row.sku || row.external_product_id;
+    velocityBySku[key] = (velocityBySku[key] ?? 0) + row.units;
+  }
+
+  const costOf = (sku: string | null, asin: string) => {
+    const entry = (sku ? costs[sku] : undefined) ?? costs[asin];
+    return entry && entry.cost > 0 ? entry : null;
+  };
+
+  // Detalhe por linha: rateia as fees do pedido entre as linhas por peso de
+  // receita e resolve o custo por vigência (mesma regra do ML e do builder
+  // ao vivo). Amazon não tem imposto do vendedor nem frete do vendedor.
+  const linesByOrder = new Map<string, DetailedLineRow[]>();
+  for (const row of lineRows) {
+    const group = linesByOrder.get(row.external_order_id) ?? [];
+    group.push(row);
+    linesByOrder.set(row.external_order_id, group);
+  }
+
+  let fees = 0;
+  let cogs = 0;
+  let unitsWithCost = 0;
+  let unitsWithoutCost = 0;
+  let processedRevenue = 0;
+  const profitabilityLines: ProfitabilityLine[] = [];
+
+  for (const [orderId, lines] of linesByOrder) {
+    const head = lines[0];
+    const feesKnown = head.fees != null;
+    const orderFees = Number(head.fees ?? 0);
+    const orderBuyerShipping = head.buyer_shipping == null ? 0 : Number(head.buyer_shipping);
+    if (feesKnown) fees += orderFees;
+
+    const weights = lines.map((line) => line.qty * Number(line.unit_price));
+    const feeShares = allocateByWeight(orderFees, weights);
+    const buyerShares = allocateByWeight(orderBuyerShipping, weights);
+
+    lines.forEach((line, index) => {
+      const lineRevenue = line.qty * Number(line.unit_price);
+      processedRevenue += lineRevenue;
+      const occurredAt = new Date(line.occurred_at).toISOString();
+      const entry = costOf(line.sku, line.external_product_id);
+      const unitCost = entry ? costAt(entry, occurredAt) : 0;
+      const lineProductCost = unitCost > 0 ? unitCost * line.qty : null;
+      const lineFees = feesKnown ? feeShares[index] : null;
+      const lineBuyerShipping = head.buyer_shipping == null ? null : buyerShares[index];
+      const result = calculateContribution({
+        revenue: lineRevenue,
+        buyerShipping: lineBuyerShipping,
+        productCost: lineProductCost,
+        marketplaceFees: lineFees,
+      });
+      if (unitCost > 0) { cogs += unitCost * line.qty; unitsWithCost += line.qty; }
+      else unitsWithoutCost += line.qty;
+
+      profitabilityLines.push({
+        id: `${orderId}:${line.external_product_id}:${line.line_no}`,
+        orderId,
+        product: line.title,
+        sku: line.sku,
+        date: occurredAt,
+        status: head.provider_status,
+        fulfillment: head.fulfillment === "platform" ? "FBA" : head.fulfillment === "seller" ? "Próprio" : null,
+        unitPrice: Number(line.unit_price),
+        quantity: line.qty,
+        revenue: lineRevenue,
+        currency: line.currency,
+        productCost: lineProductCost,
+        marketplaceFees: lineFees,
+        buyerShipping: lineBuyerShipping,
+        sellerShipping: null,
+        tax: null,
+        contribution: result.contribution,
+        marginPct: result.marginPct,
+        complete: result.complete,
+      });
+    });
+  }
+
+  const estimatedProfit = +(processedRevenue - fees - cogs).toFixed(2);
+
+  const topProducts: AmazonCanonicalTopProduct[] = productTotalsRows
+    .map((row) => {
+      const revenue = Number(row.revenue);
+      const salePrice = row.units > 0 ? +(revenue / row.units).toFixed(2) : null;
+      const entry = costOf(row.sku, row.external_product_id);
+      const cost = entry ? entry.cost : null;
+      const marginPct = cost != null && salePrice != null && salePrice > 0 ? +((salePrice - cost) / salePrice * 100).toFixed(2) : null;
+      return {
+        sku: row.sku ?? row.external_product_id,
+        asin: row.external_product_id,
+        title: row.title,
+        units: row.units,
+        salePrice,
+        cost,
+        revenue,
+        marginPct,
+      };
+    })
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 8);
+
+  return {
+    sellerId,
+    connectionId,
+    currency,
+    covered: periodCovered,
+    metrics: {
+      totalOrders: totals.total_orders,
+      paidOrders: totals.paid_orders,
+      fbaOrders: totals.fba_orders,
+      cancelledOrders: totals.cancelled_orders,
+      revenue: Number(totals.paid_revenue ?? 0),
+      cancelledRevenue: Number(totals.cancelled_revenue ?? 0),
+      lastSaleAt: totals.last_sale_at ? new Date(totals.last_sale_at).toISOString() : null,
+    },
+    velocityBySku,
+    topProducts,
+    profit: {
+      revenueProcessed: +processedRevenue.toFixed(2),
+      fees: +fees.toFixed(2),
+      cogs: +cogs.toFixed(2),
+      estimatedProfit,
+      unitsWithCost,
+      unitsWithoutCost,
+      coverage: {
+        processedOrders: linesByOrder.size,
+        paidOrders: totals.paid_orders,
+        complete: periodCovered && linesByOrder.size >= totals.paid_orders,
+      },
+    },
+    profitabilityLines,
+    profitabilityScope: {
+      processedOrders: linesByOrder.size,
+      completePeriod: periodCovered,
+    },
+    recentOrders: recentRows.map((row) => ({
+      amazonOrderId: row.external_order_id,
+      purchaseDate: new Date(row.occurred_at).toISOString(),
+      orderStatus: row.provider_status,
+      orderTotal: { CurrencyCode: row.currency, Amount: String(row.gross) },
+    })),
+  };
+}
