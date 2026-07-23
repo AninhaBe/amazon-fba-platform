@@ -4,14 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Cable,
+  Activity,
+  Blocks,
+  Boxes,
   Calculator,
-  ChartColumn,
   ChevronDown,
   LayoutDashboard,
-  Package,
+  Megaphone,
+  Radar,
   Search,
-  Tag,
   TrendingUp,
 } from "lucide-react";
 import { workspaceFromPath, type WorkspaceId } from "@/lib/integrations/workspaces";
@@ -26,24 +27,27 @@ interface NavItem {
 
 interface NavGroup {
   title?: string;
+  tone: string;
   items: NavItem[];
 }
 
 const iconProps = { className: "h-5 w-5", strokeWidth: 1.8, "aria-hidden": true } as const;
 const icons = {
   dashboard: <LayoutDashboard {...iconProps} />,
-  integrations: <Cable {...iconProps} />,
+  integrations: <Blocks {...iconProps} />,
   calculator: <Calculator {...iconProps} />,
-  chart: <ChartColumn {...iconProps} />,
+  monitor: <Activity {...iconProps} />,
   performance: <TrendingUp {...iconProps} />,
-  box: <Package {...iconProps} />,
+  ads: <Megaphone {...iconProps} />,
+  products: <Boxes {...iconProps} />,
+  stock: <Radar {...iconProps} />,
   search: <Search {...iconProps} />,
-  tag: <Tag {...iconProps} />,
 };
 
 const navigation: Record<WorkspaceId, NavGroup[]> = {
   overview: [
     {
+      tone: "slate",
       items: [
         { href: "/", label: "Visão geral", desc: "Todos os canais", icon: icons.dashboard, exact: true },
         { href: "/integracoes", label: "Integrações", desc: "Contas e canais", icon: icons.integrations },
@@ -53,23 +57,26 @@ const navigation: Record<WorkspaceId, NavGroup[]> = {
   amazon: [
     {
       title: "Painéis",
+      tone: "sky",
       items: [
         { href: "/amazon", label: "Dashboard", desc: "Visão do canal", icon: icons.dashboard, exact: true },
-        { href: "/amazon/monitor", label: "Monitor da conta", desc: "Pedidos e financeiro", icon: icons.chart },
+        { href: "/amazon/monitor", label: "Monitor da conta", desc: "Pedidos e financeiro", icon: icons.monitor },
         { href: "/amazon/desempenho", label: "Desempenho", desc: "Visitas e conversão", icon: icons.performance },
       ],
     },
     {
       title: "Catálogo",
+      tone: "emerald",
       items: [
-        { href: "/amazon/anuncios", label: "Anúncios", desc: "Criar e publicar", icon: icons.tag },
-        { href: "/amazon/produtos", label: "Produtos", desc: "Custos por SKU", icon: icons.tag },
-        { href: "/amazon/estoque", label: "Radar de estoque", desc: "Cobertura FBA", icon: icons.box },
+        { href: "/amazon/anuncios", label: "Anúncios", desc: "Criar e publicar", icon: icons.ads },
+        { href: "/amazon/produtos", label: "Produtos", desc: "Custos por SKU", icon: icons.products },
+        { href: "/amazon/estoque", label: "Radar de estoque", desc: "Cobertura FBA", icon: icons.stock },
         { href: "/amazon/pesquisa", label: "Pesquisa", desc: "Anúncios da Amazon", icon: icons.search },
       ],
     },
     {
       title: "Ferramentas",
+      tone: "violet",
       items: [
         { href: "/amazon/calculadora", label: "Calculadora", desc: "Lucro por ASIN", icon: icons.calculator },
       ],
@@ -78,21 +85,24 @@ const navigation: Record<WorkspaceId, NavGroup[]> = {
   mercado_livre: [
     {
       title: "Painéis",
+      tone: "sky",
       items: [
         { href: "/mercado-livre", label: "Dashboard", desc: "Visão do canal", icon: icons.dashboard, exact: true },
-        { href: "/mercado-livre/monitor", label: "Monitor da conta", desc: "Pedidos e financeiro", icon: icons.chart },
+        { href: "/mercado-livre/monitor", label: "Monitor da conta", desc: "Pedidos e financeiro", icon: icons.monitor },
       ],
     },
     {
       title: "Catálogo",
+      tone: "emerald",
       items: [
-        { href: "/mercado-livre/anuncios", label: "Anúncios", desc: "Catálogo publicado", icon: icons.tag },
-        { href: "/mercado-livre/produtos", label: "Produtos", desc: "Custos e impostos", icon: icons.tag },
-        { href: "/mercado-livre/estoque", label: "Radar de estoque", desc: "Cobertura e ruptura", icon: icons.box },
+        { href: "/mercado-livre/anuncios", label: "Anúncios", desc: "Catálogo publicado", icon: icons.ads },
+        { href: "/mercado-livre/produtos", label: "Produtos", desc: "Custos e impostos", icon: icons.products },
+        { href: "/mercado-livre/estoque", label: "Radar de estoque", desc: "Cobertura e ruptura", icon: icons.stock },
       ],
     },
     {
       title: "Ferramentas",
+      tone: "violet",
       items: [
         { href: "/mercado-livre/calculadora", label: "Calculadora", desc: "Preço e margem", icon: icons.calculator },
       ],
@@ -195,7 +205,7 @@ export function NavLinks({ variant }: { variant: "sidebar" | "top" }) {
       {groups.map((group, index) => {
         if (!group.title) {
           return (
-            <div key={`group-${index}`} className="rail-group flex flex-col gap-1">
+            <div key={`group-${index}`} className="rail-group flex flex-col gap-1" data-tone={group.tone}>
               {group.items.map((item) => (
                 <ItemLink key={item.href} item={item} active={isActive(pathname, item)} />
               ))}
@@ -206,7 +216,7 @@ export function NavLinks({ variant }: { variant: "sidebar" | "top" }) {
         const open = !collapsed.has(title);
         const bodyId = `rail-group-${workspace}-${index}`;
         return (
-          <div key={title} className="rail-group">
+          <div key={title} className="rail-group" data-tone={group.tone}>
             <button type="button" className="rail-group-header" aria-expanded={open} aria-controls={bodyId} onClick={() => toggle(title)}>
               <span className="rail-group-label">{title}</span>
               <ChevronDown className={`rail-group-chevron h-3.5 w-3.5${open ? " is-open" : ""}`} strokeWidth={2} aria-hidden />
