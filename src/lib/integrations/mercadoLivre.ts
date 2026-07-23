@@ -146,11 +146,24 @@ export async function getMercadoLivreProducts(connection: IntegrationConnection)
   complete: boolean;
 }> {
   const accountId = encodeURIComponent(connection.externalAccountId);
-  const [search, activeSearch] = await Promise.all([
-    mercadoLivreFetch<{ paging?: { total?: number }; results?: string[] }>(connection, `/users/${accountId}/items/search?limit=200`),
+  const PAGE = 100; // limite por página do ML (offset)
+  const OFFSET_CEIL = 1000; // teto do offset no ML — acima disso exigiria search_type=scan
+  // 1ª página (com o total) + contagem de ativos.
+  const [first, activeSearch] = await Promise.all([
+    mercadoLivreFetch<{ paging?: { total?: number }; results?: string[] }>(connection, `/users/${accountId}/items/search?limit=${PAGE}&offset=0`),
     mercadoLivreFetch<{ paging?: { total?: number } }>(connection, `/users/${accountId}/items/search?status=active&limit=1`),
   ]);
-  const ids = (search.results ?? []).slice(0, 200);
+  const total = first.paging?.total ?? (first.results?.length ?? 0);
+  const ids = [...(first.results ?? [])];
+  // Demais páginas em paralelo, até o total (ou o teto de 1000 do offset).
+  const cap = Math.min(total, OFFSET_CEIL);
+  const morePages = await Promise.all(
+    Array.from({ length: Math.max(0, Math.ceil(cap / PAGE) - 1) }, (_, index) =>
+      mercadoLivreFetch<{ results?: string[] }>(connection, `/users/${accountId}/items/search?limit=${PAGE}&offset=${(index + 1) * PAGE}`)
+    )
+  );
+  for (const page of morePages) ids.push(...(page.results ?? []));
+  // Detalhes dos itens em lotes de 20 (multiget).
   const batches = Array.from({ length: Math.ceil(ids.length / 20) }, (_, index) => ids.slice(index * 20, index * 20 + 20));
   const responses = await Promise.all(batches.map((batch) =>
     mercadoLivreFetch<Array<{ code: number; body: MercadoLivreItem }>>(
@@ -189,7 +202,6 @@ export async function getMercadoLivreProducts(connection: IntegrationConnection)
         cost: costEntry?.cost && costEntry.cost > 0 ? costEntry.cost : null,
       };
     });
-  const total = search.paging?.total ?? products.length;
   return { products, total, activeTotal: activeSearch.paging?.total ?? products.filter((product) => product.status === "active").length, complete: products.length >= total };
 }
 
