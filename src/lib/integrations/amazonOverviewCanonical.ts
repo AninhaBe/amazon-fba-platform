@@ -2,6 +2,7 @@ import { dbQuery, hasDb } from "../db";
 import { currentWorkspaceId } from "../workspaceScope";
 import { currentAccountId } from "../accountContext";
 import { getCosts, costAt } from "../costStore";
+import { cached } from "../cache";
 import { allocateByWeight, calculateContribution, type ProfitabilityLine } from "../profitability";
 import type { Period } from "../period";
 import { amazonConnectionId } from "./amazonSync";
@@ -332,7 +333,7 @@ export async function getAmazonOverviewFromCanonical(period: Period): Promise<Am
       };
     })
     .sort((a, b) => b.revenue - a.revenue)
-    .slice(0, 8);
+    .slice(0, 10);
 
   return {
     sellerId,
@@ -375,4 +376,11 @@ export async function getAmazonOverviewFromCanonical(period: Period): Promise<Am
       orderTotal: { CurrencyCode: row.currency, Amount: String(row.gross) },
     })),
   };
+}
+
+// Deduplica a computação canônica entre as rotas do dashboard que a consomem
+// no mesmo carregamento (radar + top-products + rentabilidade). Namespaced por
+// conta/workspace pelo próprio `cached`.
+export function getAmazonOverviewCanonicalCached(period: Period): Promise<AmazonCanonicalOverview | null> {
+  return cached(`amazon-overview-canonical:${period.key}`, 60_000, () => getAmazonOverviewFromCanonical(period));
 }

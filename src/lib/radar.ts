@@ -26,12 +26,16 @@ function classify(item: StockItem, perDay: number, daysRemaining: number | null)
   return "ok";
 }
 
-/** Monta o radar de estoque: estoque atual + velocidade → dias restantes + status. */
-export async function getStockRadar(period: Period): Promise<RadarRow[]> {
-  // Estoque e velocidade em paralelo.
+/**
+ * Monta o radar de estoque: estoque atual + velocidade → dias restantes + status.
+ * `velocityOverride` (unidades vendidas por SKU) vem do canônico quando o período
+ * está coberto; sem ele, cai na Sales Velocity ao vivo (Finances v0, mais lenta).
+ */
+export async function getStockRadar(period: Period, velocityOverride?: Record<string, number>): Promise<RadarRow[]> {
+  // Estoque e velocidade em paralelo (a velocidade é pulada se veio do canônico).
   const [inventory, velocity] = await Promise.all([
     getInventory(),
-    getSalesVelocity({ period }),
+    velocityOverride ? Promise.resolve({ unitsBySku: velocityOverride }) : getSalesVelocity({ period }),
   ]);
 
   const rows: RadarRow[] = inventory.map((item) => {
