@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   return withAccountContext(req, async () => {
     try {
-      const listings = await getListings();
+      const listings = await getListings(true);
       return NextResponse.json({ listings, total: listings.length });
     } catch (error) {
       return errorResponse(error);

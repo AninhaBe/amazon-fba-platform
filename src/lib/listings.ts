@@ -19,8 +19,9 @@ export interface Listing {
  * O relatório é lento (~20s), então NUNCA esperamos: devolve o cache na hora
  * e atualiza em segundo plano. Relatório: GET_MERCHANT_LISTINGS_ALL_DATA.
  */
-export function getListings(): Promise<Listing[]> {
-  return swr("listings", 30 * 60_000, fetchListings, { fallback: [] });
+export function getListings(awaitIfEmpty = false): Promise<Listing[]> {
+  // v2: chave nova invalida o cache antigo (que não tinha imagem/status).
+  return swr("listings-v2", 30 * 60_000, fetchListings, { fallback: [], awaitIfEmpty });
 }
 
 async function fetchListings(): Promise<Listing[]> {
@@ -48,7 +49,7 @@ async function fetchListings(): Promise<Listing[]> {
         status: r["status"] || undefined,
         fulfillment,
         imageUrl: r["image-url"] || undefined,
-        openDate: r["open-date"] || undefined,
+        openDate: (r["open-date"] || "").slice(0, 10) || undefined, // "2026-05-28 13:44:28 BRT" -> "2026-05-28"
       } satisfies Listing;
     })
     .filter((l) => l.sku);

@@ -6,7 +6,6 @@ import { PanelLoading } from "../../components/LoadingState";
 import { PageHeader, pageIcons } from "../../components/PageHeader";
 import { SortButton, type SortDir } from "../../components/SortButton";
 import { readJson } from "@/lib/readJson";
-import { brDate } from "@/lib/datetime";
 
 interface Listing {
   sku: string;
@@ -46,6 +45,12 @@ function normStatus(value?: string): "active" | "inactive" | "incomplete" | "oth
 
 function money(value: number | null) {
   return value == null ? "—" : new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
+}
+
+function fmtDate(value?: string): string | null {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [y, m, d] = value.split("-");
+  return `${d}/${m}/${y}`;
 }
 
 export default function AmazonCatalogPage() {
@@ -150,7 +155,7 @@ export default function AmazonCatalogPage() {
                             // eslint-disable-next-line @next/next/no-img-element
                             <img src={l.imageUrl} alt="" loading="lazy" />
                           ) : <span className="listing-image-fallback" aria-hidden="true">AMZ</span>}
-                          <div><strong title={l.title}>{l.title || l.sku}</strong><small>{`SKU ${l.sku}`}{l.asin ? ` · ${l.asin}` : ""}</small>{l.openDate && <small>Desde {brDate(l.openDate)}</small>}</div>
+                          <div><strong title={l.title}>{l.title || l.sku}</strong><small>{`SKU ${l.sku}`}{l.asin ? ` · ${l.asin}` : ""}</small>{fmtDate(l.openDate) && <small>Desde {fmtDate(l.openDate)}</small>}</div>
                         </div></td>
                         <td><span className={`listing-status ${meta.cls}`}>{meta.label}</span></td>
                         <td className="font-semibold tabular-nums">{money(l.price)}</td>
