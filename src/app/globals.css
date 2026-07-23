@@ -371,8 +371,9 @@ a[href][class*="bg-gradient"]:active { transform: scale(.96); }
   box-shadow: 0 6px 16px oklch(0.4 0.09 248 / .1);
   color: var(--channel-accent-dark);
 }
+.page-glyph.is-bare { border: 0; background: none; box-shadow: none; }
 .page-kicker { color: var(--channel-accent-dark); }
-.page-heading h1 { color: var(--ink) !important; }
+.page-heading h1 { color: var(--ink) !important; font-family: var(--font-display), "Segoe UI", sans-serif; letter-spacing: -0.03em; }
 .page-heading p { overflow-wrap: break-word; }
 .page-actions select { min-height: 42px; }
 .coreline {

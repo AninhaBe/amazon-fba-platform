@@ -1,4 +1,7 @@
+"use client";
+
 import type { ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import {
   Cable,
   Calculator,
@@ -9,9 +12,12 @@ import {
   Search,
   TrendingUp,
 } from "lucide-react";
+import { workspaceFromPath } from "@/lib/integrations/workspaces";
+import { MarketplaceIcon } from "./MarketplaceIcon";
 
-// Cabeçalho padrão das páginas: ícone em chip de gradiente + eyebrow + título + subtítulo,
-// com um slot de ação à direita (ex: seletor de período).
+// Cabeçalho padrão das páginas: eyebrow + título + subtítulo, com um slot de ação.
+// Em páginas de um canal (Amazon/ML) o ícone vira automaticamente o logo do
+// marketplace (sem chip); na Central usa o ícone de função passado, dentro do chip.
 export function PageHeader({
   eyebrow,
   title,
@@ -25,11 +31,14 @@ export function PageHeader({
   icon: ReactNode;
   action?: ReactNode;
 }) {
+  const workspace = workspaceFromPath(usePathname());
+  const channel = workspace === "amazon" ? "amazon" : workspace === "mercado_livre" ? "mercado_livre" : null;
+  const glyph = channel ? <MarketplaceIcon provider={channel} app size={40} /> : icon;
   return (
     <div className="page-heading flex flex-wrap items-end justify-between gap-5">
       <div className="flex items-start gap-4">
-        <span className="page-glyph flex h-11 w-11 shrink-0 items-center justify-center">
-          {icon}
+        <span className={`page-glyph flex h-11 w-11 shrink-0 items-center justify-center${channel ? " is-bare" : ""}`}>
+          {glyph}
         </span>
         <div className="min-w-0">
           <p className="page-kicker text-xs font-semibold uppercase tracking-[0.14em]">

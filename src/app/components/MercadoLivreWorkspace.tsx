@@ -6,7 +6,6 @@ import { AnimatedNumber } from "./AnimatedNumber";
 import { EmptyState } from "./EmptyState";
 import { DashboardSkeleton } from "./LoadingState";
 import { PageHeader, pageIcons } from "./PageHeader";
-import { MarketplaceIcon } from "./MarketplaceIcon";
 import { RevenueChart, type DailyPoint } from "./RevenueChart";
 import { DashboardPeriodFilter, useDashboardPeriod } from "./DashboardPeriodFilter";
 import { OrderProfitabilityTable } from "./OrderProfitabilityTable";
@@ -48,7 +47,7 @@ interface CachedPeriod {
 const periodCache = new Map<string, CachedPeriod>();
 
 const views = {
-  dashboard: { eyebrow: "Operação Mercado Livre", title: "Dashboard Mercado Livre", subtitle: "Faturamento, pedidos e anúncios da sua conta do Mercado Livre Brasil.", icon: <MarketplaceIcon provider="mercado_livre" app size={30} /> },
+  dashboard: { eyebrow: "Operação Mercado Livre", title: "Dashboard Mercado Livre", subtitle: "Faturamento, pedidos e anúncios da sua conta do Mercado Livre Brasil.", icon: pageIcons.dashboard },
   monitor: { eyebrow: "Pedidos e financeiro Mercado Livre", title: "Monitor da conta", subtitle: "Pedidos recentes e o resultado financeiro real da sua conta.", icon: pageIcons.chart },
   estoque: { eyebrow: "Operação Mercado Livre", title: "Radar de estoque", subtitle: "Cobertura dos anúncios ativos com base no estoque e no ritmo de vendas do período.", icon: pageIcons.box },
 } as const;

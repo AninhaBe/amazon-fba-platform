@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Bricolage_Grotesque } from "next/font/google";
 import { AppShell } from "./components/AppShell";
 import "./globals.css";
 
@@ -10,6 +10,12 @@ const interSans = Inter({
   subsets: ["latin"],
 });
 
+// Bricolage Grotesque: display com personalidade para os títulos das páginas.
+const displaySans = Bricolage_Grotesque({
+  variable: "--font-display",
+  subsets: ["latin"],
+});
+
 export const metadata: Metadata = {
   title: "SellerCore — Inteligência para operações multicanal",
   description: "Lucro, pedidos, estoque e desempenho dos seus canais de venda em um só lugar",
@@ -17,7 +23,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="pt-BR" data-scroll-behavior="smooth" className={`${interSans.variable} h-full antialiased`} suppressHydrationWarning>
+    <html lang="pt-BR" data-scroll-behavior="smooth" className={`${interSans.variable} ${displaySans.variable} h-full antialiased`} suppressHydrationWarning>
       <body className="min-h-full text-slate-900" suppressHydrationWarning>
         <a href="#main-content" className="skip-link">
           Pular para o conteúdo

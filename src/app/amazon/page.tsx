@@ -3,8 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { RevenueChart, type DailyPoint } from "../components/RevenueChart";
-import { PageHeader } from "../components/PageHeader";
-import { MarketplaceIcon } from "../components/MarketplaceIcon";
+import { PageHeader, pageIcons } from "../components/PageHeader";
 import { InlineLoading } from "../components/LoadingState";
 import { EmptyState } from "../components/EmptyState";
 import { DashboardPeriodFilter, useDashboardPeriod } from "../components/DashboardPeriodFilter";
@@ -182,7 +181,7 @@ export default function Dashboard() {
         eyebrow="Operação Amazon"
         title="Dashboard Amazon"
         subtitle="Resumo de vendas, lucro, FBA e desempenho da conta Amazon ativa."
-        icon={<MarketplaceIcon provider="amazon" app size={30} />}
+        icon={pageIcons.dashboard}
       />
       <DashboardPeriodFilter {...period.filterProps} />
 
