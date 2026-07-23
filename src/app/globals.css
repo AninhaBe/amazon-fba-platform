@@ -225,6 +225,60 @@ a[href][class*="bg-gradient"]:active { transform: scale(.96); }
 .rail-nav-item.is-active:hover .rail-nav-icon { color: var(--channel-accent-dark); }
 .rail-nav-item.is-active .rail-nav-desc { opacity: .7; }
 
+/* ---- Menu lateral: coluna de canais (rail) + painel ---- */
+.channel-rail {
+  width: 58px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 18px 0 14px;
+  border-inline-end: 1px solid var(--line);
+  background: oklch(0.955 0.014 246);
+}
+.channel-rail-brand { display: grid; place-items: center; width: 34px; height: 34px; margin-block-end: 10px; border-radius: 10px; transition: background-color 140ms; }
+.channel-rail-brand:hover { background: oklch(1 0 0 / .6); }
+.channel-rail-tabs { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.channel-rail-tab {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  --tab-accent: var(--brand);
+  transition-property: background-color, box-shadow, transform;
+  transition-duration: 150ms;
+}
+.channel-rail-tab > span { display: grid; place-items: center; width: 30px; height: 30px; transform: scale(.88); transition: transform 150ms cubic-bezier(.2, 0, 0, 1); }
+.channel-rail-tab .marketplace-icon { object-fit: contain; }
+.channel-rail-tab:hover { background: oklch(1 0 0 / .62); }
+.channel-rail-tab:active { transform: scale(.96); }
+.channel-rail-tab.is-active { background: color-mix(in oklch, var(--tab-accent) 15%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--tab-accent) 26%, transparent); }
+.channel-rail-tab.is-active > span { transform: scale(1); }
+.channel-rail-tab.is-active::before { content: ""; position: absolute; inset-inline-start: -8px; inset-block: 11px; width: 3px; border-radius: 999px; background: var(--tab-accent); }
+.channel-rail .channel-overview { --tab-accent: var(--brand); }
+.channel-rail .channel-amazon { --tab-accent: var(--amazon); }
+.channel-rail .channel-mercado_livre { --tab-accent: var(--meli); }
+.channel-rail-add {
+  width: 44px;
+  height: 44px;
+  margin-block-start: 2px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  color: var(--ink-muted);
+  border: 1px dashed var(--line-strong);
+  transition: background-color 140ms, color 140ms;
+}
+.channel-rail-add:hover { background: oklch(1 0 0 / .6); color: var(--ink-soft); }
+
+.rail-panel { background: oklch(0.968 0.012 246); }
+.rail-panel-head { border-block-end: 1px solid var(--line); }
+.rail-panel-title { font-size: 15px; font-weight: 750; letter-spacing: -0.01em; color: var(--ink); line-height: 1.15; }
+.rail-panel-sub { margin-block-start: 3px; font-size: 9.5px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; color: var(--ink-muted); }
+
 .channel-switcher {
   display: flex;
   align-items: center;
