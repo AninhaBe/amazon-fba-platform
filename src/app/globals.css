@@ -900,12 +900,12 @@ summary:hover { background: var(--paper-soft); }
 .listing-controls input, .listing-controls select { width: 100%; min-height: 44px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: white; padding-inline: 11px; color: var(--ink); font-size: 13px; }
 .listing-search { min-width: 0; }
 .listing-table-shell { overflow: hidden; border-radius: var(--radius-lg); background: var(--paper); box-shadow: var(--shadow-surface); }
-.listing-table-shell > header { display: flex; align-items: end; justify-content: space-between; gap: 24px; padding: 19px 21px; border-block-end: 1px solid var(--line); }
+.listing-table-shell > header { display: flex; align-items: end; justify-content: space-between; gap: 24px; padding: 18px 18px; border-block-end: 1px solid var(--line); }
 .listing-table-shell > header h2 { margin-block-start: 4px; color: var(--ink); font-size: 19px; font-weight: 760; letter-spacing: -.025em; line-height: 1.1; text-wrap: balance; }
 .listing-table-shell > header > p { color: var(--ink-muted); font-size: 12px; }
 .listing-table { width: 100%; min-width: 1120px; font-size: 12px; }
-.listing-table th { white-space: nowrap; }
-.listing-table td { padding: 13px 14px !important; vertical-align: middle; }
+.listing-table th { padding: 11px 18px; white-space: nowrap; }
+.listing-table td { padding: 13px 18px !important; vertical-align: middle; }
 .listing-product { display: flex; min-width: 310px; max-width: 440px; align-items: center; gap: 11px; }
 .listing-product img, .listing-image-fallback { width: 48px; height: 48px; flex: none; border-radius: 9px; background: var(--paper-soft); object-fit: contain; outline: 1px solid oklch(0 0 0 / .1); outline-offset: -1px; }
 .listing-image-fallback { display: grid; place-items: center; color: var(--meli-dark); font-size: 10px; font-weight: 800; }
@@ -922,6 +922,7 @@ summary:hover { background: var(--paper-soft); }
 .listing-open:hover { background: var(--meli-soft); }
 .listing-open:active { scale: .96; }
 .listing-open.is-disabled { color: var(--ink-muted); }
+.inventory-table thead th { padding: 11px 16px; }
 .inventory-table tbody td { padding: 14px 16px !important; vertical-align: middle; }
 .inventory-status-cell { min-width: 112px; vertical-align: middle; }
 .stock-status { display: inline-flex; min-height: 26px; align-items: center; justify-content: center; border-radius: 999px; background: var(--positive-soft); padding: 5px 9px; color: var(--positive); font-size: 10px; font-weight: 750; line-height: 1; white-space: nowrap; }
@@ -1003,7 +1004,7 @@ summary:hover { background: var(--paper-soft); }
 .meli-feature-grid b { position: absolute; inset-inline-end: 19px; inset-block-end: 17px; color: var(--meli-dark); }
 .meli-feature-grid small { position: absolute; inset-inline-end: 16px; inset-block-start: 15px; border-radius: 999px; background: var(--meli-soft); padding: 5px 7px; color: var(--meli-dark); font-size: 9px; font-weight: 750; }
 .meli-orders { overflow: hidden; border-radius: var(--radius-lg); background: var(--paper); box-shadow: var(--shadow-surface); }
-.meli-orders > header { display: flex; align-items: end; justify-content: space-between; gap: 20px; padding: 19px 21px; border-block-end: 1px solid var(--line); }
+.meli-orders > header { display: flex; align-items: end; justify-content: space-between; gap: 20px; padding: 18px 18px; border-block-end: 1px solid var(--line); }
 .meli-orders h2, .meli-focus-panel h2 { margin-block-start: 3px; color: var(--ink); font-size: 19px; font-weight: 760; letter-spacing: -.025em; }
 .meli-orders header a, .meli-focus-panel a { color: var(--meli-dark); font-size: 12px; font-weight: 750; }
 .meli-orders table { width: 100%; min-width: 650px; border-collapse: collapse; font-size: 12px; }
