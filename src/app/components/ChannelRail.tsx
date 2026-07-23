@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { Plus } from "lucide-react";
 import { workspaceFromPath } from "@/lib/integrations/workspaces";
 import { MarketplaceIcon } from "./MarketplaceIcon";
-import { LogoMark } from "./Logo";
 
 const channels = [
   { id: "overview", href: "/", label: "Central", provider: "sellercore" },
@@ -17,9 +16,6 @@ export function ChannelRail() {
   const workspace = workspaceFromPath(usePathname());
   return (
     <div className="channel-rail">
-      <Link href="/" className="channel-rail-brand" aria-label="SellerCore — início">
-        <LogoMark className="h-7 w-7" />
-      </Link>
       <div className="channel-rail-tabs" role="navigation" aria-label="Alternar canal de venda">
         {channels.map((channel) => (
           <Link
