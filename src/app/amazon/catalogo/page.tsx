@@ -5,7 +5,10 @@ import { EmptyState } from "../../components/EmptyState";
 import { PanelLoading } from "../../components/LoadingState";
 import { PageHeader, pageIcons } from "../../components/PageHeader";
 import { SortButton, type SortDir } from "../../components/SortButton";
+import { Pagination } from "../../components/Pagination";
 import { readJson } from "@/lib/readJson";
+
+const PAGE_SIZE = 30;
 
 interface Listing {
   sku: string;
@@ -62,6 +65,9 @@ export default function AmazonCatalogPage() {
   const [logistic, setLogistic] = useState<LogisticFilter>("all");
   const [sortCol, setSortCol] = useState<SortCol>("title");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [page, setPage] = useState(1);
+
+  useEffect(() => { setPage(1); }, [query, status, logistic, sortCol, sortDir]);
 
   function toggleSort(col: SortCol) {
     if (sortCol === col) setSortDir((dir) => (dir === "asc" ? "desc" : "asc"));
@@ -109,6 +115,10 @@ export default function AmazonCatalogPage() {
       });
   }, [listings, logistic, query, sortCol, sortDir, status]);
 
+  const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
+  const current = Math.min(page, pageCount);
+  const paged = visible.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
+
   return (
     <div className="amazon-listings-page space-y-8">
       <PageHeader
@@ -146,7 +156,7 @@ export default function AmazonCatalogPage() {
                 <table className="listing-table">
                   <caption className="sr-only">Anúncios publicados na Amazon</caption>
                   <thead><tr><th>Produto</th><th>Status</th><th><SortButton label="Preço" col="price" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} /></th><th><SortButton label="Estoque" col="stock" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} /></th><th>Logística</th><th><span className="sr-only">Ações</span></th></tr></thead>
-                  <tbody>{visible.map((l) => {
+                  <tbody>{paged.map((l) => {
                     const meta = statusMeta[normStatus(l.status)];
                     return (
                       <tr key={l.sku}>
@@ -168,6 +178,7 @@ export default function AmazonCatalogPage() {
                 </table>
               </div>
             )}
+            {pageCount > 1 && <div className="listing-pagination"><Pagination page={current} pageCount={pageCount} total={visible.length} pageSize={PAGE_SIZE} onPage={setPage} /></div>}
           </section>
 
           <p className="text-xs text-slate-400">O estoque vem do relatório de anúncios; para itens FBA, a quantidade em estoque na Amazon pode aparecer zerada aqui (o estoque FBA é gerenciado pela Amazon) — use o Radar de estoque para a cobertura FBA.</p>

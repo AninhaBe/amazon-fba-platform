@@ -6,7 +6,10 @@ import { EmptyState } from "../../components/EmptyState";
 import { PanelLoading } from "../../components/LoadingState";
 import { PageHeader, pageIcons } from "../../components/PageHeader";
 import { SortButton, type SortDir } from "../../components/SortButton";
+import { Pagination } from "../../components/Pagination";
 import { brDate } from "@/lib/datetime";
+
+const PAGE_SIZE = 30;
 
 interface Listing {
   id: string;
@@ -87,6 +90,9 @@ export default function MercadoLivreListingsPage() {
   const [logistic, setLogistic] = useState("all");
   const [sortCol, setSortCol] = useState<SortCol>("updated");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [page, setPage] = useState(1);
+
+  useEffect(() => { setPage(1); }, [query, status, kind, logistic, sortCol, sortDir]);
 
   function toggleSort(col: SortCol) {
     if (sortCol === col) setSortDir((dir) => (dir === "asc" ? "desc" : "asc"));
@@ -138,6 +144,10 @@ export default function MercadoLivreListingsPage() {
       });
   }, [kind, logistic, products, query, sortCol, sortDir, status]);
 
+  const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
+  const current = Math.min(page, pageCount);
+  const paged = visible.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
+
   return (
     <div className="meli-listings-page space-y-8">
       <PageHeader
@@ -178,7 +188,7 @@ export default function MercadoLivreListingsPage() {
                 <table className="listing-table">
                   <caption className="sr-only">Anúncios publicados no Mercado Livre</caption>
                   <thead><tr><th>Produto</th><th>Status</th><th>Modalidade</th><th><SortButton label="Preço" col="price" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} /></th><th><SortButton label="Estoque" col="stock" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} /></th><th><SortButton label="Vendidos" col="sold" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} /></th><th>Logística</th><th><span className="sr-only">Ações</span></th></tr></thead>
-                  <tbody>{visible.map((product) => (
+                  <tbody>{paged.map((product) => (
                     <tr key={product.id}>
                       <td><div className="listing-product">
                         {product.thumbnail ? (
@@ -200,6 +210,7 @@ export default function MercadoLivreListingsPage() {
                 </table>
               </div>
             )}
+            {pageCount > 1 && <div className="listing-pagination"><Pagination page={current} pageCount={pageCount} total={visible.length} pageSize={PAGE_SIZE} onPage={setPage} /></div>}
           </section>
         </>
       )}
