@@ -27,11 +27,14 @@ export interface AbcProduct {
   cost: number;
   fees: number;
   tax: number;
-  contribution: number;
-  marginPct: number;
+  // Nulo quando o custo não está cadastrado: sem custo não dá para saber a
+  // margem, então não supomos zero — o produto fica "custo pendente".
+  contribution: number | null;
+  marginPct: number | null;
+  costMissing: boolean;
   salesClass: AbcClass;
-  profitClass: AbcClass;
-  quadrant: AbcQuadrant;
+  profitClass: AbcClass | null;
+  quadrant: AbcQuadrant | null;
   complete: boolean; // tarifa e custo conhecidos para todas as vendas do SKU
 }
 
@@ -148,8 +151,10 @@ async function computeAbc(connection: IntegrationConnection, period: MercadoLivr
   }
 
   const partial = [...bySku.values()].map((acc) => {
+    const costMissing = !acc.costKnown;
     const tax = acc.revenue * taxRate / 100;
-    const contribution = +(acc.revenue - acc.cost - acc.fees - tax).toFixed(2);
+    // Sem custo cadastrado não há margem confiável — não supomos zero.
+    const contribution = costMissing ? null : +(acc.revenue - acc.cost - acc.fees - tax).toFixed(2);
     return {
       productId: acc.productId,
       sku: acc.sku,
@@ -160,22 +165,29 @@ async function computeAbc(connection: IntegrationConnection, period: MercadoLivr
       fees: +acc.fees.toFixed(2),
       tax: +tax.toFixed(2),
       contribution,
-      marginPct: acc.revenue > 0 ? +(contribution / acc.revenue * 100).toFixed(2) : 0,
+      marginPct: contribution != null && acc.revenue > 0 ? +(contribution / acc.revenue * 100).toFixed(2) : null,
+      costMissing,
       complete: acc.feesKnown && acc.costKnown,
       key: acc.sku || acc.productId,
     };
   });
 
-  const profitClass = classify(partial.map((p) => ({ key: p.key, value: p.contribution })));
+  // A classificação por lucro só considera produtos com custo cadastrado.
+  const profitClass = classify(partial.filter((p) => p.contribution != null).map((p) => ({ key: p.key, value: p.contribution as number })));
   const salesClass = classify(partial.map((p) => ({ key: p.key, value: p.revenue })));
 
   const products: AbcProduct[] = partial
     .map(({ key, ...p }) => {
       const sc = salesClass.get(key) ?? "C";
-      const pc = profitClass.get(key) ?? "C";
-      return { ...p, salesClass: sc, profitClass: pc, quadrant: quadrantOf(sc, pc) };
+      const pc = p.contribution == null ? null : (profitClass.get(key) ?? "C");
+      return { ...p, salesClass: sc, profitClass: pc, quadrant: pc == null ? null : quadrantOf(sc, pc) };
     })
-    .sort((a, b) => b.contribution - a.contribution);
+    .sort((a, b) => {
+      // Com custo primeiro (por contribuição desc); sem custo ao fim (por receita).
+      if ((a.contribution == null) !== (b.contribution == null)) return a.contribution == null ? 1 : -1;
+      if (a.contribution != null && b.contribution != null) return b.contribution - a.contribution;
+      return b.revenue - a.revenue;
+    });
 
   const syncRow = syncRows[0];
   const coveredFrom = syncRow?.covered_from ? new Date(syncRow.covered_from).getTime() : Number.POSITIVE_INFINITY;

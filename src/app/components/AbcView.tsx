@@ -20,11 +20,12 @@ interface AbcProduct {
   cost: number;
   fees: number;
   tax: number;
-  contribution: number;
-  marginPct: number;
+  contribution: number | null;
+  marginPct: number | null;
+  costMissing: boolean;
   salesClass: AbcClass;
-  profitClass: AbcClass;
-  quadrant: Quadrant;
+  profitClass: AbcClass | null;
+  quadrant: Quadrant | null;
   complete: boolean;
 }
 interface Abc {
@@ -46,7 +47,7 @@ function money(value: number, currency = "BRL") {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(value);
 }
 
-export function AbcView({ endpoint, eyebrow, subtitle }: { endpoint: string; eyebrow: string; subtitle: string }) {
+export function AbcView({ endpoint, eyebrow, subtitle, costsHref }: { endpoint: string; eyebrow: string; subtitle: string; costsHref: string }) {
   const [days, setDays] = useState(30);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -94,38 +95,54 @@ export function AbcView({ endpoint, eyebrow, subtitle }: { endpoint: string; eye
       ) : !data || data.products.length === 0 ? (
         <EmptyState title="Sem vendas no período" description="Amplie o período ou aguarde a sincronização terminar." />
       ) : (
-        <Results data={data} quad={quad} setQuad={setQuad} />
+        <Results data={data} quad={quad} setQuad={setQuad} costsHref={costsHref} />
       )}
     </div>
   );
 }
 
-function Results({ data, quad, setQuad }: { data: Abc; quad: Quadrant | null; setQuad: (q: Quadrant | null) => void }) {
+function Results({ data, quad, setQuad, costsHref }: { data: Abc; quad: Quadrant | null; setQuad: (q: Quadrant | null) => void; costsHref: string }) {
   const { products, currency } = data;
 
-  const { totalProfit, skusMaking80, byQuadrant } = useMemo(() => {
-    const total = products.reduce((sum, p) => sum + p.contribution, 0);
-    const positives = products.filter((p) => p.contribution > 0);
-    const totalPos = positives.reduce((sum, p) => sum + p.contribution, 0) || 1;
+  const { totalProfit, skusMaking80, byQuadrant, classified, costMissing } = useMemo(() => {
+    // Só produtos COM custo cadastrado entram no cálculo de lucro; os demais
+    // ("custo pendente") não têm margem confiável e ficam de fora.
+    const withCost = products.filter((p) => p.contribution != null);
+    const missing = products.filter((p) => p.costMissing).length;
+    const total = withCost.reduce((sum, p) => sum + (p.contribution ?? 0), 0);
+    const positives = withCost.filter((p) => (p.contribution ?? 0) > 0);
+    const totalPos = positives.reduce((sum, p) => sum + (p.contribution ?? 0), 0) || 1;
     let cumulative = 0;
     let count = 0;
-    for (const p of positives) { cumulative += p.contribution; count++; if (cumulative / totalPos >= 0.8) break; }
+    for (const p of positives) { cumulative += p.contribution ?? 0; count++; if (cumulative / totalPos >= 0.8) break; }
     const groups: Record<Quadrant, { count: number; profit: number }> = {
       motor: { count: 0, profit: 0 }, vamp: { count: 0, profit: 0 }, joia: { count: 0, profit: 0 }, morto: { count: 0, profit: 0 },
     };
-    for (const p of products) { groups[p.quadrant].count++; groups[p.quadrant].profit += p.contribution; }
-    return { totalProfit: total, skusMaking80: count, byQuadrant: groups };
+    for (const p of products) { if (p.quadrant) { groups[p.quadrant].count++; groups[p.quadrant].profit += p.contribution ?? 0; } }
+    return { totalProfit: total, skusMaking80: count, byQuadrant: groups, classified: withCost.length, costMissing: missing };
   }, [products]);
 
   const shown = quad ? products.filter((p) => p.quadrant === quad) : products;
 
   return (
     <div className="space-y-5">
-      <p className="text-[15px] text-slate-600">
-        <b className="font-bold text-slate-900">{skusMaking80} SKU{skusMaking80 !== 1 ? "s" : ""}</b>{" "}
-        ({products.length ? Math.round((skusMaking80 / products.length) * 100) : 0}% do catálogo) fazem{" "}
-        <b className="font-bold text-slate-900">80% do seu lucro</b> no período.
-      </p>
+      {classified > 0 ? (
+        <p className="text-[15px] text-slate-600">
+          <b className="font-bold text-slate-900">{skusMaking80} SKU{skusMaking80 !== 1 ? "s" : ""}</b>{" "}
+          ({Math.round((skusMaking80 / classified) * 100)}% dos classificados) fazem{" "}
+          <b className="font-bold text-slate-900">80% do seu lucro</b> no período.
+        </p>
+      ) : (
+        <p className="text-[15px] text-slate-600">Nenhum produto com custo cadastrado — cadastre os custos para ver o lucro por produto.</p>
+      )}
+
+      {costMissing > 0 && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-800">
+          <span aria-hidden="true">⚠️</span>
+          <span><b className="font-semibold">{costMissing} produto{costMissing !== 1 ? "s" : ""} sem custo cadastrado</b> — não entra{costMissing !== 1 ? "m" : ""} no cálculo de lucro (não inventamos margem).</span>
+          <a href={costsHref} className="font-semibold text-amber-900 underline">Cadastrar custos →</a>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {QUAD_ORDER.map((k) => {
@@ -203,27 +220,34 @@ function Results({ data, quad, setQuad }: { data: Abc; quad: Quadrant | null; se
               </thead>
               <tbody>
                 {shown.map((p) => {
-                  const q = QUAD[p.quadrant];
+                  const q = p.quadrant ? QUAD[p.quadrant] : null;
                   const clsColor = p.profitClass === "A" ? "bg-emerald-50 text-emerald-700" : p.profitClass === "B" ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-500";
+                  const neg = p.contribution != null && p.contribution < 0;
                   return (
                     <tr key={p.sku || p.productId} className="[&_td]:border-b [&_td]:border-slate-100 [&_td]:px-3 [&_td]:py-2.5 [&_td]:tabular-nums hover:bg-slate-50">
                       <td className="!text-left">
                         <div className="flex max-w-[240px] flex-col">
                           <strong className="truncate text-[13px] font-semibold" title={p.title}>{p.title}</strong>
-                          <small className="font-mono text-[11px] text-slate-400">{p.sku || p.productId}{!p.complete && " · parcial"}</small>
+                          <small className="font-mono text-[11px] text-slate-400">{p.sku || p.productId}{!p.costMissing && !p.complete && " · parcial"}</small>
                         </div>
                       </td>
                       <td className="text-right">{p.units}</td>
                       <td className="text-right">{money(p.revenue, currency)}</td>
-                      <td className={`text-right font-bold ${p.contribution < 0 ? "text-red-600" : "text-emerald-700"}`}>{money(p.contribution, currency)}</td>
-                      <td className={`text-right ${p.contribution < 0 ? "font-bold text-red-600" : ""}`}>{p.marginPct.toFixed(1)}%</td>
+                      <td className={`text-right font-bold ${p.contribution == null ? "text-slate-300" : neg ? "text-red-600" : "text-emerald-700"}`}>{p.contribution == null ? "—" : money(p.contribution, currency)}</td>
+                      <td className={`text-right ${p.marginPct == null ? "text-slate-300" : neg ? "font-bold text-red-600" : ""}`}>{p.marginPct == null ? "—" : `${p.marginPct.toFixed(1)}%`}</td>
                       <td className="text-center">
-                        <span className={`inline-grid h-[22px] w-[22px] place-items-center rounded-md text-[12px] font-extrabold ${clsColor}`}>{p.profitClass}</span>
+                        {p.profitClass == null
+                          ? <span className="text-slate-300">—</span>
+                          : <span className={`inline-grid h-[22px] w-[22px] place-items-center rounded-md text-[12px] font-extrabold ${clsColor}`}>{p.profitClass}</span>}
                       </td>
                       <td className="!text-left">
-                        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold ${q.tag}`}>
-                          <span className={`h-1.5 w-1.5 rounded-sm ${q.dot}`} />{q.label}
-                        </span>
+                        {q ? (
+                          <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold ${q.tag}`}>
+                            <span className={`h-1.5 w-1.5 rounded-sm ${q.dot}`} />{q.label}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-bold text-amber-700">Sem custo</span>
+                        )}
                       </td>
                     </tr>
                   );
@@ -245,8 +269,8 @@ function Results({ data, quad, setQuad }: { data: Abc; quad: Quadrant | null; se
 }
 
 function Pareto({ products }: { products: AbcProduct[] }) {
-  const pos = products.filter((p) => p.contribution > 0);
-  if (pos.length === 0) return <p className="py-8 text-center text-sm text-slate-400">Sem lucro positivo no período.</p>;
+  const pos = products.filter((p): p is AbcProduct & { contribution: number } => p.contribution != null && p.contribution > 0);
+  if (pos.length === 0) return <p className="py-8 text-center text-sm text-slate-400">Sem produtos com custo cadastrado para calcular o lucro.</p>;
   const W = 1000, H = 190, padL = 6, padR = 6, padT = 12, padB = 8;
   const n = pos.length;
   const gap = (W - padL - padR) / n;
