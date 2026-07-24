@@ -1009,6 +1009,11 @@ summary:hover { background: var(--paper-soft); }
 .profit-breakdown .is-subtotal strong { color: var(--ink); }
 .profit-breakdown .is-total { background: var(--positive-soft); color: var(--positive); }
 .profit-breakdown .is-total strong { color: var(--positive); }
+
+/* Ranqueamento (ML): barra de posição do anúncio dentro dos 1000 varridos. */
+.ranking-track { position: relative; height: 10px; border-radius: 999px; background: linear-gradient(90deg, var(--positive) 0%, #f5c518 45%, var(--danger) 100%); opacity: .88; }
+.ranking-you { position: absolute; top: -5px; width: 3px; height: 20px; border-radius: 2px; background: var(--ink); box-shadow: 0 0 0 3px var(--paper); }
+.ranking-you::after { content: attr(data-label); position: absolute; top: 22px; left: 50%; transform: translateX(-50%); white-space: nowrap; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink); }
 .meli-kpis { box-shadow: 0 0 0 1px oklch(0 0 0 / .055), 0 8px 24px -15px oklch(0.56 0.12 96 / .18); }
 .meli-kpis article:first-child { box-shadow: inset 0 4px 0 var(--meli); }
 .meli-kpis article.is-pending { background: var(--meli-soft); }
