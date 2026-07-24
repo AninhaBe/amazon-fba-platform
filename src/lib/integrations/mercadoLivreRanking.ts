@@ -11,10 +11,28 @@ import type { IntegrationConnection } from "./types";
 // histórico e patrocinados. É a mesma limitação de ferramentas como o Mercado
 // Turbo, e por isso a UI mostra o aviso.
 
+const API_BASE = "https://api.mercadolibre.com";
 const PAGE = 50;
 const MAX_PAGES = 20; // 20 × 50 = 1000 (teto do offset no ML)
 const TOP_COMPETITORS = 12;
-const SCAN_CONCURRENCY = 5;
+const SCAN_CONCURRENCY = 4;
+
+// A busca livre (`/search?q=`) é proibida (403 "forbidden") para o token de
+// vendedor; a versão pública (sem auth) costuma responder. Tenta pública
+// primeiro e cai no autenticado como reserva. `/users/{id}` também é público.
+async function mlGet<T>(connection: IntegrationConnection, resource: string): Promise<T> {
+  try {
+    const response = await fetch(`${API_BASE}${resource}`, {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (response.ok) return (await response.json()) as T;
+  } catch {
+    // rede/timeout: cai no autenticado
+  }
+  return mercadoLivreFetch<T>(connection, resource);
+}
 
 interface SearchSeller { id?: number; nickname?: string }
 interface SearchResult {
@@ -91,13 +109,13 @@ async function scanRanking(connection: IntegrationConnection, term: string): Pro
   const path = (offset: number) => `/sites/${siteId}/search?q=${encoded}&limit=${PAGE}&offset=${offset}`;
 
   // Primeira página: define o total e quantas páginas realmente varrer.
-  const first = await mercadoLivreFetch<SearchPage>(connection, path(0));
+  const first = await mlGet<SearchPage>(connection, path(0));
   const total = first.paging?.total ?? (first.results?.length ?? 0);
   const pages = Math.min(MAX_PAGES, Math.max(1, Math.ceil(total / PAGE)));
 
   const restOffsets = Array.from({ length: pages - 1 }, (_, index) => (index + 1) * PAGE);
   const restPages = await mapLimit(restOffsets, SCAN_CONCURRENCY, (offset) =>
-    mercadoLivreFetch<SearchPage>(connection, path(offset)).catch(() => ({ results: [] } as SearchPage))
+    mlGet<SearchPage>(connection, path(offset)).catch(() => ({ results: [] } as SearchPage))
   );
 
   // Achata em uma lista com a posição global (1-based) de cada resultado.
@@ -149,7 +167,7 @@ async function scanRanking(connection: IntegrationConnection, term: string): Pro
   const competitors: RankingCompetitor[] = await mapLimit(ordered, SCAN_CONCURRENCY, async ([sellerId, agg]) => {
     let user: MlUser = {};
     try {
-      user = await mercadoLivreFetch<MlUser>(connection, `/users/${sellerId}`);
+      user = await mlGet<MlUser>(connection, `/users/${sellerId}`);
     } catch {
       // segue sem enriquecer
     }
