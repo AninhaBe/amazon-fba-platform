@@ -107,6 +107,7 @@ const navigation: Record<WorkspaceId, NavGroup[]> = {
       title: "Ferramentas",
       tone: "violet",
       items: [
+        { href: "/mercado-livre/abc", label: "Curva ABC", desc: "Lucro por produto", icon: icons.performance },
         { href: "/mercado-livre/calculadora", label: "Calculadora", desc: "Preço e margem", icon: icons.calculator },
       ],
     },

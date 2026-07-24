@@ -1015,6 +1015,14 @@ summary:hover { background: var(--paper-soft); }
 .profit-breakdown .is-total { background: var(--positive-soft); color: var(--positive); }
 .profit-breakdown .is-total strong { color: var(--positive); }
 
+/* Curva ABC: tooltip "i" por quadrante. */
+.abc-quad { position: relative; }
+.abc-info { position: absolute; top: 12px; right: 12px; display: grid; place-items: center; width: 19px; height: 19px; border-radius: 999px; border: 1px solid var(--line); background: var(--paper); color: var(--ink-muted); font-size: 11px; font-weight: 800; font-style: italic; cursor: help; z-index: 3; }
+.abc-info:hover, .abc-info:focus { border-color: var(--channel-accent-dark); color: var(--channel-accent-dark); outline: none; }
+.abc-pop { position: absolute; top: 26px; right: 0; width: 230px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); box-shadow: var(--shadow-hover); color: var(--ink-muted); font-size: 12px; font-weight: 400; font-style: normal; line-height: 1.5; text-align: left; display: none; z-index: 9; }
+.abc-info:hover .abc-pop, .abc-info:focus .abc-pop { display: block; }
+.abc-pop b { color: var(--ink); font-weight: 700; }
+
 /* Nota de cobertura: informativa, não alarmante (substitui o bloco de alerta). */
 .meli-coverage-note { margin-block-start: -8px; color: var(--ink-muted); font-size: 12px; line-height: 1.45; }
 .meli-kpis { box-shadow: 0 0 0 1px oklch(0 0 0 / .055), 0 8px 24px -15px oklch(0.56 0.12 96 / .18); }
