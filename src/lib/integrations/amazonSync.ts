@@ -2,12 +2,13 @@ import { dbQuery, hasDb } from "../db";
 import { currentWorkspaceId } from "../workspaceScope";
 import { runWithAccount, type AccountCtx } from "../accountContext";
 import { getOrders, getOrderItems } from "../orders";
-import { getOrderFinancialEvents } from "../finances";
+import { getOrderFinancialsFromTransactions } from "../transactions";
+import { periodFromRange } from "../period";
 import {
-  normalizeAmazonFinanceFees,
   normalizeAmazonOrderHeader,
   normalizeAmazonOrderItems,
 } from "./amazonCanonical";
+import type { CanonicalFee } from "./canonical";
 import {
   applyCanonicalOrderItems,
   saveCanonicalOrderHeaders,
@@ -29,8 +30,13 @@ const DAY = 86_400_000;
 const HISTORY_DAYS = 366;
 const WINDOW_DAYS = 7;
 const PAGE_SIZE = 100;
-const ITEM_BATCH_SIZE = 10;
-const FEES_BATCH_SIZE = 8;
+const ITEM_BATCH_SIZE = 20;
+// Uma única chamada à Transactions API cobre a janela inteira, então dá para
+// reconciliar muitos pedidos por passada.
+const FEES_BATCH_SIZE = 500;
+// Fees só ficam disponíveis após a liquidação; a janela cobre o que os painéis
+// mostram (≤30 dias) com folga. Histórico mais antigo não é reconciliado.
+const FEES_WINDOW_DAYS = 45;
 const FRESH_FOR_MS = 6 * 60 * 60_000;
 // A SP-API exige CreatedBefore com pelo menos 2 minutos de idade; 3 dá folga.
 const CREATED_BEFORE_LAG_MS = 3 * 60_000;
@@ -139,14 +145,18 @@ async function syncMissingOrderItems(connectionId: string): Promise<void> {
   await applyCanonicalOrderItems({ provider: PROVIDER, connectionId }, applications);
 }
 
-// Conciliação de fees: pedidos com receita, sem comissão registrada e velhos o
-// bastante para o financeiro já ter sido publicado, mais recentes antes.
+// Conciliação de fees pela Transactions API. A Finances v0 retorna valores
+// zerados nesta conta (por isso o dashboard já usa a Transactions API), então a
+// ingestão canônica também precisa dela. Como a Transactions é por período, uma
+// chamada cobre a janela toda: buscamos os totais por pedido de uma janela
+// recente e gravamos comissão (total de tarifas) e estorno por pedido.
 async function syncMissingOrderFees(connectionId: string): Promise<void> {
-  const rows = await dbQuery<{ external_order_id: string; currency: string }>(
-    `SELECT o.external_order_id, o.currency FROM workspace_channel_orders o
+  const rows = await dbQuery<{ external_order_id: string; occurred_at: Date | string; currency: string }>(
+    `SELECT o.external_order_id, o.occurred_at, o.currency FROM workspace_channel_orders o
       WHERE o.workspace_id = $1 AND o.provider = $2 AND o.connection_id = $3
         AND o.status IN ('paid', 'shipped', 'delivered')
         AND o.occurred_at < now() - interval '2 days'
+        AND o.occurred_at >= now() - ($4 || ' days')::interval
         AND NOT EXISTS (
           SELECT 1 FROM workspace_channel_order_fees f
            WHERE f.workspace_id = o.workspace_id AND f.provider = o.provider
@@ -154,24 +164,35 @@ async function syncMissingOrderFees(connectionId: string): Promise<void> {
              AND f.fee_type = 'commission'
         )
       ORDER BY o.occurred_at DESC
-      LIMIT $4`,
-    [currentWorkspaceId(), PROVIDER, connectionId, FEES_BATCH_SIZE]
+      LIMIT $5`,
+    [currentWorkspaceId(), PROVIDER, connectionId, FEES_WINDOW_DAYS, FEES_BATCH_SIZE]
   );
-  const applications: Array<{ externalOrderId: string; fees: ReturnType<typeof normalizeAmazonFinanceFees> }> = [];
-  for (const row of rows) {
-    try {
-      const fees = normalizeAmazonFinanceFees(await getOrderFinancialEvents(row.external_order_id), row.currency);
-      // Sem comissão publicada = financeiro ainda não conciliou este pedido;
-      // fica para a próxima passada (a idade mínima já filtra os recentes).
-      if (fees.some((fee) => fee.feeType === "commission")) {
-        applications.push({ externalOrderId: row.external_order_id, fees });
-      }
-    } catch {
-      // Rate limit ou indisponibilidade: encerra o lote e tenta depois.
-      break;
-    }
+  if (!rows.length) return;
+
+  // Janela dinâmica: do pedido mais antigo do lote (já ordenado desc) até agora.
+  // Pequena no regime permanente, larga só durante o backfill.
+  const ymd = (date: Date) => new Date(date.getTime() - 3 * 3_600_000).toISOString().slice(0, 10);
+  const oldest = new Date(rows[rows.length - 1].occurred_at);
+  let financials: Record<string, { fees: number; refunds: number; currency: string }>;
+  try {
+    financials = await getOrderFinancialsFromTransactions(periodFromRange(ymd(oldest), ymd(new Date())));
+  } catch {
+    // Rate limit / indisponibilidade: tenta na próxima passada.
+    return;
   }
-  await upsertCanonicalOrderFees({ provider: PROVIDER, connectionId }, applications);
+
+  const applications: Array<{ externalOrderId: string; fees: CanonicalFee[] }> = [];
+  for (const row of rows) {
+    const fin = financials[row.external_order_id];
+    // Sem transação no período = ainda não liquidado; fica para a próxima passada.
+    if (!fin) continue;
+    const currency = fin.currency || row.currency || "BRL";
+    const fees: CanonicalFee[] = [];
+    if (fin.fees > 0) fees.push({ feeType: "commission", providerFeeCode: "transactions_total", amount: fin.fees, currency });
+    if (fin.refunds > 0) fees.push({ feeType: "refund", providerFeeCode: "transactions_refund", amount: fin.refunds, currency });
+    if (fees.length) applications.push({ externalOrderId: row.external_order_id, fees });
+  }
+  if (applications.length) await upsertCanonicalOrderFees({ provider: PROVIDER, connectionId }, applications);
 }
 
 export async function runAmazonSyncStep(account: AccountCtx): Promise<void> {

@@ -52,7 +52,9 @@ export async function runScheduledAmazonSync(
                       AND items.connection_id = orders.connection_id
                       AND items.external_order_id = orders.external_order_id
                  )
-                 OR (orders.occurred_at < now() - interval '2 days' AND NOT EXISTS (
+                 OR (orders.occurred_at < now() - interval '2 days'
+                     AND orders.occurred_at >= now() - interval '45 days'
+                     AND NOT EXISTS (
                    SELECT 1 FROM workspace_channel_order_fees fees
                     WHERE fees.workspace_id = orders.workspace_id AND fees.provider = orders.provider
                       AND fees.connection_id = orders.connection_id
