@@ -81,6 +81,7 @@ const navigation: Record<WorkspaceId, NavGroup[]> = {
       title: "Ferramentas",
       tone: "violet",
       items: [
+        { href: "/amazon/abc", label: "Curva ABC", desc: "Lucro por produto", icon: icons.performance },
         { href: "/amazon/calculadora", label: "Calculadora", desc: "Lucro por ASIN", icon: icons.calculator },
       ],
     },
