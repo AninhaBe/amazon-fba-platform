@@ -3,6 +3,9 @@
 Plataforma em **Next.js** para centralizar Amazon, Mercado Livre e futuros canais,
 com lucro, pedidos, estoque, custos e desempenho separados por workspace.
 
+> 📐 **Como os dados fluem (modelo canônico, sync, cache, cron):** veja
+> **[ARCHITECTURE.md](./ARCHITECTURE.md)**.
+
 ## Funcionalidades
 
 | Página | O que faz |
@@ -103,9 +106,16 @@ No **Developer Central / Seller Central → Apps** você registra um app SP-API 
 
 ## Deploy
 
-- **Vercel:** veja o [guia de deploy e migração](./docs/vercel-deploy.md). As funções
-  rodam em São Paulo e um cron continua a sincronização incremental do Mercado Livre.
-- **Render (legado/rollback):** o `render.yaml` mantém o serviço atual e seu disco.
+- **Render (produção):** web service + disco persistente definidos no `render.yaml`
+  (New → Blueprint). Requer as env vars de segredo no painel (inclui `CRON_SECRET`).
+- **Agendamento:** como o Render **ignora** os crons do `vercel.json`, quem dispara a
+  sincronização e o aquecimento é o workflow `.github/workflows/cron.yml`
+  (**GitHub Actions**, a cada ~5 min) batendo em `/api/cron/*` com `CRON_SECRET`.
+  Segredos no GitHub: `APP_BASE_URL` e `CRON_SECRET` (o mesmo do Render).
+- **Vercel (alternativo):** o `vercel.json` mantém a configuração de crons nativos
+  caso o deploy migre para lá — ver [guia](./docs/vercel-deploy.md).
+
+Detalhes do fluxo de dados, cache e agendamento em **[ARCHITECTURE.md](./ARCHITECTURE.md)**.
 
 ## Roadmap / ideias
 
