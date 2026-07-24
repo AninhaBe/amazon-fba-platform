@@ -51,6 +51,28 @@ interface TotalsRow {
 
 interface DailyRow { date: string; revenue: string; orders: number; units: number }
 
+// Agregado financeiro do período INTEIRO (sem o corte de detalhe): é o que
+// alimenta o bloco "Do faturamento à margem". Antes ele saía do mesmo laço das
+// linhas detalhadas e herdava o teto de 1000 pedidos, o que subestimava o
+// resultado em contas grandes.
+interface AggRow {
+  orders_processed: number;
+  processed_revenue: string | null;
+  buyer_shipping: string | null;
+  fees: string | null;
+  seller_shipping: string | null;
+  orders_with_shipping: number;
+}
+
+// Unidades por produto e por dia — granularidade suficiente para resolver o
+// custo por vigência em JS sobre todas as vendas do período.
+interface CogsRow {
+  external_product_id: string;
+  sku: string | null;
+  occurred_at: Date | string;
+  qty: number;
+}
+
 interface RecentRow {
   external_order_id: string;
   pack_id: string | null;
@@ -126,7 +148,7 @@ export async function getMercadoLivreOverviewFromCanonical(
   const totals = totalsRows[0];
   if (!syncRow || (!syncRow.products_synced_at && totals.total_orders === 0)) return null;
 
-  const [dailyRows, recentRows, productTotalsRows, lineRows, productRows, costs] = await Promise.all([
+  const [dailyRows, recentRows, productTotalsRows, lineRows, productRows, costs, aggRows, cogsRows] = await Promise.all([
     dbQuery<DailyRow>(
       `SELECT to_char(o.occurred_at AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD') AS date,
               SUM(o.gross) AS revenue,
@@ -204,6 +226,52 @@ export async function getMercadoLivreOverviewFromCanonical(
       [workspaceId, PROVIDER, connection.id]
     ),
     getCosts(),
+    // Agregado sobre TODOS os pedidos do período (não só os 1000 detalhados).
+    dbQuery<AggRow>(
+      `WITH scoped AS (
+         SELECT o.gross, o.buyer_shipping,
+                EXISTS (SELECT 1 FROM workspace_channel_order_items i
+                         WHERE i.workspace_id = o.workspace_id AND i.provider = o.provider
+                           AND i.connection_id = o.connection_id AND i.external_order_id = o.external_order_id) AS has_items,
+                (SELECT SUM(f.amount) FROM workspace_channel_order_fees f
+                  WHERE f.workspace_id = o.workspace_id AND f.provider = o.provider
+                    AND f.connection_id = o.connection_id AND f.external_order_id = o.external_order_id
+                    AND f.fee_type = 'commission') AS commission,
+                (SELECT SUM(f.amount) FROM workspace_channel_order_fees f
+                  WHERE f.workspace_id = o.workspace_id AND f.provider = o.provider
+                    AND f.connection_id = o.connection_id AND f.external_order_id = o.external_order_id
+                    AND f.fee_type = 'shipping_seller') AS seller_shipping
+           FROM workspace_channel_orders o
+          WHERE o.workspace_id = $1 AND o.provider = $2 AND o.connection_id = $3
+            AND o.occurred_at >= $4 AND o.occurred_at <= $5 AND o.status = ANY($6::text[])
+       )
+       -- Tudo restrito aos pedidos com itens conciliados: é o conjunto para o
+       -- qual sabemos receita, tarifa E custo. Incluir tarifa de pedido sem
+       -- custo conhecido distorceria a margem nos dois sentidos.
+       SELECT COUNT(*) FILTER (WHERE has_items)::int AS orders_processed,
+              SUM(gross) FILTER (WHERE has_items) AS processed_revenue,
+              SUM(buyer_shipping) FILTER (WHERE has_items) AS buyer_shipping,
+              SUM(commission) FILTER (WHERE has_items) AS fees,
+              SUM(seller_shipping) FILTER (WHERE has_items) AS seller_shipping,
+              COUNT(*) FILTER (WHERE has_items AND seller_shipping IS NOT NULL)::int AS orders_with_shipping
+         FROM scoped`,
+      [...scopeParams(connection.id, period), REVENUE_STATUSES]
+    ),
+    // Unidades por produto/dia para o custo por vigência em todo o período.
+    dbQuery<CogsRow>(
+      `SELECT i.external_product_id, i.sku,
+              MIN(o.occurred_at) AS occurred_at,
+              SUM(i.qty)::int AS qty
+         FROM workspace_channel_order_items i
+         JOIN workspace_channel_orders o
+           ON o.workspace_id = i.workspace_id AND o.provider = i.provider
+          AND o.connection_id = i.connection_id AND o.external_order_id = i.external_order_id
+        WHERE i.workspace_id = $1 AND i.provider = $2 AND i.connection_id = $3
+          AND o.occurred_at >= $4 AND o.occurred_at <= $5 AND o.status = ANY($6::text[])
+        GROUP BY i.external_product_id, i.sku,
+                 to_char(o.occurred_at AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD')`,
+      [...scopeParams(connection.id, period), REVENUE_STATUSES]
+    ),
   ]);
 
   const taxRate = mercadoLivreTaxRate(connection);
@@ -239,30 +307,35 @@ export async function getMercadoLivreOverviewFromCanonical(
     linesByOrder.set(row.external_order_id, group);
   }
 
-  let fees = 0;
+  // Agregado financeiro do período inteiro, vindo do SQL — não depende mais do
+  // teto de DETAILED_ORDER_LIMIT, que só limita a lista detalhada abaixo.
+  const agg = aggRows[0];
+  const fees = Number(agg?.fees ?? 0);
+  const sellerShipping = +Number(agg?.seller_shipping ?? 0).toFixed(2);
+  const buyerShipping = +Number(agg?.buyer_shipping ?? 0).toFixed(2);
+  const processedRevenue = Number(agg?.processed_revenue ?? 0);
+  const ordersProcessed = agg?.orders_processed ?? 0;
+  const ordersWithShippingKnown = agg?.orders_with_shipping ?? 0;
+
+  // Custo das mercadorias por vigência, sobre TODAS as vendas do período.
   let cogs = 0;
-  let sellerShipping = 0;
-  let buyerShipping = 0;
   let unitsWithoutCost = 0;
-  let processedRevenue = 0;
-  let ordersWithShippingKnown = 0;
+  for (const row of cogsRows) {
+    const entry = mercadoLivreCostEntry(costs, connection.id, row.external_product_id, row.sku);
+    const unitCost = entry ? costAt(entry, new Date(row.occurred_at).toISOString()) : 0;
+    if (unitCost > 0) cogs += unitCost * row.qty;
+    else unitsWithoutCost += row.qty;
+  }
+
   const profitabilityLines: ProfitabilityLine[] = [];
 
   for (const [orderId, lines] of linesByOrder) {
     const order = lines[0];
-    const orderGross = Number(order.gross);
-    processedRevenue += orderGross;
     const commissionKnown = order.commission != null;
     const shippingKnown = order.seller_shipping != null;
     const orderCommission = Number(order.commission ?? 0);
     const orderSellerShipping = Number(order.seller_shipping ?? 0);
     const orderBuyerShipping = order.buyer_shipping == null ? null : Number(order.buyer_shipping);
-    if (commissionKnown) fees += orderCommission;
-    if (shippingKnown) {
-      sellerShipping += orderSellerShipping;
-      ordersWithShippingKnown += 1;
-    }
-    if (orderBuyerShipping != null) buyerShipping += orderBuyerShipping;
 
     const weights = lines.map((line) => line.qty * Number(line.unit_price));
     const commissionShares = allocateByWeight(orderCommission, weights);
@@ -283,9 +356,6 @@ export async function getMercadoLivreOverviewFromCanonical(
       const lineResult = complete
         ? calculateContribution({ revenue: lineRevenue, productCost: lineProductCost, marketplaceFees: lineFees, sellerShipping: lineSellerShipping, tax: lineTax })
         : { contribution: null, marginPct: null, complete: false };
-      if (unitCost > 0) cogs += unitCost * line.qty;
-      else unitsWithoutCost += line.qty;
-
       const key = line.sku || line.external_product_id;
       const current = productTotals.get(key) ?? { id: line.external_product_id, sku: line.sku, title: line.title, units: 0, revenue: 0, processedRevenue: 0, cost: 0, contribution: 0, calculationsComplete: true };
       current.processedRevenue += lineRevenue;
@@ -320,8 +390,6 @@ export async function getMercadoLivreOverviewFromCanonical(
     });
   }
 
-  sellerShipping = +sellerShipping.toFixed(2);
-  buyerShipping = +buyerShipping.toFixed(2);
   const taxes = processedRevenue * taxRate / 100;
   const estimatedProfit = processedRevenue - fees - cogs - taxes - sellerShipping;
 
@@ -385,9 +453,9 @@ export async function getMercadoLivreOverviewFromCanonical(
       taxRate,
       sellerShipping,
       buyerShipping,
-      shippingCostsComplete: periodCovered && ordersWithShippingKnown >= linesByOrder.size,
+      shippingCostsComplete: periodCovered && ordersWithShippingKnown >= ordersProcessed,
       revenueProcessed: processedRevenue,
-      coverage: { processedOrders: linesByOrder.size, paidOrders: totals.paid_orders, complete: periodCovered && linesByOrder.size >= totals.paid_orders },
+      coverage: { processedOrders: ordersProcessed, paidOrders: totals.paid_orders, complete: periodCovered && ordersProcessed >= totals.paid_orders },
       estimatedProfit,
       marginPct: processedRevenue > 0 ? estimatedProfit / processedRevenue * 100 : 0,
       unitsWithoutCost,

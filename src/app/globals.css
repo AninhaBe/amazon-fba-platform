@@ -1014,6 +1014,9 @@ summary:hover { background: var(--paper-soft); }
 .profit-breakdown .is-subtotal strong { color: var(--ink); }
 .profit-breakdown .is-total { background: var(--positive-soft); color: var(--positive); }
 .profit-breakdown .is-total strong { color: var(--positive); }
+
+/* Nota de cobertura: informativa, não alarmante (substitui o bloco de alerta). */
+.meli-coverage-note { margin-block-start: -8px; color: var(--ink-muted); font-size: 12px; line-height: 1.45; }
 .meli-kpis { box-shadow: 0 0 0 1px oklch(0 0 0 / .055), 0 8px 24px -15px oklch(0.56 0.12 96 / .18); }
 .meli-kpis article:first-child { box-shadow: inset 0 4px 0 var(--meli); }
 .meli-kpis article.is-pending { background: var(--meli-soft); }

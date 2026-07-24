@@ -359,8 +359,15 @@ function Monitor({ overview }: { overview: Overview }) {
       </div>
       {overview.profit.buyerShipping > 0 && <p className="text-xs text-slate-400">O comprador pagou {money(overview.profit.buyerShipping, overview.metrics.currency)} de frete no período. Assim como no &quot;Vendas brutas&quot; do Mercado Livre, o frete não compõe o faturamento (só o produto); o lucro considera o frete que o vendedor efetivamente paga.</p>}
     </section>
-    {!profitCoverage.complete && <div className="meli-profit-warning"><span aria-hidden="true">!</span><p>Este detalhamento usa somente os pedidos já capturados e cobre {profitCoverage.processedOrders} de {profitCoverage.paidOrders} vendas disponíveis, sem extrapolar valores.</p></div>}
-    {!overview.profit.shippingCostsComplete && <div className="meli-profit-warning"><span aria-hidden="true">!</span><p>Alguns fretes ainda não foram conciliados. Essas vendas aparecem com cálculo incompleto para não superestimar a margem.</p></div>}
+    {(!profitCoverage.complete || !overview.profit.shippingCostsComplete) && (
+      // Nota discreta: o cálculo já cobre o período inteiro; isto só sinaliza o
+      // que ainda está sendo conciliado em segundo plano, sem poluir a tela.
+      <p className="meli-coverage-note">
+        {!profitCoverage.complete
+          ? `Conciliando ${(profitCoverage.paidOrders - profitCoverage.processedOrders).toLocaleString("pt-BR")} de ${profitCoverage.paidOrders.toLocaleString("pt-BR")} vendas — os valores acima consideram só o que já foi apurado.`
+          : "Alguns fretes ainda estão sendo conciliados; essas vendas ficam de fora da margem para não superestimá-la."}
+      </p>
+    )}
     <OrderProfitabilityTable lines={overview.profitabilityLines} />
   </div>;
 }
