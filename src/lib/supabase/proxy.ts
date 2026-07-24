@@ -8,6 +8,7 @@ const publicPaths = [
   // Todos os endpoints de cron: já se protegem com CRON_SECRET, então ficam
   // fora do login (o proxy do Supabase os barraria antes de checar o segredo).
   "/api/cron/",
+  "/api/integrations/mercado-livre/probe",
   "/api/webhooks/mercado-livre",
 ];
 
