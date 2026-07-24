@@ -45,6 +45,32 @@ Faturamento ML = vendas APROVADAS + CANCELADAS (paid_amount dos itens, SEM frete
 | `GET /catalog_domains/{domain}/categories` | Categorias do domínio | — |
 | `GET /users/{id}/items/search?user_product_id={id}` | Meus itens ligados a um user product | — |
 
+## Endpoints bloqueados pelo ML (verificado em 2026-07-23)
+
+Testado com o token da conexão **e** anonimamente. O ML fechou a busca e a
+consulta a itens de terceiros. Apps **certificadas/parceiras** (ex.: Mercado
+Turbo) têm acesso elevado que nós não temos. **Não reintroduzir esses caminhos.**
+
+| Endpoint | Resultado |
+|---|---|
+| `GET /sites/{site}/search?q=...` | ❌ `403 forbidden` |
+| `GET /sites/{site}/search?category=...` | ❌ `403 forbidden` |
+| `GET /sites/{site}/search?seller_id=...` | ❌ `403 forbidden` |
+| `GET /users/{OUTRO_id}/items/search` | ❌ `Searching another user items is restricted.` |
+| Qualquer chamada **anônima** (sem token) | ❌ `403` — `blocked_by: PolicyAgent` |
+
+Consequências: (1) não dá para descobrir o anúncio de **outro** vendedor a partir
+de um `user_product` (MLBU) — `getMercadoLivrePublicListing` devolve título, foto
+e categoria (pelo domínio) com **preço em branco**, e a calculadora deixa o campo
+editável; (2) inviabiliza ranqueamento por termo de busca; (3) todo fallback
+"tenta público sem token" virou código morto — foram removidos.
+
+Continuam funcionando (com token): `/users/{me}/items/search`, `/items/{id}`,
+`/items/{id}/sale_price`, `/sites/{site}/listing_prices`,
+`/catalog_domains/{domain}/categories`, `/users/{id}` (dados públicos de
+terceiro), `/highlights/{site}/category/{id}`, `/trends/{site}` e
+`/products/search?q=` (produtos de catálogo).
+
 ## Webhooks (`mercadoLivreWebhook.ts`)
 
 - Tópicos aceitos: `orders_v2`, `items`, `items_prices`, `shipments` (`SUPPORTED_TOPICS`).

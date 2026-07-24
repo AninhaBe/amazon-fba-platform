@@ -473,73 +473,29 @@ export async function getMercadoLivrePublicListing(
     }
 
     if (userProduct.user_id) {
-      const userProductItemsResource = `/users/${encodeURIComponent(String(userProduct.user_id))}/items/search?user_product_id=${encodeURIComponent(parsed.id)}&limit=50`;
+      // Só resolve para a PRÓPRIA conta — o ML restringe listar itens de outro
+      // vendedor. O acesso anônimo também está bloqueado, então não existe
+      // retry público que ajude aqui.
       try {
         const search = await mercadoLivreFetch<{ results?: string[] }>(
           connection,
-          userProductItemsResource
+          `/users/${encodeURIComponent(String(userProduct.user_id))}/items/search?user_product_id=${encodeURIComponent(parsed.id)}&limit=50`
         );
         itemId = search.results?.[0] ?? "";
       } catch {
-        try {
-          const publicResponse = await fetch(`${API_BASE}${userProductItemsResource}`, {
-            headers: { Accept: "application/json" },
-            cache: "no-store",
-          });
-          const publicSearch = publicResponse.ok
-            ? await publicResponse.json() as { results?: string[] }
-            : {};
-          itemId = publicSearch.results?.[0] ?? "";
-        } catch {
-          itemId = "";
-        }
+        itemId = "";
       }
     } else {
       itemId = "";
     }
 
-    if (!itemId && userProduct.user_id) {
-      type SellerListings = { results?: MercadoLivreItem[] };
-      const sellerSearchParams = new URLSearchParams({
-        seller_id: String(userProduct.user_id),
-        limit: "100",
-      });
-      if (catalogFallback.categoryId) sellerSearchParams.set("category", catalogFallback.categoryId);
-      const sellerSearchResource = `/sites/MLB/search?${sellerSearchParams}`;
-      let sellerListings: SellerListings = {};
-      try {
-        sellerListings = await mercadoLivreFetch<SellerListings>(connection, sellerSearchResource);
-      } catch {
-        try {
-          const publicResponse = await fetch(`${API_BASE}${sellerSearchResource}`, {
-            headers: { Accept: "application/json" },
-            cache: "no-store",
-          });
-          if (publicResponse.ok) sellerListings = await publicResponse.json() as SellerListings;
-        } catch {
-          // O produto continua utilizável como fallback se a busca de listagens estiver indisponível.
-        }
-      }
-      const normalizedTitle = userProduct.name?.trim().toLocaleLowerCase("pt-BR");
-      const matchingItem = (sellerListings.results ?? []).find((candidate) =>
-        candidate.user_product_id === parsed.id
-      ) ?? (sellerListings.results ?? []).find((candidate) =>
-        normalizedTitle && candidate.title.trim().toLocaleLowerCase("pt-BR") === normalizedTitle
-      );
-      if (matchingItem) {
-        itemId = matchingItem.id;
-        catalogFallback.price = Number(matchingItem.price) || 0;
-        catalogFallback.currency = matchingItem.currency_id || "BRL";
-        catalogFallback.categoryId = matchingItem.category_id || catalogFallback.categoryId;
-        catalogFallback.listingTypeId = matchingItem.listing_type_id || catalogFallback.listingTypeId;
-        catalogFallback.shippingMode = matchingItem.shipping?.mode || null;
-        catalogFallback.logisticType = matchingItem.shipping?.logistic_type || null;
-        catalogFallback.thumbnail = matchingItem.thumbnail || matchingItem.pictures?.[0]?.secure_url
-          || matchingItem.pictures?.[0]?.url || catalogFallback.thumbnail;
-        catalogFallback.permalink = matchingItem.permalink || catalogFallback.permalink;
-      }
-    }
-
+    // Sem fallback para descobrir o anúncio de terceiro: o ML restringe listar
+    // itens de outro vendedor ("Searching another user items is restricted") e
+    // fechou /sites/{site}/search — 403 forbidden em TODAS as variantes (q,
+    // category, seller_id), inclusive sem token (bloqueio do PolicyAgent).
+    // Para produto de catálogo de outro vendedor devolvemos o que dá para
+    // saber (título, foto e categoria pelo domínio) com o preço em branco; a
+    // calculadora deixa o campo de preço editável para o usuário preencher.
     if (!itemId) return catalogFallback;
   }
   if (parsed.kind === "product") {
