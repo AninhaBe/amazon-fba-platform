@@ -166,7 +166,22 @@ function Results({ data, quad, setQuad }: { data: Abc; quad: Quadrant | null; se
         })}
       </div>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1.1fr_.9fr]">
+      <div className="space-y-5">
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-slate-100 px-5 py-4">
+            <div>
+              <h2 className="text-[15px] font-bold text-slate-900">Concentração do lucro (Pareto)</h2>
+              <p className="mt-0.5 text-[12.5px] text-slate-400">Cada barra é um produto (do mais ao menos lucrativo); a linha é o lucro acumulado.</p>
+            </div>
+            <div className="flex flex-wrap gap-3.5 text-[11.5px] text-slate-500">
+              <span><i className="mr-1 inline-block h-[11px] w-[11px] rounded-sm align-[-1px]" style={{ background: "var(--positive)" }} />Classe A (80%)</span>
+              <span><i className="mr-1 inline-block h-[11px] w-[11px] rounded-sm align-[-1px]" style={{ background: "#f59e0b" }} />Classe B (+15%)</span>
+              <span><i className="mr-1 inline-block h-[11px] w-[11px] rounded-sm align-[-1px]" style={{ background: "#94a3b8" }} />Classe C (5%)</span>
+            </div>
+          </div>
+          <div className="px-5 py-4"><Pareto products={products} /></div>
+        </section>
+
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-100 px-5 py-4">
             <h2 className="text-[15px] font-bold text-slate-900">
@@ -218,21 +233,6 @@ function Results({ data, quad, setQuad }: { data: Abc; quad: Quadrant | null; se
             </table>
           </div>
         </section>
-
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-100 px-5 py-4">
-            <h2 className="text-[15px] font-bold text-slate-900">Concentração do lucro (Pareto)</h2>
-            <p className="mt-0.5 text-[12.5px] text-slate-400">Cada barra é um produto (do mais ao menos lucrativo); a linha é o lucro acumulado.</p>
-          </div>
-          <div className="p-4">
-            <Pareto products={products} />
-            <div className="mt-2.5 flex flex-wrap gap-3.5 text-[11.5px] text-slate-500">
-              <span><i className="mr-1 inline-block h-[11px] w-[11px] rounded-sm align-[-1px]" style={{ background: "var(--positive)" }} />Classe A (80%)</span>
-              <span><i className="mr-1 inline-block h-[11px] w-[11px] rounded-sm align-[-1px]" style={{ background: "#f59e0b" }} />Classe B (+15%)</span>
-              <span><i className="mr-1 inline-block h-[11px] w-[11px] rounded-sm align-[-1px]" style={{ background: "#94a3b8" }} />Classe C (5%)</span>
-            </div>
-          </div>
-        </section>
       </div>
 
       {!data.covered && (
@@ -248,7 +248,7 @@ function Results({ data, quad, setQuad }: { data: Abc; quad: Quadrant | null; se
 function Pareto({ products }: { products: AbcProduct[] }) {
   const pos = products.filter((p) => p.contribution > 0);
   if (pos.length === 0) return <p className="py-8 text-center text-sm text-slate-400">Sem lucro positivo no período.</p>;
-  const W = 380, H = 180, padL = 8, padR = 8, padT = 10, padB = 8;
+  const W = 1000, H = 190, padL = 6, padR = 6, padT = 12, padB = 8;
   const n = pos.length;
   const gap = (W - padL - padR) / n;
   const bw = gap * 0.72;
