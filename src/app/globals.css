@@ -797,7 +797,7 @@ summary:hover { background: var(--paper-soft); }
 .channel-overview-card.is-amazon { --card-channel: var(--amazon); }
 .channel-overview-card.is-mercado_livre { --card-channel: var(--meli); }
 .channel-overview-card > header { display: flex; align-items: center; gap: 12px; padding: 20px 20px 15px; }
-.channel-overview-mark { display: grid; width: 44px; height: 44px; flex: none; place-items: center; border-radius: 13px; background: color-mix(in oklch, var(--card-channel) 17%, white); color: color-mix(in oklch, var(--card-channel) 70%, var(--ink)); font-size: 12px; font-weight: 850; }
+.channel-overview-mark { display: grid; width: 44px; height: 44px; flex: none; place-items: center; }
 .channel-overview-card h3 { color: var(--ink); font-size: 17px; font-weight: 760; letter-spacing: -.02em; }
 .channel-overview-card header p { margin-block-start: 3px; color: var(--ink-muted); font-size: 11px; }
 .channel-health { margin-inline-start: auto; border-radius: 999px; background: var(--paper-soft); padding: 5px 8px; color: var(--ink-muted); font-size: 10px; font-weight: 750; }

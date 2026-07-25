@@ -161,7 +161,7 @@ export default function OverviewDashboard() {
           <div className="channel-overview-grid">
             {channels.map((channel) => (
               <article key={channel.id} className={`channel-overview-card is-${channel.id}`}>
-                <header><span className="channel-overview-mark" aria-hidden="true"><MarketplaceIcon provider={channel.id} size={25} /></span><div><h3>{channel.name}</h3><p>{channel.connected ? "Canal conectado" : "Aguardando conexão"}</p></div><span className={`channel-health${channel.connected ? " is-connected" : ""}`}>{channel.connected ? "Ativo" : "Conectar"}</span></header>
+                <header><span className="channel-overview-mark" aria-hidden="true"><MarketplaceIcon provider={channel.id} size={40} app /></span><div><h3>{channel.name}</h3><p>{channel.connected ? "Canal conectado" : "Aguardando conexão"}</p></div><span className={`channel-health${channel.connected ? " is-connected" : ""}`}>{channel.connected ? "Ativo" : "Conectar"}</span></header>
                 {channel.connected ? <>
                   <div className="channel-value"><span>Vendas brutas</span><strong>{channel.error ? "Indisponível" : money(channel.revenue, channel.currency)}</strong></div>
                   <div className="channel-share" aria-label={`Participação relativa de ${channel.name}`}><i style={{ width: `${((channel.revenue ?? 0) / maxRevenue) * 100}%` }} /></div>
