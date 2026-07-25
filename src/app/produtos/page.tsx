@@ -5,6 +5,7 @@ import { PageHeader, pageIcons } from "../components/PageHeader";
 import { TableLoading } from "../components/LoadingState";
 import { EmptyState } from "../components/EmptyState";
 import { readJson } from "../../lib/readJson";
+import { Pagination } from "../components/Pagination";
 
 interface Product {
   id: string;
@@ -22,6 +23,8 @@ function money(v: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 }
 
+const PAGE_SIZE = 30;
+
 export default function ProdutosPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,6 +34,7 @@ export default function ProdutosPage() {
   const [sort, setSort] = useState<"title" | "stock" | "cost">("title");
   const [draftCosts, setDraftCosts] = useState<Record<string, string>>({});
   const [saveState, setSaveState] = useState<Record<string, "saving" | "saved" | "error">>({});
+  const [page, setPage] = useState(1);
 
   // adicionar por ASIN
   const [newAsin, setNewAsin] = useState("");
@@ -57,6 +61,9 @@ export default function ProdutosPage() {
     const timer = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timer);
   }, []);
+
+  // volta pra 1ª página quando busca/filtro/ordem mudam
+  useEffect(() => { setPage(1); }, [query, costFilter, sort]);
 
   async function saveCost(p: Product, cost: number) {
     const previous = p.cost;
@@ -133,6 +140,10 @@ export default function ProdutosPage() {
       if (sort === "cost") return (b.cost ?? -1) - (a.cost ?? -1);
       return (a.title || a.id).localeCompare(b.title || b.id, "pt-BR");
     });
+
+  const pageCount = Math.max(1, Math.ceil(visibleProducts.length / PAGE_SIZE));
+  const current = Math.min(page, pageCount);
+  const paged = visibleProducts.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
 
   return (
     <div className="products-page space-y-8">
@@ -232,7 +243,7 @@ export default function ProdutosPage() {
             ) : visibleProducts.length === 0 ? (
               <tr><td colSpan={6} className="px-4 py-6"><EmptyState kind="search" title="Nenhum produto encontrado" description="Ajuste a busca ou altere o filtro de custos." /></td></tr>
             ) : (
-              visibleProducts.map((p) => (
+              paged.map((p) => (
                 <tr key={p.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
@@ -312,6 +323,10 @@ export default function ProdutosPage() {
           </tbody>
         </table>
       </div>
+
+      {!loading && pageCount > 1 && (
+        <div className="listing-pagination"><Pagination page={current} pageCount={pageCount} total={visibleProducts.length} pageSize={PAGE_SIZE} onPage={setPage} /></div>
+      )}
 
       <p className="text-xs text-slate-400">
         O custo é salvo automaticamente ao sair do campo. Campos em amarelo ainda não têm custo
