@@ -76,9 +76,13 @@ function classify(entries: Array<{ key: string; value: number }>): Map<string, A
   return result;
 }
 
-function quadrantOf(salesClass: AbcClass, profitClass: AbcClass): AbcQuadrant {
+// Margem por unidade a partir da qual o produto é viável ("alta margem" no
+// quadrante). Abaixo disso a margem é apertada demais e o produto cai em "baixa
+// margem" (rever preço). Escala do vendedor: >=18% excelente, >=12% ok, <12% ruim.
+const HIGH_MARGIN_PCT = 12;
+function quadrantOf(salesClass: AbcClass, marginPct: number | null): AbcQuadrant {
   const highVolume = salesClass !== "C";
-  const highMargin = profitClass !== "C";
+  const highMargin = (marginPct ?? 0) >= HIGH_MARGIN_PCT;
   if (highVolume && highMargin) return "motor";
   if (highVolume && !highMargin) return "vamp";
   if (!highVolume && highMargin) return "joia";
@@ -180,7 +184,7 @@ async function computeAbc(connection: IntegrationConnection, period: MercadoLivr
     .map(({ key, ...p }) => {
       const sc = salesClass.get(key) ?? "C";
       const pc = p.contribution == null ? null : (profitClass.get(key) ?? "C");
-      return { ...p, salesClass: sc, profitClass: pc, quadrant: pc == null ? null : quadrantOf(sc, pc) };
+      return { ...p, salesClass: sc, profitClass: pc, quadrant: pc == null ? null : quadrantOf(sc, p.marginPct) };
     })
     .sort((a, b) => {
       // Com custo primeiro (por contribuição desc); sem custo ao fim (por receita).

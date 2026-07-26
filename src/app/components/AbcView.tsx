@@ -139,7 +139,7 @@ function Results({ data, quad, setQuad, costsHref }: { data: Abc; quad: Quadrant
       {costMissing > 0 && (
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-800">
           <span aria-hidden="true">⚠️</span>
-          <span><b className="font-semibold">{costMissing} produto{costMissing !== 1 ? "s" : ""} sem custo cadastrado</b> — não entra{costMissing !== 1 ? "m" : ""} no cálculo de lucro (não inventamos margem).</span>
+          <span><b className="font-semibold">{costMissing} produto{costMissing !== 1 ? "s" : ""} sem custo cadastrado</b> — não entra{costMissing !== 1 ? "m" : ""} no cálculo de lucro até você cadastrar o custo.</span>
           <a href={costsHref} className="font-semibold text-amber-900 underline">Cadastrar custos →</a>
         </div>
       )}
@@ -234,7 +234,7 @@ function Results({ data, quad, setQuad, costsHref }: { data: Abc; quad: Quadrant
                       <td className="text-right">{p.units}</td>
                       <td className="text-right">{money(p.revenue, currency)}</td>
                       <td className={`text-right font-bold ${p.contribution == null ? "text-slate-300" : neg ? "text-red-600" : "text-emerald-700"}`}>{p.contribution == null ? "—" : money(p.contribution, currency)}</td>
-                      <td className={`text-right ${p.marginPct == null ? "text-slate-300" : neg ? "font-bold text-red-600" : ""}`}>{p.marginPct == null ? "—" : `${p.marginPct.toFixed(1)}%`}</td>
+                      <td className={`text-right ${p.marginPct == null ? "text-slate-300" : p.marginPct < 0 ? "font-bold text-red-600" : p.marginPct < 12 ? "text-red-600" : p.marginPct < 18 ? "text-amber-600" : "font-semibold text-emerald-700"}`}>{p.marginPct == null ? "—" : `${p.marginPct.toFixed(1)}%`}</td>
                       <td className="text-center">
                         {p.profitClass == null
                           ? <span className="text-slate-300">—</span>
@@ -270,11 +270,11 @@ function Results({ data, quad, setQuad, costsHref }: { data: Abc; quad: Quadrant
 
 function Pareto({ products }: { products: AbcProduct[] }) {
   const pos = products.filter((p): p is AbcProduct & { contribution: number } => p.contribution != null && p.contribution > 0);
-  if (pos.length === 0) return <p className="py-8 text-center text-sm text-slate-400">Sem produtos com custo cadastrado para calcular o lucro.</p>;
+  if (pos.length < 2) return <p className="py-8 text-center text-sm text-slate-400">{pos.length === 0 ? "Sem produtos com custo cadastrado para calcular o lucro." : "Só 1 produto com custo cadastrado — cadastre o custo de mais produtos para a curva de Pareto fazer sentido."}</p>;
   const W = 1000, H = 190, padL = 6, padR = 6, padT = 12, padB = 8;
   const n = pos.length;
   const gap = (W - padL - padR) / n;
-  const bw = gap * 0.72;
+  const bw = Math.min(gap * 0.72, 88);
   const maxP = Math.max(...pos.map((p) => p.contribution), 1);
   const totalPos = pos.reduce((s, p) => s + p.contribution, 0) || 1;
   let cum = 0;
