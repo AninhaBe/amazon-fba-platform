@@ -61,9 +61,14 @@ export async function getProducts(): Promise<Product[]> {
     });
   }
 
-  // 3) Produtos cadastrados manualmente (por ASIN)
+  // 3) Produtos cadastrados manualmente (por ASIN) nesta conta Amazon.
+  //    A tabela de custos é do workspace inteiro (agnóstica de canal), então um
+  //    custo cadastrado para um produto do ML também aparece aqui. Filtramos por
+  //    ASIN: produto manual da Amazon sempre tem ASIN (fluxo "Adicionar por ASIN");
+  //    custo sem ASIN é de outro canal e não entra nesta lista.
   for (const [id, c] of Object.entries(costs)) {
     if (map.has(id)) continue;
+    if (!c.asin) continue;
     map.set(id, {
       id,
       sku: c.sku,
