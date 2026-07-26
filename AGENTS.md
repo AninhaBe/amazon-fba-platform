@@ -25,6 +25,20 @@ quando os cumprir:
 Regra prática: antes de dar por pronto, confirme os três — **funciona, está limpo,
 não abre brecha**. Só então entregue.
 
+# Arquitetura e decisões — leia antes de implementar
+
+A arquitetura é **fonte de verdade no repo**. Antes de implementar algo que toque
+dados, sync, cache, auth ou um canal, leia o(s) doc(s) relevante(s) — não re-deduza:
+
+- Visão geral, contexto e mapa de arquivos: `docs/architecture/overview.md`
+- Modelo canônico: `docs/architecture/canonical-model.md` (+ `docs/canonical-schema.md`)
+- Ingestão e cron: `docs/architecture/sync-engine.md`
+- Leitura por SQL e cache: `docs/architecture/read-and-cache.md`
+- Decisões e trade-offs (o **porquê**): `docs/adr/`
+
+**Não mude uma decisão arquitetural enquanto implementa.** Se uma feature exigir
+mudar, **pare, explique e proponha um novo ADR** (`docs/adr/`) antes de codar.
+
 # APIs dos marketplaces
 
 Antes de mexer em qualquer integração, leia a documentação interna — ela registra os endpoints usados e as pegadinhas já pagas caro (semântica de PATCH da Amazon, regra de faturamento do ML, etc.):
