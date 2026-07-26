@@ -45,3 +45,4 @@ Antes de mexer em qualquer integração, leia a documentação interna — ela r
 
 - `docs/api-amazon-sp-api.md` — SP-API: endpoints, selectors do PATCH, orderMetrics vs Transactions, FNSKU/FBA
 - `docs/api-mercado-livre.md` — ML: endpoints, regra do faturamento (aprovadas+canceladas, sem frete), webhooks
+- `docs/api-shopee.md` — Shopee Open Platform v2 (**ENGATILHADO, não implementado**): assinatura, OAuth, escrow, mapeamento canônico e roteiro de arquivos
