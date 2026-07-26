@@ -187,7 +187,6 @@ export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
 }
 
 function Dashboard({ overview, updatedAt }: { overview: Overview; updatedAt: Date | null }) {
-  const coverage = overview.metrics.revenueCoverage;
   const profitCoverage = overview.profit.coverage;
   const ticket = overview.metrics.paidOrders > 0 ? overview.metrics.revenue30d / overview.metrics.paidOrders : 0;
   const units = overview.dailySales.reduce((total, point) => total + point.units, 0);
@@ -201,11 +200,11 @@ function Dashboard({ overview, updatedAt }: { overview: Overview; updatedAt: Dat
     <OperationPending items={overview.metrics.productsWithoutCost > 0 ? [{ label: `Cadastrar custo de ${overview.metrics.productsWithoutCost} produto(s)`, href: "/mercado-livre/produtos" }] : []} />
 
     <section className="metric-grid grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-4" aria-label="Indicadores Mercado Livre">
-      <Metric label="Vendas brutas" value={<AnimatedNumber id="ml-dash-revenue" value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={coverage.complete ? `${overview.metrics.paidOrders} aprovadas + ${overview.metrics.cancelledOrders} canceladas` : `${coverage.capturedOrders} pedidos capturados; histórico em andamento`} trend={getRevenueTrend(overview.dailySales)} />
+      <Metric label="Vendas brutas" value={<AnimatedNumber id="ml-dash-revenue" value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={`${overview.metrics.paidOrders} aprovadas + ${overview.metrics.cancelledOrders} canceladas`} trend={getRevenueTrend(overview.dailySales)} />
       <div className="metric-cell metric-primary relative overflow-hidden p-5">
-        <div className="flex items-start justify-between gap-2"><p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">{costsIncomplete ? "Margem antes do custo" : profitCoverage.complete ? "Lucro estimado" : "Lucro processado"}</p></div>
+        <div className="flex items-start justify-between gap-2"><p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">{costsIncomplete ? "Margem antes do custo" : "Lucro estimado"}</p>{!costsIncomplete && <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-sm font-bold tabular-nums text-emerald-700">{percent(overview.profit.marginPct)}</span>}</div>
         <p className="mt-2 text-[27px] font-bold leading-none tabular-nums text-emerald-800"><AnimatedNumber id="ml-dash-profit" value={overview.profit.estimatedProfit} format={(amount) => money(amount, overview.metrics.currency)} /></p>
-        <p className={`mt-1.5 text-xs font-medium ${costsIncomplete ? "text-amber-700" : "text-emerald-700/80"}`}>{costsIncomplete ? "cadastre custos para o lucro real" : profitCoverage.complete ? `margem ${percent(overview.profit.marginPct)}` : `margem ${percent(overview.profit.marginPct)} · ${profitCoverage.processedOrders} de ${profitCoverage.paidOrders} vendas`}</p>
+        <p className={`mt-1.5 text-xs font-medium ${costsIncomplete ? "text-amber-700" : "text-emerald-700/80"}`}>{costsIncomplete ? "cadastre custos para o lucro real" : "margem sobre o faturamento"}</p>
       </div>
       <Metric label="Estoque crítico" value={critical.length.toLocaleString("pt-BR")} sub={critical.length ? "repor com urgência — ver radar" : "tudo sob controle — ver radar"} tone={critical.length ? "danger" : "ok"} icon={dashboardKpiIcons.stock} href="/mercado-livre/estoque" />
       <Metric label="Produtos sem custo" value={overview.metrics.productsWithoutCost.toLocaleString("pt-BR")} sub={overview.metrics.productsWithoutCost ? "cadastre para ver o lucro" : "todos cadastrados"} tone={overview.metrics.productsWithoutCost ? "warn" : "ok"} icon={dashboardKpiIcons.box} />

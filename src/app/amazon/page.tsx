@@ -200,12 +200,13 @@ export default function Dashboard() {
         <div className="metric-cell metric-primary relative overflow-hidden p-5">
           <div className="flex items-start justify-between gap-2">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">{costsIncomplete ? "Repasse líquido" : "Lucro conciliado"}</p>
+            {!costsIncomplete && <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-sm font-bold tabular-nums text-emerald-700">{marginPct.toFixed(1)}%</span>}
           </div>
           <p className="mt-2 text-[27px] font-bold leading-none tabular-nums text-emerald-800">
             {loading ? "···" : <AnimatedNumber id="amz-profit" value={estProfit} format={(amount) => money(amount, currency)} />}
           </p>
           <p className={`mt-1.5 text-xs font-medium ${costsIncomplete ? "text-amber-700" : "text-emerald-700/80"}`}>
-            {costsIncomplete ? "antes do custo dos produtos — cadastre custos para o lucro real" : `margem ${marginPct.toFixed(1)}% sobre vendas conciliadas`}
+            {costsIncomplete ? "antes do custo dos produtos — cadastre custos para o lucro real" : "margem sobre vendas conciliadas"}
           </p>
         </div>
         <Kpi
