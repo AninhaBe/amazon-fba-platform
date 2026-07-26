@@ -39,6 +39,7 @@ export async function getProducts(): Promise<Product[]> {
       sku: l.sku,
       asin: l.asin || inv?.asin,
       title: l.title || inv?.productName,
+      imageUrl: l.imageUrl, // getListings já resolve a capa por ASIN no catálogo
       salePrice: l.price,
       fulfillable: inv?.fulfillable ?? null,
       cost: costs[l.sku]?.cost ?? null,
