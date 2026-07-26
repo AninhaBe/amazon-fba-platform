@@ -16,7 +16,11 @@ export async function GET(req: NextRequest) {
     if (!connection || connection.provider !== "mercado_livre") {
       return NextResponse.json({ error: "Nenhuma conta do Mercado Livre conectada." }, { status: 404 });
     }
-    return NextResponse.json(await getMercadoLivreProducts(connection));
+    // Não lista anúncios ENCERRADOS (closed) — são listings mortos (análogo aos SKUs
+    // fantasma da Amazon) e não fazem sentido na tela de cadastro de custo. Filtro só
+    // aqui (não na função compartilhada, que o overview também usa).
+    const data = await getMercadoLivreProducts(connection);
+    return NextResponse.json({ ...data, products: data.products.filter((p) => p.status !== "closed") });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Erro ao carregar os produtos." },

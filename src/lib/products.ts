@@ -46,9 +46,14 @@ export async function getProducts(): Promise<Product[]> {
     });
   }
 
-  // 2) Itens de estoque FBA que por acaso não vieram no relatório
+  // 2) Itens de estoque FBA que por acaso não vieram no relatório de anúncios.
+  //    Ignora SKUs "fantasma": registro de inventário FBA que sobrou (tem FNSKU
+  //    de quando foi configurado) mas está ZERADO em todos os estados e não tem
+  //    anúncio ativo. Item com QUALQUER estoque (disponível, a caminho, reservado
+  //    ou avariado) continua aparecendo — é produto real.
   for (const inv of inventory) {
     if (map.has(inv.sellerSku)) continue;
+    if (!inv.total && !inv.fulfillable && !inv.inbound && !inv.reserved && !inv.unfulfillable) continue;
     map.set(inv.sellerSku, {
       id: inv.sellerSku,
       sku: inv.sellerSku,
