@@ -198,16 +198,13 @@ export default function Dashboard() {
       <div className="metric-grid grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi label="Faturamento" value={<AnimatedNumber id="amz-revenue" value={revenue} format={(amount) => money(amount, currency)} />} sub={`${salesCount} vendas no período`} loading={loading} trend={revenueTrend} />
         <div className="metric-cell metric-primary relative overflow-hidden p-5">
-          <div className="flex items-start justify-between gap-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">{costsIncomplete ? "Repasse líquido" : "Lucro conciliado"}</p>
-            {!costsIncomplete && <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-sm font-bold tabular-nums text-emerald-700">{marginPct.toFixed(1)}%</span>}
-          </div>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">{costsIncomplete ? "Repasse líquido" : "Lucro conciliado"}</p>
           <p className="mt-2 text-[27px] font-bold leading-none tabular-nums text-emerald-800">
             {loading ? "···" : <AnimatedNumber id="amz-profit" value={estProfit} format={(amount) => money(amount, currency)} />}
           </p>
-          <p className={`mt-1.5 text-xs font-medium ${costsIncomplete ? "text-amber-700" : "text-emerald-700/80"}`}>
-            {costsIncomplete ? "antes do custo dos produtos — cadastre custos para o lucro real" : "margem sobre vendas conciliadas"}
-          </p>
+          {costsIncomplete
+            ? <p className="mt-1.5 text-xs font-medium text-amber-700">antes do custo dos produtos — cadastre custos para o lucro real</p>
+            : <p className="mt-2 flex items-baseline gap-1.5"><span className="text-[17px] font-extrabold tabular-nums text-emerald-600">{marginPct.toFixed(1)}%</span><span className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700/70">margem sobre vendas</span></p>}
         </div>
         <Kpi
           label="Estoque crítico"
