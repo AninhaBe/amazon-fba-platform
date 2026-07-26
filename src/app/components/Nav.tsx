@@ -63,7 +63,6 @@ const navigation: Record<WorkspaceId, NavGroup[]> = {
       items: [
         { href: "/amazon", label: "Dashboard", desc: "Visão do canal", icon: icons.dashboard, exact: true },
         { href: "/amazon/monitor", label: "Monitor da conta", desc: "Pedidos e financeiro", icon: icons.monitor },
-        { href: "/amazon/desempenho", label: "Desempenho", desc: "Visitas e conversão", icon: icons.performance },
       ],
     },
     {
@@ -71,7 +70,6 @@ const navigation: Record<WorkspaceId, NavGroup[]> = {
       tone: "emerald",
       items: [
         { href: "/amazon/catalogo", label: "Anúncios", desc: "Catálogo publicado", icon: icons.ads },
-        { href: "/amazon/anuncios", label: "Criar anúncio", desc: "Publicar oferta", icon: icons.create },
         { href: "/amazon/produtos", label: "Produtos", desc: "Custos por SKU", icon: icons.products },
         { href: "/amazon/estoque", label: "Radar de estoque", desc: "Cobertura FBA", icon: icons.stock },
         { href: "/amazon/pesquisa", label: "Pesquisa", desc: "Anúncios da Amazon", icon: icons.search },
