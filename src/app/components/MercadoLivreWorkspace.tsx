@@ -10,7 +10,7 @@ import { RevenueChart, type DailyPoint } from "./RevenueChart";
 import { DashboardPeriodFilter, useDashboardPeriod } from "./DashboardPeriodFilter";
 import { OrderProfitabilityTable } from "./OrderProfitabilityTable";
 import { OperationPending } from "./OperationPending";
-import { Flow, Metric, getRevenueTrend } from "./Metric";
+import { Flow, FlowExpandable, Metric, getRevenueTrend } from "./Metric";
 import { brDate, brTime } from "@/lib/datetime";
 import { Boxes, PackageOpen, Percent } from "lucide-react";
 import type { ProfitabilityLine } from "@/lib/profitability";
@@ -187,6 +187,7 @@ export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
 }
 
 function Dashboard({ overview, updatedAt }: { overview: Overview; updatedAt: Date | null }) {
+  const [costsOpen, setCostsOpen] = useState(false);
   const profitCoverage = overview.profit.coverage;
   const ticket = overview.metrics.paidOrders > 0 ? overview.metrics.revenue30d / overview.metrics.paidOrders : 0;
   const units = overview.dailySales.reduce((total, point) => total + point.units, 0);
@@ -219,8 +220,8 @@ function Dashboard({ overview, updatedAt }: { overview: Overview; updatedAt: Dat
           <span className="text-sm font-semibold tabular-nums text-slate-900">{money(overview.metrics.revenue30d, overview.metrics.currency)} <span className="font-normal text-slate-400">no período</span></span>
         </div>
         <div className="chart-inline-stats" aria-label="Indicadores complementares">
-          <span><small>Aprovadas</small><strong>{money(overview.metrics.approvedRevenue, overview.metrics.currency)}</strong></span>
-          <span><small>Canceladas</small><strong className={overview.metrics.cancelledRevenue > 0 ? "text-red-600" : undefined}>{money(overview.metrics.cancelledRevenue, overview.metrics.currency)}</strong></span>
+          <span><small>Aprovadas</small><strong className="text-emerald-700">{money(overview.metrics.approvedRevenue, overview.metrics.currency)}</strong></span>
+          <span><small>Canceladas</small><strong className={overview.metrics.cancelledRevenue > 0 ? "text-red-600" : "text-slate-400"}>{money(overview.metrics.cancelledRevenue, overview.metrics.currency)}</strong></span>
           <span><small>Unidades</small><strong>{units.toLocaleString("pt-BR")}</strong></span>
           <span><small>Ticket médio</small><strong>{money(ticket, overview.metrics.currency)}</strong></span>
           <span><small>ROI</small><strong>{roi == null ? "—" : `${roi.toFixed(1)}%`}</strong></span>
@@ -231,7 +232,18 @@ function Dashboard({ overview, updatedAt }: { overview: Overview; updatedAt: Dat
         <div><p className="section-kicker">Resultado do período</p><h2 className="mt-1 text-lg font-semibold text-slate-900">Do faturamento ao lucro</h2><p className="mt-1 text-xs leading-relaxed text-slate-400">{profitCoverage.complete ? "Valores efetivamente identificados no período." : `Detalhamento processado em ${profitCoverage.processedOrders} de ${profitCoverage.paidOrders} vendas.`}</p></div>
         <div className="financial-lines">
           <Flow label={profitCoverage.complete ? "Receita paga" : "Receita processada"} value={money(overview.profit.revenueProcessed, overview.metrics.currency)} />
-          <Flow label="Custos do canal e do produto" value={money(overview.profit.fees + overview.profit.sellerShipping + overview.profit.cogs + overview.profit.taxes, overview.metrics.currency)} sign="−" />
+          <FlowExpandable
+            label="Custos do canal e do produto"
+            value={money(overview.profit.fees + overview.profit.sellerShipping + overview.profit.cogs + overview.profit.taxes, overview.metrics.currency)}
+            open={costsOpen}
+            onToggle={() => setCostsOpen((open) => !open)}
+            items={[
+              { label: "Tarifa de venda", value: money(overview.profit.fees, overview.metrics.currency) },
+              { label: "Frete pago pelo vendedor", value: money(overview.profit.sellerShipping, overview.metrics.currency) },
+              { label: "Custo dos produtos", value: money(overview.profit.cogs, overview.metrics.currency) },
+              { label: `Impostos (${overview.profit.taxRate.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%)`, value: money(overview.profit.taxes, overview.metrics.currency) },
+            ]}
+          />
           <Flow label={profitCoverage.complete ? "Lucro estimado" : "Lucro processado"} value={money(overview.profit.estimatedProfit, overview.metrics.currency)} sign="=" accent />
         </div>
         <Link href="/mercado-livre/monitor" className="meli-financial-link">Ver composição completa no monitor <span aria-hidden="true">→</span></Link>
@@ -283,7 +295,7 @@ function Empty({ children }: { children: React.ReactNode }) {
 
 function MarginBadge({ pct }: { pct: number | null }) {
   if (pct == null) return <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-400">—</span>;
-  const color = pct >= 25 ? "bg-emerald-100 text-emerald-700" : pct >= 10 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700";
+  const color = pct >= 18 ? "bg-emerald-100 text-emerald-700" : pct >= 12 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700";
   return <span className={`rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${color}`}>{percent(pct)}</span>;
 }
 
@@ -334,11 +346,16 @@ function Monitor({ overview }: { overview: Overview }) {
   const profitCoverage = overview.profit.coverage;
   const netReceived = overview.profit.revenueProcessed - overview.profit.fees - overview.profit.sellerShipping;
   return <div className="dashboard-sections space-y-8">
-    <section className="metric-grid grid grid-cols-2 gap-4 lg:grid-cols-4" aria-label="Resumo do monitor Mercado Livre">
+    <section className="metric-grid grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5" aria-label="Resumo do monitor Mercado Livre">
       <Metric label="Vendas brutas" value={<AnimatedNumber id="ml-monitor-revenue" value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={`${overview.metrics.paidOrders} aprovadas + ${overview.metrics.cancelledOrders} canceladas`} />
-      <Metric label="Canceladas" value={money(overview.metrics.cancelledRevenue, overview.metrics.currency)} sub={`${overview.metrics.cancelledOrders} pedido(s) no período`} tone={overview.metrics.cancelledRevenue > 0 ? "danger" : "ok"} />
+      <Metric label="Canceladas" value={money(overview.metrics.cancelledRevenue, overview.metrics.currency)} sub={`${overview.metrics.cancelledOrders} pedido(s) no período`} tone={overview.metrics.cancelledRevenue > 0 ? "danger" : "ok"} className="metric-cancelled" />
       <Metric label={profitCoverage.complete ? "Total recebido" : "Total recebido processado"} value={money(netReceived, overview.metrics.currency)} sub="após tarifa e frete" />
-      <Metric label={profitCoverage.complete ? "Margem de contribuição" : "Margem processada"} value={money(overview.profit.estimatedProfit, overview.metrics.currency)} sub={profitCoverage.complete ? `${percent(overview.profit.marginPct)} do faturamento` : `${profitCoverage.processedOrders} de ${profitCoverage.paidOrders} vendas`} />
+      <Metric label={profitCoverage.complete ? "Margem de contribuição" : "Margem processada"} value={money(overview.profit.estimatedProfit, overview.metrics.currency)} sub={`${overview.profit.coverage.processedOrders} de ${overview.profit.coverage.paidOrders} vendas`} tone="positive" />
+      <article className="metric-cell metric-primary p-5">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">Margem %</p>
+        <p className="mt-2 text-[27px] font-bold leading-none tabular-nums text-emerald-800">{percent(overview.profit.marginPct)}</p>
+        <p className="mt-1.5 text-xs font-medium text-emerald-700/70">{profitCoverage.complete ? "sobre o faturamento" : "sobre o processado"}</p>
+      </article>
     </section>
 
     <section className="work-panel space-y-4" aria-labelledby="meli-financial-title">

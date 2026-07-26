@@ -27,7 +27,8 @@ function statusLabel(status: string) {
 
 function Margin({ line }: { line: ProfitabilityLine }) {
   if (line.contribution == null || line.marginPct == null) return <span className="profit-pending">Aguardando dados</span>;
-  const tone = line.marginPct >= 20 ? "positive" : line.marginPct >= 8 ? "warning" : "negative";
+  // Mesma faixa da curva ABC: ≥18% verde, 12–18% âmbar, abaixo vermelho.
+  const tone = line.marginPct >= 18 ? "positive" : line.marginPct >= 12 ? "warning" : "negative";
   return <div className={`profit-result is-${tone}`}><strong>{money(line.contribution, line.currency)}</strong><span>{percent(line.marginPct)}</span></div>;
 }
 

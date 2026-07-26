@@ -429,7 +429,7 @@ function Flow({
       <p className="text-xs font-medium text-slate-500">{label}</p>
       <p
         className={`text-sm font-bold tabular-nums ${
-          accent ? "text-emerald-700" : muted ? "text-slate-500" : "text-slate-900"
+          accent ? "text-emerald-700" : muted ? "text-red-600" : "text-slate-900"
         }`}
       >
         {value}
@@ -475,9 +475,9 @@ function MarginBadge({ pct }: { pct: number | null }) {
     return <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-400">—</span>;
   }
   const cls =
-    pct >= 25
+    pct >= 18
       ? "bg-emerald-100 text-emerald-700"
-      : pct >= 10
+      : pct >= 12
         ? "bg-amber-100 text-amber-700"
         : "bg-red-100 text-red-700";
   return (

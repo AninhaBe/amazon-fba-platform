@@ -454,6 +454,8 @@ button[class*="bg-blue-"]:hover, a[class*="bg-blue-"]:hover { background: var(--
 .metric-grid > :nth-child(3) { --metric-accent: var(--core); }
 .metric-grid > :nth-child(4) { --metric-accent: oklch(0.565 0.1 305); }
 .metric-grid > :nth-child(5) { --metric-accent: oklch(0.56 0.105 205); }
+/* Canceladas = perda: acento vermelho por semântica, independente da posição. */
+.metric-grid > .metric-cancelled { --metric-accent: var(--danger); }
 .metric-cell > p:first-child,
 .metric-cell > div:first-child > p:first-child { font-size: 12px !important; letter-spacing: .075em !important; }
 .metric-cell [class*="text-[27px]"] { letter-spacing: -.04em; }
@@ -568,6 +570,11 @@ button[class*="bg-blue-"]:hover, a[class*="bg-blue-"]:hover { background: var(--
 .financial-sign { color: var(--ink-muted); font-size: 16px; font-weight: 500; text-align: center; }
 .financial-line.is-result { margin: 10px -8px 0; padding: 0 8px; border: 1px solid oklch(0.86 0.04 160); border-radius: var(--radius-sm); background: var(--positive-soft); }
 .financial-line.is-result .financial-sign { color: var(--positive); }
+.financial-line-toggle { width: 100%; padding: 0; border: 0; border-block-end: 1px solid var(--line); background: none; font: inherit; color: inherit; text-align: start; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.financial-line-toggle:hover { background: var(--paper-soft); }
+.financial-sublines { display: grid; padding: 2px 0 9px 25px; }
+.financial-subline { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 4px 0; color: var(--ink-muted); font-size: 11.5px; }
+.financial-subline strong { color: var(--danger); font-weight: 700; font-variant-numeric: tabular-nums; }
 
 .revenue-trend { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 5px 8px; font-size: 12px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
 .revenue-trend svg { width: 13px; height: 13px; }
@@ -859,6 +866,7 @@ summary:hover { background: var(--paper-soft); }
 .meli-workspace .metric-grid > :nth-child(2) { --metric-accent: var(--positive); }
 .meli-workspace .metric-grid > :nth-child(3) { --metric-accent: var(--meli); }
 .meli-workspace .metric-grid > :nth-child(4) { --metric-accent: var(--warning); }
+.meli-workspace .metric-grid > .metric-cancelled { --metric-accent: var(--danger); }
 .meli-workspace .section-kicker { color: var(--meli-dark); }
 .meli-workspace .text-blue-600, .meli-workspace .text-blue-700 { color: var(--meli-dark) !important; }
 .meli-workspace a.text-blue-600:hover { color: color-mix(in oklch, var(--meli-dark) 82%, black) !important; }
@@ -1002,9 +1010,9 @@ summary:hover { background: var(--paper-soft); }
 .profit-equation .profit-result.is-warning span { background: var(--warning); }
 .profit-equation .profit-result.is-negative span { background: var(--danger); }
 .profit-pending { display: inline-flex; max-width: 112px; border-radius: 999px; background: var(--paper); padding: 5px 7px; color: var(--ink-muted); font-size: 10px; font-weight: 650; line-height: 1.2; text-align: center; }
-.profit-expand { display: grid; width: 40px; min-width: 40px; min-height: 40px; place-items: center; border-radius: 999px; color: var(--ink-muted); }
-.profit-expand:hover { background: var(--channel-accent-soft); color: var(--channel-accent-dark); }
-.profit-expand span { transform: rotate(0); transition-property: transform; transition-duration: 160ms; }
+.profit-expand { display: grid; width: 40px; min-width: 40px; min-height: 40px; place-items: center; border: 1px solid var(--line); border-radius: 999px; background: var(--paper-soft); color: var(--ink-soft); transition-property: background-color, border-color, color; transition-duration: 160ms; }
+.profit-expand:hover { border-color: var(--channel-accent); background: var(--channel-accent-soft); color: var(--channel-accent-dark); }
+.profit-expand span { font-size: 18px; font-weight: 800; line-height: 1; transform: rotate(0); transition-property: transform; transition-duration: 160ms; }
 .profit-expand[aria-expanded="true"] span { transform: rotate(180deg); }
 .profit-sale-details { border-block-start: 1px solid var(--line); background: color-mix(in oklch, var(--channel-accent-soft) 35%, white); padding: 14px 16px 16px; }
 .profit-breakdown { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; overflow: hidden; border-radius: var(--radius-sm); background: var(--line); }

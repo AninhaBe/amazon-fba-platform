@@ -49,17 +49,19 @@ export interface MetricProps {
   label: string;
   value: React.ReactNode;
   sub?: string;
-  tone?: "default" | "ok" | "warn" | "danger";
+  tone?: "default" | "ok" | "warn" | "danger" | "positive";
   loading?: boolean;
   icon?: React.ReactNode;
   trend?: RevenueTrend | null;
   /** Presente = o cartão inteiro vira link (ex.: KPI de estoque → radar). */
   href?: string;
+  /** Classe extra no cartão (ex.: forçar o acento do topo por semântica). */
+  className?: string;
 }
 
-export function Metric({ label, value, sub, tone = "default", loading, icon, trend, href }: MetricProps) {
+export function Metric({ label, value, sub, tone = "default", loading, icon, trend, href, className }: MetricProps) {
   const toneCls =
-    tone === "danger" ? "text-red-600" : tone === "warn" ? "text-amber-600" : tone === "ok" ? "text-slate-700" : "text-slate-900";
+    tone === "danger" ? "text-red-600" : tone === "warn" ? "text-amber-600" : tone === "positive" ? "text-emerald-700" : tone === "ok" ? "text-slate-700" : "text-slate-900";
   const body = (
     <>
       <div className="flex items-start justify-between gap-2">
@@ -73,9 +75,9 @@ export function Metric({ label, value, sub, tone = "default", loading, icon, tre
     </>
   );
   if (href) {
-    return <Link href={href} className="metric-cell metric-cell-link block p-5">{body}</Link>;
+    return <Link href={href} className={`metric-cell metric-cell-link block p-5${className ? ` ${className}` : ""}`}>{body}</Link>;
   }
-  return <article className="metric-cell p-5">{body}</article>;
+  return <article className={`metric-cell p-5${className ? ` ${className}` : ""}`}>{body}</article>;
 }
 
 export function CompactMetric({ label, value }: { label: string; value: string }) {
@@ -88,11 +90,49 @@ export function CompactMetric({ label, value }: { label: string; value: string }
 }
 
 export function Flow({ label, value, sign, accent = false }: { label: string; value: string; sign?: "−" | "="; accent?: boolean }) {
+  // Custo (sinal "−") em vermelho; subtotal ("=") e valores de entrada em tinta
+  // cheia; resultado final (accent) em verde. Coerência visual entre os canais.
   return (
     <div className={`financial-line ${accent ? "is-result" : ""}`}>
       <span className="financial-sign" aria-hidden="true">{sign}</span>
       <p className="text-xs font-medium text-slate-500">{label}</p>
-      <p className={`text-sm font-bold tabular-nums ${accent ? "text-emerald-700" : sign ? "text-slate-500" : "text-slate-900"}`}>{value}</p>
+      <p className={`text-sm font-bold tabular-nums ${accent ? "text-emerald-700" : sign === "−" ? "text-red-600" : "text-slate-900"}`}>{value}</p>
     </div>
+  );
+}
+
+// Linha de custo que abre um detalhamento (a "seta pra distrinchar os custos").
+// Reaproveita o grid de .financial-line; o valor agregado fica em vermelho e as
+// parcelas aparecem indentadas abaixo quando aberta.
+export function FlowExpandable({ label, value, items, open, onToggle }: {
+  label: string;
+  value: string;
+  items: Array<{ label: string; value: string }>;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <>
+      <button type="button" onClick={onToggle} aria-expanded={open} className="financial-line financial-line-toggle">
+        <span className="financial-sign" aria-hidden="true">−</span>
+        <span className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+          {label}
+          <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true" className={`text-slate-400 transition-transform duration-150 ${open ? "rotate-180" : ""}`}>
+            <path d="m4 6 4 4 4-4" />
+          </svg>
+        </span>
+        <span className="text-sm font-bold tabular-nums text-red-600">{value}</span>
+      </button>
+      {open && (
+        <div className="financial-sublines">
+          {items.map((item) => (
+            <div key={item.label} className="financial-subline">
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
   );
 }
