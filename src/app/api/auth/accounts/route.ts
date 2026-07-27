@@ -10,7 +10,16 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   return withAuthenticatedWorkspace(async () => {
   const accounts = await getAccounts();
-  const active = req.cookies.get(ACTIVE_COOKIE)?.value ?? null;
+  const cookie = req.cookies.get(ACTIVE_COOKIE)?.value ?? null;
+  // Espelha o withAccountContext: se o cookie aponta para uma conta válida, ela é a
+  // ativa; sem cookie (ou cookie obsoleto) mas com uma única conta conectada, essa
+  // conta é a ativa efetiva — que é a que já serve os dados. Assim o chip não mostra
+  // "Nenhuma conta" enquanto os números vêm de uma conta real.
+  const active = cookie && accounts.some((a) => a.sellerId === cookie)
+    ? cookie
+    : accounts.length === 1
+      ? accounts[0].sellerId
+      : null;
   return NextResponse.json({
     active,
     hasOwnerToken: false,
