@@ -19,6 +19,8 @@ interface ProductResult {
   familyLaunchDate?: string;
   salesRank?: number;
   salesRankCategory?: string;
+  subRank?: number;
+  subRankCategory?: string;
   price?: number | null;
   currency?: string;
   offerCount?: number | null;
@@ -335,8 +337,13 @@ export default function PesquisaPage() {
                         <div className="flex flex-col items-end gap-0.5">
                           <strong className="font-semibold text-slate-700">#{p.salesRank.toLocaleString("pt-BR")}</strong>
                           {p.salesRankCategory && (
-                            <span className="max-w-[22ch] truncate text-[11px] text-slate-400" title={p.salesRankCategory}>
+                            <span className="max-w-[24ch] truncate text-[11px] text-slate-400" title={p.salesRankCategory}>
                               em {p.salesRankCategory}
+                            </span>
+                          )}
+                          {p.subRank && p.subRankCategory !== p.salesRankCategory && (
+                            <span className="max-w-[24ch] truncate text-[11px] font-medium text-emerald-600" title={`Subcategoria: ${p.subRankCategory}`}>
+                              #{p.subRank.toLocaleString("pt-BR")} em {p.subRankCategory}
                             </span>
                           )}
                         </div>

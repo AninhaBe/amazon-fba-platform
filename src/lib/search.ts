@@ -38,6 +38,8 @@ export interface ProductResult {
   familyLaunchDate?: string; // data do produto-pai (idade real da linha)
   salesRank?: number;
   salesRankCategory?: string;
+  subRank?: number; // rank na subcategoria (classificação mais específica)
+  subRankCategory?: string;
   price?: number | null;
   currency?: string;
   offerCount?: number | null; // nº de vendedores/ofertas
@@ -105,6 +107,9 @@ async function fetchSearch(
     const biggest = imgs.slice().sort((a, b) => b.width - a.width)[0];
     const ranks = it.salesRanks?.[0];
     const best = ranks?.displayGroupRanks?.[0] ?? ranks?.classificationRanks?.[0];
+    // Subcategoria: a classificação mais específica (ex.: "Canudos de papel"),
+    // que é o rank comparável dentro do nicho pesquisado.
+    const sub = ranks?.classificationRanks?.[0];
     const variation = it.relationships?.[0]?.relationships?.find((r) => r.type === "VARIATION");
     const parentAsin = variation?.parentAsins?.[0];
     return {
@@ -117,6 +122,8 @@ async function fetchSearch(
       parentAsin,
       salesRank: best?.rank,
       salesRankCategory: best?.title,
+      subRank: sub?.rank,
+      subRankCategory: sub?.title,
     };
   });
 
