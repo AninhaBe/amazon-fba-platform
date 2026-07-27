@@ -13,6 +13,7 @@ import {
   Megaphone,
   Radar,
   Search,
+  Sparkles,
   SquarePen,
   TrendingUp,
 } from "lucide-react";
@@ -44,6 +45,7 @@ const icons = {
   products: <Boxes {...iconProps} />,
   stock: <Radar {...iconProps} />,
   search: <Search {...iconProps} />,
+  briefing: <Sparkles {...iconProps} />,
 };
 
 const navigation: Record<WorkspaceId, NavGroup[]> = {
@@ -62,6 +64,7 @@ const navigation: Record<WorkspaceId, NavGroup[]> = {
       tone: "sky",
       items: [
         { href: "/amazon", label: "Dashboard", desc: "Visão do canal", icon: icons.dashboard, exact: true },
+        { href: "/amazon/briefing", label: "Briefing", desc: "Prioridades do dia", icon: icons.briefing },
         { href: "/amazon/monitor", label: "Monitor da conta", desc: "Pedidos e financeiro", icon: icons.monitor },
       ],
     },

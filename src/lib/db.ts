@@ -227,6 +227,24 @@ async function createSchema(): Promise<void> {
       updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
       PRIMARY KEY (workspace_id, key)
     );
+    CREATE TABLE IF NOT EXISTS workspace_insights (
+      workspace_id   TEXT NOT NULL,
+      id             TEXT NOT NULL,
+      type           TEXT NOT NULL,
+      provider       TEXT NOT NULL,
+      entity_ref     TEXT,
+      severity       INTEGER NOT NULL DEFAULT 0,
+      title          TEXT NOT NULL,
+      evidence       JSONB NOT NULL DEFAULT '{}'::jsonb,
+      impact         JSONB NOT NULL DEFAULT '{}'::jsonb,
+      recommendation TEXT,
+      action_href    TEXT,
+      status         TEXT NOT NULL DEFAULT 'novo',
+      detected_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+      snoozed_until  TIMESTAMPTZ,
+      PRIMARY KEY (workspace_id, id)
+    );
     CREATE TABLE IF NOT EXISTS workspace_marketplace_materialization_leases (
       workspace_id  TEXT NOT NULL,
       provider      TEXT NOT NULL,
