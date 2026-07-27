@@ -10,6 +10,7 @@ import { RevenueChart, type DailyPoint } from "./RevenueChart";
 import { DashboardPeriodFilter, useDashboardPeriod } from "./DashboardPeriodFilter";
 import { OrderProfitabilityTable } from "./OrderProfitabilityTable";
 import { OperationPending } from "./OperationPending";
+import { CustomizableMetricGrid } from "./CustomizableMetricGrid";
 import { Flow, FlowExpandable, Metric, getRevenueTrend } from "./Metric";
 import { brDate, brTime } from "@/lib/datetime";
 import { Boxes, PackageOpen, Percent } from "lucide-react";
@@ -346,17 +347,44 @@ function Monitor({ overview }: { overview: Overview }) {
   const profitCoverage = overview.profit.coverage;
   const netReceived = overview.profit.revenueProcessed - overview.profit.fees - overview.profit.sellerShipping;
   return <div className="dashboard-sections space-y-8">
-    <section className="metric-grid grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5" aria-label="Resumo do monitor Mercado Livre">
-      <Metric label="Vendas brutas" value={<AnimatedNumber id="ml-monitor-revenue" value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={`${overview.metrics.paidOrders} aprovadas + ${overview.metrics.cancelledOrders} canceladas`} />
-      <Metric label="Canceladas" value={money(overview.metrics.cancelledRevenue, overview.metrics.currency)} sub={`${overview.metrics.cancelledOrders} pedido(s) no período`} tone={overview.metrics.cancelledRevenue > 0 ? "danger" : "ok"} className="metric-cancelled" />
-      <Metric label={profitCoverage.complete ? "Total recebido" : "Total recebido processado"} value={money(netReceived, overview.metrics.currency)} sub="após tarifa e frete" />
-      <Metric label={profitCoverage.complete ? "Margem de contribuição" : "Margem processada"} value={money(overview.profit.estimatedProfit, overview.metrics.currency)} sub={`${overview.profit.coverage.processedOrders} de ${overview.profit.coverage.paidOrders} vendas`} tone="positive" />
-      <article className="metric-cell metric-primary p-5">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">Margem %</p>
-        <p className="mt-2 text-[27px] font-bold leading-none tabular-nums text-emerald-800">{percent(overview.profit.marginPct)}</p>
-        <p className="mt-1.5 text-xs font-medium text-emerald-700/70">{profitCoverage.complete ? "sobre o faturamento" : "sobre o processado"}</p>
-      </article>
-    </section>
+    <CustomizableMetricGrid
+      viewKey="mercado-livre-monitor"
+      ariaLabel="Resumo do monitor Mercado Livre"
+      gridClassName="metric-grid grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5"
+      widgets={[
+        {
+          id: "vendas-brutas",
+          label: "Vendas brutas",
+          node: <Metric label="Vendas brutas" value={<AnimatedNumber id="ml-monitor-revenue" value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={`${overview.metrics.paidOrders} aprovadas + ${overview.metrics.cancelledOrders} canceladas`} />,
+        },
+        {
+          id: "canceladas",
+          label: "Canceladas",
+          node: <Metric label="Canceladas" value={money(overview.metrics.cancelledRevenue, overview.metrics.currency)} sub={`${overview.metrics.cancelledOrders} pedido(s) no período`} tone={overview.metrics.cancelledRevenue > 0 ? "danger" : "ok"} className="metric-cancelled" />,
+        },
+        {
+          id: "total-recebido",
+          label: profitCoverage.complete ? "Total recebido" : "Total recebido processado",
+          node: <Metric label={profitCoverage.complete ? "Total recebido" : "Total recebido processado"} value={money(netReceived, overview.metrics.currency)} sub="após tarifa e frete" />,
+        },
+        {
+          id: "margem",
+          label: profitCoverage.complete ? "Margem de contribuição" : "Margem processada",
+          node: <Metric label={profitCoverage.complete ? "Margem de contribuição" : "Margem processada"} value={money(overview.profit.estimatedProfit, overview.metrics.currency)} sub={`${overview.profit.coverage.processedOrders} de ${overview.profit.coverage.paidOrders} vendas`} tone="positive" />,
+        },
+        {
+          id: "margem-pct",
+          label: "Margem %",
+          node: (
+            <article className="metric-cell metric-primary p-5">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">Margem %</p>
+              <p className="mt-2 text-[27px] font-bold leading-none tabular-nums text-emerald-800">{percent(overview.profit.marginPct)}</p>
+              <p className="mt-1.5 text-xs font-medium text-emerald-700/70">{profitCoverage.complete ? "sobre o faturamento" : "sobre o processado"}</p>
+            </article>
+          ),
+        },
+      ]}
+    />
 
     <section className="work-panel space-y-4" aria-labelledby="meli-financial-title">
       <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-slate-100 pb-3">

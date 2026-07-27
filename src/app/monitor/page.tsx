@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { PageHeader, pageIcons } from "../components/PageHeader";
 import { PanelLoading } from "../components/LoadingState";
 import { OrderProfitabilityTable } from "../components/OrderProfitabilityTable";
+import { Flow, FlowExpandable, Metric } from "../components/Metric";
+import { CustomizableMetricGrid } from "../components/CustomizableMetricGrid";
 import { DashboardPeriodFilter, useDashboardPeriod } from "../components/DashboardPeriodFilter";
 import type { ProfitabilityLine } from "@/lib/profitability";
 import { readJson } from "@/lib/readJson";
@@ -74,6 +76,10 @@ function money(v: number, currency: string) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(v);
 }
 
+function percent(v: number) {
+  return `${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
+}
+
 export default function MonitorPage() {
   const period = useDashboardPeriod();
   const [error, setError] = useState<string | null>(null);
@@ -87,6 +93,7 @@ export default function MonitorPage() {
   const [profitabilityLoading, setProfitabilityLoading] = useState(true);
   const [profitabilityError, setProfitabilityError] = useState<string | null>(null);
   const [profitabilityScope, setProfitabilityScope] = useState<string | undefined>();
+  const [feesOpen, setFeesOpen] = useState(false);
 
   async function load(periodQuery: string) {
     setError(null);
@@ -162,99 +169,106 @@ export default function MonitorPage() {
         </div>
       )}
 
-      {metrics && (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <Stat label="Pedidos" value={String(metrics.totalOrders)} />
-          <Stat label="Faturamento" value={money(metrics.totalRevenue, metrics.currency)} />
-          <Stat label="FBA nos recentes" value={String(metrics.fbaOrders)} />
-          <Stat label="Itens a enviar nos recentes" value={String(metrics.pendingItems)} />
+      {financeError ? (
+        <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
+          {financeError}
         </div>
+      ) : finance ? (
+        (() => {
+          const costsIncomplete = (profit?.unitsWithoutCost ?? 0) > 0;
+          const estimatedProfit = profit?.estimatedProfit ?? finance.netProceeds;
+          // Repasse líquido vem somado direto da Transactions API; o resíduo
+          // (reembolsos de estoque, promoções, frete) fecha a cascata sem mentir.
+          const otherAdjustments = Math.round((finance.netProceeds - (finance.revenue - finance.fees - finance.refunds)) * 100) / 100;
+          const marginPct = finance.revenue > 0 ? (estimatedProfit / finance.revenue) * 100 : 0;
+          return (
+            <div className="dashboard-sections space-y-8">
+              {finance.orderCount === 0 && (
+                <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-500">
+                  Nenhum evento financeiro no período ainda — assim que houver vendas conciliadas, os valores abaixo se preenchem (receita, taxas efetivas e reembolsos).
+                </div>
+              )}
+              <CustomizableMetricGrid
+                viewKey="amazon-monitor"
+                ariaLabel="Resumo financeiro Amazon"
+                gridClassName="metric-grid grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5"
+                widgets={[
+                  {
+                    id: "receita-conciliada",
+                    label: "Receita conciliada",
+                    node: <Metric label="Receita conciliada" value={money(finance.revenue, finance.currency)} sub={metrics ? `${metrics.totalOrders} pedido(s) no período` : "repasses da Amazon"} />,
+                  },
+                  {
+                    id: "reembolsos",
+                    label: "Reembolsos",
+                    node: <Metric label="Reembolsos" value={money(finance.refunds, finance.currency)} sub="estornos ao comprador" tone={finance.refunds > 0 ? "danger" : "ok"} className="metric-cancelled" />,
+                  },
+                  {
+                    id: "repasse-liquido",
+                    label: "Repasse líquido",
+                    node: <Metric label="Repasse líquido" value={money(finance.netProceeds, finance.currency)} sub="após taxas e reembolsos" />,
+                  },
+                  {
+                    id: "lucro",
+                    label: costsIncomplete ? "Repasse antes do custo" : "Lucro estimado",
+                    node: <Metric label={costsIncomplete ? "Repasse antes do custo" : "Lucro estimado"} value={money(estimatedProfit, finance.currency)} sub={costsIncomplete ? "cadastre custos para o lucro real" : "repasse − custo dos produtos"} tone="positive" />,
+                  },
+                  {
+                    id: "margem-pct",
+                    label: "Margem %",
+                    node: (
+                      <article className="metric-cell metric-primary p-5">
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">Margem %</p>
+                        <p className="mt-2 text-[27px] font-bold leading-none tabular-nums text-emerald-800">{finance.revenue > 0 ? percent(marginPct) : "—"}</p>
+                        <p className="mt-1.5 text-xs font-medium text-emerald-700/70">sobre a receita</p>
+                      </article>
+                    ),
+                  },
+                ]}
+              />
+
+              <section className="work-panel space-y-4" aria-labelledby="amz-financial-title">
+                <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-slate-100 pb-3">
+                  <div>
+                    <p className="section-kicker">Financeiro realizado</p>
+                    <h2 id="amz-financial-title" className="mt-1 text-lg font-semibold text-slate-900">Do faturamento à margem</h2>
+                  </div>
+                  <span className="text-xs text-slate-400">repasses conciliados da Amazon</span>
+                </div>
+                <div className="financial-lines">
+                  <Flow label="Receita de produtos" value={money(finance.revenue, finance.currency)} />
+                  {finance.feeBreakdown.length > 0 ? (
+                    <FlowExpandable
+                      label="Taxas Amazon"
+                      value={money(finance.fees, finance.currency)}
+                      open={feesOpen}
+                      onToggle={() => setFeesOpen((open) => !open)}
+                      items={finance.feeBreakdown.map((f) => ({ label: FEE_LABELS[f.type] || f.type, value: money(f.amount, finance.currency) }))}
+                    />
+                  ) : (
+                    <Flow label="Taxas Amazon" value={money(finance.fees, finance.currency)} sign="−" />
+                  )}
+                  <Flow label="Reembolsos" value={money(finance.refunds, finance.currency)} sign="−" />
+                  {Math.abs(otherAdjustments) >= 0.005 && (
+                    <Flow label="Outros ajustes (promoções, frete, estoque)" value={money(otherAdjustments, finance.currency)} />
+                  )}
+                  <Flow label="Repasse líquido" value={money(finance.netProceeds, finance.currency)} sign="=" />
+                  <Flow label="Custo dos produtos" value={money(profit?.cogs ?? 0, finance.currency)} sign="−" />
+                  <Flow label={costsIncomplete ? "Repasse antes do custo" : "Lucro estimado"} value={money(estimatedProfit, finance.currency)} sign="=" accent />
+                </div>
+                {costsIncomplete && (
+                  <p className="text-xs leading-relaxed text-amber-700">
+                    {profit?.unitsWithoutCost} unidade(s) vendida(s) sem custo cadastrado — o lucro está superestimado.{" "}
+                    <a href="/produtos" className="font-semibold underline">Cadastrar custos em Produtos</a>
+                  </p>
+                )}
+              </section>
+            </div>
+          );
+        })()
+      ) : (
+        <PanelLoading label="Carregando resumo financeiro" />
       )}
-
-      {/* Financeiro realizado */}
-      <div className="space-y-3">
-        <div className="flex items-baseline justify-between">
-          <h2 className="text-lg font-semibold">Financeiro realizado</h2>
-          <span className="text-xs text-slate-400">repasses da Amazon · base de postagem (difere do faturamento)</span>
-        </div>
-
-        {financeError ? (
-          <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
-            {financeError}
-          </div>
-        ) : finance && finance.orderCount === 0 ? (
-          <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-500">
-            Nenhum evento financeiro no período. Assim que houver vendas, os repasses reais
-            (receita, taxas efetivas e reembolsos) aparecem aqui — para comparar com o previsto
-            da calculadora.
-          </div>
-        ) : finance ? (
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            <div className="grid grid-cols-2 gap-4 lg:col-span-2">
-              <Stat label="Receita conciliada" value={money(finance.revenue, finance.currency)} />
-              <Stat
-                label="Taxas efetivas"
-                value={`- ${money(finance.fees, finance.currency)}`}
-              />
-              <Stat
-                label="Custo produtos"
-                value={`- ${money(profit?.cogs ?? 0, finance.currency)}`}
-              />
-              <Stat
-                label="Reembolsos"
-                value={`- ${money(finance.refunds, finance.currency)}`}
-              />
-            </div>
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col justify-center rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                  Repasse líquido (Amazon)
-                </p>
-                <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900">
-                  {money(finance.netProceeds, finance.currency)}
-                </p>
-              </div>
-              <div className="flex flex-col justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 p-4 shadow-sm">
-                <p className="text-xs font-medium uppercase tracking-wide text-white/80">
-                  Lucro estimado
-                </p>
-                <p className="mt-1 text-3xl font-bold tabular-nums text-white">
-                  {money(profit?.estimatedProfit ?? finance.netProceeds, finance.currency)}
-                </p>
-                <p className="mt-0.5 text-xs text-white/70">repasse − custo dos produtos</p>
-              </div>
-            </div>
-
-            {profit && profit.unitsWithoutCost > 0 && (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 lg:col-span-3">
-                ⚠ {profit.unitsWithoutCost} unidade(s) vendida(s) sem custo cadastrado — o lucro
-                está superestimado.{" "}
-                <a href="/produtos" className="font-semibold underline">
-                  Cadastrar custos em Produtos
-                </a>
-              </div>
-            )}
-
-            {finance.feeBreakdown.length > 0 && (
-              <div className="rounded-2xl border border-slate-200/70 bg-white shadow-sm ring-1 ring-slate-900/[0.02] p-4 lg:col-span-3">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Detalhamento das taxas efetivas
-                </p>
-                <ul className="grid grid-cols-1 gap-1 sm:grid-cols-2">
-                  {finance.feeBreakdown.map((f) => (
-                    <li key={f.type} className="flex justify-between text-sm">
-                      <span className="text-slate-600">{FEE_LABELS[f.type] || f.type}</span>
-                      <span className="font-medium">- {money(f.amount, finance.currency)}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-        ) : (
-          <PanelLoading label="Carregando resumo financeiro" />
-        )}
-      </div>
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-baseline justify-between gap-2">

@@ -220,6 +220,13 @@ async function createSchema(): Promise<void> {
       cached_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
       PRIMARY KEY (workspace_id, cache_key)
     );
+    CREATE TABLE IF NOT EXISTS workspace_settings (
+      workspace_id TEXT NOT NULL,
+      key          TEXT NOT NULL,
+      value        JSONB NOT NULL,
+      updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (workspace_id, key)
+    );
     CREATE TABLE IF NOT EXISTS workspace_marketplace_materialization_leases (
       workspace_id  TEXT NOT NULL,
       provider      TEXT NOT NULL,
