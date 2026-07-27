@@ -245,6 +245,17 @@ async function createSchema(): Promise<void> {
       snoozed_until  TIMESTAMPTZ,
       PRIMARY KEY (workspace_id, id)
     );
+    CREATE TABLE IF NOT EXISTS workspace_rank_history (
+      workspace_id TEXT NOT NULL,
+      asin         TEXT NOT NULL,
+      captured_on  DATE NOT NULL DEFAULT CURRENT_DATE,
+      rank         INTEGER NOT NULL,
+      category     TEXT,
+      updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (workspace_id, asin, captured_on)
+    );
+    CREATE INDEX IF NOT EXISTS workspace_rank_history_idx
+      ON workspace_rank_history(workspace_id, asin, captured_on DESC);
     CREATE TABLE IF NOT EXISTS workspace_marketplace_materialization_leases (
       workspace_id  TEXT NOT NULL,
       provider      TEXT NOT NULL,
