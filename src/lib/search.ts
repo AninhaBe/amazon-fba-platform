@@ -36,9 +36,8 @@ export interface ProductResult {
   isVariation: boolean;
   parentAsin?: string;
   familyLaunchDate?: string; // data do produto-pai (idade real da linha)
-  salesRank?: number; // rank de nicho (subcategoria mais específica)
+  salesRank?: number;
   salesRankCategory?: string;
-  salesRanks?: { rank: number; category?: string }[]; // todos os nós (nicho + amplo)
   price?: number | null;
   currency?: string;
   offerCount?: number | null; // nº de vendedores/ofertas
@@ -105,14 +104,7 @@ async function fetchSearch(
     const imgs = it.images?.[0]?.images ?? [];
     const biggest = imgs.slice().sort((a, b) => b.width - a.width)[0];
     const ranks = it.salesRanks?.[0];
-    const cls = ranks?.classificationRanks ?? [];
-    const dsp = ranks?.displayGroupRanks ?? [];
-    // Nicho = a subcategoria (classificação) tem prioridade sobre o grupo amplo:
-    // é o rank comparável dentro do nicho pesquisado. Os dois nós ficam expostos.
-    const niche = cls[0] ?? dsp[0];
-    const allRanks = [...cls, ...dsp]
-      .filter((r) => typeof r.rank === "number")
-      .map((r) => ({ rank: r.rank, category: r.title }));
+    const best = ranks?.displayGroupRanks?.[0] ?? ranks?.classificationRanks?.[0];
     const variation = it.relationships?.[0]?.relationships?.find((r) => r.type === "VARIATION");
     const parentAsin = variation?.parentAsins?.[0];
     return {
@@ -123,9 +115,8 @@ async function fetchSearch(
       launchDate: it.attributes?.product_site_launch_date?.[0]?.value,
       isVariation: !!parentAsin,
       parentAsin,
-      salesRank: niche?.rank,
-      salesRankCategory: niche?.title,
-      salesRanks: allRanks.length ? allRanks : undefined,
+      salesRank: best?.rank,
+      salesRankCategory: best?.title,
     };
   });
 
