@@ -186,6 +186,8 @@ async function createSchema(): Promise<void> {
       updated_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
       PRIMARY KEY (workspace_id, provider, connection_id)
     );
+    ALTER TABLE workspace_marketplace_syncs
+      ADD COLUMN IF NOT EXISTS reverify_to TIMESTAMPTZ;
     CREATE TABLE IF NOT EXISTS workspace_marketplace_events (
       workspace_id  TEXT NOT NULL,
       provider      TEXT NOT NULL,

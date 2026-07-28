@@ -50,6 +50,7 @@ interface SyncRow {
   lease_until: Date | string | null;
   last_error: string | null;
   last_success_at: Date | string | null;
+  reverify_to: Date | string | null;
   updated_at: Date | string;
 }
 
@@ -93,7 +94,7 @@ async function getSyncRow(connectionId: string): Promise<SyncRow | undefined> {
   const rows = await dbQuery<SyncRow>(
     `SELECT status, target_from, target_to, covered_from, covered_to, cursor_from, cursor_to,
             cursor_offset, processed_orders, products_synced_at, products_total, active_products,
-            products_complete, lease_until, last_error, last_success_at, updated_at
+            products_complete, lease_until, last_error, last_success_at, reverify_to, updated_at
        FROM workspace_marketplace_syncs
       WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
     [currentWorkspaceId(), PROVIDER, connectionId]
@@ -346,6 +347,70 @@ export async function runMercadoLivreSyncStep(
   }
   if (invalidateSnapshot) await invalidateMercadoLivreOverviewSnapshots(connection.id);
   return publicStatus(await getSyncRow(connection.id));
+}
+
+const REVERIFY_RETENTION_DAYS = 45; // cobre todos os períodos do dashboard (até 30d) + margem
+const REVERIFY_WINDOW_DAYS = 5; // cada passagem re-verifica uma fatia de 5 dias
+
+// Re-verificação automática do canônico. Re-busca uma fatia recente do histórico com
+// sort=date_asc (chunk por dia p/ ficar sob o teto de offset do ML) e re-persiste. Cura
+// gaps históricos — pedidos que sumiram do canônico antes do fix de paginação date_asc —
+// sem nada manual. O cursor `reverify_to` corre para trás pela janela de retenção e volta
+// ao topo, então toda conta conectada é continuamente reconferida sozinha pelo cron.
+export async function reverifyMercadoLivreOrders(
+  connection: IntegrationConnection
+): Promise<{ from: string; to: string; orders: number }> {
+  if (!hasDb()) return { from: "", to: "", orders: 0 };
+  await ensureSyncRow(connection.id);
+  const row = await getSyncRow(connection.id);
+  const now = new Date();
+  const retentionFloor = now.getTime() - REVERIFY_RETENTION_DAYS * DAY;
+  // Onde a fatia termina: retoma do cursor salvo (limitado a agora) ou começa de agora.
+  const savedTo = row?.reverify_to ? new Date(row.reverify_to).getTime() : now.getTime();
+  const to = new Date(Math.min(savedTo, now.getTime()));
+  const from = new Date(Math.max(retentionFloor, to.getTime() - REVERIFY_WINDOW_DAYS * DAY));
+
+  const orders = await fetchOrdersWindow(connection, from, to);
+  await saveOrders(connection, orders);
+
+  // Avança o cursor para trás; ao cruzar o piso de retenção, reinicia do topo (agora).
+  const nextTo = from.getTime() <= retentionFloor ? now : from;
+  await dbQuery(
+    `UPDATE workspace_marketplace_syncs
+        SET reverify_to = $4, updated_at = now()
+      WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
+    [currentWorkspaceId(), PROVIDER, connection.id, nextTo]
+  );
+  await invalidateMercadoLivreOverviewSnapshots(connection.id);
+  return { from: from.toISOString(), to: to.toISOString(), orders: orders.length };
+}
+
+// Pagina [from, to] com date_asc, quebrando por dia — cada chunk fica bem abaixo do teto
+// de offset do ML, então nenhuma janela densa estoura o limite. Dedup por id do pedido.
+async function fetchOrdersWindow(
+  connection: IntegrationConnection,
+  from: Date,
+  to: Date
+): Promise<MercadoLivreOrder[]> {
+  const accountId = encodeURIComponent(connection.externalAccountId);
+  const collected = new Map<MercadoLivreOrder["id"], MercadoLivreOrder>();
+  for (let start = from.getTime(); start < to.getTime(); start += DAY) {
+    const chunkFrom = new Date(start);
+    const chunkTo = new Date(Math.min(start + DAY, to.getTime()));
+    let offset = 0;
+    for (;;) {
+      const page = await mercadoLivreFetch<{ paging?: { total?: number }; results?: MercadoLivreOrder[] }>(
+        connection,
+        `/orders/search?seller=${accountId}&order.date_created.from=${encodeURIComponent(chunkFrom.toISOString())}&order.date_created.to=${encodeURIComponent(chunkTo.toISOString())}&sort=date_asc&limit=${PAGE_SIZE}&offset=${offset}`
+      );
+      const results = page.results ?? [];
+      for (const order of results) collected.set(order.id, order);
+      const total = page.paging?.total ?? results.length;
+      offset += PAGE_SIZE;
+      if (results.length < PAGE_SIZE || offset >= total) break;
+    }
+  }
+  return [...collected.values()];
 }
 
 export async function runMercadoLivreSyncBatch(
