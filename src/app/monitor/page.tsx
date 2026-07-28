@@ -80,26 +80,58 @@ function percent(v: number) {
   return `${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
 }
 
+interface MonitorSnapshot {
+  metrics: Metrics | null;
+  finance: FinanceSummary | null;
+  profit: ProfitSummary | null;
+  transactions: TransactionSummary | null;
+  profitabilityLines: ProfitabilityLine[];
+  profitabilityScope?: string;
+}
+
+// Escopo de módulo: sobrevive à navegação entre telas/canais (mesmo padrão do
+// dashboard Amazon e do workspace ML). Ao voltar, o período já visto pinta no
+// primeiro paint e a revalidação roda em segundo plano.
+const monitorCache = new Map<string, MonitorSnapshot>();
+
 export default function MonitorPage() {
   const period = useDashboardPeriod();
+  const [initialCached] = useState(() => monitorCache.get(period.query));
   const [error, setError] = useState<string | null>(null);
-  const [metrics, setMetrics] = useState<Metrics | null>(null);
-  const [finance, setFinance] = useState<FinanceSummary | null>(null);
-  const [profit, setProfit] = useState<ProfitSummary | null>(null);
+  const [metrics, setMetrics] = useState<Metrics | null>(initialCached?.metrics ?? null);
+  const [finance, setFinance] = useState<FinanceSummary | null>(initialCached?.finance ?? null);
+  const [profit, setProfit] = useState<ProfitSummary | null>(initialCached?.profit ?? null);
   const [financeError, setFinanceError] = useState<string | null>(null);
-  const [transactions, setTransactions] = useState<TransactionSummary | null>(null);
+  const [transactions, setTransactions] = useState<TransactionSummary | null>(initialCached?.transactions ?? null);
   const [transactionsError, setTransactionsError] = useState<string | null>(null);
-  const [profitabilityLines, setProfitabilityLines] = useState<ProfitabilityLine[]>([]);
-  const [profitabilityLoading, setProfitabilityLoading] = useState(true);
+  const [profitabilityLines, setProfitabilityLines] = useState<ProfitabilityLine[]>(initialCached?.profitabilityLines ?? []);
+  const [profitabilityLoading, setProfitabilityLoading] = useState(!initialCached);
   const [profitabilityError, setProfitabilityError] = useState<string | null>(null);
-  const [profitabilityScope, setProfitabilityScope] = useState<string | undefined>();
+  const [profitabilityScope, setProfitabilityScope] = useState<string | undefined>(initialCached?.profitabilityScope);
   const [feesOpen, setFeesOpen] = useState(false);
 
   async function load(periodQuery: string) {
+    const cached = monitorCache.get(periodQuery);
+    if (cached) {
+      // Pinta o que já foi visto na hora; a revalidação continua em fundo.
+      setMetrics(cached.metrics);
+      setFinance(cached.finance);
+      setProfit(cached.profit);
+      setTransactions(cached.transactions);
+      setProfitabilityLines(cached.profitabilityLines);
+      setProfitabilityScope(cached.profitabilityScope);
+      setProfitabilityLoading(false);
+    } else {
+      setProfitabilityLoading(true);
+    }
+    // Write-through: cada fetch que completa atualiza o snapshot do período.
+    const snap: MonitorSnapshot = cached ? { ...cached } : {
+      metrics: null, finance: null, profit: null, transactions: null, profitabilityLines: [],
+    };
+    const store = () => monitorCache.set(periodQuery, { ...snap });
     setError(null);
     setFinanceError(null);
     setTransactionsError(null);
-    setProfitabilityLoading(true);
     setProfitabilityError(null);
     // Pedidos e lucro (financeiro + custos) em paralelo; um não derruba o outro.
     const ordersReq = fetch(`/api/orders?${periodQuery}`)
@@ -107,6 +139,8 @@ export default function MonitorPage() {
       .then(({ ok, data }) => {
         if (!ok) throw new Error(data.error || "Erro ao carregar pedidos.");
         setMetrics(data.metrics);
+        snap.metrics = data.metrics;
+        store();
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Erro desconhecido."));
 
@@ -116,6 +150,9 @@ export default function MonitorPage() {
         if (!ok) throw new Error(data.error || "Erro ao carregar financeiro.");
         setProfit(data.summary);
         setFinance(data.summary.finance);
+        snap.profit = data.summary;
+        snap.finance = data.summary.finance;
+        store();
       })
       .catch((err) =>
         setFinanceError(err instanceof Error ? err.message : "Erro desconhecido.")
@@ -126,6 +163,8 @@ export default function MonitorPage() {
       .then(({ ok, data }) => {
         if (!ok) throw new Error(data.error || "Erro ao carregar transações.");
         setTransactions(data.summary);
+        snap.transactions = data.summary;
+        store();
       })
       .catch((err) =>
         setTransactionsError(err instanceof Error ? err.message : "Erro desconhecido.")
@@ -135,8 +174,12 @@ export default function MonitorPage() {
       .then((r) => readJson(r).then((data) => ({ ok: r.ok, data })))
       .then(({ ok, data }) => {
         if (!ok) throw new Error(data.error || "Não foi possível calcular as vendas.");
+        const scope = data.scope?.completePeriod ? undefined : `Exibindo os ${data.scope?.processedOrders ?? data.lines.length} pedidos mais recentes. Os totais financeiros acima consideram o período completo.`;
         setProfitabilityLines(data.lines);
-        setProfitabilityScope(data.scope?.completePeriod ? undefined : `Exibindo os ${data.scope?.processedOrders ?? data.lines.length} pedidos mais recentes. Os totais financeiros acima consideram o período completo.`);
+        setProfitabilityScope(scope);
+        snap.profitabilityLines = data.lines;
+        snap.profitabilityScope = scope;
+        store();
       })
       .catch((err) => setProfitabilityError(err instanceof Error ? err.message : "Erro desconhecido."))
       .finally(() => setProfitabilityLoading(false));
