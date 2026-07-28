@@ -21,6 +21,8 @@ interface ProductResult {
   salesRankCategory?: string;
   subRank?: number;
   subRankCategory?: string;
+  rankDelta?: number; // positivo = subiu de posição desde a última foto
+  rankPrevDate?: string;
   price?: number | null;
   currency?: string;
   offerCount?: number | null;
@@ -335,7 +337,17 @@ export default function PesquisaPage() {
                     <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">
                       {p.salesRank ? (
                         <div className="flex flex-col items-end gap-0.5">
-                          <strong className="font-semibold text-slate-700">#{p.salesRank.toLocaleString("pt-BR")}</strong>
+                          <span className="inline-flex items-baseline gap-1.5">
+                            {p.rankDelta != null && (
+                              <span
+                                className={`text-[11px] font-bold tabular-nums ${p.rankDelta > 0 ? "text-emerald-600" : "text-red-500"}`}
+                                title={`${p.rankDelta > 0 ? "Subiu" : "Caiu"} ${Math.abs(p.rankDelta).toLocaleString("pt-BR")} posição(ões) desde ${p.rankPrevDate ? fmtDate(p.rankPrevDate) : "a última foto"}`}
+                              >
+                                {p.rankDelta > 0 ? "↑" : "↓"}{Math.abs(p.rankDelta).toLocaleString("pt-BR")}
+                              </span>
+                            )}
+                            <strong className="font-semibold text-slate-700">#{p.salesRank.toLocaleString("pt-BR")}</strong>
+                          </span>
                           {p.salesRankCategory && (
                             <span className="max-w-[24ch] truncate text-[11px] text-slate-400" title={p.salesRankCategory}>
                               em {p.salesRankCategory}

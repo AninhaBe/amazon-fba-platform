@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse } from "@/lib/apiError";
 import { searchProducts } from "@/lib/search";
-import { recordRanks } from "@/lib/rankHistory";
+import { getRankDeltas, recordRanks } from "@/lib/rankHistory";
 import { withAccountContext } from "@/lib/withAccount";
 
 export const runtime = "nodejs";
@@ -24,7 +24,20 @@ export async function GET(req: NextRequest) {
       } catch {
         /* histórico é best-effort */
       }
-      return NextResponse.json(results);
+      // Variação vs. a foto anterior (setinha ↑/↓). Também best-effort.
+      let items = results.items;
+      try {
+        const deltas = await getRankDeltas(items.map((i) => i.asin));
+        items = items.map((i) => {
+          const d = deltas[i.asin];
+          return d?.delta != null && d.delta !== 0
+            ? { ...i, rankDelta: d.delta, rankPrevDate: d.previousDate }
+            : i;
+        });
+      } catch {
+        /* sem histórico ainda — segue sem setinha */
+      }
+      return NextResponse.json({ ...results, items });
     } catch (err) {
       return errorResponse(err);
     }
