@@ -28,6 +28,13 @@ const EVIDENCE_LABEL: Record<string, string> = {
   vendasPorDia: "Vendas/dia",
   diasRestantes: "Dias restantes",
   vendidosNoPeriodo: "Vendidos (30d)",
+  ultimos7d: "Últimos 7d",
+  "7dAnteriores": "7d anteriores",
+  quedaPct: "Queda (%)",
+  receita30d: "Receita 30d (R$)",
+  contribuicao30d: "Contribuição 30d (R$)",
+  margemPct: "Margem (%)",
+  unidades: "Unidades",
 };
 
 function greeting() {
@@ -44,10 +51,11 @@ export default function BriefingPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
-  async function load() {
+  async function load(analyze = false) {
     setError(null);
+    if (analyze) setInsights(null);
     try {
-      const res = await fetch("/api/briefing");
+      const res = await fetch("/api/briefing", analyze ? { method: "POST" } : undefined);
       const data = await readJson(res);
       if (!res.ok) throw new Error(data.error || "Não foi possível montar o briefing.");
       setInsights(data.insights);
@@ -98,13 +106,26 @@ export default function BriefingPage() {
       {insights == null ? (
         <PanelLoading label="Analisando sua operação" />
       ) : insights.length === 0 ? (
-        <EmptyState title="Tudo sob controle" description="Nenhuma prioridade exige sua atenção agora. Voltamos amanhã com o próximo briefing." />
+        <EmptyState
+          title="Tudo sob controle"
+          description="Nenhuma prioridade exige sua atenção agora. A análise roda todo dia junto com o sync."
+          action={
+            <button type="button" onClick={() => void load(true)} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+              Analisar agora
+            </button>
+          }
+        />
       ) : (
         <>
-          <p className="text-lg font-semibold text-slate-900">
-            {greeting()}. Hoje há <span className="text-blue-600">{insights.length}</span>{" "}
-            {insights.length === 1 ? "coisa" : "coisas"} que {insights.length === 1 ? "merece" : "merecem"} sua atenção.
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-lg font-semibold text-slate-900">
+              {greeting()}. Hoje há <span className="text-blue-600">{insights.length}</span>{" "}
+              {insights.length === 1 ? "coisa" : "coisas"} que {insights.length === 1 ? "merece" : "merecem"} sua atenção.
+            </p>
+            <button type="button" onClick={() => void load(true)} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:border-blue-400 hover:text-blue-600">
+              Analisar agora ↻
+            </button>
+          </div>
 
           <ul className="space-y-3">
             {insights.map((it) => {
@@ -164,8 +185,9 @@ export default function BriefingPage() {
           </ul>
 
           <p className="text-xs text-slate-400">
-            Protótipo (v1): por enquanto só o detector de <strong>ruptura</strong> (Amazon), calculado sob demanda.
-            Velocidade e margem, e a execução no cron diário, vêm em seguida. Sinais de <em>demanda/risco</em>, não de lucro.
+            Detectores ativos (Amazon): <strong>ruptura</strong>, <strong>queda de vendas</strong> e{" "}
+            <strong>margem</strong> — recalculados todo dia junto com o sync (ou no “Analisar agora”).
+            Detecção determinística: cada item traz a evidência que o sustenta.
           </p>
         </>
       )}

@@ -8,9 +8,20 @@ import type { InsightStatus } from "@/lib/insights/types";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// GET: no protótipo, roda a detecção e devolve os insights abertos.
-// (Estágio 3: a detecção migra para o cron e o GET passa a só ler.)
+// GET: só LÊ os insights abertos — a detecção roda no cron diário (estágio 3).
 export async function GET(req: NextRequest) {
+  return withAccountContext(req, async () => {
+    try {
+      const insights = await listOpen();
+      return NextResponse.json({ insights });
+    } catch (err) {
+      return errorResponse(err);
+    }
+  });
+}
+
+// POST: roda a detecção agora (botão "Analisar agora") e devolve o resultado.
+export async function POST(req: NextRequest) {
   return withAccountContext(req, async () => {
     try {
       await runDetection();
