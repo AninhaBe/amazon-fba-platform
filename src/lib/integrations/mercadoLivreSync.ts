@@ -290,7 +290,11 @@ export async function runMercadoLivreSyncStep(
     const accountId = encodeURIComponent(connection.externalAccountId);
     const page = await mercadoLivreFetch<{ paging?: { total?: number }; results?: MercadoLivreOrder[] }>(
       connection,
-      `/orders/search?seller=${accountId}&order.date_created.from=${encodeURIComponent(from.toISOString())}&order.date_created.to=${encodeURIComponent(to.toISOString())}&sort=date_desc&limit=${PAGE_SIZE}&offset=${offset}`
+      // sort=date_asc é ESTÁVEL para paginação por offset: pedidos novos entram no
+      // fim (não deslocam o que já foi paginado). Com date_desc, ordens novas no
+      // topo empurravam tudo pra baixo e ~1% caía no vão entre offsets, some do
+      // canônico (validado contra a API do ML). Não reverter para date_desc.
+      `/orders/search?seller=${accountId}&order.date_created.from=${encodeURIComponent(from.toISOString())}&order.date_created.to=${encodeURIComponent(to.toISOString())}&sort=date_asc&limit=${PAGE_SIZE}&offset=${offset}`
     );
     const orders = page.results ?? [];
     const total = page.paging?.total ?? orders.length;

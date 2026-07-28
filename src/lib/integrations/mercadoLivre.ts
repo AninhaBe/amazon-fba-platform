@@ -773,7 +773,8 @@ export async function getMercadoLivreOverview(
   const fetchOrderPage = (rangeFrom: Date, rangeTo: Date, offset: number, limit: number) =>
     mercadoLivreFetch<{ paging?: { total?: number }; results?: MercadoLivreOrder[] }>(
       connection,
-      `/orders/search?seller=${accountId}&order.date_created.from=${encodeURIComponent(rangeFrom.toISOString())}&order.date_created.to=${encodeURIComponent(rangeTo.toISOString())}&sort=date_desc&limit=${limit}&offset=${offset}`
+      // date_asc: paginação por offset estável (ver mercadoLivreSync.ts).
+      `/orders/search?seller=${accountId}&order.date_created.from=${encodeURIComponent(rangeFrom.toISOString())}&order.date_created.to=${encodeURIComponent(rangeTo.toISOString())}&sort=date_asc&limit=${limit}&offset=${offset}`
     );
   const [user, productsData, collectedOrders] = source
     ? [
