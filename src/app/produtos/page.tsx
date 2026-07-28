@@ -85,6 +85,22 @@ export default function ProdutosPage() {
     }
   }
 
+  // Ponto único de confirmação do custo: usado pelo Enter, pelo botão "Cadastrar" e
+  // pelo blur. Ignora valor vazio/inválido e evita salvar quando nada mudou.
+  function commitCost(p: Product, raw: string) {
+    const value = Number(raw);
+    if (raw.trim() === "" || !Number.isFinite(value) || value < 0) return;
+    if (value === (p.cost ?? 0)) return;
+    void saveCost(p, value);
+  }
+
+  // Só habilita o botão quando há um valor novo e válido para gravar.
+  function canCommit(p: Product): boolean {
+    const raw = draftCosts[p.id] ?? "";
+    const value = Number(raw);
+    return raw.trim() !== "" && Number.isFinite(value) && value >= 0 && value !== (p.cost ?? 0);
+  }
+
   async function addByAsin(e: React.FormEvent) {
     e.preventDefault();
     const asin = newAsin.trim();
@@ -286,21 +302,38 @@ export default function ProdutosPage() {
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex flex-col items-end gap-1">
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={draftCosts[p.id] ?? ""}
-                        onChange={(e) => setDraftCosts((prev) => ({ ...prev, [p.id]: e.target.value }))}
-                        onBlur={(e) => {
-                          const v = Number(e.target.value);
-                          if (Number.isFinite(v) && v >= 0 && v !== (p.cost ?? 0)) void saveCost(p, v);
-                        }}
-                        aria-label={`Custo de ${p.title || p.id}`}
-                        aria-describedby={`cost-status-${p.id}`}
-                        placeholder="0.00"
-                        className={`product-cost-input w-24 rounded-md border px-2 py-1 text-right text-sm tabular-nums focus:outline-none ${p.cost == null || p.cost === 0 ? "is-missing" : "border-slate-300"}`}
-                      />
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={draftCosts[p.id] ?? ""}
+                          onChange={(e) => setDraftCosts((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                          onKeyDown={(e) => {
+                            if (e.key !== "Enter") return;
+                            e.preventDefault();
+                            commitCost(p, e.currentTarget.value);
+                            e.currentTarget.blur();
+                          }}
+                          onBlur={(e) => commitCost(p, e.target.value)}
+                          aria-label={`Custo de ${p.title || p.id}`}
+                          aria-describedby={`cost-status-${p.id}`}
+                          placeholder="0.00"
+                          className={`product-cost-input w-24 rounded-md border px-2 py-1 text-right text-sm tabular-nums focus:outline-none ${p.cost == null || p.cost === 0 ? "is-missing" : "border-slate-300"}`}
+                        />
+                        <button
+                          type="button"
+                          // onMouseDown: o blur do input dispara antes do click e já grava.
+                          // Prevenir o blur garante que o clique seja o caminho único.
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => commitCost(p, draftCosts[p.id] ?? "")}
+                          disabled={!canCommit(p)}
+                          title={canCommit(p) ? "Cadastrar custo" : "Digite um custo diferente do atual"}
+                          className="min-h-[40px] shrink-0 rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 transition-[background-color,color,border-color] hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-slate-300 disabled:hover:bg-transparent"
+                        >
+                          Cadastrar
+                        </button>
+                      </div>
                       <span id={`cost-status-${p.id}`} aria-live="polite" className={`text-[10px] ${saveState[p.id] === "error" ? "text-red-600" : "text-slate-400"}`}>
                         {saveState[p.id] === "saving" ? "Salvando…" : saveState[p.id] === "saved" ? "Salvo" : saveState[p.id] === "error" ? "Falha ao salvar" : ""}
                       </span>
@@ -329,8 +362,10 @@ export default function ProdutosPage() {
       )}
 
       <p className="text-xs text-slate-400">
-        O custo é salvo automaticamente ao sair do campo. Campos em amarelo ainda não têm custo
-        cadastrado — as vendas desses SKUs não entram no cálculo de lucro real.
+        Digite o custo e pressione <kbd className="rounded border border-slate-300 px-1 font-sans">Enter</kbd>,
+        clique em <strong className="font-medium text-slate-500">Cadastrar</strong> ou apenas saia do campo — nos
+        três casos o valor é salvo. Campos em amarelo ainda não têm custo cadastrado — as vendas
+        desses SKUs não entram no cálculo de lucro real.
       </p>
     </div>
   );

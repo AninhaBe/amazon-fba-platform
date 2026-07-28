@@ -76,6 +76,22 @@ export default function MercadoLivreProdutosPage() {
     }
   }
 
+  // Ponto único de confirmação do custo: usado pelo Enter, pelo botão "Cadastrar" e
+  // pelo blur. Ignora valor vazio/inválido e evita salvar quando nada mudou.
+  function commitCost(product: Product, raw: string) {
+    const value = Number(raw);
+    if (raw.trim() === "" || !Number.isFinite(value) || value < 0) return;
+    if (value === (product.cost ?? 0)) return;
+    void saveCost(product, value);
+  }
+
+  // Só habilita o botão quando há um valor novo e válido para gravar.
+  function canCommit(product: Product): boolean {
+    const raw = draftCosts[product.costId] ?? "";
+    const value = Number(raw);
+    return raw.trim() !== "" && Number.isFinite(value) && value >= 0 && value !== (product.cost ?? 0);
+  }
+
   async function saveTaxRate(event: React.FormEvent) {
     event.preventDefault();
     const value = Number(taxRate.replace(",", "."));
@@ -150,7 +166,7 @@ export default function MercadoLivreProdutosPage() {
             <td className="text-right tabular-nums">{product.availableQuantity}</td>
             <td className="text-right tabular-nums">{product.soldQuantity}</td>
             <td className="text-right tabular-nums">{money(product.price, product.currency)}</td>
-            <td><div className="flex flex-col items-end gap-1"><input type="number" min="0" step="0.01" value={draftCosts[product.costId] ?? ""} onChange={(event) => setDraftCosts((current) => ({ ...current, [product.costId]: event.target.value }))} onBlur={(event) => { const value = Number(event.target.value); if (Number.isFinite(value) && value >= 0 && value !== (product.cost ?? 0)) void saveCost(product, value); }} placeholder="0,00" aria-label={`Custo de ${product.title}`} className={`product-cost-input ${product.cost ? "has-cost" : "is-missing"}`} /><small aria-live="polite">{saveState[product.costId] === "saving" ? "Salvando…" : saveState[product.costId] === "saved" ? "Salvo" : saveState[product.costId] === "error" ? "Falha ao salvar" : ""}</small></div></td>
+            <td><div className="flex flex-col items-end gap-1"><div className="flex items-center gap-2"><input type="number" min="0" step="0.01" value={draftCosts[product.costId] ?? ""} onChange={(event) => setDraftCosts((current) => ({ ...current, [product.costId]: event.target.value }))} onKeyDown={(event) => { if (event.key !== "Enter") return; event.preventDefault(); commitCost(product, event.currentTarget.value); event.currentTarget.blur(); }} onBlur={(event) => commitCost(product, event.target.value)} placeholder="0,00" aria-label={`Custo de ${product.title}`} className={`product-cost-input ${product.cost ? "has-cost" : "is-missing"}`} /><button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => commitCost(product, draftCosts[product.costId] ?? "")} disabled={!canCommit(product)} title={canCommit(product) ? "Cadastrar custo" : "Digite um custo diferente do atual"} className="min-h-[40px] shrink-0 rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 transition-[background-color,color,border-color] hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-slate-300 disabled:hover:bg-transparent">Cadastrar</button></div><small aria-live="polite">{saveState[product.costId] === "saving" ? "Salvando…" : saveState[product.costId] === "saved" ? "Salvo" : saveState[product.costId] === "error" ? "Falha ao salvar" : ""}</small></div></td>
           </tr>)}
         </tbody>
       </table>
