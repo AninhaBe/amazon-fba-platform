@@ -9,8 +9,7 @@
     "lint": "eslint",
     "test": "node --experimental-strip-types --test tests/*.test.mjs",
     "migrate": "node --env-file=.env.local scripts/migrate.mjs",
-    "backfill:canonical": "node --experimental-strip-types --import ./scripts/ts-resolver.mjs --env-file=.env.local scripts/backfill-canonical.mjs",
-    "listing:health": "node --env-file=.env.local scripts/listing-health.mjs"
+    "backfill:canonical": "node --experimental-strip-types --import ./scripts/ts-resolver.mjs --env-file=.env.local scripts/backfill-canonical.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.3",
