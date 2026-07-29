@@ -428,4 +428,40 @@ export async function saveCanonicalProducts(scope: CanonicalScope, products: Can
        raw = COALESCE(EXCLUDED.raw, workspace_channel_products.raw), synced_at = now()`,
     [currentWorkspaceId(), scope.provider, scope.connectionId, JSON.stringify(records)]
   );
+  await recordOfferSnapshot(scope, products);
+}
+
+// ADR-010: foto diária da oferta. A tabela canônica acima é sobrescrita a cada sync,
+// então o passado se perde — e é o passado que explica "parou de vender porque o
+// estoque zerou anteontem". Preço e estoque já vieram na mesma resposta do canal, então
+// gravar aqui não custa nenhuma chamada extra (mesmo padrão do histórico de ranking).
+// Upsert por dia: a última foto do dia é a que vale.
+export async function recordOfferSnapshot(
+  scope: CanonicalScope,
+  products: CanonicalProduct[]
+): Promise<void> {
+  if (!products.length) return;
+  const records = products.map((product) => ({
+    external_product_id: product.externalProductId,
+    sku: product.sku,
+    status: product.status,
+    price: product.price,
+    currency: product.currency,
+    available_qty: product.availableQty,
+  }));
+  await dbQuery(
+    `INSERT INTO workspace_channel_offer_history
+       (workspace_id, provider, connection_id, external_product_id, captured_on,
+        sku, status, price, currency, available_qty, updated_at)
+     SELECT $1, $2, $3, item.external_product_id, CURRENT_DATE,
+            item.sku, item.status, item.price, item.currency, item.available_qty, now()
+       FROM jsonb_to_recordset($4::jsonb) AS item(
+         external_product_id text, sku text, status text,
+         price numeric, currency text, available_qty integer
+       )
+     ON CONFLICT (workspace_id, provider, connection_id, external_product_id, captured_on)
+     DO UPDATE SET sku = EXCLUDED.sku, status = EXCLUDED.status, price = EXCLUDED.price,
+       currency = EXCLUDED.currency, available_qty = EXCLUDED.available_qty, updated_at = now()`,
+    [currentWorkspaceId(), scope.provider, scope.connectionId, JSON.stringify(records)]
+  );
 }

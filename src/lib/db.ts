@@ -258,6 +258,30 @@ async function createSchema(): Promise<void> {
     );
     CREATE INDEX IF NOT EXISTS workspace_rank_history_idx
       ON workspace_rank_history(workspace_id, asin, captured_on DESC);
+    -- ADR-010: foto diária da oferta. workspace_channel_products guarda só o estado
+    -- atual (é sobrescrito a cada sync); aqui fica a série temporal que permite
+    -- explicar "parou de vender porque o estoque zerou anteontem".
+    CREATE TABLE IF NOT EXISTS workspace_channel_offer_history (
+      workspace_id        TEXT NOT NULL,
+      provider            TEXT NOT NULL,
+      connection_id       TEXT NOT NULL,
+      external_product_id TEXT NOT NULL,
+      captured_on         DATE NOT NULL DEFAULT CURRENT_DATE,
+      sku                 TEXT,
+      -- Colunas nullable de propósito: cada canal entrega um subconjunto. NULL sempre
+      -- significa "não coletado", nunca zero/inativo. Ex.: na Amazon o v1 vem do FBA
+      -- Inventory, que dá estoque mas não preço nem status do anúncio.
+      status              TEXT,
+      price               NUMERIC(14,2),
+      currency            TEXT,
+      available_qty       INTEGER,
+      -- NULL = não coletado/não se aplica ao canal. Nunca interpretar como "não é sua".
+      buy_box_owned       BOOLEAN,
+      updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (workspace_id, provider, connection_id, external_product_id, captured_on)
+    );
+    CREATE INDEX IF NOT EXISTS workspace_channel_offer_history_idx
+      ON workspace_channel_offer_history(workspace_id, provider, external_product_id, captured_on DESC);
     CREATE TABLE IF NOT EXISTS workspace_marketplace_materialization_leases (
       workspace_id  TEXT NOT NULL,
       provider      TEXT NOT NULL,
