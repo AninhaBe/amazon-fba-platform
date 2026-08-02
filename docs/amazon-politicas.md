@@ -182,7 +182,60 @@ personagem de obra criativa, nem a imagem sem pessoas ou com pessoas não fotorr
 
 ---
 
-## 5. Pendências desta extração
+## 5. Otimização de pesquisas (`GNYWHX2TP7C8GXHK`)
+
+### Termos de pesquisa (campo *Palavra-chave genérica*, backend)
+
+Não aparecem na página; servem para casar a busca do cliente com o ASIN.
+
+- **Limite: menos de 250 bytes.** Estourar pode **descartar** os termos.
+- **Só minúsculas.** Separar por **espaço**, sem `;` `:` `—`.
+- Sinônimos e variações ortográficas, **sem repetir** palavra que já está no título.
+- Incluir abreviações. Usar **singular OU plural**, nunca os dois.
+- Evitar artigos, preposições e palavras curtas ("um", "e", "ou", "o", "com").
+- **Proibido:** nome de marca, código ASIN, palavrão, termo ofensivo, alegação temporária
+  ("novo", "em promoção") ou subjetiva ("melhor", "mais barato").
+
+> Violar essas regras pode **suprimir o ASIN** e colocar o estado da conta em risco.
+
+A Amazon reserva-se o direito de **não usar** todo o conteúdo fornecido (inclusive
+marcadores) para recuperar produtos na busca — por eficiência, risco de manipulação ou
+irrelevância.
+
+### Por que um ASIN não aparece na busca
+
+| Causa | Como verificar | Correção |
+| --- | --- | --- |
+| **Sem oferta comprável** | Gerenciar todo o inventário | Preço, quantidade e data de lançamento |
+| **Sem categoria de navegação** | Página de detalhes | Atribuir categoria específica e relevante |
+| **Qualidade da oferta** | "Corrigir seus produtos" | Resolver o problema apontado |
+| **Data de lançamento futura** | Data de lançamento da oferta | Colocar data no passado |
+| **Classificado como adulto** | Editar ofertas → tipo de produto | Se errado, abrir caso no suporte |
+
+Mudança em oferta, categoria ou data de lançamento leva **até 72 horas** para refletir na
+busca. A Amazon **não garante posição** — ela varia por localização, tipo de conta e
+dispositivo. E há um **teto de resultados** por busca: fora dele, o ASIN só é alcançável
+refinando a consulta.
+
+Ferramenta de diagnóstico: buscar "código ASIN não pode ser pesquisado" na ajuda do Seller
+Central; recebe a URL da busca e o ASIN (**filho**, não pai).
+
+### Classificação
+
+Categorizar é "colocar o produto na prateleira certa". Usar os **Guias de árvore de
+navegação (BTG)**, específicos por categoria. Ser específico: "Tênis femininos para corrida
+em estrada", não "Calçados".
+
+---
+
+## 6. Variações (`GF4VNS6ZQQPYYGGP`) — hub
+
+Página só de índice, com quatro artigos ainda **não capturados**: criar e gerenciar,
+visão geral, solucionar problemas, e exibição/experiência do cliente.
+
+---
+
+## 7. Pendências desta extração
 
 Páginas do índice ainda **não** capturadas e que valem a próxima passada: Guia de
 atributos (`GBWHYLJ7NNQMXBAQ`), Variações do produto (`GF4VNS6ZQQPYYGGP`), Otimização de
