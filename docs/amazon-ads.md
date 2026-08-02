@@ -38,6 +38,41 @@ Registry, e os anúncios dela são Genérico por decisão de negócio (ver
    desempenho para se qualificarem". Em ASIN Genérico exclusivo dela não há disputa, mas a
    oferta precisa estar comprável.
 
+## Créditos de publicidade — Incentivos para Novos Vendedores (`GXMJ38VA95GUN5XU`)
+
+**Não exige Brand Registry.** É o único benefício do programa que a conta dela alcança.
+
+> "Novos vendedores que utilizarem os Sponsored Products **dentro de 90 dias** após listarem
+> sua primeira oferta comprável podem receber até **R$ 5.300** em Créditos de Publicidade."
+
+| Você gasta em Sponsored Products | Recebe de crédito |
+| --- | --- |
+| R$ 265 – R$ 1.059,99 | **R$ 265** |
+| R$ 1.060 – R$ 5.299,99 | **R$ 1.060** |
+| R$ 5.300 ou mais | **R$ 5.300** |
+
+Os degraus são **fixos, não proporcionais**: gastar R$ 1.059 rende R$ 265; gastar R$ 1.060
+rende R$ 1.060. Vale planejar o gasto para cruzar o degrau, não parar rente a ele.
+
+**Regras de prazo:**
+
+- A oferta comprável deve ser listada **após 20/02/2026**.
+- Usar Sponsored Products **dentro de 90 dias** da listagem do primeiro ASIN comercializável.
+- O crédito aparece no Gerenciador de campanhas em até **2 semanas** após cumprir o
+  requisito — e há **apenas 30 dias para gastá-lo**.
+
+**Situação da conta (02/08/2026):** os 6 SKUs estão `DISCOVERABLE` mas com estoque zero, ou
+seja, provavelmente **ainda não houve oferta comprável**. Se for esse o caso, o relógio dos
+90 dias só começa quando o estoque FBA chegar — e a data cai depois de 20/02/2026, dentro
+da janela. **Confirmar a data da primeira oferta comprável antes de contar com o benefício.**
+
+### O outro benefício (fora de alcance hoje)
+
+**Bônus de nova marca (NBB):** R$ 300.000 em crédito, aplicado como **5% de desconto na
+comissão** sobre até R$ 6.000.000 em vendas, por até 1 ano. **Exige Brand Registry** — marca
+registrada, concluída em até 6 meses após a primeira oferta comprável. Incompatível com a
+estratégia Genérico atual; registrar como fica é a decisão que destrava isso.
+
 ## Roteiro recomendado (ordem importa)
 
 1. **Repor estoque.** Sem isso, nada do resto importa.
