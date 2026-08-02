@@ -353,6 +353,76 @@ já embalada nem modelo de palete, e sem Amazon Global Logistics. Nesse caso a e
 2a (confirmar envios), 2b (conteúdo de caixa por envio, num único Excel) e 2c (transporte).
 Restrição: só **Frete para transporte** — **não** aceita pacote pequeno.
 
+### Requisitos de envio e roteamento (`200141510`)
+
+Valem para **todo** envio ao centro de distribuição — pacote pequeno (SPD), carga
+fracionada (LTL) ou lotação (FTL).
+
+**Peso e dimensão da caixa não são opcionais:**
+
+> "**Accurate box weight and dimensions are required for all shipments, even if you opt to
+> not provide box content information in Seller Central.**"
+
+Ou seja: mesmo pagando para a Amazon processar o conteúdo manualmente, peso e dimensões
+continuam obrigatórios e precisam ser reais.
+
+**Limites (a página diz duas vezes que são "strictly enforced"):**
+
+| Limite | Valor | Se estourar |
+| --- | --- | --- |
+| Lado da caixa | **63,5 cm** (itens padrão) | Pode **bloquear envios futuros**, gerar tarifa extra ou recusa |
+| Peso da caixa | **22 kg** | Pode **bloquear envios futuros** |
+| Acima de 22 kg | etiqueta **Team lift** no topo e nas laterais | — |
+| Acima de 45 kg | etiqueta **Mechanical lift** | — |
+| Joias e relógios | máx. **18 kg** | — |
+
+Caixa **mínima** recomendada para reduzir atraso no recebimento: ~15 × 10 × 2,5 pol e ao
+menos **450 g**.
+
+**Embalagem:**
+
+- Caixa **rígida de seis lados**, abas intactas. Ideal: parede simples, ondulado, **B
+  flute**, **ECT-32**, 90 kg/pol² de resistência.
+- **5 cm de acolchoamento** entre cada item e entre os itens e as paredes. (Dispensado se
+  for case pack do fabricante.)
+- **Teste do chacoalhão:** sacuda a caixa fechada — nada pode se mover.
+- Embrulhar cada item **separadamente**. Fita própria para envio.
+- Reaproveitou caixa? **Remover ou cobrir** etiquetas e códigos de barras antigos com fita
+  opaca ou risco de caneta preta, senão o código errado é lido no recebimento.
+
+**Material de proteção:**
+
+| Use | Não use |
+| --- | --- |
+| Plástico bolha, papel kraft (mín. 60 lb), almofadas de ar, manta de espuma PE | **Flocos de isopor** (mesmo biodegradável/amido), tiras de espuma, crinkle wrap, **papel picado**, isopor |
+
+> Almofadas de ar perdem pressão em baixa temperatura e altitude.
+
+**Não use:** embalagem de ponto de venda, caixa aberta/de display, caixa tamanho palete
+("gaylord"), barbante, cintas, sobre-embalagem, nem amarrar várias caixas juntas.
+
+**Etiquetas por caixa:** cada caixa precisa da sua **FBA Box ID** única (impressa na fila de
+envio), da etiqueta da transportadora e de **uma cópia da fatura de remessa colada por
+fora**. No Brasil, **a NFe também vai colada do lado de fora de cada caixa**. Palete: quatro
+etiquetas, uma no centro de cada lado — e cada caixa nele mantém a sua.
+
+### Recusa na doca — o que faz o envio voltar
+
+- Sem cópia da fatura de remessa colada no pacote.
+- Fatura diferente da gerada na criação do envio.
+- Envio maior que o esperado, danificado, **enviado sem agendamento** ou **para o centro de
+  distribuição errado**.
+
+> Esses envios podem ser **rejeitados na doca e devolvidos às suas custas**.
+
+E: você **não pode recusar nem devolver** um envio que voltou sem antes falar com a Amazon —
+se recusar por conta própria, pode ser recusado de novo e o custo é seu.
+
+**Entrega pessoal não é permitida.** Segundo a FAQ de `G6925SDD66GDLXJW`: "a Amazon **não
+permite entregas para o público em geral**. Somente transportadoras profissionais podem
+agendar encontros para entrega em centros de distribuição por meio da Central de
+Transportadoras."
+
 ### Ainda não capturado neste bloco
 
 Requisitos de embalagem, etiquetas de envio, envio e roteamento, produtos vendidos como
