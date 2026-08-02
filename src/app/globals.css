@@ -227,6 +227,17 @@ a[href][class*="bg-gradient"]:active { transform: scale(.96); }
 .rail-nav-item.is-active:hover .rail-nav-icon { color: var(--channel-accent-dark); }
 .rail-nav-item.is-active .rail-nav-desc { opacity: .7; }
 
+/* Sub-itens (ex.: Pesquisa → Histórico): recuados sob uma guia vertical, que é o que
+   comunica a subordinação sem precisar de mais um nível de cabeçalho. */
+.rail-subnav {
+  margin-inline-start: 21px;
+  padding-inline-start: 10px;
+  border-inline-start: 1px solid color-mix(in oklch, var(--ink-muted) 22%, transparent);
+}
+/* A barra de item ativo colidiria com a guia; o recuo já marca a hierarquia. */
+.rail-nav-item.is-sub::before { display: none; }
+.rail-nav-item.is-sub .rail-nav-icon { color: var(--ink-muted); }
+
 /* ---- Menu lateral: coluna de canais (rail) + painel ---- */
 .channel-rail {
   width: 58px;

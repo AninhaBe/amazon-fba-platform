@@ -26,6 +26,8 @@ interface NavItem {
   desc: string;
   icon: React.ReactNode;
   exact?: boolean;
+  /** Sub-itens: páginas que só fazem sentido dentro deste item (ex.: Pesquisa → Histórico). */
+  children?: NavItem[];
 }
 
 interface NavGroup {
@@ -77,8 +79,16 @@ const navigation: Record<WorkspaceId, NavGroup[]> = {
         { href: "/amazon/catalogo", label: "Anúncios", desc: "Catálogo publicado", icon: icons.ads },
         { href: "/amazon/produtos", label: "Produtos", desc: "Custos por SKU", icon: icons.products },
         { href: "/amazon/estoque", label: "Radar de estoque", desc: "Cobertura FBA", icon: icons.stock },
-        { href: "/amazon/pesquisa", label: "Pesquisa", desc: "Anúncios da Amazon", icon: icons.search, exact: true },
-        { href: "/amazon/pesquisa/historico", label: "Histórico", desc: "O que você acompanha", icon: icons.history },
+        {
+          href: "/amazon/pesquisa",
+          label: "Pesquisa",
+          desc: "Anúncios da Amazon",
+          icon: icons.search,
+          exact: true,
+          children: [
+            { href: "/amazon/pesquisa/historico", label: "Histórico", desc: "O que você acompanha", icon: icons.history },
+          ],
+        },
       ],
     },
     {
@@ -125,20 +135,48 @@ function isActive(pathname: string, item: NavItem) {
   return item.exact ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`);
 }
 
-function ItemLink({ item, active, tabIndex }: { item: NavItem; active: boolean; tabIndex?: number }) {
+/** Item + sub-itens em uma lista só — para o menu mobile e para achar o grupo ativo. */
+function flatten(items: NavItem[]): NavItem[] {
+  return items.flatMap((item) => [item, ...(item.children ?? [])]);
+}
+
+function ItemLink({ item, active, tabIndex, sub }: { item: NavItem; active: boolean; tabIndex?: number; sub?: boolean }) {
   return (
     <Link
       href={item.href}
       aria-current={active ? "page" : undefined}
       tabIndex={tabIndex}
-      className={`rail-nav-item group relative flex items-center gap-2.5 px-2.5 py-2.5${active ? " is-active" : ""}`}
+      className={`rail-nav-item group relative flex items-center gap-2.5 px-2.5${sub ? " is-sub py-2" : " py-2.5"}${active ? " is-active" : ""}`}
     >
-      <span className="rail-nav-icon flex h-6 w-6 shrink-0 items-center justify-center">{item.icon}</span>
+      <span className={`rail-nav-icon flex shrink-0 items-center justify-center ${sub ? "h-5 w-5" : "h-6 w-6"}`}>{item.icon}</span>
       <span className="min-w-0">
-        <span className="block overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-semibold leading-tight">{item.label}</span>
-        <span className="rail-nav-desc mt-1 block overflow-hidden text-ellipsis whitespace-nowrap text-xs leading-tight">{item.desc}</span>
+        <span className={`block overflow-hidden text-ellipsis whitespace-nowrap font-semibold leading-tight ${sub ? "text-[12.5px]" : "text-[13px]"}`}>
+          {item.label}
+        </span>
+        {/* O sub-item vive dentro do pai, que já dá o contexto: repetir a descrição só
+            adicionaria ruído numa linha mais estreita. */}
+        {!sub && (
+          <span className="rail-nav-desc mt-1 block overflow-hidden text-ellipsis whitespace-nowrap text-xs leading-tight">{item.desc}</span>
+        )}
       </span>
     </Link>
+  );
+}
+
+/** Item e, logo abaixo, seus sub-itens recuados sob uma guia vertical. */
+function ItemBlock({ item, pathname, tabIndex }: { item: NavItem; pathname: string; tabIndex?: number }) {
+  if (!item.children?.length) {
+    return <ItemLink item={item} active={isActive(pathname, item)} tabIndex={tabIndex} />;
+  }
+  return (
+    <div className="flex flex-col gap-1">
+      <ItemLink item={item} active={isActive(pathname, item)} tabIndex={tabIndex} />
+      <div className="rail-subnav flex flex-col gap-1">
+        {item.children.map((child) => (
+          <ItemLink key={child.href} item={child} active={isActive(pathname, child)} tabIndex={tabIndex} sub />
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -173,7 +211,7 @@ export function NavLinks({ variant }: { variant: "sidebar" | "top" }) {
   // A seção da página atual nunca fica escondida: ao navegar, ela abre sozinha.
   useEffect(() => {
     const wsGroups = navigation[workspaceFromPath(pathname)];
-    const activeTitle = wsGroups.find((group) => group.items.some((item) => isActive(pathname, item)))?.title;
+    const activeTitle = wsGroups.find((group) => flatten(group.items).some((item) => isActive(pathname, item)))?.title;
     if (!activeTitle) return;
     setCollapsed((prev) => {
       if (!prev.has(activeTitle)) return prev;
@@ -193,7 +231,9 @@ export function NavLinks({ variant }: { variant: "sidebar" | "top" }) {
   }
 
   if (variant === "top") {
-    const items = groups.flatMap((group) => group.items);
+    // No mobile a barra é horizontal e rolável: não há hierarquia para representar,
+    // então os sub-itens entram na sequência, logo depois do pai.
+    const items = groups.flatMap((group) => flatten(group.items));
     return (
       <nav aria-label={ariaLabel} className="mobile-nav flex gap-0 overflow-x-auto">
         {items.map((item) => {
@@ -216,7 +256,7 @@ export function NavLinks({ variant }: { variant: "sidebar" | "top" }) {
           return (
             <div key={`group-${index}`} className="rail-group flex flex-col gap-1" data-tone={group.tone}>
               {group.items.map((item) => (
-                <ItemLink key={item.href} item={item} active={isActive(pathname, item)} />
+                <ItemBlock key={item.href} item={item} pathname={pathname} />
               ))}
             </div>
           );
@@ -233,7 +273,7 @@ export function NavLinks({ variant }: { variant: "sidebar" | "top" }) {
             <div id={bodyId} className={`rail-group-body${open ? " is-open" : ""}`} aria-hidden={!open}>
               <div className="rail-group-body-inner flex flex-col gap-1 pt-1">
                 {group.items.map((item) => (
-                  <ItemLink key={item.href} item={item} active={isActive(pathname, item)} tabIndex={open ? undefined : -1} />
+                  <ItemBlock key={item.href} item={item} pathname={pathname} tabIndex={open ? undefined : -1} />
                 ))}
               </div>
             </div>
