@@ -6,6 +6,7 @@ import { Pin, PinOff, X } from "lucide-react";
 import { PageHeader, pageIcons } from "../../components/PageHeader";
 import { TableLoading } from "../../components/LoadingState";
 import { EmptyState } from "../../components/EmptyState";
+import { Pagination } from "../../components/Pagination";
 import { readJson } from "../../../lib/readJson";
 import { brDate } from "../../../lib/datetime";
 
@@ -31,6 +32,8 @@ interface WatchItem {
 }
 
 type SortKey = "recentes" | "alta" | "queda";
+
+const PAGE_SIZE = 30;
 
 // Curva de posição dos últimos 30 dias. Posição menor é melhor, então o ponto de
 // menor rank fica no topo — como o eixo Y do SVG cresce para baixo, plotar o rank
@@ -99,6 +102,8 @@ export default function HistoricoPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [sort, setSort] = useState<SortKey>("recentes");
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
 
   // Cada resposta resolve um lote de identidades que ainda faltava (ADR-011), então
   // repetimos enquanto sobrar alguém sem título — a tabela vai se preenchendo à vista.
@@ -149,17 +154,30 @@ export default function HistoricoPage() {
   }
 
   // Fixados sempre no topo — a ordenação escolhida vale dentro de cada bloco.
-  const sorted = useMemo(() => {
+  const visible = useMemo(() => {
+    const q = query.trim().toLocaleLowerCase("pt-BR");
     const peso = (i: WatchItem) => {
       if (sort === "alta") return -(i.delta7 ?? i.delta30 ?? -Infinity);
       if (sort === "queda") return i.delta7 ?? i.delta30 ?? Infinity;
       return 0;
     };
-    return [...items].sort((a, b) => {
-      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-      return peso(a) - peso(b);
-    });
-  }, [items, sort]);
+    return items
+      .filter(
+        (i) =>
+          !q ||
+          `${i.title ?? ""} ${i.brand ?? ""} ${i.asin} ${i.category ?? ""} ${i.lastSearchTerm ?? ""}`
+            .toLocaleLowerCase("pt-BR")
+            .includes(q)
+      )
+      .sort((a, b) => {
+        if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+        return peso(a) - peso(b);
+      });
+  }, [items, query, sort]);
+
+  const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
+  const current = Math.min(page, pageCount);
+  const paged = visible.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
 
   return (
     <div className="space-y-6">
@@ -209,7 +227,25 @@ export default function HistoricoPage() {
 
       {items.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-slate-500">{items.length} anúncio(s) acompanhado(s)</p>
+          <div className="flex min-w-[260px] flex-1 flex-col gap-1.5">
+            <label>
+              <span className="sr-only">Buscar no histórico</span>
+              <input
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setPage(1);
+                }}
+                placeholder="Buscar por título, marca, categoria ou ASIN"
+                className="w-full rounded-lg border border-slate-300 px-3.5 py-2 text-base focus:border-blue-500 focus:outline-none sm:text-sm"
+              />
+            </label>
+            <p className="text-sm text-slate-500">
+              {query.trim()
+                ? `${visible.length} de ${items.length} anúncio(s)`
+                : `${items.length} anúncio(s) acompanhado(s)`}
+            </p>
+          </div>
           <div className="flex gap-1 rounded-lg border border-slate-200 bg-white p-1 text-xs">
             {([["recentes", "Mais recentes"], ["alta", "Maior alta"], ["queda", "Maior queda"]] as const).map(([k, label]) => (
               <button
@@ -241,7 +277,7 @@ export default function HistoricoPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {loading ? (
+            {loading && items.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-4 py-8"><TableLoading label="Carregando histórico" /></td>
               </tr>
@@ -260,8 +296,27 @@ export default function HistoricoPage() {
                   />
                 </td>
               </tr>
+            ) : visible.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-4 py-6">
+                  <EmptyState
+                    kind="search"
+                    title="Nenhum anúncio com esse termo"
+                    description="A busca aqui filtra o que você já acompanha. Para procurar produtos novos na Amazon, use a pesquisa."
+                    action={
+                      <button
+                        type="button"
+                        onClick={() => setQuery("")}
+                        className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:border-blue-400 hover:text-blue-600"
+                      >
+                        Limpar busca
+                      </button>
+                    }
+                  />
+                </td>
+              </tr>
             ) : (
-              sorted.map((p) => (
+              paged.map((p) => (
                 <tr key={p.asin} className={`hover:bg-slate-50 ${busy === p.asin ? "opacity-50" : ""}`}>
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-3">
@@ -342,6 +397,12 @@ export default function HistoricoPage() {
           </tbody>
         </table>
       </div>
+
+      {pageCount > 1 && (
+        <div className="listing-pagination">
+          <Pagination page={current} pageCount={pageCount} total={visible.length} pageSize={PAGE_SIZE} onPage={setPage} />
+        </div>
+      )}
 
       {items.length > 0 && (
         <div className="space-y-1 text-xs text-slate-400">
