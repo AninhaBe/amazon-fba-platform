@@ -463,6 +463,21 @@ Fonte: *Manual_de_Entregas_para_FBA_Logistica_da_Amazon* (PDF da Amazon BR, 22 p
 motos" apenas para dizer que não atingem a altura mínima da niveladora (0,975 m). A menor
 categoria listada é a Van.
 
+> ⚠️ **Conflito de fontes, não resolvido (02/08).** O **Seller Assistant** afirmou o
+> contrário: "Sim, você pode levar com seu carro (Tucson) sem problema… Muitos vendedores
+> fazem entregas com veículos próprios." Os links que ele citou são da página de criação de
+> envio e de preparação de produtos — **nenhum trata de categoria de veículo**, então a
+> afirmação não vem acompanhada de fonte sobre esse ponto específico.
+>
+> Reconciliação plausível: a tabela do manual mira transportadoras acoplando na doca, e o
+> próprio manual tem um fluxo de **"descarregamento de veículos pequenos"** (motorista fica
+> com a chave, põe cone à frente e calço na roda traseira, passa os materiais para a doca) —
+> que um SUV atenderia fisicamente. Mas a Seção 2 diz "somente serão aceitos os veículos
+> permitidos abaixo".
+>
+> **Como resolver na prática:** o agendamento exige placa e dados do veículo — se a
+> categoria não servir, trava ali. Confirmar por escrito antes de carregar.
+
 Também recusados: assoalho de madeira ou danificado, caminhão bitrem, caminhão com abertura
 lateral que force descarga pela lateral, rampa própria sem guarda-corpo, e qualquer veículo
 com defeito em luz de ré, freio, farol, lanterna, buzina ou pisca-alerta.
