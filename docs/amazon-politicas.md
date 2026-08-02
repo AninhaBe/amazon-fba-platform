@@ -418,10 +418,95 @@ etiquetas, uma no centro de cada lado — e cada caixa nele mantém a sua.
 E: você **não pode recusar nem devolver** um envio que voltou sem antes falar com a Amazon —
 se recusar por conta própria, pode ser recusado de novo e o custo é seu.
 
-**Entrega pessoal não é permitida.** Segundo a FAQ de `G6925SDD66GDLXJW`: "a Amazon **não
-permite entregas para o público em geral**. Somente transportadoras profissionais podem
-agendar encontros para entrega em centros de distribuição por meio da Central de
-Transportadoras."
+### Entrega por conta própria — **permitida no Brasil**
+
+⚠️ **Cuidado com a página `200141510`: ela vem em inglês, sem tradução — é a versão global,
+e não vale para o Brasil neste ponto.** A FAQ de `G6925SDD66GDLXJW` diz que "a Amazon não
+permite entregas para o público em geral; somente transportadoras profissionais podem
+agendar encontros". **No Brasil isso está errado**, conforme a Central de Treinamento FBA
+BR (`venda.amazon.com.br/central-de-treinamento-fba/criacao-de-um-envio`):
+
+- A opção chama-se **"Envio por conta própria ou outra transportadora"** — "ideal para
+  vendedores que desejam enviar seu inventário com um veículo próprio ou contratar uma
+  transportadora terceira".
+- **Etapa 2:** escolher essa opção. **Etapa 3:** fazer o **agendamento** da entrega.
+- Centro de distribuição: **Cajamar/SP** — Av. Dr. Antonio João Abdalla, 2010, Vila Nova,
+  CEP 07750-620, Condomínio GLP.
+- Sem restrição de CEP (diferente da **Coleta FBA**, que tem área de cobertura limitada).
+
+**O que continua valendo:** "enviado **sem agendamento**" segue na lista de motivos de
+recusa na doca. O agendamento prévio é obrigatório — é ele que autoriza a entrega, não a
+transportadora ser profissional.
+
+**Regra geral desta extração:** artigo do help hub que aparece **em inglês** é conteúdo
+global não localizado. Antes de afirmar regra operacional do Brasil a partir dele,
+confirmar na Central de Treinamento FBA BR ou em artigo traduzido.
+
+### Manual de Entregas FBA BR — procedimentos de motorista
+
+Fonte: *Manual_de_Entregas_para_FBA_Logistica_da_Amazon* (PDF da Amazon BR, 22 páginas).
+
+#### Veículos aceitos — o filtro mais duro
+
+> "Por motivos de segurança … **somente serão aceitos os veículos permitidos abaixo**.
+> Demais veículos como caminhão plataforma ou com rampa niveladora sem proteção lateral não
+> serão aceitos e a carga será rejeitada."
+
+| Veículo | Altura do baú | Niveladora | Quem descarrega |
+| --- | --- | --- | --- |
+| **Van** | 0,60–0,70 m | Não | Motorista + até 1 ajudante |
+| **VUC** | 0,70–0,80 m | Não | Motorista + até 1 ajudante |
+| Médio (¾) | 1,10–1,20 m | Sim | Amazon ou motorista + até 2 |
+| Toco / Truck / Carreta | 1,10–1,40 m | Sim | Amazon ou motorista + até 2 |
+
+**Carro de passeio não está na lista.** O texto cita "veículos de passeio, utilitários,
+motos" apenas para dizer que não atingem a altura mínima da niveladora (0,975 m). A menor
+categoria listada é a Van.
+
+Também recusados: assoalho de madeira ou danificado, caminhão bitrem, caminhão com abertura
+lateral que force descarga pela lateral, rampa própria sem guarda-corpo, e qualquer veículo
+com defeito em luz de ré, freio, farol, lanterna, buzina ou pisca-alerta.
+
+#### Requisitos da pessoa que entrega
+
+- **CNH válida** — vencida pelas regras do Detran, acesso negado.
+- **Colete refletivo** o tempo todo (a portaria empresta, devolve na saída).
+- **Sapatos fechados**; EPIs conforme **NR6** (luva, sapato de segurança e colete) para
+  descarregar.
+- **ID de agendamento** na portaria, com a documentação.
+- Motorista **+ no máximo um ajudante** em veículo pequeno; ajudantes entram embarcados nos
+  assentos.
+- **Veículos pequenos: quem descarrega é você.** Os associados do FC não ajudam em carga
+  não paletizada.
+- Estacionar **de ré**. 10 km/h no pátio, 20 km/h no condomínio.
+- **Proibido** aguardar no veículo ou no pátio (só nas áreas designadas), usar celular no
+  pátio, fumar fora do fumódromo, jogar lixo, manter motor ligado parado.
+- Todo contato pela **área de motoristas**, nunca pela doca. Assinar o checklist de regras
+  do pátio (Anexo 1).
+
+> **Descumprir as regras do pátio bloqueia motorista e ajudante por 30 dias.**
+
+#### Preparação da carga — regras que a página global não traz
+
+- **Só caixa de papelão.** Caixa de madeira não é aceita (exceto maquinário pesado, com
+  aprovação prévia do WHS).
+- **Sacola plástica não serve** como embalagem de transporte — só embalagem rígida.
+- Caixa **completamente selada** com fita ou cola, difícil de abrir.
+- **Cinta de arquear metálica não é aceita** (risco aos associados). Fita plástica pode, sem
+  excesso de tensão.
+- Os **6 lados** sem mancha de água ou óleo, sem mofo e sem furos.
+- **Nada de material promocional**: panfleto, display, etiqueta de preço ou qualquer
+  etiqueta que não seja da Amazon. Sem brindes ou amostras não autorizadas.
+- Atenção redobrada acima de **11 kg**. **Produto não paletizado acima de 30 kg é recusado.**
+- Palete: **só no "Envio por conta própria ou outra transportadora"** — a **Coleta FBA não
+  aceita paletizado**. Padrão PBR 1,2 × 1,0 m, altura máx. 1,6 m empilhado, máx. 700 kg,
+  stretch transparente com 3 voltas por andar, fitas não metálicas.
+
+#### Centros de distribuição (endereços no manual)
+
+**GRU8** Cajamar/SP — Av. Dr. Antonio João Abdalla, 2010, Vila Nova, 07750-620, Condomínio
+GLP. Também **GRU9** e **XCV9** em Cajamar. Fora de SP: BSB1/XBS1 (DF), CNF1/CNF2/CNF5
+(MG), FOR2/FOR3 (CE), GIG1/GIG2 (RJ), POA1 (RS), REC1/REC3 (PE).
 
 ### Ainda não capturado neste bloco
 
