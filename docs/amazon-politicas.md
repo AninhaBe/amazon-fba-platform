@@ -235,7 +235,86 @@ visão geral, solucionar problemas, e exibição/experiência do cliente.
 
 ---
 
-## 7. Pendências desta extração
+## 7. FBA — o que trava a criação do envio
+
+IDs: hub FBA `G53921` · Enviar produtos `G200141420` · Requisitos e políticas `G201030350`
+· Requisitos de inventário `G201100890` · Código de barras `G201100910` · **Atributos
+fiscais `G7JYC3MN2KYVVJ2V`**.
+
+### Atributos fiscais — o bloqueio real (Brasil)
+
+> "Produtos sem os atributos fiscais obrigatórios **não poderão ser incluídos nos envios**
+> para os centros de distribuição."
+
+Na criação da remessa a Amazon roda uma **verificação de qualificação de entrada**. Só
+conclui o envio quando todo produto tiver:
+
+| Campo | Código do atributo | Formato |
+| --- | --- | --- |
+| **Código NCM** | `ncm_code.value` | numérico, **8 dígitos**, tabela NCM vigente |
+| **Origem do produto** | `import_designation` | código **0 a 8** |
+
+Origem — os valores que importam para produto nacional e importado:
+
+- `0` Nacional (exceto 3, 4, 5 e 8)
+- `1` Estrangeira, **importação direta**
+- `2` Estrangeira, **adquirida no mercado interno**
+- `3` Nacional com conteúdo de importação **>40% e ≤70%**
+- `5` Nacional com conteúdo de importação **≤40%**
+- `8` Nacional com conteúdo de importação **>70%**
+
+Opcionais (se em branco, valem os padrões das configurações do Faturador): Atividade
+(`contributor_supply_chain_role`: Distribuidor / Importador / Fabricante), **CSOSN**
+(`tax_treatment_value`: 102, 103, 300, 400, 500), Ex-TIPI (`ncm_code.ex_tipi`), **CEST**
+(`tax_classification_code.value`, 7 dígitos, tem de ser compatível com o NCM), ANP,
+processo legal e citação legal na fatura.
+
+### Onde preencher — depende do regime
+
+- **Simples Nacional (CRT = 1) e MEI (CRT = 4):** direto na oferta, pelo catálogo.
+  Inventário → Gerenciar inventário → **Editar** → aba **Oferta** → atributos fiscais.
+- **Demais regimes (CRT = 2 ou 3):** planilha de atributos fiscais baixada nas
+  **configurações do Faturador**, preenchida e reenviada lá mesmo.
+
+**Em massa:** Produtos → Adicionar produtos → arquivo de inventário, modelo **Avançado** →
+gerar modelo → preencher SKU + atributos → Verificar e fazer upload → acompanhar em
+Monitorar status do upload.
+
+### Faturador é obrigatório
+
+Para operar no FBA é obrigatório usar o **Faturador da Amazon** para emitir nota fiscal de
+todas as transações. **"Nenhuma isenção será aplicada."** Sem atributo fiscal a Amazon não
+emite nota **e não processa o pedido**.
+
+### Código de barras
+
+- **Todo item enviado ao centro de distribuição precisa de código de barras.**
+- O **código de barras da Amazon** (FNSKU) é obrigatório para: produtos com validade, bens
+  de consumo não duráveis, produtos tópicos (creme, xampu, cosmético) e qualquer item cuja
+  preparação impeça a leitura do código original.
+- Item recebido **sem** código de barras da Amazon fica **não compatível**: pode demorar
+  mais para ser recebido **ou ser descartado**.
+- Só no **FBA Onsite** dá para rastrear pelo código de barras do fabricante.
+
+### Envio e plano de distribuição
+
+- Depois de entregue, o inventário costuma ser digitalizado e **disponível para venda em
+  até 3 dias úteis**.
+- **Não desviar do plano aprovado** — cancelar parte, rotear errado ou enviar incompleto
+  gera manuseio extra, atrasa o recebimento e **pode bloquear sua capacidade de criar
+  envios**.
+- Opções: **Enviar para a Amazon** (fluxo simplificado, produto a produto ou por planilha)
+  e **Transportadora Parceira da Amazon** (coleta no seu endereço).
+
+### Ainda não capturado neste bloco
+
+Requisitos de embalagem, etiquetas de envio, envio e roteamento, produtos vendidos como
+novos, título de produto no FBA, tarifas, reembolso por peso/dimensões, devoluções,
+critérios de qualificação e conteúdo da caixa.
+
+---
+
+## 8. Pendências desta extração
 
 Páginas do índice ainda **não** capturadas e que valem a próxima passada: Guia de
 atributos (`GBWHYLJ7NNQMXBAQ`), Variações do produto (`GF4VNS6ZQQPYYGGP`), Otimização de
