@@ -258,6 +258,37 @@ async function createSchema(): Promise<void> {
     );
     CREATE INDEX IF NOT EXISTS workspace_rank_history_idx
       ON workspace_rank_history(workspace_id, asin, captured_on DESC);
+    -- ADR-011: identidade dos ASINs acompanhados. workspace_rank_history guarda só a
+    -- série de números; aqui fica o "quem é quem" (título, foto, de qual busca veio)
+    -- e a intenção da usuária (fixado/removido), que define a prioridade da foto diária.
+    CREATE TABLE IF NOT EXISTS workspace_watchlist (
+      workspace_id     TEXT NOT NULL,
+      asin             TEXT NOT NULL,
+      title            TEXT,
+      brand            TEXT,
+      image_url        TEXT,
+      last_search_term TEXT,
+      first_seen_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+      last_seen_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+      pinned           BOOLEAN NOT NULL DEFAULT false,
+      -- Soft delete: sair da lista interrompe a captura, mas nunca destrói a série já
+      -- coletada — se o ASIN voltar, o histórico volta junto.
+      removed_at       TIMESTAMPTZ,
+      PRIMARY KEY (workspace_id, asin)
+    );
+    CREATE INDEX IF NOT EXISTS workspace_watchlist_active_idx
+      ON workspace_watchlist(workspace_id, pinned DESC, last_seen_at DESC)
+      WHERE removed_at IS NULL;
+    -- Semeia a watchlist com os ASINs que já estavam sendo fotografados antes da
+    -- ADR-011 (a foto diária lia direto de workspace_rank_history). Sem isso eles
+    -- sairiam da captura e a série seria interrompida. Idempotente: ON CONFLICT DO
+    -- NOTHING preserva inclusive o que a usuária já removeu. Título e foto ficam
+    -- nulos até a próxima passada do cron, que os preenche de graça.
+    INSERT INTO workspace_watchlist (workspace_id, asin, first_seen_at, last_seen_at)
+    SELECT workspace_id, asin, min(updated_at), max(updated_at)
+      FROM workspace_rank_history
+     GROUP BY workspace_id, asin
+    ON CONFLICT (workspace_id, asin) DO NOTHING;
     -- ADR-010: foto diária da oferta. workspace_channel_products guarda só o estado
     -- atual (é sobrescrito a cada sync); aqui fica a série temporal que permite
     -- explicar "parou de vender porque o estoque zerou anteontem".

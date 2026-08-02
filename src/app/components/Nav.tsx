@@ -9,6 +9,7 @@ import {
   Boxes,
   Calculator,
   ChevronDown,
+  History,
   LayoutDashboard,
   Megaphone,
   Radar,
@@ -45,6 +46,7 @@ const icons = {
   products: <Boxes {...iconProps} />,
   stock: <Radar {...iconProps} />,
   search: <Search {...iconProps} />,
+  history: <History {...iconProps} />,
   briefing: <Sparkles {...iconProps} />,
 };
 
@@ -75,7 +77,8 @@ const navigation: Record<WorkspaceId, NavGroup[]> = {
         { href: "/amazon/catalogo", label: "Anúncios", desc: "Catálogo publicado", icon: icons.ads },
         { href: "/amazon/produtos", label: "Produtos", desc: "Custos por SKU", icon: icons.products },
         { href: "/amazon/estoque", label: "Radar de estoque", desc: "Cobertura FBA", icon: icons.stock },
-        { href: "/amazon/pesquisa", label: "Pesquisa", desc: "Anúncios da Amazon", icon: icons.search },
+        { href: "/amazon/pesquisa", label: "Pesquisa", desc: "Anúncios da Amazon", icon: icons.search, exact: true },
+        { href: "/amazon/pesquisa/historico", label: "Histórico", desc: "O que você acompanha", icon: icons.history },
       ],
     },
     {

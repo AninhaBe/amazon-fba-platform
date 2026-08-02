@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { PageHeader, pageIcons } from "../components/PageHeader";
 import { TableLoading } from "../components/LoadingState";
@@ -91,6 +91,21 @@ export default function PesquisaPage() {
     }
   }
 
+  // ?q= vindo dos chips do histórico: preenche o campo e já busca, uma vez só.
+  // Lemos de window.location em vez de useSearchParams para não exigir Suspense.
+  const autoRan = useRef(false);
+  useEffect(() => {
+    if (autoRan.current) return;
+    autoRan.current = true;
+    const initial = new URLSearchParams(window.location.search).get("q")?.trim();
+    if (!initial) return;
+    // Não dá para semear o estado inicial direto: no SSR não existe window, e o valor
+    // divergente entre servidor e cliente quebraria a hidratação. Roda uma vez só.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setQ(initial);
+    void search(initial);
+  }, []);
+
   function run(e?: React.FormEvent) {
     e?.preventDefault();
     void search(q);
@@ -127,8 +142,17 @@ export default function PesquisaPage() {
         subtitle={
           <>
             Busque qualquer termo como na Amazon e veja, de <strong>todos</strong> os anúncios,
-            quando cada um foi criado e sua posição de vendas atual. Dados sincronizados do marketplace.
+            quando cada um foi criado e sua posição de vendas atual. Tudo que aparecer aqui passa a
+            ser acompanhado diariamente no <Link href="/amazon/pesquisa/historico" className="font-medium text-blue-600 hover:underline">histórico</Link>.
           </>
+        }
+        action={
+          <Link
+            href="/amazon/pesquisa/historico"
+            className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:border-blue-400 hover:text-blue-600"
+          >
+            Ver histórico
+          </Link>
         }
       />
 

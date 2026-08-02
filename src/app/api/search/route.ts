@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { errorResponse } from "@/lib/apiError";
 import { searchProducts } from "@/lib/search";
 import { getRankDeltas, recordRanks } from "@/lib/rankHistory";
+import { recordSeen } from "@/lib/watchlist";
 import { withAccountContext } from "@/lib/withAccount";
 
 export const runtime = "nodejs";
@@ -17,10 +18,12 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: "Digite o que quer pesquisar." }, { status: 400 });
       }
       const results = await searchProducts(q, pageToken);
-      // Captura de histórico de ranking (ADR-009): grava o rank atual dos resultados.
-      // Custo zero — o rank já veio na resposta. Uma falha aqui não quebra a busca.
+      // Captura de histórico de ranking (ADR-009) + identidade na watchlist (ADR-011).
+      // Custo zero — rank, título e foto já vieram na resposta. Falha aqui não quebra
+      // a busca. `q` fica vazio na paginação sem termo; nesse caso não sobrescreve.
       try {
         await recordRanks(results.items);
+        await recordSeen(results.items, q || undefined);
       } catch {
         /* histórico é best-effort */
       }
