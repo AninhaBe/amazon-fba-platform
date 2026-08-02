@@ -51,6 +51,52 @@ export interface SearchResults {
   nextToken?: string;
 }
 
+// --- Identidade (título/marca/foto) de vários ASINs numa chamada (ADR-011) ---
+// A mesma operação da busca aceita `identifiers` em vez de `keywords`: até 20 ASINs
+// por chamada. É o que permite preencher a watchlist herdada sem uma chamada por ASIN.
+const IDENTIFIERS_POR_CHAMADA = 20;
+
+export interface CatalogIdentity {
+  title?: string;
+  brand?: string;
+  imageUrl?: string;
+}
+
+export async function getCatalogIdentities(
+  asins: string[],
+  marketplaceId = defaultMarketplaceId()
+): Promise<Map<string, CatalogIdentity>> {
+  const map = new Map<string, CatalogIdentity>();
+  const unicos = [...new Set(asins.filter(Boolean))];
+  if (!unicos.length) return map;
+
+  const lotes: string[][] = [];
+  for (let i = 0; i < unicos.length; i += IDENTIFIERS_POR_CHAMADA) {
+    lotes.push(unicos.slice(i, i + IDENTIFIERS_POR_CHAMADA));
+  }
+
+  // Sequencial de propósito: são poucas chamadas e o rate limit da Catalog API é
+  // apertado — paralelizar aqui só trocaria latência por 429.
+  for (const lote of lotes) {
+    const data = await spapiFetch<SearchResponse>("/catalog/2022-04-01/items", {
+      query: {
+        marketplaceIds: marketplaceId,
+        identifiers: lote.join(","),
+        identifiersType: "ASIN",
+        includedData: "summaries,images",
+      },
+    }).catch(() => null);
+    if (!data) continue; // lote que falhar é pulado; os outros seguem
+    for (const it of data.items ?? []) {
+      const s = it.summaries?.[0] ?? {};
+      const imgs = it.images?.[0]?.images ?? [];
+      const biggest = imgs.slice().sort((a, b) => b.width - a.width)[0];
+      map.set(it.asin, { title: s.itemName, brand: s.brand, imageUrl: biggest?.link });
+    }
+  }
+  return map;
+}
+
 // --- Data de lançamento de um ASIN (lean, cacheada 1h) ---
 async function fetchLaunchDate(asin: string, marketplaceId: string): Promise<string | undefined> {
   const data = await spapiFetch<{ attributes?: { product_site_launch_date?: { value: string }[] } }>(

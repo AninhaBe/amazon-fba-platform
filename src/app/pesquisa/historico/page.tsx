@@ -100,15 +100,21 @@ export default function HistoricoPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [sort, setSort] = useState<SortKey>("recentes");
 
+  // Cada resposta resolve um lote de identidades que ainda faltava (ADR-011), então
+  // repetimos enquanto sobrar alguém sem título — a tabela vai se preenchendo à vista.
+  // O teto de passadas evita ficar batendo à toa em ASIN que a Amazon não resolve.
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/watchlist");
-      const data = await readJson(res);
-      if (!res.ok) throw new Error(data.error || "Não consegui carregar o histórico.");
-      setItems(data.items);
-      setTerms(data.terms);
+      for (let passada = 0; passada < 3; passada++) {
+        const res = await fetch("/api/watchlist");
+        const data = await readJson(res);
+        if (!res.ok) throw new Error(data.error || "Não consegui carregar o histórico.");
+        setItems(data.items as WatchItem[]);
+        setTerms(data.terms as string[]);
+        if (!(data.items as WatchItem[]).some((i) => !i.title)) break;
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro desconhecido.");
     } finally {

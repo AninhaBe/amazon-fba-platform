@@ -44,7 +44,12 @@ Dois caminhos, ambos sem nenhuma chamada extra:
 
 1. **Na busca** — `searchProducts` já devolve `title`, `brand` e `imageUrl`. A rota
    `/api/search` passou a gravar identidade **e** o termo pesquisado junto com o rank.
-2. **No cron** — `amazonRankSnapshot` já chamava a Catalog API por ASIN pedindo
+2. **Sob demanda, em lote** — a mesma operação da busca aceita `identifiers` em vez de
+   `keywords`: **até 20 ASINs por chamada**. A rota da watchlist resolve um lote de quem
+   ainda está sem título a cada requisição, e a tela repete até completar. É isso que
+   torna a lista herdada legível **na hora**, em ~6 chamadas para 102 ASINs, em vez de
+   esperar um dia pelo cron.
+3. **No cron** — `amazonRankSnapshot` já chamava a Catalog API por ASIN pedindo
    `includedData=salesRanks`. Passou a pedir `salesRanks,summaries,images` na **mesma
    chamada**: título, marca e foto vêm de brinde. É isso que preenche a identidade dos
    ASINs que entraram no histórico antes desta ADR (backfill natural, sem script).
