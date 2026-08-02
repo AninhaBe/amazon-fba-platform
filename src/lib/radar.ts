@@ -1,4 +1,5 @@
-import { getInventory, type StockItem } from "./inventory";
+import { dropGhostSkus, getInventory, type StockItem } from "./inventory";
+import { getListings } from "./listings";
 import { getSalesVelocity } from "./orders";
 import type { Period } from "./period";
 
@@ -32,13 +33,18 @@ function classify(item: StockItem, perDay: number, daysRemaining: number | null)
  * está coberto; sem ele, cai na Sales Velocity ao vivo (Finances v0, mais lenta).
  */
 export async function getStockRadar(period: Period, velocityOverride?: Record<string, number>): Promise<RadarRow[]> {
-  // Estoque e velocidade em paralelo (a velocidade é pulada se veio do canônico).
-  const [inventory, velocity] = await Promise.all([
+  // Estoque, anúncios e velocidade em paralelo (a velocidade é pulada se veio do
+  // canônico). Os anúncios servem só para descartar SKU fantasma — anúncio excluído
+  // que sobrou no inventário FBA, zerado, e que não é reposição de nada.
+  const [inventory, listings, velocity] = await Promise.all([
     getInventory(),
+    getListings().catch(() => []),
     velocityOverride ? Promise.resolve({ unitsBySku: velocityOverride }) : getSalesVelocity({ period }),
   ]);
 
-  const rows: RadarRow[] = inventory.map((item) => {
+  const reais = dropGhostSkus(inventory, new Set(listings.map((l) => l.sku)));
+
+  const rows: RadarRow[] = reais.map((item) => {
     const unitsSold = velocity.unitsBySku[item.sellerSku] ?? 0;
     const perDay = unitsSold / period.days;
     const daysRemaining = perDay > 0 ? item.fulfillable / perDay : null;

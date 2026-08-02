@@ -1,4 +1,4 @@
-import { getInventory } from "./inventory";
+import { getInventory, hasAnyStock } from "./inventory";
 import { getListings } from "./listings";
 import { getCosts } from "./costStore";
 
@@ -54,7 +54,9 @@ export async function getProducts(): Promise<Product[]> {
   //    ou avariado) continua aparecendo — é produto real.
   for (const inv of inventory) {
     if (map.has(inv.sellerSku)) continue;
-    if (!inv.total && !inv.fulfillable && !inv.inbound && !inv.reserved && !inv.unfulfillable) continue;
+    // `listings` vazio = relatório ainda aquecendo (SWR não espera). Sem ele, todo SKU
+    // parece órfão e o filtro esconderia o catálogo inteiro — então só filtra com ele.
+    if (listings.length && !hasAnyStock(inv)) continue;
     map.set(inv.sellerSku, {
       id: inv.sellerSku,
       sku: inv.sellerSku,
