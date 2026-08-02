@@ -306,6 +306,53 @@ emite nota **e não processa o pedido**.
 - Opções: **Enviar para a Amazon** (fluxo simplificado, produto a produto ou por planilha)
   e **Transportadora Parceira da Amazon** (coleta no seu endereço).
 
+### Etapa 1b — informações de embalagem (`GQ2HY393LHXF3GZN`)
+
+**Grupo de embalagem ≠ envio.** Depois da etapa 1, a Amazon agrupa os SKUs que **podem ir
+na mesma caixa**. O que define o agrupamento: peso e dimensões do SKU, requisitos de
+preparação e etiquetagem, e classificação de produto perigoso (hazmat vai para centro de
+distribuição próprio). Só depois de receber o conteúdo das caixas é que a Amazon decide os
+**destinos** — por isso embala-se antes de saber para onde vai.
+
+> **Nunca misture SKUs de grupos de embalagem diferentes na mesma caixa.**
+
+Duas escolhas: **"Tudo caberá em uma caixa"** ou **"Serão necessárias várias caixas"**.
+
+**Várias caixas — quatro formas de informar o conteúdo:**
+
+| Método | Como é | Bom para |
+| --- | --- | --- |
+| **Formulário da web** | Unidades por SKU por caixa; pesos; dimensões (dá para adicionar mais de um conjunto de dimensões e marcar a quais caixas se aplica) | Poucas caixas |
+| **Arquivo Excel (.xlsx)** | Gera modelo pela contagem estimada; ajustável **até 10 caixas**; cabeçalhos protegidos por senha; preencher na **metade direita** da aba "Informações sobre embalagem da caixa" | Muitas caixas |
+| **Leitura e embalagem** | Bipa o código de barras de cada produto direto na caixa; SKU e quantidade entram sozinhos; peso e dimensão ao lado do título da caixa; dá para salvar rascunho | Quem tem leitor |
+| **Códigos de barras 2D** | Informa nº de caixas, dimensões e peso; **exige a ID da remessa** (só existe depois de criada) | Operação com etiqueta 2D |
+
+**Quinta opção, paga:** *"A Amazon processa manualmente o conteúdo da caixa"* — você
+informa só quantidade de caixas, peso e dimensões, e paga a **tarifa de processamento
+manual**. A própria página avisa: envios processados manualmente **podem ser recebidos mais
+lentamente**.
+
+**A checagem dos 10%:** ao informar peso e dimensões, a Amazon compara com as unidades
+declaradas. Espera-se que o peso e o volume da caixa sejam **no máximo 10% menores** que a
+soma das unidades dentro. Fora disso aparece um aviso — que é ignorável se você tem certeza
+de que está certo.
+
+**Marque as caixas fisicamente** ("grupo 1 – caixa 1", "grupo 1 – caixa 2"…) para casar com
+a etiqueta de ID de caixa do FBA na etapa 3.
+
+**Lista de coleta:** em cada grupo de embalagem, "Exibir conteúdo" → download `.csv`. É o
+que o agente do centro de distribuição usa, e serve para conferir a sua própria embalagem.
+
+**Ajuste de quantidade:** embalar antes de confirmar os envios permite mudar quantidade sem
+limite (voltando à etapa 1). Mas **os grupos de embalagem podem mudar** se você adicionar
+ou remover SKU, ou se mudarem peso, dimensões, preparação, etiquetagem ou classificação
+hazmat — aí é preciso reenviar o conteúdo das caixas.
+
+**Pular a etapa 1b:** só em fluxos que contenham **apenas unidades individuais**, sem caixa
+já embalada nem modelo de palete, e sem Amazon Global Logistics. Nesse caso a etapa 2 vira
+2a (confirmar envios), 2b (conteúdo de caixa por envio, num único Excel) e 2c (transporte).
+Restrição: só **Frete para transporte** — **não** aceita pacote pequeno.
+
 ### Ainda não capturado neste bloco
 
 Requisitos de embalagem, etiquetas de envio, envio e roteamento, produtos vendidos como
