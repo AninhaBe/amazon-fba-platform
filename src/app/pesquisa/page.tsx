@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { ArrowDown, ArrowRight, ArrowUp } from "lucide-react";
 import { PageHeader, pageIcons } from "../components/PageHeader";
 import { TableLoading } from "../components/LoadingState";
 import { EmptyState } from "../components/EmptyState";
@@ -364,10 +365,23 @@ export default function PesquisaPage() {
                           <span className="inline-flex items-baseline gap-1.5">
                             {p.rankDelta != null && (
                               <span
-                                className={`text-[11px] font-bold tabular-nums ${p.rankDelta > 0 ? "text-emerald-600" : "text-red-500"}`}
-                                title={`${p.rankDelta > 0 ? "Subiu" : "Caiu"} ${Math.abs(p.rankDelta).toLocaleString("pt-BR")} posição(ões) desde ${p.rankPrevDate ? fmtDate(p.rankPrevDate) : "a última foto"}`}
+                                className={`inline-flex items-center gap-0.5 text-[11px] font-bold tabular-nums ${
+                                  p.rankDelta > 0 ? "text-emerald-600" : p.rankDelta < 0 ? "text-red-500" : "text-amber-500"
+                                }`}
+                                title={
+                                  p.rankDelta === 0
+                                    ? `Manteve a mesma posição desde ${p.rankPrevDate ? fmtDate(p.rankPrevDate) : "a última foto"}`
+                                    : `${p.rankDelta > 0 ? "Subiu" : "Caiu"} ${Math.abs(p.rankDelta).toLocaleString("pt-BR")} posição(ões) desde ${p.rankPrevDate ? fmtDate(p.rankPrevDate) : "a última foto"}`
+                                }
                               >
-                                {p.rankDelta > 0 ? "↑" : "↓"}{Math.abs(p.rankDelta).toLocaleString("pt-BR")}
+                                {p.rankDelta > 0 ? (
+                                  <ArrowUp className="h-3.5 w-3.5 shrink-0" strokeWidth={3} aria-hidden />
+                                ) : p.rankDelta < 0 ? (
+                                  <ArrowDown className="h-3.5 w-3.5 shrink-0" strokeWidth={3} aria-hidden />
+                                ) : (
+                                  <ArrowRight className="h-3.5 w-3.5 shrink-0" strokeWidth={3} aria-hidden />
+                                )}
+                                {Math.abs(p.rankDelta).toLocaleString("pt-BR")}
                               </span>
                             )}
                             <strong className="font-semibold text-slate-700">#{p.salesRank.toLocaleString("pt-BR")}</strong>

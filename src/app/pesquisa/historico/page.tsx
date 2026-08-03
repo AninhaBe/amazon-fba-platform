@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Pin, PinOff, X } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUp, Pin, PinOff, X } from "lucide-react";
 import { PageHeader, pageIcons } from "../../components/PageHeader";
 import { TableLoading } from "../../components/LoadingState";
 import { EmptyState } from "../../components/EmptyState";
@@ -56,9 +56,9 @@ function Sparkline({ points }: { points: RankPoint[] }) {
   const coords = points.map((p, i) => [i * step, ((p.rank - min) / span) * (h - 4) + 2] as const);
   const d = coords.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`).join(" ");
   const [lastX, lastY] = coords[coords.length - 1];
-  // Melhorou quando a posição final é menor (mais perto do topo) que a inicial.
-  const melhorou = points[points.length - 1].rank <= points[0].rank;
-  const cor = melhorou ? "#059669" : "#ef4444";
+  // Mesma semântica das setas: verde subiu, vermelho caiu, âmbar manteve.
+  const variacao = points[0].rank - points[points.length - 1].rank;
+  const cor = variacao > 0 ? "#059669" : variacao < 0 ? "#ef4444" : "#f59e0b";
   return (
     <svg
       width={w}
@@ -75,6 +75,8 @@ function Sparkline({ points }: { points: RankPoint[] }) {
 }
 
 function Delta({ value, dias }: { value?: number; dias: number }) {
+  // Sem dado e sem movimento são coisas diferentes: o traço cinza significa "ainda não
+  // dá para comparar"; o âmbar significa "comparei e não mudou".
   if (value == null) {
     return (
       <span className="text-slate-300" title={`Ainda não há foto de ${dias} dias atrás para comparar`}>
@@ -82,14 +84,26 @@ function Delta({ value, dias }: { value?: number; dias: number }) {
       </span>
     );
   }
-  if (value === 0) return <span className="text-slate-400">estável</span>;
+  // Setas de verdade (lucide) em vez dos caracteres ↑ ↓ →, que saem finos demais e
+  // parecem traço dependendo da fonte.
+  const seta = { className: "h-4 w-4 shrink-0", strokeWidth: 3, "aria-hidden": true } as const;
+  if (value === 0) {
+    return (
+      <span
+        className="inline-flex items-center justify-end gap-1 font-semibold text-amber-500"
+        title={`Manteve a mesma posição em ${dias} dias`}
+      >
+        <ArrowRight {...seta} />0
+      </span>
+    );
+  }
   const subiu = value > 0;
   return (
     <span
-      className={`font-semibold tabular-nums ${subiu ? "text-emerald-600" : "text-red-500"}`}
+      className={`inline-flex items-center justify-end gap-1 font-semibold tabular-nums ${subiu ? "text-emerald-600" : "text-red-500"}`}
       title={`${subiu ? "Subiu" : "Caiu"} ${Math.abs(value).toLocaleString("pt-BR")} posição(ões) em ${dias} dias`}
     >
-      {subiu ? "↑" : "↓"}
+      {subiu ? <ArrowUp {...seta} /> : <ArrowDown {...seta} />}
       {Math.abs(value).toLocaleString("pt-BR")}
     </span>
   );

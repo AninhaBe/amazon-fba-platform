@@ -33,7 +33,9 @@ export async function GET(req: NextRequest) {
         const deltas = await getRankDeltas(items.map((i) => i.asin));
         items = items.map((i) => {
           const d = deltas[i.asin];
-          return d?.delta != null && d.delta !== 0
+          // Delta zero também vai para a tela: "comparei e não mudou" é informação,
+          // e é diferente de "ainda não tenho com o que comparar" (delta ausente).
+          return d?.delta != null
             ? { ...i, rankDelta: d.delta, rankPrevDate: d.previousDate }
             : i;
         });
