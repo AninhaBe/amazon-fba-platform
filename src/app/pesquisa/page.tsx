@@ -7,7 +7,7 @@ import { PageHeader, pageIcons } from "../components/PageHeader";
 import { TableLoading } from "../components/LoadingState";
 import { EmptyState } from "../components/EmptyState";
 import { readJson } from "../../lib/readJson";
-import { brDate, brTime } from "../../lib/datetime";
+import { brDate } from "../../lib/datetime";
 
 interface ProductResult {
   asin: string;
@@ -68,7 +68,6 @@ export default function PesquisaPage() {
   const [sort, setSort] = useState<SortKey>("recentes");
   const [searched, setSearched] = useState(false);
   const [searchedQuery, setSearchedQuery] = useState("");
-  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
 
   async function search(query: string) {
     if (!query.trim()) return;
@@ -83,7 +82,6 @@ export default function PesquisaPage() {
       setTotal(data.total);
       setNextToken(data.nextToken);
       setSearchedQuery(query.trim());
-      setUpdatedAt(new Date());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro desconhecido.");
       setItems([]);
@@ -227,11 +225,6 @@ export default function PesquisaPage() {
         <div className="filter-toolbar flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-sm text-slate-500">{items.length} de ~{total.toLocaleString("pt-BR")} resultados</p>
-            {updatedAt && (
-              <p className="mt-0.5 text-xs text-slate-400">
-                Consultado às {brTime(updatedAt)}
-              </p>
-            )}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button
