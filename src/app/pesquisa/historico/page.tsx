@@ -93,7 +93,7 @@ function Delta({ value, dias }: { value?: number; dias: number }) {
   if (value === 0) {
     return (
       <span
-        className="inline-flex items-center justify-end gap-1 font-semibold text-amber-500"
+        className="inline-flex items-center justify-center gap-1 font-semibold text-amber-500"
         title={`Manteve a mesma posição em ${dias} dias`}
       >
         <ArrowRight {...seta} />0
@@ -107,7 +107,7 @@ function Delta({ value, dias }: { value?: number; dias: number }) {
   const melhorou = value > 0;
   return (
     <span
-      className={`inline-flex items-center justify-end gap-1 font-semibold tabular-nums ${melhorou ? "text-emerald-600" : "text-red-500"}`}
+      className={`inline-flex items-center justify-center gap-1 font-semibold tabular-nums ${melhorou ? "text-emerald-600" : "text-red-500"}`}
       title={`${melhorou ? "Melhorou" : "Piorou"} ${Math.abs(value).toLocaleString("pt-BR")} posições em ${dias} dias — o número ${melhorou ? "caiu" : "subiu"}`}
     >
       {melhorou ? <ArrowDown {...seta} /> : <ArrowUp {...seta} />}
@@ -166,7 +166,7 @@ function DeltaUltima({
   const periodo = (de && ate ? `de ${brDate(de)} a ${brDate(ate)}` : "entre as duas últimas fotos") + posicoes;
   if (value === 0) {
     return (
-      <span className="inline-flex items-center justify-end gap-1 font-semibold text-amber-500" title={`Manteve a posição ${periodo}`}>
+      <span className="inline-flex items-center justify-center gap-1 font-semibold text-amber-500" title={`Manteve a posição ${periodo}`}>
         <ArrowRight {...seta} />0
       </span>
     );
@@ -174,7 +174,7 @@ function DeltaUltima({
   const melhorou = value > 0;
   return (
     <span
-      className={`inline-flex items-center justify-end gap-1 font-semibold tabular-nums ${melhorou ? "text-emerald-600" : "text-red-500"}`}
+      className={`inline-flex items-center justify-center gap-1 font-semibold tabular-nums ${melhorou ? "text-emerald-600" : "text-red-500"}`}
       title={`${melhorou ? "Melhorou" : "Piorou"} ${Math.abs(value).toLocaleString("pt-BR")} posições ${periodo}`}
     >
       {melhorou ? <ArrowDown {...seta} /> : <ArrowUp {...seta} />}
@@ -357,19 +357,19 @@ export default function HistoricoPage() {
           <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
               <th scope="col" className="px-3 py-3">Produto</th>
-              <th scope="col" className="whitespace-nowrap px-3 py-3 text-right">
+              <th scope="col" className="whitespace-nowrap px-3 py-3 text-center">
                 Posição
                 <Ajuda texto="Posição de vendas (BSR) na categoria, na foto mais recente — é sempre o valor de hoje. Quanto MENOR o número, melhor: #1 é o mais vendido." />
               </th>
-              <th scope="col" className="whitespace-nowrap px-3 py-3 text-right">
+              <th scope="col" className="whitespace-nowrap px-3 py-3 text-center">
                 Variação
                 <Ajuda texto="Quanto o número da posição mudou entre as duas últimas fotos. A seta acompanha o número: seta para cima = o número aumentou, e como número maior é pior, ela é vermelha. Seta para baixo = o número caiu, o anúncio melhorou, e ela é verde. Passe o mouse no valor para ver as datas e as posições exatas." />
               </th>
-              <th scope="col" className="whitespace-nowrap px-3 py-3 text-right">
+              <th scope="col" className="whitespace-nowrap px-3 py-3 text-center">
                 7 dias
                 <Ajuda texto="Mesma leitura da Variação, mas comparando com a foto de 7 dias atrás. Fica vazio enquanto não existir foto daquela data — preferimos não mostrar nada a chamar de '7 dias' um intervalo diferente." />
               </th>
-              <th scope="col" className="whitespace-nowrap px-3 py-3 text-right">
+              <th scope="col" className="whitespace-nowrap px-3 py-3 text-center">
                 30 dias
                 <Ajuda texto="Mesma leitura, comparando com a foto de 30 dias atrás." />
               </th>
@@ -377,7 +377,7 @@ export default function HistoricoPage() {
                 Curva
                 <Ajuda texto="Posição ao longo dos últimos 30 dias. A linha sobe quando o anúncio melhora de posição. Verde = terminou melhor que começou; vermelho = pior; âmbar = igual." />
               </th>
-              <th scope="col" className="whitespace-nowrap px-3 py-3 text-right">
+              <th scope="col" className="whitespace-nowrap px-3 py-3 text-center">
                 Desde
                 <Ajuda texto="Quando este anúncio entrou na lista — normalmente a primeira vez que apareceu numa pesquisa sua." />
               </th>
@@ -447,9 +447,9 @@ export default function HistoricoPage() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">
+                  <td className="px-3 py-2.5 text-center tabular-nums">
                     {p.currentRank ? (
-                      <div className="flex flex-col items-end gap-0.5">
+                      <div className="flex flex-col items-center gap-0.5">
                         <strong className="font-semibold text-slate-700">#{p.currentRank.toLocaleString("pt-BR")}</strong>
                         {p.category && (
                           <span className="max-w-[22ch] truncate text-[11px] text-slate-400" title={p.category}>
@@ -461,7 +461,7 @@ export default function HistoricoPage() {
                       <span className="text-slate-300" title="Sem posição capturada — o anúncio pode não ter rank na categoria">—</span>
                     )}
                   </td>
-                  <td className="px-3 py-2.5 text-right">
+                  <td className="px-3 py-2.5 text-center">
                     <DeltaUltima
                       value={p.deltaUltima}
                       de={p.ultimaDe}
@@ -470,10 +470,10 @@ export default function HistoricoPage() {
                       rankAgora={p.currentRank}
                     />
                   </td>
-                  <td className="px-3 py-2.5 text-right"><Delta value={p.delta7} dias={7} /></td>
-                  <td className="px-3 py-2.5 text-right"><Delta value={p.delta30} dias={30} /></td>
+                  <td className="px-3 py-2.5 text-center"><Delta value={p.delta7} dias={7} /></td>
+                  <td className="px-3 py-2.5 text-center"><Delta value={p.delta30} dias={30} /></td>
                   <td className="px-3 py-2.5 text-center"><Sparkline points={p.series} /></td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-right text-xs text-slate-500">
+                  <td className="whitespace-nowrap px-3 py-2.5 text-center text-xs text-slate-500">
                     {brDate(p.firstSeenAt)}
                   </td>
                   <td className="px-3 py-2.5 text-right">
