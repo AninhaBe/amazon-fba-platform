@@ -51,6 +51,14 @@ Testado com o token da conexão **e** anonimamente. O ML fechou a busca e a
 consulta a itens de terceiros. Apps **certificadas/parceiras** (ex.: Mercado
 Turbo) têm acesso elevado que nós não temos. **Não reintroduzir esses caminhos.**
 
+> Evidência de como o Mercado Turbo faz o "sua posição no termo X" (print de
+> 03/08/2026): a ferramenta declara varrer "as primeiras 20 páginas (1000
+> anúncios)" — 20×50, o teto de paginação do `/sites/MLB/search` — e avisa que "a
+> busca direta pelo site pode variar a ordenação (buscas recentes, localização)",
+> ou seja, usa a **ordenação canônica da API**, não scraping do site. A feature é
+> trivial; o valor está na **certificação**. Destrave: programa de parceiros do ML
+> (análogo à candidatura Solution Provider da Amazon, também pendente).
+
 | Endpoint | Resultado |
 |---|---|
 | `GET /sites/{site}/search?q=...` | ❌ `403 forbidden` |
