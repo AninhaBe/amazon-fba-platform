@@ -14,7 +14,15 @@ import { recordSeen, watchlistForSnapshot, type SeenItem } from "../watchlist";
 
 const PROVIDER = "amazon";
 const CONNECTION_PREFIX = "amazon:";
-const MAX_ASINS = 150; // teto por conta/dia (rate limit da SP-API)
+// Backstop contra lista absurda — **não** é o mecanismo de controle. Quem limita de
+// verdade é o orçamento de tempo abaixo, que é medido em vez de chutado.
+//
+// Histórico: era 150 com o comentário "(rate limit da SP-API)", o que não vinha de
+// nenhum limite documentado — era uma aproximação de quanto cabia no tempo quando cada
+// ASIN custava uma chamada. Com o lote de 20, essa conta mudou de patamar, e manter um
+// número chutado só fazia a watchlist ser cortada em silêncio (uma conta com 317 ASINs
+// monitorava 150 e nunca via os outros 167).
+const MAX_ASINS = 2_000;
 const CONCURRENCY = 3;
 // A rota do cron tem maxDuration de 240s e a foto de ranking é o 3º de 5 passos.
 // Reservar uma fatia explícita evita que ela consuma o que sobra e derrube o resto.
@@ -112,9 +120,12 @@ async function snapshotOneAccount(account: AccountCtx, deadline: number): Promis
 
     const captured: { asin: string; salesRank?: number; salesRankCategory?: string }[] = [];
     const identidades: SeenItem[] = [];
+    const inicio = Date.now();
+    let lotesOk = 0;
     const lotesRestantes = await mapLimit(lotes, CONCURRENCY, deadline, async (lote) => {
       try {
         const mapa = await fetchSnapshots(lote, marketplaceId);
+        lotesOk++;
         for (const [asin, s] of mapa) {
           if (s.rank != null) captured.push({ asin, salesRank: s.rank, salesRankCategory: s.category });
           if (naWatchlist.has(asin)) {
@@ -127,18 +138,31 @@ async function snapshotOneAccount(account: AccountCtx, deadline: number): Promis
       }
     });
     const naoProcessados = lotesRestantes * POR_CHAMADA;
+    const decorrido = Date.now() - inicio;
 
     if (captured.length) await recordRanks(captured);
     // Sem termo de busca: atualiza título/foto sem mexer em last_seen_at nem ressuscitar
     // ASIN removido.
     if (identidades.length) await recordSeen(identidades).catch(() => {});
+
+    // Throughput medido: é o que permite dimensionar TOTAL_BUDGET_MS com número real
+    // em vez de estimativa. Sem isso o orçamento seria mais um chute.
+    const porLote = lotesOk ? Math.round(decorrido / lotesOk) : 0;
+    console.info(
+      `[rank-snapshot] ${asins.length} ASIN(s) em ${lotes.length} lote(s): ` +
+        `${lotesOk} ok, ${captured.length} com rank, ${decorrido}ms (${porLote}ms/lote)`
+    );
+
     // Cobertura parcial nunca é silenciosa: sem isso, "0 novos" e "faltou tempo" ficam
     // indistinguíveis no log e o histórico ganha buracos sem explicação.
     if (cortados > 0) {
-      console.warn(`[rank-snapshot] teto de ${MAX_ASINS} ASINs atingido; ${cortados} ficaram de fora hoje.`);
+      console.warn(`[rank-snapshot] backstop de ${MAX_ASINS} ASINs atingido; ${cortados} ficaram de fora hoje.`);
     }
     if (naoProcessados > 0) {
-      console.warn(`[rank-snapshot] orçamento de tempo esgotado; ${naoProcessados} ASIN(s) não foram fotografados.`);
+      console.warn(
+        `[rank-snapshot] orçamento de tempo esgotado após ${decorrido}ms; ` +
+          `~${naoProcessados} ASIN(s) não foram fotografados — entram primeiro na próxima passada.`
+      );
     }
     return captured.length;
   });
@@ -146,10 +170,21 @@ async function snapshotOneAccount(account: AccountCtx, deadline: number): Promis
 
 export async function runScheduledRankSnapshot(limit = 5): Promise<number> {
   if (!hasDb()) return 0;
-  // Ordem por quem está há mais tempo sem foto (nunca fotografado vem primeiro). A
-  // ordem anterior, por `updated_at` do sync, era arbitrária: a conta com a maior
-  // watchlist caía sempre em primeiro, consumia todo o tempo da rota no rate limit da
-  // SP-API e as demais nunca eram alcançadas — ficavam dias sem nenhuma captura.
+  // Fila de quem AINDA NÃO foi fotografado hoje, do mais carente para o menos.
+  //
+  // Duas propriedades que sustentam a escala:
+  //
+  // 1. `h.ultima < CURRENT_DATE` — conta já fotografada hoje sai da fila. Como o cron
+  //    roda a cada ~5 min, sem esse filtro cada conta era refotografada ~288x/dia,
+  //    sobrescrevendo a mesma linha (a PK é por dia) e gastando chamada à toa.
+  //
+  // 2. Ordenação por carência — com `limit` contas por passada e ~288 passadas/dia,
+  //    cabem ~288 × limit fotos diárias. Com limit=5 isso atende ~1.400 contas, cada
+  //    uma uma vez por dia. Quem não couber numa passada é o primeiro da seguinte,
+  //    porque continua sendo o mais carente.
+  //
+  // A ordem anterior (por `updated_at` do sync) era arbitrária: a conta com a maior
+  // watchlist caía sempre em primeiro e as demais ficavam dias sem captura.
   const rows = await dbQuery<{ workspace_id: string; connection_id: string }>(
     `SELECT s.workspace_id, s.connection_id
        FROM workspace_marketplace_syncs s
@@ -158,10 +193,12 @@ export async function runScheduledRankSnapshot(limit = 5): Promise<number> {
            FROM workspace_rank_history GROUP BY workspace_id
        ) h ON h.workspace_id = s.workspace_id
       WHERE s.provider = $1
+        AND (h.ultima IS NULL OR h.ultima < CURRENT_DATE)
       ORDER BY h.ultima ASC NULLS FIRST, s.updated_at DESC
       LIMIT $2`,
     [PROVIDER, limit]
   );
+  if (!rows.length) return 0; // todas já fotografadas hoje
 
   // Teto por conta: garante que a segunda da fila ainda tenha tempo de rodar dentro do
   // maxDuration da rota. Quem não couber hoje passa a ser o primeiro da fila amanhã.
