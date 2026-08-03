@@ -64,6 +64,10 @@ async function fetchSnapshots(asins: string[], marketplaceId: string): Promise<M
       identifiers: asins.join(","),
       identifiersType: "ASIN",
       includedData: "salesRanks,summaries,images",
+      // OBRIGATÓRIO: o padrão da API é 10 por página. Sem isto, um lote de 20
+      // identifiers devolve só 10 itens (com nextToken) e metade some em silêncio —
+      // resposta 200, nenhum erro, e a cobertura caía pela metade.
+      pageSize: POR_CHAMADA,
     },
   });
   for (const it of data.items ?? []) {

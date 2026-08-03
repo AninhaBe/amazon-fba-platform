@@ -84,6 +84,8 @@ export async function getCatalogIdentities(
         identifiers: lote.join(","),
         identifiersType: "ASIN",
         includedData: "summaries,images",
+        // O padrão da API é 10 por página: sem isto metade do lote some em silêncio.
+        pageSize: IDENTIFIERS_POR_CHAMADA,
       },
     }).catch(() => null);
     if (!data) continue; // lote que falhar é pulado; os outros seguem
