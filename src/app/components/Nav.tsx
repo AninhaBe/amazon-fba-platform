@@ -130,6 +130,8 @@ const navigation: Record<WorkspaceId, NavGroup[]> = {
 };
 
 const COLLAPSE_KEY = "sc-nav-collapsed";
+// Guarda os ABERTOS (e não os fechados): a sanfona nasce recolhida.
+const SUBNAV_KEY = "sc-nav-sub-open";
 
 function isActive(pathname: string, item: NavItem) {
   return item.exact ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -140,13 +142,23 @@ function flatten(items: NavItem[]): NavItem[] {
   return items.flatMap((item) => [item, ...(item.children ?? [])]);
 }
 
-function ItemLink({ item, active, tabIndex, sub }: { item: NavItem; active: boolean; tabIndex?: number; sub?: boolean }) {
+function ItemLink({
+  item,
+  active,
+  tabIndex,
+  sub,
+}: {
+  item: NavItem;
+  active: boolean;
+  tabIndex?: number;
+  sub?: boolean;
+}) {
   return (
     <Link
       href={item.href}
       aria-current={active ? "page" : undefined}
       tabIndex={tabIndex}
-      className={`rail-nav-item group relative flex items-center gap-2.5 px-2.5${sub ? " is-sub py-2" : " py-2.5"}${active ? " is-active" : ""}`}
+      className={`rail-nav-item group relative flex flex-1 items-center gap-2.5 px-2.5${sub ? " is-sub py-2" : " py-2.5"}${active ? " is-active" : ""}`}
     >
       <span className={`rail-nav-icon flex shrink-0 items-center justify-center ${sub ? "h-5 w-5" : "h-6 w-6"}`}>{item.icon}</span>
       <span className="min-w-0">
@@ -163,18 +175,57 @@ function ItemLink({ item, active, tabIndex, sub }: { item: NavItem; active: bool
   );
 }
 
-/** Item e, logo abaixo, seus sub-itens recuados sob uma guia vertical. */
-function ItemBlock({ item, pathname, tabIndex }: { item: NavItem; pathname: string; tabIndex?: number }) {
+/**
+ * Item com sub-itens em sanfona. A setinha é um controle SEPARADO do link: clicar no
+ * rótulo navega, clicar na setinha só abre ou fecha — e o estado sobrevive à navegação
+ * e ao reload, guardado no localStorage.
+ *
+ * Um cuidado: entrar num filho força a abertura. Sem isso dava para estar no Histórico
+ * com a sanfona fechada, escondendo justamente o item onde a pessoa está.
+ */
+function ItemBlock({
+  item,
+  pathname,
+  tabIndex,
+  aberto,
+  onToggle,
+}: {
+  item: NavItem;
+  pathname: string;
+  tabIndex?: number;
+  aberto: boolean;
+  onToggle: (href: string) => void;
+}) {
   if (!item.children?.length) {
     return <ItemLink item={item} active={isActive(pathname, item)} tabIndex={tabIndex} />;
   }
   return (
-    <div className="flex flex-col gap-1">
-      <ItemLink item={item} active={isActive(pathname, item)} tabIndex={tabIndex} />
-      <div className="rail-subnav flex flex-col gap-1">
-        {item.children.map((child) => (
-          <ItemLink key={child.href} item={child} active={isActive(pathname, child)} tabIndex={tabIndex} sub />
-        ))}
+    <div className="flex flex-col">
+      <div className="flex items-stretch">
+        <ItemLink item={item} active={isActive(pathname, item)} tabIndex={tabIndex} />
+        <button
+          type="button"
+          className="rail-subnav-toggle"
+          aria-expanded={aberto}
+          aria-label={`${aberto ? "Recolher" : "Expandir"} ${item.label}`}
+          tabIndex={tabIndex}
+          onClick={() => onToggle(item.href)}
+        >
+          <ChevronDown className={`rail-subnav-chevron h-3.5 w-3.5${aberto ? " is-open" : ""}`} strokeWidth={2.4} aria-hidden />
+        </button>
+      </div>
+      <div className={`rail-subnav-body${aberto ? " is-open" : ""}`} aria-hidden={!aberto}>
+        <div className="rail-subnav flex flex-col gap-1 pt-1">
+          {item.children.map((child) => (
+            <ItemLink
+              key={child.href}
+              item={child}
+              active={isActive(pathname, child)}
+              tabIndex={aberto ? tabIndex : -1}
+              sub
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -207,6 +258,52 @@ export function NavLinks({ variant }: { variant: "sidebar" | "top" }) {
       // ignora storage indisponível
     }
   }, [collapsed]);
+
+  // --- sanfona dos sub-itens (guarda os ABERTOS: nasce recolhida) ---
+  const [subAbertos, setSubAbertos] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(SUBNAV_KEY);
+      // Hidratação a partir do localStorage: não existe no servidor, então só dá para
+      // ler depois da montagem. Mesmo padrão já usado pelo COLLAPSE_KEY acima.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (raw) setSubAbertos(new Set(JSON.parse(raw) as string[]));
+    } catch {
+      // ignora storage indisponível
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated.current) return;
+    try {
+      localStorage.setItem(SUBNAV_KEY, JSON.stringify([...subAbertos]));
+    } catch {
+      // ignora storage indisponível
+    }
+  }, [subAbertos]);
+
+  // Entrar num sub-item força a abertura — senão dá para estar no Histórico com a
+  // sanfona fechada, escondendo justamente o item onde a pessoa está.
+  useEffect(() => {
+    const pai = navigation[workspaceFromPath(pathname)]
+      .flatMap((g) => g.items)
+      .find((i) => i.children?.some((c) => isActive(pathname, c)));
+    if (!pai) return;
+    // Sincroniza a sanfona com a rota — é reação a mudança externa (navegação), não
+    // render em cascata: o updater devolve o mesmo Set quando já está aberto.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSubAbertos((prev) => (prev.has(pai.href) ? prev : new Set(prev).add(pai.href)));
+  }, [pathname]);
+
+  function toggleSub(href: string) {
+    setSubAbertos((prev) => {
+      const next = new Set(prev);
+      if (next.has(href)) next.delete(href);
+      else next.add(href);
+      return next;
+    });
+  }
 
   // A seção da página atual nunca fica escondida: ao navegar, ela abre sozinha.
   useEffect(() => {
@@ -256,7 +353,7 @@ export function NavLinks({ variant }: { variant: "sidebar" | "top" }) {
           return (
             <div key={`group-${index}`} className="rail-group flex flex-col gap-1" data-tone={group.tone}>
               {group.items.map((item) => (
-                <ItemBlock key={item.href} item={item} pathname={pathname} />
+                <ItemBlock key={item.href} item={item} pathname={pathname} aberto={subAbertos.has(item.href)} onToggle={toggleSub} />
               ))}
             </div>
           );
@@ -273,7 +370,14 @@ export function NavLinks({ variant }: { variant: "sidebar" | "top" }) {
             <div id={bodyId} className={`rail-group-body${open ? " is-open" : ""}`} aria-hidden={!open}>
               <div className="rail-group-body-inner flex flex-col gap-1 pt-1">
                 {group.items.map((item) => (
-                  <ItemBlock key={item.href} item={item} pathname={pathname} tabIndex={open ? undefined : -1} />
+                  <ItemBlock
+                    key={item.href}
+                    item={item}
+                    pathname={pathname}
+                    tabIndex={open ? undefined : -1}
+                    aberto={subAbertos.has(item.href)}
+                    onToggle={toggleSub}
+                  />
                 ))}
               </div>
             </div>
