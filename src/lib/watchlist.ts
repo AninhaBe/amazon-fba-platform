@@ -94,6 +94,8 @@ export interface WatchlistEntry {
    */
   deltaUltima?: number;
   ultimaDe?: string;
+  /** Posição na foto anterior — deixa o tooltip dizer "#23.238 → #28.853". */
+  ultimaRank?: number;
   series: RankPoint[];
 }
 
@@ -182,6 +184,7 @@ export async function listWatchlist(): Promise<WatchlistEntry[]> {
       // Duas últimas fotos, sem exigir corte — é o que sempre tem dado quando há série.
       deltaUltima: full.length >= 2 ? full[full.length - 2].rank - full[full.length - 1].rank : undefined,
       ultimaDe: full.length >= 2 ? full[full.length - 2].date : undefined,
+      ultimaRank: full.length >= 2 ? full[full.length - 2].rank : undefined,
       // A curva mostra os últimos 30 dias; a janela maior existe só para os cortes.
       series: full.filter((p) => p.date >= cut30).slice(-SERIES_DAYS),
     };

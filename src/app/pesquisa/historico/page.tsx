@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowDown, ArrowRight, ArrowUp, Pin, PinOff, X } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUp, Info, Pin, PinOff, X } from "lucide-react";
 import { PageHeader, pageIcons } from "../../components/PageHeader";
 import { TableLoading } from "../../components/LoadingState";
 import { EmptyState } from "../../components/EmptyState";
@@ -30,6 +30,7 @@ interface WatchItem {
   delta30?: number;
   deltaUltima?: number;
   ultimaDe?: string;
+  ultimaRank?: number;
   series: RankPoint[];
 }
 
@@ -111,8 +112,39 @@ function Delta({ value, dias }: { value?: number; dias: number }) {
   );
 }
 
+/**
+ * "i" de ajuda no cabeçalho. A confusão que ele resolve é real: em BSR número maior é
+ * PIOR, então "subiu de posição" significa o número diminuir — e a seta verde aparece
+ * quando o valor cai. Sem dizer isso, a tabela é lida ao contrário.
+ */
+function Ajuda({ texto }: { texto: string }) {
+  return (
+    <span
+      tabIndex={0}
+      role="img"
+      aria-label={texto}
+      title={texto}
+      className="ml-1 inline-flex cursor-help align-middle text-slate-400 hover:text-blue-600 focus:text-blue-600 focus:outline-none"
+    >
+      <Info className="h-3.5 w-3.5" strokeWidth={2.2} aria-hidden />
+    </span>
+  );
+}
+
 /** Variação entre as duas últimas fotos — sem exigir corte de 7 ou 30 dias. */
-function DeltaUltima({ value, de, ate }: { value?: number; de?: string; ate?: string }) {
+function DeltaUltima({
+  value,
+  de,
+  ate,
+  rankAntes,
+  rankAgora,
+}: {
+  value?: number;
+  de?: string;
+  ate?: string;
+  rankAntes?: number;
+  rankAgora?: number;
+}) {
   const seta = { className: "h-4 w-4 shrink-0", strokeWidth: 3, "aria-hidden": true } as const;
   if (value == null) {
     return (
@@ -121,7 +153,13 @@ function DeltaUltima({ value, de, ate }: { value?: number; de?: string; ate?: st
       </span>
     );
   }
-  const periodo = de && ate ? `de ${brDate(de)} a ${brDate(ate)}` : "entre as duas últimas fotos";
+  // O tooltip mostra as posições concretas: é o que desfaz a leitura invertida
+  // ("perdeu 5.615" fica óbvio como #23.238 → #28.853).
+  const posicoes =
+    rankAntes != null && rankAgora != null
+      ? ` — de #${rankAntes.toLocaleString("pt-BR")} para #${rankAgora.toLocaleString("pt-BR")}`
+      : "";
+  const periodo = (de && ate ? `de ${brDate(de)} a ${brDate(ate)}` : "entre as duas últimas fotos") + posicoes;
   if (value === 0) {
     return (
       <span className="inline-flex items-center justify-end gap-1 font-semibold text-amber-500" title={`Manteve a posição ${periodo}`}>
@@ -315,16 +353,30 @@ export default function HistoricoPage() {
           <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
               <th scope="col" className="px-3 py-3">Produto</th>
-              <th scope="col" className="whitespace-nowrap px-3 py-3 text-right" title="Posição atual de vendas na categoria. Quanto menor, melhor.">
+              <th scope="col" className="whitespace-nowrap px-3 py-3 text-right">
                 Posição
+                <Ajuda texto="Posição de vendas (BSR) na categoria, na foto mais recente — é sempre o valor de hoje. Quanto MENOR o número, melhor: #1 é o mais vendido." />
               </th>
-              <th scope="col" className="whitespace-nowrap px-3 py-3 text-right" title="Diferença entre as duas últimas fotos, quaisquer que sejam as datas">
+              <th scope="col" className="whitespace-nowrap px-3 py-3 text-right">
                 Variação
+                <Ajuda texto="Quantas posições o anúncio ganhou ou perdeu entre as duas últimas fotos. Seta verde para cima = ganhou posições (o número DIMINUIU). Seta vermelha para baixo = perdeu posições (o número aumentou). Passe o mouse no valor para ver as datas comparadas." />
               </th>
-              <th scope="col" className="whitespace-nowrap px-3 py-3 text-right">7 dias</th>
-              <th scope="col" className="whitespace-nowrap px-3 py-3 text-right">30 dias</th>
-              <th scope="col" className="whitespace-nowrap px-3 py-3 text-center">Curva</th>
-              <th scope="col" className="whitespace-nowrap px-3 py-3 text-right">Desde</th>
+              <th scope="col" className="whitespace-nowrap px-3 py-3 text-right">
+                7 dias
+                <Ajuda texto="Mesma leitura da Variação, mas comparando com a foto de 7 dias atrás. Fica vazio enquanto não existir foto daquela data — preferimos não mostrar nada a chamar de '7 dias' um intervalo diferente." />
+              </th>
+              <th scope="col" className="whitespace-nowrap px-3 py-3 text-right">
+                30 dias
+                <Ajuda texto="Mesma leitura, comparando com a foto de 30 dias atrás." />
+              </th>
+              <th scope="col" className="whitespace-nowrap px-3 py-3 text-center">
+                Curva
+                <Ajuda texto="Posição ao longo dos últimos 30 dias. A linha sobe quando o anúncio melhora de posição. Verde = terminou melhor que começou; vermelho = pior; âmbar = igual." />
+              </th>
+              <th scope="col" className="whitespace-nowrap px-3 py-3 text-right">
+                Desde
+                <Ajuda texto="Quando este anúncio entrou na lista — normalmente a primeira vez que apareceu numa pesquisa sua." />
+              </th>
               <th scope="col" className="px-3 py-3 text-right">Ações</th>
             </tr>
           </thead>
@@ -406,7 +458,13 @@ export default function HistoricoPage() {
                     )}
                   </td>
                   <td className="px-3 py-2.5 text-right">
-                    <DeltaUltima value={p.deltaUltima} de={p.ultimaDe} ate={p.currentDate} />
+                    <DeltaUltima
+                      value={p.deltaUltima}
+                      de={p.ultimaDe}
+                      ate={p.currentDate}
+                      rankAntes={p.ultimaRank}
+                      rankAgora={p.currentRank}
+                    />
                   </td>
                   <td className="px-3 py-2.5 text-right"><Delta value={p.delta7} dias={7} /></td>
                   <td className="px-3 py-2.5 text-right"><Delta value={p.delta30} dias={30} /></td>
