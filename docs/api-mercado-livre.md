@@ -57,6 +57,7 @@ Turbo) têm acesso elevado que nós não temos. **Não reintroduzir esses caminh
 | `GET /sites/{site}/search?category=...` | ❌ `403 forbidden` |
 | `GET /sites/{site}/search?seller_id=...` | ❌ `403 forbidden` |
 | `GET /users/{OUTRO_id}/items/search` | ❌ `Searching another user items is restricted.` |
+| `GET /items/{id}` de item de **TERCEIRO** | ❌ `403 forbidden` (**apertou em 2026-08-03** — em 23/07 ainda funcionava; para itens **próprios** segue OK) |
 | Qualquer chamada **anônima** (sem token) | ❌ `403` — `blocked_by: PolicyAgent` |
 
 Consequências: (1) não dá para descobrir o anúncio de **outro** vendedor a partir
@@ -65,11 +66,25 @@ e categoria (pelo domínio) com **preço em branco**, e a calculadora deixa o ca
 editável; (2) inviabiliza ranqueamento por termo de busca; (3) todo fallback
 "tenta público sem token" virou código morto — foram removidos.
 
-Continuam funcionando (com token): `/users/{me}/items/search`, `/items/{id}`,
+Continuam funcionando (com token, reverificado em 2026-08-03):
+`/users/{me}/items/search`, `/items/{id}` **só de itens próprios**,
 `/items/{id}/sale_price`, `/sites/{site}/listing_prices`,
 `/catalog_domains/{domain}/categories`, `/users/{id}` (dados públicos de
-terceiro), `/highlights/{site}/category/{id}`, `/trends/{site}` e
-`/products/search?q=` (produtos de catálogo).
+terceiro), `/highlights/{site}/category/{id}` (top 20 da categoria, com
+`position` e ids `PRODUCT`/`ITEM`), `/trends/{site}` (50 termos mais buscados) e
+`/products/search?q=` (produtos de catálogo; devolve identidade, sem preço).
+
+**Pesquisa de mercado — o que sobrou de útil (sondado em 2026-08-03):**
+
+- `/products/{id}` → `buy_box_winner` (item, preço, seller, tipo de envio) — pode
+  vir `null` mesmo em produto ativo.
+- `/products/{id}/items` → **concorrentes do catálogo com preço**, seller_id,
+  listing_type, official_store e shipping. **Sem** `sold_quantity` e **sem**
+  `available_quantity`.
+- Consequência: no ML **não existe** equivalente ao BSR por anúncio nem venda de
+  terceiro (`sold_quantity` ficou inacessível). Posição só existe no **top 20 por
+  categoria** (highlights). Em compensação, **preço da concorrência de catálogo**
+  e **termos mais buscados** são dados que a Amazon não dá.
 
 ## Webhooks (`mercadoLivreWebhook.ts`)
 
