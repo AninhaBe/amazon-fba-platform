@@ -211,6 +211,26 @@ export async function listSearchTerms(limit = 12): Promise<string[]> {
   return rows.map((r) => r.term);
 }
 
+/**
+ * Dentre estes ASINs, quais merecem uma foto nova agora: a de hoje não existe ou tem
+ * mais de `minutos` de idade. É o freio da atualização ao vivo — abrir a página cinco
+ * vezes seguidas gera uma chamada à Amazon, não cinco.
+ */
+export async function asinsDesatualizados(asins: string[], minutos: number): Promise<string[]> {
+  const ws = optionalWorkspaceId();
+  const unique = [...new Set(asins.filter(isValidAsin))];
+  if (!ws || !hasDb() || !unique.length) return [];
+  const rows = await dbQuery<{ asin: string }>(
+    `SELECT asin FROM workspace_rank_history
+      WHERE workspace_id = $1 AND asin = ANY($2::text[])
+        AND captured_on = CURRENT_DATE
+        AND updated_at > now() - make_interval(mins => $3)`,
+    [ws, unique, minutos]
+  );
+  const frescos = new Set(rows.map((r) => r.asin));
+  return unique.filter((a) => !frescos.has(a));
+}
+
 /** Quais destes ASINs já estão sendo monitorados — para a busca marcar o botão. */
 export async function listMonitored(asins: string[]): Promise<Set<string>> {
   const ws = optionalWorkspaceId();

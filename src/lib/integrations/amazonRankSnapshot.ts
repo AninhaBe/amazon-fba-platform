@@ -39,7 +39,7 @@ interface CatalogItem {
   images?: { images: { link: string; height: number; width: number }[] }[];
 }
 
-interface Snapshot {
+export interface Snapshot {
   rank?: number;
   category?: string;
   title?: string;
@@ -56,7 +56,7 @@ interface Snapshot {
 // para a classificação, igual à /pesquisa.
 const POR_CHAMADA = 20;
 
-async function fetchSnapshots(asins: string[], marketplaceId: string): Promise<Map<string, Snapshot>> {
+export async function fetchSnapshots(asins: string[], marketplaceId: string): Promise<Map<string, Snapshot>> {
   const out = new Map<string, Snapshot>();
   const data = await spapiFetch<{ items?: (CatalogItem & { asin: string })[] }>("/catalog/2022-04-01/items", {
     query: {

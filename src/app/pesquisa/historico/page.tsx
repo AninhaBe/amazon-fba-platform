@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowDown, ArrowRight, ArrowUp, Info, Pin, PinOff, X } from "lucide-react";
 import { PageHeader, pageIcons } from "../../components/PageHeader";
@@ -192,6 +192,7 @@ export default function HistoricoPage() {
   const [sort, setSort] = useState<SortKey>("recentes");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
+  const [atualizando, setAtualizando] = useState(false);
 
   // Cada resposta resolve um lote de identidades que ainda faltava (ADR-011), então
   // repetimos enquanto sobrar alguém sem título — a tabela vai se preenchendo à vista.
@@ -270,6 +271,42 @@ export default function HistoricoPage() {
   const current = Math.min(page, pageCount);
   const paged = visible.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
 
+  // Atualização ao vivo: ao exibir uma página, rebusca a posição SÓ das linhas visíveis,
+  // em segundo plano — a tabela pinta na hora com a última foto e os números se corrigem
+  // quando a resposta chega. O servidor pula quem tem foto de menos de 30 min, então
+  // reabrir a página não repete chamadas. O valor novo sobrescreve a linha de HOJE;
+  // dias anteriores são imutáveis, e é deles que a variação vem.
+  const chaveVisivel = paged.map((p) => p.asin).join(",");
+  const jaAtualizadas = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!chaveVisivel || loading) return;
+    if (jaAtualizadas.current.has(chaveVisivel)) return;
+    jaAtualizadas.current.add(chaveVisivel);
+    let vivo = true;
+    (async () => {
+      setAtualizando(true);
+      try {
+        const res = await fetch("/api/watchlist/refresh", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ asins: chaveVisivel.split(",") }),
+        });
+        const data = await readJson(res);
+        if (res.ok && vivo) {
+          setItems(data.items);
+          setTerms(data.terms);
+        }
+      } catch {
+        // best-effort: a última foto continua na tela
+      } finally {
+        if (vivo) setAtualizando(false);
+      }
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [chaveVisivel, loading]);
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -335,6 +372,7 @@ export default function HistoricoPage() {
               {query.trim()
                 ? `${visible.length} de ${items.length} anúncio(s)`
                 : `${items.length} anúncio(s) acompanhado(s)`}
+              {atualizando && <span className="ml-2 text-xs text-blue-500">· atualizando posições…</span>}
             </p>
           </div>
           <div className="flex gap-1 rounded-lg border border-slate-200 bg-white p-1 text-xs">
