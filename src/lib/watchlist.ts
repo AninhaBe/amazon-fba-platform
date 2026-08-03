@@ -86,6 +86,14 @@ export interface WatchlistEntry {
   /** Positivo = melhorou de posição. undefined = ainda sem foto naquele corte. */
   delta7?: number;
   delta30?: number;
+  /**
+   * Variação entre as duas últimas fotos, sejam quais forem as datas. Existe porque
+   * os cortes de 7 e 30 dias são estritos: um ASIN fotografado em 01/08 e 03/08 tem
+   * movimento real e ficava com as duas colunas vazias — a informação existia e não
+   * aparecia em lugar nenhum.
+   */
+  deltaUltima?: number;
+  ultimaDe?: string;
   series: RankPoint[];
 }
 
@@ -171,6 +179,9 @@ export async function listWatchlist(): Promise<WatchlistEntry[]> {
       currentDate: current?.captured_on,
       delta7: deltaAt(full, cut7),
       delta30: deltaAt(full, cut30),
+      // Duas últimas fotos, sem exigir corte — é o que sempre tem dado quando há série.
+      deltaUltima: full.length >= 2 ? full[full.length - 2].rank - full[full.length - 1].rank : undefined,
+      ultimaDe: full.length >= 2 ? full[full.length - 2].date : undefined,
       // A curva mostra os últimos 30 dias; a janela maior existe só para os cortes.
       series: full.filter((p) => p.date >= cut30).slice(-SERIES_DAYS),
     };

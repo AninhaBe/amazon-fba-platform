@@ -28,6 +28,8 @@ interface WatchItem {
   currentDate?: string;
   delta7?: number;
   delta30?: number;
+  deltaUltima?: number;
+  ultimaDe?: string;
   series: RankPoint[];
 }
 
@@ -109,6 +111,36 @@ function Delta({ value, dias }: { value?: number; dias: number }) {
   );
 }
 
+/** Variação entre as duas últimas fotos — sem exigir corte de 7 ou 30 dias. */
+function DeltaUltima({ value, de, ate }: { value?: number; de?: string; ate?: string }) {
+  const seta = { className: "h-4 w-4 shrink-0", strokeWidth: 3, "aria-hidden": true } as const;
+  if (value == null) {
+    return (
+      <span className="text-slate-300" title="Só há uma foto até agora — sem comparação possível">
+        —
+      </span>
+    );
+  }
+  const periodo = de && ate ? `de ${brDate(de)} a ${brDate(ate)}` : "entre as duas últimas fotos";
+  if (value === 0) {
+    return (
+      <span className="inline-flex items-center justify-end gap-1 font-semibold text-amber-500" title={`Manteve a posição ${periodo}`}>
+        <ArrowRight {...seta} />0
+      </span>
+    );
+  }
+  const subiu = value > 0;
+  return (
+    <span
+      className={`inline-flex items-center justify-end gap-1 font-semibold tabular-nums ${subiu ? "text-emerald-600" : "text-red-500"}`}
+      title={`${subiu ? "Subiu" : "Caiu"} ${Math.abs(value).toLocaleString("pt-BR")} posição(ões) ${periodo}`}
+    >
+      {subiu ? <ArrowUp {...seta} /> : <ArrowDown {...seta} />}
+      {Math.abs(value).toLocaleString("pt-BR")}
+    </span>
+  );
+}
+
 export default function HistoricoPage() {
   const [items, setItems] = useState<WatchItem[]>([]);
   const [terms, setTerms] = useState<string[]>([]);
@@ -170,10 +202,13 @@ export default function HistoricoPage() {
   // Fixados sempre no topo — a ordenação escolhida vale dentro de cada bloco.
   const visible = useMemo(() => {
     const q = query.trim().toLocaleLowerCase("pt-BR");
+    // Ordena pelo movimento que existe: 7 dias quando há, senão o das duas últimas
+    // fotos. Antes só olhava 7/30 dias e, com a série curta, tudo empatava em zero.
+    const mov = (i: WatchItem) => i.delta7 ?? i.deltaUltima ?? i.delta30;
     const peso = (i: WatchItem) => {
-      if (sort === "alta") return -(i.delta7 ?? i.delta30 ?? -Infinity);
-      if (sort === "queda") return i.delta7 ?? i.delta30 ?? Infinity;
-      return 0;
+      const m = mov(i);
+      if (m == null) return Infinity; // sem dado vai para o fim nas duas ordenações
+      return sort === "alta" ? -m : sort === "queda" ? m : 0;
     };
     return items
       .filter(
@@ -283,6 +318,9 @@ export default function HistoricoPage() {
               <th scope="col" className="whitespace-nowrap px-3 py-3 text-right" title="Posição atual de vendas na categoria. Quanto menor, melhor.">
                 Posição
               </th>
+              <th scope="col" className="whitespace-nowrap px-3 py-3 text-right" title="Diferença entre as duas últimas fotos, quaisquer que sejam as datas">
+                Variação
+              </th>
               <th scope="col" className="whitespace-nowrap px-3 py-3 text-right">7 dias</th>
               <th scope="col" className="whitespace-nowrap px-3 py-3 text-right">30 dias</th>
               <th scope="col" className="whitespace-nowrap px-3 py-3 text-center">Curva</th>
@@ -366,6 +404,9 @@ export default function HistoricoPage() {
                     ) : (
                       <span className="text-slate-300" title="Sem posição capturada — o anúncio pode não ter rank na categoria">—</span>
                     )}
+                  </td>
+                  <td className="px-3 py-2.5 text-right">
+                    <DeltaUltima value={p.deltaUltima} de={p.ultimaDe} ate={p.currentDate} />
                   </td>
                   <td className="px-3 py-2.5 text-right"><Delta value={p.delta7} dias={7} /></td>
                   <td className="px-3 py-2.5 text-right"><Delta value={p.delta30} dias={30} /></td>
