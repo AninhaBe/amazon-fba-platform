@@ -75,13 +75,17 @@ export async function runScheduledAmazonOfferSnapshot(limit = 5): Promise<number
       ? row.connection_id.slice(CONNECTION_PREFIX.length)
       : row.connection_id;
     try {
-      const account = await getAccount(sellerId);
-      if (!account?.refreshToken) continue;
-      total += await runWithWorkspace(row.workspace_id, () =>
-        snapshotOneAccount(account, row.connection_id)
-      );
-    } catch {
-      // Uma conta que falhar não derruba as outras nem o cron.
+      // getAccount() lê currentWorkspaceId() e LANÇA sem contexto — por isso ele tem
+      // de vir DENTRO do runWithWorkspace. Fora dele, esta função estourava na
+      // primeira conta e o cron reportava 0 sem nunca gravar nada.
+      total += await runWithWorkspace(row.workspace_id, async () => {
+        const account = await getAccount(sellerId);
+        if (!account?.refreshToken) return 0;
+        return snapshotOneAccount(account, row.connection_id);
+      });
+    } catch (err) {
+      // Uma conta que falhar não derruba as outras nem o cron — mas o erro aparece.
+      console.error(`[offer-snapshot] falhou em ${row.workspace_id}/${sellerId}:`, err);
     }
   }
   return total;

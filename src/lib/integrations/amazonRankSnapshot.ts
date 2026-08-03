@@ -39,25 +39,40 @@ interface Snapshot {
   imageUrl?: string;
 }
 
-// `summaries,images` viajam de graça na mesma chamada que já fazíamos pelo rank —
-// é o que mantém título e foto da watchlist atualizados sem nenhuma requisição extra
-// (ADR-011). Rank: grupo amplo com fallback pra classificação, igual à /pesquisa.
-async function fetchSnapshot(asin: string, marketplaceId: string): Promise<Snapshot | null> {
-  const data = await spapiFetch<CatalogItem>(`/catalog/2022-04-01/items/${encodeURIComponent(asin)}`, {
-    query: { marketplaceIds: marketplaceId, includedData: "salesRanks,summaries,images" },
+// A mesma operação da busca aceita `identifiers` em vez de `keywords`: **20 ASINs por
+// chamada**. Antes era um ASIN por requisição, o que fazia a passada custar 20x mais
+// tempo e bater no orçamento do cron antes de terminar.
+//
+// `summaries,images` viajam de graça junto do rank — é o que mantém título e foto da
+// watchlist atualizados sem requisição extra (ADR-011). Rank: grupo amplo com fallback
+// para a classificação, igual à /pesquisa.
+const POR_CHAMADA = 20;
+
+async function fetchSnapshots(asins: string[], marketplaceId: string): Promise<Map<string, Snapshot>> {
+  const out = new Map<string, Snapshot>();
+  const data = await spapiFetch<{ items?: (CatalogItem & { asin: string })[] }>("/catalog/2022-04-01/items", {
+    query: {
+      marketplaceIds: marketplaceId,
+      identifiers: asins.join(","),
+      identifiersType: "ASIN",
+      includedData: "salesRanks,summaries,images",
+    },
   });
-  const ranks = data.salesRanks?.[0];
-  const best = ranks?.displayGroupRanks?.[0] ?? ranks?.classificationRanks?.[0];
-  const summary = data.summaries?.[0];
-  const biggest = (data.images?.[0]?.images ?? []).slice().sort((a, b) => b.width - a.width)[0];
-  if (!best && !summary && !biggest) return null;
-  return {
-    rank: best?.rank,
-    category: best?.title,
-    title: summary?.itemName,
-    brand: summary?.brand,
-    imageUrl: biggest?.link,
-  };
+  for (const it of data.items ?? []) {
+    const ranks = it.salesRanks?.[0];
+    const best = ranks?.displayGroupRanks?.[0] ?? ranks?.classificationRanks?.[0];
+    const summary = it.summaries?.[0];
+    const biggest = (it.images?.[0]?.images ?? []).slice().sort((a, b) => b.width - a.width)[0];
+    if (!best && !summary && !biggest) continue;
+    out.set(it.asin, {
+      rank: best?.rank,
+      category: best?.title,
+      title: summary?.itemName,
+      brand: summary?.brand,
+      imageUrl: biggest?.link,
+    });
+  }
+  return out;
 }
 
 // Para quando o orçamento de tempo acaba: devolve quantos itens não foram processados.
@@ -91,20 +106,27 @@ async function snapshotOneAccount(account: AccountCtx, deadline: number): Promis
     // sua própria tela e não devem aparecer no histórico de pesquisa.
     const naWatchlist = new Set([...watch.pinned, ...watch.rest]);
 
+    // Fatia em lotes de 20 — é a unidade que a Catalog API aceita por chamada.
+    const lotes: string[][] = [];
+    for (let i = 0; i < asins.length; i += POR_CHAMADA) lotes.push(asins.slice(i, i + POR_CHAMADA));
+
     const captured: { asin: string; salesRank?: number; salesRankCategory?: string }[] = [];
     const identidades: SeenItem[] = [];
-    const naoProcessados = await mapLimit(asins, CONCURRENCY, deadline, async (asin) => {
+    const lotesRestantes = await mapLimit(lotes, CONCURRENCY, deadline, async (lote) => {
       try {
-        const s = await fetchSnapshot(asin, marketplaceId);
-        if (!s) return;
-        if (s.rank != null) captured.push({ asin, salesRank: s.rank, salesRankCategory: s.category });
-        if (naWatchlist.has(asin)) {
-          identidades.push({ asin, title: s.title, brand: s.brand, imageUrl: s.imageUrl });
+        const mapa = await fetchSnapshots(lote, marketplaceId);
+        for (const [asin, s] of mapa) {
+          if (s.rank != null) captured.push({ asin, salesRank: s.rank, salesRankCategory: s.category });
+          if (naWatchlist.has(asin)) {
+            identidades.push({ asin, title: s.title, brand: s.brand, imageUrl: s.imageUrl });
+          }
         }
-      } catch {
-        // ASIN que falhar é pulado — não derruba a passada.
+      } catch (err) {
+        // Um lote que falhar é pulado — não derruba a passada, mas aparece no log.
+        console.error(`[rank-snapshot] lote de ${lote.length} ASIN(s) falhou:`, err);
       }
     });
+    const naoProcessados = lotesRestantes * POR_CHAMADA;
 
     if (captured.length) await recordRanks(captured);
     // Sem termo de busca: atualiza título/foto sem mexer em last_seen_at nem ressuscitar
@@ -156,15 +178,19 @@ export async function runScheduledRankSnapshot(limit = 5): Promise<number> {
     const sellerId = row.connection_id.startsWith(CONNECTION_PREFIX)
       ? row.connection_id.slice(CONNECTION_PREFIX.length)
       : row.connection_id;
-    const account = await getAccount(sellerId);
-    if (!account?.refreshToken) continue;
     const deadline = Math.min(Date.now() + orcamentoPorConta, fimGeral);
     try {
-      total += await runWithWorkspace(row.workspace_id, () =>
-        snapshotOneAccount({ sellerId: account.sellerId, refreshToken: account.refreshToken }, deadline)
-      );
-    } catch {
-      // best-effort: segue para a próxima conta.
+      // getAccount() lê currentWorkspaceId() e LANÇA sem contexto — por isso ele tem
+      // de vir DENTRO do runWithWorkspace. Fora dele, esta função estourava na
+      // primeira conta e o cron reportava 0 sem nunca fotografar nada.
+      total += await runWithWorkspace(row.workspace_id, async () => {
+        const account = await getAccount(sellerId);
+        if (!account?.refreshToken) return 0;
+        return snapshotOneAccount({ sellerId: account.sellerId, refreshToken: account.refreshToken }, deadline);
+      });
+    } catch (err) {
+      // best-effort: segue para a próxima conta — mas o erro aparece no log.
+      console.error(`[rank-snapshot] falhou em ${row.workspace_id}/${sellerId}:`, err);
     }
   }
   if (puladas > 0) console.warn(`[rank-snapshot] ${puladas} conta(s) ficaram para a próxima passada.`);

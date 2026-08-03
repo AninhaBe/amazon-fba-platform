@@ -16,23 +16,46 @@ export async function GET(req: NextRequest) {
   }
 
   const startedAt = performance.now();
+  const falhas: Record<string, string> = {};
+
+  /**
+   * Passo best-effort: um erro não derruba o cron, mas **nunca** é engolido em silêncio.
+   * Antes cada passo usava `.catch(() => 0)`, e um passo que quebrava sempre reportava
+   * zero — indistinguível de "não havia nada a fazer". Foi assim que a foto de ranking
+   * e a de oferta ficaram uma semana sem gravar nada sem ninguém perceber.
+   */
+  async function passo<T>(nome: string, fn: () => Promise<T>, vazio: T): Promise<T> {
+    try {
+      return await fn();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      falhas[nome] = msg;
+      console.error(`[cron/amazon-sync] passo "${nome}" falhou:`, err);
+      return vazio;
+    }
+  }
+
   const results = await runScheduledAmazonSync();
-  // Aquece os caches dos períodos comuns após sincronizar (best-effort).
-  const warmed = await runScheduledAmazonWarm().catch(() => 0);
-  // Foto diária de ranking: produtos da conta + auto-watchlist (best-effort).
-  const rankSnapshots = await runScheduledRankSnapshot().catch(() => 0);
+  // Aquece os caches dos períodos comuns após sincronizar.
+  const warmed = await passo("warm", runScheduledAmazonWarm, 0);
+  // Foto diária de ranking: produtos da conta + watchlist (ADR-009/011).
+  const rankSnapshots = await passo("rankSnapshot", runScheduledRankSnapshot, 0);
   // Foto diária da oferta (ADR-010): reusa o inventário já aquecido acima, então não
   // gera chamada nova. É o "antes e depois" que explica por que um anúncio parou.
-  const offerSnapshots = await runScheduledAmazonOfferSnapshot().catch(() => 0);
-  // Detecção de insights do briefing (ruptura, velocidade, margem) — best-effort.
-  const insights = await runScheduledInsights().catch(() => 0);
+  const offerSnapshots = await passo("offerSnapshot", runScheduledAmazonOfferSnapshot, 0);
+  // Detecção de insights do briefing (ruptura, velocidade, margem).
+  const insights = await passo("insights", runScheduledInsights, 0);
+
+  const temFalha = Object.keys(falhas).length > 0;
   return NextResponse.json({
-    ok: true,
+    ok: !temFalha,
     processed: results.length,
     warmed,
     rankSnapshots,
     offerSnapshots,
     insights,
+    // Presente só quando algum passo quebrou — é o que torna a falha visível.
+    ...(temFalha ? { falhas } : {}),
     durationMs: Math.round(performance.now() - startedAt),
     results,
   });
