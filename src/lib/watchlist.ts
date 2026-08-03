@@ -27,11 +27,15 @@ export interface SeenItem {
 }
 
 /**
- * Registra/atualiza a identidade dos ASINs vistos. `searchTerm` só é preenchido no
- * caminho da busca — o cron atualiza identidade sem reescrever de onde o ASIN veio.
+ * Registra/atualiza a identidade dos ASINs monitorados.
  *
- * Um ASIN removido que reaparece numa busca volta para a lista (a usuária pesquisou
- * de novo, então voltou a interessar); a foto do cron não ressuscita nada.
+ * **Monitorar é opt-in.** A busca NÃO adiciona nada sozinha: uma pesquisa devolve 20
+ * resultados e, sem escolha explícita, a lista chegaria a milhares em poucos dias —
+ * inflando a foto diária com produtos que ninguém quer acompanhar.
+ *
+ * `searchTerm` chega quando a pessoa marca o anúncio a partir de uma busca (guarda de
+ * onde ele veio). O cron passa sem termo: atualiza identidade sem mexer em
+ * `last_seen_at` nem ressuscitar quem foi removido.
  */
 export async function recordSeen(items: SeenItem[], searchTerm?: string): Promise<void> {
   const ws = optionalWorkspaceId();
@@ -205,6 +209,45 @@ export async function listSearchTerms(limit = 12): Promise<string[]> {
     [ws, limit]
   );
   return rows.map((r) => r.term);
+}
+
+/** Quais destes ASINs já estão sendo monitorados — para a busca marcar o botão. */
+export async function listMonitored(asins: string[]): Promise<Set<string>> {
+  const ws = optionalWorkspaceId();
+  const unique = [...new Set(asins.filter(isValidAsin))];
+  if (!ws || !hasDb() || !unique.length) return new Set();
+  const rows = await dbQuery<{ asin: string }>(
+    `SELECT asin FROM workspace_watchlist
+      WHERE workspace_id = $1 AND asin = ANY($2::text[]) AND removed_at IS NULL`,
+    [ws, unique]
+  );
+  return new Set(rows.map((r) => r.asin));
+}
+
+/** Corta texto vindo do cliente antes de gravar — nada de campo sem limite no banco. */
+function limita(v: unknown, max: number): string | undefined {
+  if (typeof v !== "string") return undefined;
+  const s = v.trim();
+  return s ? s.slice(0, max) : undefined;
+}
+
+/** Passa a monitorar um anúncio. Chamado pelo botão da busca. */
+export async function monitorar(
+  asin: string,
+  dados: { title?: unknown; brand?: unknown; imageUrl?: unknown; searchTerm?: unknown }
+): Promise<void> {
+  if (!isValidAsin(asin)) return;
+  await recordSeen(
+    [
+      {
+        asin,
+        title: limita(dados.title, 400),
+        brand: limita(dados.brand, 120),
+        imageUrl: limita(dados.imageUrl, 600),
+      },
+    ],
+    limita(dados.searchTerm, 120)
+  );
 }
 
 export async function setPinned(asin: string, pinned: boolean): Promise<void> {

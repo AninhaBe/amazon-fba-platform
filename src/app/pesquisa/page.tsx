@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowDown, ArrowRight, ArrowUp } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUp, Eye, EyeOff } from "lucide-react";
 import { PageHeader, pageIcons } from "../components/PageHeader";
 import { TableLoading } from "../components/LoadingState";
 import { EmptyState } from "../components/EmptyState";
@@ -24,6 +24,7 @@ interface ProductResult {
   subRankCategory?: string;
   rankDelta?: number; // positivo = subiu de posição desde a última foto
   rankPrevDate?: string;
+  monitorado?: boolean;
   price?: number | null;
   currency?: string;
   offerCount?: number | null;
@@ -68,6 +69,34 @@ export default function PesquisaPage() {
   const [sort, setSort] = useState<SortKey>("recentes");
   const [searched, setSearched] = useState(false);
   const [searchedQuery, setSearchedQuery] = useState("");
+  const [salvando, setSalvando] = useState<string | null>(null);
+
+  // Monitorar é opt-in: a busca não adiciona nada sozinha (20 resultados por página
+  // virariam milhares de itens acompanhados em poucos dias). Aqui a pessoa escolhe.
+  async function alternarMonitor(p: ProductResult) {
+    setSalvando(p.asin);
+    const alvo = !p.monitorado;
+    try {
+      const res = await fetch("/api/watchlist", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          asin: p.asin,
+          action: alvo ? "monitorar" : "remover",
+          title: p.title,
+          brand: p.brand,
+          imageUrl: p.imageUrl,
+          searchTerm: searchedQuery,
+        }),
+      });
+      if (!res.ok) throw new Error((await readJson(res)).error || "Não consegui salvar.");
+      setItems((prev) => prev.map((i) => (i.asin === p.asin ? { ...i, monitorado: alvo } : i)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro desconhecido.");
+    } finally {
+      setSalvando(null);
+    }
+  }
 
   async function search(query: string) {
     if (!query.trim()) return;
@@ -141,8 +170,9 @@ export default function PesquisaPage() {
         subtitle={
           <>
             Busque qualquer termo como na Amazon e veja, de <strong>todos</strong> os anúncios,
-            quando cada um foi criado e sua posição de vendas atual. Tudo que aparecer aqui passa a
-            ser acompanhado diariamente no <Link href="/amazon/pesquisa/historico" className="font-medium text-blue-600 hover:underline">histórico</Link>.
+            quando cada um foi criado e sua posição de vendas atual. Marque <strong>monitorar</strong>
+            nos que interessam e eles passam a ser fotografados todo dia no{" "}
+            <Link href="/amazon/pesquisa/historico" className="font-medium text-blue-600 hover:underline">histórico</Link>.
           </>
         }
         action={
@@ -395,6 +425,34 @@ export default function PesquisaPage() {
                     </td>
                     <td className="px-3 py-2.5 text-right">
                       <div className="flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void alternarMonitor(p)}
+                          disabled={salvando === p.asin}
+                          aria-pressed={!!p.monitorado}
+                          title={
+                            p.monitorado
+                              ? "Parar de acompanhar — o histórico já coletado é preservado"
+                              : "Acompanhar este anúncio: a posição passa a ser fotografada todo dia"
+                          }
+                          className={`inline-flex items-center gap-1 whitespace-nowrap rounded-md border px-2.5 py-1 text-xs font-semibold disabled:opacity-50 ${
+                            p.monitorado
+                              ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:border-red-300 hover:bg-red-50 hover:text-red-600"
+                              : "border-slate-300 text-slate-600 hover:border-blue-400 hover:text-blue-600"
+                          }`}
+                        >
+                          {p.monitorado ? (
+                            <>
+                              <Eye className="h-3.5 w-3.5" strokeWidth={2.2} aria-hidden />
+                              monitorando
+                            </>
+                          ) : (
+                            <>
+                              <EyeOff className="h-3.5 w-3.5" strokeWidth={2.2} aria-hidden />
+                              monitorar
+                            </>
+                          )}
+                        </button>
                         <Link
                           href={`/calculadora?asin=${p.asin}`}
                           className="whitespace-nowrap rounded-md bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-700"

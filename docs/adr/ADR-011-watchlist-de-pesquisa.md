@@ -38,12 +38,31 @@ Separação de responsabilidades: `workspace_rank_history` é a **série tempora
 da lista só interrompe a captura, não destrói o passado. Se o ASIN voltar, a série antiga
 volta junto.
 
+### Monitorar é **opt-in** (revisto em 03/08/2026)
+
+A primeira versão adicionava à watchlist **todo resultado de toda busca**. Na prática
+isso não escala: cada página traz 20 anúncios, e em poucos dias a lista chega a milhares
+de produtos que ninguém quer acompanhar — inflando a foto diária e o custo de API. Em uma
+conta real bastaram ~18 buscas para acumular 355 itens.
+
+Agora a busca **não adiciona nada**. Cada linha tem um botão **monitorar**, e só o que é
+marcado entra na watchlist e passa a ser fotografado.
+
+Duas consequências de projeto:
+
+- **A busca continua gravando `workspace_rank_history`** de todos os resultados. O rank já
+  veio na resposta, então custa zero — e garante um primeiro ponto de série caso a pessoa
+  decida monitorar depois.
+- **A semente de `db.ts` foi removida.** Ela copiava todo ASIN do histórico para a
+  watchlist a cada boot; com opt-in isso readicionaria justamente o que não foi escolhido,
+  e desfaria remoções a cada restart.
+
 ### Preenchimento a custo zero de API
 
 Dois caminhos, ambos sem nenhuma chamada extra:
 
-1. **Na busca** — `searchProducts` já devolve `title`, `brand` e `imageUrl`. A rota
-   `/api/search` passou a gravar identidade **e** o termo pesquisado junto com o rank.
+1. **Ao marcar "monitorar"** — o cliente já tem `title`, `brand` e `imageUrl` do resultado
+   da busca e os envia junto, com o termo pesquisado. Nenhuma ida extra à Catalog API.
 2. **Sob demanda, em lote** — a mesma operação da busca aceita `identifiers` em vez de
    `keywords`: **até 20 ASINs por chamada**. A rota da watchlist resolve um lote de quem
    ainda está sem título a cada requisição, e a tela repete até completar. É isso que

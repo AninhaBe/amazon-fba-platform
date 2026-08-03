@@ -4,7 +4,16 @@ import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
 import { runWithAccount } from "@/lib/accountContext";
 import { getAccounts } from "@/lib/accountStore";
 import { getCatalogIdentities } from "@/lib/search";
-import { isValidAsin, listSearchTerms, listWatchlist, recordSeen, setPinned, setRemoved, type WatchlistEntry } from "@/lib/watchlist";
+import {
+  isValidAsin,
+  listSearchTerms,
+  listWatchlist,
+  monitorar,
+  recordSeen,
+  setPinned,
+  setRemoved,
+  type WatchlistEntry,
+} from "@/lib/watchlist";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -53,17 +62,26 @@ export async function GET() {
   });
 }
 
-// PATCH { asin, action: "fixar" | "desafixar" | "remover" | "restaurar" }
+// PATCH { asin, action, ...identidade }
+//   monitorar — passa a acompanhar (aceita title/brand/imageUrl/searchTerm da busca)
+//   remover   — para de acompanhar (soft delete; o histórico já coletado permanece)
+//   fixar / desafixar / restaurar
 export async function PATCH(req: NextRequest) {
   return withAuthenticatedWorkspace(async () => {
     try {
-      const body = (await req.json().catch(() => ({}))) as { asin?: string; action?: string };
+      const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
       const asin = String(body.asin || "").toUpperCase();
       const action = String(body.action || "");
       if (!isValidAsin(asin)) {
         return NextResponse.json({ error: "ASIN inválido." }, { status: 400 });
       }
       switch (action) {
+        case "monitorar":
+          // A identidade vem do resultado da busca que o cliente já tem em mãos, o que
+          // evita uma ida extra à Catalog API só para preencher título e foto.
+          // `monitorar` valida o ASIN e corta os textos antes de gravar.
+          await monitorar(asin, body);
+          break;
         case "fixar":
           await setPinned(asin, true);
           break;

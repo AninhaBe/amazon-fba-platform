@@ -279,16 +279,15 @@ async function createSchema(): Promise<void> {
     CREATE INDEX IF NOT EXISTS workspace_watchlist_active_idx
       ON workspace_watchlist(workspace_id, pinned DESC, last_seen_at DESC)
       WHERE removed_at IS NULL;
-    -- Semeia a watchlist com os ASINs que já estavam sendo fotografados antes da
-    -- ADR-011 (a foto diária lia direto de workspace_rank_history). Sem isso eles
-    -- sairiam da captura e a série seria interrompida. Idempotente: ON CONFLICT DO
-    -- NOTHING preserva inclusive o que a usuária já removeu. Título e foto ficam
-    -- nulos até a próxima passada do cron, que os preenche de graça.
-    INSERT INTO workspace_watchlist (workspace_id, asin, first_seen_at, last_seen_at)
-    SELECT workspace_id, asin, min(updated_at), max(updated_at)
-      FROM workspace_rank_history
-     GROUP BY workspace_id, asin
-    ON CONFLICT (workspace_id, asin) DO NOTHING;
+    -- NÃO semear a watchlist a partir de workspace_rank_history.
+    --
+    -- Existiu aqui um INSERT ... SELECT que copiava todo ASIN do histórico de ranking
+    -- para a watchlist, como backfill da ADR-011. Ele rodava a cada boot do processo.
+    -- Depois que monitorar virou **opt-in**, isso passou a ser um bug grave: a busca
+    -- continua gravando o rank de todos os resultados (custo zero, dá um primeiro
+    -- ponto a quem for monitorado depois), então a semente readicionaria à watchlist
+    -- justamente o que a pessoa nunca escolheu — e o que ela removesse voltaria no
+    -- próximo restart. O backfill já cumpriu seu papel e foi removido.
     -- ADR-010: foto diária da oferta. workspace_channel_products guarda só o estado
     -- atual (é sobrescrito a cada sync); aqui fica a série temporal que permite
     -- explicar "parou de vender porque o estoque zerou anteontem".
