@@ -100,13 +100,17 @@ function Delta({ value, dias }: { value?: number; dias: number }) {
       </span>
     );
   }
-  const subiu = value > 0;
+  // `value` positivo = o NÚMERO da posição diminuiu = melhorou.
+  // A seta segue o **número** (que é o que aparece na coluna Posição) e a cor segue a
+  // qualidade. Antes a seta seguia a qualidade e discordava do número na tela: o valor
+  // ia de #23.238 para #28.853 e a seta apontava para baixo.
+  const melhorou = value > 0;
   return (
     <span
-      className={`inline-flex items-center justify-end gap-1 font-semibold tabular-nums ${subiu ? "text-emerald-600" : "text-red-500"}`}
-      title={`${subiu ? "Subiu" : "Caiu"} ${Math.abs(value).toLocaleString("pt-BR")} posição(ões) em ${dias} dias`}
+      className={`inline-flex items-center justify-end gap-1 font-semibold tabular-nums ${melhorou ? "text-emerald-600" : "text-red-500"}`}
+      title={`${melhorou ? "Melhorou" : "Piorou"} ${Math.abs(value).toLocaleString("pt-BR")} posições em ${dias} dias — o número ${melhorou ? "caiu" : "subiu"}`}
     >
-      {subiu ? <ArrowUp {...seta} /> : <ArrowDown {...seta} />}
+      {melhorou ? <ArrowDown {...seta} /> : <ArrowUp {...seta} />}
       {Math.abs(value).toLocaleString("pt-BR")}
     </span>
   );
@@ -167,13 +171,13 @@ function DeltaUltima({
       </span>
     );
   }
-  const subiu = value > 0;
+  const melhorou = value > 0;
   return (
     <span
-      className={`inline-flex items-center justify-end gap-1 font-semibold tabular-nums ${subiu ? "text-emerald-600" : "text-red-500"}`}
-      title={`${subiu ? "Subiu" : "Caiu"} ${Math.abs(value).toLocaleString("pt-BR")} posição(ões) ${periodo}`}
+      className={`inline-flex items-center justify-end gap-1 font-semibold tabular-nums ${melhorou ? "text-emerald-600" : "text-red-500"}`}
+      title={`${melhorou ? "Melhorou" : "Piorou"} ${Math.abs(value).toLocaleString("pt-BR")} posições ${periodo}`}
     >
-      {subiu ? <ArrowUp {...seta} /> : <ArrowDown {...seta} />}
+      {melhorou ? <ArrowDown {...seta} /> : <ArrowUp {...seta} />}
       {Math.abs(value).toLocaleString("pt-BR")}
     </span>
   );
@@ -359,7 +363,7 @@ export default function HistoricoPage() {
               </th>
               <th scope="col" className="whitespace-nowrap px-3 py-3 text-right">
                 Variação
-                <Ajuda texto="Quantas posições o anúncio ganhou ou perdeu entre as duas últimas fotos. Seta verde para cima = ganhou posições (o número DIMINUIU). Seta vermelha para baixo = perdeu posições (o número aumentou). Passe o mouse no valor para ver as datas comparadas." />
+                <Ajuda texto="Quanto o número da posição mudou entre as duas últimas fotos. A seta acompanha o número: seta para cima = o número aumentou, e como número maior é pior, ela é vermelha. Seta para baixo = o número caiu, o anúncio melhorou, e ela é verde. Passe o mouse no valor para ver as datas e as posições exatas." />
               </th>
               <th scope="col" className="whitespace-nowrap px-3 py-3 text-right">
                 7 dias
@@ -520,8 +524,10 @@ export default function HistoricoPage() {
       {items.length > 0 && (
         <div className="space-y-1 text-xs text-slate-400">
           <p>
-            <strong className="text-slate-500">Posição menor é melhor.</strong> A seta verde (↑) significa que o
-            anúncio ganhou posições; a vermelha (↓), que perdeu.
+            <strong className="text-slate-500">Posição menor é melhor</strong> — #1 é o mais vendido da categoria.
+            A seta segue o número: <strong className="text-red-500">para cima em vermelho</strong> quer dizer que o
+            número aumentou e o anúncio piorou; <strong className="text-emerald-600">para baixo em verde</strong>,
+            que o número caiu e o anúncio melhorou.
           </p>
           <p>
             A variação só aparece quando existe uma foto daquele período — nos primeiros dias de um anúncio novo na

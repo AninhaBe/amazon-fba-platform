@@ -371,13 +371,14 @@ export default function PesquisaPage() {
                                 title={
                                   p.rankDelta === 0
                                     ? `Manteve a mesma posição desde ${p.rankPrevDate ? fmtDate(p.rankPrevDate) : "a última foto"}`
-                                    : `${p.rankDelta > 0 ? "Subiu" : "Caiu"} ${Math.abs(p.rankDelta).toLocaleString("pt-BR")} posição(ões) desde ${p.rankPrevDate ? fmtDate(p.rankPrevDate) : "a última foto"}`
+                                    : `${p.rankDelta > 0 ? "Melhorou" : "Piorou"} ${Math.abs(p.rankDelta).toLocaleString("pt-BR")} posições desde ${p.rankPrevDate ? fmtDate(p.rankPrevDate) : "a última foto"} — o número ${p.rankDelta > 0 ? "caiu" : "subiu"}`
                                 }
                               >
+                                {/* A seta segue o número (coluna Posição); a cor segue a qualidade. */}
                                 {p.rankDelta > 0 ? (
-                                  <ArrowUp className="h-3.5 w-3.5 shrink-0" strokeWidth={3} aria-hidden />
-                                ) : p.rankDelta < 0 ? (
                                   <ArrowDown className="h-3.5 w-3.5 shrink-0" strokeWidth={3} aria-hidden />
+                                ) : p.rankDelta < 0 ? (
+                                  <ArrowUp className="h-3.5 w-3.5 shrink-0" strokeWidth={3} aria-hidden />
                                 ) : (
                                   <ArrowRight className="h-3.5 w-3.5 shrink-0" strokeWidth={3} aria-hidden />
                                 )}
