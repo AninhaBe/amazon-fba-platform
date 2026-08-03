@@ -12,6 +12,7 @@ import {
   recordSeen,
   setPinned,
   setRemoved,
+  setRemovedMany,
   type WatchlistEntry,
 } from "@/lib/watchlist";
 
@@ -70,8 +71,21 @@ export async function PATCH(req: NextRequest) {
   return withAuthenticatedWorkspace(async () => {
     try {
       const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
-      const asin = String(body.asin || "").toUpperCase();
       const action = String(body.action || "");
+
+      // Em massa: { asins: [...], action: "remover" | "restaurar" } — a seleção da tela.
+      if (Array.isArray(body.asins)) {
+        if (action !== "remover" && action !== "restaurar") {
+          return NextResponse.json({ error: "Ação inválida para vários itens." }, { status: 400 });
+        }
+        const asins = body.asins.map((a) => String(a).toUpperCase()).filter(isValidAsin).slice(0, 500);
+        if (!asins.length) return NextResponse.json({ error: "Nenhum ASIN válido." }, { status: 400 });
+        await setRemovedMany(asins, action === "remover");
+        const [items, terms] = await Promise.all([listWatchlist(), listSearchTerms()]);
+        return NextResponse.json({ items, terms });
+      }
+
+      const asin = String(body.asin || "").toUpperCase();
       if (!isValidAsin(asin)) {
         return NextResponse.json({ error: "ASIN inválido." }, { status: 400 });
       }

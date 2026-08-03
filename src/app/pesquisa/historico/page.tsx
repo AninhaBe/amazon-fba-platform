@@ -193,6 +193,38 @@ export default function HistoricoPage() {
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [atualizando, setAtualizando] = useState(false);
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
+
+  function alternarSelecao(asin: string) {
+    setSelecionados((prev) => {
+      const next = new Set(prev);
+      if (next.has(asin)) next.delete(asin);
+      else next.add(asin);
+      return next;
+    });
+  }
+
+  async function removerSelecionados() {
+    const asins = [...selecionados];
+    if (!asins.length) return;
+    setBusy("__lote__");
+    try {
+      const res = await fetch("/api/watchlist", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ asins, action: "remover" }),
+      });
+      const data = await readJson(res);
+      if (!res.ok) throw new Error(data.error || "Não consegui remover.");
+      setItems(data.items);
+      setTerms(data.terms);
+      setSelecionados(new Set());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro desconhecido.");
+    } finally {
+      setBusy(null);
+    }
+  }
 
   // Cada resposta resolve um lote de identidades que ainda faltava (ADR-011), então
   // repetimos enquanto sobrar alguém sem título — a tabela vai se preenchendo à vista.
@@ -276,6 +308,17 @@ export default function HistoricoPage() {
   // quando a resposta chega. O servidor pula quem tem foto de menos de 30 min, então
   // reabrir a página não repete chamadas. O valor novo sobrescreve a linha de HOJE;
   // dias anteriores são imutáveis, e é deles que a variação vem.
+  const paginaToda = paged.length > 0 && paged.every((p) => selecionados.has(p.asin));
+
+  function alternarPagina() {
+    setSelecionados((prev) => {
+      const next = new Set(prev);
+      if (paginaToda) paged.forEach((p) => next.delete(p.asin));
+      else paged.forEach((p) => next.add(p.asin));
+      return next;
+    });
+  }
+
   const chaveVisivel = paged.map((p) => p.asin).join(",");
   const jaAtualizadas = useRef<Set<string>>(new Set());
   useEffect(() => {
@@ -389,11 +432,54 @@ export default function HistoricoPage() {
         </div>
       )}
 
+      {selecionados.size > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5">
+          <p className="text-sm font-medium text-red-700">
+            {selecionados.size} selecionado(s)
+            {paginaToda && visible.length > paged.length && (
+              <button
+                type="button"
+                onClick={() => setSelecionados(new Set(visible.map((v) => v.asin)))}
+                className="ml-2 text-xs font-semibold text-red-600 underline underline-offset-2 hover:text-red-800"
+              >
+                selecionar todos os {visible.length}
+              </button>
+            )}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSelecionados(new Set())}
+              className="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800"
+            >
+              Limpar seleção
+            </button>
+            <button
+              type="button"
+              onClick={() => void removerSelecionados()}
+              disabled={busy === "__lote__"}
+              className="rounded-lg bg-red-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              {busy === "__lote__" ? "Removendo…" : "Parar de monitorar"}
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="overflow-x-auto rounded-2xl border border-slate-200/70 bg-white shadow-sm ring-1 ring-slate-900/[0.02]">
         <table className="w-full min-w-[880px] text-sm">
           <caption className="sr-only">Anúncios acompanhados e a variação da posição de vendas</caption>
           <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
+              <th scope="col" className="w-10 px-3 py-3">
+                <input
+                  type="checkbox"
+                  checked={paginaToda}
+                  onChange={alternarPagina}
+                  aria-label="Selecionar todos desta página"
+                  className="h-4 w-4 cursor-pointer accent-blue-600"
+                />
+              </th>
               <th scope="col" className="px-3 py-3">Produto</th>
               <th scope="col" className="whitespace-nowrap px-3 py-3 text-center">
                 Posição
@@ -425,11 +511,11 @@ export default function HistoricoPage() {
           <tbody className="divide-y divide-slate-100">
             {loading && items.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8"><TableLoading label="Carregando histórico" /></td>
+                <td colSpan={9} className="px-4 py-8"><TableLoading label="Carregando histórico" /></td>
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-6">
+                <td colSpan={9} className="px-4 py-6">
                   <EmptyState
                     kind="search"
                     title="Nada acompanhado ainda"
@@ -444,7 +530,7 @@ export default function HistoricoPage() {
               </tr>
             ) : visible.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-6">
+                <td colSpan={9} className="px-4 py-6">
                   <EmptyState
                     kind="search"
                     title="Nenhum anúncio com esse termo"
@@ -463,7 +549,19 @@ export default function HistoricoPage() {
               </tr>
             ) : (
               paged.map((p) => (
-                <tr key={p.asin} className={`hover:bg-slate-50 ${busy === p.asin ? "opacity-50" : ""}`}>
+                <tr
+                  key={p.asin}
+                  className={`hover:bg-slate-50 ${busy === p.asin ? "opacity-50" : ""}${selecionados.has(p.asin) ? " bg-red-50/40" : ""}`}
+                >
+                  <td className="px-3 py-2.5">
+                    <input
+                      type="checkbox"
+                      checked={selecionados.has(p.asin)}
+                      onChange={() => alternarSelecao(p.asin)}
+                      aria-label={`Selecionar ${p.title || p.asin}`}
+                      className="h-4 w-4 cursor-pointer accent-blue-600"
+                    />
+                  </td>
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-3">
                       {p.imageUrl ? (

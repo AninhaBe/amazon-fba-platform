@@ -276,6 +276,23 @@ export async function setPinned(asin: string, pinned: boolean): Promise<void> {
   await dbQuery(`UPDATE workspace_watchlist SET pinned = $3 WHERE workspace_id = $1 AND asin = $2`, [ws, asin, pinned]);
 }
 
+/** Remove (ou restaura) vários de uma vez — a seleção em massa da tela de histórico. */
+export async function setRemovedMany(asins: string[], removed: boolean): Promise<number> {
+  const ws = optionalWorkspaceId();
+  const unique = [...new Set(asins.filter(isValidAsin))];
+  if (!ws || !hasDb() || !unique.length) return 0;
+  const rows = await dbQuery<{ asin: string }>(
+    `UPDATE workspace_watchlist
+        SET removed_at = CASE WHEN $3::boolean THEN now() ELSE NULL END,
+            -- Remover também desfixa, senão o item volta furando a fila da foto diária.
+            pinned = CASE WHEN $3::boolean THEN false ELSE pinned END
+      WHERE workspace_id = $1 AND asin = ANY($2::text[])
+      RETURNING asin`,
+    [ws, unique, removed]
+  );
+  return rows.length;
+}
+
 export async function setRemoved(asin: string, removed: boolean): Promise<void> {
   const ws = optionalWorkspaceId();
   if (!ws || !hasDb() || !isValidAsin(asin)) return;
