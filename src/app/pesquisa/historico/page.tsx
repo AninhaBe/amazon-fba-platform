@@ -359,7 +359,7 @@ export default function HistoricoPage() {
               <th scope="col" className="px-3 py-3">Produto</th>
               <th scope="col" className="whitespace-nowrap px-3 py-3 text-center">
                 Posição
-                <Ajuda texto="Posição de vendas (BSR) na categoria, na foto mais recente — é sempre o valor de hoje. Quanto MENOR o número, melhor: #1 é o mais vendido." />
+                <Ajuda texto="Posição de vendas (BSR) na categoria. Quanto MENOR o número, melhor: #1 é o mais vendido. Atenção: é uma foto tirada UMA VEZ POR DIA. A Amazon recalcula o BSR de hora em hora, então este valor pode diferir do que aparece agora na página do produto — os dois estão certos, cada um para o seu momento. Passe o mouse na posição para ver a data da foto." />
               </th>
               <th scope="col" className="whitespace-nowrap px-3 py-3 text-center">
                 Variação
@@ -450,7 +450,14 @@ export default function HistoricoPage() {
                   <td className="px-3 py-2.5 text-center tabular-nums">
                     {p.currentRank ? (
                       <div className="flex flex-col items-center gap-0.5">
-                        <strong className="font-semibold text-slate-700">#{p.currentRank.toLocaleString("pt-BR")}</strong>
+                        {/* A data da foto no tooltip é o que explica uma divergência com o
+                            valor ao vivo da Amazon sem precisar poluir a célula. */}
+                        <strong
+                          className="cursor-help font-semibold text-slate-700"
+                          title={p.currentDate ? `Foto de ${brDate(p.currentDate)} — a Amazon recalcula o BSR de hora em hora` : undefined}
+                        >
+                          #{p.currentRank.toLocaleString("pt-BR")}
+                        </strong>
                         {p.category && (
                           <span className="max-w-[22ch] truncate text-[11px] text-slate-400" title={p.category}>
                             em {p.category}
@@ -528,6 +535,13 @@ export default function HistoricoPage() {
             A seta segue o número: <strong className="text-red-500">para cima em vermelho</strong> quer dizer que o
             número aumentou e o anúncio piorou; <strong className="text-emerald-600">para baixo em verde</strong>,
             que o número caiu e o anúncio melhorou.
+          </p>
+          <p>
+            <strong className="text-slate-500">É uma foto por dia.</strong> A Amazon recalcula a posição de vendas
+            de hora em hora, então o número aqui pode não bater com o que aparece agora na página do produto — e
+            isso não é erro: cada um mostra um momento diferente. Passe o mouse na posição para ver a data da foto.
+            Uma captura diária é o suficiente para acompanhar tendência; para reagir a oscilação de hora em hora,
+            o lugar é a própria Amazon.
           </p>
           <p>
             A variação só aparece quando existe uma foto daquele período — nos primeiros dias de um anúncio novo na
