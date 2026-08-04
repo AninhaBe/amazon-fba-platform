@@ -4,16 +4,25 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AnimatedNumber } from "./components/AnimatedNumber";
 import { PageHeader, pageIcons } from "./components/PageHeader";
-import { DashboardSkeleton } from "./components/LoadingState";
+import { DashboardSkeleton, TableLoading } from "./components/LoadingState";
+import { EmptyState } from "./components/EmptyState";
 import { MarketplaceIcon } from "./components/MarketplaceIcon";
+import { ProfitabilitySale } from "./components/OrderProfitabilityTable";
 import { RevenueChart, type DailyPoint } from "./components/RevenueChart";
+import type { ProfitabilityLine } from "@/lib/profitability";
 import { brTime } from "@/lib/datetime";
 
 interface ProviderConnection { id: string; }
 interface Provider { id: string; name: string; configured: boolean; connections: ProviderConnection[]; }
 interface AmazonProfit { estimatedProfit: number; unitsWithoutCost: number; finance: { currency: string; }; }
 interface AmazonSales { series: { totalRevenue: number; totalOrders: number; currency: string; points?: DailyPoint[]; }; }
-interface MercadoLivreOverview { metrics: { revenue30d: number; orders30d: number; activeListings: number; cancelledRevenue: number; cancelledOrders: number; currency: string; revenueCoverage: { complete: boolean; capturedOrders: number; totalOrders: number; }; }; profit: { estimatedProfit: number; unitsWithoutCost: number; coverage: { processedOrders: number; paidOrders: number; complete: boolean; }; }; dailySales?: DailyPoint[]; }
+interface MercadoLivreOverview { metrics: { revenue30d: number; orders30d: number; activeListings: number; cancelledRevenue: number; cancelledOrders: number; currency: string; revenueCoverage: { complete: boolean; capturedOrders: number; totalOrders: number; }; }; profit: { estimatedProfit: number; unitsWithoutCost: number; coverage: { processedOrders: number; paidOrders: number; complete: boolean; }; }; dailySales?: DailyPoint[]; profitabilityLines?: ProfitabilityLine[]; }
+
+type SaleLine = ProfitabilityLine & { channel: "amazon" | "mercado_livre" };
+
+// Recorte da central: as vendas mais recentes dos canais somados. A tabela
+// completa (busca, filtro, paginação) continua dentro de cada canal.
+const RECENT_SALES = 20;
 
 // Soma as séries diárias dos canais numa linha só — a visão que só a central
 // pode dar. Datas presentes em um canal e ausentes no outro entram como estão.
@@ -59,12 +68,16 @@ async function json<T>(url: string): Promise<T> {
 
 // Escopo de módulo: ao navegar para um canal e voltar, a central renderiza o
 // consolidado já conhecido no primeiro paint e revalida em segundo plano.
-let centralCache: { channels: ChannelSnapshot[]; series: DailyPoint[]; updatedAt: Date } | null = null;
+let centralCache: { channels: ChannelSnapshot[]; series: DailyPoint[]; sales: SaleLine[]; salesNote: string | null; updatedAt: Date } | null = null;
 
 export default function OverviewDashboard() {
   const [channels, setChannels] = useState<ChannelSnapshot[]>(centralCache?.channels ?? []);
   const [series, setSeries] = useState<DailyPoint[]>(centralCache?.series ?? []);
   const [loading, setLoading] = useState(!centralCache);
+  const [sales, setSales] = useState<SaleLine[]>(centralCache?.sales ?? []);
+  const [salesNote, setSalesNote] = useState<string | null>(centralCache?.salesNote ?? null);
+  const [salesLoading, setSalesLoading] = useState(!centralCache);
+  const [expandedSale, setExpandedSale] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(centralCache?.updatedAt ?? null);
 
   useEffect(() => {
@@ -79,6 +92,13 @@ export default function OverviewDashboard() {
 
         const tasks: Promise<void>[] = [];
         const channelSeries: Array<DailyPoint[] | undefined> = [];
+        const salesFailures: string[] = [];
+        let mercadoLivreLines: ProfitabilityLine[] = [];
+        // Corre em paralelo com os agregados, mas não os atrasa: a seção de
+        // vendas tem estado de carregamento próprio e pinta quando chegar.
+        const amazonLinesReq: Promise<ProfitabilityLine[]> = amazon.connected
+          ? json<{ lines: ProfitabilityLine[] }>("/api/order-profitability?days=30").then((data) => data.lines).catch(() => { salesFailures.push("da Amazon"); return []; })
+          : Promise.resolve([]);
         if (amazon.connected) tasks.push(Promise.all([json<{ summary: AmazonProfit }>("/api/profit?days=30"), json<AmazonSales>("/api/sales?days=30")]).then(([profit, sales]) => {
           channelSeries.push(sales.series.points);
           amazon.revenue = sales.series.totalRevenue; // data do pedido = Seller Central
@@ -91,8 +111,9 @@ export default function OverviewDashboard() {
             ? `Lucro parcial: ${profit.summary.unitsWithoutCost} unidade(s) sem custo cadastrado`
             : "Faturamento, pedidos e lucro estimado";
         }).catch((error) => { amazon.error = error instanceof Error ? error.message : "Dados indisponíveis"; }));
-        if (mercadoLivre.connected) tasks.push(json<{ overview: MercadoLivreOverview }>("/api/integrations/mercado-livre/overview").then(({ overview }) => {
+        if (mercadoLivre.connected) tasks.push(json<{ overview: MercadoLivreOverview }>("/api/integrations/mercado-livre/overview?view=monitor").then(({ overview }) => {
           channelSeries.push(overview.dailySales);
+          mercadoLivreLines = overview.profitabilityLines ?? [];
           mercadoLivre.revenue = overview.metrics.revenue30d;
           mercadoLivre.cancelled = overview.metrics.cancelledRevenue;
           mercadoLivre.profit = overview.profit.estimatedProfit;
@@ -110,15 +131,31 @@ export default function OverviewDashboard() {
         await Promise.all(tasks);
         const refreshedAt = new Date();
         const merged = mergeDailySeries(channelSeries);
-        centralCache = { channels: [amazon, mercadoLivre], series: merged, updatedAt: refreshedAt };
+        centralCache = { channels: [amazon, mercadoLivre], series: merged, sales: centralCache?.sales ?? [], salesNote: centralCache?.salesNote ?? null, updatedAt: refreshedAt };
         setChannels([amazon, mercadoLivre]);
         setSeries(merged);
         setUpdatedAt(refreshedAt);
+        setLoading(false);
+
+        // Segunda pintura: a lista consolidada de vendas chega sem segurar os
+        // agregados. As linhas do ML vieram junto do overview; as da Amazon
+        // vêm da requisição paralela disparada acima.
+        if (mercadoLivre.connected && mercadoLivre.error) salesFailures.push("do Mercado Livre");
+        const amazonLines = await amazonLinesReq;
+        const mergedSales: SaleLine[] = [
+          ...amazonLines.map((line) => ({ ...line, channel: "amazon" as const })),
+          ...mercadoLivreLines.map((line) => ({ ...line, channel: "mercado_livre" as const })),
+        ].sort((a, b) => b.date.localeCompare(a.date)).slice(0, RECENT_SALES);
+        const failureNote = salesFailures.length ? `Não foi possível carregar as vendas ${salesFailures.join(" nem ")} agora.` : null;
+        centralCache = { ...centralCache, sales: mergedSales, salesNote: failureNote };
+        setSales(mergedSales);
+        setSalesNote(failureNote);
       } catch {
         // Uma falha de revalidação não apaga o consolidado já exibido.
         if (!centralCache) setChannels([]);
       } finally {
         setLoading(false);
+        setSalesLoading(false);
       }
     }, 0);
     return () => window.clearTimeout(timer);
@@ -155,6 +192,26 @@ export default function OverviewDashboard() {
             <RevenueChart points={series} />
           </section>
         )}
+
+        <section aria-labelledby="central-sales-title">
+          <div className="central-section-heading">
+            <div><p className="section-kicker">Resultado por venda</p><h2 id="central-sales-title">Últimas vendas dos canais</h2></div>
+            <p>As vendas mais recentes de todos os canais (até {RECENT_SALES}), com custos e margem. A lista completa com busca e filtros fica dentro de cada canal.</p>
+          </div>
+          {salesNote && <p className="central-sales-note" role="status">{salesNote}</p>}
+          {salesLoading ? <TableLoading label="Consolidando as vendas dos canais" /> : sales.length === 0 ? (
+            !salesNote && <EmptyState title="Nenhuma venda nos últimos 30 dias" description="As vendas dos canais conectados aparecem aqui assim que acontecerem." />
+          ) : <div className="profitability-list">
+            {sales.map((line) => {
+              const key = `${line.channel}-${line.id}`;
+              return <ProfitabilitySale key={key} line={line} channel={line.channel} expanded={expandedSale === key} onToggle={() => setExpandedSale(expandedSale === key ? null : key)} />;
+            })}
+          </div>}
+          <div className="central-sales-links">
+            {channels.find((channel) => channel.id === "amazon")?.connected && <Link href="/monitor">Ver todas na Amazon <span aria-hidden="true">→</span></Link>}
+            {channels.find((channel) => channel.id === "mercado_livre")?.connected && <Link href="/mercado-livre/monitor">Ver todas no Mercado Livre <span aria-hidden="true">→</span></Link>}
+          </div>
+        </section>
 
         <section aria-labelledby="channel-comparison-title">
           <div className="central-section-heading"><div><p className="section-kicker">Comparação por canal</p><h2 id="channel-comparison-title">Onde sua operação acontece</h2></div><p>Valores indisponíveis permanecem explícitos e nunca entram como zero no consolidado.</p></div>
