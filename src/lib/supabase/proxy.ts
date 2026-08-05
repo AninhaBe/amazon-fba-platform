@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const publicPaths = [
   "/login",
+  "/privacidade",
   "/auth/confirm",
   "/api/health",
   // Todos os endpoints de cron: já se protegem com CRON_SECRET, então ficam
