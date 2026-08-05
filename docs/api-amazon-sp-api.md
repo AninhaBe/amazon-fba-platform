@@ -62,12 +62,23 @@ O Seller Central remove FBM quando você ativa FBA — **a API não**. Anúncio 
 
 | Endpoint | Uso | Observações |
 |---|---|---|
-| `GET /catalog/2022-04-01/items[/{asin}]` | Busca/detalhe de catálogo (`src/lib/catalog.ts`, `search.ts`) | `includedData=attributes,images,salesRanks,summaries`. |
+| `GET /catalog/2022-04-01/items[/{asin}]` | Busca/detalhe de catálogo (`src/lib/catalog.ts`, `search.ts`) | `includedData=attributes,images,salesRanks,summaries`. ⚠️ Em lote (`identifiers`), o `pageSize` **padrão é 10** — um lote de 20 ASINs volta pela metade em silêncio. Sempre passar `pageSize` explícito (máx. 20). |
 | `GET /products/pricing/v0/competitivePrice` | Preço competitivo (`src/lib/pricing.ts`) | — |
 | `GET /products/pricing/v0/items/{asin}/offers` | Ofertas do ASIN | — |
 | `GET /products/fees/v0/items/{asin}/feesEstimate` | Estimativa de tarifas (`src/lib/fees.ts`) | POST na prática (body com preço). |
 | `GET /fba/inventory/v1/summaries` | Estoque FBA (`src/lib/inventory.ts`) | `details=true` traz **`fnSku`** — é aqui que se verifica se a variação registrou no FBA. |
 | `GET /fba/inbound/v1/eligibility/itemPreview` | Elegibilidade FBA por ASIN | `program=INBOUND`. Usado no diagnóstico do caso FNSKU. |
+
+## FBA Inbound — envio e agendamento de entrega (2024-03-20)
+
+Usada para o envio self-ship (a própria vendedora entrega no CD). Operações da API
+Fulfillment Inbound `2024-03-20` sobre `inboundPlans/{id}/shipments/{id}`:
+
+- `generateSelfShipAppointmentSlots` → gerar janelas de entrega. **Sem esse passo o
+  calendário do Seller Central abre mas não mostra botão de confirmar** — os slots não
+  existem até serem gerados (pegadinha de 2026-08-04).
+- `getSelfShipAppointmentSlots` → listar as janelas geradas.
+- `scheduleSelfShipAppointment` → confirmar a janela (retorna o `appointmentId`).
 
 ## Relatórios e conta
 
@@ -75,3 +86,22 @@ O Seller Central remove FBM quando você ativa FBA — **a API não**. Anúncio 
 |---|---|---|
 | `POST /reports/2021-06-30/reports` → `GET .../reports/{id}` → `GET .../documents/{docId}` | Relatórios (`src/lib/reports.ts`) | Fluxo assíncrono: criar, poll até DONE, baixar documento (pode vir gzip). `GET_MERCHANT_LISTINGS_ALL_DATA` lista todos os SKUs. |
 | `GET /sellers/v1/marketplaceParticipations` | Marketplaces da conta (`src/lib/sellers.ts`) | Bom "ping" para validar credenciais. |
+
+## Changelog observado (mais recente primeiro)
+
+A Amazon muda comportamento e deprecia versões sem quebrar na hora. Toda mudança ou
+pegadinha **datada** observada na prática entra aqui — o detalhe fica na seção
+correspondente acima; esta lista é o índice cronológico.
+
+- **2026-08-04** — Agendamento self-ship (Fulfillment Inbound 2024-03-20): slots de
+  entrega precisam ser **gerados** (`generateSelfShipAppointmentSlots`) antes de
+  listar/confirmar; sem isso o calendário do Seller Central fica sem botão de confirmação.
+- **2026-08-03** — Catalog Items 2022-04-01 em lote (`identifiers`): confirmado que o
+  `pageSize` padrão é **10** — lotes de 20 ASINs voltavam pela metade em silêncio (o
+  snapshot de ranking rodou semanas capturando metade dos itens). Sempre passar `pageSize`.
+- **2026-07-22** — Semântica de PATCH com selectors confirmada com o caso real do FNSKU
+  travado por offer FBA+FBM duplo (fonte oficial: issue #2061). `replace` não sobrescreve
+  array; remover entrada exige `delete` com selector no `value`.
+- **(sem data precisa)** — `GET /finances/v0/financialEvents` retorna valores **zerados**
+  nesta conta (deprecação silenciosa). Fees e lucro migrados para
+  `GET /finances/2024-06-19/transactions`.

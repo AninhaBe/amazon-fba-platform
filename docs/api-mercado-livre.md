@@ -107,6 +107,23 @@ terceiro), `/highlights/{site}/category/{id}` (top 20 da categoria, com
 - Imposto: percentual configurável do vendedor (`mercadoLivreTaxRate` — não vem da API).
 - Taxonomia canônica: `commission`, `shipping_seller`, `fulfillment`, `payment`, `ads`, `taxes_withheld`, `refund`, `other`.
 
+## Changelog observado (mais recente primeiro)
+
+O ML muda regra **sem aviso e sem changelog público** — já aconteceu duas vezes em duas
+semanas. Toda mudança de comportamento observada na API entra aqui, com data; o detalhe
+fica nas seções acima.
+
+- **2026-08-03** — `GET /items/{id}` de item de **terceiro** passou a retornar `403`
+  (em 23/07 ainda funcionava). Itens próprios seguem OK. Na mesma data: re-verificados
+  os endpoints que continuam abertos e sondados os `/products/*` (ver seção de pesquisa
+  de mercado).
+- **2026-07-23** — Verificado o bloqueio de `/sites/{site}/search` (todas as variantes:
+  `q`, `category`, `seller_id`), de `/users/{outro}/items/search` e de qualquer chamada
+  anônima (`blocked_by: PolicyAgent`). Fallbacks "tenta público sem token" viraram código
+  morto e foram removidos.
+- **2026-07-22** — Validada a regra **"últimos N dias = dia-calendário"** (fuso SP), não
+  janela rolante — diferença de R$ 46,99 contra o painel até corrigir.
+
 ## Pegadinhas gerais
 
 - **Status canônicos**: `paid` ← paid/payment_required(pago), `cancelled` ← cancelled, etc. Mapeamento em `mercadoLivreNormalizer`. O ML muda status do pedido sem notificar em alguns fluxos — o sync por janela de datas cobre isso.

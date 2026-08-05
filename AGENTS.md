@@ -27,8 +27,9 @@ não abre brecha**. Só então entregue.
 
 # Arquitetura e decisões — leia antes de implementar
 
-A arquitetura é **fonte de verdade no repo**. Antes de implementar algo que toque
-dados, sync, cache, auth ou um canal, leia o(s) doc(s) relevante(s) — não re-deduza:
+A arquitetura é **fonte de verdade no repo**. O mapa completo da documentação está em
+`docs/README.md`. Antes de implementar algo que toque dados, sync, cache, auth ou um
+canal, leia o(s) doc(s) relevante(s) — não re-deduza:
 
 - Visão geral, contexto e mapa de arquivos: `docs/architecture/overview.md`
 - Modelo canônico: `docs/architecture/canonical-model.md` (+ `docs/canonical-schema.md`)
@@ -46,3 +47,7 @@ Antes de mexer em qualquer integração, leia a documentação interna — ela r
 - `docs/api-amazon-sp-api.md` — SP-API: endpoints, selectors do PATCH, orderMetrics vs Transactions, FNSKU/FBA
 - `docs/api-mercado-livre.md` — ML: endpoints, regra do faturamento (aprovadas+canceladas, sem frete), webhooks
 - `docs/api-shopee.md` — Shopee Open Platform v2 (**ENGATILHADO, não implementado**): assinatura, OAuth, escrow, mapeamento canônico e roteiro de arquivos
+
+Cada doc de API termina num **"Changelog observado"** (datado, mais recente primeiro).
+Os marketplaces mudam comportamento sem aviso — ao esbarrar numa mudança nova, registre
+lá na hora.

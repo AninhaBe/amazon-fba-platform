@@ -97,6 +97,14 @@ webhook depois.
 **Assets:** conferir `public/brands/shopee.svg` e `public/brands/app/shopee.svg`
 (os caminhos já estão referenciados em `MarketplaceIcon.tsx`).
 
+## Changelog observado (mais recente primeiro)
+
+Mesma convenção dos docs da Amazon e do ML: mudanças de comportamento da API observadas
+na prática entram aqui, com data. Enquanto o canal não for implementado, a lista fica
+vazia — ao implementar, re-validar tudo marcado com ⚠️ e registrar o que divergir.
+
+- *(nenhuma observação ainda — canal não implementado)*
+
 ## Referências
 
 - Adapter de referência (mesmo desenho): `src/lib/integrations/mercadoLivre.ts`,
