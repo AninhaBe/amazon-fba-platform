@@ -103,7 +103,8 @@ export async function GET(req: NextRequest) {
         response.headers.set("X-SellerCore-Cache", "EMPTY");
         return response;
       }
-      if (view !== "monitor") overview.profitabilityLines = [];
+      // Dashboard e monitor mostram a rentabilidade por venda; só o estoque dispensa as linhas.
+      if (view === "estoque") overview.profitabilityLines = [];
       const response = timedJson({
         connectionId: connection.id,
         overview,

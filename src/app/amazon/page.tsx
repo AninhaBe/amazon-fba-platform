@@ -10,6 +10,8 @@ import { DashboardPeriodFilter, useDashboardPeriod } from "../components/Dashboa
 import { OperationPending, type OperationPendingItem } from "../components/OperationPending";
 import { Metric as Kpi, getRevenueTrend } from "../components/Metric";
 import { AnimatedNumber } from "../components/AnimatedNumber";
+import { OrderProfitabilityTable } from "../components/OrderProfitabilityTable";
+import type { ProfitabilityLine } from "@/lib/profitability";
 import { brDate, brTime } from "@/lib/datetime";
 import { Boxes, ChartSpline, PackageOpen, Percent, ShoppingCart, Tag } from "lucide-react";
 import { readJson } from "../../lib/readJson";
@@ -73,6 +75,8 @@ interface DashSnapshot {
   radar: RadarRow[];
   sales: SalesSeries | null;
   top: TopProduct[];
+  profitability: ProfitabilityLine[];
+  profitabilityScope?: string;
   updatedAt: Date;
 }
 
@@ -91,6 +95,9 @@ export default function Dashboard() {
   const [products, setProducts] = useState<ProductRow[]>(productsCache ?? []);
   const [sales, setSales] = useState<SalesSeries | null>(initialDash?.sales ?? null);
   const [top, setTop] = useState<TopProduct[]>(initialDash?.top ?? []);
+  const [profitability, setProfitability] = useState<ProfitabilityLine[]>(initialDash?.profitability ?? []);
+  const [profitabilityScope, setProfitabilityScope] = useState<string | undefined>(initialDash?.profitabilityScope);
+  const [profitabilityLoading, setProfitabilityLoading] = useState(!initialDash);
   const [productsLoading, setProductsLoading] = useState(!productsCache);
   const [errors, setErrors] = useState<string[]>([]);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(initialDash?.updatedAt ?? null);
@@ -108,10 +115,14 @@ export default function Dashboard() {
         setRadar(cached.radar);
         setSales(cached.sales);
         setTop(cached.top);
+        setProfitability(cached.profitability);
+        setProfitabilityScope(cached.profitabilityScope);
+        setProfitabilityLoading(false);
         setUpdatedAt(cached.updatedAt);
         setLoading(false);
       } else {
         setLoading(true);
+        setProfitabilityLoading(true);
       }
     });
     const next: Omit<DashSnapshot, "updatedAt"> = {
@@ -120,6 +131,8 @@ export default function Dashboard() {
       radar: cached?.radar ?? [],
       sales: cached?.sales ?? null,
       top: cached?.top ?? [],
+      profitability: cached?.profitability ?? [],
+      profitabilityScope: cached?.profitabilityScope,
     };
     const store = () => dashCache.set(periodQuery, { ...next, updatedAt: new Date() });
     const errs: string[] = [];
@@ -153,6 +166,14 @@ export default function Dashboard() {
       () => active && setProductsLoading(false)
     );
     safe<TopProduct[]>(`/api/top-products?${periodQuery}`, (v) => { next.top = v; setTop(v); store(); }, (d) => (d as { products: TopProduct[] }).products, "top produtos");
+    // Rentabilidade por venda: mesma fonte do monitor, com loading próprio para
+    // não segurar os KPIs (o fallback ao vivo do endpoint pode ser lento).
+    safe<{ lines: ProfitabilityLine[]; scope?: string }>(
+      `/api/order-profitability?${periodQuery}`,
+      (v) => { next.profitability = v.lines; next.profitabilityScope = v.scope; setProfitability(v.lines); setProfitabilityScope(v.scope); store(); },
+      (d) => d as { lines: ProfitabilityLine[]; scope?: string },
+      "rentabilidade"
+    ).finally(() => active && setProfitabilityLoading(false));
 
     return () => {
       active = false;
@@ -322,6 +343,9 @@ export default function Dashboard() {
           )}
         </Panel>
       </div>
+
+      {/* Rentabilidade por venda — a mesma visão do monitor, direto no dashboard. */}
+      <OrderProfitabilityTable lines={profitability} loading={profitabilityLoading} scopeNote={profitabilityScope} />
 
       {/* Top produtos */}
       <div className="work-panel border-t border-slate-300 py-5">
