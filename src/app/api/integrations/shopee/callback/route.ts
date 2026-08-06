@@ -6,6 +6,7 @@ import {
   shopeeConnectionId,
   shopeeSandbox,
 } from "@/lib/integrations/shopee";
+import { ensureShopeeSyncState } from "@/lib/integrations/shopeeSync";
 import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
 
 export const runtime = "nodejs";
@@ -66,7 +67,9 @@ export async function GET(req: NextRequest) {
         // segue com o nome padrão
       }
 
-      await saveIntegration({ ...connection, displayName });
+      const saved = await saveIntegration({ ...connection, displayName });
+      // Primeira sincronização já agendada: o cron assume a partir daqui.
+      await ensureShopeeSyncState(saved.id);
       const response = NextResponse.redirect(`${uiBaseUrl}/integracoes?connected=shopee`);
       response.cookies.set("shopee_oauth_state", "", { maxAge: 0, path: "/" });
       return response;

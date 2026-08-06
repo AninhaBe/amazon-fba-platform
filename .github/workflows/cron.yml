@@ -49,3 +49,11 @@ jobs:
           curl -sS --fail-with-body --max-time 250 \
             -H "Authorization: Bearer ${CRON_SECRET}" \
             "${APP_BASE_URL%/}/api/cron/amazon-sync"
+
+      # Shopee só tem trabalho quando existe loja conectada; sem conexão o
+      # endpoint responde de imediato com processed: 0.
+      - name: Sync Shopee
+        run: |
+          curl -sS --fail-with-body --max-time 250 \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "${APP_BASE_URL%/}/api/cron/shopee-sync"

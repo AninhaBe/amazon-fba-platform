@@ -292,6 +292,93 @@ export async function getAuthorizedShops(): Promise<{ authed_shop_list?: Array<{
   return shopeePublicFetch("/api/v2/public/get_shops_by_partner", { page_no: "1", page_size: "100" });
 }
 
+// ----- Limites da API (confirmados na doc oficial em 05/08/2026) ------------
+
+/** Janela máxima de time_from/time_to em get_order_list. */
+export const ORDER_WINDOW_DAYS = 15;
+/** page_size de get_order_list aceita de 1 a 100. */
+export const ORDER_PAGE_SIZE = 100;
+/** get_order_detail aceita no máximo 50 order_sn por chamada. */
+export const ORDER_DETAIL_BATCH = 50;
+
+interface OrderListResponse {
+  order_list?: Array<{ order_sn: string; order_status?: string }>;
+  more?: boolean;
+  next_cursor?: string;
+}
+
+/**
+ * Lista os `order_sn` de uma janela de tempo. A janela NÃO pode passar de 15
+ * dias — quem chama é responsável por fatiar (ver shopeeSync).
+ */
+export async function getShopeeOrderList(
+  connection: IntegrationConnection,
+  input: { from: Date; to: Date; cursor?: string; timeField?: "create_time" | "update_time" }
+): Promise<OrderListResponse> {
+  const params: Record<string, string> = {
+    time_range_field: input.timeField ?? "create_time",
+    time_from: String(Math.floor(input.from.getTime() / 1000)),
+    time_to: String(Math.floor(input.to.getTime() / 1000)),
+    page_size: String(ORDER_PAGE_SIZE),
+    response_optional_fields: "order_status",
+  };
+  if (input.cursor) params.cursor = input.cursor;
+  return shopeeFetch<OrderListResponse>(connection, "/api/v2/order/get_order_list", params);
+}
+
+/** Detalhe de até 50 pedidos por chamada. */
+export async function getShopeeOrderDetail(
+  connection: IntegrationConnection,
+  orderSns: string[]
+): Promise<{ order_list?: unknown[] }> {
+  if (orderSns.length > ORDER_DETAIL_BATCH) {
+    throw new Error(`get_order_detail aceita no máximo ${ORDER_DETAIL_BATCH} pedidos por chamada.`);
+  }
+  return shopeeFetch(connection, "/api/v2/order/get_order_detail", {
+    order_sn_list: orderSns.join(","),
+    response_optional_fields: [
+      "item_list",
+      "total_amount",
+      "actual_shipping_fee",
+      "estimated_shipping_fee",
+      "reverse_shipping_fee",
+      "pay_time",
+      "update_time",
+      "package_list",
+    ].join(","),
+  });
+}
+
+/** Escrow (taxas reais) de um pedido — só existe após o pagamento. */
+export async function getShopeeEscrowDetail(
+  connection: IntegrationConnection,
+  orderSn: string
+): Promise<unknown> {
+  return shopeeFetch(connection, "/api/v2/payment/get_escrow_detail", { order_sn: orderSn });
+}
+
+/** Lista de itens do catálogo (paginada por offset). */
+export async function getShopeeItemList(
+  connection: IntegrationConnection,
+  input: { offset?: number; pageSize?: number; status?: string }
+): Promise<{ item?: Array<{ item_id: number }>; total_count?: number; has_next_page?: boolean; next_offset?: number }> {
+  return shopeeFetch(connection, "/api/v2/product/get_item_list", {
+    offset: String(input.offset ?? 0),
+    page_size: String(input.pageSize ?? 50),
+    item_status: input.status ?? "NORMAL",
+  });
+}
+
+/** Informações base de até 50 itens. */
+export async function getShopeeItemBaseInfo(
+  connection: IntegrationConnection,
+  itemIds: number[]
+): Promise<{ item_list?: unknown[] }> {
+  return shopeeFetch(connection, "/api/v2/product/get_item_base_info", {
+    item_id_list: itemIds.join(","),
+  });
+}
+
 /** `connection_id` canônico do canal: uma conexão por loja. */
 export function shopeeConnectionId(shopId: string): string {
   return `shopee:${shopId}`;

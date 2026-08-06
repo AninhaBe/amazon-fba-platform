@@ -56,8 +56,8 @@ loja não há o que autorizar nem sincronizar. Sem loja, só dá para desenvolve
 
 | Endpoint | Uso | Observações |
 |---|---|---|
-| `GET /api/v2/order/get_order_list` | lista `order_sn` por janela de tempo + status | paginação por cursor; janela máx ~15 dias por chamada ⚠️ |
-| `GET /api/v2/order/get_order_detail` | detalhe de um lote de `order_sn` | máx ~50 `order_sn` por chamada ⚠️; traz itens, valores, status |
+| `GET /api/v2/order/get_order_list` | lista `order_sn` por janela de tempo + status | paginação por **cursor opaco** (`next_cursor` + `more`); **janela máx 15 dias** e `page_size` de **1 a 100** — ambos confirmados na doc oficial em 05/08/2026 |
+| `GET /api/v2/order/get_order_detail` | detalhe de um lote de `order_sn` | **máx 50 `order_sn`** por chamada (confirmado); itens vêm em `item_list` com `model_discounted_price` (cobrado) e `model_original_price` (lista) |
 
 ## Itens / anúncios
 
@@ -100,13 +100,20 @@ webhook depois.
   (`shopeeConfigured()`), `ChannelRail.tsx`, `ChannelSwitcher.tsx`, `workspaces.ts`
   (`WorkspaceId` + rota), `AppShell.tsx`, `Nav.tsx`, `PageHeader.tsx`, `globals.css`.
 
-**Fase 2 — ingestão (PENDENTE, exige loja autorizada):** `shopeeCanonical.ts`
-(normalizer), `shopeeSync.ts`, `shopeeScheduler.ts`, `shopeeOverviewCanonical.ts`;
-rota `overview`; `src/app/api/cron/shopee-sync/route.ts`; step no
-`.github/workflows/cron.yml`; entrada no dashboard consolidado (`app/page.tsx`).
+**Fase 2 — dashboard e ingestão (FEITO em 05/08/2026):**
+- ✅ `shopeeOverviewCanonical.ts` + rota `overview` — dashboard no padrão dos
+  outros canais, lendo do modelo canônico.
+- ✅ `shopeeCanonical.ts` (normalizer, com 8 testes em `tests/shopeeCanonical.test.mjs`)
+- ✅ `shopeeSync.ts` (janela de 15 dias, lote de 50 no detail, escrow como
+  conciliação complementar), `shopeeScheduler.ts`,
+  `src/app/api/cron/shopee-sync/route.ts` e step no `.github/workflows/cron.yml`.
 
-> A fase 2 foi deliberadamente adiada: escrever normalizer contra a doc, sem uma
-> resposta real para conferir, é como a Amazon já ensinou que se paga caro depois.
+**Fase 3 — o que falta para dados reais (não é código):** Go Live no console →
+partner key de produção → `SHOPEE_*` no Render → loja autoriza. Só então o
+mapeamento de campos encontra a realidade; revisar `shopeeCanonical.ts` nesse dia.
+
+> Pendente também: entrada da Shopee no dashboard consolidado (`app/page.tsx`),
+> que só faz sentido quando houver loja conectada com dados.
 
 **Sem mudança (agnósticos):** schema canônico, `canonicalStore.ts`, `canonical.ts`,
 `integrationStore.ts`, `secrets.ts` — reaproveitados com `provider: "shopee"`.
@@ -119,6 +126,26 @@ rota `overview`; `src/app/api/cron/shopee-sync/route.ts`; step no
 Mesma convenção dos docs da Amazon e do ML: mudanças de comportamento da API observadas
 na prática entram aqui, com data. Enquanto o canal não for implementado, a lista fica
 vazia — ao implementar, re-validar tudo marcado com ⚠️ e registrar o que divergir.
+
+- **2026-08-05** — **Ingestão implementada** (`shopeeCanonical.ts` + `shopeeSync.ts` +
+  `shopeeScheduler.ts` + cron). Escrita contra a doc oficial, ainda **não exercitada
+  contra loja real** — todo o mapeamento de campo está isolado em `shopeeCanonical.ts`
+  de propósito: quando a primeira loja conectar, o ajuste é lá, não no sync.
+  Campos confirmados na doc de `get_escrow_detail` e `get_order_detail`:
+  - **Estrutura do escrow**: `response.order_income` com `commission_fee`,
+    `service_fee`, `seller_transaction_fee`, `actual_shipping_fee`,
+    `reverse_shipping_fee`, `campaign_fee`, `order_ams_commission_fee`,
+    `escrow_tax`, `seller_return_refund`, `buyer_paid_shipping_fee`. A doc
+    publica a fórmula completa do `escrow_amount` (~40 parcelas).
+  - **Itens do pedido**: `model_discounted_price` é o preço cobrado e
+    `model_original_price` o de lista — usar o primeiro no `unitPrice`, senão a
+    receita infla. `model_sku` (variação) tem precedência sobre `item_sku`.
+  - **`INVOICE_PENDING` conta como receita** (pago, só falta NF-e) — status
+    específico do Brasil.
+  - Produtos: `item_status` usa `NORMAL`/`UNLIST`/`BANNED`/`DELETED`, e o estoque
+    vem aninhado em `stock_info_v2.summary_info.total_available_stock`.
+  - ⚠️ **Cursor é opaco e não é estável entre execuções** (diferente do offset do
+    ML): o sync percorre a janela inteira num passo só, em vez de guardar posição.
 
 - **2026-08-05** — **Primeira chamada assinada com sucesso no sandbox** (app
   "SellerCore", ERP System, status Developing). `GET
