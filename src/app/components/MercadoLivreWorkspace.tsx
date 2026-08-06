@@ -9,6 +9,7 @@ import { PageHeader, pageIcons } from "./PageHeader";
 import { RevenueChart, type DailyPoint } from "./RevenueChart";
 import { DashboardPeriodFilter, useDashboardPeriod } from "./DashboardPeriodFilter";
 import { OrderProfitabilityTable } from "./OrderProfitabilityTable";
+import { ConnectionBroken, isBrokenConnection } from "./ConnectionBroken";
 import { OperationPending } from "./OperationPending";
 import { CustomizableMetricGrid } from "./CustomizableMetricGrid";
 import { Flow, FlowExpandable, Metric, getRevenueTrend } from "./Metric";
@@ -74,6 +75,7 @@ export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
   const [overview, setOverview] = useState<Overview | null>(initialCached?.overview ?? null);
   const [loading, setLoading] = useState(!initialCached);
   const [error, setError] = useState<string | null>(null);
+  const [brokenConnection, setBrokenConnection] = useState<string | null>(null);
   const [connectionPresent, setConnectionPresent] = useState(!!initialCached);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(initialCached?.updatedAt ?? null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(initialCached?.syncStatus ?? null);
@@ -113,7 +115,13 @@ export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
           attempts += 1;
           const response = await fetch(`/api/integrations/mercado-livre/overview?${period.query}&view=${view}`, { cache: "no-store", signal: controller.signal });
           const data = await readJson(response);
-          if (!response.ok && response.status !== 202) throw new Error(data.error || "Não foi possível consultar o Mercado Livre.");
+          if (!response.ok && response.status !== 202) {
+            if (isBrokenConnection((data as { errorInfo?: { code?: string } })?.errorInfo?.code)) {
+              setBrokenConnection(data.error ?? null);
+              return;
+            }
+            throw new Error(data.error || "Não foi possível consultar o Mercado Livre.");
+          }
           if (data.connectionId) setConnectionPresent(true);
           if (data.sync) setSyncStatus(data.sync as SyncStatus);
           if (data.overview) {
@@ -170,7 +178,8 @@ export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
           <p>Histórico: {syncStatus.progress}% importado — os dados abaixo já estão disponíveis.</p>
         </div>
       )}
-      {loading ? <DashboardSkeleton label="Carregando dados do Mercado Livre" chart={view === "dashboard"} rows={view === "dashboard" ? 4 : 6} /> : error ? (
+      {brokenConnection && <ConnectionBroken channel="mercado_livre" message={brokenConnection} />}
+      {loading ? <DashboardSkeleton label="Carregando dados do Mercado Livre" chart={view === "dashboard"} rows={view === "dashboard" ? 4 : 6} /> : brokenConnection ? null : error ? (
         <EmptyState title="Não foi possível atualizar o Mercado Livre" description={error} action={<button type="button" onClick={() => setRetryKey((key) => key + 1)} className="meli-primary-action">Tentar novamente <span aria-hidden="true">↻</span></button>} />
       ) : !overview && connectionPresent ? (
         <div className="space-y-4">

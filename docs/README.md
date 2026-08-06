@@ -43,6 +43,7 @@ não re-deduza o que já foi decidido nem repita pegadinha já paga.
 |---|---|
 | [`amazon-politicas.md`](./amazon-politicas.md) | Políticas da Amazon extraídas do Seller Central BR: título ≤75 chars, capa fundo branco sem texto, atributos fiscais do FBA, limites de caixa, manual de entrega no CD |
 | [`amazon-ads.md`](./amazon-ads.md) | Amazon Ads BR: como funciona, créditos, plano de campanha (aguardando estoque FBA chegar) |
+| [`conexoes-que-expiram.md`](./conexoes-que-expiram.md) | Por que a autorização de cada canal cai, o que o app já detecta/mostra e o backlog para evitar (self-authorization da Amazon, vencimento de 365 dias da Shopee) |
 
 ## Planos e ideias
 

@@ -4,6 +4,7 @@ import type { IntegrationConnection } from "./types";
 import { costAt, getCosts } from "../costStore";
 import { allocateByWeight, calculateContribution, type ProfitabilityLine } from "../profitability";
 import { collectMercadoLivreOrders } from "./mercadoLivreOrders";
+import { ChannelAuthExpiredError } from "./authErrors";
 
 const API_BASE = "https://api.mercadolibre.com";
 const AUTH_BASE = "https://auth.mercadolivre.com.br/authorization";
@@ -278,12 +279,23 @@ async function refreshConnection(connection: IntegrationConnection): Promise<Int
     if (latest.accessExpiresAt && new Date(latest.accessExpiresAt).getTime() > Date.now() + 60_000) return latest;
     if (!latest.refreshToken) throw new Error("Conexão do Mercado Livre sem refresh token.");
     const { id, secret } = credentials();
-    const token = await tokenRequest(new URLSearchParams({
-      grant_type: "refresh_token",
-      client_id: id,
-      client_secret: secret,
-      refresh_token: latest.refreshToken,
-    }));
+    let token;
+    try {
+      token = await tokenRequest(new URLSearchParams({
+        grant_type: "refresh_token",
+        client_id: id,
+        client_secret: secret,
+        refresh_token: latest.refreshToken,
+      }));
+    } catch (error) {
+      // Refresh recusado = autorização revogada/expirada. Persistir esse estado
+      // é o que permite a UI oferecer "reconectar" em vez de um erro genérico.
+      await saveIntegration({ ...latest, status: "disconnected" }).catch(() => {});
+      throw new ChannelAuthExpiredError(
+        "A conexão com o Mercado Livre expirou. Reconecte a conta para voltar a sincronizar.",
+        error
+      );
+    }
     return saveIntegration({
       ...latest,
       accessToken: token.access_token,

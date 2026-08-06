@@ -830,6 +830,16 @@ summary:hover { background: var(--paper-soft); }
 .central-empty > a:hover, .meli-primary-action:hover { background: var(--brand-dark); transform: translateY(-1px); }
 .app-shell[data-channel="mercado_livre"] .meli-primary-action { background: var(--meli); color: var(--meli-dark); box-shadow: 0 5px 14px oklch(0.62 0.11 96 / .18); }
 .app-shell[data-channel="mercado_livre"] .meli-primary-action:hover { background: color-mix(in oklch, var(--meli) 84%, white); }
+/* Conexão do canal expirada: precisa ser lida antes dos números, porque explica
+   por que eles pararam de atualizar — e traz a ação de conserto junto. */
+.connection-broken { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; border-inline-start: 4px solid var(--danger); border-radius: var(--radius-sm); background: oklch(0.97 0.02 27); padding: 14px 16px; }
+.connection-broken.is-compact { padding: 10px 12px; }
+.connection-broken-copy { min-width: 0; flex: 1 1 320px; }
+.connection-broken-title { color: oklch(0.45 0.17 27); font-size: 13px; font-weight: 750; }
+.connection-broken-text { margin-block-start: 4px; max-width: 68ch; color: var(--ink-soft); font-size: 12.5px; line-height: 1.5; text-wrap: pretty; }
+.connection-broken-action { display: inline-flex; min-height: 40px; align-items: center; gap: 8px; border-radius: var(--radius-sm); background: oklch(0.52 0.19 27); padding-inline: 15px; color: white; font-size: 13px; font-weight: 700; white-space: nowrap; transition: background 140ms ease; }
+.connection-broken-action:hover { background: oklch(0.46 0.19 27); }
+
 .app-shell[data-channel="shopee"] .meli-primary-action { background: var(--shopee); color: white; box-shadow: 0 5px 14px oklch(0.62 0.21 32 / .2); }
 .app-shell[data-channel="shopee"] .meli-primary-action:hover { background: color-mix(in oklch, var(--shopee) 86%, black); }
 .central-kpis, .meli-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); overflow: hidden; border-radius: var(--radius-lg); background: var(--paper); box-shadow: var(--shadow-surface); }

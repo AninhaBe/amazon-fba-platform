@@ -9,6 +9,7 @@
 
 import { createHmac } from "crypto";
 import { saveIntegration } from "./integrationStore";
+import { ChannelAuthExpiredError } from "./authErrors";
 import type { IntegrationConnection } from "./types";
 
 // Hosts verificados em 05/08/2026 com chamada real. O host antigo
@@ -218,7 +219,18 @@ export async function refreshShopeeConnection(connection: IntegrationConnection)
         partner_id: Number(partnerId),
       }),
     });
-    const token = unwrap<ShopeeTokenResponse>(payload);
+    let token: ShopeeTokenResponse;
+    try {
+      token = unwrap<ShopeeTokenResponse>(payload);
+    } catch (error) {
+      // Além da rotação do refresh token, a autorização da loja vence em até
+      // 365 dias: nos dois casos a saída é o vendedor reautorizar.
+      await saveIntegration({ ...connection, status: "disconnected" }).catch(() => {});
+      throw new ChannelAuthExpiredError(
+        "A autorização desta loja Shopee expirou. Peça ao vendedor para reconectar.",
+        error
+      );
+    }
     return saveIntegration({
       ...connection,
       accessToken: token.access_token,

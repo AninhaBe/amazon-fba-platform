@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { SpApiError } from "./spapi";
+import { isChannelAuthExpired } from "./integrations/authErrors";
 
 // Converte qualquer erro capturado numa resposta HTTP segura para a equipe:
 // - a UI recebe uma mensagem amigável em `error` (string, compatível com o front atual)
@@ -37,6 +38,18 @@ export function errorResponse(err: unknown): NextResponse {
       },
       // 5xx da Amazon vira 502 (falha de upstream); 4xx repassa o status.
       { status: err.status >= 500 ? 502 : err.status }
+    );
+  }
+
+  // Autorização de canal revogada: 401 com código próprio, para a UI oferecer
+  // reconectar em vez de "tente novamente" (que nunca vai funcionar).
+  if (isChannelAuthExpired(err)) {
+    console.error(
+      JSON.stringify({ requestId, code: err.code, technicalMessage: err.message, timestamp })
+    );
+    return NextResponse.json(
+      { error: err.message, errorInfo: { code: err.code, requestId, retryable: false } },
+      { status: 401 }
     );
   }
 

@@ -11,6 +11,7 @@ import { OperationPending, type OperationPendingItem } from "../components/Opera
 import { Metric as Kpi, getRevenueTrend } from "../components/Metric";
 import { AnimatedNumber } from "../components/AnimatedNumber";
 import { OrderProfitabilityTable } from "../components/OrderProfitabilityTable";
+import { ConnectionBroken, isBrokenConnection } from "../components/ConnectionBroken";
 import type { ProfitabilityLine } from "@/lib/profitability";
 import { brDate, brTime } from "@/lib/datetime";
 import { Boxes, ChartSpline, PackageOpen, Percent, ShoppingCart, Tag } from "lucide-react";
@@ -100,6 +101,7 @@ export default function Dashboard() {
   const [profitabilityLoading, setProfitabilityLoading] = useState(!initialDash);
   const [productsLoading, setProductsLoading] = useState(!productsCache);
   const [errors, setErrors] = useState<string[]>([]);
+  const [brokenConnection, setBrokenConnection] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(initialDash?.updatedAt ?? null);
 
   const periodQuery = period.query;
@@ -136,14 +138,26 @@ export default function Dashboard() {
     };
     const store = () => dashCache.set(periodQuery, { ...next, updatedAt: new Date() });
     const errs: string[] = [];
+    // Guarda o motivo de autorização à parte: ele merece tratamento próprio
+    // (reconectar), e não entra na lista genérica de "não carregou".
+    let broken: string | null = null;
     const safe = <T,>(url: string, set: (v: T) => void, pick: (d: unknown) => T, name: string) =>
       fetch(url)
         .then((r) => readJson(r).then((d) => ({ ok: r.ok, d })))
         .then(({ ok, d }) => {
-          if (!ok) throw new Error((d as { error?: string })?.error || name);
+          if (!ok) {
+            const info = (d as { errorInfo?: { code?: string }; error?: string });
+            if (isBrokenConnection(info?.errorInfo?.code)) {
+              broken = info.error ?? null;
+              throw new Error("auth");
+            }
+            throw new Error(info?.error || name);
+          }
           if (active) set(pick(d));
         })
-        .catch(() => errs.push(name));
+        .catch(() => {
+          if (!broken) errs.push(name);
+        });
 
     // Chamadas rápidas — controlam o "loading" do dashboard.
     Promise.all([
@@ -154,6 +168,7 @@ export default function Dashboard() {
     ]).then(() => {
       if (active) {
         setErrors(errs);
+        setBrokenConnection(broken);
         setUpdatedAt(new Date());
         setLoading(false);
         store();
@@ -252,6 +267,8 @@ export default function Dashboard() {
         <CompactMetric label="Ticket médio" value={money(ticketMedio, currency)} loading={loading} />
         <CompactMetric label="ROI" value={cogs > 0 ? `${roiPct.toFixed(1)}%` : "—"} loading={loading} />
       </div>
+
+      {brokenConnection && <ConnectionBroken channel="amazon" message={brokenConnection} />}
 
       {errors.length > 0 && (
         <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
