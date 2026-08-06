@@ -127,6 +127,17 @@ const navigation: Record<WorkspaceId, NavGroup[]> = {
       ],
     },
   ],
+  // Canal recém-habilitado: só o painel de conexão por enquanto. Monitor, catálogo e
+  // ferramentas entram junto com a ingestão, para não oferecer tela sem dado por trás.
+  shopee: [
+    {
+      title: "Painéis",
+      tone: "sky",
+      items: [
+        { href: "/shopee", label: "Dashboard", desc: "Visão do canal", icon: icons.dashboard, exact: true },
+      ],
+    },
+  ],
 };
 
 const COLLAPSE_KEY = "sc-nav-collapsed";

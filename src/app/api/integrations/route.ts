@@ -4,6 +4,7 @@ import { getTiktokShops, removeTiktokShop } from "@/lib/tiktokStore";
 import { tiktokConfigured } from "@/lib/tiktok";
 import { getIntegrations, publicConnection, removeIntegration } from "@/lib/integrations/integrationStore";
 import { mercadoLivreConfigured } from "@/lib/integrations/mercadoLivre";
+import { shopeeConfigured } from "@/lib/integrations/shopee";
 import { PROVIDERS } from "@/lib/integrations/registry";
 import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
 
@@ -50,7 +51,8 @@ export async function GET() {
     return NextResponse.json({
       providers: PROVIDERS.map((provider) => ({
         ...provider,
-        connectHref: provider.id === "mercado_livre" && provider.connectHref && process.env.APP_BASE_URL
+        connectHref: (provider.id === "mercado_livre" || provider.id === "shopee")
+          && provider.connectHref && process.env.APP_BASE_URL
           ? `${process.env.APP_BASE_URL}${provider.connectHref}`
           : provider.connectHref,
         configured: provider.id === "amazon"
@@ -59,7 +61,9 @@ export async function GET() {
             ? mercadoLivreConfigured()
             : provider.id === "tiktok_shop"
               ? tiktokConfigured()
-              : false,
+              : provider.id === "shopee"
+                ? shopeeConfigured()
+                : false,
         connections: connections.filter((connection) => connection.provider === provider.id),
       })),
     });

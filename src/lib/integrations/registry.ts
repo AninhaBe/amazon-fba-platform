@@ -42,9 +42,10 @@ export const PROVIDERS: ProviderDefinition[] = [
     id: "shopee",
     name: "Shopee",
     shortName: "SHP",
-    description: "Próximo canal previsto na arquitetura de integrações.",
+    description: "Pedidos, produtos, estoque e as taxas reais de cada venda (escrow).",
     capabilities: ["catalog", "orders", "inventory", "pricing", "finance"],
-    availability: "planned",
+    availability: "available",
+    connectHref: "/api/integrations/shopee/connect",
   },
 ];
 

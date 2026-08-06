@@ -830,6 +830,8 @@ summary:hover { background: var(--paper-soft); }
 .central-empty > a:hover, .meli-primary-action:hover { background: var(--brand-dark); transform: translateY(-1px); }
 .app-shell[data-channel="mercado_livre"] .meli-primary-action { background: var(--meli); color: var(--meli-dark); box-shadow: 0 5px 14px oklch(0.62 0.11 96 / .18); }
 .app-shell[data-channel="mercado_livre"] .meli-primary-action:hover { background: color-mix(in oklch, var(--meli) 84%, white); }
+.app-shell[data-channel="shopee"] .meli-primary-action { background: var(--shopee); color: white; box-shadow: 0 5px 14px oklch(0.62 0.21 32 / .2); }
+.app-shell[data-channel="shopee"] .meli-primary-action:hover { background: color-mix(in oklch, var(--shopee) 86%, black); }
 .central-kpis, .meli-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); overflow: hidden; border-radius: var(--radius-lg); background: var(--paper); box-shadow: var(--shadow-surface); }
 .central-kpis article, .meli-kpis article { min-height: 132px; padding: 20px; border-inline-end: 1px solid var(--line); }
 .central-kpis article:last-child, .meli-kpis article:last-child { border-inline-end: 0; }

@@ -10,6 +10,7 @@ const channels = [
   { id: "overview", href: "/", label: "Central", provider: "sellercore" },
   { id: "amazon", href: "/amazon", label: "Amazon", provider: "amazon" },
   { id: "mercado_livre", href: "/mercado-livre", label: "Mercado Livre", provider: "mercado_livre" },
+  { id: "shopee", href: "/shopee", label: "Shopee", provider: "shopee" },
 ] as const;
 
 export function ChannelRail() {

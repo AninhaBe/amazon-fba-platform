@@ -31,7 +31,13 @@ export function PageHeader({
   action?: ReactNode;
 }) {
   const workspace = workspaceFromPath(usePathname());
-  const provider = workspace === "amazon" ? "amazon" : workspace === "mercado_livre" ? "mercado_livre" : "sellercore";
+  const provider = workspace === "amazon"
+    ? "amazon"
+    : workspace === "mercado_livre"
+      ? "mercado_livre"
+      : workspace === "shopee"
+        ? "shopee"
+        : "sellercore";
   return (
     <div className="page-heading flex flex-wrap items-end justify-between gap-5">
       <div className="flex items-start gap-4">

@@ -12,14 +12,24 @@ Ter uma **loja de vendedor na Shopee** (o OAuth conecta uma *loja*, `shop_id`). 
 loja não há o que autorizar nem sincronizar. Sem loja, só dá para desenvolver contra o
 **sandbox** (ambiente de teste com loja/dados fake).
 
+> **No Brasil o acesso tem portão de aprovação** (verificado 2026-08-04): perfil de
+> desenvolvedor aprovado pela Shopee ANTES de criar app, vendedor PJ com ≥1 pedido/30d.
+> Passo a passo para o dono da loja: PDF "Shopee-Conectar-Loja-ao-SellerCore" (fora do
+> repo, gerado em 04/08/2026 — pedir à Ana).
+
 ## Credenciais e ambiente
 
 - App criado no **Shopee Open Platform** (open.shopee.com) → `partner_id` (numérico) +
-  `partner_key` (string).
-- Env (já previstas no plano): `SHOPEE_PARTNER_ID`, `SHOPEE_PARTNER_KEY`.
-- Hosts: produção `https://partner.shopeemobile.com`; sandbox
-  `https://partner.test-stable.shopeemobile.com`. ⚠️ **Confirmar host/região do Brasil**
-  (Shopee usa host global; a região vem da loja — verificar se BR tem host próprio).
+  `partner_key` (string, exibida no console como `shpk…`; **usar literal, sem tratar o
+  prefixo** — validado em 05/08/2026).
+- Env: `SHOPEE_PARTNER_ID`, `SHOPEE_PARTNER_KEY`, `SHOPEE_ENV` (`sandbox` | `live`).
+- **Hosts (verificados em 05/08/2026, chamada real):**
+  - produção: `https://partner.shopeemobile.com` ✔
+  - sandbox: `https://openplatform.sandbox.test-stable.shopee.sg` ✔
+  - ⚠️ `partner.test-stable.shopeemobile.com` (host antigo que este doc trazia)
+    **não vale mais** — responde `error_sign` para credenciais válidas, o que
+    despista o debug: parece chave errada, mas é host errado.
+  - Não há host próprio do Brasil: o host é global e a região vem da loja.
 
 ## Assinatura (toda chamada é assinada)
 
@@ -80,16 +90,23 @@ webhook depois.
 
 ## Roteiro de implementação (arquivos — mesmo padrão do Mercado Livre)
 
-**Novos:** `src/lib/integrations/shopee.ts` (adapter: fetch assinado, OAuth, `credentials`,
-`shopeeConfigured`), `shopeeCanonical.ts` (normalizer), `shopeeSync.ts`,
-`shopeeScheduler.ts`, `shopeeOverviewCanonical.ts`; rotas
-`src/app/api/integrations/shopee/{connect,callback,overview}/route.ts`;
-`src/app/api/cron/shopee-sync/route.ts`; UI `src/app/shopee/*` + `components/ShopeeWorkspace.tsx`.
+**Fase 1 — canal habilitado e conexão (FEITO em 05/08/2026):**
+- ✅ `src/lib/integrations/shopee.ts` — credenciais, assinatura pública e de loja,
+  `shopeeFetch` com refresh automático, OAuth (`authorizationUrl`,
+  `exchangeShopeeCode`, `refreshShopeeConnection`), `getShopeeShopInfo`.
+- ✅ `src/app/api/integrations/shopee/{connect,callback}/route.ts`
+- ✅ UI: `src/app/shopee/page.tsx` + `components/ShopeeWorkspace.tsx`
+- ✅ Registro: `registry.ts` (`available` + `connectHref`), `api/integrations/route.ts`
+  (`shopeeConfigured()`), `ChannelRail.tsx`, `ChannelSwitcher.tsx`, `workspaces.ts`
+  (`WorkspaceId` + rota), `AppShell.tsx`, `Nav.tsx`, `PageHeader.tsx`, `globals.css`.
 
-**Editar (registro):** `integrations/registry.ts` (`availability: "available"` + `connectHref`),
-`api/integrations/route.ts` (`shopeeConfigured()`), `ChannelRail.tsx`, `ChannelSwitcher.tsx`,
-`integrations/workspaces.ts` (`WorkspaceId` + rota `/shopee`), `AppShell.tsx`, `app/page.tsx`
-(dashboard consolidado), `integracoes/page.tsx`, `.github/workflows/cron.yml` (step do cron).
+**Fase 2 — ingestão (PENDENTE, exige loja autorizada):** `shopeeCanonical.ts`
+(normalizer), `shopeeSync.ts`, `shopeeScheduler.ts`, `shopeeOverviewCanonical.ts`;
+rota `overview`; `src/app/api/cron/shopee-sync/route.ts`; step no
+`.github/workflows/cron.yml`; entrada no dashboard consolidado (`app/page.tsx`).
+
+> A fase 2 foi deliberadamente adiada: escrever normalizer contra a doc, sem uma
+> resposta real para conferir, é como a Amazon já ensinou que se paga caro depois.
 
 **Sem mudança (agnósticos):** schema canônico, `canonicalStore.ts`, `canonical.ts`,
 `integrationStore.ts`, `secrets.ts` — reaproveitados com `provider: "shopee"`.
@@ -103,7 +120,66 @@ Mesma convenção dos docs da Amazon e do ML: mudanças de comportamento da API 
 na prática entram aqui, com data. Enquanto o canal não for implementado, a lista fica
 vazia — ao implementar, re-validar tudo marcado com ⚠️ e registrar o que divergir.
 
-- *(nenhuma observação ainda — canal não implementado)*
+- **2026-08-05** — **Primeira chamada assinada com sucesso no sandbox** (app
+  "SellerCore", ERP System, status Developing). `GET
+  /api/v2/public/get_shops_by_partner` → HTTP 200 com `authed_shop_list: []`
+  (vazio porque nenhuma loja autorizou ainda). Confirmado na prática:
+  - **Base string pública = `partner_id + api_path + timestamp`**, HMAC-SHA256
+    com a partner key **literal** (incluindo o prefixo `shpk`), hex minúsculo.
+  - **O host do sandbox mudou**: `openplatform.sandbox.test-stable.shopee.sg`.
+    O antigo `partner.test-stable.shopeemobile.com` responde `error_sign` mesmo
+    com assinatura correta — o sintoma aponta para a chave, a causa é o host.
+    Custou 3 rodadas de teste de variantes de chave até perceber.
+  - O host de produção `partner.shopeemobile.com` responde `invalid_partner_id`
+    para credenciais de sandbox — bom sinal de que os ambientes são separados.
+  - `/api/v2/public/get_token_by_resend_code` → `api_suspended` ("No permission
+    to this API"): endpoint fora da categoria ERP System.
+  - ⚠️ A **URL de autorização do sandbox** tem formato próprio e não é o
+    `/api/v2/shop/auth_partner` assinado:
+    `https://open.sandbox.test-stable.shopee.com/auth?auth_type=seller&partner_id=…&redirect_uri=…&response_type=code`,
+    e exige login com **conta de teste do sandbox** (criada no console, aba Test
+    Account), não com conta real — conta real dá "Account/Password Verification Failed".
+
+- **2026-08-05** — **Perfil de desenvolvedor ISV APROVADO** (conta
+  `consultor.masterseller@gmail.com`, CNPJ 66.106.202/0001-20). O caminho é
+  **Third-party Partner Platform (ISV)**, não vendedor: o critério "loja PJ com
+  ≥1 pedido/30d" vale só para contas do tipo *Shopee Seller*. ISV é literalmente
+  o tipo para quem **não** tem loja (tabela de elegibilidade: *"Are you a Shopee
+  seller? No → Third-party Partner Platform"*); exige produto live com
+  integrações verificáveis por conta trial, HTTPS/TLS 1.2+ e rating "A".
+  - **App Type é imutável e define os endpoints** — não existe liberação avulsa.
+    Uma conta ISV pode criar: ERP System, Product Management, Order Management,
+    Accounting and Finance, Marketing. Permissões: **ERP System = todas as APIs
+    exceto Chat API e Ads API** (Seller In-house System teria Chat, mas é
+    indisponível para ISV). → **SellerCore usa ERP System**; dados de Shopee Ads
+    exigiriam um segundo app do tipo Ads Service.
+  - Criar o app gera **Test Partner ID + Test Key** (só sandbox). As chaves de
+    produção saem depois do Go Live.
+  - **IP Whitelist é obrigatório para todos** (não só para quem envia pentest):
+    sem ele, dados do comprador voltam mascarados e a NF-e fica inviável.
+  - Pegadinhas do formulário do console: CNPJ só dígitos (`66106202000120`) e
+    CEP sem hífen; voltar um passo reseta upload de arquivo e checkbox de aceite.
+
+- **2026-08-04** — Fluxo de onboarding verificado na doc oficial (seção "BRASIL |
+  Jornada do Desenvolvedor", páginas atualizadas em jul/2026) — o que este doc não
+  tinha:
+  - **Perfil de desenvolvedor precisa ser APROVADO pela Shopee antes de criar app.**
+    Brasil só aceita `Registered Business Seller` (PJ, docs válidos, **≥1 pedido nos
+    últimos 30 dias**; Individual Seller/CPF fechado para BR) e `Third-party Partner`
+    (ISV: exige produto live com integrações e-commerce existentes verificáveis por
+    conta trial, HTTPS/TLS 1.2+, security rating "A" — caminho futuro do SellerCore).
+  - **Categoria do app é imutável** e delimita os endpoints (Seller In-House System
+    para vendedor próprio; ERP System para ISV). Sem liberação avulsa de endpoint.
+  - **Partner key é DUPLA**: sandbox (app "Developing") ≠ live (pós Go Live).
+  - **Go Live tem análise** e exige Product Brief (URL live + usuário de teste +
+    screenshot), Redirect URL domains (test e live), **IP Whitelist** e declaração de
+    infraestrutura. Sem IP Whitelist habilitado, dados do comprador voltam
+    **mascarados** (Sensitive Data) — inviabiliza NF-e.
+  - **Autorização de loja expira em ≤365 dias** (além da rotação do refresh_token).
+    Seller In-House System autoriza pelo botão do console; redirect_uri deve bater
+    exatamente com o domínio cadastrado.
+  - Dados do comprador p/ NF-e só nos status `INVOICE_PENDING`, `READY_TO_SHIP`,
+    `PROCESSED`, `RETURN/REFUND` (`get_order_list`/`get_order_detail`).
 
 ## Referências
 

@@ -11,8 +11,8 @@ import { workspaceFromPath, type WorkspaceId } from "@/lib/integrations/workspac
 import { MarketplaceIcon } from "./MarketplaceIcon";
 import { LogoutButton } from "./LogoutButton";
 
-const channelName: Record<WorkspaceId, string> = { overview: "Central", amazon: "Amazon", mercado_livre: "Mercado Livre" };
-const channelSub: Record<WorkspaceId, string> = { overview: "Todos os canais", amazon: "Operação Amazon", mercado_livre: "Operação Mercado Livre" };
+const channelName: Record<WorkspaceId, string> = { overview: "Central", amazon: "Amazon", mercado_livre: "Mercado Livre", shopee: "Shopee" };
+const channelSub: Record<WorkspaceId, string> = { overview: "Todos os canais", amazon: "Operação Amazon", mercado_livre: "Operação Mercado Livre", shopee: "Operação Shopee" };
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
