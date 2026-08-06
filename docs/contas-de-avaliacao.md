@@ -19,7 +19,9 @@ ação separada e explícita — nunca automática por data.
 ## O que a pessoa vê
 
 - **Modal na primeira visita da sessão**: "Você tem N dias de teste", com as
-  datas de início e fim.
+  datas de início e fim. O "já vi" fica em `sessionStorage`, então reaparece a
+  cada vez que a pessoa fecha e reabre o navegador — é lembrete de prazo, não
+  aviso único. Com o período vencido, aparece sempre.
 - **Faixa fixa no topo** com a contagem regressiva e a data limite; no último
   dia vira "Último dia de avaliação".
 - Depois de vencido, o modal explica que o período terminou.
@@ -39,8 +41,15 @@ node --experimental-transform-types --import ./scripts/ts-resolver.mjs --env-fil
 |---|---|
 | Criar | `ACTION=create EMAIL=... DAYS=20 [PASSWORD=...] [NOTE=...]` |
 | Consultar | `ACTION=status EMAIL=...` |
+| Trocar a nota | `ACTION=note EMAIL=... NOTE="..."` |
 | Estender | `ACTION=extend EMAIL=... DAYS=10` |
 | Excluir | `ACTION=delete EMAIL=... CONFIRM=SIM` |
+
+`note` existe separado de `extend` porque `extend` **reinicia o período** a partir
+de agora — não serve para ajustar só o texto.
+
+A `NOTE` aparece dentro do modal para quem está testando; escrever em nome da
+**equipe SellerCore**, não de uma pessoa.
 
 Sem `PASSWORD`, o script gera uma senha forte e a imprime uma vez — repassar por
 canal seguro, nunca em grupo ou chat aberto.

@@ -2,6 +2,7 @@
 //
 //   criar:    ACTION=create EMAIL=... DAYS=20 [PASSWORD=...] node ... scripts/trial-account.mjs
 //   status:   ACTION=status EMAIL=... node ... scripts/trial-account.mjs
+//   nota:     ACTION=note   EMAIL=... NOTE="..." node ... scripts/trial-account.mjs
 //   estender: ACTION=extend EMAIL=... DAYS=10 node ... scripts/trial-account.mjs
 //   excluir:  ACTION=delete EMAIL=... CONFIRM=SIM node ... scripts/trial-account.mjs
 //
@@ -129,6 +130,24 @@ if (ACTION === "create") {
     console.log("fim:   ", new Date(trial.endsAt).toLocaleString("pt-BR"));
     console.log("estado:", trial.expired ? "VENCIDO" : `ativo, ${trial.daysLeft} dia(s) restante(s)`);
   }
+} else if (ACTION === "note") {
+  // Troca só a mensagem, preservando as datas — usar extend aqui reiniciaria o
+  // período, o que não é o que se quer ao ajustar um texto.
+  const user = await findUser(EMAIL);
+  if (!user) {
+    console.error("usuario nao encontrado:", EMAIL);
+    process.exit(1);
+  }
+  const current = await getTrialFor(user.id);
+  if (!current) {
+    console.error("essa conta nao tem periodo de avaliacao.");
+    process.exit(1);
+  }
+  const startsAt = new Date(current.startsAt);
+  const days = (new Date(current.endsAt) - startsAt) / 86_400_000;
+  const trial = await setTrial(user.id, { startsAt, days, note: process.env.NOTE });
+  console.log("nota atualizada.");
+  console.log("periodo preservado:", new Date(trial.startsAt).toLocaleString("pt-BR"), "->", new Date(trial.endsAt).toLocaleString("pt-BR"));
 } else if (ACTION === "extend") {
   const user = await findUser(EMAIL);
   if (!user) {
@@ -158,7 +177,7 @@ if (ACTION === "create") {
   const removed = await admin(`/admin/users/${user.id}`, { method: "DELETE" });
   console.log(removed.ok ? `usuario ${EMAIL} e dados do workspace removidos` : `falha ao remover usuario: ${removed.status}`);
 } else {
-  console.error("ACTION invalida. Use create | status | extend | delete.");
+  console.error("ACTION invalida. Use create | status | note | extend | delete.");
   process.exit(1);
 }
 
