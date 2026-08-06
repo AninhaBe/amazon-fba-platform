@@ -89,6 +89,26 @@ Fulfillment Inbound `2024-03-20` sobre `inboundPlans/{id}/shipments/{id}`:
 
 ## Changelog observado (mais recente primeiro)
 
+- **2026-08-06** — **`GET_SALES_AND_TRAFFIC_REPORT` responde 403 Forbidden.**
+  Não é token revogado nem erro de código: o relatório exige o papel
+  **Brand Analytics**, que este app não possui. O perfil de desenvolvedor e os
+  demais papéis funcionam normalmente (pedidos, listings, FBA, financeiro) — é
+  um papel adicional que falta.
+  - Peculiaridade confirmada em issues do repositório oficial (amzn #1989,
+    #3018): Brand Analytics **não aparece como caixa de seleção** na
+    configuração do app, diferente dos outros papéis. Precisa ser solicitado
+    nominalmente via caso no suporte de desenvolvedores.
+  - Depois de concedido: aplicar ao app, re-listar e **reautorizar** (a
+    autorização antiga não carrega o papel novo).
+  - Consequência: `/amazon/desempenho` (sessões, visualizações, conversão,
+    % buy box) está implementado mas não funciona. Fonte alternativa hoje:
+    Seller Central → Relatórios de Negócios.
+
+- **2026-08-06** — **Refresh token revogado nas duas contas conectadas por
+  OAuth** (`invalid_grant`). O `LWA_REFRESH_TOKEN` do ambiente continua válido —
+  scripts de diagnóstico devem rodar **sem** `runWithAccount` para usá-lo. Ver
+  [`conexoes-que-expiram.md`](./conexoes-que-expiram.md).
+
 A Amazon muda comportamento e deprecia versões sem quebrar na hora. Toda mudança ou
 pegadinha **datada** observada na prática entra aqui — o detalhe fica na seção
 correspondente acima; esta lista é o índice cronológico.

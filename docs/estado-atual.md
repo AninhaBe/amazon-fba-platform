@@ -83,9 +83,31 @@ Os dados sintéticos do workspace demo vêm de `scripts/_demo-seed.mjs`
 (idempotente). Eles existem para que o avaliador da Shopee veja um produto com
 dados, não telas vazias.
 
-### 4. Estoque FBA a caminho
+### 4. Amazon Ads — pronto para ligar quando o estoque liberar
 
-Em 06/08: **279 unidades no FBA, apenas 1 vendável**. O resto está em
+Os 5 anúncios foram verificados em 06/08 (`scripts/listing-health.mjs`): todos
+`BUYABLE` + `DISCOVERABLE`, sem erro nem aviso, 6–7 imagens cada. **Não há nada a
+corrigir em título ou foto** — o que falta é só estoque vendável.
+
+Recomendação registrada: começar por **martelo-borracha** (maior volume e o que
+mais liberou), campanha **automática**, R$ 50/dia, 2–3 semanas sem mexer; depois
+transformar os termos que converteram em campanha manual exata. Plano completo,
+créditos e regras em [`amazon-ads.md`](./amazon-ads.md).
+
+⚠️ **Visualizações/sessões não funcionam no SellerCore hoje.** A página
+`/amazon/desempenho` existe e o código está pronto, mas
+`GET_SALES_AND_TRAFFIC_REPORT` responde **403 Forbidden**: exige o papel
+**Brand Analytics**, que o app não tem. Peculiaridade confirmada em issues do
+repositório oficial da Amazon (#1989, #3018): esse papel **não aparece como
+caixa de seleção** junto aos outros — precisa ser pedido nominalmente em caso no
+suporte de desenvolvedores. O perfil de desenvolvedor e os demais papéis já
+existem e funcionam (pedidos, listings, FBA, financeiro). Enquanto isso, os
+números estão no Seller Central → Relatórios de Negócios.
+
+### 5. Estoque FBA a caminho
+
+Em 06/08 às 17h: **279 unidades no FBA, 34 vendáveis** (de manhã era 1 — está
+liberando: martelo 27, kitprote-32 5, clips 2). O resto está em
 `pendingTransshipmentQuantity` — a Amazon redistribuindo entre centros. Remessa
 `FBA19KNGKSMZ` com status `RECEIVING` no `GRU8`.
 
