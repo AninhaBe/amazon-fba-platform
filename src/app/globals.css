@@ -840,7 +840,9 @@ summary:hover { background: var(--paper-soft); }
 .trial-modal-title { margin-block-start: 8px; color: var(--ink); font-size: 21px; font-weight: 780; letter-spacing: -.02em; text-wrap: balance; }
 .trial-modal-text { margin-block-start: 12px; color: var(--ink-soft); font-size: 13.5px; line-height: 1.6; text-wrap: pretty; }
 .trial-modal-note { margin-block-start: 10px; border-inline-start: 3px solid var(--warning); padding-inline-start: 10px; color: var(--ink-muted); font-size: 12.5px; line-height: 1.5; }
-.trial-modal-action { margin-block-start: 20px; min-height: 44px; width: 100%; border-radius: var(--radius-sm); background: var(--brand); color: white; font-size: 13.5px; font-weight: 730; transition: background 140ms ease; }
+.trial-modal-check { display: flex; align-items: center; gap: 9px; margin-block-start: 18px; color: var(--ink-soft); font-size: 13px; cursor: pointer; user-select: none; }
+.trial-modal-check input { width: 17px; height: 17px; accent-color: var(--brand); cursor: pointer; }
+.trial-modal-action { margin-block-start: 14px; min-height: 44px; width: 100%; border-radius: var(--radius-sm); background: var(--brand); color: white; font-size: 13.5px; font-weight: 730; transition: background 140ms ease; }
 .trial-modal-action:hover { background: var(--brand-dark); }
 
 /* Conexão do canal expirada: precisa ser lida antes dos números, porque explica

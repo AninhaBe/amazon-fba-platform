@@ -9,19 +9,27 @@ interface Trial {
   daysLeft: number;
   expired: boolean;
   note?: string;
+  acknowledged: boolean;
 }
 
 // Aviso do período de avaliação.
 //
-// Dois níveis, de propósito: um modal na primeira visita da sessão (para a
-// pessoa não descobrir o prazo tarde demais) e uma faixa fixa com a contagem
-// (para não precisar lembrar). Contas normais não recebem nada.
+// Dois níveis, de propósito: um modal (para a pessoa não descobrir o prazo tarde
+// demais) e uma faixa fixa com a contagem (para não precisar lembrar).
+//
+// Quem fecha o modal sem marcar nada volta a vê-lo na próxima sessão do
+// navegador; quem marca "não mostrar novamente" não vê mais — a preferência é
+// gravada no servidor, então vale em qualquer dispositivo. A faixa permanece nos
+// dois casos: silenciar o lembrete não deve esconder o prazo.
+//
+// Período vencido ignora tudo isso e mostra sempre.
 
 const SEEN_KEY = "sc-trial-modal-seen";
 
 export function TrialNotice() {
   const [trial, setTrial] = useState<Trial | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [dontShowAgain, setDontShowAgain] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -32,9 +40,9 @@ export function TrialNotice() {
         const data = await response.json();
         if (cancelled || !data.trial) return;
         setTrial(data.trial);
-        // Uma vez por sessão do navegador — e sempre, se já venceu.
-        const seen = sessionStorage.getItem(SEEN_KEY);
-        if (!seen || data.trial.expired) setShowModal(true);
+        const seenThisSession = sessionStorage.getItem(SEEN_KEY);
+        if (data.trial.expired) setShowModal(true);
+        else if (!data.trial.acknowledged && !seenThisSession) setShowModal(true);
       } catch {
         // aviso é acessório: silencioso em caso de falha
       }
@@ -52,6 +60,11 @@ export function TrialNotice() {
       sessionStorage.setItem(SEEN_KEY, "1");
     } catch {
       // navegador sem storage: o modal reaparece, sem prejuízo
+    }
+    if (dontShowAgain) {
+      // Sem await: fechar o aviso não deve esperar rede. Se falhar, o modal
+      // simplesmente volta na próxima sessão.
+      fetch("/api/trial", { method: "POST" }).catch(() => {});
     }
   };
 
@@ -101,6 +114,18 @@ export function TrialNotice() {
               )}
             </p>
             {trial.note && <p className="trial-modal-note">{trial.note}</p>}
+            {/* Vencido não oferece silenciar: o aviso é a explicação de por que
+                a conta parou de abrir. */}
+            {!trial.expired && (
+              <label className="trial-modal-check">
+                <input
+                  type="checkbox"
+                  checked={dontShowAgain}
+                  onChange={(event) => setDontShowAgain(event.target.checked)}
+                />
+                <span>Entendi, não mostrar novamente</span>
+              </label>
+            )}
             <button type="button" className="trial-modal-action" onClick={dismiss}>
               {trial.expired ? "Entendi" : "Começar a usar"}
             </button>

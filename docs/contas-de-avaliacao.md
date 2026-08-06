@@ -18,10 +18,16 @@ ação separada e explícita — nunca automática por data.
 
 ## O que a pessoa vê
 
-- **Modal na primeira visita da sessão**: "Você tem N dias de teste", com as
-  datas de início e fim. O "já vi" fica em `sessionStorage`, então reaparece a
-  cada vez que a pessoa fecha e reabre o navegador — é lembrete de prazo, não
-  aviso único. Com o período vencido, aparece sempre.
+- **Modal** com "Você tem N dias de teste", datas e a nota. Traz uma caixa
+  **"Entendi, não mostrar novamente"**:
+  - fechar **sem marcar** → volta a aparecer na próxima sessão do navegador
+    (controle por `sessionStorage`);
+  - **marcando** → não aparece mais. A preferência é gravada no **servidor**
+    (`acknowledgedAt` no mesmo registro), então vale em qualquer dispositivo;
+  - período **vencido** ignora as duas coisas e mostra sempre — o aviso passa a
+    ser a explicação de por que a conta parou de abrir, e a caixa some.
+  - `setTrial` (novo período ou nota nova) **limpa** o "não mostrar": informação
+    diferente merece ser lida de novo.
 - **Faixa fixa no topo** com a contagem regressiva e a data limite; no último
   dia vira "Último dia de avaliação".
 - Depois de vencido, o modal explica que o período terminou.

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getTrial } from "@/lib/trial";
+import { acknowledgeTrial, getTrial } from "@/lib/trial";
 import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
 
 export const runtime = "nodejs";
@@ -19,6 +19,20 @@ export async function GET() {
     },
     // Precisa responder justamente quando o período venceu — é o que permite
     // a tela explicar o motivo em vez de só quebrar.
+    { allowExpiredTrial: true }
+  );
+}
+
+// Marca "não mostrar novamente" — a faixa com a contagem permanece.
+export async function POST() {
+  return withAuthenticatedWorkspace(
+    async () => {
+      try {
+        return NextResponse.json({ trial: await acknowledgeTrial() });
+      } catch {
+        return NextResponse.json({ error: "Não foi possível salvar a preferência." }, { status: 500 });
+      }
+    },
     { allowExpiredTrial: true }
   );
 }

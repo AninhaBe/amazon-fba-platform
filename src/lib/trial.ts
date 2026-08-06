@@ -22,12 +22,15 @@ export interface TrialInfo {
   daysLeft: number;
   expired: boolean;
   note?: string;
+  /** A pessoa pediu para não ver mais o aviso completo (a faixa permanece). */
+  acknowledged: boolean;
 }
 
 interface StoredTrial {
   startsAt: string;
   endsAt: string;
   note?: string;
+  acknowledgedAt?: string;
 }
 
 function describe(stored: StoredTrial): TrialInfo {
@@ -39,17 +42,41 @@ function describe(stored: StoredTrial): TrialInfo {
     daysLeft,
     expired: Date.now() > endsAt,
     note: stored.note,
+    acknowledged: !!stored.acknowledgedAt,
   };
+}
+
+async function readStored(workspaceId: string): Promise<StoredTrial | undefined> {
+  const rows = await dbQuery<{ value: StoredTrial }>(
+    `SELECT value FROM workspace_settings WHERE workspace_id = $1 AND key = $2`,
+    [workspaceId, SETTING_KEY]
+  );
+  return rows[0]?.value;
+}
+
+/**
+ * Registra que a pessoa marcou "não mostrar novamente". Preserva as datas —
+ * é preferência de exibição, não mudança de período.
+ */
+export async function acknowledgeTrial(): Promise<TrialInfo | null> {
+  if (!hasDb()) return null;
+  const workspaceId = currentWorkspaceId();
+  const stored = await readStored(workspaceId);
+  if (!stored?.endsAt) return null;
+  const value: StoredTrial = { ...stored, acknowledgedAt: new Date().toISOString() };
+  await dbQuery(
+    `INSERT INTO workspace_settings (workspace_id, key, value, updated_at)
+     VALUES ($1, $2, $3::jsonb, now())
+     ON CONFLICT (workspace_id, key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
+    [workspaceId, SETTING_KEY, JSON.stringify(value)]
+  );
+  return describe(value);
 }
 
 /** Trial do workspace atual, ou null quando a conta não é de avaliação. */
 export async function getTrial(): Promise<TrialInfo | null> {
   if (!hasDb()) return null;
-  const rows = await dbQuery<{ value: StoredTrial }>(
-    `SELECT value FROM workspace_settings WHERE workspace_id = $1 AND key = $2`,
-    [currentWorkspaceId(), SETTING_KEY]
-  );
-  const stored = rows[0]?.value;
+  const stored = await readStored(currentWorkspaceId());
   if (!stored?.endsAt) return null;
   return describe(stored);
 }
@@ -57,11 +84,7 @@ export async function getTrial(): Promise<TrialInfo | null> {
 /** Idem, para um workspace específico (uso administrativo/scripts). */
 export async function getTrialFor(workspaceId: string): Promise<TrialInfo | null> {
   if (!hasDb()) return null;
-  const rows = await dbQuery<{ value: StoredTrial }>(
-    `SELECT value FROM workspace_settings WHERE workspace_id = $1 AND key = $2`,
-    [workspaceId, SETTING_KEY]
-  );
-  const stored = rows[0]?.value;
+  const stored = await readStored(workspaceId);
   if (!stored?.endsAt) return null;
   return describe(stored);
 }
@@ -72,6 +95,8 @@ export async function setTrial(
 ): Promise<TrialInfo> {
   const startsAt = input.startsAt.toISOString();
   const endsAt = new Date(input.startsAt.getTime() + input.days * DAY).toISOString();
+  // Período novo (ou nota nova) volta a ser um aviso a ser lido: o
+  // "não mostrar novamente" anterior não vale para uma informação diferente.
   const value: StoredTrial = { startsAt, endsAt, note: input.note };
   await dbQuery(
     `INSERT INTO workspace_settings (workspace_id, key, value, updated_at)
