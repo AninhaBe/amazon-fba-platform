@@ -1,21 +1,30 @@
 # Shopee Open Platform API v2 — mapa da integração
 
-> **ENGATILHADO, NÃO IMPLEMENTADO.** A usuária ainda não tem loja Shopee — este doc é
-> o mapa para quando for construir (com dados reais ou sandbox). Confirmar tudo marcado
-> com ⚠️ na doc oficial (open.shopee.com) **no momento de implementar** — a API evolui.
+> **IMPLEMENTADA, AGUARDANDO GO LIVE** (05–06/08/2026). Conexão OAuth, dashboard e
+> ingestão estão escritos e verdes; a assinatura foi validada com HTTP 200 real no
+> sandbox. O que falta **não é código**: o app está em status *Developing*, e só
+> depois do Go Live sai a chave de produção que permite uma loja real autorizar —
+> passo de retomada em [`estado-atual.md`](./estado-atual.md).
+>
+> ⚠️ **Ao conectar a primeira loja real, revisar `shopeeCanonical.ts`**: o mapeamento
+> de campos foi escrito contra a documentação e ainda não foi confrontado com uma
+> resposta de verdade. Está isolado nesse arquivo de propósito.
+>
 > O canal é agnóstico no schema canônico (ver [`adr/ADR-001-modelo-canonico.md`](./adr/ADR-001-modelo-canonico.md))
-> → **não precisa migration**, grava-se com `provider = 'shopee'`.
+> → **não precisou migration**, grava-se com `provider = 'shopee'`.
 
 ## Pré-requisito
 
-Ter uma **loja de vendedor na Shopee** (o OAuth conecta uma *loja*, `shop_id`). Sem
-loja não há o que autorizar nem sincronizar. Sem loja, só dá para desenvolver contra o
-**sandbox** (ambiente de teste com loja/dados fake).
+O OAuth conecta uma *loja* (`shop_id`), então alguém precisa ter loja para autorizar.
+A Ana não tem — quem tem é o sócio, e a loja dele será a primeira conexão real.
 
 > **No Brasil o acesso tem portão de aprovação** (verificado 2026-08-04): perfil de
-> desenvolvedor aprovado pela Shopee ANTES de criar app, vendedor PJ com ≥1 pedido/30d.
-> Passo a passo para o dono da loja: PDF "Shopee-Conectar-Loja-ao-SellerCore" (fora do
-> repo, gerado em 04/08/2026 — pedir à Ana).
+> desenvolvedor aprovado pela Shopee ANTES de criar app. Dois tipos possíveis:
+> `Registered Business Seller` (para servir a própria loja; exige PJ com ≥1 pedido
+> nos últimos 30 dias) e `Third-party Partner Platform / ISV` (para servir outros
+> vendedores; **não exige ter loja**). O SellerCore usa **ISV** — aprovado em
+> 05/08/2026. Passo a passo para o dono da loja: PDF
+> "Shopee-Conectar-Loja-ao-SellerCore" (fora do repo — pedir à Ana).
 
 ## Credenciais e ambiente
 

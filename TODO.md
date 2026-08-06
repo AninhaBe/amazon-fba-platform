@@ -3,7 +3,20 @@
 Pendências combinadas da migração multicanal e melhorias. Atualize os checkboxes
 conforme for concluindo.
 
+> Para **onde cada frente parou** (Shopee, Amazon, contas de teste) e o passo
+> exato de retomada, veja `docs/estado-atual.md`. Este arquivo é a lista de
+> tarefas; aquele é a foto da situação.
+
 ## Ação manual (precisa de você)
+
+- [ ] **Reconectar a Amazon** — as duas contas estão com o refresh token
+  revogado (`invalid_grant`, confirmado em 06/08). Preferir **self-authorization**
+  pelo Solution Provider Portal em vez do OAuth atual; motivo e caminho em
+  `docs/conexoes-que-expiram.md`.
+- [ ] **Shopee: submeter o Go Live** — formulário preenchido no console, falta
+  anexar o segundo print e apertar Submit (`docs/estado-atual.md`).
+- [ ] **Shopee: IP Whitelist** com os IPs de saída do Render — sem ele os dados
+  do comprador vêm mascarados e não sai NF-e.
 
 - [ ] **Agendar o cron da Amazon.** "Cron" é só um despertador: um serviço
   externo chama uma URL do app de tempos em tempos, e essa chamada empurra a
@@ -53,7 +66,10 @@ conforme for concluindo.
   torna a Amazon rápida como o Mercado Livre ficou. Antes, validar os números
   do canônico contra o dashboard atual (mesma conferência feita no ML)
 - [ ] TikTok Shop: implementar pedidos já direto no canônico (sem tabela legada)
-- [ ] Shopee: entra como adaptador novo quando a conta existir
+- [x] **Shopee: canal completo** (conexão OAuth, dashboard e ingestão pelo
+  canônico, cron). Falta o **Go Live** para conectar loja real — passo a passo
+  em `docs/estado-atual.md`; ao conectar, revisar o mapeamento de campos em
+  `shopeeCanonical.ts`, escrito contra a doc e ainda não confrontado com dados reais
 
 ## Limpeza (depois que o overview SQL do ML estiver estável no Render)
 

@@ -4,6 +4,15 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+# Comece por aqui
+
+**`docs/estado-atual.md`** — foto de onde cada frente parou, o passo exato para
+retomar o que está no meio do caminho e o que está bloqueado esperando terceiros.
+Leia antes de propor trabalho: metade do que parece "faltando" já está feito, e
+parte do que parece pronto está esperando aprovação de marketplace.
+
+Depois, `docs/README.md` para o mapa completo da documentação.
+
 # Qualidade e segurança vêm antes de "só entregar"
 
 Você não é só um desenvolvedor de features — é um dev responsável também por
@@ -46,8 +55,21 @@ Antes de mexer em qualquer integração, leia a documentação interna — ela r
 
 - `docs/api-amazon-sp-api.md` — SP-API: endpoints, selectors do PATCH, orderMetrics vs Transactions, FNSKU/FBA
 - `docs/api-mercado-livre.md` — ML: endpoints, regra do faturamento (aprovadas+canceladas, sem frete), webhooks
-- `docs/api-shopee.md` — Shopee Open Platform v2 (**ENGATILHADO, não implementado**): assinatura, OAuth, escrow, mapeamento canônico e roteiro de arquivos
+- `docs/api-shopee.md` — Shopee Open Platform v2 (**implementada; aguardando Go Live para conectar loja real**): assinatura HMAC validada em sandbox, OAuth, escrow, limites reais (janela de 15 dias, 50 pedidos por detalhe), App Types
+- `docs/conexoes-que-expiram.md` — por que a autorização de cada canal cai e como evitar
 
 Cada doc de API termina num **"Changelog observado"** (datado, mais recente primeiro).
 Os marketplaces mudam comportamento sem aviso — ao esbarrar numa mudança nova, registre
 lá na hora.
+
+# Como este projeto trata dado incerto
+
+Três regras que atravessam o código todo e não são negociáveis sem ADR:
+
+- **`null` ≠ `0`.** Taxa, frete ou custo desconhecido é `null`; zero é um fato
+  ("não houve frete"). Confundir os dois corrompe lucro, margem e a cobertura
+  que o dashboard exibe.
+- **Não extrapolar.** Enquanto tarifas e fretes não estiverem completos, o painel
+  mostra só o que foi capturado e diz que está parcial — nunca projeta o resto.
+- **Tela sem dado mostra o estado real** ("conecte uma loja", "sincronização
+  pendente"), nunca zeros que pareçam "não vendeu nada".

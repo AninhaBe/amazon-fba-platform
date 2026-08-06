@@ -4,6 +4,11 @@ Guia de orientação para qualquer pessoa (ou agente de IA) chegando no projeto.
 conhecimento do SellerCore mora no repo: **antes de implementar, leia o doc da área** —
 não re-deduza o que já foi decidido nem repita pegadinha já paga.
 
+> **Chegando agora ou retomando o trabalho?** Comece por
+> [`estado-atual.md`](./estado-atual.md): diz onde cada frente parou, o passo
+> exato para retomar as que estão no meio do caminho, e o que está bloqueado
+> esperando terceiros.
+
 ## Convenções
 
 - **ADRs mandam.** Decisão arquitetural não muda durante implementação de feature — se
@@ -19,7 +24,7 @@ não re-deduza o que já foi decidido nem repita pegadinha já paga.
 |---|---|
 | [`api-amazon-sp-api.md`](./api-amazon-sp-api.md) | SP-API: endpoints usados, semântica de PATCH com selectors, orderMetrics vs Transactions, FNSKU/FBA, agendamento de entrega, changelog |
 | [`api-mercado-livre.md`](./api-mercado-livre.md) | ML: endpoints, regra do faturamento (validada ao centavo), refresh token rotativo, endpoints bloqueados (403), o que sobrou para pesquisa de mercado, changelog |
-| [`api-shopee.md`](./api-shopee.md) | Shopee Open Platform v2 — **engatilhado, não implementado**: assinatura HMAC, OAuth, escrow, roteiro de arquivos |
+| [`api-shopee.md`](./api-shopee.md) | Shopee Open Platform v2 — **implementada, aguardando Go Live**: assinatura HMAC (validada em sandbox), OAuth, escrow, limites reais (janela de 15 dias, 50 pedidos/detalhe), App Types e changelog |
 | [`api-endpoints.md`](./api-endpoints.md) | Panorama geral das duas APIs (grupos e endpoints principais) — visão de mapa, não substitui os docs acima |
 | [`sp-api-notifications.md`](./sp-api-notifications.md) | Notificações/webhooks da SP-API (SQS/EventBridge) |
 | [`tiktok-shop-integracao.md`](./tiktok-shop-integracao.md) | Plano da integração TikTok Shop — backlog, aguardando credenciais do Partner Center |
@@ -43,7 +48,9 @@ não re-deduza o que já foi decidido nem repita pegadinha já paga.
 |---|---|
 | [`amazon-politicas.md`](./amazon-politicas.md) | Políticas da Amazon extraídas do Seller Central BR: título ≤75 chars, capa fundo branco sem texto, atributos fiscais do FBA, limites de caixa, manual de entrega no CD |
 | [`amazon-ads.md`](./amazon-ads.md) | Amazon Ads BR: como funciona, créditos, plano de campanha (aguardando estoque FBA chegar) |
+| [`ferramentas-locais.md`](./ferramentas-locais.md) | Scripts de apoio que rodam fora do app: monitor de estoque FBA, seed do workspace demo, contas de avaliação |
 | [`conexoes-que-expiram.md`](./conexoes-que-expiram.md) | Por que a autorização de cada canal cai, o que o app já detecta/mostra e o backlog para evitar (self-authorization da Amazon, vencimento de 365 dias da Shopee) |
+| [`contas-de-avaliacao.md`](./contas-de-avaliacao.md) | Contas de teste com prazo: como criar, consultar, estender e excluir; o que a pessoa vê; por que o vencimento bloqueia em vez de apagar |
 
 ## Planos e ideias
 
