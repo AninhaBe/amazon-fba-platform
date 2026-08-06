@@ -15,8 +15,8 @@ if (!DEMO_PASSWORD) {
   process.exit(1);
 }
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SECRET = process.env.SUPABASE_SECRET_KEY!;
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SECRET = process.env.SUPABASE_SECRET_KEY;
 
 async function adminFetch(path, init) {
   const response = await fetch(`${SUPABASE_URL}/auth/v1${path}`, {
@@ -64,6 +64,13 @@ const ML_ITEMS = [
   { id: "MLB-DEMO-005", sku: "ORGAN-GAV-4", title: "Organizador de Gavetas Modular Kit 4 Peças", price: 39.9, cost: 16.2, qty: 60, thumbnail: null, weight: 2 },
 ];
 
+const SHOPEE_ITEMS = [
+  { id: "SHP-DEMO-001", sku: "MOCHILA-USB", title: "Mochila Antifurto com Porta USB Resistente a Agua", price: 129.9, cost: 61.4, qty: 140, thumbnail: null, weight: 5 },
+  { id: "SHP-DEMO-002", sku: "SMARTWATCH-D20", title: "Smartwatch Esportivo com Monitor Cardiaco", price: 89.9, cost: 38.2, qty: 260, thumbnail: null, weight: 4 },
+  { id: "SHP-DEMO-003", sku: "LUMINARIA-LED", title: "Luminaria de Mesa LED com Ajuste de Intensidade", price: 54.9, cost: 21.7, qty: 80, thumbnail: null, weight: 3 },
+  { id: "SHP-DEMO-004", sku: "TECLADO-MEC-BT", title: "Teclado Mecanico Sem Fio Compacto 61 Teclas", price: 189.9, cost: 96.5, qty: 45, thumbnail: null, weight: 2 },
+];
+
 const AMZ_ITEMS = [
   { id: "B0DEMO0001", sku: "CAPA-CEL-PRETA", title: "Capa Anti-Impacto para Smartphone com Película", price: 34.9, cost: 12.4, qty: 410, thumbnail: null, weight: 5 },
   { id: "B0DEMO0002", sku: "FONE-BT-TWS", title: "Fone Bluetooth TWS com Estojo de Carregamento", price: 119.9, cost: 58.7, qty: 150, thumbnail: null, weight: 4 },
@@ -104,16 +111,19 @@ function buildOrders(provider, items, days, perDayAvg, seed) {
       sequence += 1 + Math.floor(rand() * 7);
       const orderId = provider === "amazon" ? `701-${sequence}-${(2000000 + sequence * 3) % 9999999}` : `20000${sequence}`;
 
+      const feeRates = { amazon: 0.15, mercado_livre: 0.14, shopee: 0.12 };
+      const feeCodes = { amazon: "ReferralFee", mercado_livre: "sale_fee", shopee: "commission_fee" };
+      const shipCodes = { amazon: "FBAPerUnitFulfillmentFee", mercado_livre: "shipping_fee", shopee: "actual_shipping_fee" };
       const fees = cancelled ? [] : [
         {
           feeType: "commission",
-          providerFeeCode: provider === "amazon" ? "ReferralFee" : "sale_fee",
-          amount: Number((gross * (provider === "amazon" ? 0.15 : 0.14)).toFixed(2)),
+          providerFeeCode: feeCodes[provider],
+          amount: Number((gross * feeRates[provider]).toFixed(2)),
           currency: "BRL",
         },
         {
           feeType: provider === "amazon" ? "fulfillment" : "shipping_seller",
-          providerFeeCode: provider === "amazon" ? "FBAPerUnitFulfillmentFee" : "shipping_fee",
+          providerFeeCode: shipCodes[provider],
           amount: Number((provider === "amazon" ? 6.75 * qty : gross > 79 ? 21.9 : 0).toFixed(2)),
           currency: "BRL",
         },
@@ -195,18 +205,32 @@ async function main() {
   const ML_CONN = "mercado_livre:demo";
   const AMZ_CONN = "amazon:demo";
 
+  const SHP_CONN = "shopee:demo";
   await seedConnection(workspaceId, "mercado_livre", ML_CONN, "Loja Demo ML");
   await seedConnection(workspaceId, "amazon", AMZ_CONN, "Loja Demo Amazon");
+  await seedConnection(workspaceId, "shopee", SHP_CONN, "Loja Demo Shopee");
   await seedCosts(workspaceId, [...ML_ITEMS, ...AMZ_ITEMS]);
+  // A Shopee lê custo pela chave própria do canal (shopee:<conexao>:sku:<sku>).
+  for (const item of SHOPEE_ITEMS) {
+    await dbQuery(
+      `INSERT INTO workspace_product_costs (workspace_id, id, sku, asin, title, cost)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (workspace_id, id) DO UPDATE SET cost = EXCLUDED.cost, title = EXCLUDED.title`,
+      [workspaceId, `shopee:${SHP_CONN}:sku:${item.sku}`, item.sku, item.id, item.title, item.cost]
+    );
+  }
 
   const mlOrders = buildOrders("mercado_livre", ML_ITEMS, 45, 4, 42);
   const amzOrders = buildOrders("amazon", AMZ_ITEMS, 45, 3, 7);
+  const shpOrders = buildOrders("shopee", SHOPEE_ITEMS, 45, 5, 91);
 
   await runWithWorkspace(workspaceId, async () => {
     await saveCanonicalProducts({ provider: "mercado_livre", connectionId: ML_CONN }, buildProducts(ML_ITEMS, "mercado_livre"));
     await saveCanonicalProducts({ provider: "amazon", connectionId: AMZ_CONN }, buildProducts(AMZ_ITEMS, "amazon"));
     await saveCanonicalOrders({ provider: "mercado_livre", connectionId: ML_CONN }, mlOrders);
     await saveCanonicalOrders({ provider: "amazon", connectionId: AMZ_CONN }, amzOrders);
+    await saveCanonicalProducts({ provider: "shopee", connectionId: SHP_CONN }, buildProducts(SHOPEE_ITEMS, "shopee"));
+    await saveCanonicalOrders({ provider: "shopee", connectionId: SHP_CONN }, shpOrders);
   });
 
   const counts = await dbQuery(
@@ -216,7 +240,7 @@ async function main() {
   const countRows = Array.isArray(counts) ? counts : counts.rows;
   console.log("workspace:", workspaceId);
   for (const row of countRows) console.log(`pedidos ${row.provider}: ${row.total}`);
-  console.log("ML gerados:", mlOrders.length, "| Amazon gerados:", amzOrders.length);
+  console.log("gerados -> ML:", mlOrders.length, "| Amazon:", amzOrders.length, "| Shopee:", shpOrders.length);
 }
 
 main().then(() => process.exit(0)).catch((error) => {
