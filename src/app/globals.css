@@ -830,6 +830,19 @@ summary:hover { background: var(--paper-soft); }
 .central-empty > a:hover, .meli-primary-action:hover { background: var(--brand-dark); transform: translateY(-1px); }
 .app-shell[data-channel="mercado_livre"] .meli-primary-action { background: var(--meli); color: var(--meli-dark); box-shadow: 0 5px 14px oklch(0.62 0.11 96 / .18); }
 .app-shell[data-channel="mercado_livre"] .meli-primary-action:hover { background: color-mix(in oklch, var(--meli) 84%, white); }
+/* Período de avaliação: faixa fixa com a contagem + modal na primeira visita. */
+.trial-banner { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; border-block-end: 1px solid oklch(0.88 0.06 96); background: oklch(0.97 0.04 96); padding: 9px 20px; color: oklch(0.42 0.09 72); font-size: 12.5px; }
+.trial-banner strong { font-weight: 750; }
+.trial-banner.is-expired { border-block-end-color: oklch(0.85 0.08 27); background: oklch(0.96 0.03 27); color: oklch(0.45 0.17 27); }
+.trial-modal-backdrop { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: oklch(0.2 0.02 260 / .45); padding: 20px; }
+.trial-modal { width: min(460px, 100%); border-radius: var(--radius-lg); background: var(--paper); padding: 28px; box-shadow: 0 24px 60px oklch(0.2 0.02 260 / .28); }
+.trial-modal-kicker { color: var(--ink-muted); font-size: 11px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.trial-modal-title { margin-block-start: 8px; color: var(--ink); font-size: 21px; font-weight: 780; letter-spacing: -.02em; text-wrap: balance; }
+.trial-modal-text { margin-block-start: 12px; color: var(--ink-soft); font-size: 13.5px; line-height: 1.6; text-wrap: pretty; }
+.trial-modal-note { margin-block-start: 10px; border-inline-start: 3px solid var(--warning); padding-inline-start: 10px; color: var(--ink-muted); font-size: 12.5px; line-height: 1.5; }
+.trial-modal-action { margin-block-start: 20px; min-height: 44px; width: 100%; border-radius: var(--radius-sm); background: var(--brand); color: white; font-size: 13.5px; font-weight: 730; transition: background 140ms ease; }
+.trial-modal-action:hover { background: var(--brand-dark); }
+
 /* Conexão do canal expirada: precisa ser lida antes dos números, porque explica
    por que eles pararam de atualizar — e traz a ação de conserto junto. */
 .connection-broken { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; border-inline-start: 4px solid var(--danger); border-radius: var(--radius-sm); background: oklch(0.97 0.02 27); padding: 14px 16px; }

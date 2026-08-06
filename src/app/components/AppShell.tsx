@@ -10,6 +10,7 @@ import { NavLinks } from "./Nav";
 import { workspaceFromPath, type WorkspaceId } from "@/lib/integrations/workspaces";
 import { MarketplaceIcon } from "./MarketplaceIcon";
 import { LogoutButton } from "./LogoutButton";
+import { TrialNotice } from "./TrialNotice";
 
 const channelName: Record<WorkspaceId, string> = { overview: "Central", amazon: "Amazon", mercado_livre: "Mercado Livre", shopee: "Shopee" };
 const channelSub: Record<WorkspaceId, string> = { overview: "Todos os canais", amazon: "Operação Amazon", mercado_livre: "Operação Mercado Livre", shopee: "Operação Shopee" };
@@ -49,6 +50,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="mb-2 flex items-center justify-between gap-4"><Logo compact /><div className="flex items-center gap-2"><ChannelSwitcher compact /><LogoutButton compact /></div></div>
           <NavLinks variant="top" />
         </header>
+        <TrialNotice />
         <main id="main-content" tabIndex={-1} className="operations-canvas mx-auto w-full max-w-[1500px] flex-1 px-5 py-7 sm:px-8 lg:px-10 lg:py-9">{children}</main>
       </div>
     </div>
