@@ -12,6 +12,22 @@ import { Metric as Kpi, getRevenueTrend } from "../components/Metric";
 import { AnimatedNumber } from "../components/AnimatedNumber";
 import { OrderProfitabilityTable } from "../components/OrderProfitabilityTable";
 import { ConnectionBroken, isBrokenConnection } from "../components/ConnectionBroken";
+
+/**
+ * Cobertura do cálculo de rentabilidade, como a API devolve. É objeto, não
+ * texto: `scopeNote` da tabela espera uma frase, então precisa ser formatado
+ * antes de chegar lá (renderizar o objeto cru derruba a página inteira).
+ */
+interface ProfitabilityScope {
+  processedOrders: number;
+  completePeriod: boolean;
+}
+
+function scopeSentence(scope?: ProfitabilityScope): string | undefined {
+  if (!scope) return undefined;
+  if (scope.completePeriod) return undefined; // período completo: texto padrão da tabela serve
+  return `Detalhamento processado em ${scope.processedOrders} venda(s) do período — o histórico ainda está sendo importado.`;
+}
 import type { ProfitabilityLine } from "@/lib/profitability";
 import { brDate, brTime } from "@/lib/datetime";
 import { Boxes, ChartSpline, PackageOpen, Percent, ShoppingCart, Tag } from "lucide-react";
@@ -77,7 +93,7 @@ interface DashSnapshot {
   sales: SalesSeries | null;
   top: TopProduct[];
   profitability: ProfitabilityLine[];
-  profitabilityScope?: string;
+  profitabilityScope?: ProfitabilityScope;
   updatedAt: Date;
 }
 
@@ -97,7 +113,7 @@ export default function Dashboard() {
   const [sales, setSales] = useState<SalesSeries | null>(initialDash?.sales ?? null);
   const [top, setTop] = useState<TopProduct[]>(initialDash?.top ?? []);
   const [profitability, setProfitability] = useState<ProfitabilityLine[]>(initialDash?.profitability ?? []);
-  const [profitabilityScope, setProfitabilityScope] = useState<string | undefined>(initialDash?.profitabilityScope);
+  const [profitabilityScope, setProfitabilityScope] = useState<ProfitabilityScope | undefined>(initialDash?.profitabilityScope);
   const [profitabilityLoading, setProfitabilityLoading] = useState(!initialDash);
   const [productsLoading, setProductsLoading] = useState(!productsCache);
   const [errors, setErrors] = useState<string[]>([]);
@@ -183,10 +199,10 @@ export default function Dashboard() {
     safe<TopProduct[]>(`/api/top-products?${periodQuery}`, (v) => { next.top = v; setTop(v); store(); }, (d) => (d as { products: TopProduct[] }).products, "top produtos");
     // Rentabilidade por venda: mesma fonte do monitor, com loading próprio para
     // não segurar os KPIs (o fallback ao vivo do endpoint pode ser lento).
-    safe<{ lines: ProfitabilityLine[]; scope?: string }>(
+    safe<{ lines: ProfitabilityLine[]; scope?: ProfitabilityScope }>(
       `/api/order-profitability?${periodQuery}`,
       (v) => { next.profitability = v.lines; next.profitabilityScope = v.scope; setProfitability(v.lines); setProfitabilityScope(v.scope); store(); },
-      (d) => d as { lines: ProfitabilityLine[]; scope?: string },
+      (d) => d as { lines: ProfitabilityLine[]; scope?: ProfitabilityScope },
       "rentabilidade"
     ).finally(() => active && setProfitabilityLoading(false));
 
@@ -362,7 +378,7 @@ export default function Dashboard() {
       </div>
 
       {/* Rentabilidade por venda — a mesma visão do monitor, direto no dashboard. */}
-      <OrderProfitabilityTable lines={profitability} loading={profitabilityLoading} scopeNote={profitabilityScope} />
+      <OrderProfitabilityTable lines={profitability} loading={profitabilityLoading} scopeNote={scopeSentence(profitabilityScope)} />
 
       {/* Top produtos */}
       <div className="work-panel border-t border-slate-300 py-5">

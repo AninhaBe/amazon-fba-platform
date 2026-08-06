@@ -46,6 +46,9 @@ function Breakdown({ line }: { line: ProfitabilityLine }) {
   </div>;
 }
 
+// `scopeNote` é uma FRASE pronta, não a estrutura de cobertura da API. Quem
+// consome `/api/order-profitability` recebe `scope` como objeto e precisa
+// formatá-lo antes — renderizar o objeto cru derruba a página (React #31).
 export function OrderProfitabilityTable({ lines, loading = false, error = null, scopeNote }: { lines: ProfitabilityLine[]; loading?: boolean; error?: string | null; scopeNote?: string }) {
   const [query, setQuery] = useState("");
   const [resultFilter, setResultFilter] = useState<"all" | "positive" | "negative" | "incomplete">("all");
