@@ -104,6 +104,14 @@ Os dados sintéticos do workspace demo vêm de `scripts/_demo-seed.mjs`
 (idempotente). Eles existem para que o avaliador da Shopee veja um produto com
 dados, não telas vazias.
 
+⚠️ **O demo envelhece em 15 minutos.** O seed grava `covered_to = now()`, e a
+checagem de cobertura exige que `covered_to` alcance o fim do período pedido
+(tolerância de 15 min). Canal real passa porque o cron roda a cada 5 min; o
+workspace demo não sincroniza nunca. Resultado: pouco depois de cada seed os
+cards voltam a dizer "Sincronização ainda não cobre todo o período". É verdade —
+o dado é mesmo daquele instante — e deixar limpo exigiria mentir sobre a
+cobertura. Se o texto incomodar numa avaliação, rode o seed de novo na hora.
+
 ### 4. Amazon Ads — pronto para ligar quando o estoque liberar
 
 Os 5 anúncios foram verificados em 06/08 (`scripts/listing-health.mjs`): todos
