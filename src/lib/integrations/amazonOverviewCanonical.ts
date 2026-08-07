@@ -1,6 +1,6 @@
 import { dbQuery, hasDb } from "../db";
 import { currentWorkspaceId } from "../workspaceScope";
-import { currentAccountId } from "../accountContext";
+import { currentAccount } from "../accountContext";
 import { getIntegrations } from "./integrationStore";
 import { getCosts, costAt } from "../costStore";
 import { cached } from "../cache";
@@ -95,8 +95,10 @@ interface SyncMetaRow {
  * workspace + provider + connection e não depende de credencial para ser lido.
  */
 async function resolveConnection(): Promise<{ sellerId: string; connectionId: string } | null> {
-  const sellerId = currentAccountId();
-  if (sellerId) return { sellerId, connectionId: amazonConnectionId(sellerId) };
+  // `currentAccountId()` devolve a string "default" fora de contexto, então não
+  // serve para detectar ausência de conta — só `currentAccount()` distingue.
+  const account = currentAccount();
+  if (account) return { sellerId: account.sellerId, connectionId: amazonConnectionId(account.sellerId) };
 
   const connections = (await getIntegrations(PROVIDER)).filter((item) => item.status === "connected");
   const connection = connections[0];
