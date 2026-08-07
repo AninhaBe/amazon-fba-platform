@@ -26,6 +26,16 @@ type SaleLine = ProfitabilityLine & { channel: "amazon" | "mercado_livre" | "sho
 // completa (busca, filtro, paginação) continua dentro de cada canal.
 const RECENT_SALES = 20;
 
+// Cobertura incompleta tem duas causas diferentes e a mensagem precisa dizer
+// qual é. Nos leitores canônicos capturados e total são a mesma contagem, então
+// "parcial: N de N" seria uma contradição na tela: o que falta ali é a janela de
+// sincronização alcançar o período pedido, não pedido nenhum.
+function coverageNote(coverage: { capturedOrders: number; totalOrders: number }) {
+  return coverage.capturedOrders < coverage.totalOrders
+    ? `Faturamento parcial: ${coverage.capturedOrders} de ${coverage.totalOrders} pedidos`
+    : `Sincronização ainda não cobre todo o período; ${coverage.capturedOrders} pedido(s) capturados`;
+}
+
 // Soma as séries diárias dos canais numa linha só — a visão que só a central
 // pode dar. Datas presentes em um canal e ausentes no outro entram como estão.
 function mergeDailySeries(series: Array<DailyPoint[] | undefined>): DailyPoint[] {
@@ -49,6 +59,8 @@ interface ChannelSnapshot {
   revenue: number | null;
   profit: number | null;
   profitPartial?: boolean;
+  /** Faturamento servido pelo modelo canônico, não pelo orderMetrics oficial. */
+  revenueFromCanonical?: boolean;
   cancelled?: number;
   orders: number | null;
   currency: string;
@@ -104,18 +116,48 @@ export default function OverviewDashboard() {
         const amazonLinesReq: Promise<ProfitabilityLine[]> = amazon.connected
           ? json<{ lines: ProfitabilityLine[] }>("/api/order-profitability?days=30").then((data) => data.lines).catch(() => { salesFailures.push("da Amazon"); return []; })
           : Promise.resolve([]);
-        if (amazon.connected) tasks.push(Promise.all([json<{ summary: AmazonProfit }>("/api/profit?days=30"), json<AmazonSales>("/api/sales?days=30")]).then(([profit, sales]) => {
-          channelSeries.push(sales.series.points);
-          amazon.revenue = sales.series.totalRevenue; // data do pedido = Seller Central
-          // Reflete os custos já cadastrados (não some enquanto faltam alguns).
-          amazon.profit = profit.summary.estimatedProfit;
-          amazon.profitPartial = profit.summary.unitsWithoutCost > 0;
-          amazon.orders = sales.series.totalOrders;
-          amazon.currency = sales.series.currency || profit.summary.finance.currency;
-          amazon.note = profit.summary.unitsWithoutCost > 0
-            ? `Lucro parcial: ${profit.summary.unitsWithoutCost} unidade(s) sem custo cadastrado`
+        // Faturamento e lucro da Amazon vêm de rotas diferentes e falham por
+        // motivos diferentes: o lucro depende da Transactions API, que exige
+        // conta SP-API viva, enquanto o faturamento tem fallback canônico. Uma
+        // falha do lucro não pode mais zerar o card inteiro — antes o
+        // Promise.all rejeitava e o canal aparecia "Ativo" e "Indisponível" ao
+        // mesmo tempo.
+        if (amazon.connected) tasks.push((async () => {
+          const [profitResult, salesResult] = await Promise.allSettled([
+            json<{ summary: AmazonProfit }>("/api/profit?days=30"),
+            json<AmazonSales & { source?: string }>("/api/sales?days=30"),
+          ]);
+
+          if (salesResult.status === "fulfilled") {
+            const sales = salesResult.value;
+            channelSeries.push(sales.series.points);
+            amazon.revenue = sales.series.totalRevenue; // data do pedido = Seller Central
+            amazon.orders = sales.series.totalOrders;
+            amazon.currency = sales.series.currency || amazon.currency;
+            amazon.revenueFromCanonical = sales.source === "canonical";
+          } else {
+            amazon.error = salesResult.reason instanceof Error ? salesResult.reason.message : "Dados indisponíveis";
+          }
+
+          if (profitResult.status === "fulfilled") {
+            const summary = profitResult.value.summary;
+            // Reflete os custos já cadastrados (não some enquanto faltam alguns).
+            amazon.profit = summary.estimatedProfit;
+            amazon.profitPartial = summary.unitsWithoutCost > 0;
+            amazon.currency = amazon.currency || summary.finance.currency;
+          }
+
+          amazon.note = amazon.revenueFromCanonical
+            // Regra registrada em docs/api-amazon-sp-api.md: só o orderMetrics
+            // bate ao centavo com o Seller Central. Se o número veio de outro
+            // lugar, a tela precisa dizer.
+            ? "Faturamento pelos pedidos importados; sem conta Amazon ativa para o número oficial"
+            : profitResult.status === "rejected"
+            ? "Faturamento e pedidos disponíveis; lucro exige uma conta Amazon conectada"
+            : amazon.profitPartial
+            ? `Lucro parcial: ${profitResult.status === "fulfilled" ? profitResult.value.summary.unitsWithoutCost : 0} unidade(s) sem custo cadastrado`
             : "Faturamento, pedidos e lucro estimado";
-        }).catch((error) => { amazon.error = error instanceof Error ? error.message : "Dados indisponíveis"; }));
+        })());
         if (mercadoLivre.connected) tasks.push(json<{ overview: MercadoLivreOverview }>("/api/integrations/mercado-livre/overview?view=monitor").then(({ overview }) => {
           channelSeries.push(overview.dailySales);
           mercadoLivreLines = overview.profitabilityLines ?? [];
@@ -131,7 +173,7 @@ export default function OverviewDashboard() {
               : overview.profit.unitsWithoutCost > 0
               ? `Lucro parcial: ${overview.profit.unitsWithoutCost} unidade(s) sem custo`
               : "Faturamento, pedidos e lucro estimado"
-            : `Faturamento parcial: ${overview.metrics.revenueCoverage.capturedOrders} de ${overview.metrics.revenueCoverage.totalOrders} pedidos`;
+            : coverageNote(overview.metrics.revenueCoverage);
         }).catch((error) => { mercadoLivre.error = error instanceof Error ? error.message : "Dados indisponíveis"; }));
         if (shopee.connected) tasks.push(json<{ overview?: ShopeeOverview; pending?: boolean }>("/api/integrations/shopee/overview?days=30").then((data) => {
           // Conectada mas ainda sem ingestão: mantém os valores em null (nunca
@@ -152,7 +194,7 @@ export default function OverviewDashboard() {
               : overview.profit.unitsWithoutCost > 0
               ? `Lucro parcial: ${overview.profit.unitsWithoutCost} unidade(s) sem custo`
               : "Faturamento, pedidos e lucro estimado"
-            : `Faturamento parcial: ${overview.metrics.revenueCoverage.capturedOrders} de ${overview.metrics.revenueCoverage.totalOrders} pedidos`;
+            : coverageNote(overview.metrics.revenueCoverage);
         }).catch((error) => { shopee.error = error instanceof Error ? error.message : "Dados indisponíveis"; }));
         await Promise.all(tasks);
         const refreshedAt = new Date();
@@ -247,7 +289,7 @@ export default function OverviewDashboard() {
           <div className="channel-overview-grid">
             {channels.map((channel) => (
               <article key={channel.id} className={`channel-overview-card is-${channel.id}`}>
-                <header><span className="channel-overview-mark" aria-hidden="true"><MarketplaceIcon provider={channel.id} size={40} app /></span><div><h3>{channel.name}</h3><p>{channel.connected ? "Canal conectado" : "Aguardando conexão"}</p></div><span className={`channel-health${channel.connected ? " is-connected" : ""}`}>{channel.connected ? "Ativo" : "Conectar"}</span></header>
+                <header><span className="channel-overview-mark" aria-hidden="true"><MarketplaceIcon provider={channel.id} size={40} app /></span><div><h3>{channel.name}</h3><p>{!channel.connected ? "Aguardando conexão" : channel.error ? "Conectado, sem leitura" : "Canal conectado"}</p></div><span className={`channel-health${channel.connected && !channel.error ? " is-connected" : ""}`}>{!channel.connected ? "Conectar" : channel.error ? "Atenção" : "Ativo"}</span></header>
                 {channel.connected ? <>
                   <div className="channel-value"><span>Vendas brutas</span><strong>{channel.error ? "Indisponível" : money(channel.revenue, channel.currency)}</strong></div>
                   <div className="channel-share" aria-label={`Participação relativa de ${channel.name}`}><i style={{ width: `${((channel.revenue ?? 0) / maxRevenue) * 100}%` }} /></div>

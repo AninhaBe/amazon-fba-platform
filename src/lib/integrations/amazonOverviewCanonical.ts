@@ -1,11 +1,13 @@
 import { dbQuery, hasDb } from "../db";
 import { currentWorkspaceId } from "../workspaceScope";
 import { currentAccountId } from "../accountContext";
+import { getIntegrations } from "./integrationStore";
 import { getCosts, costAt } from "../costStore";
 import { cached } from "../cache";
 import { allocateByWeight, calculateContribution, type ProfitabilityLine } from "../profitability";
 import type { Period } from "../period";
 import { amazonConnectionId } from "./amazonSync";
+import { brazilDateKey } from "./mercadoLivre";
 
 // Overview da Amazon servido pelo modelo canônico (fase 5 da migração,
 // docs/canonical-schema.md). Espelha o mercadoLivreOverviewCanonical: agregados
@@ -14,10 +16,16 @@ import { amazonConnectionId } from "./amazonSync";
 // (tax = 0) e sem frete do vendedor (sellerShipping = null); fulfillment
 // platform = FBA / seller = Próprio; custo resolve por sku ?? asin.
 //
-// Este módulo é apenas leitura e ainda NÃO está plugado nas rotas — a troca das
-// rotas do dashboard para o canônico (com fallback à SP-API enquanto não há
-// cobertura) é a etapa seguinte. O faturamento headline continua vindo do
-// Sales API (orderMetrics) para manter o match ao centavo com o Seller Central.
+// Este módulo é apenas leitura. Já serve `/api/order-profitability`, `/api/radar`
+// e `/api/top-products` quando o período está coberto. O faturamento headline
+// continua vindo do Sales API (orderMetrics) para manter o match ao centavo com
+// o Seller Central — `/api/sales` só cai aqui quando não há **nenhuma** conta
+// SP-API no workspace, e nesse caso responde `source: "canonical"` para a tela
+// poder avisar que o número não é o oficial.
+//
+// Ler daqui não exige credencial: a chave é workspace + provider + conexão. Por
+// isso `resolveConnection` aceita workspace sem conta SP-API ativa (demonstração,
+// ou autorização revogada).
 
 const PROVIDER = "amazon";
 const DETAILED_ORDER_LIMIT = 1_000;
@@ -53,6 +61,8 @@ export interface AmazonCanonicalOverview {
   };
   /** Unidades vendidas por SKU no período — insumo da velocidade do radar. */
   velocityBySku: Record<string, number>;
+  /** Série diária contínua (dias sem venda zerados) no fuso de São Paulo. */
+  dailySales: Array<{ date: string; revenue: number; orders: number; units: number }>;
   topProducts: AmazonCanonicalTopProduct[];
   profit: {
     revenueProcessed: number;
@@ -78,6 +88,22 @@ interface SyncMetaRow {
   covered_to: Date | string | null;
 }
 
+/**
+ * Descobre de qual conexão ler. Com conta SP-API no contexto, é a dela. Sem
+ * conta — workspace de demonstração, ou leitura fora do fluxo autenticado da
+ * Amazon — cai na conexão registrada no workspace: o canônico é chaveado por
+ * workspace + provider + connection e não depende de credencial para ser lido.
+ */
+async function resolveConnection(): Promise<{ sellerId: string; connectionId: string } | null> {
+  const sellerId = currentAccountId();
+  if (sellerId) return { sellerId, connectionId: amazonConnectionId(sellerId) };
+
+  const connections = (await getIntegrations(PROVIDER)).filter((item) => item.status === "connected");
+  const connection = connections[0];
+  if (!connection) return null;
+  return { sellerId: connection.externalAccountId, connectionId: connection.id };
+}
+
 interface TotalsRow {
   total_orders: number;
   paid_orders: number;
@@ -90,6 +116,8 @@ interface TotalsRow {
 }
 
 interface VelocityRow { sku: string | null; external_product_id: string; units: number }
+
+interface DailyRow { date: string; revenue: string | null; orders: number; units: number }
 
 interface ProductTotalsRow {
   external_product_id: string;
@@ -129,9 +157,9 @@ function scopeParams(connectionId: string, period: Period): unknown[] {
 
 export async function getAmazonOverviewFromCanonical(period: Period): Promise<AmazonCanonicalOverview | null> {
   if (!hasDb()) return null;
-  const sellerId = currentAccountId();
-  if (!sellerId) return null;
-  const connectionId = amazonConnectionId(sellerId);
+  const resolved = await resolveConnection();
+  if (!resolved) return null;
+  const { sellerId, connectionId } = resolved;
   const workspaceId = currentWorkspaceId();
 
   const [syncRows, totalsRows] = await Promise.all([
@@ -161,7 +189,7 @@ export async function getAmazonOverviewFromCanonical(period: Period): Promise<Am
   // Sem sync algum e sem pedidos no período → nada canônico para servir.
   if (!syncRow && (!totals || totals.total_orders === 0)) return null;
 
-  const [velocityRows, productTotalsRows, recentRows, lineRows, costs] = await Promise.all([
+  const [velocityRows, productTotalsRows, recentRows, lineRows, costs, dailyRows] = await Promise.all([
     dbQuery<VelocityRow>(
       `SELECT i.sku, i.external_product_id, SUM(i.qty)::int AS units
          FROM workspace_channel_order_items i
@@ -220,6 +248,22 @@ export async function getAmazonOverviewFromCanonical(period: Period): Promise<Am
       [...scopeParams(connectionId, period), REVENUE_STATUSES, DETAILED_ORDER_LIMIT]
     ),
     getCosts(),
+    dbQuery<DailyRow>(
+      `SELECT to_char(o.occurred_at AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD') AS date,
+              SUM(o.gross) AS revenue,
+              COUNT(*)::int AS orders,
+              COALESCE(SUM(u.units), 0)::int AS units
+         FROM workspace_channel_orders o
+         LEFT JOIN LATERAL (
+           SELECT SUM(i.qty)::int AS units FROM workspace_channel_order_items i
+            WHERE i.workspace_id = o.workspace_id AND i.provider = o.provider
+              AND i.connection_id = o.connection_id AND i.external_order_id = o.external_order_id
+         ) u ON true
+        WHERE o.workspace_id = $1 AND o.provider = $2 AND o.connection_id = $3
+          AND o.occurred_at >= $4 AND o.occurred_at <= $5 AND o.status = ANY($6::text[])
+        GROUP BY 1`,
+      [...scopeParams(connectionId, period), REVENUE_STATUSES]
+    ),
   ]);
 
   const currency = totals.currency ?? "BRL";
@@ -230,6 +274,18 @@ export async function getAmazonOverviewFromCanonical(period: Period): Promise<Am
   const periodCovered =
     coveredFrom <= new Date(period.startISO).getTime() &&
     coveredTo + COVERAGE_TOLERANCE_MS >= new Date(period.endISO).getTime();
+
+  // Série diária contínua, com dias sem venda zerados — mesmo formato do ML e
+  // da Shopee, para a central somar as três num gráfico só.
+  const daily = new Map(dailyRows.map((row) => [row.date, { date: row.date, revenue: Number(row.revenue ?? 0), orders: row.orders, units: row.units }]));
+  const dailySales: Array<{ date: string; revenue: number; orders: number; units: number }> = [];
+  const cursor = new Date(`${brazilDateKey(new Date(period.startISO))}T12:00:00Z`);
+  const lastDate = brazilDateKey(new Date(period.endISO));
+  while (cursor.toISOString().slice(0, 10) <= lastDate) {
+    const date = cursor.toISOString().slice(0, 10);
+    dailySales.push(daily.get(date) ?? { date, revenue: 0, orders: 0, units: 0 });
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
 
   const velocityBySku: Record<string, number> = {};
   for (const row of velocityRows) {
@@ -350,6 +406,7 @@ export async function getAmazonOverviewFromCanonical(period: Period): Promise<Am
       lastSaleAt: totals.last_sale_at ? new Date(totals.last_sale_at).toISOString() : null,
     },
     velocityBySku,
+    dailySales,
     topProducts,
     profit: {
       revenueProcessed: +processedRevenue.toFixed(2),

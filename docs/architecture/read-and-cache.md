@@ -24,6 +24,21 @@ tudo com colunas indexadas, sem trafegar `jsonb`.
 O selo `covered` é o interruptor: período coberto pelo sync → lê do canônico; ainda
 não coberto → cai no caminho ao vivo. Assim a troca é gradual e reversível.
 
+### Workspace sem conta SP-API
+
+Há um segundo interruptor, independente do `covered`: **não existir nenhuma conta
+SP-API no workspace**. Antes isso devolvia `409` e o canal aparecia "Ativo" e
+"Indisponível" ao mesmo tempo. Hoje `/api/sales` e `/api/order-profitability`
+caem no canônico (`onMissingAccount` em `withAccount.ts`), porque ler o canônico
+não exige credencial — a chave é workspace + provider + conexão.
+
+O faturamento servido por esse caminho **não é o oficial**: a resposta vem com
+`source: "canonical"` e a tela é obrigada a dizer de onde veio. Com duas ou mais
+contas o `409` continua — a escolha é do usuário, não do fallback.
+
+Casos que dependem disso: o workspace de demonstração (avaliação de marketplace)
+e qualquer conta cuja autorização Amazon tenha sido revogada.
+
 ## 2. Cache — stale-while-revalidate
 
 Três camadas que se complementam (`cache.ts`, `swr.ts`, `persistentCache.ts`):
