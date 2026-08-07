@@ -145,20 +145,24 @@ export function ShopeeWorkspace() {
     );
   }
 
-  if (!status.configured) {
-    return (
-      <>
-        <PageHeader eyebrow="Shopee" title="Visão do canal" subtitle="Canal ainda não configurado no servidor." />
-        <EmptyState
-          kind="permission"
-          title="Credenciais da Shopee ausentes"
-          description="Defina SHOPEE_PARTNER_ID e SHOPEE_PARTNER_KEY no ambiente para habilitar a conexão."
-        />
-      </>
-    );
-  }
-
+  // As credenciais do servidor habilitam *conectar* uma loja nova — não são
+  // requisito para *ver* o canal. Uma loja já conectada lê tudo do modelo
+  // canônico, então o dashboard renderiza mesmo sem SHOPEE_PARTNER_ID no
+  // ambiente. Checar credencial antes da conexão escondia o dashboard de quem
+  // já tinha dados.
   if (!status.connected) {
+    if (!status.configured) {
+      return (
+        <>
+          <PageHeader eyebrow="Shopee" title="Visão do canal" subtitle="Canal ainda não configurado no servidor." />
+          <EmptyState
+            kind="permission"
+            title="Credenciais da Shopee ausentes"
+            description="Defina SHOPEE_PARTNER_ID e SHOPEE_PARTNER_KEY no ambiente para habilitar a conexão."
+          />
+        </>
+      );
+    }
     return (
       <>
         <PageHeader eyebrow="Shopee" title="Visão do canal" subtitle="Conecte uma loja para começar a sincronizar pedidos e taxas." />

@@ -38,6 +38,17 @@ canais conectados).
 > Shopee** (`/shopee` logado na conta trial, que tem dados demo), e **não** o da
 > Amazon — o da Amazon aparece zerado e enfraquece a candidatura.
 
+⚠️ **Antes de submeter, o deploy de 07/08 precisa estar no ar.** Até ele, a conta
+trial mostrava ao avaliador da Shopee duas telas erradas:
+
+1. `/shopee` caía em *"Credenciais da Shopee ausentes"*. A tela checava
+   `SHOPEE_PARTNER_ID`/`KEY` do servidor **antes** de checar se a loja estava
+   conectada — e em produção essas chaves não existem, de propósito. Como o
+   overview lê só do modelo canônico, credencial do servidor agora habilita
+   apenas **conectar** loja nova, não **ver** o canal.
+2. A central (`/`) não tinha Shopee: nem card, nem série no gráfico, nem vendas
+   na lista consolidada. Agora tem, no mesmo padrão dos outros canais.
+
 **Depois da aprovação** (a Shopee devolve `partner_id` e key de produção):
 1. Definir no Render: `SHOPEE_PARTNER_ID`, `SHOPEE_PARTNER_KEY` (a de Live) e
    `SHOPEE_ENV=live`.
@@ -151,6 +162,8 @@ Usa o token do ambiente, então funciona mesmo com o OAuth revogado.
   Actions a cada 5 min (ADR-003).
 - Segredos **nunca** no repo: `.env.local` local, painel do Render em produção.
 - Shopee hoje está configurada **apenas localmente** (chaves de sandbox). Em
-  produção o card aparece como "Configure as credenciais" — intencional, para
-  não expor um botão que leva ao ambiente de teste.
+  produção, quem **não** tem loja conectada vê "Configure as credenciais" — 
+  intencional, para não expor um botão que leva ao ambiente de teste. Quem **já
+  tem** conexão (a conta trial, com dados demo) vê o canal normalmente: as
+  chaves do servidor habilitam conectar, não visualizar.
 - Temporários no disco `G:` (`TMP=G:/sc-temp`) — o `C:` vive cheio.

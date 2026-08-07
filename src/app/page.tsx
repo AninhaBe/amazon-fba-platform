@@ -18,7 +18,9 @@ interface AmazonProfit { estimatedProfit: number; unitsWithoutCost: number; fina
 interface AmazonSales { series: { totalRevenue: number; totalOrders: number; currency: string; points?: DailyPoint[]; }; }
 interface MercadoLivreOverview { metrics: { revenue30d: number; orders30d: number; activeListings: number; cancelledRevenue: number; cancelledOrders: number; currency: string; revenueCoverage: { complete: boolean; capturedOrders: number; totalOrders: number; }; }; profit: { estimatedProfit: number; unitsWithoutCost: number; coverage: { processedOrders: number; paidOrders: number; complete: boolean; }; }; dailySales?: DailyPoint[]; profitabilityLines?: ProfitabilityLine[]; }
 
-type SaleLine = ProfitabilityLine & { channel: "amazon" | "mercado_livre" };
+interface ShopeeOverview { metrics: { revenue30d: number; orders30d: number; cancelledRevenue: number; currency: string; revenueCoverage: { complete: boolean; capturedOrders: number; totalOrders: number; }; }; profit: { estimatedProfit: number; unitsWithoutCost: number; coverage: { processedOrders: number; paidOrders: number; complete: boolean; }; }; dailySales?: DailyPoint[]; profitabilityLines?: ProfitabilityLine[]; }
+
+type SaleLine = ProfitabilityLine & { channel: "amazon" | "mercado_livre" | "shopee" };
 
 // Recorte da central: as vendas mais recentes dos canais somados. A tabela
 // completa (busca, filtro, paginação) continua dentro de cada canal.
@@ -40,7 +42,7 @@ function mergeDailySeries(series: Array<DailyPoint[] | undefined>): DailyPoint[]
   return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 interface ChannelSnapshot {
-  id: "amazon" | "mercado_livre";
+  id: "amazon" | "mercado_livre" | "shopee";
   name: string;
   href: string;
   connected: boolean;
@@ -86,14 +88,17 @@ export default function OverviewDashboard() {
         const integrationData = await json<{ providers: Provider[] }>("/api/integrations");
         const amazonProvider = integrationData.providers.find((provider) => provider.id === "amazon");
         const mercadoLivreProvider = integrationData.providers.find((provider) => provider.id === "mercado_livre");
+        const shopeeProvider = integrationData.providers.find((provider) => provider.id === "shopee");
 
         const amazon: ChannelSnapshot = { id: "amazon", name: "Amazon", href: "/amazon", connected: !!amazonProvider?.connections.length, revenue: null, profit: null, orders: null, currency: "BRL", note: "Faturamento, pedidos e lucro estimado" };
         const mercadoLivre: ChannelSnapshot = { id: "mercado_livre", name: "Mercado Livre", href: "/mercado-livre", connected: !!mercadoLivreProvider?.connections.length, revenue: null, profit: null, orders: null, currency: "BRL", note: "Faturamento, pedidos e lucro estimado" };
+        const shopee: ChannelSnapshot = { id: "shopee", name: "Shopee", href: "/shopee", connected: !!shopeeProvider?.connections.length, revenue: null, profit: null, orders: null, currency: "BRL", note: "Faturamento, pedidos e lucro estimado" };
 
         const tasks: Promise<void>[] = [];
         const channelSeries: Array<DailyPoint[] | undefined> = [];
         const salesFailures: string[] = [];
         let mercadoLivreLines: ProfitabilityLine[] = [];
+        let shopeeLines: ProfitabilityLine[] = [];
         // Corre em paralelo com os agregados, mas não os atrasa: a seção de
         // vendas tem estado de carregamento próprio e pinta quando chegar.
         const amazonLinesReq: Promise<ProfitabilityLine[]> = amazon.connected
@@ -128,11 +133,32 @@ export default function OverviewDashboard() {
               : "Faturamento, pedidos e lucro estimado"
             : `Faturamento parcial: ${overview.metrics.revenueCoverage.capturedOrders} de ${overview.metrics.revenueCoverage.totalOrders} pedidos`;
         }).catch((error) => { mercadoLivre.error = error instanceof Error ? error.message : "Dados indisponíveis"; }));
+        if (shopee.connected) tasks.push(json<{ overview?: ShopeeOverview; pending?: boolean }>("/api/integrations/shopee/overview?days=30").then((data) => {
+          // Conectada mas ainda sem ingestão: mantém os valores em null (nunca
+          // zero) para não somar "não vendeu nada" ao consolidado.
+          if (data.pending || !data.overview) { shopee.note = "Primeira sincronização pendente"; return; }
+          const overview = data.overview;
+          channelSeries.push(overview.dailySales);
+          shopeeLines = overview.profitabilityLines ?? [];
+          shopee.revenue = overview.metrics.revenue30d;
+          shopee.cancelled = overview.metrics.cancelledRevenue;
+          shopee.profit = overview.profit.estimatedProfit;
+          shopee.profitPartial = !overview.profit.coverage.complete || overview.profit.unitsWithoutCost > 0;
+          shopee.orders = overview.metrics.orders30d;
+          shopee.currency = overview.metrics.currency;
+          shopee.note = overview.metrics.revenueCoverage.complete
+            ? !overview.profit.coverage.complete
+              ? `Faturamento completo; lucro processado em ${overview.profit.coverage.processedOrders} de ${overview.profit.coverage.paidOrders} vendas`
+              : overview.profit.unitsWithoutCost > 0
+              ? `Lucro parcial: ${overview.profit.unitsWithoutCost} unidade(s) sem custo`
+              : "Faturamento, pedidos e lucro estimado"
+            : `Faturamento parcial: ${overview.metrics.revenueCoverage.capturedOrders} de ${overview.metrics.revenueCoverage.totalOrders} pedidos`;
+        }).catch((error) => { shopee.error = error instanceof Error ? error.message : "Dados indisponíveis"; }));
         await Promise.all(tasks);
         const refreshedAt = new Date();
         const merged = mergeDailySeries(channelSeries);
-        centralCache = { channels: [amazon, mercadoLivre], series: merged, sales: centralCache?.sales ?? [], salesNote: centralCache?.salesNote ?? null, updatedAt: refreshedAt };
-        setChannels([amazon, mercadoLivre]);
+        centralCache = { channels: [amazon, mercadoLivre, shopee], series: merged, sales: centralCache?.sales ?? [], salesNote: centralCache?.salesNote ?? null, updatedAt: refreshedAt };
+        setChannels([amazon, mercadoLivre, shopee]);
         setSeries(merged);
         setUpdatedAt(refreshedAt);
         setLoading(false);
@@ -141,10 +167,12 @@ export default function OverviewDashboard() {
         // agregados. As linhas do ML vieram junto do overview; as da Amazon
         // vêm da requisição paralela disparada acima.
         if (mercadoLivre.connected && mercadoLivre.error) salesFailures.push("do Mercado Livre");
+        if (shopee.connected && shopee.error) salesFailures.push("da Shopee");
         const amazonLines = await amazonLinesReq;
         const mergedSales: SaleLine[] = [
           ...amazonLines.map((line) => ({ ...line, channel: "amazon" as const })),
           ...mercadoLivreLines.map((line) => ({ ...line, channel: "mercado_livre" as const })),
+          ...shopeeLines.map((line) => ({ ...line, channel: "shopee" as const })),
         ].sort((a, b) => b.date.localeCompare(a.date)).slice(0, RECENT_SALES);
         const failureNote = salesFailures.length ? `Não foi possível carregar as vendas ${salesFailures.join(" nem ")} agora.` : null;
         centralCache = { ...centralCache, sales: mergedSales, salesNote: failureNote };
@@ -174,7 +202,7 @@ export default function OverviewDashboard() {
     <div className="overview-page space-y-8">
       <PageHeader eyebrow="Central multicanal" title="Visão geral" subtitle="Acompanhe sua operação inteira e entre em cada canal quando precisar dos detalhes próprios da plataforma." icon={pageIcons.dashboard} action={updatedAt && <span className="data-freshness">Atualizado às {brTime(updatedAt)}</span>} />
       {loading ? <DashboardSkeleton label="Consolidando seus canais" chart={false} rows={2} /> : channels.length === 0 ? (
-        <section className="central-empty"><span>SC</span><div><p className="section-kicker">Primeira conexão</p><h2>Monte sua central de vendas</h2><p>Conecte Amazon ou Mercado Livre para começar a consolidar faturamento e pedidos.</p></div><Link href="/integracoes">Conectar um canal <b aria-hidden="true">→</b></Link></section>
+        <section className="central-empty"><span>SC</span><div><p className="section-kicker">Primeira conexão</p><h2>Monte sua central de vendas</h2><p>Conecte Amazon, Mercado Livre ou Shopee para começar a consolidar faturamento e pedidos.</p></div><Link href="/integracoes">Conectar um canal <b aria-hidden="true">→</b></Link></section>
       ) : <div className="dashboard-sections space-y-8">
         <section className="central-kpis" aria-label="Indicadores consolidados">
           <article><p>Faturamento conhecido</p><strong><AnimatedNumber id="central-revenue" value={totals.revenue} format={(amount) => money(amount)} /></strong><small>Soma dos canais com dados disponíveis</small></article>
@@ -210,6 +238,7 @@ export default function OverviewDashboard() {
           <div className="central-sales-links">
             {channels.find((channel) => channel.id === "amazon")?.connected && <Link href="/monitor">Ver todas na Amazon <span aria-hidden="true">→</span></Link>}
             {channels.find((channel) => channel.id === "mercado_livre")?.connected && <Link href="/mercado-livre/monitor">Ver todas no Mercado Livre <span aria-hidden="true">→</span></Link>}
+            {channels.find((channel) => channel.id === "shopee")?.connected && <Link href="/shopee">Ver todas na Shopee <span aria-hidden="true">→</span></Link>}
           </div>
         </section>
 

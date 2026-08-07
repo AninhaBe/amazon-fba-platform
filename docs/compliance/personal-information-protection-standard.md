@@ -1,11 +1,11 @@
 # SellerCore Personal Information Protection Standard
 
-**Document owner:** [LEGAL ENTITY NAME]
-**Business registration:** [CNPJ]
+**Document owner:** 66.106.202 ANA BEATRIZ DE OLIVEIRA (SellerCore)
+**Business registration:** CNPJ 66.106.202/0001-20 (Brazil)
 **Version:** 1.0
-**Effective date:** [YYYY-MM-DD]
-**Approved by:** [FULL NAME AND ROLE]
-**Privacy contact:** [PRIVACY EMAIL]
+**Effective date:** 2026-08-04
+**Approved by:** Ana Beatriz de Oliveira — Developer
+**Privacy contact:** contato.anabeatrizoliver@gmail.com
 
 ## 1. Purpose and scope
 
@@ -18,7 +18,7 @@ SellerCore follows the Brazilian General Data Protection Law (LGPD), applicable 
 - The merchant determines the business purposes for processing its customer and order data and generally acts as the data controller.
 - SellerCore processes marketplace data on the merchant's documented instructions and generally acts as a data processor/operator.
 - SellerCore acts as controller for the minimum account and security data required to operate its own service.
-- [FULL NAME/ROLE] is responsible for privacy and information-security oversight and for receiving requests or incident reports at [PRIVACY EMAIL].
+- Ana Beatriz de Oliveira (Developer) is responsible for privacy and information-security oversight and for receiving requests or incident reports at contato.anabeatrizoliver@gmail.com.
 - Access to production data is restricted to explicitly authorized personnel with a documented business need.
 
 ## 3. Data inventory and permitted purposes
@@ -79,12 +79,12 @@ SellerCore does not use TikTok Shop data for advertising profiles, data brokerag
 - Authorization tokens are retained only while the merchant keeps the integration connected and are deleted when the integration is disconnected.
 - Operational data should be retrieved on demand or retained for the shortest period required to provide the requested feature, accounting, dispute handling, or legal compliance.
 - Application logs must not contain passwords, access tokens, refresh tokens, full authorization headers, or unnecessary buyer information.
-- When authorization is revoked or the service relationship ends, TikTok Shop personal information is deleted or irreversibly anonymized within [RETENTION/DELETION PERIOD], except where retention is required by law. Any retained legal record is isolated and access-restricted.
+- When authorization is revoked or the service relationship ends, TikTok Shop personal information is deleted or irreversibly anonymized within 30 days, except where retention is required by law. Any retained legal record is isolated and access-restricted.
 - Backups and temporary copies follow the storage provider's documented lifecycle and are not restored for ordinary business use after an approved deletion request.
 
 ## 9. Data-subject and merchant requests
 
-Requests for confirmation, access, correction, portability, information about sharing, restriction, objection, revocation, or deletion may be submitted to [PRIVACY EMAIL]. SellerCore verifies the requester's identity and works with the relevant merchant/controller where the request concerns marketplace buyer data.
+Requests for confirmation, access, correction, portability, information about sharing, restriction, objection, revocation, or deletion may be submitted to contato.anabeatrizoliver@gmail.com. SellerCore verifies the requester's identity and works with the relevant merchant/controller where the request concerns marketplace buyer data.
 
 Requests are recorded, evaluated, and answered within the periods required by applicable law. SellerCore does not charge a fee for the ordinary exercise of privacy rights.
 
@@ -120,7 +120,7 @@ Personnel with administrative access must:
 
 ## 13. Incident response
 
-Suspected security or privacy incidents are reported immediately to [SECURITY CONTACT]. SellerCore will:
+Suspected security or privacy incidents are reported immediately to contato.anabeatrizoliver@gmail.com. SellerCore will:
 
 1. record and triage the report;
 2. contain the incident and preserve relevant evidence;
@@ -144,9 +144,9 @@ This standard is reviewed at least annually and whenever there is a material cha
 
 By approving this document, management adopts it as SellerCore's operational standard and commits to maintaining the controls described above.
 
-**Approved by:** ____________________________________
-**Role:** ___________________________________________
-**Date:** ___________________________________________
+**Approved by:** Ana Beatriz de Oliveira
+**Role:** Developer
+**Date:** 2026-08-04
 
 ---
 

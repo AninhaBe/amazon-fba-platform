@@ -13,7 +13,7 @@ SellerCore requests only the TikTok Shop API scopes required to provide seller-a
 We respectfully request reassessment of our Data Security and Privacy Review. We are available to provide any additional evidence or clarification required.
 
 Best regards,
-[FULL NAME]
-[ROLE]
-[LEGAL ENTITY NAME / SELLERCORE]
-[PRIVACY OR SECURITY EMAIL]
+Ana Beatriz de Oliveira
+Developer
+SellerCore — 66.106.202 ANA BEATRIZ DE OLIVEIRA (CNPJ 66.106.202/0001-20)
+contato.anabeatrizoliver@gmail.com
