@@ -136,6 +136,30 @@ Mesma convenção dos docs da Amazon e do ML: mudanças de comportamento da API 
 na prática entram aqui, com data. Enquanto o canal não for implementado, a lista fica
 vazia — ao implementar, re-validar tudo marcado com ⚠️ e registrar o que divergir.
 
+- **2026-08-07** — **Formulário de Go Live percorrido campo a campo** (console →
+  App List → SellerCore → Go Live, `/console/app/live/238101`). O que só se
+  descobre abrindo:
+  - **O formulário NÃO guarda rascunho.** Sair da tela apaga tudo (foi assim que
+    o preenchimento de 06/08 se perdeu). Preencher e submeter na mesma sessão.
+  - **IP Whitelist está dentro deste formulário**, não no Security Dashboard.
+  - **CIDR é rejeitado**: `74.220.49.0/24` dá *"Please provide 4-digit IP
+    addresses with each segment ranging from 0 to 255"*. Só aceita endereço
+    avulso — e 256 endereços de um /24 não cabem no limite de 2000 caracteres.
+  - **IP de saída real do Render: `74.220.49.18`**, medido de dentro do próprio
+    servidor (endpoint temporário consultando ipify/ifconfig/icanhazip, 9
+    leituras idênticas). Fica dentro do bloco `74.220.49.0/24` publicado pelo
+    Render. ⚠️ Declarar só esse endereço funciona hoje, mas se o Render migrar
+    dentro da faixa as chamadas passam a ser **bloqueadas em silêncio** — vale
+    reconferir o IP depois de qualquer mudança de plano/região.
+  - **Campos além do esperado**: `Test Redirect URL Domain` e `Live Redirect URL
+    Domain` (o live precisa bater com `APP_BASE_URL`, senão o OAuth quebra
+    depois da aprovação) e `Other IT assets Declaration` (Database Servers e
+    Other Servers, cada um com opção "IP address(es) unavailable" + justificativa
+    de até 200 caracteres).
+  - ⚠️ **O toggle "Enable IP Address Whitelist" não liga** nem por clique nem por
+    evento sintético, mesmo com o campo de IP já válido e sem `disabled` no DOM.
+    Hipótese não confirmada: só habilita depois do app sair de "Developing".
+
 - **2026-08-05** — **Ingestão implementada** (`shopeeCanonical.ts` + `shopeeSync.ts` +
   `shopeeScheduler.ts` + cron). Escrita contra a doc oficial, ainda **não exercitada
   contra loja real** — todo o mapeamento de campo está isolado em `shopeeCanonical.ts`
