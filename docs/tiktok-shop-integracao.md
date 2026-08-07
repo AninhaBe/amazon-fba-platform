@@ -195,6 +195,42 @@ regra equivalente: App Type imutável define endpoints):
 - Identidade do parceiro: `Order Management (OMS / WMS)` (836880), sob
   `Shipping & Fulfillment`
 
+### Endpoints escolhidos (OAS oficial, 07/08)
+
+Selecionados pela regra do `tts-openapi-guide`: **maior versão aplicável**, salvo
+quando só existe uma. Conferir contra o docv2 antes de implementar — o OAS
+empacotado é baseline local, não prova de que é o mais recente.
+
+| Capacidade | Método e caminho | Versão | Por quê |
+|---|---|---|---|
+| Lista de pedidos | `POST /order/202309/orders/search` | 202309 | única versão de `search` |
+| Detalhe do pedido | `GET /order/202507/orders` | **202507** | mais nova (havia 202309) |
+| **Taxas reais por pedido** | `GET /finance/202501/orders/{order_id}/statement_transactions` | **202501** | mais nova (havia 202309) |
+| Lista de produtos | `POST /product/202502/products/search` | **202502** | mais nova (havia 202309, 202312) |
+| Detalhe do produto | `GET /product/202309/products/{product_id}` | 202309 | única versão |
+
+**O `statement_transactions` é o equivalente ao escrow da Shopee** — é ele que dá
+lucro real por venda. Resposta (campos monetários vêm como **string**):
+
+```
+data.currency, data.revenue_amount, data.fee_and_tax_amount,
+data.shipping_cost_amount, data.settlement_amount, data.order_create_time
+data.sku_transactions[]: product_name, quantity, revenue_amount,
+  fee_tax_amount, shipping_cost_amount, settlement_amount
+  + revenue_breakdown / fee_tax_breakdown / shipping_cost_breakdown
+```
+
+Isso encaixa direto no modelo canônico: `revenue_amount` → gross,
+`fee_and_tax_amount` → taxa do canal, `shipping_cost_amount` → frete. E há
+detalhamento **por SKU**, que a Shopee não dá com essa granularidade.
+
+⚠️ **PII do Brasil no detalhe do pedido.** `GET /order/202507/orders` devolve
+`cpf` e `cpf_name`, além de `buyer_email`, `buyer_nickname` e `buyer_avatar`.
+**Não ingerir** — o modelo canônico não tem nem precisa desses campos, e o
+[`standard de proteção de dados`](./compliance/personal-information-protection-standard.md)
+manda reter o mínimo. O `tiktokCanonical.ts` deve descartar explicitamente, não
+por omissão: campo que não é lido hoje vira campo copiado sem querer amanhã.
+
 ⚠️ **O que a CLI NÃO entrega:** `authorization-open-api-list` exige `pkg_id`, que
 não aparece em nenhuma resposta acima. E as rotas de `developer_center_api`
 (`/api/v1/app/list`, `/api/v1/app/detail`) devolvem **não-JSON** para esta conta —
