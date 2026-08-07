@@ -223,20 +223,36 @@ vendedor. Hipótese alternativa não descartada: app em `Draft` não aceita
 autorização até publicar, e as 25 autorizações beta dependem de outro caminho.
 Preencher a ficha resolve o Listing review de qualquer forma — é o teste barato.
 
-**Ficha pt-BR preenchida em 07/08 18:02** (nome, logo 1:1, descrição curta, três
-"Key benefits", e-mail de contato e site). O indicador de progresso saiu de vazio
-para parcial, mas o mercado **continua "1 to complete"**.
+**Ficha pt-BR COMPLETA em 07/08 18:51** — o indicador ficou verde e o
+**"1 to complete" sumiu** do mercado Brasil. Preenchido: nome, logo 1:1,
+descrição curta, mídia em destaque, 3 imagens, descrição detalhada (921 chars),
+três "Key benefits", plataformas integradas (Amazon, Shopee), e-mail e site.
 
-Falta a **Featured media**, e ela tem duas restrições que limitam o que serve:
+Quatro armadilhas do formulário que custaram tempo e vão custar de novo:
 
-- **Proporção 5:3**, jpg/jpeg/png, até 10 MB.
-- **"Don't use the TikTok Shop logo in it"** — o print da tela `/integracoes`
-  mostra o card do TikTok Shop com o logo deles, então está fora.
-- Texto na imagem tem que estar no idioma da ficha (português).
+1. **A proporção da imagem precisa ser EXATA.** O primeiro banner era 1297×778 =
+   1,6671; 5:3 é 1,6667. O componente (Arco Upload) **rejeita em silêncio** —
+   o arquivo entra no input e nada acontece, sem mensagem. Com 750×450 (exato)
+   funcionou na primeira tentativa. Gerar sempre com altura múltipla de 3.
+2. **"Don't use the TikTok Shop logo"** vale para banner e galeria — o que
+   elimina qualquer print com a barra lateral do SellerCore, porque ela agora
+   mostra o ícone do TikTok. Recortar a lateral fora (250 px) resolve.
+3. **O campo de nome trunca no primeiro caractere "especial".** `SellerCore —
+   Lucro e operação multicanal` virou `SellerCore` depois de salvar: o travessão
+   corta o resto sem avisar. Usar hífen simples ou nada.
+4. **Salvar não basta para o mercado ficar completo** — só ficou verde quando a
+   galeria de imagens (mín. 3) também foi preenchida.
 
-O logo 1:1 foi gerado a partir de `public/brands/sellercore-logo.png` (621×400,
-não quadrado) com `sharp`: reduzido para 78% e centralizado num quadrado branco
-de 600×600. Sem corte, para não mutilar a marca.
+O logo 1:1 foi gerado de `public/brands/sellercore-logo.png` (621×400, não
+quadrado) com `sharp`: reduzido a 78% e centralizado num quadrado branco 600×600.
+
+⚠️ **Telefone pessoal na vitrine.** O campo "Contact phone" veio pré-preenchido
+pela conta com `BR +55 11966695597` e vai a público junto com a ficha. Decidir se
+fica.
+
+⚠️ **O dashboard `/amazon` aparece vazio na conta demo** ("Nenhuma conta"), porque
+a Amazon lê da SP-API e não do canônico — por isso a galeria usa central, ML e
+Shopee. É a mesma pendência registrada em `estado-atual.md`.
 
 ### Endpoints escolhidos (OAS oficial, 07/08)
 
