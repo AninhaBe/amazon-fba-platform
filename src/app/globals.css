@@ -26,7 +26,11 @@
   --meli-dark: oklch(0.365 0.067 92);
   --meli-soft: oklch(0.974 0.047 96);
   --shopee: oklch(0.596 0.198 30);
+  --shopee-dark: oklch(0.486 0.176 30);
+  --shopee-soft: oklch(0.957 0.031 32);
   --tiktok: oklch(0.285 0.022 247);
+  --tiktok-dark: oklch(0.215 0.018 247);
+  --tiktok-soft: oklch(0.946 0.007 247);
   --positive: oklch(0.505 0.102 161);
   --positive-soft: oklch(0.956 0.027 160);
   --warning: oklch(0.575 0.126 72);
@@ -70,6 +74,10 @@ body {
 }
 .app-shell[data-channel="amazon"] { --channel-accent: var(--amazon); --channel-accent-dark: var(--amazon-dark); --channel-accent-soft: var(--amazon-soft); --channel-on-accent: white; }
 .app-shell[data-channel="mercado_livre"] { --channel-accent: var(--meli); --channel-accent-dark: var(--meli-dark); --channel-accent-soft: var(--meli-soft); --channel-on-accent: var(--ink); }
+/* Sem estas duas linhas o canal cai no --brand, que é azul e quase idêntico ao
+   --amazon — foi assim que a Shopee apareceu com a cor da Amazon. */
+.app-shell[data-channel="shopee"] { --channel-accent: var(--shopee); --channel-accent-dark: var(--shopee-dark); --channel-accent-soft: var(--shopee-soft); --channel-on-accent: white; }
+.app-shell[data-channel="tiktok_shop"] { --channel-accent: var(--tiktok); --channel-accent-dark: var(--tiktok-dark); --channel-accent-soft: var(--tiktok-soft); --channel-on-accent: white; }
 
 ::selection { background: var(--brand-soft); color: var(--ink); }
 
@@ -315,6 +323,8 @@ a[href][class*="bg-gradient"]:active { transform: scale(.96); }
 .channel-rail .channel-overview { --tab-accent: var(--brand); }
 .channel-rail .channel-amazon { --tab-accent: var(--amazon); }
 .channel-rail .channel-mercado_livre { --tab-accent: var(--meli); }
+.channel-rail .channel-shopee { --tab-accent: var(--shopee); }
+.channel-rail .channel-tiktok_shop { --tab-accent: var(--tiktok); }
 .channel-rail-add {
   width: 44px;
   height: 44px;
@@ -366,6 +376,8 @@ a[href][class*="bg-gradient"]:active { transform: scale(.96); }
 .channel-overview { --tab-accent: var(--brand); }
 .channel-amazon { --tab-accent: var(--amazon); }
 .channel-mercado_livre { --tab-accent: var(--meli-dark); }
+.channel-shopee { --tab-accent: var(--shopee); }
+.channel-tiktok_shop { --tab-accent: var(--tiktok); }
 .channel-add { --tab-accent: var(--core); }
 .channel-add > span { color: var(--ink-soft); font-size: 22px; font-weight: 450; }
 .channel-tab.is-active {
