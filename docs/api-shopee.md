@@ -136,6 +136,35 @@ Mesma convenção dos docs da Amazon e do ML: mudanças de comportamento da API 
 na prática entram aqui, com data. Enquanto o canal não for implementado, a lista fica
 vazia — ao implementar, re-validar tudo marcado com ⚠️ e registrar o que divergir.
 
+- **2026-07-29 (anúncio oficial, lido em 07/08)** — **[BR] status de NF-e entra
+  nos detalhes de pedido/pacote e passa a BLOQUEAR envio.** Vale só para o
+  Brasil e já está em vigor.
+  - `v2.order.get_order_detail` ganha `invoice_data.status` (`pending` | `valid`)
+    e `invoice_data.pending_reason`.
+  - `v2.order.get_package_detail` ganha a mesma informação, mas sob outro nome:
+    **`invoice_pending.status`** / `.pending_reason`. ⚠️ Os dois endpoints usam
+    chaves diferentes para o mesmo dado — não dá para reaproveitar o mesmo
+    parser cegamente.
+  - `valid` = passou na validação **ou o pedido não exige NF-e**. `pending` = o
+    sistema ainda espera ou está validando a nota; **envio não pode ser
+    agendado**.
+  - `v2.logistics.ship_order` e `v2.logistics.batch_ship_order` passam a validar
+    isso em tempo real e **recusam** o envio com `error_pending_invoice` (texto
+    cita o SEFAZ marcando o documento como inválido).
+  - `pending_reason` só vem quando o pedido está em status de "pronto para
+    enviar" **e** a nota está pendente; fora disso o campo pode vir vazio. O
+    conteúdo é o texto cru do erro do sistema.
+  - **Impacto no SellerCore hoje: nenhum quebra.** A integração é somente
+    leitura — não chamamos `ship_order` nem `batch_ship_order`. E
+    `ShopeeOrder.invoice_data` já existe em `shopeeCanonical.ts` (tipado como
+    `unknown`, ainda não usado), com `INVOICE_PENDING` já mapeado para `paid`.
+  - **O que muda de valor**: hoje sabemos *que* a nota está pendente (pelo
+    `order_status`), mas não **por quê**. O `pending_reason` é o que permitiria a
+    tela dizer o que corrigir. Decisão em aberto — ver `estado-atual.md`.
+  - ⚠️ **Sobe o custo de não ter IP Whitelist**: sem ele o dado do comprador vem
+    mascarado → NF-e inviável → `invoice.status` fica `pending` → **a Shopee
+    recusa o envio**. Antes era "inviabiliza NF-e"; agora trava a operação.
+
 - **2026-08-07** — **Formulário de Go Live percorrido campo a campo** (console →
   App List → SellerCore → Go Live, `/console/app/live/238101`). O que só se
   descobre abrindo:
