@@ -16,7 +16,7 @@ detalhe operacional — este arquivo não é histórico, é foto do presente.
 |---|---|
 | **Amazon** | Em produção. ⚠️ **As duas contas estão com o refresh token revogado** — ver "Amazon: autorização" abaixo. |
 | **Mercado Livre** | Em produção e sincronizando. Faturamento validado ao centavo contra o painel do ML. |
-| **Shopee** | Código completo (conexão + dashboard + ingestão). **Falta o Go Live** para conectar loja real — ver abaixo. |
+| **Shopee** | Código completo (conexão + dashboard + ingestão). **Go Live submetido em 07/08, em análise** (resposta em até 24h) — ver abaixo. |
 | **TikTok Shop** | App existe no Partner Center e a **revisão de privacidade (DSPR) foi APROVADA em 07/08**. Faltam Listing review, App review e Publish — e o código da integração, que não existe (só o OAuth). Ver [`tiktok-shop-integracao.md`](./tiktok-shop-integracao.md). |
 
 ---
