@@ -11,6 +11,7 @@ const channels = [
   { id: "amazon", href: "/amazon", label: "Amazon", provider: "amazon" },
   { id: "mercado_livre", href: "/mercado-livre", label: "Mercado Livre", provider: "mercado_livre" },
   { id: "shopee", href: "/shopee", label: "Shopee", provider: "shopee" },
+  { id: "tiktok_shop", href: "/tiktok", label: "TikTok Shop", provider: "tiktok_shop" },
 ] as const;
 
 export function ChannelRail() {

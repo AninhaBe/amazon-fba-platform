@@ -138,6 +138,17 @@ const navigation: Record<WorkspaceId, NavGroup[]> = {
       ],
     },
   ],
+  // Mesma regra da Shopee: enquanto não há ingestão, só o painel de conexão.
+  // Monitor, catálogo e ferramentas entram junto com o sync.
+  tiktok_shop: [
+    {
+      title: "Painéis",
+      tone: "sky",
+      items: [
+        { href: "/tiktok", label: "Dashboard", desc: "Visão do canal", icon: icons.dashboard, exact: true },
+      ],
+    },
+  ],
 };
 
 const COLLAPSE_KEY = "sc-nav-collapsed";
