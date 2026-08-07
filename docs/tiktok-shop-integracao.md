@@ -195,6 +195,34 @@ regra equivalente: App Type imutável define endpoints):
 - Identidade do parceiro: `Order Management (OMS / WMS)` (836880), sob
   `Shipping & Fulfillment`
 
+### ⚠️ Vendedor real não consegue autorizar enquanto a ficha estiver vazia (07/08)
+
+Um vendedor com loja **brasileira** tentou autorizar pelo link e recebeu
+*"Não disponível na região da sua loja — este aplicativo ou serviço não está
+disponível no mercado atual do vendedor"*.
+
+A URL da tela de autorização mostra que a região estava certa:
+
+```
+/authorize/7662688850348934932?is_draft=true&is_new_connect=0
+  &noUser=login&prev=transit&region_check=1&shop_region=BR
+```
+
+`shop_region=BR` e mercado-alvo BR, e mesmo assim recusou. Expandindo o mercado
+Brasil no console, o "1 to complete" é:
+
+> **Language listings remain to be filled out** — *To complete*
+
+Bate com o que a API já dizia: `language_listing[0]` (pt) tem todos os campos
+vazios. **Nada chegou ao nosso banco** — `workspace_tiktok_shops` com 0 linhas e
+"Manage services" do console vazio em todos os status. O bloqueio é anterior ao
+redirect; o código não foi exercitado.
+
+Hipótese principal: ficha vazia → mercado incompleto → app indisponível para o
+vendedor. Hipótese alternativa não descartada: app em `Draft` não aceita
+autorização até publicar, e as 25 autorizações beta dependem de outro caminho.
+Preencher a ficha resolve o Listing review de qualquer forma — é o teste barato.
+
 ### Endpoints escolhidos (OAS oficial, 07/08)
 
 Selecionados pela regra do `tts-openapi-guide`: **maior versão aplicável**, salvo
