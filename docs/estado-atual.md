@@ -1,6 +1,6 @@
 # Estado atual — onde cada frente parou
 
-**Última atualização: 06/08/2026.** Leia isto antes de continuar qualquer frente
+**Última atualização: 07/08/2026.** Leia isto antes de continuar qualquer frente
 em andamento; o "porquê" das decisões está nos docs de cada área e nos ADRs.
 
 Este doc responde três perguntas: **o que está pronto**, **o que está no meio do
@@ -23,45 +23,45 @@ detalhe operacional — este arquivo não é histórico, é foto do presente.
 
 ## Em andamento — retomar aqui
 
-### 1. Shopee: Go Live (caminho crítico)
+### 1. Shopee: Go Live **SUBMETIDO em 07/08** — aguardando a Shopee
 
-**Onde parou:** o formulário de Go Live estava **preenchido mas NÃO submetido**
-no console (open.shopee.com → App List → SellerCore → botão Go-Live).
+O console mostra *"Application to go live is under review: audit results will be
+sent to your email within 24 hours"*. App segue como `Developing` até a resposta.
 
-Preenchido: URL live, usuário/senha da conta trial, Brief Introduction (476/500)
-e **um screenshot anexado** (o print da tela de integrações mostrando os três
-canais conectados).
+**O que foi declarado** (o formulário não guarda rascunho: o preenchimento de
+06/08 se perdeu e foi refeito do zero):
 
-**Faltava:** anexar um segundo print e apertar **Submit**.
+| Campo | Valor |
+|---|---|
+| URL do produto | `https://sellercore.onrender.com` |
+| Conta de teste | `contato.anabeatrizoliver+trial@gmail.com` |
+| Brief Introduction | 497/500, em inglês, dizendo que a conta de teste é workspace de demonstração com dados sintéticos |
+| Screenshots | 3 — integrações com os 3 canais, dashboard `/shopee`, rentabilidade por pedido |
+| Test / Live Redirect URL Domain | `https://sellercore.onrender.com` nos dois |
+| APP IP | `74.220.49.18` — **medido**, não chutado (ver `api-shopee.md`) |
+| Enable IP Whitelist | ligado |
+| Database / Other Servers | "IP address(es) unavailable" + justificativa |
 
-> Recomendação registrada na conversa: o segundo print deve ser o **dashboard da
-> Shopee** (`/shopee` logado na conta trial, que tem dados demo), e **não** o da
-> Amazon — o da Amazon aparece zerado e enfraquece a candidatura.
+⚠️ **Declaramos UM IP.** O Render publica as faixas `74.220.49.0/24` e
+`74.220.57.0/24`, mas a Shopee **rejeita CIDR** — só aceita endereço avulso, e
+256 endereços não cabem no limite de 2000 caracteres. Se o Render migrar dentro
+da faixa, as chamadas passam a ser **bloqueadas em silêncio**. Reconferir o IP
+depois de qualquer mudança de plano ou região do serviço.
 
-⚠️ **Antes de submeter, o deploy de 07/08 precisa estar no ar.** Até ele, a conta
-trial mostrava ao avaliador da Shopee duas telas erradas:
-
-1. `/shopee` caía em *"Credenciais da Shopee ausentes"*. A tela checava
-   `SHOPEE_PARTNER_ID`/`KEY` do servidor **antes** de checar se a loja estava
-   conectada — e em produção essas chaves não existem, de propósito. Como o
-   overview lê só do modelo canônico, credencial do servidor agora habilita
-   apenas **conectar** loja nova, não **ver** o canal.
-2. A central (`/`) não tinha Shopee: nem card, nem série no gráfico, nem vendas
-   na lista consolidada. Agora tem, no mesmo padrão dos outros canais.
+⚠️ **O whitelist restringe a OpenAPI ao IP declarado.** Se ainda houver teste de
+sandbox a partir de outra máquina, essas chamadas podem passar a ser recusadas.
 
 **Depois da aprovação** (a Shopee devolve `partner_id` e key de produção):
 1. Definir no Render: `SHOPEE_PARTNER_ID`, `SHOPEE_PARTNER_KEY` (a de Live) e
    `SHOPEE_ENV=live`.
 2. O sócio da Ana (que tem loja Shopee) abre `/api/integrations/shopee/connect`
-   e autoriza.
+   e autoriza. ⚠️ **A loja cai no workspace de quem estiver logado** — um usuário
+   = um workspace, sem compartilhamento. Decidir antes quem autoriza.
 3. O cron assume; o dashboard enche sozinho.
 4. **Revisar `shopeeCanonical.ts` nesse dia** — o mapeamento de campos foi
    escrito contra a documentação, sem resposta real para conferir. Está isolado
-   nesse arquivo exatamente para isso.
-
-Também pendente no console: **IP Whitelist** com os IPs de saída do Render (fica
-fora do formulário de Go Live, provavelmente no Security Dashboard). Sem ele os
-dados do comprador vêm mascarados e **não sai NF-e**.
+   nesse arquivo exatamente para isso. Avaliar junto o `invoice_data.pending_reason`
+   novo (ver changelog de 29/07 em `api-shopee.md`).
 
 ### 2. Amazon: autorização revogada nas duas contas
 
