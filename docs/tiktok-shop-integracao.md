@@ -105,16 +105,41 @@ Mesma arquitetura já existente:
 
 ## Próximo passo
 
-**DSPR aprovada em 07/08/2026.** O que a aprovação destrava e o que ainda falta,
-a confirmar no checklist do Partner Center (a sequência costuma ser):
+**DSPR aprovada em 07/08/2026.** Checklist **lido no console em 07/08**
+(`partner.tiktokshop.com/service/gather?service_id=7662688850348934932`), não
+mais suposto:
 
-1. ~~Data Security & Privacy review~~ ✅ **aprovada**
-2. **Listing review** — ficha do app na vitrine (nome, descrição, ícone, capturas)
-3. **App review** — revisão funcional da integração
-4. **Publish** — só então um vendedor real consegue autorizar a loja
+**Partner onboarding**
+1. Partner registration review — revisão de contato e dados de empresa
+2. Data security and privacy review — ✅ *"You passed the data security and
+   privacy review"*
 
-⚠️ Confirmar essa ordem no console antes de agir — o checklist do Partner Center
-é a fonte, não este doc.
+**Getting ready to publish**
+3. **Listing review** — *"We will review listing information that will be shown
+   on the TikTok Shop App & Service market for sellers"*
+4. **App review** — *"We will review and **test** app functionality"*
+
+Depois disso, o botão **Publish**.
+
+### Estado do app no console (07/08)
+
+| | |
+|---|---|
+| Nome / ID | `sellercore` / `7662688850348934932` |
+| App key | `6kl9m4ajdcvpm` |
+| Status | **Draft**, visibilidade **Public**, tipo **Product Listing** |
+| Redirect URL | `https://sellercore.onrender.com` — já configurado |
+| Target sellers | **Brazil · Local sellers** — marcado **"1 to complete"** ⚠️ |
+| Listing pt-BR | existe, atualizado em 16/07 |
+
+⚠️ **IP allowlist também existe aqui** (marcado "New"): *"Manage the IP addresses
+permitted to use your app key to retrieve seller data"* — mesmo padrão da Shopee.
+O IP de saída do Render é **`74.220.49.18`**, medido em 07/08 (ver
+[`api-shopee.md`](./api-shopee.md), entrada de 07/08, para o método). Vale
+declarar antes do App review, não depois.
+
+⚠️ O console mede **SLA de suporte** do parceiro (tempo de primeira resposta em
+2h, resolução em 48h). Hoje há 0 tickets, então as taxas aparecem como 0%.
 
 O passo 3 é o que exige código: hoje só existe o OAuth. Para uma revisão
 funcional passar, a integração precisa ler pedidos e produtos de verdade — o
