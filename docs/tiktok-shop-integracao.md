@@ -223,6 +223,21 @@ vendedor. Hipótese alternativa não descartada: app em `Draft` não aceita
 autorização até publicar, e as 25 autorizações beta dependem de outro caminho.
 Preencher a ficha resolve o Listing review de qualquer forma — é o teste barato.
 
+**Ficha pt-BR preenchida em 07/08 18:02** (nome, logo 1:1, descrição curta, três
+"Key benefits", e-mail de contato e site). O indicador de progresso saiu de vazio
+para parcial, mas o mercado **continua "1 to complete"**.
+
+Falta a **Featured media**, e ela tem duas restrições que limitam o que serve:
+
+- **Proporção 5:3**, jpg/jpeg/png, até 10 MB.
+- **"Don't use the TikTok Shop logo in it"** — o print da tela `/integracoes`
+  mostra o card do TikTok Shop com o logo deles, então está fora.
+- Texto na imagem tem que estar no idioma da ficha (português).
+
+O logo 1:1 foi gerado a partir de `public/brands/sellercore-logo.png` (621×400,
+não quadrado) com `sharp`: reduzido para 78% e centralizado num quadrado branco
+de 600×600. Sem corte, para não mutilar a marca.
+
 ### Endpoints escolhidos (OAS oficial, 07/08)
 
 Selecionados pela regra do `tts-openapi-guide`: **maior versão aplicável**, salvo
