@@ -78,6 +78,16 @@ Caminho recomendado (ver [`conexoes-que-expiram.md`](./conexoes-que-expiram.md))
 Amazon indica para app privado e **não exige publicar o app**. Reconectar pelo
 OAuth atual resolve na hora, mas pode cair de novo.
 
+**Pendência aberta em 07/08 — lucro da Amazon pelo canônico.** `/api/sales` e
+`/api/order-profitability` já caem no modelo canônico quando o workspace não tem
+nenhuma conta SP-API (ver [`architecture/read-and-cache.md`](./architecture/read-and-cache.md)).
+`/api/profit` **não** — ele carrega `refunds`, `reimbursements` e `netProceeds`,
+que só a Transactions API tem. Preencher com zero violaria a regra `null ≠ 0`;
+fazer direito exige tornar esses campos nuláveis e ensinar o dashboard da Amazon
+e o monitor a mostrar "—" em vez de R$ 0,00. Enquanto isso, a central mostra
+faturamento e pedidos e deixa o lucro explicitamente indisponível, em vez de
+derrubar o card inteiro.
+
 ### 3. Contas de avaliação ativas
 
 | Conta | Para quê | Prazo |

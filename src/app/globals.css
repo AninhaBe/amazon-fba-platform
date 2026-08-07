@@ -300,8 +300,10 @@ a[href][class*="bg-gradient"]:active { transform: scale(.96); }
 .channel-rail-tab .marketplace-app-tiktok_shop { border-radius: 7px; }
 /* O oval do ML é largo/baixo; aumenta pra ficar com presença igual aos quadrados */
 /* Ajuste óptico do logo do ML: por tamanho real (rasteriza nítido), não por
-   transform — scale ampliava a textura e somava com o hover (1.2 × 1.2). */
-.marketplace-app-mercado_livre { width: 120%; height: 120%; }
+   transform — scale ampliava a textura e somava com o hover (1.2 × 1.2).
+   Precisa ficar preso ao trilho: os 120% resolvem contra o container, então
+   solto ele estourava em qualquer lugar sem caixa de tamanho fixo. */
+.channel-rail-tab .marketplace-app-mercado_livre { width: 120%; height: 120%; }
 .channel-rail-tab.is-active { background: color-mix(in oklch, var(--tab-accent) 16%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--tab-accent) 26%, transparent); }
 .channel-rail-tab.is-active > span { transform: scale(.842); }
 .channel-rail-tab.is-active::before { content: ""; position: absolute; inset-inline-start: -8px; inset-block: 9px; width: 3px; border-radius: 999px; background: var(--tab-accent); }
@@ -865,10 +867,6 @@ summary:hover { background: var(--paper-soft); }
 .central-kpis small, .meli-kpis small { display: block; margin-block-start: 9px; color: var(--ink-muted); font-size: 11px; line-height: 1.4; }
 .central-section-heading { display: flex; align-items: end; justify-content: space-between; gap: 28px; margin-block-end: 16px; }
 .central-section-heading > p { max-width: 49ch; color: var(--ink-muted); font-size: 12px; line-height: 1.5; text-align: end; }
-.central-sales-note { margin-block-end: 10px; border-inline-start: 3px solid var(--warning); border-radius: var(--radius-sm); background: oklch(0.97 0.03 85); padding: 9px 12px; color: var(--ink-soft); font-size: 12px; }
-.central-sales-links { display: flex; flex-wrap: wrap; gap: 18px; margin-block-start: 12px; }
-.central-sales-links a { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-soft); font-size: 13px; font-weight: 640; transition: color 140ms ease; }
-.central-sales-links a:hover { color: var(--ink); }
 /* auto-fit em vez de 2 fixas: com três canais conectados a linha vira 3 colunas
    em telas largas e quebra sozinha depois, sem card órfão ocupando a linha toda. */
 .channel-overview-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
@@ -1061,9 +1059,6 @@ summary:hover { background: var(--paper-soft); }
 .profit-sale-main { display: grid; min-height: 92px; grid-template-columns: minmax(250px, 1.35fr) minmax(170px, .75fr) minmax(400px, 1.5fr) 40px; align-items: center; gap: 18px; padding: 14px 16px; }
 .profit-sale-product { min-width: 0; }
 .profit-sale-product strong { display: -webkit-box; overflow: hidden; color: var(--ink); font-size: 14px; font-weight: 720; letter-spacing: -.01em; line-height: 1.32; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.profit-sale-product.has-channel { display: flex; align-items: center; gap: 11px; }
-.profit-sale-channel { display: inline-flex; flex: none; }
-.profit-sale-identity { min-width: 0; }
 .profit-sale-sku { display: inline-flex; margin-block-start: 6px; color: var(--ink-muted); font-size: 11px; font-weight: 600; font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace; letter-spacing: 0; }
 .profit-sale-product small { margin-inline-start: 7px; color: var(--ink-muted); font-size: 11px; }
 .profit-sale-meta { display: grid; min-width: 0; gap: 4px; border-inline-start: 1px solid var(--line); padding-inline-start: 16px; }

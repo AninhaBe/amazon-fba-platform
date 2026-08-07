@@ -5,7 +5,6 @@ import type { ProfitabilityLine } from "@/lib/profitability";
 import { brDate } from "@/lib/datetime";
 import { EmptyState } from "./EmptyState";
 import { TableLoading } from "./LoadingState";
-import { MarketplaceIcon, type MarketplaceIconProvider } from "./MarketplaceIcon";
 import { Pagination } from "./Pagination";
 
 // Contas movimentadas trazem até 1000 vendas por período. Renderizar todos os
@@ -79,23 +78,16 @@ export function OrderProfitabilityTable({ lines, loading = false, error = null, 
   </section>;
 }
 
-export function ProfitabilitySale({ line, expanded, onToggle, channel }: { line: ProfitabilityLine; expanded: boolean; onToggle: () => void; channel?: MarketplaceIconProvider }) {
+export function ProfitabilitySale({ line, expanded, onToggle }: { line: ProfitabilityLine; expanded: boolean; onToggle: () => void }) {
   const deductions = line.productCost == null || line.marketplaceFees == null
     ? null
     : line.productCost + line.marketplaceFees + (line.sellerShipping ?? 0) + (line.tax ?? 0);
   return <article className={`profit-sale${expanded ? " is-expanded" : ""}`}>
     <div className="profit-sale-main">
-      <div className={`profit-sale-product${channel ? " has-channel" : ""}`}>
-        {channel && <span className="profit-sale-channel" aria-hidden="true"><MarketplaceIcon provider={channel} size={26} app /></span>}
-        {channel ? <div className="profit-sale-identity">
-          <strong title={line.product}>{line.product}</strong>
-          <span className="profit-sale-sku">{line.sku || "Sem SKU"}</span>
-          <small>Pedido #{line.orderId}</small>
-        </div> : <>
-          <strong title={line.product}>{line.product}</strong>
-          <span className="profit-sale-sku">{line.sku || "Sem SKU"}</span>
-          <small>Pedido #{line.orderId}</small>
-        </>}
+      <div className="profit-sale-product">
+        <strong title={line.product}>{line.product}</strong>
+        <span className="profit-sale-sku">{line.sku || "Sem SKU"}</span>
+        <small>Pedido #{line.orderId}</small>
       </div>
       <div className="profit-sale-meta" aria-label="Informações da venda">
         <span>{brDate(line.date)}</span>
