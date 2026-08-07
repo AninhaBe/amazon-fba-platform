@@ -1,8 +1,13 @@
 # Plano: Integração TikTok Shop
 
-> **Status:** plano / backlog. Não implementado — registrado para quando houver
-> `app_key`/`app_secret` do Partner Center. Registrado em 2026-07-15.
-> Relacionado: [`arquitetura-plano.md`](./arquitetura-plano.md), [`ai-agent-harness.md`](./ai-agent-harness.md).
+> **Status (07/08/2026):** app **existe** no Partner Center (app "sellercore",
+> key `6kl9m4ajdcvpm`) e a **revisão de Data Security & Privacy (DSPR) foi
+> APROVADA** em 07/08 — era o que travava desde 04/08. O código da integração
+> ainda **não foi escrito**; o que existe é o esqueleto de OAuth (ver "Estado do
+> código" abaixo).
+>
+> Registrado em 2026-07-15, atualizado em 07/08/2026.
+> Relacionado: [`estado-atual.md`](./estado-atual.md), [`arquitetura-plano.md`](./arquitetura-plano.md).
 
 ## Por que priorizar (vs. Shopee)
 
@@ -99,6 +104,22 @@ Mesma arquitetura já existente:
 `auth_code`). Depois disso: mapear **pedidos + financeiro** para os shapes comuns.
 
 ## Próximo passo
+
+**DSPR aprovada em 07/08/2026.** O que a aprovação destrava e o que ainda falta,
+a confirmar no checklist do Partner Center (a sequência costuma ser):
+
+1. ~~Data Security & Privacy review~~ ✅ **aprovada**
+2. **Listing review** — ficha do app na vitrine (nome, descrição, ícone, capturas)
+3. **App review** — revisão funcional da integração
+4. **Publish** — só então um vendedor real consegue autorizar a loja
+
+⚠️ Confirmar essa ordem no console antes de agir — o checklist do Partner Center
+é a fonte, não este doc.
+
+O passo 3 é o que exige código: hoje só existe o OAuth. Para uma revisão
+funcional passar, a integração precisa ler pedidos e produtos de verdade — o
+mesmo trabalho já feito para a Shopee (`shopeeCanonical.ts` + `shopeeSync.ts`
+como molde; o banco não muda, grava com `provider = 'tiktok_shop'`).
 
 ## Fontes
 

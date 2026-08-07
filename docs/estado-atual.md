@@ -17,7 +17,7 @@ detalhe operacional — este arquivo não é histórico, é foto do presente.
 | **Amazon** | Em produção. ⚠️ **As duas contas estão com o refresh token revogado** — ver "Amazon: autorização" abaixo. |
 | **Mercado Livre** | Em produção e sincronizando. Faturamento validado ao centavo contra o painel do ML. |
 | **Shopee** | Código completo (conexão + dashboard + ingestão). **Falta o Go Live** para conectar loja real — ver abaixo. |
-| **TikTok Shop** | Backlog. App existe no Partner Center; revisão de privacidade (DSPR) reapresentada em 04/08, aguardando resposta. Ver [`tiktok-shop-integracao.md`](./tiktok-shop-integracao.md). |
+| **TikTok Shop** | App existe no Partner Center e a **revisão de privacidade (DSPR) foi APROVADA em 07/08**. Faltam Listing review, App review e Publish — e o código da integração, que não existe (só o OAuth). Ver [`tiktok-shop-integracao.md`](./tiktok-shop-integracao.md). |
 
 ---
 
@@ -151,7 +151,9 @@ Usa o token do ambiente, então funciona mesmo com o OAuth revogado.
 - **Solution Provider Portal (Amazon)** — candidatura travada, caso
   21250777631. Sem ele, a Amazon nunca vira canal vendável a terceiros (só uso
   próprio via self-authorization).
-- **TikTok DSPR** — questionário de privacidade sob análise desde 04/08.
+- ~~**TikTok DSPR**~~ — ✅ **aprovada em 07/08/2026**. Deixou de ser bloqueio;
+  as próximas etapas (Listing review, App review, Publish) dependem de trabalho
+  nosso, não de espera.
 - **Shopee Go Live** — depende do item 1 acima ser submetido.
 
 ---
