@@ -141,6 +141,67 @@ declarar antes do App review, não depois.
 ⚠️ O console mede **SLA de suporte** do parceiro (tempo de primeira resposta em
 2h, resolução em 48h). Hoje há 0 tickets, então as taxas aparecem como 0%.
 
+### O que a API do Partner Center respondeu (07/08, via TTS Open Toolkit)
+
+CLI `@tts-open-toolkit/cli` 0.1.7, `auth login` OAuth (escopo
+`open_toolkit:developer`, região BR), `devapi call partner-service-detail
+--query service_id=7662688850348934932`.
+
+**1. Dá para testar com loja real ANTES do Publish.**
+
+```
+seller_invitation_link      = true
+invitation_link             = https://services.tiktokshop.com/open/authorize
+auth_link_list[0].auth_type = 1
+custom_beta_authorization_num = 25
+```
+
+São **25 autorizações beta**. Um vendedor conhecido autoriza a loja pelo link de
+convite e o app já lê dados reais — sem esperar Listing review, App review nem
+Publish. É o caminho para validar `tiktokCanonical.ts` contra resposta real
+**antes** da revisão funcional, exatamente o que faltou na Shopee.
+
+**2. O "1 to complete" é a ficha em branco.** O registro do listing pt-BR existe,
+mas o conteúdo está vazio:
+
+```
+language_listing[0].language        = pt
+language_listing[0].service_name    = (vazio)
+language_listing[0].service_logo    = (vazio)
+language_listing[0].service_main_image = (vazio)
+language_listing[0].video           = (vazio)
+language_listing[0].contact_email   = (vazio)
+language_listing[0].contact_phone   = (vazio)
+language_listing[0].official_website= (vazio)
+```
+
+Trabalho sem código, dá para fazer hoje.
+
+**3. Status dos gates**
+
+| Campo | Valor | Leitura |
+|---|---|---|
+| `partner_cert_status` | 4 | certificação do parceiro OK |
+| `opis_status` | 4 | OPIS OK |
+| `need_usds` / `usds_status` | false / 0 | não exigido |
+| `app_review_status` | 1 | **App review ainda não feito** |
+| `need_app_review` | true | obrigatório |
+| `service_status` | 1 | Draft |
+
+**4. Categorias divergem** — vale checar se limita escopo de API (a Shopee tem
+regra equivalente: App Type imutável define endpoints):
+
+- Serviço: `Product Listing` (884624)
+- Identidade do parceiro: `Order Management (OMS / WMS)` (836880), sob
+  `Shipping & Fulfillment`
+
+⚠️ **O que a CLI NÃO entrega:** `authorization-open-api-list` exige `pkg_id`, que
+não aparece em nenhuma resposta acima. E as rotas de `developer_center_api`
+(`/api/v1/app/list`, `/api/v1/app/detail`) devolvem **não-JSON** para esta conta —
+provavelmente por ser conta de Partner Center (ISV) e não de Developer Center.
+A lista definitiva de endpoints liberados ainda precisa sair do **"Manage API"**
+no console.
+
 O passo 3 é o que exige código: hoje só existe o OAuth. Para uma revisão
 funcional passar, a integração precisa ler pedidos e produtos de verdade — o
 mesmo trabalho já feito para a Shopee (`shopeeCanonical.ts` + `shopeeSync.ts`
