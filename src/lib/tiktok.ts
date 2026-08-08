@@ -167,3 +167,112 @@ export async function getAuthorizedShops(accessToken: string): Promise<TiktokSho
 export function epochToIso(sec?: number): string | undefined {
   return sec ? new Date(sec * 1000).toISOString() : undefined;
 }
+
+// ---------------------------------------------------------------------------
+// Endpoints de negócio
+//
+// Versões escolhidas pela regra "maior versão aplicável" do OAS oficial, em
+// 07/08 (ver docs/tiktok-shop-integracao.md). Os parâmetros abaixo vêm do
+// schema, não de suposição.
+// ---------------------------------------------------------------------------
+
+/** Máximo de pedidos por página no search. O schema exige page_size; 50 é o
+ *  valor que a doc usa nos exemplos. ⚠️ Confirmar o teto na primeira resposta. */
+export const ORDER_PAGE_SIZE = 50;
+/** Pedidos por chamada de detalhe. ⚠️ O OAS declara `ids` como array sem
+ *  informar o teto — 50 é conservador e alinhado ao page size. */
+export const ORDER_DETAIL_BATCH = 50;
+export const PRODUCT_PAGE_SIZE = 50;
+
+export interface TiktokShopRef {
+  accessToken: string;
+  shopCipher?: string;
+}
+
+interface Paginado<T> {
+  items: T[];
+  nextPageToken?: string;
+  total?: number;
+}
+
+/**
+ * Lista pedidos por janela de criação.
+ * `POST /order/202309/orders/search` — única versão com search.
+ * Janela vai no corpo (`create_time_ge` / `create_time_lt`, epoch em segundos);
+ * paginação vai na query.
+ */
+export async function getTiktokOrderList(
+  shop: TiktokShopRef,
+  opts: { createTimeGe: number; createTimeLt: number; pageToken?: string }
+): Promise<Paginado<{ id: string }>> {
+  const data = await tiktokFetch<{
+    orders?: Array<{ id: string }>;
+    next_page_token?: string;
+    total_count?: number;
+  }>("/order/202309/orders/search", {
+    method: "POST",
+    accessToken: shop.accessToken,
+    shopCipher: shop.shopCipher,
+    query: { page_size: ORDER_PAGE_SIZE, page_token: opts.pageToken },
+    body: { create_time_ge: opts.createTimeGe, create_time_lt: opts.createTimeLt },
+  });
+  return {
+    items: data.orders ?? [],
+    nextPageToken: data.next_page_token,
+    total: data.total_count,
+  };
+}
+
+/**
+ * Detalhe dos pedidos. `GET /order/202507/orders` (mais nova que a 202309).
+ * ⚠️ `ids` é array no schema; enviamos separado por vírgula, que é a convenção
+ * da TikTok — confirmar na primeira chamada real.
+ */
+export async function getTiktokOrderDetail(
+  shop: TiktokShopRef,
+  ids: string[]
+): Promise<unknown[]> {
+  if (!ids.length) return [];
+  const data = await tiktokFetch<{ orders?: unknown[] }>("/order/202507/orders", {
+    accessToken: shop.accessToken,
+    shopCipher: shop.shopCipher,
+    query: { ids: ids.join(",") },
+  });
+  return data.orders ?? [];
+}
+
+/**
+ * Extrato financeiro de UM pedido — o equivalente ao escrow da Shopee, e a
+ * única fonte de taxa real. `GET /finance/202501/orders/{order_id}/statement_transactions`.
+ */
+export async function getTiktokOrderStatement(
+  shop: TiktokShopRef,
+  orderId: string
+): Promise<unknown> {
+  return tiktokFetch(`/finance/202501/orders/${encodeURIComponent(orderId)}/statement_transactions`, {
+    accessToken: shop.accessToken,
+    shopCipher: shop.shopCipher,
+  });
+}
+
+/** Catálogo. `POST /product/202502/products/search` (mais nova que 202309/202312). */
+export async function getTiktokProducts(
+  shop: TiktokShopRef,
+  opts: { pageToken?: string } = {}
+): Promise<Paginado<unknown>> {
+  const data = await tiktokFetch<{ products?: unknown[]; next_page_token?: string; total_count?: number }>(
+    "/product/202502/products/search",
+    {
+      method: "POST",
+      accessToken: shop.accessToken,
+      shopCipher: shop.shopCipher,
+      query: { page_size: PRODUCT_PAGE_SIZE, page_token: opts.pageToken },
+      body: {},
+    }
+  );
+  return {
+    items: data.products ?? [],
+    nextPageToken: data.next_page_token,
+    total: data.total_count,
+  };
+}
