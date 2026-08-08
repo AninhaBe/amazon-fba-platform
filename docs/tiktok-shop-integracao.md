@@ -254,6 +254,33 @@ fica.
 a Amazon lê da SP-API e não do canônico — por isso a galeria usa central, ML e
 Shopee. É a mesma pendência registrada em `estado-atual.md`.
 
+### Escopos de API — o pedido vinha DESLIGADO (07/08)
+
+`App & Service → sellercore → Manage API`. São **21 escopos**, e o de pedido não
+estava entre os ativos. Não é limitação de categoria nem exige aprovação: o
+**Order Information** (`seller.order.info`, Scope ID 430276) vem **desligado por
+padrão**, marcado como `Sensitive data`, com o aviso:
+
+> *"This scope contains customers' personal information. Do not enable it unless
+> necessary."*
+
+Coerente com o schema: `GET /order/202507/orders` devolve `cpf`, `cpf_name`,
+`buyer_email` e `recipient_address`. Ligado em 07/08 — sem ele o módulo `order`
+(9 endpoints) fica inacessível, e o `Finance Information` que já tínhamos fica
+inútil, porque o extrato se consulta **por `order_id`**.
+
+⚠️ **Ao adicionar escopo, lojas já autorizadas precisam REAUTORIZAR.** Como havia
+zero lojas conectadas, ligar agora não quebrou ninguém; depois quebraria.
+
+⚠️ **Excesso de privilégio a corrigir antes do App review.** Estão ativos quatro
+escopos de **escrita** que o produto não usa: `Product Modify`,
+`Product Delete & Recover`, `Promotion Modify` e `Update Delivery Status`. O
+SellerCore é somente leitura. Pedir permissão de apagar produto num painel de
+lucro contradiz o próprio App review, que avalia se o escopo condiz com a função.
+
+O único que continua inativo é `Manage Seller Redeem Info Callback`
+(`seller.redeem_info.write`) — esse exige "Apply", e não precisamos.
+
 ### Endpoints escolhidos (OAS oficial, 07/08)
 
 Selecionados pela regra do `tts-openapi-guide`: **maior versão aplicável**, salvo
