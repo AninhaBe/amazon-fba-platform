@@ -254,6 +254,45 @@ fica.
 a Amazon lê da SP-API e não do canônico — por isso a galeria usa central, ML e
 Shopee. É a mesma pendência registrada em `estado-atual.md`.
 
+### Caminho escolhido: Custom app para validar, ISV para vender (07/08)
+
+O app **público** (ISV) só aceita autorização de vendedor **depois de publicado**,
+e publicar exige Listing review + App review. O App review testa a funcionalidade
+— ou seja, exige a integração pronta. Isso trava a validação.
+
+A saída é o **Custom app**, e ela **não** exige nada do vendedor:
+
+> *"Custom app: Not listed publicly. Developers share a private authorization link
+> with selected sellers."*
+> *"Custom apps usually launch privately by authorization link. App review is
+> required only for... custom apps with 25 or more seller authorizations."*
+
+Ou seja: o custom app é criado **na nossa conta de parceiro**, não na conta do
+vendedor. Ele só clica no link e autoriza.
+
+**Criado em 07/08:**
+
+| | |
+|---|---|
+| Nome | SellerCore Conexao Direta |
+| Service ID | `7671117911286351636` |
+| App key | `6kt9seem3qnjr` |
+| Tipo / categoria | Custom · Order Management (OMS / WMS) |
+| Mercado / vendedor | Brasil · Local sellers |
+| Redirect URL | `https://sellercore.onrender.com/api/tiktok/callback` |
+| Escopos | 4, **todos de leitura**: `seller.order.info`, `seller.finance.info`, `seller.product.basic`, `seller.authorization.info` |
+
+⚠️ **Categoria, mercado e tipo de vendedor não mudam depois da criação.**
+
+⚠️ **Publicar exigiu o registro de parceiro para o Brasil**, que estava em
+*"Draft - Awaiting submission"* com CNPJ e documentos já preenchidos, nunca
+submetido. **Submetido em 07/08 — status "Under review", 3 a 5 dias úteis.**
+Enquanto não aprovar, o Publish fica bloqueado e nenhuma loja autoriza.
+
+**Depois da aprovação:** publicar o custom app → sai o link privado de
+autorização → o vendedor clica → token → validar `tiktokCanonical.ts` contra
+pedido e extrato reais → aí sim o caminho ISV com o mapeamento provado.
+
 ### Escopos de API — o pedido vinha DESLIGADO (07/08)
 
 `App & Service → sellercore → Manage API`. São **21 escopos**, e o de pedido não
