@@ -222,6 +222,17 @@ export default function Dashboard() {
   const cogs = profit?.cogs ?? 0;
   const missingCostUnits = profit?.unitsWithoutCost ?? 0;
   const costsIncomplete = missingCostUnits > 0;
+  // O financeiro vem das transações, que a Amazon posta na data de POSTAGEM —
+  // uma venda recém-feita já conta no faturamento e ainda não tem repasse.
+  // Repasse ausente é desconhecido, não zero: exibir "R$ 0,00 / 0,0% de margem"
+  // afirmaria que a venda não deu lucro.
+  const hasFinance =
+    !!profit &&
+    (profit.finance.orderCount > 0 ||
+      profit.finance.units > 0 ||
+      profit.finance.netProceeds !== 0 ||
+      profit.finance.fees !== 0 ||
+      profit.finance.refunds !== 0);
   const marginPct = revenue > 0 ? (estProfit / revenue) * 100 : 0;
   const ticketMedio = salesCount > 0 ? revenue / salesCount : 0;
   const roiPct = cogs > 0 ? (estProfit / cogs) * 100 : 0;
@@ -252,9 +263,11 @@ export default function Dashboard() {
         <div className="metric-cell metric-primary relative overflow-hidden p-5">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">{costsIncomplete ? "Repasse líquido" : "Lucro conciliado"}</p>
           <p className="mt-2 text-[27px] font-bold leading-none tabular-nums text-emerald-800">
-            {loading ? "···" : <AnimatedNumber id="amz-profit" value={estProfit} format={(amount) => money(amount, currency)} />}
+            {loading ? "···" : hasFinance ? <AnimatedNumber id="amz-profit" value={estProfit} format={(amount) => money(amount, currency)} /> : "—"}
           </p>
-          {costsIncomplete
+          {!hasFinance
+            ? <p className="mt-1.5 text-xs font-medium text-slate-500">{loading ? "" : "sem repasse da Amazon no período — o lucro aparece quando a venda é postada"}</p>
+            : costsIncomplete
             ? <p className="mt-1.5 text-xs font-medium text-amber-700">antes do custo dos produtos — cadastre custos para o lucro real</p>
             : <p className="mt-2 flex items-baseline gap-1.5"><span className="text-[17px] font-extrabold tabular-nums text-emerald-600">{marginPct.toFixed(1)}%</span><span className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700/70">margem sobre vendas</span></p>}
         </div>
@@ -318,12 +331,21 @@ export default function Dashboard() {
             <h2 className="mt-1 text-lg font-semibold text-slate-900">Repasses, taxas e {costsIncomplete ? "resultado" : "lucro"}</h2>
             <p className="mt-1 text-xs leading-relaxed text-slate-400">Base dos repasses da Amazon (data de postagem) — difere do faturamento acima, que segue a data do pedido como o Seller Central.</p>
           </div>
-          <div className="financial-lines">
-            <Flow label="Receita conciliada" value={loading ? "…" : money(profit?.finance.revenue ?? 0, currency)} />
-            <Flow label="Taxas Amazon" value={loading ? "…" : money(profit?.finance.fees ?? 0, currency)} muted sign="−" />
-            <Flow label="Custo dos produtos" value={loading ? "…" : money(profit?.cogs ?? 0, currency)} muted sign="−" />
-            <Flow label={costsIncomplete ? "Repasse líquido" : "Lucro estimado"} value={loading ? "…" : money(profit?.estimatedProfit ?? 0, currency)} accent sign="=" />
-          </div>
+          {!loading && !hasFinance ? (
+            // Sem transação postada não há cascata: zerar receita, taxas e lucro
+            // faria a tela afirmar que a venda não rendeu nada.
+            <p className="text-sm leading-relaxed text-slate-500">
+              A Amazon ainda não postou repasse deste período. As vendas já aparecem no faturamento
+              (data do pedido); taxas e lucro entram aqui quando o pedido é postado e liquidado.
+            </p>
+          ) : (
+            <div className="financial-lines">
+              <Flow label="Receita conciliada" value={loading ? "…" : money(profit?.finance.revenue ?? 0, currency)} />
+              <Flow label="Taxas Amazon" value={loading ? "…" : money(profit?.finance.fees ?? 0, currency)} muted sign="−" />
+              <Flow label="Custo dos produtos" value={loading ? "…" : money(profit?.cogs ?? 0, currency)} muted sign="−" />
+              <Flow label={costsIncomplete ? "Repasse líquido" : "Lucro estimado"} value={loading ? "…" : money(profit?.estimatedProfit ?? 0, currency)} accent sign="=" />
+            </div>
+          )}
         </aside>
       </section>
 
