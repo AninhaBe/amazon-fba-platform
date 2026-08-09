@@ -28,6 +28,7 @@ interface ProductResult {
   price?: number | null;
   currency?: string;
   offerCount?: number | null;
+  fbaChecked?: boolean; // false = não deu para consultar a logística (≠ "sem FBA")
   fbaPrice?: number | null; // menor preço entre ofertas FBA; null = ninguém no FBA
   lowestPrice?: number | null;
   featured?: "fba" | "seller" | null;
@@ -160,7 +161,10 @@ export default function PesquisaPage() {
     }
   }
 
-  const filtrados = somenteFba ? items.filter((i) => i.fbaPrice != null) : items;
+  // Sem conseguir consultar a logística, o filtro não pode esconder nada: o que
+  // não foi verificado não é "sem FBA".
+  const fbaIndisponivel = items.length > 0 && items.every((i) => !i.fbaChecked);
+  const filtrados = somenteFba && !fbaIndisponivel ? items.filter((i) => i.fbaPrice != null) : items;
   const sorted = [...filtrados].sort((a, b) => {
     if (sort === "bsr") return (a.salesRank ?? Infinity) - (b.salesRank ?? Infinity);
     if (sort === "fba") return (a.fbaPrice ?? Infinity) - (b.fbaPrice ?? Infinity);
@@ -293,6 +297,14 @@ export default function PesquisaPage() {
                 <span className="ml-1.5 font-normal opacity-70">({comFba.length})</span>
               )}
             </button>
+            {fbaIndisponivel && (
+              <span
+                role="status"
+                className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700"
+              >
+                Logística não consultada — o filtro fica inativo em vez de esconder o que não foi verificado
+              </span>
+            )}
             <div className="flex gap-1 rounded-lg border border-slate-200 bg-white p-1 text-xs">
             {([["recentes", "Mais novos"], ["antigos", "Mais antigos"], ["bsr", "Melhor posição"], ["fba", "Menor preço FBA"]] as const).map(
               ([k, label]) => (
@@ -318,13 +330,16 @@ export default function PesquisaPage() {
           <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
               <th scope="col" className="px-3 py-3">Produto</th>
-              <th scope="col" className="whitespace-nowrap px-3 py-3 text-right">Preço</th>
               <th
                 scope="col"
                 className="whitespace-nowrap px-3 py-3 text-right"
-                title="Menor preço entre as ofertas com logística da Amazon (FBA). Traço = ninguém vende por FBA neste anúncio."
+                title={
+                  somenteFba
+                    ? "Menor preço entre as ofertas com logística da Amazon (FBA)"
+                    : "Preço competitivo (buy box)"
+                }
               >
-                Menor FBA
+                {somenteFba ? "Preço FBA" : "Preço"}
               </th>
               <th
                 scope="col"
@@ -347,14 +362,16 @@ export default function PesquisaPage() {
           <tbody className="divide-y divide-slate-100">
             {!searched ? (
               <tr>
-                <td colSpan={7} className="px-4 py-6"><EmptyState kind="search" title="Pesquise o mercado Amazon" description="Digite um produto, marca ou palavra-chave para comparar anúncios, preços e concorrência." /></td>
+                <td colSpan={6} className="px-4 py-6"><EmptyState kind="search" title="Pesquise o mercado Amazon" description="Digite um produto, marca ou palavra-chave para comparar anúncios, preços e concorrência." /></td>
               </tr>
             ) : loading && items.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8"><TableLoading label="Buscando anúncios" /></td>
+                <td colSpan={6} className="px-4 py-8"><TableLoading label="Buscando anúncios" /></td>
               </tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-6"><EmptyState kind="search" title="Nenhum anúncio encontrado" description="Tente uma palavra mais ampla, outra grafia ou remova detalhes do termo pesquisado." /></td></tr>
+              <tr><td colSpan={6} className="px-4 py-6"><EmptyState kind="search" title="Nenhum anúncio encontrado" description="Tente uma palavra mais ampla, outra grafia ou remova detalhes do termo pesquisado." /></td></tr>
+            ) : sorted.length === 0 ? (
+              <tr><td colSpan={6} className="px-4 py-6"><EmptyState kind="search" title="Nenhum anúncio com logística da Amazon" description="Dos resultados carregados, nenhum tem oferta FBA. Clique em “Carregar mais” para buscar outras páginas ou desligue o filtro." /></td></tr>
             ) : (
               sorted.map((p) => {
                 const eff = effectiveDate(p);
@@ -388,13 +405,10 @@ export default function PesquisaPage() {
                       </div>
                     </td>
                     <td className="px-3 py-2.5 text-right tabular-nums font-medium text-slate-700">
-                      {money(p.price, p.currency)}
-                    </td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">
-                      {p.fbaPrice != null ? (
+                      {somenteFba ? (
                         <span className="inline-flex items-center gap-1.5">
                           <span className="font-semibold text-blue-700">{money(p.fbaPrice, p.currency)}</span>
-                          {p.fbaPrice === pisoFba && (
+                          {p.fbaPrice != null && p.fbaPrice === pisoFba && (
                             <span
                               className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700"
                               title="Menor preço FBA entre os resultados carregados"
@@ -404,9 +418,7 @@ export default function PesquisaPage() {
                           )}
                         </span>
                       ) : (
-                        <span className="text-slate-400" title="Nenhuma oferta com logística da Amazon neste anúncio">
-                          sem FBA
-                        </span>
+                        money(p.price, p.currency)
                       )}
                     </td>
                     <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">

@@ -43,8 +43,11 @@ export interface ProductResult {
   price?: number | null;
   currency?: string;
   offerCount?: number | null; // nº de vendedores/ofertas
-  // Logística da concorrência. `fbaPrice` null = nenhuma oferta FBA no anúncio —
-  // é ausência de concorrente FBA, não preço zero.
+  // Logística da concorrência. Três estados distintos, de propósito:
+  //   fbaChecked false → não deu para consultar (não afirmar nada)
+  //   fbaPrice null    → consultado, e não há oferta FBA neste anúncio
+  //   fbaPrice número  → menor preço entre as ofertas FBA
+  fbaChecked?: boolean;
   fbaPrice?: number | null;
   lowestPrice?: number | null;
   featured?: "fba" | "seller" | null; // quem está com a oferta em destaque
@@ -194,9 +197,16 @@ async function fetchSearch(
   // Duas chamadas em lote para os 20 — feitas em paralelo, e cada uma degrada
   // sozinha: sem o preço FBA a lista ainda serve, só perde o filtro.
   const asins = items.map((i) => i.asin);
+  let fbaOk = true;
   const [prices, fulfillment] = await Promise.all([
     getCompetitivePricingBatch(asins, marketplaceId).catch(() => new Map()),
-    getLowestFbaPricingBatch(asins, marketplaceId).catch(() => new Map()),
+    getLowestFbaPricingBatch(asins, marketplaceId).catch((err) => {
+      // Falhar aqui não pode virar "sem FBA" na tela: seria afirmar que não há
+      // concorrente FBA quando na verdade não se conseguiu perguntar.
+      fbaOk = false;
+      console.error("[search] menor preço FBA indisponível:", err instanceof Error ? err.message : err);
+      return new Map();
+    }),
   ]);
   for (const it of items) {
     const cp = prices.get(it.asin);
@@ -206,6 +216,8 @@ async function fetchSearch(
       it.offerCount = cp.offerCount;
     }
     const fp = fulfillment.get(it.asin);
+    // Só marca como consultado o ASIN que veio na resposta do lote.
+    it.fbaChecked = fbaOk && !!fp;
     if (fp) {
       it.fbaPrice = fp.fbaPrice;
       it.lowestPrice = fp.lowestPrice;
