@@ -68,6 +68,19 @@ Atributos-lista (ex.: `fulfillment_availability`) têm um **selector** — para 
 4. Pode combinar `replace` + `delete` no mesmo PATCH (suportado desde 2022).
 5. Fonte: github.com/amzn/selling-partner-api-models issue **#2061** (resposta oficial do time SP-API).
 
+### `mode=VALIDATION_PREVIEW` — testar um anúncio sem criar (2026-08-08)
+
+`PUT /listings/2021-08-01/items/{sellerId}/{sku}?mode=VALIDATION_PREVIEW` valida o
+payload e devolve `status` + `issues` **sem gravar nada**. É o equivalente por API a
+"começar a criar um anúncio para ver o que a Amazon aceita", sem sujar o catálogo
+com rascunho.
+
+Usado em 08/08 para provar que a logística da Amazon está disponível em anúncio
+novo: com `fulfillment_availability: [{ fulfillment_channel_code: "AMAZON_NA" }]`
+o retorno foi `VALID`, 0 issues. Sem os atributos de compliance do productType
+(`batteries_required`, `supplier_declared_dg_hz_regulation`) o retorno é `INVALID`
+com dois erros `90220` — que são do tipo de produto, **não** do canal de envio.
+
 ### Caso real: FNSKU travado por offer FBA+FBM duplo
 
 O Seller Central remove FBM quando você ativa FBA — **a API não**. Anúncio criado via API pode ficar com `fulfillment_availability = [{AMAZON_NA}, {DEFAULT, quantity: 0}]`. Esse conflito **impede o registro do FNSKU** e a variação não aparece no "Enviar para a Amazon". Correção: `delete` da entrada `DEFAULT` (receita acima). FNSKU aparece ~1h após a conversão limpa.
