@@ -17,6 +17,20 @@ Referência interna do SellerCore. Tudo aqui foi validado em produção (conta B
 | `GET /orders/v0/orders` | Lista de pedidos (`src/lib/orders.ts`) | Paginação por `NextToken`. Filtros `CreatedAfter/Before`, `OrderStatuses`. |
 | `GET /orders/v0/orders/{id}/orderItems` | Itens do pedido | — |
 
+### `Pending` no FBA não é "não pagou" (2026-08-08)
+
+Pedido FBA fica em `OrderStatus: Pending` **mesmo depois do pagamento confirmado** —
+sai de `Pending` na expedição, não na aprovação do cartão. Observado ao vivo no
+pedido `702-2192919-5915420`: comprador recebeu "Confirmação de pagamento" às 14:06,
+`LastUpdateDate` 14:09, e 7 horas depois ainda `Pending`, dentro do prazo
+(`EarliestShipDate` = `LatestShipDate` = dia seguinte 23:59).
+
+Consequência para o cálculo: enquanto está `Pending`, a Amazon **omite `OrderTotal`
+no pedido e `ItemPrice` nos itens**. Não é falha de sync — o pedido entra no modelo
+canônico com `gross` 0 e sem fees porque não há valor a capturar. Como não há
+expedição, também não existe transação financeira, e o lucro conciliado fica
+**vazio (desconhecido), nunca zero** — ver o card em `src/app/amazon/page.tsx`.
+
 ## Financeiro
 
 | Endpoint | Uso no projeto | Observações |
