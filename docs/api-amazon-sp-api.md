@@ -114,6 +114,23 @@ Fulfillment Inbound `2024-03-20` sobre `inboundPlans/{id}/shipments/{id}`:
 | `POST /reports/2021-06-30/reports` → `GET .../reports/{id}` → `GET .../documents/{docId}` | Relatórios (`src/lib/reports.ts`) | Fluxo assíncrono: criar, poll até DONE, baixar documento (pode vir gzip). `GET_MERCHANT_LISTINGS_ALL_DATA` lista todos os SKUs. |
 | `GET /sellers/v1/marketplaceParticipations` | Marketplaces da conta (`src/lib/sellers.ts`) | Bom "ping" para validar credenciais. |
 
+### Transportadora do inbound: sem caminho por API hoje (2026-08-08)
+
+Para saber qual transportadora a Amazon oferece num envio (a "parceira da Amazon"
+/ TEXBR), as duas portas estão fechadas para este app:
+
+- `GET /inbound/fba/2024-03-20/inboundPlans/{id}/shipments` → **403 Unauthorized**.
+  Falta papel na aplicação SP-API (mesmo padrão do relatório de tráfego, que exige
+  Brand Analytics). `GET .../inboundPlans/{id}` sozinho responde 200 — o bloqueio é
+  só no nível de shipments.
+- `GET /fba/inbound/v0/shipments/{id}/transport` → **400: "This API is deprecated.
+  Please migrate to the new Fulfillment Inbound v2024-03-20 APIs."** A listagem
+  `v0/shipments` ainda responde 200 (exige `ShipmentStatusList` ou `ShipmentIdList`),
+  mas o transporte não.
+
+Conclusão: a escolha de transportadora só é verificável na tela *Enviar para a
+Amazon*. Se o papel for concedido, o caminho é `transportationOptions` da 2024-03-20.
+
 ## Changelog observado (mais recente primeiro)
 
 - **2026-08-06** — **`GET_SALES_AND_TRAFFIC_REPORT` responde 403 Forbidden.**
