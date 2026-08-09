@@ -68,6 +68,29 @@ Atributos-lista (ex.: `fulfillment_availability`) têm um **selector** — para 
 4. Pode combinar `replace` + `delete` no mesmo PATCH (suportado desde 2022).
 5. Fonte: github.com/amzn/selling-partner-api-models issue **#2061** (resposta oficial do time SP-API).
 
+### Fees API devolve zero — como a Finances v0 (2026-08-09)
+
+`POST /products/fees/v0/items/{asin}/feesEstimate` responde `Status: "Success"`
+com **todas as tarifas zeradas**: `ReferralFee = 0`, `FBAFees = 0`,
+`TotalFeesEstimate = 0`. Testado em 08/2026 com:
+
+- ASIN próprio (`B0HBGLBL6Y` a R$ 19,90) e de terceiro (`B0H42G9TGW`)
+- `IsAmazonFulfilled` true e false
+- preços de R$ 15,90 a R$ 99,00
+
+Sempre zero. É o mesmo comportamento da Finances v0 nesta conta — a API responde
+200 e mente. Não dá para distinguir "tarifa zero" de "não sei", então **tratar o
+retorno zerado como desconhecido (`null`), nunca como custo zero**: usado como 0
+num cálculo de margem, ele infla o lucro e leva a decidir compra errado.
+
+Fontes de tarifa que funcionam: `GET /finances/2024-06-19/transactions` (taxa
+real do que já foi vendido, por pedido) e, para produto que ainda não se vende,
+premissa explícita do usuário — nunca a Fees API.
+
+`POST /products/fees/v0/feesEstimate` (lote) rejeita com `Missing objects
+[PriceToEstimateFees]` mesmo com o campo presente no item da lista; não
+investigado a fundo porque a versão por ASIN já não serve.
+
 ### `mode=VALIDATION_PREVIEW` — testar um anúncio sem criar (2026-08-08)
 
 `PUT /listings/2021-08-01/items/{sellerId}/{sku}?mode=VALIDATION_PREVIEW` valida o
@@ -92,7 +115,7 @@ O Seller Central remove FBM quando você ativa FBA — **a API não**. Anúncio 
 | `GET /catalog/2022-04-01/items[/{asin}]` | Busca/detalhe de catálogo (`src/lib/catalog.ts`, `search.ts`) | `includedData=attributes,images,salesRanks,summaries`. ⚠️ Em lote (`identifiers`), o `pageSize` **padrão é 10** — um lote de 20 ASINs volta pela metade em silêncio. Sempre passar `pageSize` explícito (máx. 20). |
 | `GET /products/pricing/v0/competitivePrice` | Preço competitivo (`src/lib/pricing.ts`) | — |
 | `GET /products/pricing/v0/items/{asin}/offers` | Ofertas do ASIN | — |
-| `GET /products/fees/v0/items/{asin}/feesEstimate` | Estimativa de tarifas (`src/lib/fees.ts`) | POST na prática (body com preço). |
+| `GET /products/fees/v0/items/{asin}/feesEstimate` | Estimativa de tarifas (`src/lib/fees.ts`) | POST na prática (body com preço). ⚠️ **Retorna ZERADO nesta conta** — ver abaixo. |
 | `GET /fba/inventory/v1/summaries` | Estoque FBA (`src/lib/inventory.ts`) | `details=true` traz **`fnSku`** — é aqui que se verifica se a variação registrou no FBA. |
 | `GET /fba/inbound/v1/eligibility/itemPreview` | Elegibilidade FBA por ASIN | `program=INBOUND`. Usado no diagnóstico do caso FNSKU. |
 
