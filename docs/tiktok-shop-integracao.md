@@ -293,6 +293,46 @@ Enquanto não aprovar, o Publish fica bloqueado e nenhuma loja autoriza.
 autorização → o vendedor clica → token → validar `tiktokCanonical.ts` contra
 pedido e extrato reais → aí sim o caminho ISV com o mapeamento provado.
 
+### PUBLICADO — o desvio pela categoria já aprovada (08/08)
+
+Accounting e Order Management foram **rejeitadas** com a mesma razão:
+
+> *"The Company Number that you entered was inconsistent with the company number
+> on your Company registration document."*
+
+O `Company registration number` do formulário está como `66.106.202/0001-20`
+(igual ao CNPJ, com máscara) e o revisor não aceitou. **Pendência: descobrir o
+valor que ele espera** — provavelmente sem pontuação, ou outro número do
+documento. Vale para recuperar as duas categorias e para o app público ISV.
+
+O desvio que destravou: a categoria **não restringe escopos** (os 21 aparecem em
+qualquer uma), e **Catalog / Product Listing já estava aprovada**. Criar o custom
+app sob ela publica na hora, sem depender da correção.
+
+| | |
+|---|---|
+| Nome | SellerCore Conexao Parceiro |
+| Service ID | `7671696361289074452` |
+| App key | `6kt9seens0iip` |
+| Tipo / categoria | Custom · **Catalog / Product Listing** (aprovada) |
+| Mercado / vendedor | Brasil · Local sellers |
+| Redirect URL | `https://sellercore.onrender.com/api/tiktok/callback` |
+| Escopos | os mesmos 4 de leitura, todos `Active`, nenhum em review |
+| Status | **On · Beta Testing** — limite de **25** autorizações |
+| Link de autorização | `https://services.tiktokshop.com/open/authorize?service_id=7671696361289074452` |
+
+⚠️ **`status` na `partner-profile` é o INVERSO do intuitivo.** A leitura correta,
+conferida contra a tela `My Account → Profile → My category & market`:
+
+| valor | significa |
+|---|---|
+| `1` | **Approved** |
+| `3` | Not approved (rejeitada) |
+| `5` | Draft — nunca submetida |
+
+Ler `5` como "aprovado" custou duas submissões e uma rejeição. Confirme sempre
+contra a tela antes de decidir com base nesse campo.
+
 ### Escopos de API — o pedido vinha DESLIGADO (07/08)
 
 `App & Service → sellercore → Manage API`. São **21 escopos**, e o de pedido não
