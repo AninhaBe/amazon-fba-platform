@@ -77,6 +77,22 @@ O vencimento em 365 dias é peculiar: mesmo com tudo funcionando, a conexão
 morre na data. A data da autorização é guardada em `metadata.authorizedAt` no
 callback, justamente para permitir o aviso.
 
+### TikTok Shop
+
+| Causa | Evita? |
+|---|---|
+| `access_token` curto, renovado pelo `refresh_token` | Sim — `refreshAccessToken` |
+| **Autorização da loja vence em 90 dias** | Não, mas dá para avisar antes |
+| Vendedor revoga no Seller Center | Não |
+
+⚠️ **São 90 dias, não 365 como a Shopee** — a janela é 4× mais curta e o aviso
+precisa ser proporcionalmente mais cedo. Confirmado na tela *Authorization
+details* do Partner Center (09/08): "Authorization period: 90 days", autorização
+`7671858184827848468` da loja Crystal Fancy válida de 09/08 a 07/11/2026.
+
+O prazo conta da autorização, não do último refresh: renovar token não estende
+a data. Ao fim dos 90 dias o vendedor precisa passar pelo link de convite de novo.
+
 ## O que falta (backlog, em ordem de valor)
 
 1. **Avisar antes de quebrar.** O cron já roda a cada 5 min; quando marcar uma
