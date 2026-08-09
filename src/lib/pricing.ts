@@ -1,4 +1,12 @@
 import { spapiFetch, defaultMarketplaceId } from "./spapi";
+import {
+  competitiveSummaryBody,
+  parseCompetitiveSummary,
+  type CompetitiveSummaryResponse,
+  type FulfillmentPrice,
+} from "./fulfillmentPricing";
+
+export type { FulfillmentPrice } from "./fulfillmentPricing";
 
 interface PriceAmount {
   CurrencyCode: string;
@@ -79,6 +87,23 @@ export async function getCompetitivePricingBatch(
     });
   }
   return map;
+}
+
+// ---- Menor preço por tipo de logística (FBA x vendedor), em lote ----
+// Parsing e tipos vivem em `fulfillmentPricing.ts` (sem I/O, testável).
+// Operação: getCompetitiveSummary —
+// POST /batches/products/pricing/2022-05-01/items/competitiveSummary
+
+export async function getLowestFbaPricingBatch(
+  asins: string[],
+  marketplaceId = defaultMarketplaceId()
+): Promise<Map<string, FulfillmentPrice>> {
+  if (!asins.length) return new Map();
+  const data = await spapiFetch<CompetitiveSummaryResponse>(
+    "/batches/products/pricing/2022-05-01/items/competitiveSummary",
+    { method: "POST", body: competitiveSummaryBody(asins, marketplaceId) }
+  );
+  return parseCompetitiveSummary(data);
 }
 
 /**

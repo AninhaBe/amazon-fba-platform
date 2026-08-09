@@ -1,6 +1,6 @@
 import { spapiFetch, defaultMarketplaceId } from "./spapi";
 import { cached } from "./cache";
-import { getCompetitivePricingBatch } from "./pricing";
+import { getCompetitivePricingBatch, getLowestFbaPricingBatch } from "./pricing";
 
 // Busca de produtos no catálogo da Amazon por palavra-chave.
 // Operação: searchCatalogItems — GET /catalog/2022-04-01/items
@@ -43,6 +43,11 @@ export interface ProductResult {
   price?: number | null;
   currency?: string;
   offerCount?: number | null; // nº de vendedores/ofertas
+  // Logística da concorrência. `fbaPrice` null = nenhuma oferta FBA no anúncio —
+  // é ausência de concorrente FBA, não preço zero.
+  fbaPrice?: number | null;
+  lowestPrice?: number | null;
+  featured?: "fba" | "seller" | null; // quem está com a oferta em destaque
 }
 
 export interface SearchResults {
@@ -185,17 +190,27 @@ async function fetchSearch(
     if (it.parentAsin) it.familyLaunchDate = parentDates.get(it.parentAsin);
   }
 
-  // Preço competitivo + nº de vendedores, em lote (1 chamada para os 20).
-  const prices = await getCompetitivePricingBatch(
-    items.map((i) => i.asin),
-    marketplaceId
-  ).catch(() => new Map());
+  // Preço competitivo + nº de vendedores, e o menor preço por logística.
+  // Duas chamadas em lote para os 20 — feitas em paralelo, e cada uma degrada
+  // sozinha: sem o preço FBA a lista ainda serve, só perde o filtro.
+  const asins = items.map((i) => i.asin);
+  const [prices, fulfillment] = await Promise.all([
+    getCompetitivePricingBatch(asins, marketplaceId).catch(() => new Map()),
+    getLowestFbaPricingBatch(asins, marketplaceId).catch(() => new Map()),
+  ]);
   for (const it of items) {
     const cp = prices.get(it.asin);
     if (cp) {
       it.price = cp.price;
       it.currency = cp.currency;
       it.offerCount = cp.offerCount;
+    }
+    const fp = fulfillment.get(it.asin);
+    if (fp) {
+      it.fbaPrice = fp.fbaPrice;
+      it.lowestPrice = fp.lowestPrice;
+      it.featured = fp.featured;
+      if (!it.currency) it.currency = fp.currency;
     }
   }
 

@@ -28,6 +28,9 @@ interface ProductResult {
   price?: number | null;
   currency?: string;
   offerCount?: number | null;
+  fbaPrice?: number | null; // menor preço entre ofertas FBA; null = ninguém no FBA
+  lowestPrice?: number | null;
+  featured?: "fba" | "seller" | null;
 }
 
 function money(v?: number | null, currency = "BRL") {
@@ -56,7 +59,7 @@ function ageLabel(iso?: string) {
   return rest ? `${years}a ${rest}m` : `${years}a`;
 }
 
-type SortKey = "recentes" | "antigos" | "bsr";
+type SortKey = "recentes" | "antigos" | "bsr" | "fba";
 const REFERENCE_NOW = Date.now();
 
 export default function PesquisaPage() {
@@ -67,6 +70,9 @@ export default function PesquisaPage() {
   const [total, setTotal] = useState(0);
   const [nextToken, setNextToken] = useState<string | undefined>();
   const [sort, setSort] = useState<SortKey>("recentes");
+  // Só anúncios com oferta FBA: é com esses que se disputa de fato, e é o
+  // preço deles que define o piso para entrar no nicho.
+  const [somenteFba, setSomenteFba] = useState(false);
   const [searched, setSearched] = useState(false);
   const [searchedQuery, setSearchedQuery] = useState("");
   const [salvando, setSalvando] = useState<string | null>(null);
@@ -154,12 +160,18 @@ export default function PesquisaPage() {
     }
   }
 
-  const sorted = [...items].sort((a, b) => {
+  const filtrados = somenteFba ? items.filter((i) => i.fbaPrice != null) : items;
+  const sorted = [...filtrados].sort((a, b) => {
     if (sort === "bsr") return (a.salesRank ?? Infinity) - (b.salesRank ?? Infinity);
+    if (sort === "fba") return (a.fbaPrice ?? Infinity) - (b.fbaPrice ?? Infinity);
     const da = effectiveDate(a) ? new Date(effectiveDate(a)!).getTime() : 0;
     const db = effectiveDate(b) ? new Date(effectiveDate(b)!).getTime() : 0;
     return sort === "recentes" ? db - da : da - db;
   });
+
+  // Piso do nicho: menor preço entre quem vende por FBA nos resultados carregados.
+  const comFba = items.filter((i) => i.fbaPrice != null);
+  const pisoFba = comFba.length ? Math.min(...comFba.map((i) => i.fbaPrice!)) : null;
 
   return (
     <div className="research-page space-y-6">
@@ -265,8 +277,24 @@ export default function PesquisaPage() {
             >
               {loading ? "Atualizando…" : "Atualizar resultados"}
             </button>
+            <button
+              type="button"
+              onClick={() => setSomenteFba((v) => !v)}
+              aria-pressed={somenteFba}
+              title="Mostra apenas anúncios que têm oferta com logística da Amazon — são esses que definem o piso de preço do nicho"
+              className={`rounded-lg border px-3 py-2 text-xs font-medium ${
+                somenteFba
+                  ? "border-blue-500 bg-blue-50 text-blue-700"
+                  : "border-slate-300 bg-white text-slate-600 hover:border-blue-400 hover:text-blue-600"
+              }`}
+            >
+              {somenteFba ? "✓ " : ""}Somente FBA
+              {comFba.length > 0 && (
+                <span className="ml-1.5 font-normal opacity-70">({comFba.length})</span>
+              )}
+            </button>
             <div className="flex gap-1 rounded-lg border border-slate-200 bg-white p-1 text-xs">
-            {([["recentes", "Mais novos"], ["antigos", "Mais antigos"], ["bsr", "Melhor posição"]] as const).map(
+            {([["recentes", "Mais novos"], ["antigos", "Mais antigos"], ["bsr", "Melhor posição"], ["fba", "Menor preço FBA"]] as const).map(
               ([k, label]) => (
                 <button
                   key={k}
@@ -294,6 +322,13 @@ export default function PesquisaPage() {
               <th
                 scope="col"
                 className="whitespace-nowrap px-3 py-3 text-right"
+                title="Menor preço entre as ofertas com logística da Amazon (FBA). Traço = ninguém vende por FBA neste anúncio."
+              >
+                Menor FBA
+              </th>
+              <th
+                scope="col"
+                className="whitespace-nowrap px-3 py-3 text-right"
                 title="Quantidade de ofertas ativas concorrendo neste produto"
               >
                 Concorrentes
@@ -312,14 +347,14 @@ export default function PesquisaPage() {
           <tbody className="divide-y divide-slate-100">
             {!searched ? (
               <tr>
-                <td colSpan={6} className="px-4 py-6"><EmptyState kind="search" title="Pesquise o mercado Amazon" description="Digite um produto, marca ou palavra-chave para comparar anúncios, preços e concorrência." /></td>
+                <td colSpan={7} className="px-4 py-6"><EmptyState kind="search" title="Pesquise o mercado Amazon" description="Digite um produto, marca ou palavra-chave para comparar anúncios, preços e concorrência." /></td>
               </tr>
             ) : loading && items.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8"><TableLoading label="Buscando anúncios" /></td>
+                <td colSpan={7} className="px-4 py-8"><TableLoading label="Buscando anúncios" /></td>
               </tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-6"><EmptyState kind="search" title="Nenhum anúncio encontrado" description="Tente uma palavra mais ampla, outra grafia ou remova detalhes do termo pesquisado." /></td></tr>
+              <tr><td colSpan={7} className="px-4 py-6"><EmptyState kind="search" title="Nenhum anúncio encontrado" description="Tente uma palavra mais ampla, outra grafia ou remova detalhes do termo pesquisado." /></td></tr>
             ) : (
               sorted.map((p) => {
                 const eff = effectiveDate(p);
@@ -354,6 +389,25 @@ export default function PesquisaPage() {
                     </td>
                     <td className="px-3 py-2.5 text-right tabular-nums font-medium text-slate-700">
                       {money(p.price, p.currency)}
+                    </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">
+                      {p.fbaPrice != null ? (
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="font-semibold text-blue-700">{money(p.fbaPrice, p.currency)}</span>
+                          {p.fbaPrice === pisoFba && (
+                            <span
+                              className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700"
+                              title="Menor preço FBA entre os resultados carregados"
+                            >
+                              piso
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400" title="Nenhuma oferta com logística da Amazon neste anúncio">
+                          sem FBA
+                        </span>
+                      )}
                     </td>
                     <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">
                       {p.offerCount != null ? p.offerCount : "—"}
