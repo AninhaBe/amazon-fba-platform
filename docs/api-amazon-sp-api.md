@@ -68,28 +68,33 @@ Atributos-lista (ex.: `fulfillment_availability`) têm um **selector** — para 
 4. Pode combinar `replace` + `delete` no mesmo PATCH (suportado desde 2022).
 5. Fonte: github.com/amzn/selling-partner-api-models issue **#2061** (resposta oficial do time SP-API).
 
-### Fees API devolve zero — como a Finances v0 (2026-08-09)
+### Fees API devolve zero — e o zero pode ser verdadeiro (2026-08-09)
 
 `POST /products/fees/v0/items/{asin}/feesEstimate` responde `Status: "Success"`
 com **todas as tarifas zeradas**: `ReferralFee = 0`, `FBAFees = 0`,
-`TotalFeesEstimate = 0`. Testado em 08/2026 com:
+`TotalFeesEstimate = 0`. Testado com ASIN próprio (`B0HBGLBL6Y`) e de terceiro
+(`B0H42G9TGW`), `IsAmazonFulfilled` true e false, preços de R$ 15,90 a R$ 99,00.
 
-- ASIN próprio (`B0HBGLBL6Y` a R$ 19,90) e de terceiro (`B0H42G9TGW`)
-- `IsAmazonFulfilled` true e false
-- preços de R$ 15,90 a R$ 99,00
+⚠️ **Primeira leitura estava errada.** Registramos como "a API mente, igual à
+Finances v0". A vendedora informou depois que **está isenta de tarifas por ser
+seller nova (benefício de entrada)** — então o zero reflete a conta, não um
+defeito. A Fees API estima o que **o seller autenticado** pagaria, não o dono do
+ASIN; por isso devolve zero até em ASIN de terceiro, e isso é coerente.
 
-Sempre zero. É o mesmo comportamento da Finances v0 nesta conta — a API responde
-200 e mente. Não dá para distinguir "tarifa zero" de "não sei", então **tratar o
-retorno zerado como desconhecido (`null`), nunca como custo zero**: usado como 0
-num cálculo de margem, ele infla o lucro e leva a decidir compra errado.
+O que isso exige do código:
 
-Fontes de tarifa que funcionam: `GET /finances/2024-06-19/transactions` (taxa
-real do que já foi vendido, por pedido) e, para produto que ainda não se vende,
-premissa explícita do usuário — nunca a Fees API.
+1. **Zero da Fees API é um valor plausível, não lixo** — mas continua
+   indistinguível de "não sei", porque a API não informa isenção nem prazo.
+2. **A isenção é temporária.** Projetar margem futura com tarifa zero engana tão
+   feio quanto tratar desconhecido como zero. Quem decide compra de estoque
+   precisa ver os dois cenários: com benefício e sem.
+3. A tarifa **real** aparece em `GET /finances/2024-06-19/transactions` quando o
+   pedido é postado (`Commission`, `FBAPerUnitFulfillmentFee` separados). É a
+   única fonte que confirma se a isenção valeu e em quanto.
 
 `POST /products/fees/v0/feesEstimate` (lote) rejeita com `Missing objects
 [PriceToEstimateFees]` mesmo com o campo presente no item da lista; não
-investigado a fundo porque a versão por ASIN já não serve.
+investigado a fundo porque a versão por ASIN já resolve.
 
 ### `mode=VALIDATION_PREVIEW` — testar um anúncio sem criar (2026-08-08)
 
