@@ -1,6 +1,6 @@
 # Estado atual — onde cada frente parou
 
-**Última atualização: 07/08/2026.** Leia isto antes de continuar qualquer frente
+**Última atualização: 09/08/2026.** Leia isto antes de continuar qualquer frente
 em andamento; o "porquê" das decisões está nos docs de cada área e nos ADRs.
 
 Este doc responde três perguntas: **o que está pronto**, **o que está no meio do
@@ -17,13 +17,53 @@ detalhe operacional — este arquivo não é histórico, é foto do presente.
 | **Amazon** | Em produção. ⚠️ **As duas contas estão com o refresh token revogado** — ver "Amazon: autorização" abaixo. |
 | **Mercado Livre** | Em produção e sincronizando. Faturamento validado ao centavo contra o painel do ML. |
 | **Shopee** | Código completo (conexão + dashboard + ingestão). **Go Live submetido em 07/08, em análise** (resposta em até 24h) — ver abaixo. |
-| **TikTok Shop** | App existe no Partner Center e a **revisão de privacidade (DSPR) foi APROVADA em 07/08**. Faltam Listing review, App review e Publish — e o código da integração, que não existe (só o OAuth). Ver [`tiktok-shop-integracao.md`](./tiktok-shop-integracao.md). |
+| **TikTok Shop** | **Loja real conectada em 10/08** (Crystal Fancy, do parceiro). Custom app publicado, OAuth funcionando ponta a ponta. Falta ingestão: não existe sync, cron nem overview. Ver item 1 abaixo. |
 
 ---
 
 ## Em andamento — retomar aqui
 
-### 1. Shopee: Go Live **SUBMETIDO em 07/08** — aguardando a Shopee
+### 1. TikTok Shop: **conectado — parar de codar e conferir o parser primeiro**
+
+**Onde está:** custom app publicado, loja do parceiro autorizada, token e
+`shop_cipher` no banco. A leitura da API funciona; a ingestão não existe.
+
+| | |
+|---|---|
+| App | `SellerCore Conexao Parceiro` · service_id `7671696361289074452` · key `6kt9seens0iip` |
+| Categoria | Custom · Catalog / Product Listing (**as outras duas foram rejeitadas** — ver abaixo) |
+| Loja | Crystal Fancy · `7494291387899806731` · BR · conectada 10/08 00:57 |
+| Escopos | `order.info`, `finance.info`, `product.basic`, `authorization.info` — todos Active |
+| Link de convite | `/api/tiktok/invite` (autenticado) devolve a URL assinada, válida 30 dias |
+
+⚠️ **A autorização vence em 07/11/2026 — são 90 dias, não 365 como a Shopee.**
+
+**PRÓXIMO PASSO, exatamente:** abrir logada
+`https://sellercore.onrender.com/api/tiktok/amostra?dias=90&limite=10`
+(rota só de leitura, já em produção, commit `6abe04d`). Ela devolve lado a lado o
+que a API respondeu e o que o `tiktokCanonical` produziu. **Conferir duas coisas
+antes de escrever qualquer sync:**
+
+1. **`statusObservados`** — o `MAPA_STATUS` em `tiktokCanonical.ts` veio da doc em
+   prosa, não do OAS (que declara `status` como string sem enum). Se aparecer
+   status fora do mapa, ele cai em `pending` silenciosamente.
+2. **`linhasOriginais` vs `itensAgrupados`** — o TikTok emite uma linha por
+   unidade; `agruparItens` junta por `product_id::sku_id`. Se a contagem não
+   bater com o pedido real, "unidades vendidas por SKU" nasce errado.
+
+Só depois disso: `tiktokSync.ts`, `tiktokScheduler.ts`, rota de cron e
+`tiktokOverviewCanonical.ts` — no molde do que já existe para Shopee.
+
+**Pendência separada:** as categorias **Accounting** e **Order Management** foram
+**rejeitadas** — *"The Company Number that you entered was inconsistent with the
+company number on your Company registration document"*. O formulário está com
+`66.106.202/0001-20` no campo `Company registration number`. Não bloqueia o
+parceiro (o app publicou por Product Listing), mas bloqueia listar o serviço nas
+categorias certas e submeter Analytics & Reporting. Para resolver é preciso abrir
+o `cnpj.pdf` anexado no Partner Center e conferir qual número ele espera.
+
+
+### 2. Shopee: Go Live **SUBMETIDO em 07/08** — aguardando a Shopee
 
 O console mostra *"Application to go live is under review: audit results will be
 sent to your email within 24 hours"*. App segue como `Developing` até a resposta.
@@ -63,7 +103,7 @@ sandbox a partir de outra máquina, essas chamadas podem passar a ser recusadas.
    nesse arquivo exatamente para isso. Avaliar junto o `invoice_data.pending_reason`
    novo (ver changelog de 29/07 em `api-shopee.md`).
 
-### 2. Amazon: autorização revogada nas duas contas
+### 3. Amazon: autorização revogada nas duas contas
 
 `AO62LVXJMX3AA` (da Ana) e `A15NQMF7A6J1Y0` (do colega) retornam
 `invalid_grant: refresh_token ... User may have revoked or didn't grant the
@@ -88,7 +128,7 @@ e o monitor a mostrar "—" em vez de R$ 0,00. Enquanto isso, a central mostra
 faturamento e pedidos e deixa o lucro explicitamente indisponível, em vez de
 derrubar o card inteiro.
 
-### 3. Contas de avaliação ativas
+### 4. Contas de avaliação ativas
 
 | Conta | Para quê | Prazo |
 |---|---|---|
@@ -112,7 +152,7 @@ cards voltam a dizer "Sincronização ainda não cobre todo o período". É verd
 o dado é mesmo daquele instante — e deixar limpo exigiria mentir sobre a
 cobertura. Se o texto incomodar numa avaliação, rode o seed de novo na hora.
 
-### 4. Amazon Ads — pronto para ligar quando o estoque liberar
+### 5. Amazon Ads — pronto para ligar quando o estoque liberar
 
 Os 5 anúncios foram verificados em 06/08 (`scripts/listing-health.mjs`): todos
 `BUYABLE` + `DISCOVERABLE`, sem erro nem aviso, 6–7 imagens cada. **Não há nada a
@@ -133,7 +173,7 @@ suporte de desenvolvedores. O perfil de desenvolvedor e os demais papéis já
 existem e funcionam (pedidos, listings, FBA, financeiro). Enquanto isso, os
 números estão no Seller Central → Relatórios de Negócios.
 
-### 5. Estoque FBA a caminho
+### 6. Estoque FBA a caminho
 
 Em 06/08 às 17h: **279 unidades no FBA, 34 vendáveis** (de manhã era 1 — está
 liberando: martelo 27, kitprote-32 5, clips 2). O resto está em
@@ -143,6 +183,38 @@ liberando: martelo 27, kitprote-32 5, clips 2). O resto está em
 Para acompanhar: `scripts/monitor-estoque.cmd` (duplo clique) sobe um painel em
 `http://localhost:4310` com atualização automática e botão de consulta manual.
 Usa o token do ambiente, então funciona mesmo com o OAuth revogado.
+
+---
+
+### 7. Amazon: o que mudou em 09/08 e o que ficou pendente
+
+**Feito e no ar:**
+
+- **Preços +11,1%** nos 5 SKUs (`kitprote-8/16/32`, `kit-clips-320`,
+  `martelo-borracha`) → R$ 22,11 / 43,22 / 44,33 / 22,11 / 43,22. A propagação da
+  oferta levou **~2h**, enquanto atributos do mesmo PATCH saíram em minutos.
+- **Cupom de 10%** criado nos mesmos 5, válido **09/08 a 08/09**, orçamento
+  R$ 400 (desliga sozinho a 80%). Com ele o preço final volta ao de antes.
+  ⚠️ A **taxa de resgate é R$ 0,00** nesta conta.
+- **Atributos** `item_shape: Redondo` e `size: 3 cm` nos 3 kits de protetor.
+
+**Pendências:**
+
+1. ⚠️ **O `size: 3 cm` pode estar errado.** As dimensões já cadastradas dizem
+   `40 × 40 × 30 mm` e o título diz "para pés até 4 cm" — provavelmente 4 cm é o
+   diâmetro e 3 cm a altura. Confirmar com a vendedora e corrigir.
+2. **Desconto no preço está bloqueado** para esta conta: exige ≥1 avaliação de
+   vendedor e nota ≥3,5. Por isso foi cupom, não desconto.
+3. **Amazon Vine indisponível** — exige Brand Registry, e os anúncios são
+   `Genérico`. É o maior acelerador de review no lançamento; decidir se vale
+   registrar marca.
+4. `martelo-borracha` e `kit-clips-320` seguem com material/formato/tamanho
+   vazios.
+
+**Ferramenta nova, fora do repo:** skill `pesquisa-produto-amazon` em
+`~/.claude/skills/` — analisa nicho por termo (menor preço FBA via
+`competitiveSummary` em lote, BSR, margem) e compara produtos por atributo e
+dimensão (`comparar.mjs`). Não faz parte do SellerCore.
 
 ---
 
