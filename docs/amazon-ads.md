@@ -128,6 +128,52 @@ O **kitprote-16 não tem custo cadastrado**, então a margem dele é desconhecid
 - **O orçamento mínimo não é R$ 50/dia.** Esse número é a *recomendação* (US$ 10 ou
   equivalente); o mínimo aceito é o equivalente a US$ 1. A tela sugere R$ 40 e aceita menos.
 
+### Lances recalibrados em 13/08 (15h30)
+
+Em ~19h de veiculação as quatro campanhas somaram **134 impressões, 1 clique e
+R$ 0,55** — 1% do orçamento de R$ 50/dia. O limitador não era orçamento, era
+**lance**: R$ 0,35 ganhava pouquíssimo leilão, e 120 impressões/dia não produzem
+CTR legível (o esperado seria 0,2 clique/dia). Subimos para o sugerido de cada
+grupo, exceto onde a margem não aguentava:
+
+| Campanha | Antes | Depois | Sugerido pela Amazon |
+|---|---|---|---|
+| Auto - Martelo | R$ 0,35 | **R$ 0,84** | R$ 0,84 |
+| Auto - Clips 320 | R$ 0,35 | **R$ 0,61** | R$ 0,61 |
+| Auto - Protetor Kit 8 | R$ 0,35 | **R$ 1,29** | R$ 1,29 |
+| Manual Exata - Martelo | — | inalterada | — |
+
+O orçamento **não** foi aumentado: teto é rede de proteção, e aumentá-lo com 1% de
+uso não destrava volume nenhum. Só mexer quando o gasto encostar em ~50% do teto.
+
+`Ajuste de lance para o topo da pesquisa` segue em **0%** nas quatro. É o
+multiplicador mais caro e compra posição, não aprendizado — só depois de o CTR
+provar conversão.
+
+⚠️ **A margem que sustenta esses lances depende da tarifa zerada.** A promoção
+"O FBA agora é GRÁTIS" está ativa e é temporária. Com ela, martelo tem R$ 37,38 de
+margem, clips R$ 13,08 e protetor R$ 12,54. Quando acabar, clips e protetor ficam
+apertados nesses preços — o plano de subir preço deixa de ser oportunidade e vira
+necessidade. Conferir a data de término no card do Seller Central.
+
+### Quando agir, ao monitorar
+
+Ordem de checagem; parar na primeira que casar:
+
+1. Campanha fora de "Em veiculação" → **investigar**, nada mais importa.
+2. Impressões ~zero por 2+ dias → **lance** baixo demais.
+3. Gasto ≥50% do teto → **subir orçamento**.
+4. 500+ impressões e 0 clique → problema é a **página** (preço, foto, título).
+5. 15+ cliques e 0 venda → problema é a **página do produto**.
+6. Termo com 3+ pedidos → migrar para manual exata **e negativar na automática**.
+7. Termo com 10+ cliques e 0 pedido → **negativa exata**.
+
+CTR só significa alguma coisa a partir de **~500 impressões**. Abaixo disso é ruído
+e não se conclui nada.
+
+A skill `monitorar-ads` (em `.claude/skills/`, **não versionada** porque o
+`.gitignore` ignora `/.claude`) automatiza essa leitura e guarda a linha de base.
+
 ### Próximos passos
 
 1. **A partir de 13/08:** só observar. Não mexer em lance nem orçamento por 2–3 semanas —
