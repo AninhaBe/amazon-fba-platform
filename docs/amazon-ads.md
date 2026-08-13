@@ -99,13 +99,16 @@ início 12/08 sem data de término. Total: **R$ 50/dia**.
 | Campanha | ID | Produto | Segmentação | Lance | Orçamento |
 |---|---|---|---|---|---|
 | Auto - Martelo Borracha | `A09902661J0ZF8TYDHJC8` | `B0HBGQNBD4` | automática (8 negativas exatas) | R$ 0,35 | R$ 15 |
-| Manual Exata - Martelo Borracha | `A01357752UOKBP340AQ6T` | `B0HBGQNBD4` | manual, 8 palavras exatas | R$ 0,35–0,90 | R$ 10 |
+| Manual - Martelo Borracha | `A01357752UOKBP340AQ6T` | `B0HBGQNBD4` | manual, grupos Exata + Frase | R$ 0,33–0,90 | R$ 10 |
 | Auto - Clips 320 | `A09432513MF2JZKXFKXGB` | `B0HBGLBL6Y` | automática | R$ 0,35 | R$ 15 |
 | Auto - Protetor Kit 8 | `A06494282F1XLCQPDJD30` | `B0H9SFW8KR` | automática | R$ 0,35 | R$ 10 |
 
 As 8 palavras da manual do martelo são as **mesmas** bloqueadas como negativa exata na
 automática — é o que impede o par de disputar o próprio clique. Se migrar termos novos
 para a manual, negativar na automática **na mesma hora**.
+
+A negativa é **só exata**. Negativar em frase mataria também as variações que o grupo
+Frase existe para capturar.
 
 **Não anunciamos o kitprote-32**: R$ 44,33 de preço contra R$ 38,28 de custo é 13,6% de
 margem bruta, que a comissão de 15% já consome. Ou o custo está errado, ou o preço está.
@@ -155,6 +158,43 @@ provar conversão.
 margem, clips R$ 13,08 e protetor R$ 12,54. Quando acabar, clips e protetor ficam
 apertados nesses preços — o plano de subir preço deixa de ser oportunidade e vira
 necessidade. Conferir a data de término no card do Seller Central.
+
+### Estrutura completada em 13/08 (17h)
+
+O deck de treinamento (`MVP_Amazon_Slides`) especifica, **por produto**: 1 campanha
+automática + 1 campanha manual, e a manual com **dois grupos de anúncios** — um em
+correspondência exata e outro com as **mesmas palavras** em frase. Faltavam o grupo
+Frase do martelo e as duas manuais inteiras. Agora estão no ar:
+
+| Campanha | ID | Grupo | Lance padrão | Palavras |
+|---|---|---|---|---|
+| Manual - Martelo Borracha | `A01357752UOKBP340AQ6T` | Manual Exata | R$ 0,90 | 8 exatas |
+| ” | ” | Frase - Martelo Borracha | R$ 0,90 | 10 em frase |
+| Manual - Clips 320 | `A01608831T9MN9I9KPAYF` | Exata - Clips 320 | R$ 0,33 | 14 exatas |
+| ” | ” | Frase - Clips 320 | R$ 0,50 | 14 em frase |
+| Manual - Protetor Kit 8 | `A06695151U462T3OKRJIU` | Exata - Protetor Kit 8 | R$ 0,85 | 12 exatas |
+| ” | ” | Frase - Protetor Kit 8 | R$ 0,60 | 12 em frase |
+
+Total agora: **6 campanhas, R$ 70/dia** de teto.
+
+Três armadilhas que apareceram e valem para qualquer criação futura:
+
+- **O grupo novo nasce com lance padrão R$ 2,75**, mesmo quando todas as palavras têm
+  lance próprio. Só morde se você adicionar um alvo sem lance depois — mas nasce errado
+  em **todo** grupo criado por essa tela. Corrigir na lista de grupos logo após criar.
+- **Campanha nova nasce em "lances dinâmicos - aumento e redução"**, não herda a
+  configuração das outras. A do protetor veio assim e foi trocada para somente redução
+  antes de publicar.
+- **Frase pode ser mais barata que exata.** No protetor, "ponteira de cadeira" sugeria
+  R$ 1,60 em exata e R$ 0,33 em frase. Não presumir a ordem — ler a sugestão de cada uma.
+
+Onde a sugestão passava de ~R$ 1,00, o lance foi baixado para o **piso da faixa que a
+própria Amazon exibe** (ex.: R$ 1,89 → R$ 1,14), não para um número arbitrário: fora da
+faixa o anúncio simplesmente não entra no leilão, que é exatamente o erro que o dia 13
+já custou.
+
+`clip`/`clipe` puxam sugestões de `nail clippers` e `hair clippers` no autocomplete da
+Amazon. Em exata e frase isso fica contido; **se algum dia virar ampla, negativar antes**.
 
 ### Quando agir, ao monitorar
 
