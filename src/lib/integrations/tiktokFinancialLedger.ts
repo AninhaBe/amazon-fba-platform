@@ -52,7 +52,9 @@ export class TiktokFinancialAdapters {
   private readonly call: Transport;
   constructor(call: Transport) { this.call = call; }
   async statements(input: { from: number; to: number; pageToken?: string }): Promise<FinancialPage<StatementRecord>> {
-    const data = object(await this.call<unknown>("/finance/202309/statements", { query: { start_time: input.from, end_time: input.to, page_size: 50, page_token: input.pageToken } }));
+    // OAS 202309: a janela e statement_time_ge/lt (nao start_time/end_time) e sort_field
+    // e obrigatorio, aceitando so `statement_time`. Enviar os nomes errados devolve 36009004.
+    const data = object(await this.call<unknown>("/finance/202309/statements", { query: { statement_time_ge: input.from, statement_time_lt: input.to, sort_field: "statement_time", page_size: 50, page_token: input.pageToken } }));
     const result=page(data,items(data,["statements"]),raw=>({id:requiredId(raw.id??raw.statement_id,"statement"),status:text(raw.status).toUpperCase(),currency:requiredCurrency(raw.currency,"statement"),startTime:epoch(raw.start_time)||undefined,endTime:epoch(raw.end_time)||undefined,raw}));
     const nonFinal=result.items.filter(statement=>!isFinalStatement(statement));
     result.unknown=nonFinal.filter(statement=>statement.status!=="PENDING").length;
@@ -64,11 +66,14 @@ export class TiktokFinancialAdapters {
     return page(data,items(data,["statement_transactions","transactions"]),raw=>transaction(raw,statementId));
   }
   async payments(input:{from:number;to:number;pageToken?:string}):Promise<FinancialPage<PaymentRecord>> {
-    const data=object(await this.call<unknown>("/finance/202605/payments",{query:{start_time:input.from,end_time:input.to,page_size:100,page_token:input.pageToken}}));
+    // A versao 202605 nao existe na API; a oficial e 202309, com janela create_time_ge/lt
+    // e sort_field obrigatorio aceitando so `create_time`.
+    const data=object(await this.call<unknown>("/finance/202309/payments",{query:{create_time_ge:input.from,create_time_lt:input.to,sort_field:"create_time",page_size:100,page_token:input.pageToken}}));
     return page(data,items(data,["payments"]),raw=>({id:requiredId(raw.id??raw.payment_id,"payment"),statementId:text(raw.statement_id)||null,status:text(raw.status),amount:raw.amount==null?null:String(money(raw.amount,"payment amount")),currency:requiredCurrency(raw.currency,"payment"),paidAt:raw.paid_time==null?null:requiredEpoch(raw.paid_time,"payment"),expectedAt:raw.expected_time==null?null:requiredEpoch(raw.expected_time,"payment"),raw}));
   }
   async unsettled(input:{from:number;to:number;pageToken?:string}):Promise<FinancialPage<TransactionRecord>> {
-    const data=object(await this.call<unknown>("/finance/202507/orders/unsettled",{query:{start_time:input.from,end_time:input.to,page_size:100,page_token:input.pageToken}}));
+    // Janela search_time_ge/lt e sort_field obrigatorio aceitando so `order_create_time`.
+    const data=object(await this.call<unknown>("/finance/202507/orders/unsettled",{query:{search_time_ge:input.from,search_time_lt:input.to,sort_field:"order_create_time",page_size:100,page_token:input.pageToken}}));
     return page(data,items(data,["orders","unsettled_orders","statement_transactions","transactions"]),raw=>transaction(raw,null));
   }
 }

@@ -459,6 +459,34 @@ dependem do ledger e mantém vendas/catálogo disponíveis, sem inventar zeros.
 
 ## Changelog observado
 
+- **13/08/2026 — as três chamadas financeiras nunca funcionaram: `36009004`.**
+  O cron do TikTok respondia `{"ok":true}` e o GitHub Actions marcava `success`,
+  mas o corpo trazia `status:"failed"` com
+  *"A TikTok Shop recusou a solicitação (code 36009004)"*. Conferido contra a OAS
+  oficial (`references/oas/paths/finance.json`), o motivo é o mesmo nas três:
+
+  | Chamada | Enviava | OAS exige |
+  |---|---|---|
+  | `/finance/202309/statements` | `start_time`, `end_time` | `statement_time_ge`/`_lt` + `sort_field: statement_time` |
+  | `/finance/202605/payments` (**versão inexistente**) | `start_time`, `end_time` | `/finance/202309/payments` · `create_time_ge`/`_lt` + `sort_field: create_time` |
+  | `/finance/202507/orders/unsettled` | `start_time`, `end_time` | `search_time_ge`/`_lt` + `sort_field: order_create_time` |
+
+  **`start_time`/`end_time` não existem em nenhuma das três**, e `sort_field` é
+  obrigatório nas três, com um único valor aceito por endpoint. Ou seja, a
+  conciliação financeira nunca completou uma chamada — o que o
+  `estado-atual.md` descrevia como "parcial e retomável" era, na verdade, zero.
+  Corrigido, com `tests/tiktokFinanceContract.test.mjs` guardando path, janela,
+  `sort_field` e faixa de `page_size` contra a OAS.
+
+  ⚠️ **O cron mascara falha:** `/api/cron/tiktok-sync` devolve HTTP 200 e
+  `ok:true` mesmo quando todas as lojas falham. O status HTTP precisa refletir o
+  resultado, senão o Actions continua verde sobre um sync quebrado.
+
+  ⚠️ **`*/5 * * * *` não é a cadência real.** As execuções observadas em 13/08
+  saíram às 09:52, 10:47, 11:34, 12:28, 13:57, 14:58, 15:59 e 17:01 — intervalos
+  de 47 a 89 minutos. O GitHub Actions estrangula agendamentos de alta
+  frequência; a frescura real do dado é horária, não de 5 minutos.
+
 - **11/08/2026 — superfície de produto e bloqueios de QA:** Dashboard,
   Financeiro, sidebar e módulos com filtros por loja/período estão
   implementados. O harness detectou ownership duplicado e interrompe o QA sem
