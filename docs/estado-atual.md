@@ -71,12 +71,23 @@ localmente, mas ainda não foi validado como fluxo autenticado no navegador.
   banco. Ver [`migrations.md`](./migrations.md) e
   [ADR-012](./adr/ADR-012-contrato-0005-sem-runtime-role.md). O Financeiro do TikTok
   deixou de ser `SCHEMA_BLOCKED`.
-- 🔴 **Ownership duplicado continua.** A loja `7494291387899806731` está conectada
-  pelas duas contas de teste (`admin@sellercore.test` → `1803d1fe`, e
-  `admin2@sellercore.test` → `22ae3d9d`), e **os 11.759 pedidos foram ingeridos nas
-  duas** (janela 11/06 a 11/08). O harness falha fechado enquanto houver dois donos.
-  Resolver exige escolher um workspace e apagar a cópia do outro — operação
-  destrutiva, ainda não autorizada.
+- ✅ **Ownership resolvido em 13/08.** A loja `7494291387899806731` estava conectada
+  pelas duas contas e os 11.759 pedidos tinham sido ingeridos nas duas. A cópia do
+  workspace `22ae3d9d` foi removida (24.955 linhas em 7 tabelas, em transação), e o
+  guard `assertGlobalTiktokShopOwnership` passa. A loja ficou em `1803d1fe`
+  (`admin@sellercore.test`).
+
+**Contexto que evita repetir o erro:** `admin@sellercore.test` e
+`admin2@sellercore.test` são **dois vendedores diferentes** — cada um com sua própria
+conta de Mercado Livre e Amazon, testando o produto com os próprios números. Os
+workspaces separados estão corretos. O que não podia coexistir era a **mesma loja
+TikTok** nos dois: o refresh token do TikTok rotaciona e o lease é chaveado por
+workspace (`PRIMARY KEY (workspace_id, provider, grant_fingerprint)`), então os dois
+se derrubariam alternadamente com `invalid_grant`.
+
+Enquanto o `workspace_members` do [ADR-007](./adr/ADR-007-arquitetura-de-auth.md) não
+existir, uma loja externa só pode viver num workspace. Quando existir, a conexão passa
+a ser do workspace e não da pessoa.
 
 **Pendência separada:** as categorias **Accounting** e **Order Management** foram
 **rejeitadas** — *"The Company Number that you entered was inconsistent with the
