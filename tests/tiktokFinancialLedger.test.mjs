@@ -33,13 +33,21 @@ test("associacoes reais de order e adjustment sao preservadas independentemente"
   assert.equal(orphan.orderId,null);assert.equal(orphan.adjustmentOrderId,null);
 });
 
-test("page_token presente mas vazio falha fechado nos quatro recursos",async()=>{
+// Este teste exigia o oposto ate 13/08/2026: token vazio lancava
+// INVALID_EMPTY_PAGE_TOKEN_RETRYABLE para "falhar fechado na ambiguidade". A premissa
+// estava errada — a OAS descreve next_page_token como o valor a usar "se a resposta
+// atual nao retornou todos os resultados", entao na ultima pagina ele volta vazio. Nao
+// e anomalia, e o fim normal. Com a trava, toda paginacao completa falhava no fim, que
+// e sempre. Confirmado em producao: o erro sucedeu o 36009004 assim que os parametros
+// foram corrigidos. A protecao contra janela marcada completa por engano continua
+// existindo no checkpoint (cursor_hash_history + terminal_cursor).
+test("page_token vazio, em branco ou nulo encerra a paginacao nos quatro recursos",async()=>{
   const payloads={statements:{statements:[],next_page_token:" "},transactions:{statement_transactions:[],next_page_token:""},payments:{payments:[],next_page_token:null},unsettled:{orders:[],nextPageToken:""}};
   const adapter=new TiktokFinancialAdapters(async path=>path.endsWith("/statements")?payloads.statements:path.includes("statement_transactions")?payloads.transactions:path.endsWith("/payments")?payloads.payments:payloads.unsettled);
-  await assert.rejects(()=>adapter.statements({from:1,to:2}),/INVALID_EMPTY_PAGE_TOKEN_RETRYABLE/);
-  await assert.rejects(()=>adapter.transactions("s"),/INVALID_EMPTY_PAGE_TOKEN_RETRYABLE/);
-  await assert.rejects(()=>adapter.payments({from:1,to:2}),/INVALID_EMPTY_PAGE_TOKEN_RETRYABLE/);
-  await assert.rejects(()=>adapter.unsettled({from:1,to:2}),/INVALID_EMPTY_PAGE_TOKEN_RETRYABLE/);
+  assert.equal((await adapter.statements({from:1,to:2})).nextPageToken,null);
+  assert.equal((await adapter.transactions("s")).nextPageToken,null);
+  assert.equal((await adapter.payments({from:1,to:2})).nextPageToken,null);
+  assert.equal((await adapter.unsettled({from:1,to:2})).nextPageToken,null);
 });
 
 test("statement pending e status desconhecido geram diagnostico fail-closed",async()=>{

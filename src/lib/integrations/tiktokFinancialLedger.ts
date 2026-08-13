@@ -34,13 +34,11 @@ const text = (value: unknown) => typeof value === "string" ? value.trim() : type
 const epoch = (value: unknown) => { const parsed = Number(value); return Number.isFinite(parsed) && parsed > 0 ? parsed : 0; };
 const object = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const items = (data: Record<string, unknown>, keys: string[]) => { for (const key of keys) if (Array.isArray(data[key])) return data[key] as unknown[]; return []; };
-const token = (data: Record<string, unknown>) => {
-  const present = Object.hasOwn(data,"next_page_token") || Object.hasOwn(data,"nextPageToken");
-  if(!present)return null;
-  const value=text(data.next_page_token ?? data.nextPageToken);
-  if(!value)throw new Error("TIKTOK_FINANCIAL_INVALID_EMPTY_PAGE_TOKEN_RETRYABLE");
-  return value;
-};
+// Token vazio e ausente significam a mesma coisa: acabou a paginacao. A OAS descreve
+// next_page_token como "use este valor se a resposta atual nao retornou todos os
+// resultados" — na ultima pagina ele volta vazio. Tratar vazio como erro fazia toda
+// paginacao completa falhar no fim, que e sempre.
+const token = (data: Record<string, unknown>) => text(data.next_page_token ?? data.nextPageToken) || null;
 const ISO_CURRENCY=/^[A-Z]{3}$/;
 const money=(value:unknown,field:string):number|null=>{if(value===undefined||value===null||value==="")return null;const parsed=Number(value);if(!Number.isFinite(parsed))throw new TypeError(`TikTok ${field} invalido.`);return parsed;};
 function requiredId(value:unknown,kind:string){const id=text(value);if(!id)throw new TypeError(`TikTok ${kind} sem identificador.`);return id;}

@@ -41,6 +41,19 @@ async function capturar(metodo) {
   return capturado;
 }
 
+// A ultima pagina devolve next_page_token vazio. Antes isso virava excecao
+// (TIKTOK_FINANCIAL_INVALID_EMPTY_PAGE_TOKEN_RETRYABLE) e derrubava toda paginacao
+// completa — ou seja, sempre, ja que toda paginacao termina.
+test("token de pagina vazio ou ausente encerra a paginacao sem erro", async () => {
+  for (const resposta of [{ statements: [] }, { statements: [], next_page_token: "" }, { statements: [], next_page_token: "   " }]) {
+    const adapter = new TiktokFinancialAdapters(async () => resposta);
+    const pagina = await adapter.statements({ from: 1, to: 2 });
+    assert.equal(pagina.nextPageToken, null, `deveria encerrar em ${JSON.stringify(resposta)}`);
+  }
+  const comToken = new TiktokFinancialAdapters(async () => ({ statements: [], next_page_token: "abc123" }));
+  assert.equal((await comToken.statements({ from: 1, to: 2 })).nextPageToken, "abc123");
+});
+
 for (const [metodo, esperado] of Object.entries(CONTRATO)) {
   test(`${metodo}: path, janela e sort_field batem com a OAS oficial`, async () => {
     const chamada = await capturar(metodo);
