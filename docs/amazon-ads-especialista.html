@@ -1,0 +1,923 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Amazon Ads — do leilão à rotina de otimização</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm 20mm 16mm; }
+
+  :root {
+    --tinta: #16181d;
+    --suave: #4a5160;
+    --linha: #d8dce4;
+    --caixa: #f4f6f9;
+    --destaque: #0d5c73;
+    --alerta: #8a4b00;
+    --alerta-bg: #fdf5e9;
+    --ok: #1f6b3f;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    font-family: "Segoe UI", "Calibri", system-ui, sans-serif;
+    font-size: 10.2pt;
+    line-height: 1.55;
+    color: var(--tinta);
+    margin: 0;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  h1 {
+    font-size: 25pt;
+    line-height: 1.12;
+    margin: 0 0 6px;
+    letter-spacing: -0.5px;
+  }
+  h2 {
+    font-size: 15pt;
+    margin: 30px 0 10px;
+    padding-bottom: 5px;
+    border-bottom: 2px solid var(--tinta);
+    letter-spacing: -0.2px;
+    page-break-after: avoid;
+  }
+  h3 {
+    font-size: 11.6pt;
+    margin: 20px 0 6px;
+    color: var(--destaque);
+    page-break-after: avoid;
+  }
+  h4 {
+    font-size: 10.4pt;
+    margin: 14px 0 4px;
+    page-break-after: avoid;
+  }
+  p { margin: 0 0 9px; }
+  ul, ol { margin: 0 0 10px; padding-left: 20px; }
+  li { margin-bottom: 4px; }
+  strong { font-weight: 600; }
+  code {
+    font-family: "Consolas", "Courier New", monospace;
+    font-size: 9pt;
+    background: var(--caixa);
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 10px 0 14px;
+    font-size: 9.2pt;
+    page-break-inside: avoid;
+  }
+  th {
+    background: var(--tinta);
+    color: #fff;
+    text-align: left;
+    padding: 6px 8px;
+    font-weight: 600;
+  }
+  td {
+    padding: 5px 8px;
+    border-bottom: 1px solid var(--linha);
+    vertical-align: top;
+  }
+  tr:nth-child(even) td { background: #fafbfd; }
+  td.num, th.num { text-align: right; white-space: nowrap; }
+
+  .capa {
+    padding: 26mm 0 14px;
+    border-bottom: 3px solid var(--tinta);
+    margin-bottom: 22px;
+  }
+  .sub {
+    font-size: 12.5pt;
+    color: var(--suave);
+    margin: 10px 0 18px;
+    line-height: 1.4;
+  }
+  .meta {
+    font-size: 9pt;
+    color: var(--suave);
+  }
+
+  .caixa {
+    background: var(--caixa);
+    border-left: 3px solid var(--destaque);
+    padding: 10px 13px;
+    margin: 12px 0;
+    page-break-inside: avoid;
+  }
+  .caixa p:last-child { margin-bottom: 0; }
+  .caixa .rotulo {
+    font-size: 8.2pt;
+    text-transform: uppercase;
+    letter-spacing: 0.9px;
+    color: var(--destaque);
+    font-weight: 700;
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .alerta {
+    background: var(--alerta-bg);
+    border-left-color: var(--alerta);
+  }
+  .alerta .rotulo { color: var(--alerta); }
+
+  .voce {
+    background: #eef6f1;
+    border-left-color: var(--ok);
+  }
+  .voce .rotulo { color: var(--ok); }
+
+  .quebra { page-break-before: always; }
+  .junto { page-break-inside: avoid; }
+
+  .sumario {
+    background: var(--caixa);
+    padding: 14px 18px;
+    margin-bottom: 8px;
+  }
+  .sumario ol { margin: 0; padding-left: 20px; font-size: 9.6pt; }
+  .sumario li { margin-bottom: 2px; }
+
+  .formula {
+    font-family: "Consolas", "Courier New", monospace;
+    background: #16181d;
+    color: #e8ecf2;
+    padding: 11px 14px;
+    margin: 10px 0;
+    font-size: 9pt;
+    line-height: 1.7;
+    page-break-inside: avoid;
+    white-space: pre-wrap;
+  }
+  .formula .c { color: #8fa3b8; }
+
+  .fontes { font-size: 8.6pt; color: var(--suave); }
+  .fontes li { margin-bottom: 3px; }
+
+  .glossario td:first-child { font-weight: 600; white-space: nowrap; }
+</style>
+</head>
+<body>
+
+<div class="capa">
+  <h1>Amazon Ads</h1>
+  <div class="sub">Do leilão à rotina de otimização — o que um especialista precisa saber,<br>e o que disso vale para a NEXAHUB hoje</div>
+  <div class="meta">
+    Preparado para Ana · SellerCore · 13 de agosto de 2026<br>
+    Fontes: documentação oficial da Amazon Ads e material técnico internacional (lista completa no fim)
+  </div>
+</div>
+
+<div class="sumario">
+<ol>
+  <li>Como a Amazon decide qual anúncio aparece</li>
+  <li>Os cinco formatos — e quais você pode usar hoje</li>
+  <li>Anatomia da conta: campanha, grupo, alvo</li>
+  <li>Tipos de correspondência, sem decoreba</li>
+  <li>A matemática do lance (e onde ela morde)</li>
+  <li>Estrutura de campanhas: as escolas e o que 2026 mudou</li>
+  <li>O ciclo de colheita — o motor da operação</li>
+  <li>Negativas: a faca de dois gumes</li>
+  <li>Métricas e benchmarks reais de 2026</li>
+  <li>As três fases de um produto (e por que ACOS alto pode ser certo)</li>
+  <li>Relatórios: qual responde o quê</li>
+  <li>Atribuição — por que o número de hoje muda amanhã</li>
+  <li>A rotina: diária, semanal, mensal</li>
+  <li>Automação sem perder o controle</li>
+  <li>COSMO e Rufus: o que a era semântica mudou</li>
+  <li>Os erros que custam caro</li>
+  <li>Aplicando à sua conta</li>
+  <li>Glossário PT ↔ EN para ler conteúdo gringo</li>
+</ol>
+</div>
+
+<h2>1. Como a Amazon decide qual anúncio aparece</h2>
+
+<p>Quase todo material iniciante ensina "lance mais alto ganha". Está errado, e entender
+por quê muda toda a forma de operar.</p>
+
+<p>Quando alguém digita uma busca, a Amazon roda um leilão <strong>naquele instante, para
+aquela consulta específica</strong>. Cada anúncio elegível entra com um lance, e a Amazon
+multiplica esse lance por uma nota de relevância:</p>
+
+<div class="formula">Posição do anúncio ≈ Lance × Relevância
+
+<span class="c">Relevância = previsão de CTR e de conversão daquele produto
+             para aquela consulta, naquele momento</span></div>
+
+<p>Três consequências práticas:</p>
+
+<ul>
+  <li><strong>Não existe "a relevância do seu produto".</strong> Existe uma previsão diferente
+  para cada termo de busca. Seu martelo pode ter relevância altíssima para "martelo de
+  borracha" e baixíssima para "martelo", e isso não é uma nota que você vê — é calculado
+  a cada leilão.</li>
+  <li><strong>Anúncio relevante com lance menor bate anúncio irrelevante com lance maior.</strong>
+  É por isso que melhorar a página do produto barateia o clique: CTR e conversão melhores
+  aumentam o multiplicador.</li>
+  <li><strong>Lance é teto, não preço.</strong> O leilão é de segundo preço: quem ganha paga
+  o suficiente para superar o segundo colocado, não o próprio lance. Você lança R$ 2,00,
+  o segundo lança R$ 0,80, você paga ~R$ 0,81.</li>
+</ul>
+
+<div class="caixa">
+  <span class="rotulo">Por que isso importa na prática</span>
+  <p>Se o seu lance é baixo demais para entrar no leilão, você não recebe impressão nenhuma —
+  e sem impressão não há dado. É a diferença entre "meu anúncio não converte" e "meu anúncio
+  nunca apareceu". Antes de mexer em copy, imagem ou preço, confira se há volume de impressão
+  suficiente para a conclusão ser legítima.</p>
+</div>
+
+<h3>Pré-requisitos para sequer entrar no leilão</h3>
+
+<ol>
+  <li><strong>Ser a oferta em destaque (Featured Offer / buy box).</strong> Se você perdeu a
+  buy box do seu próprio ASIN, o anúncio simplesmente para de veicular. Não avisa, não dá
+  erro — só para.</li>
+  <li><strong>Estar em estoque.</strong> Fora de estoque, veiculação suspensa.</li>
+  <li><strong>Lance acima do piso do termo.</strong> Varia por concorrência do termo.</li>
+  <li><strong>Relevância mínima.</strong> Lance alto não compra relevância; a Amazon
+  simplesmente não mostra anúncio que ela prevê que ninguém vai clicar.</li>
+</ol>
+
+<h2>2. Os cinco formatos — e quais você pode usar hoje</h2>
+
+<table>
+<thead><tr><th>Formato</th><th>O que é</th><th>Exige</th><th>Você hoje</th></tr></thead>
+<tbody>
+<tr><td><strong>Sponsored Products</strong></td><td>Anúncio de um produto no resultado de busca e em páginas de produto. CPC.</td><td>Conta profissional</td><td><strong>Sim</strong></td></tr>
+<tr><td><strong>Sponsored Brands</strong></td><td>Banner com logo + vários produtos no topo da busca. Vídeo também.</td><td>Brand Registry (marca registrada)</td><td>Não</td></tr>
+<tr><td><strong>Sponsored Display</strong></td><td>Display dentro e fora da Amazon, com remarketing por audiência.</td><td>Brand Registry (com exceções por mercado)</td><td>Não</td></tr>
+<tr><td><strong>Sponsored TV</strong></td><td>Vídeo em streaming (Prime Video, Fire TV).</td><td>Brand Registry + mercados selecionados</td><td>Não</td></tr>
+<tr><td><strong>Amazon DSP</strong></td><td>Compra programática de mídia, dentro e fora da Amazon.</td><td>Investimento alto (autoatendimento a partir de ~US$ 5 mil/mês)</td><td>Não</td></tr>
+</tbody>
+</table>
+
+<div class="voce">
+  <span class="rotulo">Aplicando a você</span>
+  <p>Vender como <strong>Genérico</strong> significa não ter Brand Registry, e sem Brand Registry
+  quatro dos cinco formatos estão fechados. <strong>Sponsored Products é 100% do seu arsenal
+  hoje</strong> — o que muda a prioridade de estudo: dominar SP a fundo vale mais que
+  conhecer os outros por cima.</p>
+  <p>Isso também põe preço em uma decisão que hoje parece só de catálogo: registrar marca
+  não destrava só a buy box fechada, destrava três formatos de anúncio, o relatório de
+  Search Query Performance e as audiências de remarketing. É uma decisão de mídia, não só
+  de branding.</p>
+</div>
+
+<h2>3. Anatomia da conta: campanha, grupo, alvo</h2>
+
+<p>Três níveis, e cada um controla coisas diferentes. Confundir onde mora cada alavanca é
+a origem de metade dos erros de operação.</p>
+
+<table>
+<thead><tr><th>Nível</th><th>Controla</th><th>Não controla</th></tr></thead>
+<tbody>
+<tr><td><strong>Campanha</strong></td><td>Orçamento diário · estratégia de lance (fixo / dinâmico) · ajuste por posicionamento · datas · portfólio</td><td>Lance individual · palavras</td></tr>
+<tr><td><strong>Grupo de anúncios</strong></td><td>Quais produtos são anunciados · lance padrão · o conjunto de palavras/alvos</td><td>Orçamento (é da campanha)</td></tr>
+<tr><td><strong>Alvo</strong> (palavra ou ASIN)</td><td>Lance específico · tipo de correspondência · pausar/ativar</td><td>Nada acima disso</td></tr>
+</tbody>
+</table>
+
+<p>Duas consequências que pegam gente experiente:</p>
+
+<ul>
+  <li><strong>Orçamento é da campanha, não do grupo.</strong> Se você põe grupo Exata e grupo
+  Frase na mesma campanha, eles <em>dividem</em> o mesmo orçamento. O que gasta mais rápido
+  come o do outro. É aceitável — é o desenho recomendado pela Amazon — mas você precisa
+  saber que é assim ao ler os números.</li>
+  <li><strong>Ajuste por posicionamento é da campanha.</strong> Não dá para colocar +50% de
+  topo de busca só no grupo Exata. Se precisar de tratamento diferente, precisa de campanhas
+  diferentes.</li>
+</ul>
+
+<h3>Portfólios</h3>
+<p>Agrupamento opcional de campanhas, útil por dois motivos: teto de orçamento compartilhado
+(um limite mensal para o portfólio inteiro) e leitura consolidada. Com 6 campanhas ainda não
+faz falta; a partir de ~15 vira necessário para não se perder.</p>
+
+<h2 class="quebra">4. Tipos de correspondência, sem decoreba</h2>
+
+<h3>Campanha automática — a Amazon escolhe</h3>
+
+<p>São quatro grupos de segmentação, e o erro clássico é deixar os quatro no mesmo grupo de
+anúncios com o mesmo lance. Eles têm intenções muito diferentes:</p>
+
+<table>
+<thead><tr><th>Grupo</th><th>O que pega</th><th>Serve para</th></tr></thead>
+<tbody>
+<tr><td><strong>Correspondência ampla</strong> <em>(close match)</em></td><td>Buscas muito parecidas com o seu produto</td><td>É o mais próximo de uma exata. Costuma ser o de melhor conversão.</td></tr>
+<tr><td><strong>Correspondência aproximada</strong> <em>(loose match)</em></td><td>Buscas vagamente relacionadas</td><td>Descoberta. Gasta e erra bastante — mas é onde aparecem termos que você não imaginava.</td></tr>
+<tr><td><strong>Substitutos</strong></td><td>Páginas de produtos que substituem o seu</td><td>Roubar tráfego de concorrente direto.</td></tr>
+<tr><td><strong>Complementos</strong></td><td>Páginas de produtos comprados junto com o seu</td><td>Venda cruzada. Raramente performa em produto de baixo ticket.</td></tr>
+</tbody>
+</table>
+
+<p><strong>A prática de quem opera bem:</strong> separar os quatro em grupos com lances
+independentes, subir o que converte e derrubar o que só gasta. A automática é uma máquina
+de descoberta — mas só se você conseguir ler qual dos quatro gerou o quê.</p>
+
+<h3>Campanha manual — você escolhe</h3>
+
+<p>Para <strong>palavras-chave</strong>, três correspondências. O exemplo abaixo usa a
+palavra <code>protetor de pé de cadeira</code>:</p>
+
+<table>
+<thead><tr><th>Tipo</th><th>Pega</th><th>Não pega</th><th>Custo relativo</th></tr></thead>
+<tbody>
+<tr><td><strong>Exata</strong></td><td>"protetor de pé de cadeira", plurais e erros de digitação próximos</td><td>"protetor de pé de cadeira de silicone"</td><td>Normalmente o mais caro por clique, o melhor por conversão</td></tr>
+<tr><td><strong>Frase</strong></td><td>Qualquer busca que contenha a expressão <em>na ordem</em>: "protetor de pé de cadeira transparente", "comprar protetor de pé de cadeira"</td><td>"protetor para pé de cadeira" (a ordem quebrou)</td><td>Intermediário — <em>às vezes mais barato que a exata</em></td></tr>
+<tr><td><strong>Ampla</strong></td><td>Qualquer coisa que a Amazon considere relacionada, em qualquer ordem, incluindo sinônimos</td><td>—</td><td>O mais barato por clique, o mais perdulário</td></tr>
+</tbody>
+</table>
+
+<div class="alerta">
+  <span class="rotulo">Contra-intuição verificada na sua conta</span>
+  <p>Nem sempre exata &gt; frase &gt; ampla em preço. No seu protetor, "ponteira de cadeira"
+  vinha sugerida a <strong>R$ 1,60 em exata e R$ 0,33 em frase</strong> — a exata custava 5×
+  mais. A regra decorada teria feito você pagar caro. <strong>Sempre ler a sugestão de cada
+  correspondência antes de aceitar.</strong></p>
+</div>
+
+<h3>Segmentação por produto</h3>
+
+<p>Em vez de palavras, você mira ASINs ou categorias. Duas posturas:</p>
+
+<ul>
+  <li><strong>Ofensiva</strong> — anunciar na página do concorrente. Regra de ouro: só mire
+  ASIN que você <em>visivelmente ganha</em> em pelo menos dois critérios (preço, avaliação,
+  quantidade, prazo). Se o comprador clicar, comparar e voltar, você pagou pelo clique e
+  ainda melhorou o rankeamento dele.</li>
+  <li><strong>Defensiva</strong> — mirar os <em>seus próprios</em> ASINs, para ocupar o
+  carrossel da sua página com seus produtos em vez de deixar espaço para concorrente. Custa
+  barato (o comprador já está na sua página) e protege conversão. Faz sentido a partir de
+  uns 3–4 produtos no mesmo nicho.</li>
+</ul>
+
+<p>Também dá para mirar <strong>categorias inteiras</strong> com refinamento por faixa de
+preço, nota mínima e marca — útil para varrer um nicho sem listar ASIN por ASIN.</p>
+
+<h2>5. A matemática do lance (e onde ela morde)</h2>
+
+<p>Existem três camadas que se multiplicam. Ignorar o empilhamento é como um estouro de
+orçamento acontece sem ninguém entender de onde veio.</p>
+
+<div class="formula">Lance final = Lance base
+             × (1 + ajuste de posicionamento)   <span class="c">← aplicado primeiro</span>
+             × (1 + ajuste dinâmico)            <span class="c">← aplicado depois</span></div>
+
+<h3>Camada 1 — o lance base</h3>
+<p>O que você digita na palavra. Se a palavra não tem lance próprio, ela herda o
+<strong>lance padrão do grupo</strong>.</p>
+
+<div class="alerta">
+  <span class="rotulo">Armadilha do lance padrão</span>
+  <p>Ao criar grupo pela interface, o lance padrão nasce em <strong>R$ 2,75</strong> —
+  independentemente do que você configurou nas palavras. Aconteceu nos quatro grupos criados
+  na sua conta em 13/08. Ele só morde quando um alvo sem lance próprio entra depois, mas
+  nasce errado <em>sempre</em>. Conferir na lista de grupos logo após criar.</p>
+</div>
+
+<h3>Camada 2 — estratégia de lance da campanha</h3>
+
+<table>
+<thead><tr><th>Estratégia</th><th>O que a Amazon faz</th><th>Quando usar</th></tr></thead>
+<tbody>
+<tr><td><strong>Lances fixos</strong></td><td>Nada. Usa exatamente o seu lance.</td><td>Quando você quer medir sem interferência, ou em teste controlado.</td></tr>
+<tr><td><strong>Dinâmico — somente redução</strong></td><td>Baixa o lance quando prevê conversão improvável. Nunca sobe.</td><td><strong>Padrão seguro.</strong> Especialmente em produto novo, sem histórico para a Amazon prever bem.</td></tr>
+<tr><td><strong>Dinâmico — aumento e redução</strong></td><td>Sobe <strong>até +100%</strong> em topo de busca e até +50% nas demais posições quando prevê conversão. Também baixa.</td><td>Só depois de haver conversão comprovada. Antes disso a Amazon está prevendo no escuro com o seu dinheiro.</td></tr>
+</tbody>
+</table>
+
+<h3>Camada 3 — ajuste por posicionamento</h3>
+
+<p>Três posicionamentos, cada um com ajuste de <strong>0% a 900%</strong>:</p>
+
+<ul>
+  <li><strong>Topo da pesquisa (primeira página)</strong> — a primeira linha de resultados.
+  Maior conversão, maior CPC, maior competição.</li>
+  <li><strong>Restante da pesquisa</strong> — todas as outras posições em resultado de busca,
+  incluindo páginas 2, 3, 4…</li>
+  <li><strong>Páginas de produto</strong> — carrosséis dentro de páginas de detalhe.</li>
+</ul>
+
+<h4>O empilhamento, na prática</h4>
+
+<div class="formula">Lance base                 R$ 1,00
++50% de topo de busca      R$ 1,50
++100% dinâmico (topo)      R$ 3,00   <span class="c">← o que você pode pagar num clique</span></div>
+
+<div class="alerta">
+  <span class="rotulo">O cenário que quebra conta</span>
+  <p>Lance de R$ 1,00 com ajuste de topo em <strong>900%</strong> e dinâmico
+  "aumento e redução" ligado chega a <strong>R$ 20,00 por clique</strong>. Os dois controles
+  parecem inofensivos sozinhos; multiplicados, não são. <strong>Nunca ligue ajuste de topo
+  agressivo junto com dinâmico de aumento</strong> sem antes calcular o teto.</p>
+</div>
+
+<div class="caixa">
+  <span class="rotulo">Regra de sequência</span>
+  <p>Ajuste de posicionamento é a última alavanca a mexer, não a primeira. Ele
+  <em>compra posição</em>, não <em>gera aprendizado</em>. Só faz sentido depois que o CTR e
+  a conversão provaram que a posição melhor se paga. Antes disso, ele só encarece o dado.</p>
+</div>
+
+<h2 class="quebra">6. Estrutura de campanhas: as escolas e o que 2026 mudou</h2>
+
+<h3>As três escolas</h3>
+
+<table>
+<thead><tr><th>Escola</th><th>Como é</th><th>Ganha</th><th>Perde</th></tr></thead>
+<tbody>
+<tr><td><strong>SKAG</strong><br><em>single keyword ad group</em></td><td>Um grupo por palavra</td><td>Controle cirúrgico de lance; zero ruído no dado</td><td>Explode em quantidade; orçamento se fragmenta; ingerenciável acima de ~30 palavras</td></tr>
+<tr><td><strong>Temática</strong><br><em>(STAG)</em></td><td>10–20 palavras relacionadas por grupo</td><td>Gerenciável; volume suficiente por grupo para o dado significar algo</td><td>Uma palavra ruim se esconde dentro da média do grupo</td></tr>
+<tr><td><strong>Por correspondência</strong></td><td>Um grupo por tipo (exata / frase / ampla), mesmas palavras</td><td>Lê exatamente qual correspondência entrega; é o desenho do seu deck</td><td>As correspondências competem entre si se você não negativar direito</td></tr>
+</tbody>
+</table>
+
+<p><strong>O consenso de 2026</strong> é híbrido, e por um motivo específico: com a Amazon
+migrando de casamento de texto para entendimento semântico (seção 15), a hiper-segmentação
+rende menos do que rendia. A recomendação atual:</p>
+
+<ul>
+  <li><strong>SKAG só para as 3–5 palavras campeãs</strong> — as que sozinhas passam de ~30
+  conversões/mês e merecem controle individual.</li>
+  <li><strong>Grupos temáticos de 10–20 palavras</strong> para todo o resto.</li>
+  <li><strong>Menos campanhas, não mais.</strong> Orçamento espalhado em campanha demais é o
+  jeito mais comum de nunca sair da fase de aprendizado.</li>
+</ul>
+
+<h3>O par automática + manual</h3>
+
+<p>O desenho do seu treinamento — 1 automática + 1 manual com grupo Exata e grupo Frase, por
+produto — é sólido e é o mais recomendado para quem está começando. A lógica:</p>
+
+<ol>
+  <li>A <strong>automática</strong> é o radar. Ela descobre termos que você não teria escrito.</li>
+  <li>O que a automática prova que converte migra para a <strong>manual em exata</strong>,
+  onde você controla o lance.</li>
+  <li>O <strong>grupo Frase</strong> pega as variações em volta do termo — "protetor de pé de
+  cadeira <em>transparente</em>", "<em>kit</em> protetor de pé de cadeira" — que a exata
+  deixaria passar.</li>
+  <li>O termo migrado vira <strong>negativa exata na automática</strong>, senão as duas
+  disputam o mesmo clique e você paga o próprio lance para cima.</li>
+</ol>
+
+<div class="caixa">
+  <span class="rotulo">O detalhe que quase todo mundo erra</span>
+  <p>A negativa na automática tem que ser <strong>exata</strong>, nunca frase. Negativa em
+  frase mata também as variações — e variação é exatamente o que o grupo Frase existe para
+  capturar. Você bloquearia com uma mão o que paga com a outra.</p>
+</div>
+
+<h2>7. O ciclo de colheita — o motor da operação</h2>
+
+<p>Se houver um único processo para dominar, é este. Tudo o mais é ajuste fino; a colheita é
+o que faz a conta melhorar sozinha ao longo dos meses.</p>
+
+<div class="formula">AUTOMÁTICA (descobre)
+       │
+       ├─→ termo com pedidos ──→ MANUAL EXATA (lance controlado)
+       │                             │
+       │                             └─→ NEGATIVA EXATA na automática
+       │
+       ├─→ termo com variações ──→ MANUAL FRASE
+       │
+       └─→ termo que só gasta ──→ NEGATIVA EXATA</div>
+
+<h3>Os gatilhos numéricos</h3>
+
+<table>
+<thead><tr><th>Sinal no relatório de termos de busca</th><th>Ação</th></tr></thead>
+<tbody>
+<tr><td>Termo com <strong>3+ pedidos</strong></td><td>Promover a exata na manual + negativar exato na automática</td></tr>
+<tr><td>Termo com <strong>10+ cliques e 0 pedido</strong></td><td>Negativa exata</td></tr>
+<tr><td>Termo com gasto acima de <strong>2× a margem unitária</strong> e nenhum pedido</td><td>Negativa exata, sem esperar mais</td></tr>
+<tr><td>Termo irrelevante (outro produto, outra categoria)</td><td>Negativa exata na hora — não precisa de volume para decidir</td></tr>
+<tr><td>Termo com impressão alta e <strong>CTR muito abaixo</strong> do resto</td><td>Não é problema de anúncio: é sinal de que a listagem não casa com aquela intenção</td></tr>
+</tbody>
+</table>
+
+<div class="alerta">
+  <span class="rotulo">Volume mínimo antes de concluir</span>
+  <p>Com <strong>menos de ~500 impressões</strong>, CTR não diz nada. Com menos de ~10 cliques,
+  conversão não diz nada. A pressa em otimizar dado insuficiente é o erro mais comum de quem
+  está aprendendo: você mata palavra boa porque ela deu azar nos primeiros 4 cliques.</p>
+</div>
+
+<h2>8. Negativas: a faca de dois gumes</h2>
+
+<p>Negativa é a única alavanca que <em>reduz</em> gasto sem reduzir alcance útil. Também é a
+única que, mal usada, mata tráfego bom de forma invisível — você nunca vê o que deixou de
+aparecer.</p>
+
+<table>
+<thead><tr><th>Tipo</th><th>Bloqueia</th><th>Use quando</th></tr></thead>
+<tbody>
+<tr><td><strong>Negativa exata</strong></td><td>Só aquela busca exata (e plurais)</td><td>Padrão. Um termo específico está gastando sem converter.</td></tr>
+<tr><td><strong>Negativa de frase</strong></td><td>Qualquer busca que contenha a expressão</td><td>Uma <em>ideia inteira</em> é irrelevante. Ex.: você vende protetor de silicone e "de feltro" nunca serve.</td></tr>
+<tr><td><strong>Produto negativo</strong></td><td>Um ASIN ou marca específica</td><td>Você aparece na página de um produto onde nunca vai ganhar.</td></tr>
+</tbody>
+</table>
+
+<p><strong>A regra de escalada:</strong> comece sempre em exata. Só suba para frase depois de
+confirmar em <em>dois ou três ciclos</em> de relatório que a irrelevância é consistente. Uma
+negativa de frase mal colocada pode derrubar 40% do tráfego de uma campanha e você só
+descobre semanas depois, olhando a queda de impressão sem causa aparente.</p>
+
+<div class="caixa">
+  <span class="rotulo">Onde a negativa mora</span>
+  <p>Dá para negativar no nível da <strong>campanha</strong> (vale para todos os grupos) ou do
+  <strong>grupo</strong>. Para o par automática+manual, a negativa do termo promovido vai na
+  <em>campanha automática</em>. Para bloquear lixo geral, também campanha. Negativa de grupo
+  serve quando você tem grupos com intenções diferentes e quer separar.</p>
+</div>
+
+<h2 class="quebra">9. Métricas e benchmarks reais de 2026</h2>
+
+<h3>As definições que você precisa não confundir</h3>
+
+<table>
+<thead><tr><th>Sigla</th><th>Fórmula</th><th>O que responde</th></tr></thead>
+<tbody>
+<tr><td><strong>ACOS</strong></td><td>gasto ÷ vendas <em>do anúncio</em></td><td>Quanto do faturamento gerado pelo anúncio foi consumido pelo anúncio</td></tr>
+<tr><td><strong>TACOS</strong></td><td>gasto ÷ vendas <em>totais</em> (anúncio + orgânico)</td><td>O quanto o negócio inteiro depende de anúncio. <strong>A métrica que realmente importa.</strong></td></tr>
+<tr><td><strong>ROAS</strong></td><td>vendas do anúncio ÷ gasto</td><td>O inverso do ACOS. ROAS 4 = ACOS 25%.</td></tr>
+<tr><td><strong>CTR</strong></td><td>cliques ÷ impressões</td><td>Se a <em>oferta</em> (imagem, título, preço, avaliação) atrai o clique</td></tr>
+<tr><td><strong>CVR</strong></td><td>pedidos ÷ cliques</td><td>Se a <em>página</em> converte quem chegou</td></tr>
+<tr><td><strong>CPC</strong></td><td>gasto ÷ cliques</td><td>O que o leilão está cobrando de você</td></tr>
+<tr><td><strong>Impression share</strong></td><td>suas impressões ÷ total do termo</td><td>Quanto do mercado daquele termo você está pegando. Diz se há espaço para crescer.</td></tr>
+</tbody>
+</table>
+
+<h3>Benchmarks 2026</h3>
+
+<p>Números de mercado (majoritariamente EUA — no Brasil o CPC tende a ser <em>menor</em>, mas
+a estrutura das relações se mantém):</p>
+
+<table>
+<thead><tr><th>Métrica</th><th class="num">Faixa saudável</th><th>Observação</th></tr></thead>
+<tbody>
+<tr><td>ACOS geral</td><td class="num">30–32%</td><td>Muito dependente da fase do produto</td></tr>
+<tr><td>CPC geral</td><td class="num">US$ 1,18–1,22</td><td>Subiu 8–12% em relação a 2025</td></tr>
+<tr><td>CTR (Sponsored Products)</td><td class="num">0,35–0,70%</td><td>Abaixo de 0,3% = problema de oferta</td></tr>
+<tr><td>CVR (Sponsored Products)</td><td class="num">10–18%</td><td>Abaixo de 8% = problema de página</td></tr>
+<tr><td>TACOS</td><td class="num">10–15%</td><td>Caindo ao longo do tempo = flywheel girando</td></tr>
+<tr><td>ROAS</td><td class="num">~3,1×</td><td>—</td></tr>
+</tbody>
+</table>
+
+<div class="caixa">
+  <span class="rotulo">Como ler CTR e CVR juntos</span>
+  <p>É o diagnóstico mais rápido que existe:</p>
+  <ul style="margin-bottom:0">
+    <li><strong>CTR baixo + CVR alto</strong> → a oferta não chama, mas quem entra compra. Mexa em imagem principal, título e preço exibido.</li>
+    <li><strong>CTR alto + CVR baixo</strong> → você atrai e decepciona. O problema está na página: descrição, fotos secundárias, avaliações, prazo de entrega.</li>
+    <li><strong>Os dois baixos</strong> → provavelmente o termo não é seu. Negativa.</li>
+    <li><strong>Os dois altos e ACOS ruim</strong> → é preço de leilão. Reveja lance ou aceite como custo de rankeamento.</li>
+  </ul>
+</div>
+
+<h2>10. As três fases de um produto</h2>
+
+<p>Este é o ponto onde a maioria dos guias erra: eles dão <em>um</em> ACOS-alvo, como se um
+produto lançado ontem e um produto com dois anos de histórico devessem ser medidos igual.
+Não devem.</p>
+
+<table>
+<thead><tr><th>Fase</th><th class="num">ACOS</th><th class="num">TACOS</th><th>O objetivo é</th></tr></thead>
+<tbody>
+<tr><td><strong>Lançamento</strong> (0–3 meses)</td><td class="num">30–60%</td><td class="num">25–40%</td><td>Velocidade de venda e participação de impressão. <em>Não</em> eficiência.</td></tr>
+<tr><td><strong>Crescimento</strong> (3–9 meses)</td><td class="num">20–35%</td><td class="num">15–25%</td><td>Estabilizar enquanto o orgânico sobe</td></tr>
+<tr><td><strong>Maturidade</strong> (9+ meses)</td><td class="num">10–25%</td><td class="num">5–10%</td><td>Lucro. Orgânico deve ser 50–70% da receita.</td></tr>
+</tbody>
+</table>
+
+<p><strong>O sinal de que está funcionando não é o ACOS cair — é o TACOS cair.</strong> ACOS
+mede só o pedaço pago. TACOS caindo semana após semana significa que o orgânico está
+crescendo mais rápido que o gasto: o flywheel pegou. TACOS estagnado com ACOS bom significa
+que você está comprando venda, não construindo posição.</p>
+
+<h3>O período de lua de mel</h3>
+
+<p>Nos primeiros <strong>30 a 45 dias</strong> de um ASIN novo, a Amazon dá visibilidade
+acima do que o histórico justificaria — porque não existe histórico, e o algoritmo está
+coletando dado sobre como o comprador reage. O que acontece nessa janela vira a
+<em>linha de base</em> do rankeamento depois.</p>
+
+<p>Consequências operacionais:</p>
+<ul>
+  <li><strong>Empurrar forte desde o dia 1.</strong> Economizar na lua de mel é economizar
+  no único momento em que a Amazon está te dando desconto de atenção.</li>
+  <li><strong>Preço de entrada agressivo é técnica reconhecida</strong>, não desespero.
+  Lançar abaixo do preço-alvo (com cupom, inclusive) eleva conversão, e conversão na lua de
+  mel vale mais que margem na lua de mel. Subir o preço depois, gradualmente, conforme
+  vendas e avaliações acumulam, é o roteiro padrão.</li>
+  <li><strong>Cortar lance para "melhorar o ACOS" nessa fase costuma sair caro.</strong>
+  Você trava o rankeamento e paga mais caro pelo mesmo lugar seis meses depois.</li>
+</ul>
+
+<div class="voce">
+  <span class="rotulo">Aplicando a você</span>
+  <p>Isso valida exatamente o que você já decidiu: preço baixo agora, subir depois que sair
+  venda. Não é intuição — é o roteiro documentado de lançamento. E dá o número que faltava:
+  na sua fase, <strong>ACOS de 30% a 60% é normal</strong>. Ver 45% e entrar em pânico seria
+  erro; ver 45% no mês 10 seria problema.</p>
+  <p>Vale a ressalva já registrada: essa margem confortável hoje depende da tarifa zerada
+  pela promoção de vendedor novo. Quando ela acabar, os mesmos 45% deixam de caber.</p>
+</div>
+
+<h2 class="quebra">11. Relatórios: qual responde o quê</h2>
+
+<table>
+<thead><tr><th>Relatório</th><th>Responde</th><th>Frequência útil</th></tr></thead>
+<tbody>
+<tr><td><strong>Termos de busca</strong> <em>(search term)</em></td><td>O que a pessoa <em>realmente</em> digitou antes de clicar. A matéria-prima da colheita.</td><td>Semanal</td></tr>
+<tr><td><strong>Segmentação</strong> <em>(targeting)</em></td><td>Desempenho por palavra/ASIN que <em>você</em> cadastrou</td><td>Semanal</td></tr>
+<tr><td><strong>Posicionamento</strong> <em>(placement)</em></td><td>Como topo de busca × restante × página de produto performam</td><td>Quinzenal — decide o ajuste de posicionamento</td></tr>
+<tr><td><strong>Participação de impressão por termo</strong></td><td>Quanto do termo você pega e em que posição está entre os anunciantes</td><td>Mensal — diz onde há espaço para crescer</td></tr>
+<tr><td><strong>Anúncio</strong> <em>(advertised product)</em></td><td>Desempenho por SKU anunciado</td><td>Mensal</td></tr>
+<tr><td><strong>Produto comprado</strong> <em>(purchased product)</em></td><td>O que foi comprado de fato — inclusive outros SKUs seus</td><td>Mensal — revela venda cruzada invisível no ACOS</td></tr>
+<tr><td><strong>Search Query Performance</strong></td><td>Funil completo do termo: impressão → clique → carrinho → compra, e a <em>sua fatia</em> em cada etapa vs. o mercado</td><td>Exige Brand Registry — <em>indisponível para você hoje</em></td></tr>
+</tbody>
+</table>
+
+<div class="caixa">
+  <span class="rotulo">O relatório mais subestimado</span>
+  <p><strong>Produto comprado.</strong> O ACOS de uma campanha esconde que ela pode estar
+  vendendo <em>outro</em> produto seu. Uma campanha do martelo com ACOS 50% que vende dois
+  clips por semana junto tem economia real bem melhor que a planilha mostra. Sponsored
+  Products atribui venda de mesmo-SKU e também de outros SKUs do mesmo vendedor — mas você
+  só enxerga isso nesse relatório.</p>
+</div>
+
+<h2>12. Atribuição — por que o número de hoje muda amanhã</h2>
+
+<ul>
+  <li><strong>Janela de 7 dias</strong> para Sponsored Products em conta de vendedor (3P).
+  Quem clica na segunda e compra no sábado é creditado <strong>na segunda</strong> — a data
+  do clique, não a da compra.</li>
+  <li><strong>Sponsored Brands e Display usam 14 dias.</strong> Comparar ACOS entre formatos
+  sem lembrar disso gera conclusão errada.</li>
+  <li><strong>Todo número dos últimos 28 dias é provisório.</strong> A Amazon continua
+  processando cancelamentos, devoluções e validação de tráfego. O relatório que você puxou
+  há três semanas <em>não</em> vai bater se puxar de novo hoje.</li>
+</ul>
+
+<div class="alerta">
+  <span class="rotulo">Consequência prática</span>
+  <p>Não tome decisão de lance baseada em dados de <strong>ontem</strong>. A venda pode ainda
+  não ter sido atribuída, e você vai concluir que a palavra não converte quando ela converteu.
+  Trabalhe com janelas fechadas de 7 ou 14 dias, com pelo menos 3 dias de folga do presente.</p>
+</div>
+
+<h2>13. A rotina: diária, semanal, mensal</h2>
+
+<h3>Diária (5 minutos)</h3>
+<ul>
+  <li>Alguma campanha saiu de "Em veiculação"?</li>
+  <li>Algum SKU ficou sem estoque ou perdeu a buy box? (mata a veiculação silenciosamente)</li>
+  <li>Alguma campanha estourou o orçamento antes do fim do dia?</li>
+</ul>
+
+<h3>Semanal (30–60 minutos) — o trabalho de verdade</h3>
+<ol>
+  <li>Baixar o relatório de <strong>termos de busca</strong> dos últimos 7 ou 14 dias.</li>
+  <li>Ordenar por <strong>gasto</strong>. Termos com gasto alto e zero pedido → candidato a negativa.</li>
+  <li>Ordenar por <strong>pedidos</strong>. Termos com 3+ pedidos → promover a exata + negativar na automática.</li>
+  <li>Revisar campanhas com <strong>zero impressão</strong> — quase sempre lance abaixo do piso.</li>
+  <li>Ajustar lances: subir o que converte, baixar o que gasta sem converter.</li>
+  <li>Checar se alguma campanha está batendo no teto de orçamento (aí sim o orçamento virou o limitador).</li>
+</ol>
+
+<h3>Mensal</h3>
+<ul>
+  <li>Participação de impressão: onde há espaço para crescer?</li>
+  <li>Relatório de posicionamento: vale ligar ajuste de topo de busca já?</li>
+  <li>TACOS do mês vs. mês anterior — o flywheel está girando?</li>
+  <li>Produto comprado: alguma campanha está vendendo outro SKU?</li>
+</ul>
+
+<div class="caixa">
+  <span class="rotulo">Cadência de lance</span>
+  <p><strong>Semanal</strong> é o ritmo certo para conta em operação. Diário gera decisão em
+  cima de ruído; mensal deixa dinheiro na mesa. <strong>Exceção: campanha recém-lançada</strong> —
+  aí sim conferir 2 a 4 vezes na primeira semana, porque o objetivo é achar rápido o lance
+  que destrava impressão.</p>
+</div>
+
+<h2 class="quebra">14. Automação sem perder o controle</h2>
+
+<table>
+<thead><tr><th>Ferramenta</th><th>O que faz</th><th>Vale a pena quando</th></tr></thead>
+<tbody>
+<tr><td><strong>Regras de orçamento por agenda</strong></td><td>Aumenta o orçamento em datas definidas (Black Friday, Prime Day)</td><td>Sempre — é grátis e evita ficar sem orçamento no melhor dia do ano</td></tr>
+<tr><td><strong>Regras de orçamento por desempenho</strong></td><td>Aumenta orçamento quando ROAS/CTR/CVR passam de um limiar</td><td>Quando você já tem campanha estourando teto com bom retorno</td></tr>
+<tr><td><strong>Regras de lance por agenda</strong></td><td>Muda lance em datas ou faixas de horário</td><td>Depois de identificar padrão horário claro no dado</td></tr>
+<tr><td><strong>Lance por regra</strong> <em>(rule-based bidding)</em></td><td>A Amazon ajusta lance sozinha dentro de um ROAS-alvo</td><td>Conta madura, com histórico. Em produto novo, o algoritmo não tem o que aprender.</td></tr>
+<tr><td><strong>Dayparting</strong></td><td>Grade 7×24 de quando veicular ou pausar</td><td>Só depois de ter dado horário. Sem isso é chute caro.</td></tr>
+</tbody>
+</table>
+
+<div class="alerta">
+  <span class="rotulo">A ordem certa</span>
+  <p>Automatizar antes de entender é automatizar o próprio erro em escala. A sequência que
+  funciona: <strong>operar na mão → identificar o padrão → automatizar o padrão</strong>.
+  Nunca o contrário. A única exceção é regra de orçamento por agenda, que é seguro desde o
+  primeiro dia.</p>
+</div>
+
+<h3>Via API</h3>
+<p>A Amazon Ads API expõe praticamente tudo que o painel faz: criar e editar campanhas,
+grupos, palavras, negativas, lances, e puxar todos os relatórios. Isso permite:</p>
+<ul>
+  <li>Aplicar a colheita <strong>automaticamente</strong> — ler o relatório de termos, aplicar
+  os gatilhos da seção 7 e escrever as mudanças, sem clique humano.</li>
+  <li>Cruzar gasto de anúncio com <strong>custo real do produto</strong> — o painel da Amazon
+  não sabe quanto o produto te custou; o SellerCore sabe. ACOS não diz nada sobre lucro; a
+  margem por clique diz.</li>
+  <li><strong>Amazon Marketing Stream</strong>: dados por hora via push, que é o que viabiliza
+  dayparting sério.</li>
+</ul>
+<p>É exatamente o caminho já iniciado (solicitação como Direct Advertiser feita em 13/08).</p>
+
+<h2>15. COSMO e Rufus: o que a era semântica mudou</h2>
+
+<p>É a mudança estrutural mais relevante dos últimos dois anos, e ainda não chegou na maioria
+do conteúdo em português.</p>
+
+<ul>
+  <li><strong>Rufus</strong> é o assistente de compras conversacional. Estima-se que já
+  intermedeia <strong>15–20% das buscas em mobile</strong>.</li>
+  <li><strong>COSMO</strong> não é um algoritmo de ranking — é a camada de conhecimento que
+  ajuda a Amazon a entender <em>por que</em> a pessoa quer o produto, não só <em>o que</em>
+  ela digitou.</li>
+</ul>
+
+<p>A arquitetura da busca migrou de <strong>casamento léxico</strong> (bater string de texto)
+para <strong>entendimento semântico</strong> (bater intenção). O que isso muda na operação:</p>
+
+<table>
+<thead><tr><th>Antes</th><th>Agora</th></tr></thead>
+<tbody>
+<tr><td>Encher o título e os backend keywords de variações</td><td>Descrever <strong>função + benefício + contexto</strong> em linguagem natural</td></tr>
+<tr><td>Hiper-segmentar em SKAG para controlar cada string</td><td>Grupos temáticos coerentes; a Amazon agrupa intenção sozinha</td></tr>
+<tr><td>Palavra-chave como unidade de estratégia</td><td>Intenção de compra como unidade de estratégia</td></tr>
+</tbody>
+</table>
+
+<p>Dois efeitos colaterais relatados: o CPC subiu e o CTR enfraqueceu (o leilão ficou menos
+previsível), <em>mas</em> cliques que vêm via Rufus convertem muito melhor — a IA já
+pré-qualificou a intenção antes do clique.</p>
+
+<div class="caixa">
+  <span class="rotulo">O que fazer com essa informação</span>
+  <p>Escreva a listagem para <em>alguém perguntando</em>, não para um robô contando palavras.
+  "Protetor de silicone transparente para pés de cadeira de até 4 cm, não risca piso laminado"
+  responde uma pergunta real. "Protetor cadeira silicone protetor piso protetor móvel" não
+  responde nada — e hoje ranqueia pior, não melhor.</p>
+</div>
+
+<h2>16. Os erros que custam caro</h2>
+
+<ol>
+  <li><strong>Achar que o problema é o anúncio quando é a página.</strong> Mais orçamento
+  mandando mais gente para uma página que não converte é só queimar dinheiro mais rápido.
+  CTR bom + CVR ruim = pare de mexer em lance.</li>
+  <li><strong>Não usar negativas.</strong> Apontado como o erro nº 1 do mercado. Campanha
+  automática sem negativa vira sangria silenciosa.</li>
+  <li><strong>Orçamento espalhado demais.</strong> Dez campanhas com R$ 5 nunca saem da fase
+  de aprendizado. Melhor três campanhas com R$ 17.</li>
+  <li><strong>Otimizar com dado insuficiente.</strong> Matar palavra com 4 cliques é decidir
+  no cara ou coroa.</li>
+  <li><strong>Ficar sem estoque depois de empurrar anúncio.</strong> Você paga para criar
+  demanda e perde a venda <em>e</em> o rankeamento conquistado. Dos erros da lista, é o mais
+  caro.</li>
+  <li><strong>Ligar ajuste de topo agressivo cedo demais.</strong> Compra posição antes de
+  saber se a posição se paga.</li>
+  <li><strong>Usar ACOS como se fosse lucro.</strong> ACOS ignora custo do produto, tarifa e
+  frete. Um ACOS de 20% pode dar prejuízo se a margem bruta é 15%.</li>
+  <li><strong>Deixar a automática e a manual disputando o mesmo termo.</strong> Sem negativa,
+  você leiloa contra si mesma.</li>
+  <li><strong>Aceitar os defaults da interface.</strong> Lance padrão R$ 2,75, dinâmico
+  "aumento e redução", campanhas prontas com ASINs pré-selecionados — todos os defaults
+  favorecem gasto, não aprendizado.</li>
+</ol>
+
+<h2 class="quebra">17. Aplicando à sua conta</h2>
+
+<div class="voce">
+  <span class="rotulo">Onde você está hoje</span>
+  <p>Conta NEXAHUB BR · 6 campanhas · R$ 70/dia de teto · fase de lançamento puro (produtos
+  novos, sem histórico) · marca Genérico, portanto só Sponsored Products · tarifa Amazon
+  zerada por promoção temporária.</p>
+</div>
+
+<h3>O que já está certo</h3>
+<ul>
+  <li>Estrutura 1 automática + 1 manual (Exata + Frase) por produto — é o desenho recomendado.</li>
+  <li>Lances dinâmicos <em>somente redução</em> nas seis — correto para produto sem histórico.</li>
+  <li>Ajuste de posicionamento em 0% — correto, ainda não há conversão que justifique.</li>
+  <li>Preço de entrada baixo com plano de subir — é o roteiro de lançamento, não um improviso.</li>
+  <li>Negativas exatas, nunca em frase — protege o grupo Frase.</li>
+</ul>
+
+<h3>O que fazer nas próximas semanas, em ordem</h3>
+
+<ol>
+  <li><strong>Segunda-feira: primeiro relatório de termos de busca.</strong> Com ~1 semana de
+  veiculação já haverá termo suficiente na automática para a primeira colheita. É aqui que a
+  operação começa a compor.</li>
+  <li><strong>Separar os quatro grupos da automática.</strong> Hoje as três automáticas
+  rodam com os quatro tipos juntos. Separar em grupos com lances independentes é o maior
+  ganho de leitura disponível sem gastar mais.</li>
+  <li><strong>Vigiar a buy box.</strong> Perder a oferta em destaque desliga o anúncio sem
+  aviso. Vale um alerta no SellerCore — a Pricing API já é consultada; é uma condição a mais.</li>
+  <li><strong>Não ligar ajuste de topo até haver conversão.</strong> Quando ligar, começar em
+  +25%, não em +100%.</li>
+  <li><strong>Acompanhar TACOS, não só ACOS.</strong> O SellerCore tem a venda total; a
+  Amazon tem o gasto. O cruzamento das duas é a única métrica que diz se está funcionando —
+  e é justamente o que o painel da Amazon sozinho não mostra.</li>
+  <li><strong>Reconferir tudo quando a promoção de tarifa acabar.</strong> Toda a margem que
+  sustenta os lances atuais depende dela.</li>
+</ol>
+
+<h3>Duas decisões maiores para colocar no radar</h3>
+<ul>
+  <li><strong>Registro de marca.</strong> Destrava Sponsored Brands, Sponsored Display,
+  Search Query Performance e audiências. Hoje é o teto da operação de mídia.</li>
+  <li><strong>Ads API.</strong> Automatizar a colheita e cruzar gasto com custo real de
+  produto é exatamente o tipo de coisa que o SellerCore existe para fazer e que nenhuma
+  ferramenta de mercado faz bem, porque nenhuma sabe o seu custo.</li>
+</ul>
+
+<h2>18. Glossário PT ↔ EN</h2>
+
+<p>Quase todo o material bom é em inglês. Esta tabela é para você conseguir ler sem tropeçar
+na tradução da interface brasileira, que nem sempre é literal.</p>
+
+<table class="glossario">
+<thead><tr><th>Inglês</th><th>Interface BR</th><th>O que é</th></tr></thead>
+<tbody>
+<tr><td>Ad group</td><td>Grupo de anúncios</td><td>Conjunto de produtos + alvos dentro da campanha</td></tr>
+<tr><td>Bid</td><td>Lance</td><td>Máximo que você aceita pagar por clique</td></tr>
+<tr><td>Default bid</td><td>Lance padrão</td><td>Lance herdado por alvo sem lance próprio</td></tr>
+<tr><td>Broad / Phrase / Exact</td><td>Ampla / De frase / Exata</td><td>Tipos de correspondência</td></tr>
+<tr><td>Close match / Loose match</td><td>Correspondência ampla / aproximada</td><td>Grupos da campanha automática <em>(tradução confusa: "ampla" aqui ≠ broad)</em></td></tr>
+<tr><td>Substitutes / Complements</td><td>Substitutos / Complementos</td><td>Grupos de produto da automática</td></tr>
+<tr><td>Negative keyword</td><td>Palavra-chave negativa</td><td>Bloqueio de busca</td></tr>
+<tr><td>Search term report</td><td>Relatório de termos de busca</td><td>O que a pessoa digitou</td></tr>
+<tr><td>Targeting report</td><td>Relatório de segmentação</td><td>Desempenho do que você cadastrou</td></tr>
+<tr><td>Placement</td><td>Posicionamento</td><td>Topo / restante da busca / página de produto</td></tr>
+<tr><td>Top of search</td><td>Topo da pesquisa</td><td>Primeira linha da primeira página</td></tr>
+<tr><td>Dynamic bids — down only</td><td>Lances dinâmicos — somente redução</td><td>Amazon só baixa o lance</td></tr>
+<tr><td>Impression share</td><td>Parcela de impressões</td><td>Sua fatia das impressões do termo</td></tr>
+<tr><td>Featured Offer / Buy Box</td><td>Oferta em destaque</td><td>Pré-requisito para o anúncio veicular</td></tr>
+<tr><td>Harvesting</td><td>— (não traduzido)</td><td>Migrar termo que converte da automática para a manual</td></tr>
+<tr><td>Dayparting</td><td>— (não traduzido)</td><td>Variar lance/veiculação por hora do dia</td></tr>
+<tr><td>Halo effect</td><td>— (não traduzido)</td><td>Venda de outro SKU seu gerada pelo anúncio</td></tr>
+</tbody>
+</table>
+
+<h2>Fontes</h2>
+
+<p class="fontes">Consultadas em 13/08/2026. Onde as fontes divergiam, prevaleceu a
+documentação oficial da Amazon; divergências relevantes estão sinalizadas no texto.</p>
+
+<ol class="fontes">
+<li>Amazon Ads — <em>Best practices for your Sponsored Products ads</em> · advertising.amazon.com/library/guides/sponsored-products-best-practices</li>
+<li>Amazon Ads — <em>A complete guide to budget rules</em> · advertising.amazon.com/library/guides/budget-rules</li>
+<li>Amazon Ads — <em>Rest of search bid adjustment for Sponsored Products</em> · advertising.amazon.com/resources/whats-new/improve-campaign-performance</li>
+<li>Amazon Ads — <em>Search term impression share report for Sponsored Products</em></li>
+<li>Amazon Ads — <em>NewFronts 2026</em> e <em>Dynamic TV Creative</em> · advertising.amazon.com/library/news</li>
+<li>Rel.ai — <em>How Amazon's Ad Auction Actually Works (It's Not Highest Bid Wins)</em></li>
+<li>PPC Ninja — <em>How Amazon's Ad Algorithm Works: Impressions, Indexing &amp; Auction Mechanics</em></li>
+<li>PPC Ninja — <em>How AI Is Changing Amazon Advertising: Rufus, COSMO &amp; Conversational Commerce</em></li>
+<li>SellerApp — <em>How Amazon COSMO Is Redefining Product Discovery for SEO and PPC</em></li>
+<li>Sequence Commerce — <em>Amazon Ads CPC &amp; Conversion Rate Benchmarks 2026 (by Category)</em></li>
+<li>SalesDuo — <em>Amazon Advertising Benchmarks 2026: CPC, CTR &amp; ACoS</em></li>
+<li>Keywords.am — <em>Amazon TACoS explained</em> e <em>The best Amazon PPC campaign structure for 2026</em></li>
+<li>Perpetua — <em>Amazon Total ACoS (TACoS)</em> e <em>Dynamic Bidding Strategies</em></li>
+<li>bidX — <em>Amazon Dynamic Bidding &amp; Placement Strategy Guide</em> e <em>Amazon Attribution Window</em></li>
+<li>Scale Insights — <em>Bid Modifiers: Top of Search, Rest of Search and Product Placements</em> e <em>Amazon Auto Campaign Match Types</em></li>
+<li>Velocity Sellers — <em>Amazon Product Targeting Strategy 2026</em> e <em>Product Launch Strategy: First 90 Days</em></li>
+<li>Ad Badger — <em>Negative Keywords in Amazon PPC</em></li>
+<li>Store Growers — <em>Single Keyword Ad Groups: Still Relevant in 2026?</em></li>
+<li>My Amazon Guy — <em>Amazon Honeymoon Period</em></li>
+<li>Feedvisor — <em>Amazon Ad Attribution: Windows, Halo Sales &amp; ROAS Traps</em></li>
+<li>Optmyzr — <em>Amazon Ads Reporting Delays</em></li>
+<li>Seller Labs — <em>Amazon Brand Registry Requirements (2026)</em></li>
+<li>Helium 10 — <em>Cerebro: Reverse ASIN Research</em> (metodologia de pesquisa de palavras)</li>
+<li>Seller Sprite — <em>Amazon PPC Optimization Playbook (2026)</em></li>
+<li>SellerQi — <em>Amazon PPC Audit Checklist</em></li>
+</ol>
+
+</body>
+</html>

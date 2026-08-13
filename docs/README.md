@@ -56,7 +56,8 @@ não re-deduza o que já foi decidido nem repita pegadinha já paga.
 | Doc | O que tem |
 |---|---|
 | [`amazon-politicas.md`](./amazon-politicas.md) | Políticas da Amazon extraídas do Seller Central BR: título ≤75 chars, capa fundo branco sem texto, atributos fiscais do FBA, limites de caixa, manual de entrega no CD |
-| [`amazon-ads.md`](./amazon-ads.md) | Amazon Ads BR: como funciona, créditos, plano de campanha (aguardando estoque FBA chegar) |
+| [`amazon-ads.md`](./amazon-ads.md) | Amazon Ads BR: como funciona, créditos, as campanhas no ar e as pegadinhas da tela de criação |
+| [`amazon-ads-especialista.pdf`](./amazon-ads-especialista.pdf) | Material de estudo (18 páginas): leilão, correspondências, matemática do lance, colheita, benchmarks 2026, COSMO/Rufus, glossário PT↔EN. Fonte em `amazon-ads-especialista.html` |
 | [`ferramentas-locais.md`](./ferramentas-locais.md) | Scripts de apoio que rodam fora do app: monitor de estoque FBA, seed do workspace demo, contas de avaliação |
 | [`conexoes-que-expiram.md`](./conexoes-que-expiram.md) | Por que a autorização de cada canal cai, o que o app já detecta/mostra e o backlog para evitar (self-authorization da Amazon, vencimento de 365 dias da Shopee) |
 | [`contas-de-avaliacao.md`](./contas-de-avaliacao.md) | Contas de teste com prazo: como criar, consultar, estender e excluir; o que a pessoa vê; por que o vencimento bloqueia em vez de apagar |
