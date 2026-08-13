@@ -116,13 +116,23 @@ webhook depois.
 - ✅ `shopeeSync.ts` (janela de 15 dias, lote de 50 no detail, escrow como
   conciliação complementar), `shopeeScheduler.ts`,
   `src/app/api/cron/shopee-sync/route.ts` e step no `.github/workflows/cron.yml`.
+- ✅ Transporte HTTP fail-closed: HTTP não-ok, corpo não-JSON e envelope
+  inválido não viram lista vazia nem sucesso aparente.
+- ✅ Catálogo multi-status em sweep paginado e retomável; checkpoint inválido
+  ou falha parcial não avança cobertura nem remove itens ausentes.
+- ✅ Seleção multi-loja por `connection_id` no dashboard e módulos, com
+  alíquota de imposto persistida por workspace + loja.
+- ✅ Remoção em `/integracoes` apaga somente credenciais e dados locais
+  exatamente escopados. Não chama endpoint externo e não revoga o acesso no
+  painel da Shopee.
 
-**Fase 3 — o que falta para dados reais (não é código):** Go Live no console →
+**Fase 3 — BLOCKED, o que falta para dados reais (não é código):** Go Live no console →
 partner key de produção → `SHOPEE_*` no Render → loja autoriza. Só então o
 mapeamento de campos encontra a realidade; revisar `shopeeCanonical.ts` nesse dia.
 
-> Pendente também: entrada da Shopee no dashboard consolidado (`app/page.tsx`),
-> que só faz sentido quando houver loja conectada com dados.
+O dashboard consolidado já consulta cada loja Shopee com `connection_id`
+explícito. Ainda não houve validação Live, visual ou autenticada desse fluxo,
+nem observação de payload real Shopee.
 
 **Sem mudança (agnósticos):** schema canônico, `canonicalStore.ts`, `canonical.ts`,
 `integrationStore.ts`, `secrets.ts` — reaproveitados com `provider: "shopee"`.
@@ -135,6 +145,12 @@ mapeamento de campos encontra a realidade; revisar `shopeeCanonical.ts` nesse di
 Mesma convenção dos docs da Amazon e do ML: mudanças de comportamento da API observadas
 na prática entram aqui, com data. Enquanto o canal não for implementado, a lista fica
 vazia — ao implementar, re-validar tudo marcado com ⚠️ e registrar o que divergir.
+
+- **2026-08-11 — hardening local, sem evidência Live:** transporte HTTP passou a
+  falhar fechado; o catálogo percorre todos os status com checkpoint retomável;
+  dashboard/settings isolam múltiplas lojas; e a gestão de integrações oferece
+  remoção somente local, sem revogação externa. Go Live, credenciais de
+  produção, autorização de loja real e payload Live permanecem **BLOCKED**.
 
 - **2026-07-29 (anúncio oficial, lido em 07/08)** — **[BR] status de NF-e entra
   nos detalhes de pedido/pacote e passa a BLOQUEAR envio.** Vale só para o

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { dbTransaction } from "@/lib/db";
 import { getAccounts } from "@/lib/accountStore";
 import { getTiktokShops, removeTiktokShop } from "@/lib/tiktokStore";
 import { tiktokConfigured } from "@/lib/tiktok";
@@ -6,7 +7,10 @@ import { getIntegrations, publicConnection, removeIntegration } from "@/lib/inte
 import { mercadoLivreConfigured } from "@/lib/integrations/mercadoLivre";
 import { shopeeConfigured } from "@/lib/integrations/shopee";
 import { PROVIDERS } from "@/lib/integrations/registry";
+import { isolateProviderRead, type ProviderReadIssue } from "@/lib/integrations/providerReadIsolation";
+import { removeLocalShopeeConnection } from "@/lib/integrations/shopeeRemoval";
 import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
+import { currentWorkspaceId } from "@/lib/workspaceScope";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,11 +18,21 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   return withAuthenticatedWorkspace(async () => {
   try {
-    const [generic, amazonAccounts, tiktokShops] = await Promise.all([
-      getIntegrations(),
-      getAccounts(),
-      getTiktokShops(),
+    const [genericRead, amazonRead, tiktokRead] = await Promise.all([
+      isolateProviderRead(() => getIntegrations(), []),
+      isolateProviderRead(() => getAccounts(), []),
+      isolateProviderRead(() => getTiktokShops(), [], "tiktok_shop"),
     ]);
+    const generic = genericRead.value;
+    const amazonAccounts = amazonRead.value;
+    const tiktokShops = tiktokRead.value;
+    const issues = new Map<string, ProviderReadIssue>();
+    if (genericRead.issue) {
+      issues.set("mercado_livre", genericRead.issue);
+      issues.set("shopee", genericRead.issue);
+    }
+    if (amazonRead.issue) issues.set("amazon", amazonRead.issue);
+    if (tiktokRead.issue) issues.set("tiktok_shop", tiktokRead.issue);
     const connections = [
       ...amazonAccounts.map((account) => ({
         id: `amazon:${account.sellerId}`,
@@ -64,6 +78,7 @@ export async function GET() {
               : provider.id === "shopee"
                 ? shopeeConfigured()
                 : false,
+        issue: issues.get(provider.id),
         connections: connections.filter((connection) => connection.provider === provider.id),
       })),
     });
@@ -81,6 +96,16 @@ export async function DELETE(req: NextRequest) {
     if (id.startsWith("tiktok_shop:")) {
       await removeTiktokShop(id.slice("tiktok_shop:".length));
       return NextResponse.json({ ok: true });
+    }
+    if (id.startsWith("shopee:")) {
+      const removed = await removeLocalShopeeConnection(dbTransaction, currentWorkspaceId(), id);
+      if (!removed) {
+        return NextResponse.json(
+          { error: "Conexão Shopee não encontrada neste workspace.", code: "CONNECTION_NOT_FOUND" },
+          { status: 404 },
+        );
+      }
+      return NextResponse.json({ ok: true, localOnly: true, marketplaceAccessRevoked: false });
     }
     if (!id.startsWith("mercado_livre:")) {
       return NextResponse.json({ error: "Esta conexão deve ser removida pelo gerenciador específico do canal." }, { status: 400 });

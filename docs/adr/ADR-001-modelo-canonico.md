@@ -5,7 +5,7 @@
 
 ## Contexto
 
-Cada marketplace (Amazon, Mercado Livre, e futuros Shopee/TikTok) tem uma API com
+Cada marketplace (Amazon, Mercado Livre, Shopee e TikTok) tem uma API com
 semântica própria de pedido, taxa e frete. Precisávamos decidir como armazenar isso
 para que dashboard, monitor, radar e lucro funcionassem igual para todo canal, e para
 que **adicionar um canal novo** não fosse um projeto do zero.

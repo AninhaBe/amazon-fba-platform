@@ -2,9 +2,9 @@ import { dbQuery, hasDb } from "../db";
 import { currentWorkspaceId } from "../workspaceScope";
 import { getCosts, costAt } from "../costStore";
 import { allocateByWeight, calculateContribution, type ProfitabilityLine } from "../profitability";
-import { brazilDateKey } from "./mercadoLivre";
 import { REVENUE_STATUSES } from "./canonical";
-import type { IntegrationConnection } from "./types";
+import { getShopeeTaxRateSetting, normalizeShopeeTaxRate } from "./shopeeSettings";
+import type { IntegrationConnection, IntegrationProvider } from "./types";
 
 // Overview da Shopee servido pelo modelo canônico (docs/canonical-schema.md).
 //
@@ -19,9 +19,18 @@ import type { IntegrationConnection } from "./types";
 //      mexer num cálculo já validado ao centavo.
 
 const PROVIDER = "shopee";
-const DETAILED_ORDER_LIMIT = 1_000;
+const DEFAULT_DETAILED_ORDER_LIMIT = 100;
 const REVENUE = [...REVENUE_STATUSES];
 const COVERAGE_TOLERANCE_MS = 15 * 60_000;
+
+function brazilDateKey(date: Date | string): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(typeof date === "string" ? new Date(date) : date);
+}
 
 export interface ShopeePeriod {
   from: Date;
@@ -57,6 +66,8 @@ interface AggRow {
   fees: string | null;
   seller_shipping: string | null;
   orders_with_fees: number;
+  ads: string | null; taxes_withheld: string | null; refunds: string | null;
+  orders_with_shipping: number; orders_with_ads: number; orders_with_taxes_withheld: number; orders_with_refunds: number;
 }
 
 interface CogsRow {
@@ -99,6 +110,9 @@ interface DetailedLineRow {
   unit_price: string;
   commission: string | null;
   seller_shipping: string | null;
+  ads: string | null; taxes_withheld: string | null; refunds: string | null;
+  fees_known: boolean; shipping_known: boolean; ads_known: boolean; taxes_withheld_known: boolean; refunds_known: boolean;
+  financial_settled: boolean;
 }
 
 interface CatalogRow {
@@ -122,19 +136,33 @@ function shopeeCostEntry(
   costs: Awaited<ReturnType<typeof getCosts>>,
   connectionId: string,
   productId: string,
-  sku?: string | null
+  sku?: string | null,
+  namespace = "shopee"
 ) {
-  const preferred = costs[shopeeCostId(connectionId, productId, sku)];
+  const preferred = costs[`${namespace}:${connectionId}:${sku ? `sku:${sku}` : `item:${productId}`}`];
   if (preferred) return preferred;
   if (!sku) return undefined;
   return Object.values(costs).find(
-    (entry) => entry.sku === sku && entry.id.startsWith(`shopee:${connectionId}:`)
+    (entry) => entry.sku === sku && entry.id.startsWith(`${namespace}:${connectionId}:`)
   );
 }
 
-export function shopeeTaxRate(connection: IntegrationConnection): number {
-  const value = Number(connection.metadata?.taxRate ?? 0);
-  return Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : 0;
+export function shopeeTaxRate(connection: IntegrationConnection): number | null {
+  const raw = connection.metadata?.taxRate;
+  if (raw == null) return null;
+
+  let value: number;
+  if (typeof raw === "number") {
+    value = raw;
+  } else if (typeof raw === "string") {
+    const normalized = raw.trim();
+    if (!normalized || !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(normalized)) return null;
+    value = Number(normalized);
+  } else {
+    return null;
+  }
+
+  return Number.isFinite(value) && value >= 0 && value <= 100 ? value : null;
 }
 
 export interface ShopeeOverview {
@@ -153,17 +181,21 @@ export interface ShopeeOverview {
     revenueCoverage: { capturedOrders: number; totalOrders: number; complete: boolean };
   };
   profit: {
-    fees: number;
-    cogs: number;
-    taxes: number;
-    taxRate: number;
-    sellerShipping: number;
-    buyerShipping: number;
+    fees: number | null;
+    ads: number | null;
+    taxesWithheld: number | null;
+    refunds: number | null;
+    cogs: number | null;
+    taxes: number | null;
+    taxRate: number | null;
+    taxRateKnown: boolean;
+    sellerShipping: number | null;
+    buyerShipping: number | null;
     feesComplete: boolean;
     revenueProcessed: number;
     coverage: { processedOrders: number; paidOrders: number; complete: boolean };
-    estimatedProfit: number;
-    marginPct: number;
+    estimatedProfit: number | null;
+    marginPct: number | null;
     unitsWithoutCost: number;
   };
   dailySales: Array<{ date: string; revenue: number; orders: number; units: number }>;
@@ -177,30 +209,69 @@ export interface ShopeeOverview {
     status: "out" | "critical" | "ok";
   }>;
   profitabilityLines: ProfitabilityLine[];
+  profitabilityPage: {
+    limit: number; offset: number; totalOrders: number; returnedOrders: number;
+    hasMore: boolean; complete: boolean;
+  };
   recentOrders: Array<{
     id: string; status: string; createdAt: string; total: number; currency: string; items: number;
   }>;
 }
 
-function scopeParams(connectionId: string, period: ShopeePeriod): unknown[] {
-  return [currentWorkspaceId(), PROVIDER, connectionId, period.from, period.to];
+function scopeParams(
+  workspaceId: string,
+  connectionId: string,
+  period: ShopeePeriod,
+  provider: IntegrationProvider
+): unknown[] {
+  return [workspaceId, provider, connectionId, period.from, period.to];
+}
+
+export interface CanonicalOverviewOptions {
+  provider?: IntegrationProvider;
+  costNamespace?: string;
+  fulfillmentLabel?: string;
+  taxRateKnown?: boolean;
+  query?: typeof dbQuery;
+  costs?: Awaited<ReturnType<typeof getCosts>>;
+  workspaceId?: string;
+  detailPage?: { limit: number; offset: number };
+  /** Injeção explícita para testes; produção lê workspace_settings por conexão. */
+  taxRate?: unknown;
 }
 
 export async function getShopeeOverviewFromCanonical(
   connection: IntegrationConnection,
-  period: ShopeePeriod
+  period: ShopeePeriod,
+  options: CanonicalOverviewOptions = {}
 ): Promise<ShopeeOverview | null> {
-  if (!hasDb()) return null;
-  const workspaceId = currentWorkspaceId();
+  const query = options.query ?? dbQuery;
+  if (!options.query && !hasDb()) return null;
+  const workspaceId = options.workspaceId ?? currentWorkspaceId();
+  const provider = options.provider ?? PROVIDER;
+  const costNamespace = options.costNamespace ?? "shopee";
+  const fulfillmentLabel = options.fulfillmentLabel ?? "Shopee";
+  const hasTaxRateOverride = Object.prototype.hasOwnProperty.call(options, "taxRate");
+  const configuredTaxRatePromise = hasTaxRateOverride
+    ? Promise.resolve(normalizeShopeeTaxRate(options.taxRate))
+    : getShopeeTaxRateSetting(query, workspaceId, connection.id);
+  // O override pode tornar uma alíquota configurada deliberadamente desconhecida,
+  // mas nunca converte ausência em zero conhecido.
+  const detailPage = options.detailPage ?? { limit: DEFAULT_DETAILED_ORDER_LIMIT, offset: 0 };
+  if (!Number.isInteger(detailPage.limit) || detailPage.limit < 1 || detailPage.limit > 100
+    || !Number.isInteger(detailPage.offset) || detailPage.offset < 0) {
+    throw new RangeError("Paginação do detalhe financeiro inválida.");
+  }
 
-  const [syncRows, totalsRows] = await Promise.all([
-    dbQuery<SyncMetaRow>(
+  const [configuredTaxRate, syncRows, totalsRows] = await Promise.all([
+    configuredTaxRatePromise,
+    query<SyncMetaRow>(
       `SELECT covered_from, covered_to, products_synced_at, products_total, active_products, products_complete
          FROM workspace_marketplace_syncs
         WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
-      [workspaceId, PROVIDER, connection.id]
+      [workspaceId, provider, connection.id]
     ),
-    dbQuery<TotalsRow>(
+    query<TotalsRow>(
       `SELECT COUNT(*)::int AS total_orders,
               COUNT(*) FILTER (WHERE status = ANY($6::text[]))::int AS paid_orders,
               SUM(gross) FILTER (WHERE status = ANY($6::text[])) AS paid_revenue,
@@ -211,9 +282,10 @@ export async function getShopeeOverviewFromCanonical(
          FROM workspace_channel_orders
         WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
           AND occurred_at >= $4 AND occurred_at <= $5`,
-      [...scopeParams(connection.id, period), REVENUE]
+      [...scopeParams(workspaceId, connection.id, period, provider), REVENUE]
     ),
   ]);
+  const taxRateKnown = configuredTaxRate != null && (options.taxRateKnown ?? true);
 
   const syncRow = syncRows[0];
   const totals = totalsRows[0];
@@ -222,7 +294,7 @@ export async function getShopeeOverviewFromCanonical(
 
   const [dailyRows, recentRows, productTotalsRows, lineRows, catalogRows, costs, aggRows, cogsRows] =
     await Promise.all([
-      dbQuery<DailyRow>(
+      query<DailyRow>(
         `SELECT to_char(o.occurred_at AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD') AS date,
                 SUM(o.gross) AS revenue,
                 COUNT(*)::int AS orders,
@@ -236,9 +308,9 @@ export async function getShopeeOverviewFromCanonical(
           WHERE o.workspace_id = $1 AND o.provider = $2 AND o.connection_id = $3
             AND o.occurred_at >= $4 AND o.occurred_at <= $5 AND o.status = ANY($6::text[])
           GROUP BY 1`,
-        [...scopeParams(connection.id, period), REVENUE]
+        [...scopeParams(workspaceId, connection.id, period, provider), REVENUE]
       ),
-      dbQuery<RecentRow>(
+      query<RecentRow>(
         `SELECT o.external_order_id, o.provider_status, o.occurred_at, o.gross, o.currency,
                 COALESCE((SELECT SUM(i.qty)::int FROM workspace_channel_order_items i
                            WHERE i.workspace_id = o.workspace_id AND i.provider = o.provider
@@ -248,9 +320,9 @@ export async function getShopeeOverviewFromCanonical(
             AND o.occurred_at >= $4 AND o.occurred_at <= $5
           ORDER BY o.occurred_at DESC
           LIMIT 10`,
-        scopeParams(connection.id, period)
+        scopeParams(workspaceId, connection.id, period, provider)
       ),
-      dbQuery<ProductTotalsRow>(
+      query<ProductTotalsRow>(
         `SELECT i.external_product_id, i.sku, MIN(i.title) AS title,
                 SUM(i.qty)::int AS units, SUM(i.qty * i.unit_price) AS revenue
            FROM workspace_channel_order_items i
@@ -260,21 +332,34 @@ export async function getShopeeOverviewFromCanonical(
           WHERE i.workspace_id = $1 AND i.provider = $2 AND i.connection_id = $3
             AND o.occurred_at >= $4 AND o.occurred_at <= $5 AND o.status = ANY($6::text[])
           GROUP BY i.external_product_id, i.sku`,
-        [...scopeParams(connection.id, period), REVENUE]
+        [...scopeParams(workspaceId, connection.id, period, provider), REVENUE]
       ),
-      dbQuery<DetailedLineRow>(
+      query<DetailedLineRow>(
         `WITH detailed AS (
-           SELECT external_order_id, occurred_at, provider_status, currency, gross, buyer_shipping, fulfillment
+           SELECT external_order_id, occurred_at, provider_status, currency, gross, buyer_shipping, fulfillment,
+                  COALESCE((raw #>> '{_sellercore,financialEvidence,fees}')::boolean, false) AS fees_known,
+                  COALESCE((raw #>> '{_sellercore,financialEvidence,sellerShipping}')::boolean, false) AS shipping_known,
+                  COALESCE((raw #>> '{_sellercore,financialEvidence,ads}')::boolean, false) AS ads_known,
+                  COALESCE((raw #>> '{_sellercore,financialEvidence,taxesWithheld}')::boolean, false) AS taxes_withheld_known,
+                  COALESCE((raw #>> '{_sellercore,financialEvidence,refunds}')::boolean, false) AS refunds_known,
+                  COALESCE(raw #>> '{_sellercore,shopeeEscrowSettled}', 'false') = 'true' AS financial_settled
              FROM workspace_channel_orders
             WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
               AND occurred_at >= $4 AND occurred_at <= $5 AND status = ANY($6::text[])
+              AND EXISTS (SELECT 1 FROM workspace_channel_order_items di
+                           WHERE di.workspace_id = workspace_channel_orders.workspace_id
+                             AND di.provider = workspace_channel_orders.provider
+                             AND di.connection_id = workspace_channel_orders.connection_id
+                             AND di.external_order_id = workspace_channel_orders.external_order_id)
             ORDER BY occurred_at DESC
-            LIMIT $7
+            LIMIT $7 OFFSET $8
          )
          SELECT d.external_order_id, d.occurred_at, d.provider_status, d.currency, d.gross,
-                d.buyer_shipping, d.fulfillment,
+                d.buyer_shipping, d.fulfillment, d.financial_settled, d.fees_known, d.shipping_known,
+                d.ads_known, d.taxes_withheld_known, d.refunds_known,
                 i.line_no, i.external_product_id, i.sku, i.title, i.qty, i.unit_price,
-                fc.amount AS commission, fs.amount AS seller_shipping
+                fc.amount AS commission, fs.amount AS seller_shipping, fa.amount AS ads,
+                ft.amount AS taxes_withheld, fr.amount AS refunds
            FROM detailed d
            JOIN workspace_channel_order_items i
              ON i.workspace_id = $1 AND i.provider = $2 AND i.connection_id = $3
@@ -291,19 +376,25 @@ export async function getShopeeOverviewFromCanonical(
                 AND f.external_order_id = d.external_order_id
                 AND f.fee_type IN ('shipping_seller', 'fulfillment')
            ) fs ON true
+           LEFT JOIN LATERAL (SELECT SUM(amount) AS amount FROM workspace_channel_order_fees f WHERE f.workspace_id=$1 AND f.provider=$2 AND f.connection_id=$3 AND f.external_order_id=d.external_order_id AND f.fee_type='ads') fa ON true
+           LEFT JOIN LATERAL (SELECT SUM(amount) AS amount FROM workspace_channel_order_fees f WHERE f.workspace_id=$1 AND f.provider=$2 AND f.connection_id=$3 AND f.external_order_id=d.external_order_id AND f.fee_type='taxes_withheld') ft ON true
+           LEFT JOIN LATERAL (SELECT SUM(amount) AS amount FROM workspace_channel_order_fees f WHERE f.workspace_id=$1 AND f.provider=$2 AND f.connection_id=$3 AND f.external_order_id=d.external_order_id AND f.fee_type='refund') fr ON true
           ORDER BY d.occurred_at DESC, d.external_order_id, i.line_no`,
-        [...scopeParams(connection.id, period), REVENUE, DETAILED_ORDER_LIMIT]
+        [...scopeParams(workspaceId, connection.id, period, provider), REVENUE, detailPage.limit, detailPage.offset]
       ),
-      dbQuery<CatalogRow>(
+      query<CatalogRow>(
         `SELECT external_product_id, sku, title, status, price, available_qty, thumbnail, permalink, synced_at
            FROM workspace_channel_products
           WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
-        [workspaceId, PROVIDER, connection.id]
+        [workspaceId, provider, connection.id]
       ),
-      getCosts(),
-      dbQuery<AggRow>(
+      options.costs ?? getCosts(),
+      query<AggRow>(
         `WITH scoped AS (
            SELECT o.gross, o.buyer_shipping,
+                  COALESCE(o.raw #>> '{_sellercore,shopeeEscrowSettled}', 'false') = 'true'
+                    OR COALESCE(o.raw #>> '{_sellercore,statementSettled}', 'false') = 'true'
+                    AS financial_settled,
                   EXISTS (SELECT 1 FROM workspace_channel_order_items i
                            WHERE i.workspace_id = o.workspace_id AND i.provider = o.provider
                              AND i.connection_id = o.connection_id AND i.external_order_id = o.external_order_id) AS has_items,
@@ -314,7 +405,15 @@ export async function getShopeeOverviewFromCanonical(
                   (SELECT SUM(f.amount) FROM workspace_channel_order_fees f
                     WHERE f.workspace_id = o.workspace_id AND f.provider = o.provider
                       AND f.connection_id = o.connection_id AND f.external_order_id = o.external_order_id
-                      AND f.fee_type IN ('shipping_seller', 'fulfillment')) AS seller_shipping
+                    AND f.fee_type IN ('shipping_seller', 'fulfillment')) AS seller_shipping
+                  ,(SELECT SUM(f.amount) FROM workspace_channel_order_fees f WHERE f.workspace_id=o.workspace_id AND f.provider=o.provider AND f.connection_id=o.connection_id AND f.external_order_id=o.external_order_id AND f.fee_type='ads') AS ads
+                  ,(SELECT SUM(f.amount) FROM workspace_channel_order_fees f WHERE f.workspace_id=o.workspace_id AND f.provider=o.provider AND f.connection_id=o.connection_id AND f.external_order_id=o.external_order_id AND f.fee_type='taxes_withheld') AS taxes_withheld
+                  ,(SELECT SUM(f.amount) FROM workspace_channel_order_fees f WHERE f.workspace_id=o.workspace_id AND f.provider=o.provider AND f.connection_id=o.connection_id AND f.external_order_id=o.external_order_id AND f.fee_type='refund') AS refunds
+                  ,COALESCE((o.raw #>> '{_sellercore,financialEvidence,fees}')::boolean, false) AS fees_known
+                  ,COALESCE((o.raw #>> '{_sellercore,financialEvidence,sellerShipping}')::boolean, false) AS shipping_known
+                  ,COALESCE((o.raw #>> '{_sellercore,financialEvidence,ads}')::boolean, false) AS ads_known
+                  ,COALESCE((o.raw #>> '{_sellercore,financialEvidence,taxesWithheld}')::boolean, false) AS taxes_withheld_known
+                  ,COALESCE((o.raw #>> '{_sellercore,financialEvidence,refunds}')::boolean, false) AS refunds_known
              FROM workspace_channel_orders o
             WHERE o.workspace_id = $1 AND o.provider = $2 AND o.connection_id = $3
               AND o.occurred_at >= $4 AND o.occurred_at <= $5 AND o.status = ANY($6::text[])
@@ -324,11 +423,18 @@ export async function getShopeeOverviewFromCanonical(
                 SUM(buyer_shipping) FILTER (WHERE has_items) AS buyer_shipping,
                 SUM(commission) FILTER (WHERE has_items) AS fees,
                 SUM(seller_shipping) FILTER (WHERE has_items) AS seller_shipping,
-                COUNT(*) FILTER (WHERE has_items AND commission IS NOT NULL)::int AS orders_with_fees
+                SUM(ads) FILTER (WHERE has_items) AS ads,
+                SUM(taxes_withheld) FILTER (WHERE has_items) AS taxes_withheld,
+                SUM(refunds) FILTER (WHERE has_items) AS refunds,
+                COUNT(*) FILTER (WHERE has_items AND fees_known)::int AS orders_with_fees,
+                COUNT(*) FILTER (WHERE has_items AND shipping_known)::int AS orders_with_shipping,
+                COUNT(*) FILTER (WHERE has_items AND ads_known)::int AS orders_with_ads,
+                COUNT(*) FILTER (WHERE has_items AND taxes_withheld_known)::int AS orders_with_taxes_withheld,
+                COUNT(*) FILTER (WHERE has_items AND refunds_known)::int AS orders_with_refunds
            FROM scoped`,
-        [...scopeParams(connection.id, period), REVENUE]
+        [...scopeParams(workspaceId, connection.id, period, provider), REVENUE]
       ),
-      dbQuery<CogsRow>(
+      query<CogsRow>(
         `SELECT i.external_product_id, i.sku,
                 MIN(o.occurred_at) AS occurred_at,
                 SUM(i.qty)::int AS qty
@@ -340,11 +446,11 @@ export async function getShopeeOverviewFromCanonical(
             AND o.occurred_at >= $4 AND o.occurred_at <= $5 AND o.status = ANY($6::text[])
           GROUP BY i.external_product_id, i.sku,
                    to_char(o.occurred_at AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD')`,
-        [...scopeParams(connection.id, period), REVENUE]
+        [...scopeParams(workspaceId, connection.id, period, provider), REVENUE]
       ),
     ]);
 
-  const taxRate = shopeeTaxRate(connection);
+  const taxRate = configuredTaxRate;
   const currency = totals.currency ?? "BRL";
   const revenue = Number(totals.paid_revenue ?? 0);
 
@@ -371,19 +477,22 @@ export async function getShopeeOverviewFromCanonical(
   }
 
   const agg = aggRows[0];
-  const fees = Number(agg?.fees ?? 0);
-  const sellerShipping = +Number(agg?.seller_shipping ?? 0).toFixed(2);
-  const buyerShipping = +Number(agg?.buyer_shipping ?? 0).toFixed(2);
   const processedRevenue = Number(agg?.processed_revenue ?? 0);
   const ordersProcessed = agg?.orders_processed ?? 0;
   const ordersWithFees = agg?.orders_with_fees ?? 0;
+  const allKnown = (known: number | undefined) => (known ?? 0) >= ordersProcessed;
+  const fees = allKnown(agg?.orders_with_fees) ? Number(agg?.fees ?? 0) : null;
+  const sellerShipping = allKnown(agg?.orders_with_shipping) ? +Number(agg?.seller_shipping ?? 0).toFixed(2) : null;
+  const ads = allKnown(agg?.orders_with_ads) ? +Number(agg?.ads ?? 0).toFixed(2) : null;
+  const taxesWithheld = allKnown(agg?.orders_with_taxes_withheld) ? +Number(agg?.taxes_withheld ?? 0).toFixed(2) : null;
+  const refunds = allKnown(agg?.orders_with_refunds) ? +Number(agg?.refunds ?? 0).toFixed(2) : null;
+  const buyerShipping = ordersProcessed === 0 || agg?.buyer_shipping != null ? +Number(agg?.buyer_shipping ?? 0).toFixed(2) : null;
 
   let cogs = 0;
   let unitsWithoutCost = 0;
   for (const row of cogsRows) {
-    const entry = shopeeCostEntry(costs, connection.id, row.external_product_id, row.sku);
-    const unitCost = entry ? costAt(entry, new Date(row.occurred_at).toISOString()) : 0;
-    if (unitCost > 0) cogs += unitCost * row.qty;
+    const entry = shopeeCostEntry(costs, connection.id, row.external_product_id, row.sku, costNamespace);
+    if (entry) cogs += costAt(entry, new Date(row.occurred_at).toISOString()) * row.qty;
     else unitsWithoutCost += row.qty;
   }
 
@@ -392,9 +501,10 @@ export async function getShopeeOverviewFromCanonical(
     const order = lines[0];
     // Na Shopee a tarifa real vem do escrow, que só fecha após o pagamento:
     // enquanto não chega, a linha fica marcada como incompleta em vez de virar zero.
-    const feesKnown = order.commission != null;
-    const shippingKnown = order.seller_shipping != null;
-    const orderFees = Number(order.commission ?? 0);
+    const feesKnown = order.fees_known && order.ads_known && order.taxes_withheld_known && order.refunds_known;
+    const shippingKnown = order.shipping_known;
+    const orderFees = Number(order.commission ?? 0) + Number(order.ads ?? 0)
+      + Number(order.taxes_withheld ?? 0) + Number(order.refunds ?? 0);
     const orderSellerShipping = Number(order.seller_shipping ?? 0);
     const orderBuyerShipping = order.buyer_shipping == null ? null : Number(order.buyer_shipping);
 
@@ -405,15 +515,15 @@ export async function getShopeeOverviewFromCanonical(
 
     lines.forEach((line, index) => {
       const lineRevenue = line.qty * Number(line.unit_price);
-      const entry = shopeeCostEntry(costs, connection.id, line.external_product_id, line.sku);
+      const entry = shopeeCostEntry(costs, connection.id, line.external_product_id, line.sku, costNamespace);
       const occurredAt = new Date(line.occurred_at).toISOString();
-      const unitCost = entry ? costAt(entry, occurredAt) : 0;
+      const unitCost = entry ? costAt(entry, occurredAt) : null;
       const lineFees = feesKnown ? feeShares[index] : null;
       const lineSellerShipping = shippingKnown ? sellerShares[index] : null;
       const lineBuyerShipping = orderBuyerShipping == null ? null : buyerShares[index];
-      const lineTax = lineRevenue * taxRate / 100;
-      const lineProductCost = unitCost > 0 ? unitCost * line.qty : null;
-      const complete = lineFees != null && lineSellerShipping != null;
+      const lineTax = taxRateKnown ? lineRevenue * taxRate! / 100 : null;
+      const lineProductCost = unitCost == null ? null : unitCost * line.qty;
+      const complete = lineFees != null && lineSellerShipping != null && lineTax != null;
       const lineResult = complete
         ? calculateContribution({ revenue: lineRevenue, productCost: lineProductCost, marketplaceFees: lineFees, sellerShipping: lineSellerShipping, tax: lineTax })
         : { contribution: null, marginPct: null, complete: false };
@@ -422,7 +532,7 @@ export async function getShopeeOverviewFromCanonical(
       const current = productTotals.get(key)
         ?? { id: line.external_product_id, sku: line.sku, title: line.title, units: 0, revenue: 0, processedRevenue: 0, cost: 0, contribution: 0, calculationsComplete: true };
       current.processedRevenue += lineRevenue;
-      current.cost += unitCost * line.qty;
+      current.cost += lineProductCost ?? 0;
       current.contribution += lineResult.contribution ?? 0;
       current.calculationsComplete = current.calculationsComplete && lineResult.complete;
       productTotals.set(key, current);
@@ -434,7 +544,7 @@ export async function getShopeeOverviewFromCanonical(
         sku: line.sku,
         date: occurredAt,
         status: order.provider_status,
-        fulfillment: order.fulfillment === "platform" ? "Shopee" : null,
+        fulfillment: order.fulfillment === "platform" ? fulfillmentLabel : null,
         unitPrice: Number(line.unit_price),
         quantity: line.qty,
         revenue: lineRevenue,
@@ -455,14 +565,21 @@ export async function getShopeeOverviewFromCanonical(
     });
   }
 
-  const taxes = processedRevenue * taxRate / 100;
-  const estimatedProfit = processedRevenue - fees - cogs - taxes - sellerShipping;
+  const taxes = taxRateKnown ? processedRevenue * taxRate! / 100 : null;
 
   const coveredFrom = syncRow.covered_from ? new Date(syncRow.covered_from).getTime() : Number.POSITIVE_INFINITY;
   const coveredTo = syncRow.covered_to ? new Date(syncRow.covered_to).getTime() : 0;
   const periodCovered = coveredFrom <= period.from.getTime()
     && coveredTo + COVERAGE_TOLERANCE_MS >= period.to.getTime()
     && !!syncRow.products_synced_at;
+  const cogsKnown = unitsWithoutCost === 0;
+  const financialComplete = periodCovered && ordersProcessed >= totals.paid_orders && cogsKnown
+    && [fees, sellerShipping, ads, taxesWithheld, refunds, taxes].every((value) => value != null);
+  const cogsValue = cogsKnown ? cogs : null;
+  const estimatedProfit = financialComplete
+    ? processedRevenue - fees! - cogsValue! - taxes! - sellerShipping! - ads! - taxesWithheld! - refunds!
+    : null;
+  const marginPct = estimatedProfit != null && processedRevenue > 0 ? (estimatedProfit / processedRevenue) * 100 : null;
 
   const daily = new Map(dailyRows.map((row) => [row.date, { date: row.date, revenue: Number(row.revenue), orders: row.orders, units: row.units }]));
   const dailySales: ShopeeOverview["dailySales"] = [];
@@ -482,7 +599,7 @@ export async function getShopeeOverviewFromCanonical(
     status: row.status,
     price: Number(row.price),
     availableQuantity: row.available_qty,
-    cost: shopeeCostEntry(costs, connection.id, row.external_product_id, row.sku)?.cost ?? null,
+    cost: shopeeCostEntry(costs, connection.id, row.external_product_id, row.sku, costNamespace)?.cost ?? null,
   }));
 
   const stockRadar = catalog
@@ -521,7 +638,7 @@ export async function getShopeeOverviewFromCanonical(
     period: { from: period.from.toISOString(), to: period.to.toISOString(), label: period.label },
     metrics: {
       activeListings: catalog.filter((product) => product.status === "active").length,
-      productsWithoutCost: catalog.filter((product) => product.cost == null || product.cost <= 0).length,
+      productsWithoutCost: catalog.filter((product) => product.cost == null).length,
       orders30d: totals.total_orders,
       paidOrders: totals.paid_orders,
       revenue30d: revenue,
@@ -533,16 +650,20 @@ export async function getShopeeOverviewFromCanonical(
     },
     profit: {
       fees,
-      cogs,
+      ads,
+      taxesWithheld,
+      refunds,
+      cogs: cogsValue,
       taxes,
       taxRate,
+      taxRateKnown,
       sellerShipping,
       buyerShipping,
-      feesComplete: periodCovered && ordersWithFees >= ordersProcessed,
+      feesComplete: periodCovered && allKnown(ordersWithFees),
       revenueProcessed: processedRevenue,
-      coverage: { processedOrders: ordersProcessed, paidOrders: totals.paid_orders, complete: periodCovered && ordersProcessed >= totals.paid_orders },
+      coverage: { processedOrders: ordersProcessed, paidOrders: totals.paid_orders, complete: financialComplete },
       estimatedProfit,
-      marginPct: processedRevenue > 0 ? (estimatedProfit / processedRevenue) * 100 : 0,
+      marginPct,
       unitsWithoutCost,
     },
     dailySales,
@@ -565,6 +686,14 @@ export async function getShopeeOverviewFromCanonical(
         };
       }),
     profitabilityLines,
+    profitabilityPage: {
+      limit: detailPage.limit,
+      offset: detailPage.offset,
+      totalOrders: ordersProcessed,
+      returnedOrders: linesByOrder.size,
+      hasMore: detailPage.offset + linesByOrder.size < ordersProcessed,
+      complete: detailPage.offset === 0 && linesByOrder.size >= ordersProcessed,
+    },
     recentOrders: recentRows.map((row) => ({
       id: row.external_order_id,
       status: row.provider_status,

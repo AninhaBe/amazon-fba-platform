@@ -4,17 +4,34 @@ import { useEffect, useRef, useState } from "react";
 
 export type DashboardPeriodOption = "today" | "7" | "15" | "30" | "custom";
 
-export function useDashboardPeriod() {
-  const [selected, setSelected] = useState<DashboardPeriodOption>("30");
-  const [query, setQuery] = useState("days=30");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+export function useDashboardPeriod(initialQuery = "", onQueryChange?: (query: string) => void) {
+  const initial = new URLSearchParams(initialQuery);
+  const hasCustomPeriod = Boolean(initial.get("from") && initial.get("to"));
+  const [selected, setSelected] = useState<DashboardPeriodOption>(hasCustomPeriod ? "custom" : "30");
+  const [query, setQuery] = useState(hasCustomPeriod ? new URLSearchParams({ from: initial.get("from")!, to: initial.get("to")! }).toString() : "days=30");
+  const [from, setFrom] = useState(hasCustomPeriod ? initial.get("from")! : "");
+  const [to, setTo] = useState(hasCustomPeriod ? initial.get("to")! : "");
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // URL is an external source of truth; navigation (including popstate) must replace the draft.
+    const current = new URLSearchParams(initialQuery);
+    const nextFrom = current.get("from") ?? "";
+    const nextTo = current.get("to") ?? "";
+    if (nextFrom && nextTo) {
+      queueMicrotask(() => { setSelected("custom"); setFrom(nextFrom); setTo(nextTo); setQuery(new URLSearchParams({ from: nextFrom, to: nextTo }).toString()); setError(null); }); return;
+    }
+    const days = current.get("days");
+    if (days === "today" || days === "7" || days === "15" || days === "30") {
+      queueMicrotask(() => { setSelected(days); setFrom(""); setTo(""); setQuery(`days=${days}`); setError(null); });
+    }
+  }, [initialQuery]);
 
   function selectPreset(value: Exclude<DashboardPeriodOption, "custom">) {
     setSelected(value);
     setError(null);
     setQuery(`days=${value}`);
+    onQueryChange?.(`days=${value}`);
   }
 
   function selectCustom() {
@@ -38,7 +55,9 @@ export function useDashboardPeriod() {
       return;
     }
     setError(null);
-    setQuery(new URLSearchParams({ from, to }).toString());
+    const nextQuery = new URLSearchParams({ from, to }).toString();
+    setQuery(nextQuery);
+    onQueryChange?.(nextQuery);
   }
 
   return {

@@ -1,0 +1,48 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+<title>TikTok Shop — Endpoints de leitura</title>
+<style>
+@page{size:A4;margin:13mm}*{box-sizing:border-box}body{margin:0;color:#172033;font:10px/1.4 Arial,sans-serif}header{padding:18px 20px;color:#fff;background:#172033;border-radius:10px}header small{color:#8ff1dc;font-weight:700;text-transform:uppercase;letter-spacing:.12em}h1{margin:5px 0;font-size:23px}h2{margin:18px 0 7px;font-size:15px}.scopes{display:grid;grid-template-columns:1fr 1fr;gap:5px}.scopes span{padding:7px;border:1px solid #dce3ed;border-radius:6px;background:#f7f9fc;font:9px Consolas,monospace}.note,.priority,.security{padding:9px 11px;border-radius:7px}.note{margin:9px 0;background:#effaf7;border-left:3px solid #18a78a}table{width:100%;border-collapse:collapse;table-layout:fixed}th{padding:6px;color:#fff;background:#28354d;text-align:left;font-size:8px}td{padding:6px;border-bottom:1px solid #dfe5ee;vertical-align:top}tr{break-inside:avoid}tr:nth-child(even){background:#f7f9fc}.n{width:5%;text-align:center}.ep{width:35%;font:8px/1.35 Consolas,monospace;overflow-wrap:anywhere}.d{width:45%}.s{width:15%;font-size:8px;font-weight:700}.ok{color:#08765f}.next{color:#8a5b00}ol{columns:2;padding-left:20px}li{margin-bottom:6px;break-inside:avoid}.priority{background:#f4fcfa;border:1px solid #bcebdd;font-size:11px}.security{background:#fff8e8;color:#6f4400}footer{margin-top:14px;padding-top:8px;border-top:1px solid #ddd;color:#697487;font-size:8px}
+</style></head><body>
+<header><small>SellerCore · Integração somente leitura</small><h1>TikTok Shop — endpoints e dados disponíveis</h1><p>Consultas autorizadas e próximas visualizações que podem entrar no aplicativo sem modificar produtos, pedidos ou configurações da conta TikTok.</p></header>
+<h2>Escopos autorizados</h2><div class="scopes"><span>seller.authorization.info</span><span>seller.order.info</span><span>seller.finance.info</span><span>seller.product.basic</span></div>
+<p class="note"><strong>Importante:</strong> endpoints <code>POST .../search</code> são consultas. O corpo serve apenas para filtros e paginação; nada na loja é alterado.</p>
+<h2>Endpoints disponíveis agora</h2>
+<table><thead><tr><th class="n">#</th><th class="ep">Endpoint</th><th class="d">O que pode ser consultado</th><th class="s">Estado</th></tr></thead><tbody>
+<tr><td class="n">1</td><td class="ep">GET /authorization/202309/shops</td><td>Nome, ID, região, tipo e identificador seguro da loja.</td><td class="s ok">Funcionando</td></tr>
+<tr><td class="n">2</td><td class="ep">POST /order/202309/orders/search</td><td>Pedidos por período, status, criação, atualização e paginação.</td><td class="s ok">Funcionando</td></tr>
+<tr><td class="n">3</td><td class="ep">GET /order/202507/orders</td><td>Itens, SKUs, quantidades, preços, descontos, frete, pagamento, status, fulfillment e pacotes.</td><td class="s ok">Funcionando</td></tr>
+<tr><td class="n">4</td><td class="ep">GET /finance/202501/orders/{order_id}/statement_transactions</td><td>Receita, comissão, taxas, frete, descontos, reembolsos e líquido por pedido e SKU.</td><td class="s ok">Funcionando</td></tr>
+<tr><td class="n">5</td><td class="ep">POST /product/202502/products/search</td><td>Catálogo, produto/SKU, preço, status e dados resumidos.</td><td class="s ok">Funcionando</td></tr>
+<tr><td class="n">6</td><td class="ep">GET /product/202309/products/{product_id}</td><td>Título, descrição, imagens, marca, categoria, variações, preços, estoque, dimensões e auditoria.</td><td class="s next">Pode adicionar</td></tr>
+<tr><td class="n">7</td><td class="ep">POST /product/202309/inventory/search</td><td>Estoque por produto/SKU e distribuição entre loja, campanhas e criadores.</td><td class="s next">Pode adicionar</td></tr>
+<tr><td class="n">8</td><td class="ep">GET /finance/202309/statements</td><td>Extratos diários: receita, taxas, ajustes, frete, líquido e situação do pagamento.</td><td class="s next">Pode adicionar</td></tr>
+<tr><td class="n">9</td><td class="ep">GET /finance/202501/statements/{statement_id}/statement_transactions</td><td>Pedidos e ajustes que compõem um extrato específico.</td><td class="s next">Pode adicionar</td></tr>
+<tr><td class="n">10</td><td class="ep">GET /finance/202605/payments</td><td>Repasses, valor, moeda, situação e data para conciliação bancária.</td><td class="s next">Pode adicionar</td></tr>
+<tr><td class="n">11</td><td class="ep">GET /finance/202507/orders/unsettled</td><td>Previsões de taxas e ajustes não liquidados; estimativas, nunca valores finais.</td><td class="s next">Pode adicionar</td></tr>
+<tr><td class="n">12</td><td class="ep">GET /product/202309/categories</td><td>Árvore de categorias do Brasil, inclusive categorias proibidas.</td><td class="s next">Pode adicionar</td></tr>
+<tr><td class="n">13</td><td class="ep">GET /product/202309/categories/{category_id}/attributes</td><td>Atributos obrigatórios e opcionais da categoria.</td><td class="s next">Pode adicionar</td></tr>
+<tr><td class="n">14</td><td class="ep">GET /product/202309/categories/{category_id}/rules</td><td>Certificações, documentos, dimensões e regras adicionais.</td><td class="s next">Pode adicionar</td></tr>
+<tr><td class="n">15</td><td class="ep">GET Brands</td><td>Marcas disponíveis, autorizações e categorias de uso.</td><td class="s next">Pode adicionar</td></tr>
+<tr><td class="n">16</td><td class="ep">GET /product/202312/prerequisites</td><td>Pendências que impedem listar produtos, como configuração de frete.</td><td class="s next">Pode adicionar</td></tr>
+<tr><td class="n">17</td><td class="ep">POST Recommend Category</td><td>Sugestão de categoria a partir das informações do produto.</td><td class="s next">Pode adicionar</td></tr>
+<tr><td class="n">18</td><td class="ep">Product diagnosis / SEO</td><td>Qualidade, auditoria, SEO, título e descrição recomendados.</td><td class="s next">Pode adicionar</td></tr>
+<tr><td class="n">19</td><td class="ep">Product Opportunities</td><td>Oportunidades e situação de produtos submetidos; sujeito à disponibilidade no Brasil.</td><td class="s next">Validar região</td></tr>
+</tbody></table>
+<h2>Visualizações que podem entrar no aplicativo</h2>
+<ol>
+<li><strong>Vendas:</strong> faturamento, unidades, ticket e evolução diária.</li>
+<li><strong>Pedidos:</strong> status, itens, datas e fulfillment.</li>
+<li><strong>Produtos:</strong> imagem, SKU, preço, status e categoria.</li>
+<li><strong>Estoque:</strong> saldo, itens zerados e cobertura em dias.</li>
+<li><strong>Financeiro:</strong> taxas, frete, descontos, reembolsos e líquido.</li>
+<li><strong>Repasses:</strong> extratos e conciliação bancária.</li>
+<li><strong>Auditoria:</strong> cobranças por pedido e SKU.</li>
+<li><strong>Pendências:</strong> anúncios congelados ou reprovados.</li>
+<li><strong>Oportunidades:</strong> catálogo, título e SEO.</li>
+<li><strong>Painel completo:</strong> vendas, estoque, pedidos e financeiro.</li>
+</ol>
+<p class="priority"><strong>Ordem recomendada:</strong> 3 Produtos → 4 Estoque → 5 Financeiro → 6 Repasses → 8 Pendências.</p>
+<h2>Privacidade e segurança</h2>
+<p class="security">O detalhe de pedido pode devolver CPF, nome, e-mail, apelido, avatar e endereço. O SellerCore descarta esses campos. Nenhum endpoint de criação, edição, cancelamento, exclusão ou atualização será utilizado.</p>
+<footer>Documento preparado em 10/08/2026 · Fontes: TikTok Shop Partner Center — Order API, Finance API, Products API e Authorization API.</footer>
+</body></html>

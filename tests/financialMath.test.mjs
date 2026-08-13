@@ -13,10 +13,11 @@ test("calcula COGS e lucro somente com custos confiáveis", () => {
   });
 });
 
-test("custo zero é tratado como ausente para não superestimar confiança", () => {
+test("custo zero explícito é conhecido e entra no cálculo", () => {
   const result = calculateCostCoverage(100, { SKU: 1 }, { SKU: { cost: 0 } });
-  assert.equal(result.unitsWithoutCost, 1);
-  assert.deepEqual(result.skusMissingCost, ["SKU"]);
+  assert.equal(result.unitsWithCost, 1);
+  assert.equal(result.unitsWithoutCost, 0);
+  assert.deepEqual(result.skusMissingCost, []);
 });
 
 test("percentual evita divisão por zero", () => {

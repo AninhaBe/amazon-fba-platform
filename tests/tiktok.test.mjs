@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { tiktokAuthorizationUrl, tiktokConfigured } from "../src/lib/tiktok.ts";
+import { classifyTiktokApiError, tiktokAuthorizationUrl, tiktokConfigured } from "../src/lib/tiktok.ts";
 
 test("monta a autorização ROW com service_id e state", () => {
   const previous = {
@@ -47,4 +47,21 @@ test("recusa autorização sem service_id", () => {
     if (previousAuthUrl === undefined) delete process.env.TIKTOK_AUTH_URL;
     else process.env.TIKTOK_AUTH_URL = previousAuthUrl;
   }
+});
+
+test("classifica token expirado sem propagar mensagem do provedor", () => {
+  const error = classifyTiktokApiError({
+    httpStatus: 401,
+    code: 123,
+    message: "access token has expired: conteúdo interno",
+  });
+  assert.equal(error.code, "REAUTH_REQUIRED");
+  assert.equal(error.message.includes("conteúdo interno"), false);
+});
+
+test("erro comum é sanitizado e continua retryable", () => {
+  const error = classifyTiktokApiError({ code: "50001<script>", message: "detalhe privado" });
+  assert.equal(error.code, undefined);
+  assert.match(error.message, /50001script/);
+  assert.equal(error.message.includes("detalhe privado"), false);
 });

@@ -45,13 +45,17 @@ Recursos opcionais devem ser declarados como capacidades. Uma tela consolidada n
 
 ## Workspaces e navegação
 
-O produto possui três contextos visuais e operacionais:
+O produto possui contextos visuais e operacionais por canal:
 
 - `/`: visão geral, com indicadores normalizados de todos os canais conectados;
 - `/amazon/*`: menu, conta ativa e funcionalidades específicas da Amazon;
 - `/mercado-livre/*`: menu, conta ativa e funcionalidades específicas do Mercado Livre.
+- `/tiktok/*`: overview e módulos canônicos da TikTok Shop por loja conectada;
+- `/shopee/*`: interface e conector implementados, ainda sem validação em loja
+  real enquanto o Go Live depende da Shopee.
 
-O SellerCore mantém tipografia, superfícies e componentes. Cada workspace altera somente o acento de canal: Amazon azul e Mercado Livre amarelo. Shopee e TikTok Shop já possuem tokens reservados para os próximos workspaces.
+O SellerCore mantém tipografia, superfícies e componentes. Cada contexto altera
+somente o acento de canal; TikTok e Shopee possuem seus próprios tokens visuais.
 
 Rotas antigas da Amazon continuam disponíveis durante a migração. Novos links devem apontar para `/amazon/*`.
 
@@ -66,9 +70,15 @@ Variáveis necessárias para habilitar o primeiro conector:
 ```env
 APP_BASE_URL=http://localhost:3000
 INTEGRATION_TOKEN_KEY=<chave aleatória com pelo menos 32 caracteres>
+OAUTH_REFRESH_FINGERPRINT_SECRET=<segredo aleatório independente, mínimo 32 bytes>
 MELI_CLIENT_ID=<app-id do Mercado Livre>
 MELI_CLIENT_SECRET=<secret-key do Mercado Livre>
 ```
+
+`OAUTH_REFRESH_FINGERPRINT_SECRET` chaveia o HMAC-SHA-256 com separação de
+domínio usado para identificar grants na tabela de leases. Nunca use o token,
+seu ciphertext ou hash simples. Ele só é exigido quando uma operação de refresh
+ou limpeza de lease realmente roda; build e testes comuns não dependem dele.
 
 No cadastro do aplicativo, a Redirect URI deve ser exatamente
 `<APP_BASE_URL>/api/integrations/mercado-livre/callback` e o PKCE deve estar habilitado.
@@ -95,7 +105,12 @@ Webhooks aceleram atualizações, mas não substituem reconciliação. A interfa
 
 1. Mercado Livre: OAuth, conta, anúncios e pedidos.
 2. Normalizar o dashboard, Produtos e Monitor sobre `ChannelAdapter`.
-3. Migrar o conector TikTok existente para `integrations`.
+3. ~~Migrar o conector TikTok existente para `integrations`.~~ Concluído:
+   sync, scheduler/cron, leitura canônica e módulos estão implementados; a
+   validação financeira real permanece parcial.
 4. Adicionar webhooks e jobs incrementais.
-5. Implementar Shopee no mesmo contrato.
+5. ~~Implementar Shopee no mesmo contrato.~~ Concluído: OAuth, sync paginado,
+   persistência canônica, scheduler/cron, overview e módulos estão
+   implementados e testados em sandbox; a validação Live aguarda aprovação do
+   Go Live, credenciais de produção e autorização de uma loja real.
 6. Criar visão consolidada e filtro por canal/conta.

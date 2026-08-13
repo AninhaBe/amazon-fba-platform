@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getIntegrations } from "@/lib/integrations/integrationStore";
 import { getShopeeOverviewFromCanonical } from "@/lib/integrations/shopeeOverviewCanonical";
+import { ensureShopeeSyncState } from "@/lib/integrations/shopeeSync";
 import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
+import { requireShopeeConnection } from "@/lib/integrations/shopeeModules";
+import { shopeePageRequest, ShopeeModuleError } from "@/lib/integrations/shopeeModuleContract";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,27 +36,34 @@ export async function GET(req: NextRequest) {
       const connections = (await getIntegrations("shopee")).filter(
         (connection) => connection.status === "connected"
       );
-      const connection = connections[0];
-      if (!connection) {
-        return NextResponse.json({ error: "Nenhuma loja Shopee conectada." }, { status: 404 });
-      }
+      const connection = await requireShopeeConnection(url.searchParams);
+      const detailPage = shopeePageRequest(url.searchParams);
+      const publicConnections = connections.map((item) => ({
+        id: item.id,
+        externalAccountId: item.externalAccountId,
+        name: item.displayName ?? `Loja ${item.externalAccountId}`,
+        region: item.region ?? "BR",
+        status: item.status,
+      }));
 
-      const overview = await getShopeeOverviewFromCanonical(connection, period);
+      const sync = await ensureShopeeSyncState(connection.id);
+      const overview = await getShopeeOverviewFromCanonical(connection, period, { detailPage });
       if (!overview) {
         // Conectado, mas sem ingestão ainda: a UI mostra o estado de sincronização
         // em vez de um dashboard zerado, que passaria a ideia errada de "sem vendas".
-        return NextResponse.json({ pending: true, account: {
+        return NextResponse.json({ pending: true, sync, selectedConnectionId: connection.id, connections: publicConnections, account: {
           id: connection.externalAccountId,
           name: connection.displayName ?? `Loja ${connection.externalAccountId}`,
           region: connection.region ?? "BR",
         } });
       }
 
-      return NextResponse.json({ overview });
+      return NextResponse.json({ overview, sync, selectedConnectionId: connection.id, connections: publicConnections });
     } catch (error) {
-      const status = error instanceof RangeError ? 400 : 500;
+      const status = error instanceof ShopeeModuleError ? error.status : error instanceof RangeError ? 400 : 500;
       return NextResponse.json(
-        { error: error instanceof Error ? error.message : "Erro ao carregar a Shopee." },
+        { error: error instanceof Error ? error.message : "Erro ao carregar a Shopee.",
+          ...(error instanceof ShopeeModuleError ? { code: error.code } : {}) },
         { status }
       );
     }

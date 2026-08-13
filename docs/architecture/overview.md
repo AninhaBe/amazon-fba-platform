@@ -1,7 +1,7 @@
 # SellerCore — Visão geral da arquitetura
 
-> Plataforma multicanal de inteligência de vendas (Amazon, Mercado Livre e futuros
-> canais) em **Next.js 16 / React 19**, com dados isolados por *workspace* e um
+> Plataforma multicanal de inteligência de vendas (Amazon, Mercado Livre, TikTok Shop
+> e Shopee) em **Next.js 16 / React 19**, com dados isolados por *workspace* e um
 > **modelo canônico único** para o qual todos os marketplaces convergem.
 
 Este é o **ponto de entrada** da arquitetura: como os dados entram, onde ficam e
@@ -29,6 +29,8 @@ flowchart LR
     subgraph APIs["APIs dos marketplaces"]
         AMZ["Amazon SP-API"]
         ML["Mercado Livre"]
+        TT["TikTok Shop"]
+        SH["Shopee Open Platform"]
     end
     subgraph Ingest["Ingestão (normaliza 1x)"]
         SYNC["Sync + conciliação<br/>(janela com lease)"]
@@ -39,19 +41,27 @@ flowchart LR
         FEE[("…_order_fees")]
     end
     subgraph Read["Leitura (SQL)"]
-        OV["Overview canônico<br/>(ML e Amazon)"]
+        OV["Overview canônico<br/>(ML, Amazon, TikTok e Shopee)"]
     end
     UI["Dashboard / Monitor / Radar"]
 
     AMZ --> SYNC
     ML --> SYNC
+    TT --> SYNC
+    SH --> SYNC
     SYNC --> ORD & ITM & FEE
     ORD & ITM & FEE --> OV --> UI
 ```
 
 **Princípio de replicação:** toda mudança de produto vale para **todos** os canais,
-salvo quando é específica de um marketplace. Canais novos (TikTok, Shopee) já nascem
-canônicos.
+salvo quando é específica de um marketplace. TikTok e Shopee foram desenhados para
+nascer canônicos; no TikTok, ingestão, cron, overview e módulos já estão
+implementados. Isso não equivale a conciliação financeira completa: os parsers de
+pedidos/produtos foram confrontados com amostras reais, mas a validação financeira
+real e a cobertura de categorias de settlement seguem parciais.
+Na Shopee, sync, persistência, cron, overview e módulos também estão implementados
+e testados em sandbox; a confrontação com respostas Live depende da aprovação do
+Go Live, de credenciais de produção e de uma loja real autorizada.
 
 ---
 
@@ -113,9 +123,9 @@ canônico amadurece mesmo sem o cron.
 | Auth / workspace | `src/lib/supabase/proxy.ts`, `workspaceContext.ts`, `workspaceScope.ts` |
 | Contexto Amazon | `accountContext.ts`, `accountStore.ts`, `withAccount.ts` |
 | Cache | `cache.ts`, `swr.ts`, `persistentCache.ts` |
-| Canônico — ingestão | `integrations/amazonSync.ts`, `amazonCanonical.ts`, `canonicalStore.ts`, `canonical.ts` |
-| Canônico — leitura | `integrations/mercadoLivreOverviewCanonical.ts`, `amazonOverviewCanonical.ts` |
-| Agendamento | `integrations/amazonScheduler.ts`, `amazonWarm.ts`, `.github/workflows/cron.yml`, `src/app/api/cron/*` |
+| Canônico — ingestão | `integrations/amazonSync.ts`, `amazonCanonical.ts`, `tiktokSync.ts`, `tiktokCanonical.ts`, `shopeeSync.ts`, `shopeeCanonical.ts`, `canonicalStore.ts`, `canonical.ts` |
+| Canônico — leitura | `integrations/mercadoLivreOverviewCanonical.ts`, `amazonOverviewCanonical.ts`, `tiktokOverviewCanonical.ts`, `shopeeOverviewCanonical.ts` |
+| Agendamento | `integrations/amazonScheduler.ts`, `amazonWarm.ts`, `tiktokScheduler.ts`, `shopeeScheduler.ts`, `.github/workflows/cron.yml`, `src/app/api/cron/*` |
 | Domínio (ao vivo) | `orders.ts`, `finances.ts`, `transactions.ts`, `sales.ts`, `inventory.ts`, `radar.ts`, `profit.ts`, `topProducts.ts`, `amazonProfitability.ts`, `profitability.ts`, `costStore.ts` |
 | Rotas | `src/app/api/*` |
 | UI | `src/app/{page,amazon,mercado-livre,monitor,estoque,produtos,pesquisa}` + `components/` |
@@ -131,6 +141,8 @@ canônico amadurece mesmo sem o cron.
 | 5B | Rotas Amazon (radar, top-products, rentabilidade) lêem do canônico com fallback | ✅ concluída |
 | 5C | Cron no Render (GitHub Actions) + aquecimento de cache | ✅ concluída |
 | 5D | Validar números canônicos vs Seller Central; aposentar o caminho ao vivo | ⏳ pendente |
+| TikTok | OAuth, sync paginado, scheduler/cron, overview canônico e rotas de módulo | ✅ implementados e cobertos por testes; validação financeira real parcial |
+| Shopee | OAuth, sync paginado, persistência canônica, scheduler/cron, overview e rotas de módulo | ✅ implementados e testados em sandbox; validação Live bloqueada pelo Go Live/credenciais/loja real |
 
 Detalhes e decisões em [`../canonical-schema.md`](../canonical-schema.md) e
 [`../integrations-architecture.md`](../integrations-architecture.md).

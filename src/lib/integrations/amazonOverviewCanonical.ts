@@ -30,7 +30,6 @@ import { brazilDateKey } from "./mercadoLivre";
 const PROVIDER = "amazon";
 const DETAILED_ORDER_LIMIT = 1_000;
 const REVENUE_STATUSES = ["paid", "shipped", "delivered"];
-const GROSS_STATUSES = ["paid", "shipped", "delivered", "cancelled"];
 const COVERAGE_TOLERANCE_MS = 15 * 60_000;
 
 export interface AmazonCanonicalTopProduct {

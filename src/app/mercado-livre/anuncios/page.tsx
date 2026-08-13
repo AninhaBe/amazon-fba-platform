@@ -92,9 +92,8 @@ export default function MercadoLivreListingsPage() {
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(1);
 
-  useEffect(() => { setPage(1); }, [query, status, kind, logistic, sortCol, sortDir]);
-
   function toggleSort(col: SortCol) {
+    setPage(1);
     if (sortCol === col) setSortDir((dir) => (dir === "asc" ? "desc" : "asc"));
     else {
       setSortCol(col);
@@ -172,10 +171,10 @@ export default function MercadoLivreListingsPage() {
           {!data.complete && <div className="listing-coverage-note"><span aria-hidden="true">!</span><p>Esta visão carregou {products.length} de {data.total} anúncios. Os filtros abaixo consideram somente o lote sincronizado.</p></div>}
 
           <section className="listing-controls" aria-label="Filtros dos anúncios">
-            <label className="listing-search"><span className="sr-only">Buscar anúncio</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar título, SKU, MLB ou MLBU" /></label>
-            <select value={status} onChange={(event) => setStatus(event.target.value as StatusFilter)} aria-label="Filtrar status"><option value="all">Todos os status</option><option value="active">Ativos</option><option value="paused">Pausados</option><option value="closed">Encerrados</option><option value="out">Sem estoque</option></select>
-            <select value={kind} onChange={(event) => setKind(event.target.value as ListingFilter)} aria-label="Filtrar modalidade"><option value="all">Todas as modalidades</option><option value="classic">Clássico</option><option value="premium">Premium</option><option value="catalog">Catálogo</option></select>
-            <select value={logistic} onChange={(event) => setLogistic(event.target.value)} aria-label="Filtrar logística"><option value="all">Toda logística</option>{logisticOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select>
+            <label className="listing-search"><span className="sr-only">Buscar anúncio</span><input value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="Buscar título, SKU, MLB ou MLBU" /></label>
+            <select value={status} onChange={(event) => { setStatus(event.target.value as StatusFilter); setPage(1); }} aria-label="Filtrar status"><option value="all">Todos os status</option><option value="active">Ativos</option><option value="paused">Pausados</option><option value="closed">Encerrados</option><option value="out">Sem estoque</option></select>
+            <select value={kind} onChange={(event) => { setKind(event.target.value as ListingFilter); setPage(1); }} aria-label="Filtrar modalidade"><option value="all">Todas as modalidades</option><option value="classic">Clássico</option><option value="premium">Premium</option><option value="catalog">Catálogo</option></select>
+            <select value={logistic} onChange={(event) => { setLogistic(event.target.value); setPage(1); }} aria-label="Filtrar logística"><option value="all">Toda logística</option>{logisticOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select>
           </section>
 
           <section className="listing-table-shell" aria-labelledby="listing-results-title">

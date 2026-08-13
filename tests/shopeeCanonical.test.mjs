@@ -5,7 +5,10 @@ import {
   canonicalShopeeStatus,
   normalizeShopeeOrder,
   normalizeShopeeProduct,
+  sanitizeShopeeOrder,
+  sanitizeShopeeProduct,
 } from "../src/lib/integrations/shopeeCanonical.ts";
+import { SHOPEE_CATALOG_CAPABILITIES } from "../src/lib/integrations/shopeeCapabilities.ts";
 
 // Payloads no formato documentado da API v2 (get_order_detail e
 // get_escrow_detail), conferido na doc oficial em 05/08/2026.
@@ -64,8 +67,8 @@ test("status da Shopee mapeia para o canônico", () => {
   assert.equal(canonicalShopeeStatus("TO_RETURN"), "refunded");
   // INVOICE_PENDING é do Brasil: pago, só falta a NF-e — conta como receita.
   assert.equal(canonicalShopeeStatus("INVOICE_PENDING"), "paid");
-  // Status novo/desconhecido não pode virar receita por acidente.
-  assert.equal(canonicalShopeeStatus("ALGO_NOVO"), "pending");
+  // Status novo/desconhecido interrompe o lote; não é reclassificado.
+  assert.throws(() => canonicalShopeeStatus("ALGO_NOVO"), /desconhecido/);
 });
 
 test("pedido sem escrow entra sem tarifa e com frete desconhecido", () => {
@@ -81,6 +84,33 @@ test("pedido sem escrow entra sem tarifa e com frete desconhecido", () => {
   assert.equal(order.items[0].sku, "MOCHILA-USB-PRETA"); // SKU da variação vence
   assert.equal(order.items[0].qty, 2);
   assert.equal(order.items[0].unitPrice, 129.9); // preço com desconto, não o de lista
+});
+
+test("raw do pedido usa allowlist e descarta PII e campos desconhecidos", () => {
+  const source = baseOrder({
+    buyer_username: "pessoa",
+    recipient_address: { name: "Nome Privado", phone: "11999999999", full_address: "Rua Privada" },
+    invoice_data: { tax_id: "documento-privado" },
+    item_list: [{ ...baseOrder().item_list[0], buyer_note: "privado" }],
+  });
+  const raw = sanitizeShopeeOrder(source);
+  assert.equal(JSON.stringify(raw).includes("Nome Privado"), false);
+  assert.equal(JSON.stringify(raw).includes("documento-privado"), false);
+  assert.equal(JSON.stringify(raw).includes("buyer_username"), false);
+  assert.deepEqual(normalizeShopeeOrder(source).raw, raw);
+});
+
+test("raw do produto usa allowlist e descarta campos desconhecidos", () => {
+  const source = {
+    item_id: 1, item_sku: "SKU", item_name: "Produto", item_status: "NORMAL",
+    stock_info_v2: { summary_info: { total_available_stock: 2, warehouse_address: "privado" } },
+    price_info: [{ current_price: 10, internal_cost: 3 }], private_supplier: { email: "x@y.test" },
+  };
+  const raw = sanitizeShopeeProduct(source);
+  assert.equal(JSON.stringify(raw).includes("x@y.test"), false);
+  assert.equal(JSON.stringify(raw).includes("warehouse_address"), false);
+  assert.equal(JSON.stringify(raw).includes("internal_cost"), false);
+  assert.deepEqual(normalizeShopeeProduct(source).raw, raw);
 });
 
 test("escrow traduz as taxas para a taxonomia canônica", () => {
@@ -125,10 +155,22 @@ test("pedido concluído registra a data de fechamento", () => {
   assert.equal(order.closedAt, new Date(1754486400 * 1000).toISOString());
 });
 
-test("pedido sem itens não quebra a normalização", () => {
-  const order = normalizeShopeeOrder(baseOrder({ item_list: undefined }));
-  assert.equal(order.gross, 0);
-  assert.deepEqual(order.items, []);
+test("pedido pago sem itens falha em vez de fabricar receita zero", () => {
+  assert.throws(
+    () => normalizeShopeeOrder(baseOrder({ item_list: undefined })),
+    /receita não pode ser inferida/
+  );
+});
+
+test("pedido rejeita item sem identidade e quantidade não positiva", () => {
+  assert.throws(
+    () => normalizeShopeeOrder(baseOrder({ item_list: [{ ...baseOrder().item_list[0], item_id: undefined }] })),
+    /item_id válido/
+  );
+  assert.throws(
+    () => normalizeShopeeOrder(baseOrder({ item_list: [{ ...baseOrder().item_list[0], model_quantity_purchased: 0 }] })),
+    /positivo/
+  );
 });
 
 test("produto normaliza status, estoque e preço", () => {
@@ -150,8 +192,38 @@ test("produto normaliza status, estoque e preço", () => {
   assert.equal(product.thumbnail, "https://cf.shopee.com.br/file/abc");
 
   // UNLIST é anúncio pausado, não encerrado.
-  assert.equal(normalizeShopeeProduct({ item_id: 1, item_status: "UNLIST" }).status, "paused");
-  assert.equal(normalizeShopeeProduct({ item_id: 1, item_status: "BANNED" }).status, "closed");
-  // Status desconhecido não pode virar "ativo" e poluir o radar de estoque.
-  assert.equal(normalizeShopeeProduct({ item_id: 1, item_status: "XPTO" }).status, "paused");
+  const facts = { stock_info_v2: { summary_info: { total_available_stock: 0 } }, price_info: [{ current_price: 0 }] };
+  assert.equal(normalizeShopeeProduct({ item_id: 1, item_status: "UNLIST", ...facts }).status, "paused");
+  assert.equal(normalizeShopeeProduct({ item_id: 1, item_status: "BANNED", ...facts }).status, "closed");
+  // Status desconhecido interrompe o snapshot; não vira pausado silenciosamente.
+  assert.throws(() => normalizeShopeeProduct({ item_id: 1, item_status: "XPTO", ...facts }), /desconhecido/);
+});
+
+test("pedido com status desconhecido falha fechado antes de persistir", () => {
+  assert.throws(() => normalizeShopeeOrder(baseOrder({ order_status: "FUTURE_STATUS" })), /desconhecido/);
+  assert.throws(() => normalizeShopeeOrder(baseOrder({ order_status: "" })), /desconhecido/);
+});
+
+test("pedido sem create_time real falha e nunca usa o relógio local", () => {
+  for (const create_time of [undefined, null, 0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+    assert.throws(
+      () => normalizeShopeeOrder(baseOrder({ create_time })),
+      /create_time válido.*data atual não será fabricada/,
+    );
+  }
+});
+
+test("produto sem preço ou estoque falha em vez de fabricar zero", () => {
+  assert.throws(() => normalizeShopeeProduct({ item_id: null, item_status: "NORMAL" }), /item_id válido/);
+  assert.throws(() => normalizeShopeeProduct({ item_id: 1, item_status: "NORMAL" }), /price_info/);
+  assert.throws(
+    () => normalizeShopeeProduct({ item_id: 1, item_status: "NORMAL", price_info: [{ current_price: 10 }] }),
+    /stock_info_v2/
+  );
+});
+
+test("capacidade de catálogo não promete modelos sem contrato oficial local", () => {
+  assert.equal(SHOPEE_CATALOG_CAPABILITIES.itemBaseInfo, true);
+  assert.equal(SHOPEE_CATALOG_CAPABILITIES.aggregateStock, true);
+  assert.equal(SHOPEE_CATALOG_CAPABILITIES.models, false);
 });

@@ -1,7 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import { dataFile } from "./dataDir";
-import { hasDb, dbQuery } from "./db";
+import { hasDb, dbQuery, type DbQuery } from "./db";
 import { currentWorkspaceId } from "./workspaceScope";
 
 // Cadastro de custos por produto. Persistido no Postgres (Supabase) quando
@@ -114,14 +114,15 @@ export async function getCosts(): Promise<Record<string, CostEntry>> {
 }
 
 export async function setCost(
-  entry: Omit<CostEntry, "updatedAt" | "history"> & { updatedAt?: string }
+  entry: Omit<CostEntry, "updatedAt" | "history"> & { updatedAt?: string },
+  query: DbQuery = dbQuery,
 ): Promise<CostEntry> {
   const now = new Date().toISOString();
   const cost = Number(entry.cost) || 0;
   const workspaceId = currentWorkspaceId();
 
   if (hasDb()) {
-    const existing = await dbQuery<{ history: CostChange[] }>(
+    const existing = await query<{ history: CostChange[] }>(
       `SELECT history FROM workspace_product_costs WHERE workspace_id = $1 AND id = $2`,
       [workspaceId, entry.id]
     );
@@ -129,7 +130,7 @@ export async function setCost(
     const currentCost = history.length ? history[history.length - 1].cost : undefined;
     if (currentCost === undefined || currentCost !== cost) history.push({ cost, from: now });
 
-    const rows = await dbQuery<CostRow>(
+    const rows = await query<CostRow>(
       `INSERT INTO workspace_product_costs (workspace_id, id, sku, asin, title, image_url, cost, updated_at, history)
          VALUES ($1, $2, $3, $4, $5, $6, $7, now(), $8::jsonb)
        ON CONFLICT (workspace_id, id) DO UPDATE SET

@@ -15,8 +15,8 @@ import type {
 //   pedidos   GET  /order/202507/orders
 //   taxas     GET  /finance/202501/orders/{order_id}/statement_transactions
 //   produtos  POST /product/202502/products/search
-// ⚠️ Ainda NÃO exercitado contra loja real. Quando a primeira conectar, é aqui
-// que o ajuste acontece — não no sync.
+// Validado contra a loja real Crystal Fancy em 10/08/2026. Status, agrupamento
+// por SKU e sinal das taxas observados estão cobertos nos testes do parser.
 //
 // Três peculiaridades do canal que o mapeamento precisa respeitar:
 //
@@ -86,6 +86,25 @@ export interface TiktokStatement {
     shipping_cost_amount?: string;
     settlement_amount?: string;
   }>;
+  total_count?: number;
+  order_create_time?: number;
+}
+
+/** Extrato zerado sem transações é placeholder pré-settlement, não tarifa zero. */
+export function tiktokStatementSettled(statement: TiktokStatement | null | undefined): boolean {
+  if (!statement) return false;
+  if ((statement.total_count ?? 0) > 0) return true;
+  if ((statement.sku_transactions?.length ?? 0) > 0) return true;
+  if ((statement.order_create_time ?? 0) > 0) return true;
+  return [
+    statement.revenue_amount,
+    statement.fee_and_tax_amount,
+    statement.shipping_cost_amount,
+    statement.settlement_amount,
+  ].some((value) => {
+    const parsed = paraNumero(value);
+    return parsed != null && parsed !== 0;
+  });
 }
 
 export interface TiktokProduct {
@@ -95,31 +114,69 @@ export interface TiktokProduct {
   skus?: Array<{
     id?: string;
     seller_sku?: string;
-    price?: { sale_price?: string; currency?: string };
+    price?: { sale_price?: string; tax_exclusive_price?: string; currency?: string };
     inventory?: Array<{ quantity?: number }>;
   }>;
 }
 
-/**
- * Campos do pedido que NUNCA são persistidos. Descartados por nome, de
- * propósito: campo que hoje ninguém lê vira campo copiado sem querer amanhã.
- * Base legal: docs/compliance/personal-information-protection-standard.md.
- */
-const CAMPOS_PII = [
-  "buyer_avatar",
-  "buyer_email",
-  "buyer_message",
-  "buyer_nickname",
-  "cpf",
-  "cpf_name",
-  "recipient_address",
-] as const;
+export function sanitizeTiktokProduct(product: TiktokProduct): Record<string, unknown> {
+  return JSON.parse(JSON.stringify({
+    id: product.id,
+    title: product.title,
+    status: product.status,
+    skus: (product.skus ?? []).map((sku) => ({
+      id: sku.id,
+      seller_sku: sku.seller_sku,
+      price: sku.price ? { sale_price: sku.price.sale_price, tax_exclusive_price: sku.price.tax_exclusive_price, currency: sku.price.currency } : undefined,
+      inventory: (sku.inventory ?? []).map((entry) => ({ quantity: entry.quantity })),
+    })),
+  })) as Record<string, unknown>;
+}
 
-/** Remove PII antes de o pedido bruto ir para a coluna `raw` (jsonb). */
+/**
+ * Allowlist exaustiva do que pode entrar em `raw`. Não fazemos sanitização por
+ * denylist: campos novos, desconhecidos ou aninhados são descartados por padrão.
+ */
 export function sanitizeTiktokOrder(order: TiktokOrder): Record<string, unknown> {
-  const copia: Record<string, unknown> = { ...order };
-  for (const campo of CAMPOS_PII) delete copia[campo];
-  return copia;
+  const raw: Record<string, unknown> = {
+    id: order.id,
+    status: order.status,
+    create_time: order.create_time,
+    paid_time: order.paid_time,
+    delivery_time: order.delivery_time,
+    cancel_time: order.cancel_time,
+    fulfillment_type: order.fulfillment_type,
+  };
+  if (order.payment) {
+    raw.payment = {
+      currency: order.payment.currency,
+      sub_total: order.payment.sub_total,
+      shipping_fee: order.payment.shipping_fee,
+      total_amount: order.payment.total_amount,
+      original_total_product_price: order.payment.original_total_product_price,
+      seller_discount: order.payment.seller_discount,
+      platform_discount: order.payment.platform_discount,
+      product_tax: order.payment.product_tax,
+      shipping_fee_tax: order.payment.shipping_fee_tax,
+    };
+  }
+  raw.line_items = (order.line_items ?? []).map((item) => ({
+    id: item.id,
+    product_id: item.product_id,
+    product_name: item.product_name,
+    sku_id: item.sku_id,
+    sku_name: item.sku_name,
+    seller_sku: item.seller_sku,
+    sale_price: item.sale_price,
+    original_price: item.original_price,
+    seller_discount: item.seller_discount,
+    platform_discount: item.platform_discount,
+    currency: item.currency,
+    package_id: item.package_id,
+    display_status: item.display_status,
+  }));
+  raw.packages = (order.packages ?? []).map((pkg) => ({ id: pkg.id }));
+  return JSON.parse(JSON.stringify(raw)) as Record<string, unknown>;
 }
 
 function round2(valor: number): number {
@@ -154,7 +211,22 @@ const MAPA_STATUS: Record<string, CanonicalOrderStatus> = {
 };
 
 export function canonicalTiktokStatus(providerStatus: string): CanonicalOrderStatus {
-  return MAPA_STATUS[providerStatus] ?? "pending";
+  const status = MAPA_STATUS[providerStatus];
+  if (!status) {
+    throw new RangeError(`Status de pedido TikTok ainda não mapeado: ${providerStatus || "(vazio)"}.`);
+  }
+  return status;
+}
+
+/** Recusa payload incompleto antes da persistência canônica. */
+export function validateTiktokOrderForSync(order: TiktokOrder): void {
+  if (!String(order.id ?? "").trim()) {
+    throw new TypeError("Pedido TikTok sem identificador.");
+  }
+  if (!order.create_time || !Number.isFinite(order.create_time)) {
+    throw new TypeError(`Pedido TikTok ${order.id} sem data de criação válida.`);
+  }
+  canonicalTiktokStatus(order.status ?? "");
 }
 
 /**
@@ -166,11 +238,16 @@ export function agruparItens(linhas: TiktokLineItem[]): CanonicalOrderItem[] {
   const porSku = new Map<string, CanonicalOrderItem>();
 
   for (const linha of linhas) {
-    const externalProductId = String(linha.product_id ?? "");
+    const parentProductId = String(linha.product_id ?? "");
+    const skuId = String(linha.sku_id ?? "").trim();
+    const externalProductId = skuId ? tiktokVariantProductId(parentProductId, skuId) : parentProductId;
     // A chave é sku_id (identificador do canal); seller_sku é o código do
     // vendedor e é o que casa com o custo cadastrado.
     const chave = `${externalProductId}::${linha.sku_id ?? ""}`;
-    const unitPrice = paraNumero(linha.sale_price) ?? paraNumero(linha.original_price) ?? 0;
+    const unitPrice = paraNumero(linha.sale_price) ?? paraNumero(linha.original_price);
+    if (unitPrice == null) {
+      throw new TypeError(`Item TikTok ${skuId || parentProductId || "(sem id)"} sem preço comprovável.`);
+    }
 
     const existente = porSku.get(chave);
     if (existente) {
@@ -191,8 +268,8 @@ export function agruparItens(linhas: TiktokLineItem[]): CanonicalOrderItem[] {
 }
 
 /**
- * Extrato do pedido → taxas canônicas. Sinal: positivo = debitado do vendedor,
- * que é como o TikTok já devolve `fee_and_tax_amount` e `shipping_cost_amount`.
+ * Extrato do pedido → taxas canônicas. Sinal canônico: positivo = debitado do
+ * vendedor. A TikTok devolveu os custos com sinal negativo na amostra real.
  *
  * O `settlement_amount` NÃO vira taxa: ele é o resultado, não um custo.
  */
@@ -205,14 +282,19 @@ export function canonicalTiktokFees(extrato: TiktokStatement, currency: string):
   const taxas: CanonicalFee[] = [];
   for (const { campo, tipo } of MAPA_TAXAS) {
     const valor = paraNumero(extrato[campo] as string | undefined);
-    // null = não veio (desconhecido) → não grava linha. Zero do frete é fato
-    // relevante ("não houve frete") e entra; zero de comissão não vale linha.
+    // null = não veio (desconhecido) → não grava linha. Zero é um fato conhecido
+    // e entra para não ser confundido com uma tarifa ainda indisponível.
     if (valor == null) continue;
-    if (valor === 0 && campo !== "shipping_cost_amount") continue;
     taxas.push({
       feeType: tipo,
       providerFeeCode: campo,
-      amount: round2(valor),
+      // ⚠️ O TikTok devolve o que ELE cobra com sinal NEGATIVO — confirmado no
+      // extrato real do pedido 583985901599294689 (`fee_and_tax_amount: "-9.13"`
+      // sobre `revenue_amount: "23.9"`, fechando em `settlement_amount: "14.77"`).
+      // O canônico grava taxa como POSITIVA (positivo = debitado do vendedor),
+      // então o sinal é invertido aqui. Sem isso, a comissão somaria ao lucro em
+      // vez de subtrair — erro de duas vezes o valor da taxa, para mais.
+      amount: round2(Math.abs(valor)),
       currency,
     });
   }
@@ -232,20 +314,29 @@ export function normalizeTiktokOrder(
   order: TiktokOrder,
   { statement }: NormalizeTiktokOrderOptions = {}
 ): CanonicalOrder {
+  validateTiktokOrderForSync(order);
   const currency = order.payment?.currency
     ?? order.line_items?.[0]?.currency
     ?? statement?.currency
     ?? "BRL";
 
   const items = agruparItens(order.line_items ?? []);
-  const gross = round2(items.reduce((soma, item) => soma + item.unitPrice * item.qty, 0));
+  const itemGross = items.length
+    ? items.reduce((soma, item) => soma + item.unitPrice * item.qty, 0)
+    : null;
+  const paymentGross = paraNumero(order.payment?.sub_total);
+  const grossSource = itemGross ?? paymentGross;
+  if (grossSource == null) {
+    throw new TypeError(`Pedido TikTok ${order.id} sem itens ou subtotal confiável.`);
+  }
+  const gross = round2(grossSource);
   const providerStatus = order.status ?? "";
 
   return {
     externalOrderId: String(order.id),
     status: canonicalTiktokStatus(providerStatus),
     providerStatus,
-    occurredAt: deEpoch(order.create_time) ?? new Date().toISOString(),
+    occurredAt: deEpoch(order.create_time)!,
     closedAt: providerStatus === "COMPLETED"
       ? deEpoch(order.delivery_time)
       : providerStatus === "CANCELLED"
@@ -276,28 +367,61 @@ const MAPA_STATUS_PRODUTO: Record<string, CanonicalProduct["status"]> = {
   DELETED: "closed",
 };
 
-export function normalizeTiktokProduct(product: TiktokProduct): CanonicalProduct {
-  const primeiroSku = product.skus?.[0];
-  const providerStatus = product.status ?? "UNKNOWN";
-  const disponivel = (product.skus ?? []).reduce(
-    (soma, sku) => soma + (sku.inventory ?? []).reduce((s, i) => s + (i.quantity ?? 0), 0),
-    0
-  );
+export function canonicalTiktokProductStatus(providerStatus: string): CanonicalProduct["status"] {
+  const status = MAPA_STATUS_PRODUTO[providerStatus];
+  if (!status) {
+    throw new RangeError(`Status de produto TikTok ainda não mapeado: ${providerStatus || "(vazio)"}.`);
+  }
+  return status;
+}
 
-  return {
-    externalProductId: String(product.id ?? ""),
-    sku: primeiroSku?.seller_sku ?? null,
-    title: product.title ?? String(product.id ?? ""),
-    status: MAPA_STATUS_PRODUTO[providerStatus] ?? "paused",
-    providerStatus,
-    price: paraNumero(primeiroSku?.price?.sale_price) ?? 0,
-    currency: primeiroSku?.price?.currency ?? "BRL",
-    availableQty: disponivel,
-    // Sem resposta real para confirmar como o TikTok expõe fulfillment e
-    // vitrine no product/search, ambos ficam desconhecidos em vez de chutados.
-    fulfillment: null,
-    thumbnail: null,
-    permalink: null,
-    raw: product,
-  };
+export function tiktokVariantProductId(productId: string, skuId: string): string {
+  return `${productId}::sku:${skuId}`;
+}
+
+/**
+ * Uma oferta canônica por variação. A PK do catálogo é
+ * `external_product_id`, portanto usar apenas o product_id faria uma variação
+ * sobrescrever a outra (ou, pior, associaria o estoque agregado ao primeiro
+ * SKU). O identificador composto é determinístico e o product_id pai continua
+ * preservado no raw sanitizado.
+ */
+export function normalizeTiktokProducts(product: TiktokProduct): CanonicalProduct[] {
+  const productId = String(product.id ?? "").trim();
+  if (!productId) throw new TypeError("Produto TikTok sem identificador.");
+  const providerStatus = product.status ?? "UNKNOWN";
+  const raw = sanitizeTiktokProduct(product);
+  const skus = product.skus ?? [];
+  if (!skus.length) {
+    throw new TypeError(`Produto TikTok ${productId} sem variações; preço e estoque não podem ser inferidos.`);
+  }
+  return skus.map((sku, index) => {
+    const skuId = String(sku.id ?? "").trim();
+    if (!skuId) throw new TypeError(`Produto TikTok ${productId} possui variação sem identificador.`);
+    // product/search 202502 respondeu `tax_exclusive_price` na loja BR real.
+    const price = paraNumero(sku.price?.sale_price) ?? paraNumero(sku.price?.tax_exclusive_price);
+    if (price == null) throw new TypeError(`Variação TikTok ${skuId} sem preço conhecido.`);
+    if (!sku.inventory?.length || sku.inventory.some((item) => !Number.isFinite(item.quantity))) {
+      throw new TypeError(`Variação TikTok ${skuId} sem estoque conhecido.`);
+    }
+    const availableQty = sku.inventory.reduce((total, item) => total + item.quantity!, 0);
+    return {
+      externalProductId: tiktokVariantProductId(productId, skuId),
+      sku: sku.seller_sku || skuId,
+      title: skus.length > 1 ? `${product.title ?? productId} · ${sku.seller_sku || `Variação ${index + 1}`}` : (product.title ?? productId),
+      status: canonicalTiktokProductStatus(providerStatus), providerStatus,
+      price,
+      currency: sku.price?.currency ?? "BRL",
+      availableQty, fulfillment: null, thumbnail: null, permalink: null, raw,
+    };
+  });
+}
+
+/** Compatibilidade para consumidores antigos; somente produtos mono-SKU. */
+export function normalizeTiktokProduct(product: TiktokProduct): CanonicalProduct {
+  const normalized = normalizeTiktokProducts(product);
+  if (normalized.length !== 1) {
+    throw new TypeError(`Produto TikTok ${product.id ?? ""} possui múltiplas variações; use normalizeTiktokProducts.`);
+  }
+  return normalized[0];
 }

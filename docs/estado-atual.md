@@ -1,6 +1,6 @@
 # Estado atual — onde cada frente parou
 
-**Última atualização: 09/08/2026.** Leia isto antes de continuar qualquer frente
+**Última atualização: 11/08/2026.** Leia isto antes de continuar qualquer frente
 em andamento; o "porquê" das decisões está nos docs de cada área e nos ADRs.
 
 Este doc responde três perguntas: **o que está pronto**, **o que está no meio do
@@ -16,17 +16,23 @@ detalhe operacional — este arquivo não é histórico, é foto do presente.
 |---|---|
 | **Amazon** | Em produção. ⚠️ **As duas contas estão com o refresh token revogado** — ver "Amazon: autorização" abaixo. |
 | **Mercado Livre** | Em produção e sincronizando. Faturamento validado ao centavo contra o painel do ML. |
-| **Shopee** | Código completo (conexão + dashboard + ingestão). **Go Live submetido em 07/08, em análise** (resposta em até 24h) — ver abaixo. |
-| **TikTok Shop** | **Loja real conectada em 10/08** (Crystal Fancy, do parceiro). Custom app publicado, OAuth funcionando ponta a ponta. Falta ingestão: não existe sync, cron nem overview. Ver item 1 abaixo. |
+| **Shopee** | Implementação local cobre OAuth, dashboard e módulos multi-loja, ingestão fail-closed/retomável, configuração por loja e remoção somente local. **Go Live submetido em 07/08, em análise** no último estado comprovado; credenciais, autorização e payload Live seguem **BLOCKED**. |
+| **TikTok Shop** | OAuth, sync paginado, cron, modelo canônico e overview estão implementados. Sidebar, Dashboard, Financeiro e módulos com filtros por loja/período estão no código. Parser de pedidos/produtos foi confrontado com amostras reais; a conciliação financeira real segue parcial e retomável. QA autenticado está **BLOCKED** por ownership duplicado e pelo ledger 0005 ainda não aplicado neste ambiente. |
+
+**Baseline local de qualidade:** 353 testes passavam após os reworks de TikTok
+e Shopee. Esse número é evidência intermediária e continua sujeito ao gate final;
+não equivale a validação live, visual ou autenticada do produto.
 
 ---
 
 ## Em andamento — retomar aqui
 
-### 1. TikTok Shop: **conectado — parar de codar e conferir o parser primeiro**
+### 1. TikTok Shop: **pipeline implementado — concluir validação financeira real**
 
 **Onde está:** custom app publicado, loja do parceiro autorizada, token e
-`shop_cipher` no banco. A leitura da API funciona; a ingestão não existe.
+`shop_cipher` no banco. Sync de pedidos e produtos, scheduler, cron e overview
+canônico estão implementados. O parser foi exercitado contra respostas reais BR;
+isso valida os campos observados, não todos os estados possíveis da API.
 
 | | |
 |---|---|
@@ -38,11 +44,10 @@ detalhe operacional — este arquivo não é histórico, é foto do presente.
 
 ⚠️ **A autorização vence em 07/11/2026 — são 90 dias, não 365 como a Shopee.**
 
-**PRÓXIMO PASSO, exatamente:** abrir logada
-`https://sellercore.onrender.com/api/tiktok/amostra?dias=90&limite=10`
-(rota só de leitura, já em produção, commit `6abe04d`). Ela devolve lado a lado o
-que a API respondeu e o que o `tiktokCanonical` produziu. **Conferir duas coisas
-antes de escrever qualquer sync:**
+**PRÓXIMO PASSO, exatamente:** executar o procedimento autenticado e sem mutação
+de [`tiktok-qa-evidence.md`](./tiktok-qa-evidence.md), deixar a fila financeira
+retomável convergir e comparar origem, ledger e overview. A validação deve
+distinguir extratos liquidados de estimativas ainda não conciliadas.
 
 1. **`statusObservados`** — o `MAPA_STATUS` em `tiktokCanonical.ts` veio da doc em
    prosa, não do OAS (que declara `status` como string sem enum). Se aparecer
@@ -51,22 +56,61 @@ antes de escrever qualquer sync:**
    unidade; `agruparItens` junta por `product_id::sku_id`. Se a contagem não
    bater com o pedido real, "unidades vendidas por SKU" nasce errado.
 
-Só depois disso: `tiktokSync.ts`, `tiktokScheduler.ts`, rota de cron e
-`tiktokOverviewCanonical.ts` — no molde do que já existe para Shopee.
+Os módulos `tiktokSync.ts`, `tiktokScheduler.ts`, a rota de cron e
+`tiktokOverviewCanonical.ts` já existem; não devem voltar a ser descritos como backlog.
+No produto, a sidebar TikTok inclui Dashboard e Financeiro, e as superfícies de
+monitor, catálogo, produtos, estoque e curva ABC preservam a loja selecionada e
+somente os filtros visíveis aplicáveis. Isso está implementado e testado
+localmente, mas ainda não foi validado como fluxo autenticado no navegador.
+
+**Bloqueios atuais do QA TikTok:** há ownership duplicado da mesma loja entre
+workspaces; o harness agora falha fechado e exige um único owner antes de ler
+dados. Além disso, a migration `0005_workspace_financial_ledger.sql` está
+implementada e certificada pelo gate local, mas **não foi aplicada neste
+ambiente**. Até a aplicação autorizada, Financeiro deve mostrar indisponibilidade
+do ledger sem transformar valores desconhecidos em zero. Estado: **BLOCKED**;
+não corrigir ownership nem aplicar migration implicitamente.
 
 **Pendência separada:** as categorias **Accounting** e **Order Management** foram
 **rejeitadas** — *"The Company Number that you entered was inconsistent with the
-company number on your Company registration document"*. O formulário está com
-`66.106.202/0001-20` no campo `Company registration number`. Não bloqueia o
-parceiro (o app publicou por Product Listing), mas bloqueia listar o serviço nas
-categorias certas e submeter Analytics & Reporting. Para resolver é preciso abrir
-o `cnpj.pdf` anexado no Partner Center e conferir qual número ele espera.
+company number on your Company registration document"*. Não bloqueia o parceiro
+(o app publicou por Product Listing), mas bloqueia listar o serviço nas categorias
+certas e submeter Analytics & Reporting.
+
+**O `cnpj.pdf` foi aberto em 13/08/2026 e o mistério acabou.** O documento diz:
+
+| Campo do comprovante | Valor |
+|---|---|
+| Número de inscrição | `66.106.202/0001-20` |
+| **Nome empresarial (razão social)** | `66.106.202 ANA BEATRIZ DE OLIVEIRA` |
+| Título do estabelecimento (nome fantasia) | `********` — **não há** |
+| Porte | ME · abertura 06/04/2026 |
+
+O número no formulário está certo. **O que não bate é o nome:** é empresário
+individual, então a razão social é "CNPJ + nome da titular", e **não existe nome
+fantasia registrado** — "NEXAHUB" é nome de loja, não aparece em nenhum registro
+oficial. Ao reenviar, o campo de empresa precisa dizer exatamente
+`66.106.202 ANA BEATRIZ DE OLIVEIRA`, não "NEXAHUB".
+
+Mesma lição vale para qualquer cadastro que peça razão social — foi assim que o
+registro da Amazon Ads API foi preenchido em 13/08 (ver [`amazon-ads.md`](./amazon-ads.md)).
 
 
-### 2. Shopee: Go Live **SUBMETIDO em 07/08** — aguardando a Shopee
+### 2. Shopee: implementação local pronta; Live **BLOCKED**
 
-O console mostra *"Application to go live is under review: audit results will be
-sent to your email within 24 hours"*. App segue como `Developing` até a resposta.
+Em 07/08 o console mostrou *"Application to go live is under review: audit
+results will be sent to your email within 24 hours"*. Esse é o último estado
+externo comprovado; não há nesta retomada evidência de aprovação, credenciais de
+produção, autorização de loja real ou payload Live. Portanto o Go Live e a
+validação contra dados reais permanecem **BLOCKED**, não validados.
+
+**Estado local comprovado:** transporte HTTP falha fechado para HTTP não-ok e
+resposta não-JSON; o catálogo percorre todos os status em sweep paginado e
+retomável, sem tombstone em tentativa incompleta; seleção e settings de imposto
+são isolados por `connection_id`; dashboard e módulos suportam múltiplas lojas;
+e `/integracoes` remove credenciais, sincronização e dados dependentes somente
+do SellerCore, sem chamar a OpenAPI nem revogar acesso no marketplace. Esses
+itens ainda não constituem validação live, visual ou autenticada.
 
 **O que foi declarado** (o formulário não guarda rascunho: o preenchimento de
 06/08 se perdeu e foi refeito do zero):
@@ -226,7 +270,12 @@ dimensão (`comparar.mjs`). Não faz parte do SellerCore.
 - ~~**TikTok DSPR**~~ — ✅ **aprovada em 07/08/2026**. Deixou de ser bloqueio;
   as próximas etapas (Listing review, App review, Publish) dependem de trabalho
   nosso, não de espera.
-- **Shopee Go Live** — depende do item 1 acima ser submetido.
+- **TikTok ownership + migration 0005** — QA autenticado exige resolver o owner
+  duplicado por uma operação explícita e aplicar a migration financeira com a
+  autorização e os guards do runner. Nenhuma das duas ocorreu nesta sessão.
+- **Shopee Go Live** — submetido em 07/08 no último estado comprovado; a
+  validação Live depende da aprovação, das credenciais de produção, da
+  autorização de uma loja real e da observação de payloads reais.
 
 ---
 

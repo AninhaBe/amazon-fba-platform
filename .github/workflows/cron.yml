@@ -24,9 +24,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  sync:
+  sync-mercado-livre:
     runs-on: ubuntu-latest
-    timeout-minutes: 9
+    timeout-minutes: 5
     env:
       APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
       CRON_SECRET: ${{ secrets.CRON_SECRET }}
@@ -44,11 +44,39 @@ jobs:
             -H "Authorization: Bearer ${CRON_SECRET}" \
             "${APP_BASE_URL%/}/api/cron/mercado-livre-sync"
 
+  sync-amazon:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+    steps:
+      - name: Verifica os segredos
+        run: |
+          if [ -z "$APP_BASE_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "::error::Defina os secrets APP_BASE_URL e CRON_SECRET no repositório."
+            exit 1
+          fi
+
       - name: Sync Amazon
         run: |
           curl -sS --fail-with-body --max-time 250 \
             -H "Authorization: Bearer ${CRON_SECRET}" \
             "${APP_BASE_URL%/}/api/cron/amazon-sync"
+
+  sync-shopee:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+    steps:
+      - name: Verifica os segredos
+        run: |
+          if [ -z "$APP_BASE_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "::error::Defina os secrets APP_BASE_URL e CRON_SECRET no repositório."
+            exit 1
+          fi
 
       # Shopee só tem trabalho quando existe loja conectada; sem conexão o
       # endpoint responde de imediato com processed: 0.
@@ -57,3 +85,26 @@ jobs:
           curl -sS --fail-with-body --max-time 250 \
             -H "Authorization: Bearer ${CRON_SECRET}" \
             "${APP_BASE_URL%/}/api/cron/shopee-sync"
+
+  # Job independente: indisponibilidade ou timeout dos outros marketplaces não
+  # pode impedir a ingestão TikTok. Não declarar `needs` é intencional.
+  sync-tiktok:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+    steps:
+      - name: Verifica os segredos
+        run: |
+          if [ -z "$APP_BASE_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "::error::Defina os secrets APP_BASE_URL e CRON_SECRET no repositório."
+            exit 1
+          fi
+
+      # Responde processed: 0 quando não há loja elegível.
+      - name: Sync TikTok Shop
+        run: |
+          curl -sS --fail-with-body --max-time 250 \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "${APP_BASE_URL%/}/api/cron/tiktok-sync"

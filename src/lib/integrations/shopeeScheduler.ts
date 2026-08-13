@@ -2,6 +2,7 @@ import { dbQuery, hasDb } from "../db";
 import { runWithWorkspace } from "../workspaceScope";
 import { getIntegration } from "./integrationStore";
 import { runShopeeSyncBatch, type ShopeeSyncStatus } from "./shopeeSync";
+import { isShopeeDemoConnection } from "./shopeeConnection";
 
 // Agendamento do sync da Shopee (ADR-003: cron por GitHub Actions).
 // Mesmo desenho do scheduler do Mercado Livre: escolhe conexões elegíveis,
@@ -37,8 +38,14 @@ export async function runScheduledShopeeSync(
         AND integration.provider = sync.provider
       WHERE sync.provider = $1
         AND integration.status = 'connected'
+        AND integration.metadata->'demo' IS DISTINCT FROM 'true'::jsonb
         AND (
           (sync.status IN ('pending', 'syncing')
+            AND (sync.lease_until IS NULL OR sync.lease_until < now()))
+          OR (sync.status = 'error'
+            AND sync.last_error NOT LIKE '[REAUTH_REQUIRED]%'
+            AND sync.last_error NOT LIKE '[TERMINAL_ERROR]%'
+            AND sync.updated_at < now() - interval '5 minutes'
             AND (sync.lease_until IS NULL OR sync.lease_until < now()))
           OR (sync.status = 'complete'
             AND COALESCE(sync.last_success_at, sync.updated_at) < now() - interval '6 hours')
@@ -59,6 +66,14 @@ export async function runScheduledShopeeSync(
             workspaceId: candidate.workspace_id,
             connectionId: candidate.connection_id,
             status: "missing",
+          };
+        }
+        if (isShopeeDemoConnection(connection)) {
+          return {
+            workspaceId: candidate.workspace_id,
+            connectionId: candidate.connection_id,
+            status: "missing",
+            reason: "demo",
           };
         }
         const sync = await runShopeeSyncBatch(connection, budgetMs);

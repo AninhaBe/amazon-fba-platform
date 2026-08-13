@@ -37,6 +37,8 @@ export function PageHeader({
       ? "mercado_livre"
       : workspace === "shopee"
         ? "shopee"
+        : workspace === "tiktok_shop"
+          ? "tiktok_shop"
         : "sellercore";
   return (
     <div className="page-heading flex flex-wrap items-end justify-between gap-5">

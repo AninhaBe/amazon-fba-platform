@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { exchangeAuthCode, getAuthorizedShops, epochToIso, TIKTOK_OAUTH_STATE_COOKIE } from "@/lib/tiktok";
-import { saveTiktokShop } from "@/lib/tiktokStore";
+import { saveTiktokAuthorization } from "@/lib/tiktokStore";
 import { validarConviteTiktok } from "@/lib/tiktokInvite";
 import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
 import { runWithWorkspace } from "@/lib/workspaceScope";
@@ -78,8 +78,7 @@ async function concluir(
       return fail("Autorizado, mas nenhuma loja retornada. Verifique a conta do vendedor.");
     }
 
-    for (const s of shops) {
-      await saveTiktokShop({
+    await saveTiktokAuthorization(shops.map((s) => ({
         shopId: s.id,
         shopName: s.name,
         shopCipher: s.cipher,
@@ -88,8 +87,7 @@ async function concluir(
         refreshToken: tok.refresh_token,
         accessExpiresAt: accessExp,
         refreshExpiresAt: refreshExp,
-      });
-    }
+      })));
 
     return finish(NextResponse.redirect(`${baseUrl}/integracoes?connected=tiktok_shop`));
   } catch (err) {

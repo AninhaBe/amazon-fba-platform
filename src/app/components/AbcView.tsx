@@ -35,6 +35,12 @@ interface Abc {
   products: AbcProduct[];
 }
 
+interface AbcRequestState {
+  key: string;
+  data: Abc | null;
+  error: string | null;
+}
+
 const QUAD: Record<Quadrant, { label: string; sub: string; act: string; info: string; dot: string; tag: string }> = {
   motor: { label: "Prioritários", sub: "alto giro · alta margem", act: "Proteger e garantir estoque", info: "<b>Seus melhores produtos:</b> giram bem e ainda deixam boa margem. São o motor do lucro — priorize estoque e posição, e nunca deixe faltar.", dot: "bg-emerald-500", tag: "bg-emerald-50 text-emerald-700" },
   vamp: { label: "Baixa margem", sub: "alto giro · baixa margem", act: "Rever preço ou frete grátis", info: "<b>Vendem muito, mas sobra pouco</b> por unidade. Costumam esconder frete grátis assumido ou preço apertado. Pequenos ajustes aqui rendem muito no total.", dot: "bg-red-500", tag: "bg-red-50 text-red-600" },
@@ -49,25 +55,32 @@ function money(value: number, currency = "BRL") {
 
 export function AbcView({ endpoint, eyebrow, subtitle, costsHref }: { endpoint: string; eyebrow: string; subtitle: string; costsHref: string }) {
   const [days, setDays] = useState(30);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<Abc | null>(null);
+  const requestKey = `${endpoint}:${days}`;
+  const [request, setRequest] = useState<AbcRequestState>({ key: "", data: null, error: null });
   const [quad, setQuad] = useState<Quadrant | null>(null);
+
+  const currentRequest = request.key === requestKey ? request : null;
+  const loading = currentRequest == null;
+  const error = currentRequest?.error ?? null;
+  const data = currentRequest?.data ?? null;
+
+  function selectDays(nextDays: number) {
+    if (nextDays === days) return;
+    setRequest({ key: "", data: null, error: null });
+    setDays(nextDays);
+  }
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
-    setError(null);
     fetch(`${endpoint}?days=${days}`, { cache: "no-store" })
       .then(async (res) => {
         const body = await res.json();
         if (!res.ok) throw new Error(body?.error || "Não foi possível montar a curva ABC.");
-        if (active) { setData(body as Abc); setQuad(null); }
+        if (active) { setRequest({ key: requestKey, data: body as Abc, error: null }); setQuad(null); }
       })
-      .catch((err) => active && (setError(err instanceof Error ? err.message : "Erro"), setData(null)))
-      .finally(() => active && setLoading(false));
+      .catch((err) => active && setRequest({ key: requestKey, data: null, error: err instanceof Error ? err.message : "Erro" }));
     return () => { active = false; };
-  }, [days, endpoint]);
+  }, [days, endpoint, requestKey]);
 
   return (
     <div className="dashboard-page space-y-6">
@@ -79,7 +92,7 @@ export function AbcView({ endpoint, eyebrow, subtitle, costsHref }: { endpoint: 
             <button
               key={d}
               type="button"
-              onClick={() => setDays(d)}
+              onClick={() => selectDays(d)}
               className={`px-3.5 py-2 text-[13px] font-semibold ${days === d ? "bg-amber-600 text-white" : "text-slate-500 hover:text-slate-800"}`}
             >
               {d} dias

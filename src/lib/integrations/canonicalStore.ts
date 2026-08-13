@@ -1,8 +1,9 @@
-import { dbQuery } from "../db";
+import { dbQuery, type DbQuery } from "../db";
 import { currentWorkspaceId } from "../workspaceScope";
 import { allocateByWeight } from "../profitability";
 import type { CanonicalFee, CanonicalOrder, CanonicalProduct } from "./canonical";
 import type { IntegrationProvider } from "./types";
+import { stripReservedCanonicalMetadata } from "./canonicalMetadata";
 
 // Persistência do modelo canônico (docs/canonical-schema.md).
 // As tabelas nascem via migração versionada (npm run migrate), não pelo
@@ -36,7 +37,9 @@ export async function canonicalBestEffort(label: string, fn: () => Promise<void>
   }
 }
 
-export async function saveCanonicalOrders(scope: CanonicalScope, orders: CanonicalOrder[]): Promise<void> {
+export async function saveCanonicalOrders(
+  scope: CanonicalScope, orders: CanonicalOrder[], query: DbQuery = dbQuery
+): Promise<void> {
   if (!orders.length) return;
   const workspaceId = currentWorkspaceId();
   const orderRecords = orders.map((order) => ({
@@ -50,7 +53,7 @@ export async function saveCanonicalOrders(scope: CanonicalScope, orders: Canonic
     buyer_shipping: order.buyerShipping,
     fulfillment: order.fulfillment,
     pack_id: order.packId,
-    raw: scope.storeRaw === false ? null : order.raw,
+    raw: scope.storeRaw === false ? null : stripReservedCanonicalMetadata(order.raw),
   }));
   const itemRecords = orders.flatMap((order) => order.items.map((item, index) => ({
     external_order_id: order.externalOrderId,
@@ -73,7 +76,7 @@ export async function saveCanonicalOrders(scope: CanonicalScope, orders: Canonic
   // Um único statement = atômico. O upsert das linhas cobre line_no <= total
   // e o delete cobre line_no > total: conjuntos disjuntos, sem conflito entre
   // as CTEs. Pedidos que ficaram sem linhas têm todas removidas.
-  await dbQuery(
+  await query(
     `WITH orders_payload AS (
        SELECT * FROM jsonb_to_recordset($4::jsonb) AS item(
          external_order_id text, status text, provider_status text, occurred_at timestamptz,
@@ -94,7 +97,13 @@ export async function saveCanonicalOrders(scope: CanonicalScope, orders: Canonic
          currency = EXCLUDED.currency, gross = EXCLUDED.gross,
          buyer_shipping = COALESCE(EXCLUDED.buyer_shipping, workspace_channel_orders.buyer_shipping),
          fulfillment = EXCLUDED.fulfillment, pack_id = EXCLUDED.pack_id,
-         raw = COALESCE(EXCLUDED.raw, workspace_channel_orders.raw), synced_at = now()
+         raw = CASE
+           WHEN workspace_channel_orders.raw ? '_sellercore'
+           THEN (COALESCE(EXCLUDED.raw, '{}'::jsonb) - '_sellercore')
+             || jsonb_build_object('_sellercore', workspace_channel_orders.raw -> '_sellercore')
+           ELSE COALESCE(EXCLUDED.raw, workspace_channel_orders.raw)
+         END,
+         synced_at = now()
      ),
      items_payload AS (
        SELECT * FROM jsonb_to_recordset($5::jsonb) AS item(
@@ -168,7 +177,7 @@ export async function saveCanonicalOrderHeaders(scope: CanonicalScope, orders: C
     buyer_shipping: order.buyerShipping,
     fulfillment: order.fulfillment,
     pack_id: order.packId,
-    raw: scope.storeRaw === false ? null : order.raw,
+    raw: scope.storeRaw === false ? null : stripReservedCanonicalMetadata(order.raw),
   }));
   await dbQuery(
     `INSERT INTO workspace_channel_orders
@@ -194,7 +203,13 @@ export async function saveCanonicalOrderHeaders(scope: CanonicalScope, orders: C
                ) THEN workspace_channel_orders.gross ELSE EXCLUDED.gross END,
        buyer_shipping = COALESCE(workspace_channel_orders.buyer_shipping, EXCLUDED.buyer_shipping),
        fulfillment = EXCLUDED.fulfillment, pack_id = EXCLUDED.pack_id,
-       raw = COALESCE(EXCLUDED.raw, workspace_channel_orders.raw), synced_at = now()`,
+       raw = CASE
+         WHEN workspace_channel_orders.raw ? '_sellercore'
+         THEN (COALESCE(EXCLUDED.raw, '{}'::jsonb) - '_sellercore')
+           || jsonb_build_object('_sellercore', workspace_channel_orders.raw -> '_sellercore')
+         ELSE COALESCE(EXCLUDED.raw, workspace_channel_orders.raw)
+       END,
+       synced_at = now()`,
     [currentWorkspaceId(), scope.provider, scope.connectionId, JSON.stringify(records)]
   );
 }
@@ -391,7 +406,9 @@ export async function applyCanonicalShipmentCosts(
   );
 }
 
-export async function saveCanonicalProducts(scope: CanonicalScope, products: CanonicalProduct[]): Promise<void> {
+export async function saveCanonicalProducts(
+  scope: CanonicalScope, products: CanonicalProduct[], query: DbQuery = dbQuery
+): Promise<void> {
   if (!products.length) return;
   const records = products.map((product) => ({
     external_product_id: product.externalProductId,
@@ -405,9 +422,9 @@ export async function saveCanonicalProducts(scope: CanonicalScope, products: Can
     fulfillment: product.fulfillment,
     thumbnail: product.thumbnail,
     permalink: product.permalink,
-    raw: scope.storeRaw === false ? null : product.raw,
+    raw: scope.storeRaw === false ? null : stripReservedCanonicalMetadata(product.raw),
   }));
-  await dbQuery(
+  await query(
     `INSERT INTO workspace_channel_products
        (workspace_id, provider, connection_id, external_product_id, sku, title, status, provider_status,
         price, currency, available_qty, fulfillment, thumbnail, permalink, raw, synced_at)
@@ -425,10 +442,16 @@ export async function saveCanonicalProducts(scope: CanonicalScope, products: Can
        currency = EXCLUDED.currency, available_qty = EXCLUDED.available_qty,
        fulfillment = EXCLUDED.fulfillment, thumbnail = EXCLUDED.thumbnail,
        permalink = EXCLUDED.permalink,
-       raw = COALESCE(EXCLUDED.raw, workspace_channel_products.raw), synced_at = now()`,
+       raw = CASE
+         WHEN workspace_channel_products.raw ? '_sellercore'
+         THEN (COALESCE(EXCLUDED.raw, '{}'::jsonb) - '_sellercore')
+           || jsonb_build_object('_sellercore', workspace_channel_products.raw -> '_sellercore')
+         ELSE COALESCE(EXCLUDED.raw, workspace_channel_products.raw)
+       END,
+       synced_at = now()`,
     [currentWorkspaceId(), scope.provider, scope.connectionId, JSON.stringify(records)]
   );
-  await recordOfferSnapshot(scope, products);
+  await recordOfferSnapshot(scope, products, query);
 }
 
 // ADR-010: foto diária da oferta. A tabela canônica acima é sobrescrita a cada sync,
@@ -438,7 +461,8 @@ export async function saveCanonicalProducts(scope: CanonicalScope, products: Can
 // Upsert por dia: a última foto do dia é a que vale.
 export async function recordOfferSnapshot(
   scope: CanonicalScope,
-  products: CanonicalProduct[]
+  products: CanonicalProduct[],
+  query: DbQuery = dbQuery
 ): Promise<void> {
   if (!products.length) return;
   const records = products.map((product) => ({
@@ -449,7 +473,7 @@ export async function recordOfferSnapshot(
     currency: product.currency,
     available_qty: product.availableQty,
   }));
-  await dbQuery(
+  await query(
     `INSERT INTO workspace_channel_offer_history
        (workspace_id, provider, connection_id, external_product_id, captured_on,
         sku, status, price, currency, available_qty, updated_at)

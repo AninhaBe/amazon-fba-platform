@@ -8,7 +8,11 @@
     "start": "next start",
     "lint": "eslint",
     "test": "node --experimental-strip-types --test tests/*.test.mjs",
-    "migrate": "node --env-file=.env.local scripts/migrate.mjs",
+    "health:local": "node scripts/health-local.mjs",
+    "migrate": "node scripts/migrate-cli.mjs guard",
+    "migrate:plan": "node --env-file-if-exists=.env.local scripts/migrate-cli.mjs plan",
+    "migrate:local": "node --env-file-if-exists=.env.local scripts/migrate-cli.mjs local",
+    "migrate:apply": "node --env-file-if-exists=.env.local scripts/migrate-cli.mjs apply",
     "backfill:canonical": "node --experimental-strip-types --import ./scripts/ts-resolver.mjs --env-file=.env.local scripts/backfill-canonical.mjs"
   },
   "dependencies": {

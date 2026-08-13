@@ -84,6 +84,66 @@ export interface ShopeeProductItem {
   has_model?: boolean;
 }
 
+/**
+ * Allowlist do payload Shopee persistido no canônico. Endereço, comprador,
+ * telefone e documentos fiscais nunca entram em `raw`, mesmo que a API passe
+ * a devolvê-los por padrão em algum endpoint.
+ */
+export function sanitizeShopeeOrder(order: ShopeeOrderDetail): Record<string, unknown> {
+  return JSON.parse(JSON.stringify({
+    order_sn: order.order_sn,
+    order_status: order.order_status,
+    create_time: order.create_time,
+    update_time: order.update_time,
+    pay_time: order.pay_time,
+    currency: order.currency,
+    cod: order.cod,
+    region: order.region,
+    total_amount: order.total_amount,
+    actual_shipping_fee: order.actual_shipping_fee,
+    estimated_shipping_fee: order.estimated_shipping_fee,
+    reverse_shipping_fee: order.reverse_shipping_fee,
+    fulfillment_flag: order.fulfillment_flag,
+    item_list: (order.item_list ?? []).map((item) => ({
+      item_id: item.item_id,
+      model_id: item.model_id,
+      item_sku: item.item_sku,
+      model_sku: item.model_sku,
+      item_name: item.item_name,
+      model_name: item.model_name,
+      model_quantity_purchased: item.model_quantity_purchased,
+      model_original_price: item.model_original_price,
+      model_discounted_price: item.model_discounted_price,
+    })),
+    package_list: (order.package_list ?? []).map((pkg) => ({
+      shipping_carrier: pkg.shipping_carrier,
+      logistics_status: pkg.logistics_status,
+    })),
+  })) as Record<string, unknown>;
+}
+
+export function sanitizeShopeeProduct(product: ShopeeProductItem): Record<string, unknown> {
+  return JSON.parse(JSON.stringify({
+    item_id: product.item_id,
+    item_sku: product.item_sku,
+    item_name: product.item_name,
+    item_status: product.item_status,
+    currency: product.currency,
+    stock_info_v2: product.stock_info_v2 ? {
+      summary_info: product.stock_info_v2.summary_info ? {
+        total_available_stock: product.stock_info_v2.summary_info.total_available_stock,
+      } : undefined,
+    } : undefined,
+    price_info: (product.price_info ?? []).map((price) => ({
+      current_price: price.current_price,
+      original_price: price.original_price,
+      currency: price.currency,
+    })),
+    image: product.image ? { image_url_list: product.image.image_url_list } : undefined,
+    has_model: product.has_model,
+  })) as Record<string, unknown>;
+}
+
 function round2(value: number): number {
   return Math.round(value * 100) / 100;
 }
@@ -111,7 +171,9 @@ const STATUS_MAP: Record<string, CanonicalOrderStatus> = {
 };
 
 export function canonicalShopeeStatus(providerStatus: string): CanonicalOrderStatus {
-  return STATUS_MAP[providerStatus] ?? "pending";
+  const status = STATUS_MAP[providerStatus];
+  if (!status) throw new Error(`Status de pedido Shopee desconhecido: ${providerStatus || "ausente"}.`);
+  return status;
 }
 
 /**
@@ -167,14 +229,20 @@ export function normalizeShopeeOrder(
   { escrow }: NormalizeShopeeOrderOptions = {}
 ): CanonicalOrder {
   const currency = order.currency ?? "BRL";
+  const status = canonicalShopeeStatus(order.order_status);
+  const occurredAt = requiredEpoch(order.create_time, "create_time", order.order_sn);
+  const revenueBearing = ["READY_TO_SHIP", "PROCESSED", "INVOICE_PENDING", "RETRY_SHIP", "SHIPPED", "TO_CONFIRM_RECEIVE", "COMPLETED", "IN_CANCEL"].includes(order.order_status);
+  if (revenueBearing && !order.item_list?.length) {
+    throw new Error(`Pedido Shopee ${order.order_sn} pago sem item_list; receita não pode ser inferida.`);
+  }
   const items = (order.item_list ?? []).map((line) => ({
-    externalProductId: String(line.item_id ?? ""),
+    externalProductId: requiredIdentity(line.item_id, "item_id", order.order_sn),
     // model_sku é o SKU da variação; item_sku é o do anúncio pai.
     sku: line.model_sku || line.item_sku || null,
     title: [line.item_name, line.model_name].filter(Boolean).join(" - ") || String(line.item_id ?? ""),
-    qty: line.model_quantity_purchased ?? 1,
+    qty: requiredPositive(line.model_quantity_purchased, "model_quantity_purchased", order.order_sn),
     // discounted_price é o efetivamente cobrado; original_price é a lista.
-    unitPrice: Number(line.model_discounted_price ?? line.model_original_price ?? 0),
+    unitPrice: requiredNonNegative(line.model_discounted_price ?? line.model_original_price, "model_discounted_price", order.order_sn),
   }));
 
   const gross = round2(items.reduce((sum, item) => sum + item.unitPrice * item.qty, 0));
@@ -182,9 +250,9 @@ export function normalizeShopeeOrder(
 
   return {
     externalOrderId: order.order_sn,
-    status: canonicalShopeeStatus(order.order_status),
+    status,
     providerStatus: order.order_status,
-    occurredAt: fromEpoch(order.create_time) ?? new Date().toISOString(),
+    occurredAt,
     closedAt: order.order_status === "COMPLETED" ? fromEpoch(order.update_time) : null,
     currency,
     gross,
@@ -199,8 +267,38 @@ export function normalizeShopeeOrder(
     packId: null,
     items,
     fees: income ? canonicalShopeeFees(income, currency) : [],
-    raw: order,
+    raw: sanitizeShopeeOrder(order),
   };
+}
+
+function requiredNonNegative(value: number | null | undefined, field: string, identity: string): number {
+  if (value == null || !Number.isFinite(Number(value)) || Number(value) < 0) {
+    throw new Error(`Shopee não informou ${field} válido para ${identity}; zero não será fabricado.`);
+  }
+  return Number(value);
+}
+
+function requiredPositive(value: number | null | undefined, field: string, identity: string): number {
+  const parsed = requiredNonNegative(value, field, identity);
+  if (parsed <= 0) throw new Error(`Shopee não informou ${field} positivo para ${identity}.`);
+  return parsed;
+}
+
+function requiredIdentity(value: number | string | null | undefined, field: string, identity: string): string {
+  const parsed = String(value ?? "").trim();
+  if (!parsed) throw new Error(`Shopee não informou ${field} válido para ${identity}.`);
+  return parsed;
+}
+
+function requiredEpoch(value: number | null | undefined, field: string, identity: string): string {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    throw new Error(`Shopee não informou ${field} válido para ${identity}; data atual não será fabricada.`);
+  }
+  const date = new Date(value * 1000);
+  if (!Number.isFinite(date.getTime())) {
+    throw new Error(`Shopee não informou ${field} válido para ${identity}; data atual não será fabricada.`);
+  }
+  return date.toISOString();
 }
 
 const PRODUCT_STATUS_MAP: Record<string, CanonicalProduct["status"]> = {
@@ -212,19 +310,29 @@ const PRODUCT_STATUS_MAP: Record<string, CanonicalProduct["status"]> = {
 };
 
 export function normalizeShopeeProduct(product: ShopeeProductItem): CanonicalProduct {
+  const externalProductId = requiredIdentity(product.item_id, "item_id", "produto");
+  const providerStatus = product.item_status ?? "";
+  const status = PRODUCT_STATUS_MAP[providerStatus];
+  if (!status) throw new Error(`Status de produto Shopee desconhecido: ${providerStatus || "ausente"}.`);
   const price = product.price_info?.[0];
+  const currentPrice = requiredNonNegative(price?.current_price, "price_info.current_price", String(product.item_id));
+  const availableQty = requiredNonNegative(
+    product.stock_info_v2?.summary_info?.total_available_stock,
+    "stock_info_v2.summary_info.total_available_stock",
+    String(product.item_id)
+  );
   return {
-    externalProductId: String(product.item_id),
+    externalProductId,
     sku: product.item_sku || null,
     title: product.item_name ?? String(product.item_id),
-    status: PRODUCT_STATUS_MAP[product.item_status ?? ""] ?? "paused",
-    providerStatus: product.item_status ?? "UNKNOWN",
-    price: Number(price?.current_price ?? 0),
+    status,
+    providerStatus,
+    price: currentPrice,
     currency: price?.currency ?? product.currency ?? "BRL",
-    availableQty: product.stock_info_v2?.summary_info?.total_available_stock ?? 0,
+    availableQty,
     fulfillment: null,
     thumbnail: product.image?.image_url_list?.[0] ?? null,
     permalink: null,
-    raw: product,
+    raw: sanitizeShopeeProduct(product),
   };
 }

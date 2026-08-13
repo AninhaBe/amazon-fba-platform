@@ -8,14 +8,31 @@ import { DashboardSkeleton } from "./components/LoadingState";
 import { MarketplaceIcon } from "./components/MarketplaceIcon";
 import { RevenueChart, type DailyPoint } from "./components/RevenueChart";
 import { brTime } from "@/lib/datetime";
+import {
+  aggregateShopeeStores,
+  centralProviderReadState,
+  connectedShopeeConnectionIds,
+  type CentralShopeeResponse,
+} from "./OverviewShopeeModel";
 
-interface ProviderConnection { id: string; }
-interface Provider { id: string; name: string; configured: boolean; connections: ProviderConnection[]; }
+interface ProviderConnection { id: string; status: string; }
+interface Provider {
+  id: string;
+  name: string;
+  configured: boolean;
+  connections: ProviderConnection[];
+  issue?: { status: "attention"; code: "OWNERSHIP_CONFLICT" | "PROVIDER_READ_FAILED"; message: string };
+}
 interface AmazonProfit { estimatedProfit: number; unitsWithoutCost: number; finance: { currency: string; }; }
 interface AmazonSales { series: { totalRevenue: number; totalOrders: number; currency: string; points?: DailyPoint[]; }; }
 interface MercadoLivreOverview { metrics: { revenue30d: number; orders30d: number; activeListings: number; cancelledRevenue: number; cancelledOrders: number; currency: string; revenueCoverage: { complete: boolean; capturedOrders: number; totalOrders: number; }; }; profit: { estimatedProfit: number; unitsWithoutCost: number; coverage: { processedOrders: number; paidOrders: number; complete: boolean; }; }; dailySales?: DailyPoint[]; }
 
-interface ShopeeOverview { metrics: { revenue30d: number; orders30d: number; cancelledRevenue: number; currency: string; revenueCoverage: { complete: boolean; capturedOrders: number; totalOrders: number; }; }; profit: { estimatedProfit: number; unitsWithoutCost: number; coverage: { processedOrders: number; paidOrders: number; complete: boolean; }; }; dailySales?: DailyPoint[]; }
+interface TiktokOverviewResponse {
+  overview: { revenue: number | null; profit: number | null; currency: string } | null;
+  orders?: number;
+  dailySeries?: DailyPoint[];
+  coverage?: { requestedPeriod?: { revenue?: { status: "complete" | "partial" | "pending" } } } | null;
+}
 
 // A central responde "quanto a operação inteira faturou" — venda a venda é
 // assunto de cada canal, onde existe busca, filtro e paginação.
@@ -46,10 +63,11 @@ function mergeDailySeries(series: Array<DailyPoint[] | undefined>): DailyPoint[]
   return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 interface ChannelSnapshot {
-  id: "amazon" | "mercado_livre" | "shopee";
+  id: "amazon" | "mercado_livre" | "shopee" | "tiktok_shop";
   name: string;
   href: string;
   connected: boolean;
+  attention?: boolean;
   revenue: number | null;
   profit: number | null;
   profitPartial?: boolean;
@@ -91,10 +109,17 @@ export default function OverviewDashboard() {
         const amazonProvider = integrationData.providers.find((provider) => provider.id === "amazon");
         const mercadoLivreProvider = integrationData.providers.find((provider) => provider.id === "mercado_livre");
         const shopeeProvider = integrationData.providers.find((provider) => provider.id === "shopee");
+        const tiktokProvider = integrationData.providers.find((provider) => provider.id === "tiktok_shop");
+        const shopeeReadState = centralProviderReadState(shopeeProvider);
+        const tiktokReadState = centralProviderReadState(tiktokProvider);
 
         const amazon: ChannelSnapshot = { id: "amazon", name: "Amazon", href: "/amazon", connected: !!amazonProvider?.connections.length, revenue: null, profit: null, orders: null, currency: "BRL", note: "Faturamento, pedidos e lucro estimado" };
         const mercadoLivre: ChannelSnapshot = { id: "mercado_livre", name: "Mercado Livre", href: "/mercado-livre", connected: !!mercadoLivreProvider?.connections.length, revenue: null, profit: null, orders: null, currency: "BRL", note: "Faturamento, pedidos e lucro estimado" };
-        const shopee: ChannelSnapshot = { id: "shopee", name: "Shopee", href: "/shopee", connected: !!shopeeProvider?.connections.length, revenue: null, profit: null, orders: null, currency: "BRL", note: "Faturamento, pedidos e lucro estimado" };
+        const shopeeConnectionIds = shopeeReadState.attention
+          ? []
+          : connectedShopeeConnectionIds(shopeeProvider?.connections ?? []);
+        const shopee: ChannelSnapshot = { id: "shopee", name: "Shopee", href: "/shopee", connected: shopeeReadState.connected, attention: shopeeReadState.attention, revenue: null, profit: null, orders: null, currency: "BRL", note: "Faturamento, pedidos e lucro estimado", error: shopeeReadState.message ?? undefined };
+        const tiktok: ChannelSnapshot = { id: "tiktok_shop", name: "TikTok Shop", href: "/tiktok", connected: tiktokReadState.connected, attention: tiktokReadState.attention, revenue: null, profit: null, orders: null, currency: "BRL", note: "Faturamento, pedidos e lucro estimado", error: tiktokReadState.message ?? undefined };
 
         const tasks: Promise<void>[] = [];
         const channelSeries: Array<DailyPoint[] | undefined> = [];
@@ -156,31 +181,60 @@ export default function OverviewDashboard() {
               : "Faturamento, pedidos e lucro estimado"
             : coverageNote(overview.metrics.revenueCoverage);
         }).catch((error) => { mercadoLivre.error = error instanceof Error ? error.message : "Dados indisponíveis"; }));
-        if (shopee.connected) tasks.push(json<{ overview?: ShopeeOverview; pending?: boolean }>("/api/integrations/shopee/overview?days=30").then((data) => {
-          // Conectada mas ainda sem ingestão: mantém os valores em null (nunca
-          // zero) para não somar "não vendeu nada" ao consolidado.
-          if (data.pending || !data.overview) { shopee.note = "Primeira sincronização pendente"; return; }
-          const overview = data.overview;
-          channelSeries.push(overview.dailySales);
-          shopee.revenue = overview.metrics.revenue30d;
-          shopee.cancelled = overview.metrics.cancelledRevenue;
-          shopee.profit = overview.profit.estimatedProfit;
-          shopee.profitPartial = !overview.profit.coverage.complete || overview.profit.unitsWithoutCost > 0;
-          shopee.orders = overview.metrics.orders30d;
-          shopee.currency = overview.metrics.currency;
-          shopee.note = overview.metrics.revenueCoverage.complete
-            ? !overview.profit.coverage.complete
-              ? `Faturamento completo; lucro processado em ${overview.profit.coverage.processedOrders} de ${overview.profit.coverage.paidOrders} vendas`
-              : overview.profit.unitsWithoutCost > 0
-              ? `Lucro parcial: ${overview.profit.unitsWithoutCost} unidade(s) sem custo`
-              : "Faturamento, pedidos e lucro estimado"
-            : coverageNote(overview.metrics.revenueCoverage);
-        }).catch((error) => { shopee.error = error instanceof Error ? error.message : "Dados indisponíveis"; }));
+        if (shopee.connected) tasks.push((async () => {
+          const results = await Promise.allSettled(shopeeConnectionIds.map((connectionId) =>
+            json<CentralShopeeResponse>(`/api/integrations/shopee/overview?days=30&connection_id=${encodeURIComponent(connectionId)}`)
+          ));
+          const aggregate = aggregateShopeeStores(shopeeConnectionIds.map((connectionId, index) => ({
+            connectionId,
+            result: results[index],
+          })));
+          shopee.revenue = aggregate.revenue;
+          shopee.cancelled = aggregate.cancelled ?? undefined;
+          shopee.profit = aggregate.profit;
+          shopee.profitPartial = aggregate.profitPartial;
+          shopee.orders = aggregate.orders;
+          shopee.currency = aggregate.currency;
+          shopee.note = aggregate.note;
+          shopee.error = aggregate.error;
+          if (aggregate.dailySales.length) channelSeries.push(aggregate.dailySales);
+        })());
+        if (tiktok.connected) tasks.push((async () => {
+          const results = await Promise.allSettled((tiktokProvider?.connections ?? []).map((connection) =>
+            json<TiktokOverviewResponse>(`/api/integrations/tiktok/overview?days=30&connection_id=${encodeURIComponent(connection.id)}`)
+          ));
+          const available = results.flatMap((result) => result.status === "fulfilled" && result.value.overview ? [result.value] : []);
+          const failed = results.length - available.length;
+          if (!available.length) {
+            const reason = results.find((result) => result.status === "rejected");
+            tiktok.error = reason?.status === "rejected" && reason.reason instanceof Error ? reason.reason.message : "Dados indisponíveis";
+            return;
+          }
+
+          const revenues = available.map((item) => item.overview!.revenue).filter((value): value is number => value != null);
+          const profits = available.map((item) => item.overview!.profit).filter((value): value is number => value != null);
+          tiktok.revenue = revenues.length ? revenues.reduce((total, value) => total + value, 0) : null;
+          tiktok.profit = profits.length ? profits.reduce((total, value) => total + value, 0) : null;
+          tiktok.profitPartial = profits.length < available.length;
+          tiktok.orders = available.every((item) => item.orders != null)
+            ? available.reduce((total, item) => total + item.orders!, 0)
+            : null;
+          tiktok.currency = available[0].overview!.currency || "BRL";
+          channelSeries.push(...available.map((item) => item.dailySeries));
+          const partialRevenue = available.some((item) => item.coverage?.requestedPeriod?.revenue?.status !== "complete");
+          tiktok.note = failed > 0
+            ? `${available.length} de ${results.length} loja(s) com leitura; demais indisponíveis`
+            : partialRevenue
+              ? "Faturamento capturado; sincronização ainda não cobre todo o período"
+              : tiktok.profitPartial
+                ? "Faturamento e pedidos disponíveis; lucro ainda incompleto"
+                : "Faturamento, pedidos e lucro estimado";
+        })());
         await Promise.all(tasks);
         const refreshedAt = new Date();
         const merged = mergeDailySeries(channelSeries);
-        centralCache = { channels: [amazon, mercadoLivre, shopee], series: merged, updatedAt: refreshedAt };
-        setChannels([amazon, mercadoLivre, shopee]);
+        centralCache = { channels: [amazon, mercadoLivre, shopee, tiktok], series: merged, updatedAt: refreshedAt };
+        setChannels([amazon, mercadoLivre, shopee, tiktok]);
         setSeries(merged);
         setUpdatedAt(refreshedAt);
       } catch {
@@ -206,7 +260,7 @@ export default function OverviewDashboard() {
     <div className="overview-page space-y-8">
       <PageHeader eyebrow="Central multicanal" title="Visão geral" subtitle="Acompanhe sua operação inteira e entre em cada canal quando precisar dos detalhes próprios da plataforma." icon={pageIcons.dashboard} action={updatedAt && <span className="data-freshness">Atualizado às {brTime(updatedAt)}</span>} />
       {loading ? <DashboardSkeleton label="Consolidando seus canais" chart={false} rows={2} /> : channels.length === 0 ? (
-        <section className="central-empty"><span>SC</span><div><p className="section-kicker">Primeira conexão</p><h2>Monte sua central de vendas</h2><p>Conecte Amazon, Mercado Livre ou Shopee para começar a consolidar faturamento e pedidos.</p></div><Link href="/integracoes">Conectar um canal <b aria-hidden="true">→</b></Link></section>
+        <section className="central-empty"><span>SC</span><div><p className="section-kicker">Primeira conexão</p><h2>Monte sua central de vendas</h2><p>Conecte Amazon, Mercado Livre, Shopee ou TikTok Shop para começar a consolidar faturamento e pedidos.</p></div><Link href="/integracoes">Conectar um canal <b aria-hidden="true">→</b></Link></section>
       ) : <div className="dashboard-sections space-y-8">
         <section className="central-kpis" aria-label="Indicadores consolidados">
           <article><p>Faturamento conhecido</p><strong><AnimatedNumber id="central-revenue" value={totals.revenue} format={(amount) => money(amount)} /></strong><small>Soma dos canais com dados disponíveis</small></article>
@@ -230,14 +284,14 @@ export default function OverviewDashboard() {
           <div className="channel-overview-grid">
             {channels.map((channel) => (
               <article key={channel.id} className={`channel-overview-card is-${channel.id}`}>
-                <header><span className="channel-overview-mark" aria-hidden="true"><MarketplaceIcon provider={channel.id} size={40} app /></span><div><h3>{channel.name}</h3><p>{!channel.connected ? "Aguardando conexão" : channel.error ? "Conectado, sem leitura" : "Canal conectado"}</p></div><span className={`channel-health${channel.connected && !channel.error ? " is-connected" : ""}`}>{!channel.connected ? "Conectar" : channel.error ? "Atenção" : "Ativo"}</span></header>
-                {channel.connected ? <>
+                <header><span className="channel-overview-mark" aria-hidden="true"><MarketplaceIcon provider={channel.id} size={40} app /></span><div><h3>{channel.name}</h3><p>{channel.attention ? "Canal temporariamente indisponível" : !channel.connected ? "Aguardando conexão" : channel.error ? "Conectado, sem leitura" : "Canal conectado"}</p></div><span className={`channel-health${channel.connected && !channel.error ? " is-connected" : ""}`}>{channel.attention ? "Atenção" : !channel.connected ? "Conectar" : channel.error ? "Atenção" : "Ativo"}</span></header>
+                {channel.attention ? <div className="channel-card-empty"><p>{channel.error || "Não foi possível carregar este canal agora."}</p></div> : channel.connected ? <>
                   <div className="channel-value"><span>Vendas brutas</span><strong>{channel.error ? "Indisponível" : money(channel.revenue, channel.currency)}</strong></div>
                   <div className="channel-share" aria-label={`Participação relativa de ${channel.name}`}><i style={{ width: `${((channel.revenue ?? 0) / maxRevenue) * 100}%` }} /></div>
                   <dl><div><dt>Pedidos</dt><dd>{channel.orders?.toLocaleString("pt-BR") ?? "—"}</dd></div><div><dt>{channel.profitPartial ? "Lucro parcial" : "Lucro"}</dt><dd>{money(channel.profit, channel.currency)}</dd></div>{channel.cancelled != null && channel.cancelled > 0 ? <div><dt>Canceladas</dt><dd className="text-red-600">{money(channel.cancelled, channel.currency)}</dd></div> : null}</dl>
                   <p className="channel-note">{channel.error || channel.note}</p>
                 </> : <div className="channel-card-empty"><p>Conecte sua conta para incluir este canal no dashboard geral.</p></div>}
-                <Link href={channel.connected ? channel.href : "/integracoes"}>{channel.connected ? `Abrir ${channel.name}` : `Conectar ${channel.name}`} <span aria-hidden="true">→</span></Link>
+                <Link href={channel.connected && !channel.attention ? channel.href : "/integracoes"}>{channel.attention ? "Revisar integração" : channel.connected ? `Abrir ${channel.name}` : `Conectar ${channel.name}`} <span aria-hidden="true">→</span></Link>
               </article>
             ))}
           </div>

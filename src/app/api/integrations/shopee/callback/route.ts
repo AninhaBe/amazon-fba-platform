@@ -18,8 +18,13 @@ export async function GET(req: NextRequest) {
   return withAuthenticatedWorkspace(async () => {
     const { searchParams, origin } = new URL(req.url);
     const uiBaseUrl = process.env.APP_UI_BASE_URL || process.env.APP_BASE_URL || origin;
-    const fail = (message: string) =>
-      NextResponse.redirect(`${uiBaseUrl}/integracoes?error=${encodeURIComponent(message)}`);
+    const fail = (message: string) => {
+      const response = NextResponse.redirect(`${uiBaseUrl}/integracoes?error=${encodeURIComponent(message)}`);
+      // A tentativa OAuth deve ser de uso unico mesmo quando a Shopee devolve um
+      // callback incompleto ou a troca do code falha.
+      response.cookies.set("shopee_oauth_state", "", { maxAge: 0, path: "/" });
+      return response;
+    };
 
     if (!req.cookies.get("shopee_oauth_state")?.value) {
       return fail("Falha na verificação de segurança da Shopee. Refaça a conexão.");

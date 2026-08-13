@@ -7,10 +7,16 @@
 //
 // Padrão de referência: `mercadoLivre.ts`. Mapa da API: `docs/api-shopee.md`.
 
-import { createHmac } from "crypto";
-import { saveIntegration } from "./integrationStore";
+import { createHmac, randomUUID } from "crypto";
+import { claimIntegrationTokenRefresh, failIntegrationTokenRefresh, finishIntegrationTokenRefresh, getIntegration, releaseIntegrationTokenRefresh, saveIntegration } from "./integrationStore";
 import { ChannelAuthExpiredError } from "./authErrors";
 import type { IntegrationConnection } from "./types";
+import { hasDb } from "../db";
+import { isShopeeDemoConnection } from "./shopeeConnection";
+import { invalidShopeeResponse, requestShopeeJson, ShopeeApiError, type ShopeeEnvelope } from "./shopeeHttp";
+import { parseShopeeOrderListPage, parseShopeeProductListPage } from "./shopeePagination";
+
+export { requestShopeeJson, ShopeeApiError } from "./shopeeHttp";
 
 // Hosts verificados em 05/08/2026 com chamada real. O host antigo
 // `partner.test-stable.shopeemobile.com` responde error_sign mesmo com assinatura
@@ -76,22 +82,6 @@ function nowSeconds(): number {
   return Math.floor(Date.now() / 1000);
 }
 
-/** Erro de API da Shopee com o request_id, que o suporte deles exige para investigar. */
-export class ShopeeApiError extends Error {
-  constructor(readonly code: string, message: string, readonly requestId?: string) {
-    super(message);
-    this.name = "ShopeeApiError";
-  }
-}
-
-interface ShopeeEnvelope {
-  error?: string;
-  message?: string;
-  request_id?: string;
-  response?: unknown;
-  [key: string]: unknown;
-}
-
 function unwrap<T>(payload: ShopeeEnvelope): T {
   if (payload.error) {
     throw new ShopeeApiError(payload.error, payload.message || payload.error, payload.request_id);
@@ -100,29 +90,9 @@ function unwrap<T>(payload: ShopeeEnvelope): T {
   return (payload.response !== undefined ? payload.response : payload) as T;
 }
 
-async function requestJson(url: string, init?: RequestInit): Promise<ShopeeEnvelope> {
-  for (let attempt = 0; attempt < 3; attempt++) {
-    let response: Response;
-    try {
-      response = await fetch(url, { ...init, cache: "no-store", signal: AbortSignal.timeout(15_000) });
-    } catch (error) {
-      if (attempt < 2) {
-        await new Promise((resolve) => setTimeout(resolve, 350 * 2 ** attempt));
-        continue;
-      }
-      if (error instanceof Error && error.name === "TimeoutError") {
-        throw new Error("A Shopee demorou para responder. Tente novamente em instantes.");
-      }
-      throw error;
-    }
-    const transient = response.status === 429 || response.status >= 500;
-    if (transient && attempt < 2) {
-      await new Promise((resolve) => setTimeout(resolve, 500 * 2 ** attempt));
-      continue;
-    }
-    return (await response.json().catch(() => ({}))) as ShopeeEnvelope;
-  }
-  throw new Error("Falha ao falar com a Shopee.");
+function isShopeeAuthError(error: unknown): boolean {
+  return error instanceof ShopeeApiError
+    && ["error_auth", "invalid_access_token", "invalid_refresh_token", "error_token"].includes(error.code);
 }
 
 /** Chamada a endpoint público (não exige loja autorizada). */
@@ -135,7 +105,7 @@ export async function shopeePublicFetch<T>(apiPath: string, params: Record<strin
     sign: signPublic(apiPath, timestamp),
     ...params,
   });
-  return unwrap<T>(await requestJson(`${shopeeHost()}${apiPath}?${query}`));
+  return unwrap<T>(await requestShopeeJson(`${shopeeHost()}${apiPath}?${query}`));
 }
 
 // ----- OAuth ---------------------------------------------------------------
@@ -183,7 +153,7 @@ export async function exchangeShopeeCode(code: string, shopId: string): Promise<
     timestamp: String(timestamp),
     sign: signPublic(apiPath, timestamp),
   });
-  const payload = await requestJson(`${shopeeHost()}${apiPath}?${query}`, {
+  const payload = await requestShopeeJson(`${shopeeHost()}${apiPath}?${query}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ code, shop_id: Number(shopId), partner_id: Number(partnerId) }),
@@ -197,12 +167,47 @@ export async function exchangeShopeeCode(code: string, shopId: string): Promise<
  * do Mercado Livre).
  */
 export async function refreshShopeeConnection(connection: IntegrationConnection): Promise<IntegrationConnection> {
+  if (isShopeeDemoConnection(connection)) {
+    throw new Error("Conexão de demonstração Shopee não possui autorização OAuth.");
+  }
+  if (!connection.refreshToken) {
+    throw new ChannelAuthExpiredError("A loja Shopee precisa ser reconectada: refresh token ausente.");
+  }
   const pending = refreshes.get(connection.id);
   if (pending) return pending;
 
-  const task = (async () => {
+  const refresh = async () => {
+    const leaseToken = randomUUID();
+    let claimed = !hasDb();
+    if (hasDb()) {
+      for (let attempt = 0; attempt < 40; attempt++) {
+        const current = await getIntegration(connection.id);
+        const currentExpiry = current?.accessExpiresAt ? Date.parse(current.accessExpiresAt) : 0;
+        if (current && currentExpiry - REFRESH_SKEW_MS > Date.now()) return current;
+        claimed = Boolean(await claimIntegrationTokenRefresh(
+          connection.id,
+          leaseToken,
+          new Date(Date.now() + 60_000).toISOString()
+        ));
+        if (claimed) break;
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+      if (!claimed) throw new Error("Timeout ao aguardar renovação concorrente do token Shopee.");
+    }
+    try {
+      // Outra instância pode ter rotacionado o refresh token enquanto aguardávamos.
+    const latest = hasDb() ? await getIntegration(connection.id) : undefined;
+    const source = latest?.provider === "shopee" ? latest : connection;
+    if (isShopeeDemoConnection(source)) {
+      throw new Error("Conexão de demonstração Shopee não possui autorização OAuth.");
+    }
+    if (!source.refreshToken) {
+      throw new ChannelAuthExpiredError("A loja Shopee precisa ser reconectada: refresh token ausente.");
+    }
+    const expiresAt = source.accessExpiresAt ? Date.parse(source.accessExpiresAt) : 0;
+    if (latest && expiresAt - REFRESH_SKEW_MS > Date.now()) return latest;
     const { partnerId } = credentials();
-    const shopId = connection.externalAccountId;
+    const shopId = source.externalAccountId;
     const apiPath = "/api/v2/auth/access_token/get";
     const timestamp = nowSeconds();
     const query = new URLSearchParams({
@@ -210,36 +215,52 @@ export async function refreshShopeeConnection(connection: IntegrationConnection)
       timestamp: String(timestamp),
       sign: signPublic(apiPath, timestamp),
     });
-    const payload = await requestJson(`${shopeeHost()}${apiPath}?${query}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        refresh_token: connection.refreshToken,
-        shop_id: Number(shopId),
-        partner_id: Number(partnerId),
-      }),
-    });
     let token: ShopeeTokenResponse;
     try {
+      const payload = await requestShopeeJson(`${shopeeHost()}${apiPath}?${query}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          refresh_token: source.refreshToken,
+          shop_id: Number(shopId),
+          partner_id: Number(partnerId),
+        }),
+      });
       token = unwrap<ShopeeTokenResponse>(payload);
     } catch (error) {
+      if (!isShopeeAuthError(error)) throw error;
       // Além da rotação do refresh token, a autorização da loja vence em até
       // 365 dias: nos dois casos a saída é o vendedor reautorizar.
-      await saveIntegration({ ...connection, status: "disconnected" }).catch(() => {});
+      if (!hasDb()) await saveIntegration({ ...source, status: "disconnected" }).catch(() => {});
+      await failIntegrationTokenRefresh(connection.id, leaseToken).catch(() => {});
       throw new ChannelAuthExpiredError(
         "A autorização desta loja Shopee expirou. Peça ao vendedor para reconectar.",
         error
       );
     }
-    return saveIntegration({
-      ...connection,
+    const updated = {
+      ...source,
       accessToken: token.access_token,
       refreshToken: token.refresh_token, // rotacionou: persistir o novo
       accessExpiresAt: new Date(Date.now() + token.expire_in * 1000).toISOString(),
       status: "connected",
       updatedAt: new Date().toISOString(),
+    } as IntegrationConnection;
+    if (!hasDb()) return saveIntegration(updated);
+    const saved = await finishIntegrationTokenRefresh(source, leaseToken, {
+      accessToken: updated.accessToken ?? "",
+      refreshToken: updated.refreshToken ?? "",
+      accessExpiresAt: updated.accessExpiresAt ?? "",
     });
-  })().finally(() => refreshes.delete(connection.id));
+    if (saved) return saved;
+    const latestAfterRace = await getIntegration(connection.id);
+    if (latestAfterRace) return latestAfterRace;
+    throw new Error("A conexão Shopee foi removida durante a renovação do token.");
+    } finally {
+      if (claimed) await releaseIntegrationTokenRefresh(connection.id, leaseToken).catch(() => {});
+    }
+  };
+  const task = refresh().finally(() => refreshes.delete(connection.id));
 
   refreshes.set(connection.id, task);
   return task;
@@ -258,6 +279,9 @@ export async function shopeeFetch<T>(
   params: Record<string, string> = {},
   init?: RequestInit
 ): Promise<T> {
+  if (isShopeeDemoConnection(connection)) {
+    throw new Error("Conexão de demonstração Shopee não pode chamar a Open Platform.");
+  }
   let current = await validConnection(connection);
   const { partnerId } = credentials();
 
@@ -273,7 +297,16 @@ export async function shopeeFetch<T>(
       sign: signShop(apiPath, timestamp, accessToken, shopId),
       ...params,
     });
-    const payload = await requestJson(`${shopeeHost()}${apiPath}?${query}`, init);
+    let payload: ShopeeEnvelope;
+    try {
+      payload = await requestShopeeJson(`${shopeeHost()}${apiPath}?${query}`, init);
+    } catch (error) {
+      if (isShopeeAuthError(error) && attempt === 0) {
+        current = await refreshShopeeConnection(current);
+        continue;
+      }
+      throw error;
+    }
 
     // Token expirado antes do previsto: renova uma vez e repete.
     if ((payload.error === "error_auth" || payload.error === "invalid_access_token") && attempt === 0) {
@@ -313,10 +346,21 @@ export const ORDER_PAGE_SIZE = 100;
 /** get_order_detail aceita no máximo 50 order_sn por chamada. */
 export const ORDER_DETAIL_BATCH = 50;
 
+
 interface OrderListResponse {
-  order_list?: Array<{ order_sn: string; order_status?: string }>;
-  more?: boolean;
+  order_list: Array<{ order_sn: string; order_status?: string }>;
+  more: boolean;
   next_cursor?: string;
+}
+
+function requireShopeeObject(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw invalidShopeeResponse();
+  return value as Record<string, unknown>;
+}
+
+function requireShopeeArray(value: unknown): unknown[] {
+  if (!Array.isArray(value)) throw invalidShopeeResponse();
+  return value;
 }
 
 /**
@@ -335,7 +379,10 @@ export async function getShopeeOrderList(
     response_optional_fields: "order_status",
   };
   if (input.cursor) params.cursor = input.cursor;
-  return shopeeFetch<OrderListResponse>(connection, "/api/v2/order/get_order_list", params);
+  return parseShopeeOrderListPage(
+    await shopeeFetch<unknown>(connection, "/api/v2/order/get_order_list", params),
+    () => invalidShopeeResponse()
+  ) as OrderListResponse;
 }
 
 /** Detalhe de até 50 pedidos por chamada. */
@@ -346,7 +393,7 @@ export async function getShopeeOrderDetail(
   if (orderSns.length > ORDER_DETAIL_BATCH) {
     throw new Error(`get_order_detail aceita no máximo ${ORDER_DETAIL_BATCH} pedidos por chamada.`);
   }
-  return shopeeFetch(connection, "/api/v2/order/get_order_detail", {
+  const raw = requireShopeeObject(await shopeeFetch<unknown>(connection, "/api/v2/order/get_order_detail", {
     order_sn_list: orderSns.join(","),
     response_optional_fields: [
       "item_list",
@@ -358,7 +405,8 @@ export async function getShopeeOrderDetail(
       "update_time",
       "package_list",
     ].join(","),
-  });
+  }));
+  return { order_list: requireShopeeArray(raw.order_list) };
 }
 
 /** Escrow (taxas reais) de um pedido — só existe após o pagamento. */
@@ -373,12 +421,12 @@ export async function getShopeeEscrowDetail(
 export async function getShopeeItemList(
   connection: IntegrationConnection,
   input: { offset?: number; pageSize?: number; status?: string }
-): Promise<{ item?: Array<{ item_id: number }>; total_count?: number; has_next_page?: boolean; next_offset?: number }> {
-  return shopeeFetch(connection, "/api/v2/product/get_item_list", {
+): Promise<{ item: Array<{ item_id: number }>; total_count?: number; has_next_page: boolean; next_offset?: number }> {
+  return parseShopeeProductListPage(await shopeeFetch<unknown>(connection, "/api/v2/product/get_item_list", {
     offset: String(input.offset ?? 0),
     page_size: String(input.pageSize ?? 50),
     item_status: input.status ?? "NORMAL",
-  });
+  }), () => invalidShopeeResponse());
 }
 
 /** Informações base de até 50 itens. */
@@ -386,9 +434,10 @@ export async function getShopeeItemBaseInfo(
   connection: IntegrationConnection,
   itemIds: number[]
 ): Promise<{ item_list?: unknown[] }> {
-  return shopeeFetch(connection, "/api/v2/product/get_item_base_info", {
+  const raw = requireShopeeObject(await shopeeFetch<unknown>(connection, "/api/v2/product/get_item_base_info", {
     item_id_list: itemIds.join(","),
-  });
+  }));
+  return { item_list: requireShopeeArray(raw.item_list) };
 }
 
 /** `connection_id` canônico do canal: uma conexão por loja. */

@@ -1,6 +1,6 @@
-import { dbQuery, hasDb } from "../db";
+import { dbQuery, dbTransaction, hasDb } from "../db";
 import { currentWorkspaceId } from "../workspaceScope";
-import { canonicalBestEffort, saveCanonicalOrders, saveCanonicalProducts } from "./canonicalStore";
+import { saveCanonicalOrders, saveCanonicalProducts } from "./canonicalStore";
 import {
   getShopeeEscrowDetail,
   getShopeeItemBaseInfo,
@@ -9,6 +9,7 @@ import {
   getShopeeOrderList,
   ORDER_DETAIL_BATCH,
   ORDER_WINDOW_DAYS,
+  ShopeeApiError,
 } from "./shopee";
 import {
   normalizeShopeeOrder,
@@ -18,6 +19,27 @@ import {
   type ShopeeProductItem,
 } from "./shopeeCanonical";
 import type { IntegrationConnection } from "./types";
+import { isShopeeDemoConnection } from "./shopeeConnection";
+import {
+  createShopeeCatalogCheckpoint,
+  decodeShopeeCatalogCheckpoint,
+  encodeShopeeCatalogCheckpoint,
+  runShopeeCatalogPageBudget,
+  collectShopeeOrderSns,
+  type ShopeeCatalogCheckpoint,
+} from "./shopeePagination";
+import { isChannelAuthExpired } from "./authErrors";
+import {
+  decodeShopeeSyncFailure,
+  encodeShopeeSyncFailure,
+  fencedShopeeExternalRead,
+  nextShopeeEscrowOffset,
+  SHOPEE_ESCROW_MARK_SQL,
+  validateShopeeCatalogSnapshot,
+  validateShopeeOrderBatch,
+  type ShopeeFailurePhase,
+} from "./shopeeSyncControl";
+import { withShopeeSyncWriteFence } from "./shopeeWriteFence";
 
 // Sync da Shopee — mesma máquina de estados do Mercado Livre (lease + cursor por
 // janela), adaptada aos limites da API dela (docs/api-shopee.md):
@@ -34,6 +56,10 @@ const WINDOW_DAYS = ORDER_WINDOW_DAYS; // teto da própria API
 const FRESH_FOR_MS = 10 * 60_000;
 /** Pedidos por passo que buscam escrow — mantém o passo curto no cron. */
 const ESCROW_BATCH_SIZE = 20;
+const CATALOG_PAGES_PER_STEP = 8;
+const CATALOG_STEP_BUDGET_MS = 12_000;
+
+class ShopeeLeaseLostError extends Error {}
 
 interface SyncRow {
   status: "pending" | "syncing" | "complete" | "error";
@@ -44,6 +70,8 @@ interface SyncRow {
   cursor_from: Date | string;
   cursor_to: Date | string;
   processed_orders: number;
+  cursor_offset: number;
+  cursor_token: string | null;
   products_synced_at: Date | string | null;
   products_total: number;
   active_products: number;
@@ -60,7 +88,8 @@ export interface ShopeeSyncStatus {
   coveredFrom: string | null;
   coveredTo: string | null;
   lastSuccessAt: string | null;
-  error: string | null;
+  phase: "idle" | "syncing" | "ready" | ShopeeFailurePhase;
+  error: { code: string; message: string; retryable: boolean } | null;
   busy?: boolean;
 }
 
@@ -70,7 +99,7 @@ function iso(value: Date | string | null): string | null {
 
 function publicStatus(row?: SyncRow, busy = false): ShopeeSyncStatus {
   if (!row) {
-    return { status: "unavailable", progress: 0, processedOrders: 0, coveredFrom: null, coveredTo: null, lastSuccessAt: null, error: null };
+    return { status: "unavailable", phase: "idle", progress: 0, processedOrders: 0, coveredFrom: null, coveredTo: null, lastSuccessAt: null, error: null };
   }
   const targetFrom = new Date(row.target_from).getTime();
   const targetTo = new Date(row.target_to).getTime();
@@ -79,14 +108,23 @@ function publicStatus(row?: SyncRow, busy = false): ShopeeSyncStatus {
   const progress = row.status === "complete"
     ? 100
     : Math.max(0, Math.min(99, Math.round(((targetTo - cursorFrom) / span) * 100)));
+  const failure = decodeShopeeSyncFailure(row.last_error);
+  const phase = row.status === "error"
+    ? failure.phase
+    : row.status === "complete" ? "ready" : row.status === "syncing" ? "syncing" : "idle";
   return {
     status: row.status,
+    phase,
     progress,
     processedOrders: row.processed_orders,
     coveredFrom: iso(row.covered_from),
     coveredTo: iso(row.covered_to),
     lastSuccessAt: iso(row.last_success_at),
-    error: row.last_error,
+    error: row.last_error ? {
+      code: failure.phase === "reauth_required" ? "REAUTH_REQUIRED" : failure.phase === "terminal_error" ? "TERMINAL_ERROR" : "SYNC_FAILED",
+      message: failure.message ?? "Falha ao sincronizar a Shopee.",
+      retryable: failure.phase === "retryable_error",
+    } : null,
     busy: busy || undefined,
   };
 }
@@ -94,8 +132,8 @@ function publicStatus(row?: SyncRow, busy = false): ShopeeSyncStatus {
 async function getSyncRow(connectionId: string): Promise<SyncRow | undefined> {
   const rows = await dbQuery<SyncRow>(
     `SELECT status, target_from, target_to, covered_from, covered_to, cursor_from, cursor_to,
-            processed_orders, products_synced_at, products_total, active_products,
-            products_complete, lease_until, last_error, last_success_at
+            processed_orders, cursor_offset, products_synced_at, products_total, active_products,
+            products_complete, lease_until, cursor_token, last_error, last_success_at
        FROM workspace_marketplace_syncs
       WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
     [currentWorkspaceId(), PROVIDER, connectionId]
@@ -145,59 +183,192 @@ export async function requestShopeeSync(connectionId: string): Promise<ShopeeSyn
   return publicStatus(row);
 }
 
-async function syncProducts(connection: IntegrationConnection): Promise<void> {
-  const collected: ShopeeProductItem[] = [];
-  let offset = 0;
-  // Teto de 10 páginas por passo: catálogo grande termina no passo seguinte.
-  for (let page = 0; page < 10; page++) {
-    const list = await getShopeeItemList(connection, { offset, pageSize: 50 });
-    const ids = (list.item ?? []).map((item) => item.item_id);
-    if (!ids.length) break;
-    for (let index = 0; index < ids.length; index += ORDER_DETAIL_BATCH) {
-      const info = await getShopeeItemBaseInfo(connection, ids.slice(index, index + ORDER_DETAIL_BATCH));
-      collected.push(...((info.item_list ?? []) as ShopeeProductItem[]));
-    }
-    if (!list.has_next_page) break;
-    offset = list.next_offset ?? offset + ids.length;
-  }
-
-  if (collected.length) {
-    await canonicalBestEffort("shopee:products", async () => {
-      await saveCanonicalProducts(
-        { provider: "shopee", connectionId: connection.id },
-        collected.map(normalizeShopeeProduct)
-      );
-    });
-  }
-
-  const active = collected.filter((item) => item.item_status === "NORMAL").length;
-  await dbQuery(
+async function initializeCatalogCheckpoint(
+  connectionId: string,
+  assertOwnership: () => Promise<string>
+): Promise<ShopeeCatalogCheckpoint> {
+  const token = await assertOwnership();
+  const [clock] = await dbQuery<{ started_at: Date | string }>("SELECT clock_timestamp() AS started_at");
+  if (!clock) throw new Error("Não foi possível iniciar o sweep do catálogo Shopee.");
+  const checkpoint = createShopeeCatalogCheckpoint(new Date(clock.started_at).toISOString());
+  const initialized = await dbQuery(
     `UPDATE workspace_marketplace_syncs
-        SET products_synced_at = now(), products_total = $4, active_products = $5,
-            products_complete = true, updated_at = now()
-      WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
-    [currentWorkspaceId(), PROVIDER, connection.id, collected.length, active]
+        SET cursor_token=$5, products_complete=false, updated_at=now()
+      WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3
+        AND lease_until::text=$4 AND lease_until>clock_timestamp() AND cursor_token IS NULL
+      RETURNING connection_id`,
+    [currentWorkspaceId(), PROVIDER, connectionId, token, encodeShopeeCatalogCheckpoint(checkpoint)]
   );
+  if (!initialized[0]) throw new Error("Lease Shopee perdido ao iniciar o sweep do catálogo.");
+  return checkpoint;
+}
+
+/**
+ * Persiste um lote e seu checkpoint na mesma transação. O corte temporal do
+ * sweep permite acumular milhares de itens sem guardar uma lista crescente no
+ * cursor; workers vencidos não conseguem escrever nem avançar o checkpoint.
+ */
+async function persistCatalogPage(input: {
+  connection: IntegrationConnection;
+  products: ShopeeProductItem[];
+  checkpoint: ShopeeCatalogCheckpoint;
+  nextCheckpoint: ShopeeCatalogCheckpoint | null;
+  ownershipToken: string;
+}): Promise<void> {
+  const workspaceId = currentWorkspaceId();
+  const expectedCursor = encodeShopeeCatalogCheckpoint(input.checkpoint);
+  const nextCursor = input.nextCheckpoint ? encodeShopeeCatalogCheckpoint(input.nextCheckpoint) : null;
+  const normalized = input.products.map(normalizeShopeeProduct);
+
+  await dbTransaction(async (query) => {
+    const owner = await query(
+      `SELECT 1 FROM workspace_marketplace_syncs
+        WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3
+          AND lease_until::text=$4 AND lease_until>clock_timestamp() AND cursor_token=$5
+        FOR UPDATE`,
+      [workspaceId, PROVIDER, input.connection.id, input.ownershipToken, expectedCursor]
+    );
+    if (!owner[0]) throw new Error("Lease Shopee perdido antes de persistir página do catálogo.");
+
+    if (normalized.length) {
+      await saveCanonicalProducts(
+        { provider: PROVIDER, connectionId: input.connection.id },
+        normalized,
+        query
+      );
+    }
+
+    if (input.nextCheckpoint) {
+      const advanced = await query(
+        `UPDATE workspace_marketplace_syncs
+            SET cursor_token=$5, products_complete=false, updated_at=now()
+          WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3
+            AND lease_until::text=$4 AND lease_until>clock_timestamp() AND cursor_token=$6
+          RETURNING connection_id`,
+        [workspaceId, PROVIDER, input.connection.id, input.ownershipToken, nextCursor, expectedCursor]
+      );
+      if (!advanced[0]) throw new Error("Lease Shopee perdido ao avançar checkpoint do catálogo.");
+      return;
+    }
+
+    const [totals] = await query<{ total: number; active: number }>(
+      `SELECT COUNT(*)::int AS total,
+              COUNT(*) FILTER (WHERE status='active')::int AS active
+         FROM workspace_channel_products
+        WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3
+          AND synced_at >= $4::timestamptz`,
+      [workspaceId, PROVIDER, input.connection.id, input.checkpoint.sweepStartedAt]
+    );
+    await query(
+      `UPDATE workspace_channel_products
+          SET status='closed', provider_status='NOT_PRESENT_IN_COMPLETE_SNAPSHOT',
+              available_qty=0, synced_at=now()
+        WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3
+          AND synced_at < $4::timestamptz`,
+      [workspaceId, PROVIDER, input.connection.id, input.checkpoint.sweepStartedAt]
+    );
+    const completed = await query(
+      `UPDATE workspace_marketplace_syncs
+          SET products_synced_at=now(), products_total=$5, active_products=$6,
+              products_complete=true, cursor_token=NULL, updated_at=now()
+        WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3
+          AND lease_until::text=$4 AND lease_until>clock_timestamp() AND cursor_token=$7
+        RETURNING connection_id`,
+      [
+        workspaceId,
+        PROVIDER,
+        input.connection.id,
+        input.ownershipToken,
+        totals?.total ?? 0,
+        totals?.active ?? 0,
+        expectedCursor,
+      ]
+    );
+    if (!completed[0]) throw new Error("Lease Shopee perdido durante a reconciliação final do catálogo.");
+  });
+}
+
+async function syncProductsStep(
+  connection: IntegrationConnection,
+  cursorToken: string | null,
+  assertOwnership: () => Promise<string>,
+  budgetMs: number
+): Promise<void> {
+  const checkpoint = cursorToken
+    ? decodeShopeeCatalogCheckpoint(cursorToken)
+    : await initializeCatalogCheckpoint(connection.id, assertOwnership);
+
+  await runShopeeCatalogPageBudget({
+    checkpoint,
+    maxPages: CATALOG_PAGES_PER_STEP,
+    budgetMs,
+    fetchPage: (status, offset) => fencedShopeeExternalRead(
+      assertOwnership,
+      () => getShopeeItemList(connection, { offset, pageSize: 50, status })
+    ),
+    processPage: async ({ ids, currentCheckpoint, nextCheckpoint }) => {
+      const info = ids.length
+        ? await fencedShopeeExternalRead(
+          assertOwnership,
+          () => getShopeeItemBaseInfo(connection, ids)
+        )
+        : { item_list: [] };
+      const products = (info.item_list ?? []) as ShopeeProductItem[];
+      validateShopeeCatalogSnapshot(ids, products);
+      const ownershipToken = await assertOwnership();
+      await persistCatalogPage({
+        connection,
+        products,
+        checkpoint: currentCheckpoint,
+        nextCheckpoint,
+        ownershipToken,
+      });
+    },
+  });
+
+  const token = await assertOwnership();
+  const released = await dbQuery(
+    `UPDATE workspace_marketplace_syncs
+        SET status='pending', lease_until=NULL, last_error=NULL, updated_at=now()
+      WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3
+        AND lease_until::text=$4 AND lease_until>clock_timestamp()
+      RETURNING connection_id`,
+    [currentWorkspaceId(), PROVIDER, connection.id, token]
+  );
+  if (!released[0]) throw new Error("Lease Shopee perdido ao encerrar etapa do catálogo.");
 }
 
 /** Busca o detalhe dos pedidos da janela e grava no canônico. */
 async function saveOrderWindow(
   connection: IntegrationConnection,
-  orderSns: string[]
+  orderSns: string[],
+  assertOwnership: () => Promise<string>
 ): Promise<number> {
-  if (!orderSns.length) return 0;
+  const uniqueOrderSns = [...new Set(orderSns)];
+  if (!uniqueOrderSns.length) return 0;
   let saved = 0;
-  for (let index = 0; index < orderSns.length; index += ORDER_DETAIL_BATCH) {
-    const batch = orderSns.slice(index, index + ORDER_DETAIL_BATCH);
-    const detail = await getShopeeOrderDetail(connection, batch);
+  for (let index = 0; index < uniqueOrderSns.length; index += ORDER_DETAIL_BATCH) {
+    const batch = uniqueOrderSns.slice(index, index + ORDER_DETAIL_BATCH);
+    const detail = await fencedShopeeExternalRead(
+      assertOwnership,
+      () => getShopeeOrderDetail(connection, batch)
+    );
     const orders = (detail.order_list ?? []) as ShopeeOrderDetail[];
-    if (!orders.length) continue;
-    await canonicalBestEffort("shopee:orders", async () => {
-      await saveCanonicalOrders(
+    validateShopeeOrderBatch(batch, orders);
+    const normalized = orders.map((order) => normalizeShopeeOrder(order));
+    const ownershipToken = await assertOwnership();
+    const fenced = await withShopeeSyncWriteFence(
+      dbTransaction,
+      currentWorkspaceId(),
+      connection.id,
+      ownershipToken,
+      (query) => saveCanonicalOrders(
         { provider: "shopee", connectionId: connection.id },
-        orders.map((order) => normalizeShopeeOrder(order))
-      );
-    });
+        normalized,
+        query,
+      ),
+    );
+    if (!fenced.owned) throw new Error("Lease Shopee perdido antes de persistir pedidos.");
     saved += orders.length;
   }
   return saved;
@@ -208,83 +379,152 @@ async function saveOrderWindow(
  * Roda depois dos pedidos, em lotes pequenos — a tarifa chega atrasada por
  * natureza (só fecha após o pagamento) e não pode travar o faturamento.
  */
-async function syncMissingEscrow(connection: IntegrationConnection): Promise<void> {
+async function syncMissingEscrow(
+  connection: IntegrationConnection,
+  cursorOffset: number,
+  assertOwnership: () => Promise<string>
+): Promise<{ attempted: number; failed: number; nextOffset: number }> {
+  const [countRow] = await dbQuery<{ total: number }>(
+    `SELECT COUNT(*)::int AS total FROM workspace_channel_orders o
+      WHERE o.workspace_id=$1 AND o.provider=$2 AND o.connection_id=$3
+        AND o.status IN ('paid','shipped','delivered')
+        AND COALESCE(o.raw #>> '{_sellercore,shopeeEscrowSettled}', 'false') <> 'true'`,
+    [currentWorkspaceId(), PROVIDER, connection.id]
+  );
+  const total = countRow?.total ?? 0;
+  if (!total) return { attempted: 0, failed: 0, nextOffset: 0 };
+  const offset = cursorOffset % total;
   const pending = await dbQuery<{ external_order_id: string }>(
     `SELECT o.external_order_id
        FROM workspace_channel_orders o
       WHERE o.workspace_id = $1 AND o.provider = $2 AND o.connection_id = $3
         AND o.status IN ('paid', 'shipped', 'delivered')
-        AND NOT EXISTS (
-          SELECT 1 FROM workspace_channel_order_fees f
-           WHERE f.workspace_id = o.workspace_id AND f.provider = o.provider
-             AND f.connection_id = o.connection_id AND f.external_order_id = o.external_order_id
-        )
-      ORDER BY o.occurred_at DESC
-      LIMIT $4`,
-    [currentWorkspaceId(), PROVIDER, connection.id, ESCROW_BATCH_SIZE]
+        AND COALESCE(o.raw #>> '{_sellercore,shopeeEscrowSettled}', 'false') <> 'true'
+      ORDER BY o.occurred_at, o.external_order_id
+      LIMIT $4 OFFSET $5`,
+    [currentWorkspaceId(), PROVIDER, connection.id, ESCROW_BATCH_SIZE, offset]
   );
 
+  let failed = 0;
   for (const row of pending) {
     try {
-      const escrow = (await getShopeeEscrowDetail(connection, row.external_order_id)) as ShopeeEscrowDetail;
+      const escrow = (await fencedShopeeExternalRead(
+        assertOwnership,
+        () => getShopeeEscrowDetail(connection, row.external_order_id)
+      )) as ShopeeEscrowDetail;
       if (!escrow?.order_income) continue;
-      const detail = await getShopeeOrderDetail(connection, [row.external_order_id]);
+      const detail = await fencedShopeeExternalRead(
+        assertOwnership,
+        () => getShopeeOrderDetail(connection, [row.external_order_id])
+      );
       const order = ((detail.order_list ?? []) as ShopeeOrderDetail[])[0];
       if (!order) continue;
-      await canonicalBestEffort("shopee:escrow", async () => {
-        await saveCanonicalOrders(
-          { provider: "shopee", connectionId: connection.id },
-          [normalizeShopeeOrder(order, { escrow })]
-        );
-      });
-    } catch {
+      // Aqui não é best-effort: o marcador explícito só pode ser gravado se as
+      // linhas financeiras tiverem sido persistidas atomicamente com sucesso.
+      const ownershipToken = await assertOwnership();
+      const fenced = await withShopeeSyncWriteFence(
+        dbTransaction,
+        currentWorkspaceId(),
+        connection.id,
+        ownershipToken,
+        async (query) => {
+          await saveCanonicalOrders(
+            { provider: "shopee", connectionId: connection.id },
+            [normalizeShopeeOrder(order, { escrow })],
+            query,
+          );
+          await query(
+            `UPDATE workspace_channel_orders
+                SET raw = ${SHOPEE_ESCROW_MARK_SQL}
+                  || jsonb_build_object('_sellercore', ((${SHOPEE_ESCROW_MARK_SQL}) -> '_sellercore')
+                    || jsonb_build_object('financialEvidence', $5::jsonb)),
+                    synced_at = now()
+              WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3 AND external_order_id=$4`,
+            [currentWorkspaceId(), PROVIDER, connection.id, row.external_order_id, JSON.stringify({
+              fees: ["commission_fee", "service_fee", "seller_transaction_fee"].every((field) => Object.hasOwn(escrow.order_income!, field)),
+              sellerShipping: ["actual_shipping_fee", "reverse_shipping_fee"].every((field) => Object.hasOwn(escrow.order_income!, field)),
+              ads: ["campaign_fee", "order_ams_commission_fee"].every((field) => Object.hasOwn(escrow.order_income!, field)),
+              taxesWithheld: ["escrow_tax", "final_escrow_product_gst"].every((field) => Object.hasOwn(escrow.order_income!, field)),
+              refunds: Object.hasOwn(escrow.order_income!, "seller_return_refund"),
+            })],
+          );
+        },
+      );
+      if (!fenced.owned) throw new ShopeeLeaseLostError("Lease Shopee perdido antes de persistir escrow.");
+    } catch (error) {
+      if (error instanceof ShopeeLeaseLostError) throw error;
       // Escrow indisponível para este pedido (ainda não pago, ou erro pontual):
       // segue para o próximo — a próxima passagem tenta de novo.
+      failed++;
     }
   }
+  return { attempted: pending.length, failed, nextOffset: nextShopeeEscrowOffset(offset, pending.length, total) };
 }
 
 export async function runShopeeSyncStep(
   connection: IntegrationConnection,
-  prepareSync = true
+  prepareSync = true,
+  catalogBudgetMs = CATALOG_STEP_BUDGET_MS
 ): Promise<ShopeeSyncStatus> {
+  if (isShopeeDemoConnection(connection)) return publicStatus();
   if (!hasDb()) return publicStatus();
   if (prepareSync) await requestShopeeSync(connection.id);
 
-  const leased = await dbQuery<SyncRow>(
+  const workspaceId = currentWorkspaceId();
+  const leased = await dbQuery<SyncRow & { ownership_token: string }>(
     `UPDATE workspace_marketplace_syncs
         SET lease_until = now() + interval '5 minutes', status = 'syncing', updated_at = now()
       WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
         AND status <> 'complete' AND (lease_until IS NULL OR lease_until < now())
       RETURNING status, target_from, target_to, covered_from, covered_to, cursor_from, cursor_to,
                 processed_orders, products_synced_at, products_total, active_products,
-                products_complete, lease_until, last_error, last_success_at`,
-    [currentWorkspaceId(), PROVIDER, connection.id]
+                products_complete, lease_until, cursor_offset, cursor_token, last_error, last_success_at,
+                lease_until::text AS ownership_token`,
+    [workspaceId, PROVIDER, connection.id]
   );
   const row = leased[0];
   if (!row) return publicStatus(await getSyncRow(connection.id), true);
+  let ownershipToken = row.ownership_token;
+
+  const assertOwnership = async (): Promise<string> => {
+    const renewed = await dbQuery<{ ownership_token: string }>(
+      `UPDATE workspace_marketplace_syncs
+          SET lease_until=now() + interval '5 minutes', updated_at=now()
+        WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3
+          AND lease_until::text=$4 AND lease_until > now()
+        RETURNING lease_until::text AS ownership_token`,
+      [workspaceId, PROVIDER, connection.id, ownershipToken]
+    );
+    if (!renewed[0]) throw new ShopeeLeaseLostError("Lease Shopee perdido; worker expirado não pode gravar checkpoint.");
+    ownershipToken = renewed[0].ownership_token;
+    return ownershipToken;
+  };
 
   try {
-    const productsDue = !row.products_synced_at
+    const productsDue = Boolean(row.cursor_token) || !row.products_synced_at
       || Date.now() - new Date(row.products_synced_at).getTime() > 6 * 60 * 60_000;
-    if (productsDue) await syncProducts(connection);
+    if (productsDue) {
+      await syncProductsStep(connection, row.cursor_token, assertOwnership, catalogBudgetMs);
+      return publicStatus(await getSyncRow(connection.id));
+    }
 
     const from = new Date(row.cursor_from);
     const to = new Date(row.cursor_to);
 
     // A Shopee pagina por cursor opaco: percorremos a janela inteira aqui,
     // porque o cursor não é estável entre execuções como um offset.
-    const orderSns: string[] = [];
-    let cursor: string | undefined;
-    for (let page = 0; page < 20; page++) {
-      const result = await getShopeeOrderList(connection, { from, to, cursor });
-      orderSns.push(...(result.order_list ?? []).map((order) => order.order_sn));
-      if (!result.more || !result.next_cursor) break;
-      cursor = result.next_cursor;
-    }
+    const orderSns = await collectShopeeOrderSns(
+      async (cursor) => {
+        return fencedShopeeExternalRead(
+          assertOwnership,
+          () => getShopeeOrderList(connection, { from, to, cursor })
+        );
+      }
+    );
 
-    const saved = await saveOrderWindow(connection, orderSns);
+    const saved = await saveOrderWindow(connection, orderSns, assertOwnership);
     const targetFrom = new Date(row.target_from);
+    await assertOwnership();
 
     if (from.getTime() <= targetFrom.getTime()) {
       await dbQuery(
@@ -292,8 +532,9 @@ export async function runShopeeSyncStep(
             SET status = 'complete', covered_from = COALESCE(covered_from, target_from),
                 covered_to = target_to, processed_orders = processed_orders + $4,
                 lease_until = NULL, last_error = NULL, last_success_at = now(), updated_at = now()
-          WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
-        [currentWorkspaceId(), PROVIDER, connection.id, saved]
+          WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
+            AND lease_until::text = $5 AND lease_until > now()`,
+        [workspaceId, PROVIDER, connection.id, saved, ownershipToken]
       );
     } else {
       const nextTo = from;
@@ -303,22 +544,52 @@ export async function runShopeeSyncStep(
             SET status = 'pending', covered_from = $4, covered_to = COALESCE(covered_to, target_to),
                 cursor_from = $5, cursor_to = $6, processed_orders = processed_orders + $7,
                 lease_until = NULL, last_error = NULL, last_success_at = now(), updated_at = now()
-          WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
-        [currentWorkspaceId(), PROVIDER, connection.id, from, nextFrom, nextTo, saved]
+          WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
+            AND lease_until::text = $8 AND lease_until > now()`,
+        [workspaceId, PROVIDER, connection.id, from, nextFrom, nextTo, saved, ownershipToken]
       );
     }
 
-    await syncMissingEscrow(connection);
+    // As escritas acima liberam o lease; readquire apenas se ainda somos o único
+    // worker elegível. A conciliação roda sob um novo token cercado.
+    const reacquired = await dbQuery<{ ownership_token: string }>(
+      `UPDATE workspace_marketplace_syncs SET lease_until=now()+interval '5 minutes', updated_at=now()
+        WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3 AND lease_until IS NULL
+        RETURNING lease_until::text AS ownership_token`,
+      [workspaceId, PROVIDER, connection.id]
+    );
+    if (!reacquired[0]) return publicStatus(await getSyncRow(connection.id), true);
+    ownershipToken = reacquired[0].ownership_token;
+    const escrow = await syncMissingEscrow(connection, row.cursor_offset ?? 0, assertOwnership);
+    await assertOwnership();
+    const warning = escrow.failed > 0
+      ? `Conciliação Shopee parcial: ${escrow.failed} de ${escrow.attempted} escrow(s) falharam e serão tentados novamente.`
+      : null;
+    await dbQuery(
+      `UPDATE workspace_marketplace_syncs
+          SET cursor_offset=$5, last_error=$6, lease_until=NULL, updated_at=now()
+        WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3
+          AND lease_until::text=$4 AND lease_until > now()`,
+      [workspaceId, PROVIDER, connection.id, ownershipToken, escrow.nextOffset, warning]
+    );
   } catch (error) {
+    const phase: ShopeeFailurePhase = isChannelAuthExpired(error)
+      ? "reauth_required"
+      : error instanceof ShopeeApiError && ["error_permission", "no_permission", "error_param"].includes(error.code)
+        ? "terminal_error"
+        : "retryable_error";
+    const message = error instanceof Error ? error.message : "Falha ao sincronizar a Shopee.";
     await dbQuery(
       `UPDATE workspace_marketplace_syncs
           SET status = 'error', lease_until = NULL, last_error = $4, updated_at = now()
-        WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
+        WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
+          AND lease_until::text = $5`,
       [
         currentWorkspaceId(),
         PROVIDER,
         connection.id,
-        error instanceof Error ? error.message : "Falha ao sincronizar a Shopee.",
+        encodeShopeeSyncFailure(phase, message),
+        ownershipToken,
       ]
     );
   }
@@ -332,13 +603,22 @@ export async function runShopeeSyncBatch(
   budgetMs = 20_000
 ): Promise<ShopeeSyncStatus> {
   const startedAt = Date.now();
-  let status = await runShopeeSyncStep(connection);
+  let status = await runShopeeSyncStep(
+    connection,
+    true,
+    Math.max(1, Math.min(CATALOG_STEP_BUDGET_MS, budgetMs))
+  );
   while (
     (status.status === "pending" || status.status === "syncing")
     && !status.busy
     && Date.now() - startedAt < budgetMs
   ) {
-    status = await runShopeeSyncStep(connection, false);
+    const remainingMs = Math.max(1, budgetMs - (Date.now() - startedAt));
+    status = await runShopeeSyncStep(
+      connection,
+      false,
+      Math.min(CATALOG_STEP_BUDGET_MS, remainingMs)
+    );
   }
   return status;
 }

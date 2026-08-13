@@ -37,6 +37,8 @@ services:
         sync: false
       - key: INTEGRATION_TOKEN_KEY
         sync: false
+      - key: OAUTH_REFRESH_FINGERPRINT_SECRET
+        sync: false
       - key: NEXT_PUBLIC_SUPABASE_URL
         sync: false
       - key: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
@@ -50,6 +52,12 @@ services:
       - key: TIKTOK_APP_SECRET
         sync: false
       - key: TIKTOK_SERVICE_ID
+        sync: false
+      - key: SHOPEE_PARTNER_ID
+        sync: false
+      - key: SHOPEE_PARTNER_KEY
+        sync: false
+      - key: SHOPEE_ENV
         sync: false
       # URL pública do próprio serviço, ex: https://amazon-fba-platform.onrender.com
       - key: APP_BASE_URL

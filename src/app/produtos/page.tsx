@@ -6,6 +6,8 @@ import { TableLoading } from "../components/LoadingState";
 import { EmptyState } from "../components/EmptyState";
 import { readJson } from "../../lib/readJson";
 import { Pagination } from "../components/Pagination";
+import { useSearchParams } from "next/navigation";
+import { productMatchesTiktokScope } from "../components/TikTokWorkspaceModel";
 
 interface Product {
   id: string;
@@ -16,7 +18,7 @@ interface Product {
   salePrice: number | null;
   fulfillable?: number | null;
   cost: number | null;
-  source: "listing" | "fba" | "manual";
+  source: "listing" | "fba" | "manual" | "tiktok";
 }
 
 function money(v: number) {
@@ -26,6 +28,7 @@ function money(v: number) {
 const PAGE_SIZE = 30;
 
 export default function ProdutosPage() {
+  const searchParams = useSearchParams();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,9 +64,6 @@ export default function ProdutosPage() {
     const timer = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timer);
   }, []);
-
-  // volta pra 1ª página quando busca/filtro/ordem mudam
-  useEffect(() => { setPage(1); }, [query, costFilter, sort]);
 
   async function saveCost(p: Product, cost: number) {
     const previous = p.cost;
@@ -144,8 +144,11 @@ export default function ProdutosPage() {
     }
   }
 
-  const withCost = products.filter((p) => p.cost != null && p.cost > 0).length;
-  const visibleProducts = products
+  const selectedTikTokConnection = searchParams.get("connection_id");
+  const scopedProducts = products.filter((p) => searchParams.get("canal") !== "tiktok"
+    || productMatchesTiktokScope(p, selectedTikTokConnection));
+  const withCost = scopedProducts.filter((p) => p.cost != null && p.cost > 0).length;
+  const visibleProducts = scopedProducts
     .filter((p) => {
       const matchesQuery = `${p.title || ""} ${p.sku || ""} ${p.asin || ""}`.toLowerCase().includes(query.toLowerCase());
       const hasCost = p.cost != null && p.cost > 0;
@@ -164,12 +167,12 @@ export default function ProdutosPage() {
   return (
     <div className="products-page space-y-8">
       <PageHeader
-        eyebrow="FBA Inventory · Catalog"
+        eyebrow={searchParams.get("canal") === "tiktok" ? "TikTok Shop · Custos" : "FBA Inventory · Catalog"}
         title="Produtos"
         icon={pageIcons.box}
         subtitle={
           <>
-            Seus produtos são puxados automaticamente da conta (anúncios + estoque FBA), já com o{" "}
+            Seus produtos são puxados automaticamente dos canais conectados, já com o{" "}
             <strong className="text-slate-700">preço de venda</strong>. Você só cadastra o{" "}
             <strong className="text-slate-700">custo</strong> — é ele que permite calcular o lucro
             real das vendas.
@@ -213,19 +216,19 @@ export default function ProdutosPage() {
       {!loading && products.length > 0 && (
         <div className="filter-toolbar flex flex-wrap items-end justify-between gap-3">
           <p className="text-sm text-slate-500">
-            {visibleProducts.length} de {products.length} produto(s) · {withCost} com custo cadastrado
+            {visibleProducts.length} de {scopedProducts.length} produto(s) · {withCost} com custo cadastrado
           </p>
           <div className="flex flex-1 flex-wrap justify-end gap-2">
             <label className="min-w-52 flex-1 sm:max-w-xs">
               <span className="sr-only">Buscar produto</span>
-              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar SKU, ASIN ou título" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+              <input value={query} onChange={(e) => { setQuery(e.target.value); setPage(1); }} placeholder="Buscar SKU, ASIN ou título" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
             </label>
-            <select value={costFilter} onChange={(e) => setCostFilter(e.target.value as typeof costFilter)} aria-label="Filtrar por cadastro de custo" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+            <select value={costFilter} onChange={(e) => { setCostFilter(e.target.value as typeof costFilter); setPage(1); }} aria-label="Filtrar por cadastro de custo" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
               <option value="all">Todos os custos</option>
               <option value="missing">Sem custo</option>
               <option value="complete">Com custo</option>
             </select>
-            <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} aria-label="Ordenar produtos" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+            <select value={sort} onChange={(e) => { setSort(e.target.value as typeof sort); setPage(1); }} aria-label="Ordenar produtos" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
               <option value="title">Ordenar por nome</option>
               <option value="stock">Maior estoque</option>
               <option value="cost">Maior custo</option>
@@ -288,10 +291,10 @@ export default function ProdutosPage() {
                       className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                         p.source === "manual"
                           ? "bg-slate-100 text-slate-600"
-                          : "bg-blue-100 text-blue-700"
+                          : p.source === "tiktok" ? "bg-cyan-100 text-cyan-800" : "bg-blue-100 text-blue-700"
                       }`}
                     >
-                      {p.source === "manual" ? "Manual" : p.source === "fba" ? "FBA" : "Anúncio"}
+                      {p.source === "manual" ? "Manual" : p.source === "fba" ? "FBA" : p.source === "tiktok" ? "TikTok Shop" : "Anúncio"}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums text-slate-500">

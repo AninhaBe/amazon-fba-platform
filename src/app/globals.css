@@ -167,13 +167,15 @@ a[href][class*="bg-gradient"]:active { transform: scale(.96); }
   gap: 8px;
   width: 100%;
   padding-inline: 12px;
-  padding-block: 14px 6px;
+  min-height: 44px;
+  padding-block: 10px;
   background: none;
   border: 0;
   text-align: start;
   cursor: pointer;
 }
-.rail-group:first-child .rail-group-header { padding-block-start: 4px; }
+.rail-group:first-child .rail-group-header { min-height: 44px; padding-block: 10px; }
+.rail-group-header:focus-visible { outline: 2px solid var(--channel-accent, var(--core)); outline-offset: -2px; border-radius: 8px; }
 .rail-group-label {
   color: var(--ink-muted);
   font-size: 10.5px;
@@ -1218,6 +1220,8 @@ summary:hover { background: var(--paper-soft); }
 .integration-card header p { max-width: 48ch; margin-block-start: 5px; color: var(--ink-muted); font-size: 13px; line-height: 1.5; text-wrap: pretty; }
 .connection-status { display: inline-flex; align-items: center; border-radius: 999px; background: var(--brand-soft); padding: 4px 7px; color: var(--brand-dark); font-size: 11px; font-weight: 700; }
 .connection-status.is-connected { background: var(--positive-soft); color: var(--positive); }
+.connection-status.is-attention { background: #fff7ed; color: #c2410c; }
+.connection-status.is-disconnected, .connection-status.is-unconfigured { background: var(--paper-soft); color: var(--ink-muted); }
 .connection-status.is-planned { background: var(--paper-soft); color: var(--ink-muted); }
 .capability-list { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 20px 17px; }
 .capability-list span { border: 1px solid var(--line); border-radius: 999px; padding: 4px 8px; color: var(--ink-soft); font-size: 11px; font-weight: 600; }
@@ -1225,6 +1229,8 @@ summary:hover { background: var(--paper-soft); }
 .connection-list li { display: flex; min-height: 56px; align-items: center; gap: 9px; padding-block: 8px; }
 .connection-list li + li { border-block-start: 1px solid var(--line); }
 .connection-dot { width: 7px; height: 7px; flex: none; border-radius: 999px; background: var(--positive); box-shadow: 0 0 0 4px var(--positive-soft); }
+.connection-dot.is-attention { background: #ea580c; box-shadow: 0 0 0 4px #ffedd5; }
+.connection-dot.is-disconnected { background: var(--ink-muted); box-shadow: 0 0 0 4px var(--paper-soft); }
 .connection-list strong, .connection-list small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .connection-list strong { color: var(--ink); font-size: 13px; font-weight: 680; }
 .connection-list small { margin-block-start: 2px; color: var(--ink-muted); font-size: 11px; }

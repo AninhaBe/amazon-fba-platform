@@ -161,6 +161,19 @@ Amazon*. Se o papel for concedido, o caminho é `transportationOptions` da 2024-
 
 ## Changelog observado (mais recente primeiro)
 
+- **2026-08-12** — **Cupom não aparece na Product Pricing API.** O
+  `kit-clips-320` (`B0HBGLBL6Y`) estava com cupom de 10% off, e
+  `GET /products/pricing/v0/items/{asin}/offers` devolveu `ListingPrice`,
+  `LandedPrice` e `BuyBoxPrices` **todos a R$ 22,11**, sem nenhum campo de
+  promoção ou desconto. O valor realmente pago (R$ 19,90) só apareceu no pedido,
+  via Orders API.
+  - Consequência: o preço da Pricing API é o **preço cheio**, não o preço
+    praticado. Toda projeção feita em cima dele (margem por SKU, teto de ACOS,
+    piso de preço FBA da pesquisa de nicho) fica otimista pelo valor do cupom,
+    enquanto o realizado continua correto.
+  - Tratar esse preço como **teto**, nunca como preço realizado. Desconto
+    desconhecido é desconhecido, não zero.
+
 - **2026-08-06** — **`GET_SALES_AND_TRAFFIC_REPORT` responde 403 Forbidden.**
   Não é token revogado nem erro de código: o relatório exige o papel
   **Brand Analytics**, que este app não possui. O perfil de desenvolvedor e os

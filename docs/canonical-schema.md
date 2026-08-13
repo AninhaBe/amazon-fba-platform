@@ -8,8 +8,9 @@ dashboards, período personalizado) é SQL provider-agnóstico sobre estas tabel
 Validado campo a campo contra o que o código consome hoje:
 `MercadoLivreOrder`/`MercadoLivreShipmentCosts`/`MercadoLivreProduct`
 (`src/lib/integrations/mercadoLivre.ts`), `OrderSummary` da Amazon
-(`src/lib/amazonOrder.ts`) e a API 2023-09 da TikTok Shop (pedidos ainda não
-implementados — nascem direto no canônico).
+(`src/lib/amazonOrder.ts`) e respostas da API 2023-09 da TikTok Shop observadas
+na loja real (`src/lib/integrations/tiktokCanonical.ts`). Pedidos e produtos
+TikTok já nascem no canônico; a validação financeira real ainda é parcial.
 
 ## Princípios
 
@@ -69,7 +70,10 @@ Regra de faturamento (a mesma que `getMercadoLivreOverview` aplica hoje):
 
 O DDL vigente vive em `migrations/0001_canonical_tables.sql` e é aplicado por
 `npm run migrate` (controle em `schema_migrations`) — fora do `ensureSchema`
-do app, para não engordar o cold start. O esboço abaixo é ilustrativo; em caso
+do app, para não engordar o cold start. Em particular, `cursor_token` pertence à migration
+`0002_sync_cursor_token.sql`: o bootstrap local não cria essa coluna. O runner
+faz preflight contra `information_schema` e recusa um histórico que marque 0002
+como aplicada quando a coluna estiver ausente. O esboço abaixo é ilustrativo; em caso
 de divergência, a migração é a fonte da verdade. Diferenças relevantes:
 `raw` é **nulo** durante a transição do Mercado Livre (o payload segue apenas
 em `workspace_marketplace_*`; duplicá-lo dobraria tráfego e memória — canais
@@ -256,7 +260,7 @@ export interface MarketplaceConnector {
 | itens | `getOrderItems` (SP-API) | `ASIN` → `externalProductId`, `SellerSKU` → `sku` |
 | fees | Finances API `ShipmentEventList[].ItemFeeList` | `Commission` → `commission`, `FBAPerUnitFulfillmentFee`/`FBAPerOrderFulfillmentFee` → `fulfillment`, `ShippingChargeback` → `shipping_seller`, `MarketplaceFacilitatorTax*` → `taxes_withheld`, refund events → `refund` |
 
-### TikTok Shop → canônico (API 2023-09; conferir na doc oficial ao implementar)
+### TikTok Shop → canônico (API 2023-09; implementado e confrontado com amostras reais)
 
 | Canônico | Origem | Nota |
 |---|---|---|
@@ -271,12 +275,16 @@ export interface MarketplaceConnector {
 | fees | Finance API `GET /finance/202309/orders/:id/statement_transactions` | `platform_commission_amount` → `commission`, `transaction_fee_amount` → `payment`, parcela de frete do seller → `shipping_seller` |
 | `fulfillment` | `fulfillment_type` | `FULFILLMENT_BY_TIKTOK` → `platform` |
 
-### Shopee → canônico (quando chegar)
+### Shopee → canônico (implementado e testado em sandbox)
 
 `get_order_list`/`get_order_detail` → pedido e itens (`item_sku`, `model_sku`);
 `get_escrow_detail` → fees (`commission_fee` → `commission`, `service_fee` →
 `payment`, frete real − subsídio → `shipping_seller`). Mesma forma dos outros:
 tudo particular da Shopee (assinatura de request, epoch, escrow) morre no adaptador.
+O normalizador, a persistência e a leitura canônica estão implementados e cobertos
+por testes. Os nomes e a semântica dos campos ainda precisam ser confrontados com
+respostas Live: essa validação está bloqueada até o Go Live fornecer credenciais de
+produção e uma loja real ser autorizada.
 
 ## Decisões de projeto que merecem registro
 
@@ -291,8 +299,12 @@ permanentemente errado para pedidos anteriores ao cadastro. O lucro junta
 **Fees tardias são normais.** Amazon e TikTok publicam a taxa real dias depois
 do pedido (Finances/Statements). O pedido entra com `fees` parciais e o worker
 completa depois via `fetchOrderFees` — por isso fees são tabela própria com
-upsert idempotente, e a cobertura de lucro ("X de Y vendas processadas", que a
-UI já exibe) passa a ser `pedidos com fee de commission presente / pedidos pagos`.
+upsert idempotente. A cobertura de lucro é avaliada por componente
+(`commission`/`payment`, frete do vendedor, `ads`, `taxes_withheld`, `refund`,
+imposto configurado e COGS), além da cobertura do período. Uma linha ausente
+não prova valor zero, nem mesmo quando escrow/statement está liquidado; zero só
+é conhecido quando a normalização registra evidência explícita do campo. Linhas
+anteriores a essa evidência permanecem parciais com segurança.
 
 **Fees são o agregado corrente por pedido, não um ledger.** A chave
 `(pedido, fee_type, provider_fee_code)` guarda o último valor conhecido de cada

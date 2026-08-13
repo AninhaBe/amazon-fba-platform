@@ -1,4 +1,8 @@
 import { Pool } from "pg";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { assertFinancialLedgerContract, financialLedgerContractHash, FINANCIAL_LEDGER_CONTRACT_SQL } from "../../scripts/migration-contracts.mjs";
+import { inspectFinancialLedgerContract } from "../../scripts/migration-safety.mjs";
 
 // Camada Postgres (Supabase). Quando DATABASE_URL está definido, os dados que
 // precisam persistir (contas conectadas + custos) vão para o banco; senão, os
@@ -6,6 +10,7 @@ import { Pool } from "pg";
 
 let pool: Pool | null = null;
 let schemaReady: Promise<void> | null = null;
+let financialLedgerSchemaReady: Promise<void> | null = null;
 
 /** true quando há um banco configurado (produção/Render com Supabase). */
 export function hasDb(): boolean {
@@ -129,6 +134,7 @@ async function createSchema(): Promise<void> {
       refresh_token      TEXT NOT NULL,
       access_expires_at  TIMESTAMPTZ,
       refresh_expires_at TIMESTAMPTZ,
+      tax_rate           NUMERIC(5,2) CHECK (tax_rate >= 0 AND tax_rate <= 100),
       connected_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
       PRIMARY KEY (workspace_id, shop_id)
     );
@@ -339,10 +345,36 @@ async function createSchema(): Promise<void> {
   `);
 }
 
+// Mantido temporariamente apenas para tornar explícito no diff o bootstrap antigo;
+// não é chamado. Remoção mecânica pode ser feita após separar o worktree concorrente.
+void createSchema;
+
 /** Garante que as tabelas existam (idempotente, roda uma vez por processo). */
 function ensureSchema(): Promise<void> {
-  if (!schemaReady) schemaReady = createSchema();
+  // Runtime, sync e health nunca corrigem schema. DDL pertence exclusivamente ao
+  // runner fail-closed; ausência vira BLOCKED em vez de mutação implícita.
+  if (!schemaReady) schemaReady = getPool().query(`
+    SELECT
+      to_regclass(current_schema() || '.workspace_integrations') IS NOT NULL AS integrations,
+      to_regclass(current_schema() || '.workspace_marketplace_syncs') IS NOT NULL AS syncs,
+      to_regclass(current_schema() || '.schema_migrations') IS NOT NULL AS ledger
+  `).then(({ rows }) => {
+    if (!rows[0]?.integrations || !rows[0]?.syncs || !rows[0]?.ledger) {
+      throw new Error("SCHEMA_BLOCKED: schema ausente/incompleto; gere um plano e aplique pelo runner autorizado.");
+    }
+  });
   return schemaReady;
+}
+
+/** Certifica a 0005 somente para fluxos que dependem do ledger financeiro. */
+export function ensureFinancialLedgerSchema(): Promise<void> {
+  if (!financialLedgerSchemaReady) financialLedgerSchemaReady = ensureSchema().then(async () => {
+    const migrationSql = await readFile(path.join(process.cwd(), "migrations", "0005_workspace_financial_ledger.sql"), "utf8");
+    const contract = await inspectFinancialLedgerContract((sql: string) => getPool().query(sql), FINANCIAL_LEDGER_CONTRACT_SQL);
+    try { assertFinancialLedgerContract(contract, financialLedgerContractHash(migrationSql)); }
+    catch { throw new Error("SCHEMA_BLOCKED: contrato semantico 0005 ausente, divergente ou inseguro."); }
+  });
+  return financialLedgerSchemaReady;
 }
 
 /** Executa uma query e retorna as linhas (cria o schema na primeira chamada). */
@@ -353,4 +385,42 @@ export async function dbQuery<T = Record<string, unknown>>(
   await ensureSchema();
   const res = await getPool().query(text, params);
   return res.rows as T[];
+}
+
+export type DbQuery = <R = Record<string, unknown>>(
+  text: string,
+  params?: unknown[]
+) => Promise<R[]>;
+
+/** Executa todas as escritas na mesma transação e conexão. */
+export async function dbTransaction<T>(
+  fn: (query: DbQuery) => Promise<T>
+): Promise<T> {
+  await ensureSchema();
+  const client = await getPool().connect();
+  try {
+    await client.query("BEGIN");
+    const result = await fn(async <R>(text: string, params: unknown[] = []) => {
+      const response = await client.query(text, params);
+      return response.rows as R[];
+    });
+    await client.query("COMMIT");
+    return result;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+/** Serializa e executa toda a seção crítica na mesma sessão/transação. */
+export async function withDbTransactionAdvisoryLock<T>(
+  key: string,
+  fn: (query: DbQuery) => Promise<T>
+): Promise<T> {
+  return dbTransaction(async (query) => {
+    await query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [key]);
+    return fn(query);
+  });
 }

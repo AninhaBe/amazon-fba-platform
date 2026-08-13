@@ -18,7 +18,7 @@ export function calculateCostCoverage(
 
   for (const [sku, units] of Object.entries(unitsBySku)) {
     const cost = costs[sku]?.cost;
-    if (cost == null || cost <= 0) {
+    if (cost == null || cost < 0) {
       unitsWithoutCost += units;
       skusMissingCost.push(sku);
     } else {
@@ -53,7 +53,7 @@ export function calculateHistoricalCostCoverage(
     const entry = costs[sale.sku];
     const history = entry?.history?.length ? entry.history : entry ? [{ cost: entry.cost, from: entry.updatedAt }] : [];
     const cost = history.filter((change) => change.from <= sale.purchasedAt).at(-1)?.cost;
-    if (cost == null || cost <= 0) {
+    if (cost == null || cost < 0) {
       unitsWithoutCost += sale.units;
       missing.add(sale.sku);
     } else {

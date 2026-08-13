@@ -4,6 +4,14 @@ import { useEffect, useState } from "react";
 import { PageHeader, pageIcons } from "../components/PageHeader";
 import { PanelLoading } from "../components/LoadingState";
 import { MarketplaceIcon } from "../components/MarketplaceIcon";
+import {
+  activeConnectionCount,
+  connectionRemovalCopy,
+  isRemovableProvider,
+  providerState,
+  providerStateLabel,
+  type RemovableProviderId,
+} from "./IntegrationsPageModel";
 
 interface Connection {
   id: string;
@@ -23,6 +31,11 @@ interface Provider {
   availability: "available" | "planned";
   connectHref?: string;
   configured: boolean;
+  issue?: {
+    status: "attention";
+    code: "OWNERSHIP_CONFLICT" | "PROVIDER_READ_FAILED";
+    message: string;
+  };
   connections: Connection[];
 }
 
@@ -65,6 +78,9 @@ export default function IntegracoesPage() {
       } else if (query.get("connected") === "tiktok_shop") {
         setMessage({ tone: "success", text: "TikTok Shop conectada com sucesso." });
         window.history.replaceState({}, "", "/integracoes");
+      } else if (query.get("connected") === "shopee") {
+        setMessage({ tone: "success", text: "Shopee conectada com sucesso." });
+        window.history.replaceState({}, "", "/integracoes");
       } else if (query.get("error")) {
         setMessage({ tone: "error", text: query.get("error") || "Não foi possível concluir a conexão." });
         window.history.replaceState({}, "", "/integracoes");
@@ -74,8 +90,9 @@ export default function IntegracoesPage() {
     return () => window.clearTimeout(timer);
   }, []);
 
-  async function disconnect(connection: Connection) {
-    if (!window.confirm(`Desconectar ${connection.displayName || connection.externalAccountId}?`)) return;
+  async function disconnect(connection: Connection, providerId: RemovableProviderId) {
+    const copy = connectionRemovalCopy(providerId, connection.displayName || connection.externalAccountId);
+    if (!window.confirm(copy.confirm)) return;
     setBusy(connection.id);
     setMessage(null);
     try {
@@ -83,6 +100,7 @@ export default function IntegracoesPage() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Erro ao desconectar.");
       await load();
+      if (copy.success) setMessage({ tone: "success", text: copy.success });
     } catch (error) {
       setMessage({ tone: "error", text: error instanceof Error ? error.message : "Erro ao desconectar." });
     } finally {
@@ -90,7 +108,7 @@ export default function IntegracoesPage() {
     }
   }
 
-  const connectedCount = providers.reduce((total, provider) => total + provider.connections.length, 0);
+  const connectedCount = activeConnectionCount(providers);
 
   return (
     <div className="integrations-page space-y-8">
@@ -120,8 +138,15 @@ export default function IntegracoesPage() {
         ) : (
           <div className="integration-grid">
             {providers.map((provider) => {
-              const connected = provider.connections.length > 0;
               const planned = provider.availability === "planned";
+              const state = providerState(provider.connections, {
+                planned,
+                configured: provider.configured,
+                issueStatus: provider.issue?.status,
+              });
+              const connected = state === "connected";
+              const needsReconnect = state === "attention" || state === "disconnected";
+              const removableProvider = isRemovableProvider(provider.id) ? provider.id : null;
               return (
                 <article key={provider.id} className={`integration-card provider-${provider.id}${connected ? " is-connected" : ""}`}>
                   <header>
@@ -129,8 +154,8 @@ export default function IntegracoesPage() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <h3>{provider.name}</h3>
-                        <span className={`connection-status ${connected ? "is-connected" : planned ? "is-planned" : ""}`}>
-                          {connected ? "Conectado" : planned ? "Planejado" : "Disponível"}
+                        <span className={`connection-status is-${state}`}>
+                          {providerStateLabel[state]}
                         </span>
                       </div>
                       <p>{provider.description}</p>
@@ -141,18 +166,26 @@ export default function IntegracoesPage() {
                     {provider.capabilities.map((capability) => <span key={capability}>{capabilityLabels[capability] || capability}</span>)}
                   </div>
 
+                  {provider.issue && (
+                    <p role="status" className="mx-5 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                      {provider.issue.message}
+                    </p>
+                  )}
+
                   {provider.connections.length > 0 && (
                     <ul className="connection-list">
                       {provider.connections.map((connection) => (
                         <li key={connection.id}>
-                          <span className="connection-dot" aria-hidden="true" />
+                          <span className={`connection-dot is-${connection.status}`} aria-hidden="true" />
                           <span className="min-w-0 flex-1">
                             <strong>{connection.displayName || connection.externalAccountId}</strong>
                             <small>{connection.region || connection.externalAccountId}</small>
                           </span>
-                          {(provider.id === "mercado_livre" || provider.id === "tiktok_shop") && (
-                            <button type="button" onClick={() => void disconnect(connection)} disabled={busy === connection.id} className="connection-remove">
-                              {busy === connection.id ? "Removendo…" : "Desconectar"}
+                          {removableProvider && (
+                            <button type="button" onClick={() => void disconnect(connection, removableProvider)} disabled={busy === connection.id} className="connection-remove">
+                              {busy === connection.id
+                                ? "Removendo…"
+                                : connectionRemovalCopy(removableProvider, connection.displayName || connection.externalAccountId).button}
                             </button>
                           )}
                         </li>
@@ -161,10 +194,17 @@ export default function IntegracoesPage() {
                   )}
 
                   <footer>
-                    {planned ? (
+                    {provider.issue ? (
+                      <span className="integration-disabled">Canal protegido até a correção da conexão</span>
+                    ) : planned ? (
                       <span className="integration-disabled">Integração preparada para a próxima fase</span>
                     ) : connected ? (
                       <span className="integration-active-state"><span aria-hidden="true">✓</span> Integração ativa nesta conta</span>
+                    ) : needsReconnect && provider.configured && provider.connectHref ? (
+                      <a href={provider.connectHref} className="integration-connect">
+                        Reconectar {provider.name}
+                        <span aria-hidden="true">→</span>
+                      </a>
                     ) : provider.configured && provider.connectHref ? (
                       <a href={provider.connectHref} className="integration-connect">
                         Conectar {provider.name}

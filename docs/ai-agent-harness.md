@@ -10,8 +10,8 @@ raciocínio** que decide sozinho quais ferramentas chamar, encadeia passos, e ou
 uma pergunta ou executa uma ação (com guarda-corpos).
 
 O ponto-chave: **a parte difícil já está pronta**. As "ferramentas" do agente seriam
-exatamente os nossos `src/lib/*.ts` e as rotas `/api/*` — funções que já abstraem SP-API
-(e futuramente Shopee/TikTok). O agente é só uma camada por cima; ele não precisa saber
+exatamente os nossos `src/lib/*.ts` e as rotas `/api/*` — funções que já abstraem as
+APIs da Amazon, Mercado Livre, TikTok Shop e Shopee. O agente é só uma camada por cima; ele não precisa saber
 falar com a Amazon, ele chama nossas funções. E como essas funções já normalizam os dados,
 o agente enxerga "vendas / lucro / estoque" como uma coisa só, independente do marketplace.
 
@@ -86,6 +86,8 @@ você conversa. Os itens 2–4 vêm depois, reusando as mesmas ferramentas.
 
 ## Relação com Shopee/TikTok
 
-Quando a integração Shopee for retomada (`lib/shopee.ts`), o agente ganha esses dados **de
-graça** — ele fala com nossas funções normalizadas, não com as APIs. Multi-marketplace fica
+A integração Shopee já está implementada e testada em sandbox (`lib/shopee.ts`), então o
+agente ganha esses dados **de graça** — ele fala com nossas funções normalizadas, não com as
+APIs. A validação Live segue bloqueada externamente pela aprovação do Go Live, pelas
+credenciais de produção e pela autorização de uma loja real. Multi-marketplace fica
 transparente para o agente.

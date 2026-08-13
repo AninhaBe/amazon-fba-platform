@@ -67,9 +67,8 @@ export default function AmazonCatalogPage() {
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [page, setPage] = useState(1);
 
-  useEffect(() => { setPage(1); }, [query, status, logistic, sortCol, sortDir]);
-
   function toggleSort(col: SortCol) {
+    setPage(1);
     if (sortCol === col) setSortDir((dir) => (dir === "asc" ? "desc" : "asc"));
     else {
       setSortCol(col);
@@ -141,9 +140,9 @@ export default function AmazonCatalogPage() {
           </section>
 
           <section className="listing-controls cols-3" aria-label="Filtros dos anúncios">
-            <label className="listing-search"><span className="sr-only">Buscar anúncio</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar título, SKU ou ASIN" /></label>
-            <select value={status} onChange={(event) => setStatus(event.target.value as StatusFilter)} aria-label="Filtrar status"><option value="all">Todos os status</option><option value="active">Ativos</option><option value="inactive">Inativos</option><option value="incomplete">Incompletos</option></select>
-            <select value={logistic} onChange={(event) => setLogistic(event.target.value as LogisticFilter)} aria-label="Filtrar logística"><option value="all">Toda logística</option><option value="fba">FBA (Amazon envia)</option><option value="fbm">FBM (você envia)</option></select>
+            <label className="listing-search"><span className="sr-only">Buscar anúncio</span><input value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="Buscar título, SKU ou ASIN" /></label>
+            <select value={status} onChange={(event) => { setStatus(event.target.value as StatusFilter); setPage(1); }} aria-label="Filtrar status"><option value="all">Todos os status</option><option value="active">Ativos</option><option value="inactive">Inativos</option><option value="incomplete">Incompletos</option></select>
+            <select value={logistic} onChange={(event) => { setLogistic(event.target.value as LogisticFilter); setPage(1); }} aria-label="Filtrar logística"><option value="all">Toda logística</option><option value="fba">FBA (Amazon envia)</option><option value="fbm">FBM (você envia)</option></select>
           </section>
 
           <section className="listing-table-shell" aria-labelledby="amz-listing-results">

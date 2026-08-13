@@ -80,17 +80,26 @@ interface TokenData {
   seller_base_region?: string;
 }
 
-async function tokenCall(op: "get" | "refresh", extra: Record<string, string>): Promise<TokenData> {
+async function tokenCall(op: "get" | "refresh", extra: Record<string, string>, signal?: AbortSignal): Promise<TokenData> {
   const { key, secret } = creds();
   const url = new URL(`${TOKEN_BASE}/${op}`);
   url.searchParams.set("app_key", key);
   url.searchParams.set("app_secret", secret);
   for (const [k, v] of Object.entries(extra)) url.searchParams.set(k, v);
 
-  const res = await fetch(url.toString(), { headers: { "Content-Type": "application/json" } });
+  const res = await fetch(url.toString(), {
+    headers: { "Content-Type": "application/json" },
+    signal: signal ?? AbortSignal.timeout(30_000),
+  });
   const json = await res.json();
-  if (json.code !== 0 || !json.data) {
-    throw new Error(`TikTok token/${op}: ${json.message || "erro"} (code ${json.code})`);
+  // Mesmo que o corpo de um 5xx mencione credenciais, o provedor pode ter
+  // consumido o refresh token antes de falhar. Não o classifique como grant
+  // definitivamente inválido: o coordenador precisa interditar o token antigo.
+  if (res.status >= 500) {
+    throw new Error(`TikTok token/${op} temporariamente indisponível (${res.status}).`);
+  }
+  if (!res.ok || json.code !== 0 || !json.data) {
+    throw classifyTiktokApiError({ httpStatus: res.status, code: json.code, message: json.message });
   }
   return json.data as TokenData;
 }
@@ -101,8 +110,8 @@ export function exchangeAuthCode(authCode: string): Promise<TokenData> {
 }
 
 /** Renova o access_token usando o refresh_token. */
-export function refreshAccessToken(refreshToken: string): Promise<TokenData> {
-  return tokenCall("refresh", { refresh_token: refreshToken, grant_type: "refresh_token" });
+export function refreshAccessToken(refreshToken: string, signal?: AbortSignal): Promise<TokenData> {
+  return tokenCall("refresh", { refresh_token: refreshToken, grant_type: "refresh_token" }, signal);
 }
 
 export interface TiktokFetchOpts {
@@ -111,6 +120,35 @@ export interface TiktokFetchOpts {
   body?: unknown;
   accessToken: string;
   shopCipher?: string;
+}
+
+/** Converte somente falhas inequívocas de credencial em um erro operacional
+ * seguro. Mensagens do provedor nunca são propagadas para a UI neste caso. */
+export function classifyTiktokApiError(input: {
+  httpStatus?: number;
+  code?: unknown;
+  message?: unknown;
+}): Error {
+  const message = typeof input.message === "string" ? input.message : "";
+  const normalized = message.toLowerCase();
+  const authFailure = input.httpStatus === 401 || [
+    "access token is invalid", "access token has expired", "invalid access_token",
+    "invalid access token", "refresh token is invalid", "refresh token has expired",
+  ].some((fragment) => normalized.includes(fragment));
+  if (authFailure) {
+    const error = new Error("A autorização da TikTok Shop expirou ou foi revogada. Reconecte a loja.") as Error & { code: "REAUTH_REQUIRED" };
+    error.name = "TiktokApiAuthError";
+    error.code = "REAUTH_REQUIRED";
+    return error;
+  }
+  if (input.httpStatus === 429 || String(input.code) === "36009002") {
+    const error = new Error("A TikTok Shop limitou temporariamente as solicitacoes.") as Error & { code: "RATE_LIMITED" };
+    error.name = "TiktokApiRateLimitError";
+    error.code = "RATE_LIMITED";
+    return error;
+  }
+  const code = String(input.code ?? "desconhecido").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 40);
+  return new Error(`A TikTok Shop recusou a solicitação (code ${code || "desconhecido"}).`);
 }
 
 /** Chamada autenticada+assinada a um endpoint de negócio da TikTok Shop. */
@@ -139,10 +177,11 @@ export async function tiktokFetch<T = unknown>(path: string, opts: TiktokFetchOp
       "x-tts-access-token": opts.accessToken,
     },
     body: bodyStr || undefined,
+    signal: AbortSignal.timeout(30_000),
   });
   const json = await res.json();
-  if (json.code !== 0) {
-    throw new Error(`TikTok ${path}: ${json.message || "erro"} (code ${json.code})`);
+  if (!res.ok || json.code !== 0) {
+    throw classifyTiktokApiError({ httpStatus: res.status, code: json.code, message: json.message });
   }
   return json.data as T;
 }

@@ -61,10 +61,15 @@ rende R$ 1.060. Vale planejar o gasto para cruzar o degrau, não parar rente a e
 - O crédito aparece no Gerenciador de campanhas em até **2 semanas** após cumprir o
   requisito — e há **apenas 30 dias para gastá-lo**.
 
-**Situação da conta (02/08/2026):** os 6 SKUs estão `DISCOVERABLE` mas com estoque zero, ou
-seja, provavelmente **ainda não houve oferta comprável**. Se for esse o caso, o relógio dos
-90 dias só começa quando o estoque FBA chegar — e a data cai depois de 20/02/2026, dentro
-da janela. **Confirmar a data da primeira oferta comprável antes de contar com o benefício.**
+**Situação da conta (12/08/2026):** o estoque FBA chegou — **263 unidades vendáveis em 5
+SKUs** (martelo 118, clips 92, kitprote-8 35, kitprote-32 16, kitprote-16 2). A oferta
+comprável existe, então o relógio dos 90 dias está correndo. **A data exata da primeira
+oferta comprável continua não confirmada** — está na página do programa de Incentivos para
+Novos Vendedores no Seller Central, e é ela que define o prazo real. Conferir antes de
+contar com o benefício.
+
+O console mostra o benefício como **"até US$ 1.000"** (equivalente aos R$ 5.300 desta
+tabela); é a mesma oferta, só exibida em dólar.
 
 ### O outro benefício (fora de alcance hoje)
 
@@ -84,6 +89,55 @@ estratégia Genérico atual; registrar como fica é a decisão que destrava isso
 5. **Comparar ACOS com a margem real** — o custo já está cadastrado no SellerCore, então a
    margem por SKU é conhecida. ACOS acima da margem = prejuízo por clique.
 6. **Não anunciar os 6 de uma vez.** Começar pelo de melhor margem e maior estoque.
+
+## Campanhas no ar (criadas em 12/08/2026)
+
+Conta **NEXAHUB BR**, `merchantId AO62LVXJMX3AA`, `entityId ENTITY16D5M3ZYVBEMC`.
+Todas Sponsored Products, **lances dinâmicos somente redução**, ajuste por canal 0%,
+início 12/08 sem data de término. Total: **R$ 50/dia**.
+
+| Campanha | ID | Produto | Segmentação | Lance | Orçamento |
+|---|---|---|---|---|---|
+| Auto - Martelo Borracha | `A09902661J0ZF8TYDHJC8` | `B0HBGQNBD4` | automática (8 negativas exatas) | R$ 0,35 | R$ 15 |
+| Manual Exata - Martelo Borracha | `A01357752UOKBP340AQ6T` | `B0HBGQNBD4` | manual, 8 palavras exatas | R$ 0,35–0,90 | R$ 10 |
+| Auto - Clips 320 | `A09432513MF2JZKXFKXGB` | `B0HBGLBL6Y` | automática | R$ 0,35 | R$ 15 |
+| Auto - Protetor Kit 8 | `A06494282F1XLCQPDJD30` | `B0H9SFW8KR` | automática | R$ 0,35 | R$ 10 |
+
+As 8 palavras da manual do martelo são as **mesmas** bloqueadas como negativa exata na
+automática — é o que impede o par de disputar o próprio clique. Se migrar termos novos
+para a manual, negativar na automática **na mesma hora**.
+
+**Não anunciamos o kitprote-32**: R$ 44,33 de preço contra R$ 38,28 de custo é 13,6% de
+margem bruta, que a comissão de 15% já consome. Ou o custo está errado, ou o preço está.
+O **kitprote-16 não tem custo cadastrado**, então a margem dele é desconhecida.
+
+### Pegadinhas observadas na criação (12/08)
+
+- **O lance sugerido muda depois de adicionar o produto.** Antes do produto a tela mostra
+  um valor genérico (R$ 0,98); com o martelo dentro, a sugestão real era R$ 0,33. Nunca
+  aceitar o número que aparece antes de o produto entrar.
+- **Sem sugestão, o padrão é R$ 2,75.** Foi o caso do kitprote-8. Com margem de ~R$ 9,
+  esse lance exigiria 30% de conversão para empatar.
+- **Exata custa ~3x a automática**: "martelo de borracha" sugeria R$ 1,20 em exata contra
+  R$ 0,33 na automática.
+- **O ASIN pai não é anunciável.** `B0H9QCVBPC` aparece como `Ineligible` — Sponsored
+  Products anuncia ofertas, ou seja, os filhos. Para ver desempenho por variação, adicione
+  os filhos no mesmo grupo; o relatório sai por ASIN filho.
+- **O fluxo "campanhas prontas para lançar"** (`/cb/sp/presets`) pré-seleciona todos os
+  ASINs com orçamento e lance escolhidos pela Amazon. Não usar.
+- **O orçamento mínimo não é R$ 50/dia.** Esse número é a *recomendação* (US$ 10 ou
+  equivalente); o mínimo aceito é o equivalente a US$ 1. A tela sugere R$ 40 e aceita menos.
+
+### Próximos passos
+
+1. **A partir de 13/08:** só observar. Não mexer em lance nem orçamento por 2–3 semanas —
+   é fase de coleta. Sinais de problema: 500+ impressões com 0 clique (preço ou foto) ou
+   muitos cliques sem venda (página do produto).
+2. **Em 2–3 semanas:** relatório de termos de busca → termo com 3+ pedidos vira exata na
+   manual; termo com 10+ cliques e 0 pedidos vira negativa exata. Repetir a cada 15 dias.
+3. **Pendente:** criar as manuais exatas do **Clips 320** e do **Protetor Kit 8**, com os
+   termos colhidos (não chutados), reequilibrando os R$ 50/dia.
+4. **Confirmar a data da primeira oferta comprável** para saber o prazo real dos 90 dias.
 
 ## Ligações com o SellerCore
 

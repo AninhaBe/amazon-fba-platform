@@ -5,13 +5,14 @@ import {
   getTiktokOrderStatement,
   getTiktokProducts,
 } from "@/lib/tiktok";
-import { getTiktokShops } from "@/lib/tiktokStore";
+import { getTiktokShops, refreshTiktokShopIfNeeded } from "@/lib/tiktokStore";
 import {
   agruparItens,
   canonicalTiktokStatus,
   normalizeTiktokOrder,
   normalizeTiktokProduct,
   sanitizeTiktokOrder,
+  tiktokStatementSettled,
   type TiktokOrder,
   type TiktokProduct,
   type TiktokStatement,
@@ -34,10 +35,11 @@ export async function GET(req: NextRequest) {
     const limite = Math.min(Math.max(Number(searchParams.get("limite") ?? 5), 1), 20);
 
     const lojas = await getTiktokShops();
-    const loja = lojas[0];
-    if (!loja) {
+    const selecionada = lojas[0];
+    if (!selecionada) {
       return NextResponse.json({ error: "Nenhuma loja TikTok conectada." }, { status: 404 });
     }
+    const loja = await refreshTiktokShopIfNeeded(selecionada);
     const shop = { accessToken: loja.accessToken, shopCipher: loja.shopCipher };
 
     const agora = Math.floor(Date.now() / 1000);
@@ -89,13 +91,16 @@ export async function GET(req: NextRequest) {
             statement = (bruto as { statement_transactions?: TiktokStatement[] })
               ?.statement_transactions?.[0] ?? (bruto as TiktokStatement);
             resultado.extratoCru = statement;
+            resultado.extratoFechado = tiktokStatementSettled(statement);
           } catch (e) {
             erro("finance/statement", e);
           }
           resultado.pedidoCru = sanitizeTiktokOrder(primeiro);
           resultado.itensAgrupados = agruparItens(primeiro.line_items ?? []);
           resultado.linhasOriginais = (primeiro.line_items ?? []).length;
-          resultado.pedidoCanonico = normalizeTiktokOrder(primeiro, { statement });
+          resultado.pedidoCanonico = normalizeTiktokOrder(primeiro, {
+            statement: tiktokStatementSettled(statement) ? statement : null,
+          });
         }
       } catch (e) {
         erro("order/detail", e);

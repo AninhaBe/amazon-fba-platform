@@ -18,16 +18,25 @@ não re-deduza o que já foi decidido nem repita pegadinha já paga.
   primeiro. Ao esbarrar num comportamento novo, registre na hora.
 - **Pegadinhas ficam no doc do canal**, junto do endpoint — não em arquivo separado.
 
+## Desenvolvimento e qualidade
+
+| Doc | O que tem |
+|---|---|
+| [`../SELLERCORE_DEV_GUIDE.md`](../SELLERCORE_DEV_GUIDE.md) | Ponto de entrada para desenvolvimento e regra obrigatória do gate contínuo. |
+| [`gate-continuo-de-saude.md`](./gate-continuo-de-saude.md) | Gatilhos, checklist integrado em `localhost:3000`, evidências, estados `PASS`/`FAIL`/`BLOCKED` e responsabilidades. |
+| [`migrations.md`](./migrations.md) | Runner fail-closed, plano, autorização curta e resposta ao incidente 0003/0004. |
+| [`tiktok-qa-evidence.md`](./tiktok-qa-evidence.md) | Evidência agregada e procedimento fail-closed para QA autenticado TikTok; atualmente bloqueado por ownership duplicado e pela 0005 ainda não aplicada. |
+
 ## APIs dos marketplaces (leia antes de mexer em integração)
 
 | Doc | O que tem |
 |---|---|
 | [`api-amazon-sp-api.md`](./api-amazon-sp-api.md) | SP-API: endpoints usados, semântica de PATCH com selectors, orderMetrics vs Transactions, FNSKU/FBA, agendamento de entrega, changelog |
 | [`api-mercado-livre.md`](./api-mercado-livre.md) | ML: endpoints, regra do faturamento (validada ao centavo), refresh token rotativo, endpoints bloqueados (403), o que sobrou para pesquisa de mercado, changelog |
-| [`api-shopee.md`](./api-shopee.md) | Shopee Open Platform v2 — **implementada, aguardando Go Live**: assinatura HMAC (validada em sandbox), OAuth, escrow, limites reais (janela de 15 dias, 50 pedidos/detalhe), App Types e changelog |
+| [`api-shopee.md`](./api-shopee.md) | Shopee Open Platform v2 — implementação local com HTTP fail-closed, OAuth, sweep retomável multi-status, multi-loja, settings e remoção local; Go Live e payload Live seguem bloqueados |
 | [`api-endpoints.md`](./api-endpoints.md) | Panorama geral das duas APIs (grupos e endpoints principais) — visão de mapa, não substitui os docs acima |
 | [`sp-api-notifications.md`](./sp-api-notifications.md) | Notificações/webhooks da SP-API (SQS/EventBridge) |
-| [`tiktok-shop-integracao.md`](./tiktok-shop-integracao.md) | Plano da integração TikTok Shop — backlog, aguardando credenciais do Partner Center |
+| [`tiktok-shop-integracao.md`](./tiktok-shop-integracao.md) | Histórico, contrato e estado TikTok — OAuth, sync, cron e leitura canônica implementados, com Dashboard, Financeiro e módulos filtráveis; QA autenticado bloqueado por ownership/0005 e validação financeira real ainda parcial |
 
 ## Arquitetura (fonte de verdade)
 

@@ -13,10 +13,11 @@ conforme for concluindo.
   revogado (`invalid_grant`, confirmado em 06/08). Preferir **self-authorization**
   pelo Solution Provider Portal em vez do OAuth atual; motivo e caminho em
   `docs/conexoes-que-expiram.md`.
-- [ ] **Shopee: submeter o Go Live** — formulário preenchido no console, falta
-  anexar o segundo print e apertar Submit (`docs/estado-atual.md`).
-- [ ] **Shopee: IP Whitelist** com os IPs de saída do Render — sem ele os dados
-  do comprador vêm mascarados e não sai NF-e.
+- [x] **Shopee: submeter o Go Live** — submetido em 07/08. Aprovação,
+  credenciais de produção, autorização de loja real e payload Live seguem
+  **BLOCKED** por dependência externa (`docs/estado-atual.md`).
+- [ ] **Shopee: confirmar IP Whitelist no ambiente Live** depois da aprovação;
+  sem ela os dados do comprador vêm mascarados e não sai NF-e.
 
 - [ ] **Agendar o cron da Amazon.** "Cron" é só um despertador: um serviço
   externo chama uma URL do app de tempos em tempos, e essa chamada empurra a
@@ -65,11 +66,13 @@ conforme for concluindo.
   `/api/profit`, `/api/top-products`) para ler do SQL canônico — é o que
   torna a Amazon rápida como o Mercado Livre ficou. Antes, validar os números
   do canônico contra o dashboard atual (mesma conferência feita no ML)
-- [ ] TikTok Shop: implementar pedidos já direto no canônico (sem tabela legada)
-- [x] **Shopee: canal completo** (conexão OAuth, dashboard e ingestão pelo
-  canônico, cron). Falta o **Go Live** para conectar loja real — passo a passo
-  em `docs/estado-atual.md`; ao conectar, revisar o mapeamento de campos em
-  `shopeeCanonical.ts`, escrito contra a doc e ainda não confrontado com dados reais
+- [x] TikTok Shop: pedidos, produtos e financeiro implementados no canônico,
+  com sync/cron, Dashboard, Financeiro e módulos filtráveis. QA autenticado
+  segue **BLOCKED** por ownership duplicado e pela migration 0005 não aplicada.
+- [x] **Shopee: implementação local** (OAuth, dashboard/módulos multi-loja,
+  ingestão canônica fail-closed, sweep retomável, cron, settings por loja e
+  remoção local). Go Live e payload real seguem **BLOCKED**; ao conectar,
+  revisar `shopeeCanonical.ts` contra a resposta Live.
 
 ## Limpeza (depois que o overview SQL do ML estiver estável no Render)
 

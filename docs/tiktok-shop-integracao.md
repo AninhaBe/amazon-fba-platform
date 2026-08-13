@@ -385,9 +385,49 @@ data.sku_transactions[]: product_name, quantity, revenue_amount,
   + revenue_breakdown / fee_tax_breakdown / shipping_cost_breakdown
 ```
 
-Isso encaixa direto no modelo canônico: `revenue_amount` → gross,
-`fee_and_tax_amount` → taxa do canal, `shipping_cost_amount` → frete. E há
+No modelo canônico, `fee_and_tax_amount` alimenta taxa do canal e
+`shipping_cost_amount` alimenta frete. `revenue_amount` é usado para reconciliar
+o extrato, mas não substitui o gross: o gross continua vindo dos itens do pedido,
+para não confundir venda bruta com descontos ou ajustes liquidados. Há também
 detalhamento **por SKU**, que a Shopee não dá com essa granularidade.
+
+### Reconciliação dos breakdowns financeiros (11/08/2026)
+
+O parser produtivo usa apenas os totais liquidados do pedido. Na amostra real já
+registrada, `revenue_amount = 23,90`, `fee_and_tax_amount = -9,13`,
+`shipping_cost_amount = 0` e `settlement_amount = 14,77`: portanto os custos vêm
+com sinal negativo e o canônico os inverte para débito positivo. A identidade
+observada é `revenue + fee_and_tax + shipping_cost = settlement`.
+
+Os três breakdowns ficam dentro de `sku_transactions[]`; o contrato oficial os
+apresenta como detalhamento de `revenue_amount`, `fee_tax_amount` e
+`shipping_cost_amount`, não como valores adicionais. Logo, persistir o total e
+também seus componentes como fees duplicaria custos. Uma futura decomposição
+deve **substituir** a linha agregada somente quando a soma assinada dos
+componentes reconciliar ao centavo com o total correspondente; caso contrário,
+mantém-se o total e a cobertura do detalhe fica pendente.
+
+Mapeamento funcional ainda bloqueado por falta de nomes/valores reais dos
+componentes (o OAS informa a estrutura, mas não prova a semântica regional):
+
+- **Ads:** só pode virar `ads` se um componente real de `fee_tax_breakdown` for
+  identificado pela documentação oficial e reconciliar dentro de
+  `fee_tax_amount`. Nunca somar Ads por fora de `fee_and_tax_amount`.
+- **Impostos retidos:** mesma regra, com destino `taxes_withheld`. Não confundir
+  retenção do marketplace com `payment.product_tax`/`shipping_fee_tax` nem com o
+  imposto configurado pelo vendedor no dashboard.
+- **Reembolsos:** pode ser ajuste negativo de `revenue_breakdown` ou outro tipo
+  de transação. Até observar o payload, não virar `refund`: adicioná-lo como fee
+  enquanto `revenue_amount` já estiver líquido produziria dupla redução; trocar
+  o gross canônico pelo `revenue_amount` também misturaria venda bruta com
+  descontos/ajustes.
+
+Tentativa read-only em 11/08/2026: a API recusou a leitura com código
+`36009002`, apesar de o vencimento armazenado da conexão ainda estar no futuro.
+Nenhum refresh foi disparado e nenhum identificador, payload ou PII foi
+registrado. O desbloqueio exato é reautorizar/renovar a conexão e coletar uma
+evidência agregada contendo apenas nome do componente, sinal, soma e reconciliação
+com o total pai, idealmente incluindo um pedido com Ads, retenção e reembolso.
 
 ⚠️ **PII do Brasil no detalhe do pedido.** `GET /order/202507/orders` devolve
 `cpf` e `cpf_name`, além de `buyer_email`, `buyer_nickname` e `buyer_avatar`.
@@ -403,12 +443,100 @@ provavelmente por ser conta de Partner Center (ISV) e não de Developer Center.
 A lista definitiva de endpoints liberados ainda precisa sair do **"Manage API"**
 no console.
 
-O passo 3 é o que exige código: hoje só existe o OAuth. Para uma revisão
-funcional passar, a integração precisa ler pedidos e produtos de verdade — o
-mesmo trabalho já feito para a Shopee (`shopeeCanonical.ts` + `shopeeSync.ts`
-como molde; o banco não muda, grava com `provider = 'tiktok_shop'`).
+O passo 3 descrito no plano original foi concluído: OAuth, leitura de pedidos e
+produtos, sync/cron, modelo canônico e ledger retomável existem. A sidebar expõe
+Dashboard e Financeiro, e monitor, catálogo, produtos, estoque e curva ABC
+preservam loja, período e os filtros aplicáveis. Isso foi coberto localmente;
+não deve ser confundido com validação visual ou autenticada.
+
+O QA autenticado está **BLOCKED** porque a mesma loja tem ownership duplicado
+entre workspaces; o harness exige ownership exclusivo e não escolhe um owner
+arbitrariamente. A migration `0005_workspace_financial_ledger.sql` também não
+foi aplicada neste ambiente. O runtime falha fechado apenas nas superfícies que
+dependem do ledger e mantém vendas/catálogo disponíveis, sem inventar zeros.
 
 ## Fontes
+
+## Changelog observado
+
+- **11/08/2026 — superfície de produto e bloqueios de QA:** Dashboard,
+  Financeiro, sidebar e módulos com filtros por loja/período estão
+  implementados. O harness detectou ownership duplicado e interrompe o QA sem
+  expor identificadores. O contrato local da 0005 está certificado, mas a
+  migration não foi aplicada neste ambiente; validação autenticada segue
+  bloqueada.
+
+- **11/08/2026 — ledger financeiro revisado após evidência paginada:**
+  `GET /finance/202309/statements` respondeu 31 dias/31 statements `PAID`;
+  `GET /finance/202501/statements/{statement_id}/statement_transactions`
+  respondeu 175 linhas em duas páginas (174 com pedido), com tipos provider
+  observados `ORDER` e `LOGISTICS_REIMBURSEMENT`; `GET /finance/202605/payments`
+  respondeu 200 linhas em duas páginas; e
+  `GET /finance/202507/orders/unsettled` respondeu 675 estimates em sete páginas.
+  Fixtures locais conservam somente shapes e valores financeiros sanitizados,
+  sem IDs reais ou PII.
+- **11/08/2026 — identidade, sinais e cobertura do ledger:** os quatro endpoints
+  são fontes distintas. Payment nunca entra no lucro; unsettled é estimate e
+  somente uma linha final com o mesmo `transaction_id` pode substituí-lo por
+  precedência. `fee_and_tax_amount` e `shipping_cost_amount` negativos são
+  convertidos em débitos canônicos positivos; `revenue_amount` e
+  `settlement_amount` preservam a semântica do provider. A cobertura só fecha
+  após cursor terminal e página integralmente válida, com tipo e associação de
+  pedido resolvidos. Uma página com ID vazio, timestamp/moeda inválidos ou tipo
+  desconhecido falha sem avançar checkpoint.
+- **11/08/2026 — reembolso logístico e paginação fail-closed:** o tipo observado
+  `LOGISTICS_REIMBURSEMENT` preserva `order_id` e `adjustment_order_id`, mas seu
+  `revenue_amount` é classificado exclusivamente como `adjustment`, nunca como
+  receita de venda. Para os sinais reais observados, a identidade é
+  `adjustment - fee debit - shipping debit = settlement_amount`; assim o crédito
+  reconcilia sem inflar o revenue oficial nem contar o mesmo valor duas vezes.
+  Statement `PENDING` ou com status desconhecido mantém a janela incompleta e
+  produz diagnóstico retryable. Nos quatro recursos, `page_token` presente mas
+  vazio, igual ao cursor atual ou já visto na execução interrompe a tentativa
+  antes de escrita/checkpoint, preservando o cursor para retry e evitando loop.
+- **11/08/2026 — categorias não observadas continuam desconhecidas:** não se
+  inferem `COMMISSION_FEE`, `PAYMENT_FEE`, Ads, imposto retido ou refund. O total
+  pai comprovado `fee_and_tax_amount` ocupa provisoriamente a coluna agregadora
+  de fees; Ads/refunds/withheld permanecem `null` até um breakdown real fechar
+  ao centavo contra o pai. Os códigos provider brutos observados são preservados
+  em allowlist.
+- **11/08/2026 — retomada e rate limit:** checkpoints retomam primeiro a janela
+  incompleta mais antiga; dias UTC fechados têm identidade determinística e o
+  dia corrente usa janela separada. HTTP 429 e código provider `36009002`, mesmo
+  em HTTP 200, encerram a tentativa para backoff/retomada sem avançar cursor.
+- **11/08/2026 — fonte financeira única:** `/tiktok` e
+  `/tiktok/financeiro` consultam o mesmo snapshot do ledger. Janelas finais
+  by-statement contíguas e integralmente válidas são autoritativas; o extrato
+  por pedido permanece apenas fallback/recovery enquanto essa cobertura não
+  existe, sem ser somado ao ledger. Se o período alcançar o dia UTC corrente,
+  a cobertura permanece parcial mesmo que todas as páginas lidas até agora
+  tenham cursor terminal.
+
+- **11/08/2026 — conciliação financeira real:** a fila de extratos caminha em
+  ordem determinística (sem tentativa antes, depois tentativa mais antiga), em
+  até 100 chamadas sequenciais por loja e sob orçamento de 180 s. Placeholders e
+  `36009002` registram a tentativa e continuam desconhecidos; nunca viram zero.
+  HTTP 429 encerra o lote imediatamente para o cron posterior retomar.
+- **11/08/2026 — configuração financeira:** alíquota de imposto é persistida por
+  loja TikTok (`tax_rate`, nullable) e SKUs TikTok entram no cadastro canônico de
+  custos com chave isolada por conexão. Ads, refunds e impostos retidos seguem
+  `null` até existir evidência que os separe.
+
+- **11/08/2026 — breakdown financeiro:** totais liquidados e seus sinais estão
+  confirmados, mas Ads, impostos retidos e reembolsos continuam sem mapeamento
+  por componente. A leitura adicional foi recusada com `36009002`; o parser
+  conserva os totais para não duplicar `fee_and_tax_amount`,
+  `shipping_cost_amount` ou reduzir duas vezes a receita.
+
+- **11/08/2026 — loja real BR:** `POST /product/202502/products/search`
+  devolveu o preço das variações em `price.tax_exclusive_price` (não em
+  `sale_price`). Alguns produtos não vendáveis/rascunhos vieram sem preço ou
+  estoque comprovável; o sync os exclui do snapshot em vez de fabricar zero ou
+  descartar o catálogo válido inteiro.
+- **11/08/2026 — loja real BR:** pedidos paginados em lotes de 50 com
+  `next_page_token`; detalhe em lote e extrato 202501 responderam com sucesso.
+  Pedidos sem extrato liquidado continuam compondo faturamento bruto capturado,
+  enquanto lucro, margem e cobertura financeira permanecem parciais.
 
 - TikTok Shop Partner Center — Sign your API request:
   https://partner.tiktokshop.com/docv2/page/sign-your-api-request

@@ -5,7 +5,10 @@
 
 ## 1. O padrão de sync
 
-Mesmo desenho para todo canal (`amazonSync.ts`, `mercadoLivreScheduler.ts`):
+O desenho de janela, cursor e lease é compartilhado pelos canais implementados
+(`amazonSync.ts`, `mercadoLivreScheduler.ts`, `tiktokSync.ts`,
+`tiktokScheduler.ts`, `shopeeSync.ts` e `shopeeScheduler.ts`). Os detalhes e
+limites da API continuam específicos de cada adaptador.
 
 - **Janela deslizante com lease.** O estado vive em `workspace_marketplace_syncs`. O
   sync caminha **do presente para o passado** em janelas (Amazon: 7 dias), guardando o
@@ -55,6 +58,16 @@ sequenceDiagram
 
 - **Sync** (`amazonScheduler.ts`): avança o backfill e a conciliação das contas que
   precisam de trabalho.
+- **TikTok Shop** (`tiktokScheduler.ts`, `/api/cron/tiktok-sync`): avança o sync
+  paginado de pedidos/produtos e a fila financeira retomável por loja. O job
+  `sync-tiktok` do workflow é independente dos jobs Amazon, para uma falha de um
+  canal não impedir o outro. A implementação e seus testes não provam cobertura
+  completa das categorias de settlement. A validação financeira real permanece
+  parcial.
+- **Shopee** (`shopeeScheduler.ts`, `/api/cron/shopee-sync`): avança o sync
+  paginado de pedidos/produtos e concilia o escrow por loja. O pipeline e seus
+  testes de sandbox não equivalem a validação Live, que aguarda aprovação do
+  Go Live, credenciais de produção e autorização de uma loja real.
 - **Aquecimento** (`amazonWarm.ts`): para **todas** as contas ativas, pré-carrega os
   caches dos períodos do filtro (Hoje/7/15/30) — inclusive o KPI de Lucro — para a
   primeira visita já vir quente.

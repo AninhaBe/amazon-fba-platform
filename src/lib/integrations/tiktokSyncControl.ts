@@ -1,0 +1,77 @@
+export interface LeaseFence {
+  token: string;
+  expiresAt: number;
+}
+
+/** Espelho puro da condicao usada nos UPDATEs SQL protegidos pelo lease. */
+export function ownsLease(
+  lease: LeaseFence | null,
+  token: string | null,
+  now: number
+): boolean {
+  return Boolean(lease && token && lease.token === token && lease.expiresAt > now);
+}
+
+/** Recusa ciclos da API sem perder o ultimo cursor persistivel. */
+export function acceptPageToken(seen: ReadonlySet<string>, next: string | null): boolean {
+  return next === null || !seen.has(next);
+}
+
+export function hasSyncBudget(deadline: number, now: number): boolean {
+  return now < deadline;
+}
+
+export class TiktokLeaseLostError extends Error {
+  constructor() { super("Lease TikTok perdido durante chamada externa."); this.name = "TiktokLeaseLostError"; }
+}
+
+export function requireTiktokLeaseRow(rows: readonly unknown[]): void {
+  if (rows.length === 0) throw new TiktokLeaseLostError();
+}
+
+/** Mantém a verificação do fence dentro da mesma transação da mutação. */
+export async function fencedTiktokMutation<Q, T>(
+  transaction: (body: (query: Q) => Promise<T>) => Promise<T>,
+  owns: (query: Q) => Promise<boolean>,
+  write: (query: Q) => Promise<T>
+): Promise<T> {
+  return transaction(async (query) => {
+    if (!await owns(query)) throw new TiktokLeaseLostError();
+    return write(query);
+  });
+}
+
+export async function fencedTiktokExternalRead<T>(
+  assertOwnership: () => Promise<unknown>,
+  read: () => Promise<T>
+): Promise<T> {
+  await assertOwnership();
+  const result = await read();
+  await assertOwnership();
+  return result;
+}
+
+export function validateTiktokOrderBatch(
+  requestedIds: string[],
+  details: Array<{ id?: string | null }>
+): void {
+  const expected = requestedIds.map((id) => String(id).trim());
+  const actual = details.map((order) => String(order.id ?? "").trim());
+  const expectedSet = new Set(expected);
+  const actualSet = new Set(actual);
+  if (expected.some((id) => !id) || expectedSet.size !== expected.length
+    || actual.some((id) => !id) || actualSet.size !== actual.length
+    || expectedSet.size !== actualSet.size
+    || [...expectedSet].some((id) => !actualSet.has(id))
+    || [...actualSet].some((id) => !expectedSet.has(id))) {
+    throw new Error("Resposta de detalhe de pedido TikTok parcial, duplicada ou inesperada; lote preservado.");
+  }
+}
+
+/** Cria o namespace pai quando ausente e preserva outros metadados internos. */
+export const TIKTOK_STATEMENT_MARK_SQL = `COALESCE(raw, '{}'::jsonb)
+  || jsonb_build_object(
+    '_sellercore',
+    COALESCE(raw -> '_sellercore', '{}'::jsonb)
+      || jsonb_build_object('statementSettled', true)
+  )`;

@@ -4,6 +4,7 @@ import { dataFile } from "../dataDir";
 import { dbQuery, hasDb } from "../db";
 import { protectSecret, revealSecret } from "./secrets";
 import type { IntegrationConnection, IntegrationProvider, PublicIntegrationConnection } from "./types";
+import { publicShopeeDemoConnection } from "./shopeeConnection";
 import { currentWorkspaceId } from "../workspaceScope";
 
 const FILE = dataFile("integrations.json");
@@ -104,6 +105,64 @@ export async function getIntegration(id: string): Promise<IntegrationConnection 
   return (await readFile())[`${workspaceId}:${id}`];
 }
 
+const REFRESH_LEASE_KEY = "token_refresh_lease";
+
+/** Claims token rotation without keeping a DB connection open during the HTTP request. */
+export async function claimIntegrationTokenRefresh(
+  id: string,
+  leaseToken: string,
+  leaseUntil: string
+): Promise<IntegrationConnection | undefined> {
+  if (!hasDb()) return getIntegration(id);
+  const rows = await dbQuery<{ id: string }>(
+    `UPDATE workspace_integrations
+        SET metadata = jsonb_set(metadata, ARRAY[$3::text], $4::jsonb, true), updated_at = now()
+      WHERE workspace_id = $1 AND id = $2
+        AND (metadata-> $3 IS NULL OR (metadata-> $3 ->> 'until')::timestamptz <= now())
+      RETURNING id`,
+    [currentWorkspaceId(), id, REFRESH_LEASE_KEY, JSON.stringify({ token: leaseToken, until: leaseUntil })]
+  );
+  return rows[0] ? getIntegration(id) : undefined;
+}
+
+export async function finishIntegrationTokenRefresh(
+  source: IntegrationConnection,
+  leaseToken: string,
+  token: { accessToken: string; refreshToken: string; accessExpiresAt: string }
+): Promise<IntegrationConnection | undefined> {
+  const rows = await dbQuery<IntegrationRow>(
+    `UPDATE workspace_integrations
+        SET access_token = $4, refresh_token = $5, access_expires_at = $6,
+            metadata = metadata - $3, status = 'connected', updated_at = now()
+      WHERE workspace_id = $1 AND id = $2 AND metadata-> $3 ->> 'token' = $7
+      RETURNING id, provider, external_account_id, display_name, mode, region, access_token,
+                refresh_token, access_expires_at, refresh_expires_at, scopes, metadata, status,
+                connected_at, updated_at`,
+    [currentWorkspaceId(), source.id, REFRESH_LEASE_KEY, protectSecret(token.accessToken),
+     protectSecret(token.refreshToken), token.accessExpiresAt, leaseToken]
+  );
+  return rows[0] ? rowToConnection(rows[0]) : undefined;
+}
+
+export async function releaseIntegrationTokenRefresh(id: string, leaseToken: string): Promise<void> {
+  if (!hasDb()) return;
+  await dbQuery(
+    `UPDATE workspace_integrations SET metadata = metadata - $3
+      WHERE workspace_id = $1 AND id = $2 AND metadata-> $3 ->> 'token' = $4`,
+    [currentWorkspaceId(), id, REFRESH_LEASE_KEY, leaseToken]
+  );
+}
+
+export async function failIntegrationTokenRefresh(id: string, leaseToken: string): Promise<void> {
+  if (!hasDb()) return;
+  await dbQuery(
+    `UPDATE workspace_integrations
+        SET metadata = metadata - $3, status = 'disconnected', updated_at = now()
+      WHERE workspace_id = $1 AND id = $2 AND metadata-> $3 ->> 'token' = $4`,
+    [currentWorkspaceId(), id, REFRESH_LEASE_KEY, leaseToken]
+  );
+}
+
 export async function saveIntegration(
   item: Omit<IntegrationConnection, "connectedAt" | "updatedAt"> & Partial<Pick<IntegrationConnection, "connectedAt" | "updatedAt">>
 ): Promise<IntegrationConnection> {
@@ -166,6 +225,8 @@ export async function removeIntegration(id: string): Promise<void> {
 }
 
 export function publicConnection(item: IntegrationConnection): PublicIntegrationConnection {
+  const safeDemo = publicShopeeDemoConnection(item);
+  if (safeDemo) return safeDemo;
   const safeMetadata = Object.fromEntries(
     Object.entries(item.metadata).filter(([, value]) =>
       value === null || ["string", "number", "boolean"].includes(typeof value)

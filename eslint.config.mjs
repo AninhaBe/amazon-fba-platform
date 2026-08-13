@@ -12,7 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
-    // Source clone used to install/reference the external design skill.
+    // Agent tooling is vendored for local development, not shipped as product code.
+    ".agents/**",
+    ".claude/**",
+    ".tools/**",
     "ui-ux-pro-max-skill/**",
     ".codex/**",
   ]),

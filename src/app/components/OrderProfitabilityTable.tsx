@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { ProfitabilityLine } from "@/lib/profitability";
 import { brDate } from "@/lib/datetime";
 import { EmptyState } from "./EmptyState";
@@ -52,7 +52,8 @@ export function OrderProfitabilityTable({ lines, loading = false, error = null, 
   const [query, setQuery] = useState("");
   const [resultFilter, setResultFilter] = useState<"all" | "positive" | "negative" | "incomplete">("all");
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState<{ lines: ProfitabilityLine[]; page: number }>({ lines, page: 1 });
+  const page = pagination.lines === lines ? pagination.page : 1;
   const visible = useMemo(() => lines.filter((line) => {
     const matches = `${line.product} ${line.sku || ""} ${line.orderId}`.toLocaleLowerCase("pt-BR").includes(query.toLocaleLowerCase("pt-BR"));
     const resultMatches = resultFilter === "all" || (resultFilter === "incomplete" ? !line.complete : resultFilter === "positive" ? (line.contribution ?? 0) >= 0 && line.complete : (line.contribution ?? 0) < 0 && line.complete);
@@ -60,9 +61,8 @@ export function OrderProfitabilityTable({ lines, loading = false, error = null, 
   }), [lines, query, resultFilter]);
   const complete = lines.filter((line) => line.complete).length;
   const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
-  // Volta à primeira página quando o conjunto muda (busca, filtro ou novo período).
-  useEffect(() => { setPage(1); }, [query, resultFilter, lines]);
-  const paged = visible.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const current = Math.min(page, pageCount);
+  const paged = visible.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
 
   return <section className="profitability-view" aria-labelledby="profitability-title">
     <header className="profitability-heading">
@@ -70,11 +70,11 @@ export function OrderProfitabilityTable({ lines, loading = false, error = null, 
       {!loading && lines.length > 0 && <span>{complete} de {lines.length} vendas com cálculo completo</span>}
     </header>
     <div className="profitability-filters">
-      <label><span className="sr-only">Buscar produto, SKU ou pedido</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar produto, SKU ou pedido" /></label>
-      <select value={resultFilter} onChange={(event) => setResultFilter(event.target.value as typeof resultFilter)} aria-label="Filtrar resultado das vendas"><option value="all">Todos os resultados</option><option value="positive">Margem positiva</option><option value="negative">Margem negativa</option><option value="incomplete">Cálculo incompleto</option></select>
+      <label><span className="sr-only">Buscar produto, SKU ou pedido</span><input value={query} onChange={(event) => { setQuery(event.target.value); setPagination({ lines, page: 1 }); }} placeholder="Buscar produto, SKU ou pedido" /></label>
+      <select value={resultFilter} onChange={(event) => { setResultFilter(event.target.value as typeof resultFilter); setPagination({ lines, page: 1 }); }} aria-label="Filtrar resultado das vendas"><option value="all">Todos os resultados</option><option value="positive">Margem positiva</option><option value="negative">Margem negativa</option><option value="incomplete">Cálculo incompleto</option></select>
     </div>
 
-    {error ? <div role="alert" className="profitability-error">{error}</div> : loading ? <TableLoading label="Calculando rentabilidade das vendas" /> : lines.length === 0 ? <EmptyState title="Nenhuma venda no período" description="Amplie o período para consultar vendas anteriores." /> : visible.length === 0 ? <EmptyState kind="search" title="Nenhuma venda encontrada" description="Ajuste a busca ou altere o filtro de resultado." /> : <><div className="profitability-list">{paged.map((line) => <ProfitabilitySale key={line.id} line={line} expanded={expanded === line.id} onToggle={() => setExpanded(expanded === line.id ? null : line.id)} />)}</div><Pagination page={page} pageCount={pageCount} total={visible.length} pageSize={PAGE_SIZE} onPage={setPage} /></>}
+    {error ? <div role="alert" className="profitability-error">{error}</div> : loading ? <TableLoading label="Calculando rentabilidade das vendas" /> : lines.length === 0 ? <EmptyState title="Nenhuma venda no período" description="Amplie o período para consultar vendas anteriores." /> : visible.length === 0 ? <EmptyState kind="search" title="Nenhuma venda encontrada" description="Ajuste a busca ou altere o filtro de resultado." /> : <><div className="profitability-list">{paged.map((line) => <ProfitabilitySale key={line.id} line={line} expanded={expanded === line.id} onToggle={() => setExpanded(expanded === line.id ? null : line.id)} />)}</div><Pagination page={current} pageCount={pageCount} total={visible.length} pageSize={PAGE_SIZE} onPage={(nextPage) => setPagination({ lines, page: nextPage })} /></>}
   </section>;
 }
 

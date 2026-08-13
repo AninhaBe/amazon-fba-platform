@@ -1,0 +1,6 @@
+{
+  "statements": {"statements":[{"statement_id":"statement-sanitized","status":"PAID","currency":"BRL","start_time":1699920000,"end_time":1700006400}]},
+  "statementTransactions": {"statement_transactions":[{"transaction_id":"transaction-sanitized","order_id":"order-sanitized","type":"ORDER","order_create_time":1700000000,"currency":"BRL","revenue_amount":"23.90","fee_and_tax_amount":"-9.13","shipping_cost_amount":"0","settlement_amount":"14.77"},{"transaction_id":"reimbursement-sanitized","type":"LOGISTICS_REIMBURSEMENT","order_create_time":1700000100,"currency":"BRL","revenue_amount":"3.25","settlement_amount":"3.25"}],"next_page_token":"page-2-sanitized"},
+  "payments": {"payments":[{"payment_id":"payment-sanitized","statement_id":"statement-sanitized","status":"PAID","amount":"14.77","currency":"BRL","paid_time":1700000200}]},
+  "unsettled": {"orders":[{"transaction_id":"estimate-sanitized","order_id":"order-sanitized","type":"ORDER","order_create_time":1700000000,"currency":"BRL","revenue_amount":"23.90","fee_and_tax_amount":"-9.13","shipping_cost_amount":"0","settlement_amount":"14.77"}]}
+}

@@ -127,25 +127,50 @@ const navigation: Record<WorkspaceId, NavGroup[]> = {
       ],
     },
   ],
-  // Canal recém-habilitado: só o painel de conexão por enquanto. Monitor, catálogo e
-  // ferramentas entram junto com a ingestão, para não oferecer tela sem dado por trás.
   shopee: [
     {
       title: "Painéis",
       tone: "sky",
       items: [
         { href: "/shopee", label: "Dashboard", desc: "Visão do canal", icon: icons.dashboard, exact: true },
+        { href: "/shopee/monitor", label: "Monitor da conta", desc: "Pedidos e financeiro", icon: icons.monitor },
       ],
     },
+    { title: "Catálogo", tone: "emerald", items: [
+      { href: "/shopee/catalogo", label: "Anúncios", desc: "Catálogo publicado", icon: icons.ads },
+      { href: "/shopee/produtos", label: "Produtos", desc: "Custos por SKU", icon: icons.products },
+      { href: "/shopee/estoque", label: "Radar de estoque", desc: "Cobertura agregada", icon: icons.stock },
+    ] },
+    { title: "Ferramentas", tone: "violet", items: [
+      { href: "/shopee/abc", label: "Curva ABC", desc: "Receita por produto", icon: icons.performance },
+    ] },
   ],
-  // Mesma regra da Shopee: enquanto não há ingestão, só o painel de conexão.
-  // Monitor, catálogo e ferramentas entram junto com o sync.
+  // As rotas abaixo refletem os módulos TikTok implementados sobre sync, cron e
+  // overview canônico. A validação financeira real ainda é parcial.
   tiktok_shop: [
     {
       title: "Painéis",
       tone: "sky",
       items: [
         { href: "/tiktok", label: "Dashboard", desc: "Visão do canal", icon: icons.dashboard, exact: true },
+        { href: "/tiktok/monitor", label: "Monitor da conta", desc: "Pedidos e conciliação", icon: icons.monitor },
+        { href: "/tiktok/financeiro", label: "Financeiro", desc: "Transações e cobertura", icon: icons.performance },
+      ],
+    },
+    {
+      title: "Catálogo",
+      tone: "emerald",
+      items: [
+        { href: "/tiktok/catalogo", label: "Anúncios", desc: "Catálogo publicado", icon: icons.ads },
+        { href: "/tiktok/produtos", label: "Produtos", desc: "Custos por SKU", icon: icons.products },
+        { href: "/tiktok/estoque", label: "Radar de estoque", desc: "Cobertura e ruptura", icon: icons.stock },
+      ],
+    },
+    {
+      title: "Ferramentas",
+      tone: "violet",
+      items: [
+        { href: "/tiktok/abc", label: "Curva ABC", desc: "Receita por produto", icon: icons.performance },
       ],
     },
   ],
@@ -257,19 +282,26 @@ export function NavLinks({ variant }: { variant: "sidebar" | "top" }) {
   const pathname = usePathname();
   const workspace = workspaceFromPath(pathname);
   const groups = navigation[workspace];
-  const ariaLabel = `Navegação ${workspace === "overview" ? "geral" : workspace === "amazon" ? "Amazon" : "Mercado Livre"}`;
+  const workspaceLabel: Record<WorkspaceId, string> = { overview: "geral", amazon: "Amazon", mercado_livre: "Mercado Livre", shopee: "Shopee", tiktok_shop: "TikTok Shop" };
+  const ariaLabel = `Navegação ${workspaceLabel[workspace]}`;
 
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const hydrated = useRef(false);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(COLLAPSE_KEY);
-      if (raw) setCollapsed(new Set(JSON.parse(raw) as string[]));
-    } catch {
-      // ignora storage indisponível
-    }
-    hydrated.current = true;
+    const timer = window.setTimeout(() => {
+      try {
+        const raw = localStorage.getItem(COLLAPSE_KEY);
+        if (raw) {
+          setCollapsed(new Set(JSON.parse(raw) as string[]));
+        }
+      } catch {
+        // ignora storage indisponível
+      } finally {
+        hydrated.current = true;
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -327,18 +359,9 @@ export function NavLinks({ variant }: { variant: "sidebar" | "top" }) {
     });
   }
 
-  // A seção da página atual nunca fica escondida: ao navegar, ela abre sozinha.
-  useEffect(() => {
-    const wsGroups = navigation[workspaceFromPath(pathname)];
-    const activeTitle = wsGroups.find((group) => flatten(group.items).some((item) => isActive(pathname, item)))?.title;
-    if (!activeTitle) return;
-    setCollapsed((prev) => {
-      if (!prev.has(activeTitle)) return prev;
-      const next = new Set(prev);
-      next.delete(activeTitle);
-      return next;
-    });
-  }, [pathname]);
+  // A seção da rota atual é sempre visível. Derivar isso do pathname evita uma
+  // janela entre navegação e efeito (inclusive enquanto o storage ainda hidrata).
+  const activeTitle = groups.find((group) => flatten(group.items).some((item) => isActive(pathname, item)))?.title;
 
   function toggle(title: string) {
     setCollapsed((prev) => {
@@ -381,7 +404,7 @@ export function NavLinks({ variant }: { variant: "sidebar" | "top" }) {
           );
         }
         const title = group.title;
-        const open = !collapsed.has(title);
+        const open = title === activeTitle || !collapsed.has(title);
         const bodyId = `rail-group-${workspace}-${index}`;
         return (
           <div key={title} className="rail-group" data-tone={group.tone}>
