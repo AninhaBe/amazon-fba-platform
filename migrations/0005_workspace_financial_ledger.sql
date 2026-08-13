@@ -1,5 +1,10 @@
 -- Ledger financeiro provider-agnostic. Aditivo, sem backfill e sem dados remotos.
 -- O runner substitui o token final pelo SHA-256 desta representacao canonica.
+
+-- A 0003 criou migration_contract_versions sem contract_hash, mas
+-- inspectFinancialLedgerContract le essa coluna para validar o contrato da 0005.
+-- Sem ela o contrato volta sempre version=0/hash=null e o ledger fica SCHEMA_BLOCKED.
+ALTER TABLE migration_contract_versions ADD COLUMN IF NOT EXISTS contract_hash TEXT;
 CREATE TABLE IF NOT EXISTS workspace_financial_transactions (
   workspace_id TEXT NOT NULL,
   provider TEXT NOT NULL,
@@ -212,46 +217,24 @@ ALTER TABLE workspace_financial_transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workspace_financial_payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workspace_financial_sync_checkpoints ENABLE ROW LEVEL SECURITY;
 
--- Sem policy: clientes Supabase ficam fail-closed. O owner PostgreSQL ignora RLS;
--- o runtime deve usar a role dedicada fornecida e validada pelo runner.
+-- ADR-012: sem runtime role dedicada. A aplicacao conecta como dono do banco, entao
+-- o GRANT e as policies permissivas removidas nao entregavam isolamento nenhum — nao
+-- filtravam por workspace. Fica o que protege de fato: nada exposto aos papeis
+-- publicos do Supabase e RLS ligada sem policy, o que deixa qualquer role futura sem
+-- BYPASSRLS fail-closed por padrao.
+--
+-- service_role entra na lista porque o ALTER DEFAULT PRIVILEGES do Supabase concede
+-- privilegios a ele em toda tabela nova do schema public, incluindo o de esvaziar a
+-- tabela inteira. Num ledger financeiro, pela chave de servico, e risco desnecessario.
 DO $grants$
-DECLARE runtime_role name := current_setting('sellercore.runtime_role', true);
+DECLARE papel text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon') THEN
-    REVOKE ALL ON TABLE workspace_financial_transactions, workspace_financial_payments, workspace_financial_sync_checkpoints FROM anon;
-    REVOKE ALL ON FUNCTION financial_checkpoint_claim(TEXT,TEXT,TEXT,TEXT,TIMESTAMPTZ,TIMESTAMPTZ,UUID,INTEGER), financial_checkpoint_advance(TEXT,TEXT,TEXT,TEXT,TIMESTAMPTZ,TIMESTAMPTZ,UUID,BIGINT,TEXT,BYTEA,INTEGER,BOOLEAN,BIGINT,BIGINT) FROM anon;
-  END IF;
-  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN
-    REVOKE ALL ON TABLE workspace_financial_transactions, workspace_financial_payments, workspace_financial_sync_checkpoints FROM authenticated;
-    REVOKE ALL ON FUNCTION financial_checkpoint_claim(TEXT,TEXT,TEXT,TEXT,TIMESTAMPTZ,TIMESTAMPTZ,UUID,INTEGER), financial_checkpoint_advance(TEXT,TEXT,TEXT,TEXT,TIMESTAMPTZ,TIMESTAMPTZ,UUID,BIGINT,TEXT,BYTEA,INTEGER,BOOLEAN,BIGINT,BIGINT) FROM authenticated;
-  END IF;
-  IF runtime_role IS NULL OR runtime_role = '' OR runtime_role IN ('public','anon','authenticated')
-     OR runtime_role = current_user
-     OR NOT EXISTS (SELECT 1 FROM pg_roles r WHERE rolname=runtime_role AND NOT rolsuper AND NOT rolbypassrls
-       AND r.oid <> (SELECT nspowner FROM pg_namespace WHERE nspname=current_schema())
-       AND r.oid <> (SELECT datdba FROM pg_database WHERE datname=current_database())) THEN
-    RAISE EXCEPTION 'runtime role ausente ou insegura';
-  END IF;
-  EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE workspace_financial_transactions, workspace_financial_payments, workspace_financial_sync_checkpoints TO %I', runtime_role);
-  EXECUTE format('GRANT EXECUTE ON FUNCTION financial_checkpoint_claim(TEXT,TEXT,TEXT,TEXT,TIMESTAMPTZ,TIMESTAMPTZ,UUID,INTEGER), financial_checkpoint_advance(TEXT,TEXT,TEXT,TEXT,TIMESTAMPTZ,TIMESTAMPTZ,UUID,BIGINT,TEXT,BYTEA,INTEGER,BOOLEAN,BIGINT,BIGINT) TO %I', runtime_role);
-  IF EXISTS (SELECT 1 FROM pg_policies WHERE schemaname=current_schema() AND tablename='workspace_financial_transactions' AND policyname='financial_transactions_runtime'
-    AND NOT (cmd='ALL' AND roles=ARRAY[runtime_role]::name[] AND regexp_replace(qual,'[() ]','','g')='true' AND regexp_replace(with_check,'[() ]','','g')='true')) THEN
-    RAISE EXCEPTION 'policy financial_transactions_runtime preexistente diverge';
-  ELSIF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname=current_schema() AND tablename='workspace_financial_transactions' AND policyname='financial_transactions_runtime') THEN
-    EXECUTE format('CREATE POLICY financial_transactions_runtime ON workspace_financial_transactions FOR ALL TO %I USING (true) WITH CHECK (true)', runtime_role);
-  END IF;
-  IF EXISTS (SELECT 1 FROM pg_policies WHERE schemaname=current_schema() AND tablename='workspace_financial_payments' AND policyname='financial_payments_runtime'
-    AND NOT (cmd='ALL' AND roles=ARRAY[runtime_role]::name[] AND regexp_replace(qual,'[() ]','','g')='true' AND regexp_replace(with_check,'[() ]','','g')='true')) THEN
-    RAISE EXCEPTION 'policy financial_payments_runtime preexistente diverge';
-  ELSIF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname=current_schema() AND tablename='workspace_financial_payments' AND policyname='financial_payments_runtime') THEN
-    EXECUTE format('CREATE POLICY financial_payments_runtime ON workspace_financial_payments FOR ALL TO %I USING (true) WITH CHECK (true)', runtime_role);
-  END IF;
-  IF EXISTS (SELECT 1 FROM pg_policies WHERE schemaname=current_schema() AND tablename='workspace_financial_sync_checkpoints' AND policyname='financial_checkpoints_runtime'
-    AND NOT (cmd='ALL' AND roles=ARRAY[runtime_role]::name[] AND regexp_replace(qual,'[() ]','','g')='true' AND regexp_replace(with_check,'[() ]','','g')='true')) THEN
-    RAISE EXCEPTION 'policy financial_checkpoints_runtime preexistente diverge';
-  ELSIF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname=current_schema() AND tablename='workspace_financial_sync_checkpoints' AND policyname='financial_checkpoints_runtime') THEN
-    EXECUTE format('CREATE POLICY financial_checkpoints_runtime ON workspace_financial_sync_checkpoints FOR ALL TO %I USING (true) WITH CHECK (true)', runtime_role);
-  END IF;
+  FOREACH papel IN ARRAY ARRAY['anon','authenticated','service_role'] LOOP
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname=papel) THEN
+      EXECUTE format('REVOKE ALL ON TABLE workspace_financial_transactions, workspace_financial_payments, workspace_financial_sync_checkpoints FROM %I', papel);
+      EXECUTE format('REVOKE ALL ON FUNCTION financial_checkpoint_claim(TEXT,TEXT,TEXT,TEXT,TIMESTAMPTZ,TIMESTAMPTZ,UUID,INTEGER), financial_checkpoint_advance(TEXT,TEXT,TEXT,TEXT,TIMESTAMPTZ,TIMESTAMPTZ,UUID,BIGINT,TEXT,BYTEA,INTEGER,BOOLEAN,BIGINT,BIGINT) FROM %I', papel);
+    END IF;
+  END LOOP;
 END $grants$;
 
 -- Marker included in the exact canonical bytes hashed by the runner:

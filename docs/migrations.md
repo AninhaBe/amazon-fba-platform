@@ -53,6 +53,48 @@ e os hashes já passam integralmente.
 
 Cada tentativa registra JSON sanitizado com run ID, ator, ambiente, fingerprint, commit/dirty, hashes/plano, referência da autorização e resultado. Nunca registrar URL, senha, nonce ou assinatura. O ledger precisa existir e possuir `migration_hash`; ausência ou legado sem hash é `BLOCKED` e requer procedimento de bootstrap/remediação separado, aprovado e auditado — o runner não corrige isso.
 
+## Desvio autorizado: 0005 aplicada fora do runner (13/08/2026)
+
+A 0005 foi aplicada **fora deste fluxo**, com autorização explícita da responsável,
+porque o runner não conseguia executá-la em nenhum caminho:
+
+- `migrate:local` só aceita `localhost/127.0.0.1/::1`, e o `DATABASE_URL` aponta
+  para o Supabase — cai em `production`;
+- em `production` o runner exige worktree limpo e commit rastreado, com ~200
+  arquivos pendentes na época;
+- e exige autorização Ed25519 cujo emissor este repositório declara não conter.
+
+Foi aplicada em transação única, com `ROLLBACK` em caso de erro, gravando
+`migration_contract_versions` (v3 + hash) e `schema_migrations` na mesma transação —
+a mesma ordem que o runner faria. O contrato foi verificado depois do commit e
+passou integralmente.
+
+### Quatro defeitos encontrados no caminho
+
+O ledger estava inalcançável por bugs independentes, nenhum deles detectável pelos
+testes existentes, porque **nenhum teste conecta a um banco**:
+
+1. `actual_columns` não expunha `typ`, então o SQL do contrato lançava `42703`
+   **sempre** — aplicada ou não a migration.
+2. `array_agg(attname)` produz `name[]` e era comparado com `text[]`: `42883`.
+3. `migration_contract_versions`, criada pela 0003, **não tem `contract_hash`**,
+   mas `inspectFinancialLedgerContract` lê essa coluna. Sem ela o contrato volta
+   `version 0 / hash null`. A coluna passou a ser criada pela própria 0005.
+4. A runtime role exigida não existe neste banco — ver
+   [ADR-012](./adr/ADR-012-contrato-0005-sem-runtime-role.md).
+
+Também observado: `service_role` recebe privilégios em toda tabela nova do schema
+`public` via `ALTER DEFAULT PRIVILEGES` do Supabase, incluindo o de esvaziar a
+tabela. A 0005 passou a revogá-lo junto de `anon` e `authenticated`.
+
+### O runner continua inutilizável
+
+**Nada disso consertou o runner.** Ele segue exigindo `--runtime-role` (que não
+pode existir aqui) e inserindo em `schema_migrations(name, migration_hash)` e
+`migration_contract_versions(..., contract_hash)` — colunas que não existiam antes
+da 0005. A próxima migration esbarra nos mesmos muros. Consertar o runner é
+trabalho próprio, ainda não feito.
+
 ## Incidente 0003/0004
 
 As migrations `0003_oauth_refresh_leases.sql` e `0004_tiktok_shop_tax_rate.sql` ficam **ratificadas quanto à permanência**: este incidente não autoriza rollback nem remoção de seus objetos. O processo histórico que as aplicou **não foi validado** e não deve ser tratado como evidência de execução segura. A ratificação é de estado desejado, não do procedimento anterior.

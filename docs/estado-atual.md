@@ -63,13 +63,20 @@ monitor, catálogo, produtos, estoque e curva ABC preservam a loja selecionada e
 somente os filtros visíveis aplicáveis. Isso está implementado e testado
 localmente, mas ainda não foi validado como fluxo autenticado no navegador.
 
-**Bloqueios atuais do QA TikTok:** há ownership duplicado da mesma loja entre
-workspaces; o harness agora falha fechado e exige um único owner antes de ler
-dados. Além disso, a migration `0005_workspace_financial_ledger.sql` está
-implementada e certificada pelo gate local, mas **não foi aplicada neste
-ambiente**. Até a aplicação autorizada, Financeiro deve mostrar indisponibilidade
-do ledger sem transformar valores desconhecidos em zero. Estado: **BLOCKED**;
-não corrigir ownership nem aplicar migration implicitamente.
+**Bloqueios do QA TikTok — situação em 13/08/2026:**
+
+- ✅ **Migration 0005 aplicada.** Foi preciso corrigir quatro defeitos antes: o SQL
+  do contrato nunca havia executado contra um Postgres (dois erros de tipo), faltava
+  a coluna `contract_hash` que o código lê, e a runtime role exigida não existe neste
+  banco. Ver [`migrations.md`](./migrations.md) e
+  [ADR-012](./adr/ADR-012-contrato-0005-sem-runtime-role.md). O Financeiro do TikTok
+  deixou de ser `SCHEMA_BLOCKED`.
+- 🔴 **Ownership duplicado continua.** A loja `7494291387899806731` está conectada
+  pelas duas contas de teste (`admin@sellercore.test` → `1803d1fe`, e
+  `admin2@sellercore.test` → `22ae3d9d`), e **os 11.759 pedidos foram ingeridos nas
+  duas** (janela 11/06 a 11/08). O harness falha fechado enquanto houver dois donos.
+  Resolver exige escolher um workspace e apagar a cópia do outro — operação
+  destrutiva, ainda não autorizada.
 
 **Pendência separada:** as categorias **Accounting** e **Order Management** foram
 **rejeitadas** — *"The Company Number that you entered was inconsistent with the
