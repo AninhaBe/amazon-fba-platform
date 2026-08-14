@@ -318,7 +318,8 @@ export default function MonitorPage() {
           <div>
             <h2 className="text-lg font-semibold">Conciliação de transações</h2>
             <p className="mt-0.5 text-sm text-slate-500">
-              Valores liberados e diferidos na movimentação financeira mais recente.
+              Transações do período, separadas pelo que já foi liberado e pelo que a Amazon
+              ainda retém. Não é o saldo da sua conta.
             </p>
           </div>
           <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
@@ -332,9 +333,29 @@ export default function MonitorPage() {
           </div>
         ) : transactions ? (
           <div className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <Stat label="Saldo liberado" value={money(transactions.releasedAmount, transactions.currency)} />
-              <Stat label="Saldo diferido" value={money(transactions.deferredAmount, transactions.currency)} />
+            {/* Estes números são a soma das transações DO PERÍODO por status — não são
+                saldo de conta na Amazon. Os rótulos anteriores diziam "Saldo liberado" e
+                "Saldo diferido", e um pagamento de anúncio caindo antes de uma venda
+                liberar fazia a tela mostrar um negativo que parecia dívida. */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <Stat
+                label="Já liberado no período"
+                value={money(transactions.releasedAmount, transactions.currency)}
+                hint="O que a Amazon já movimentou. Fica negativo quando só taxas e anúncios liquidaram."
+              />
+              <Stat
+                label="Ainda retido"
+                value={money(transactions.deferredAmount, transactions.currency)}
+                hint="Vendas que a Amazon segura até a entrega e o prazo de devolução."
+              />
+              <Stat
+                label="Líquido se tudo liquidar"
+                value={money(
+                  +(transactions.releasedAmount + transactions.deferredAmount).toFixed(2),
+                  transactions.currency
+                )}
+                hint="Soma dos dois. O retido ainda pode mudar por devolução ou ajuste."
+              />
               <Stat label="Transações" value={String(transactions.transactionCount)} />
             </div>
 
@@ -401,11 +422,12 @@ export default function MonitorPage() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</p>
       <p className="mt-1 text-xl font-bold tabular-nums text-slate-900">{value}</p>
+      {hint && <p className="mt-1 text-xs leading-snug text-slate-500">{hint}</p>}
     </div>
   );
 }
