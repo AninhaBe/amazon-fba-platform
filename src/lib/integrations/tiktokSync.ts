@@ -637,7 +637,25 @@ export async function runTiktokSyncStep(
     // paginação de pedidos podem consumir a passada inteira em lojas grandes;
     // quando a conciliação ficava somente no fim, o backlog nunca recebia uma
     // chamada apesar de o cron executar com sucesso.
-    await reconcileStatementBatches(lojaAtual, connectionId, assertOwnership, deadline);
+    //
+    // ⚠️ Mas ela NÃO pode derrubar a passada. `syncMissingStatements` converte
+    // `RATE_LIMITED` em `SyncBudgetExhausted`, e como esta chamada é a primeira
+    // do `try`, um rate limit no extrato abortava tudo **antes de paginar um
+    // único pedido** — sem gravar erro, porque `SyncBudgetExhausted` é tratado
+    // como fim normal de orçamento. A loja `7494291387899806731` ficou de
+    // 11/08 a 14/08/2026 sem nenhum pedido novo por causa disso, com o cron
+    // "executando com sucesso" de hora em hora.
+    //
+    // Pedido é o artefato primário e tem checkpoint por página; extrato é
+    // retomável e tem scheduler próprio depois desta função. Então o extrato
+    // cede a vez, nunca o contrário.
+    try {
+      await reconcileStatementBatches(lojaAtual, connectionId, assertOwnership, deadline);
+    } catch (erroExtrato) {
+      if (!(erroExtrato instanceof SyncBudgetExhausted)) throw erroExtrato;
+      // Segue para os pedidos. Se o orçamento acabou de verdade, o próprio laço
+      // de paginação para na primeira checagem de `hasSyncBudget`.
+    }
     const ordersComplete = Boolean(linha.covered_from)
       && !linha.cursor_token
       && new Date(linha.cursor_to).getTime() <= new Date(linha.target_from).getTime();
