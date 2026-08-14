@@ -75,6 +75,8 @@ export interface AmazonOrderItem {
   QuantityShipped?: number;
   ItemPrice?: { CurrencyCode?: string; Amount?: string };
   ShippingPrice?: { CurrencyCode?: string; Amount?: string };
+  /** Parte do frete bancada pela vendedora. Em frete grátis vem igual a `ShippingPrice`. */
+  ShippingDiscount?: { CurrencyCode?: string; Amount?: string };
   PromotionDiscount?: { CurrencyCode?: string; Amount?: string };
 }
 

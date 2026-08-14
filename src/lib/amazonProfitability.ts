@@ -34,7 +34,12 @@ export function getAmazonProfitability(period: Period): Promise<ProfitabilityRes
         const costEntry = (sku ? costs[sku] : undefined) ?? (item.ASIN ? costs[item.ASIN] : undefined);
         const productCost = costEntry && costEntry.cost > 0 ? costAt(costEntry, order.purchaseDate) * quantity : null;
         const fees = feeShares ? feeShares[index] : null;
-        const buyerShipping = amount(item.ShippingPrice) || null;
+        // Frete do comprador LÍQUIDO do que a vendedora bancou. Em frete grátis a
+        // Amazon cobra `ShippingPrice` e devolve o mesmo valor em `ShippingDiscount`;
+        // somar só o primeiro punha na margem um dinheiro que nunca entrou — a venda
+        // de R$ 19,90 aparecia com margem de R$ 21,98, maior que a própria venda.
+        const freteLiquido = amount(item.ShippingPrice) - amount(item.ShippingDiscount);
+        const buyerShipping = freteLiquido || null;
         const promotions = amount(item.PromotionDiscount);
         const currency = item.ItemPrice?.CurrencyCode || order.orderTotal?.CurrencyCode || orderFin?.currency || "BRL";
         const result = calculateContribution({ revenue, buyerShipping, productCost, marketplaceFees: fees, promotions });

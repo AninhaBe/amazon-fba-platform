@@ -2,21 +2,11 @@ import { defaultMarketplaceId, spapiFetch } from "./spapi";
 import { swr } from "./swr";
 import type { Period } from "./period";
 import { collectAllNextTokenPages, splitDateRange } from "./nextTokenPagination";
-
-interface CurrencyAmount {
-  currencyAmount?: number;
-  currencyCode?: string;
-}
+import { parseTransactionFinancials, type Breakdown, type CurrencyAmount } from "./transactionsBreakdown";
 
 interface RelatedIdentifier {
   relatedIdentifierName?: string;
   relatedIdentifierValue?: string;
-}
-
-interface Breakdown {
-  breakdownType?: string;
-  breakdownAmount?: CurrencyAmount;
-  breakdowns?: Breakdown[];
 }
 
 interface TransactionContext {
@@ -237,55 +227,12 @@ function isPeriodSale(transaction: ApiTransaction): boolean {
     && transaction.transactionStatus !== RELEASED_FROM_PREVIOUS;
 }
 
-function amountOf(node: Breakdown): number {
-  return node.breakdownAmount?.currencyAmount ?? 0;
-}
-
 function orderIdOf(transaction: ApiTransaction): string | undefined {
   return transaction.relatedIdentifiers?.find((identifier) =>
     identifier.relatedIdentifierName?.toUpperCase().includes("ORDER")
   )?.relatedIdentifierValue;
 }
 
-interface ParsedTransaction {
-  revenue: number;
-  fees: number;
-  refunds: number;
-  reimbursements: number;
-  feeMap: Map<string, number>;
-}
-
-// Extrai receita/taxas/reembolsos de UMA transação a partir da árvore de
-// breakdowns (Sales/Expenses → ProductCharges/AmazonFees). Compartilhado pelo
-// resumo do período e pela conciliação por pedido.
-function parseTransactionFinancials(transaction: ApiTransaction): ParsedTransaction {
-  const parsed: ParsedTransaction = { revenue: 0, fees: 0, refunds: 0, reimbursements: 0, feeMap: new Map() };
-  for (const top of transaction.breakdowns ?? []) {
-    const kind = top.breakdownType;
-    if (kind === "Sales" || kind === "Refunded Sales") {
-      for (const child of top.breakdowns ?? []) {
-        const value = amountOf(child);
-        if (child.breakdownType === "ProductCharges") {
-          if (value >= 0) parsed.revenue += value;
-          else parsed.refunds += -value; // "Refunded Sales" traz ProductCharges negativo
-        } else if (child.breakdownType?.includes("Reimbursement")) {
-          parsed.reimbursements += value;
-        }
-        // FundTransfer não ocorre aqui (tipo Transfer é filtrado antes)
-      }
-    } else if (kind === "Expenses" || kind === "Refunded Expenses") {
-      // Expenses → AmazonFees → cada tarifa nomeada (nível certo p/ detalhar).
-      for (const feesNode of top.breakdowns ?? []) {
-        for (const fee of feesNode.breakdowns ?? []) {
-          const magnitude = -amountOf(fee); // tarifas vêm negativas → positivo
-          parsed.fees += magnitude;
-          parsed.feeMap.set(fee.breakdownType ?? "Outra", (parsed.feeMap.get(fee.breakdownType ?? "Outra") ?? 0) + magnitude);
-        }
-      }
-    }
-  }
-  return parsed;
-}
 
 interface DailyBucket {
   revenue: number;
