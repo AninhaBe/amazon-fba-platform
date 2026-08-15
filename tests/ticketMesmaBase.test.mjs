@@ -35,21 +35,23 @@ test("aritmetica: cancelada no numerador e fora do denominador infla o ticket", 
 });
 
 test("ML: o ticket sai das aprovadas, nao do faturamento bruto", () => {
-  const s = fonte("src/app/components/MercadoLivreWorkspace.tsx");
-  assert.match(s, /approvedRevenue \/ overview\.metrics\.paidOrders/, "numerador e denominador precisam ser aprovadas");
-  assert.doesNotMatch(s, /revenue30d \/ overview\.metrics\.paidOrders/, "essa era a mistura");
+  // A regra migrou da tela para o modulo de cards quando o ML ganhou a grade de
+  // doze, mas a garantia e a mesma: aprovadas nos dois lados da divisao.
+  const s = fonte("src/app/components/mercadoLivreFinancialCards.ts");
+  assert.match(s, /input\.approvedRevenue \/ input\.paidOrders/, "numerador e denominador precisam ser aprovadas");
+  assert.doesNotMatch(s, /revenue30d \/ input\.paidOrders/, "essa era a mistura");
 });
 
 test("sem venda aprovada o ticket e desconhecido, nao zero", () => {
   // R$ 0,00 afirmaria que cada venda rendeu zero; sem venda nao ha ticket.
-  for (const tela of [
-    "src/app/components/MercadoLivreWorkspace.tsx",
-    "src/app/components/ShopeeWorkspace.tsx",
-  ]) {
-    const s = fonte(tela);
-    assert.match(s, /paidOrders > 0[\s\S]{0,140}?: null/, `${tela}: ticket sem venda precisa ser null`);
-    assert.match(s, /ticket == null \? "—"/, `${tela}: e a tela precisa exibir o traco`);
-  }
+  const shopee = fonte("src/app/components/ShopeeWorkspace.tsx");
+  assert.match(shopee, /paidOrders > 0[\s\S]{0,140}?: null/, "Shopee: ticket sem venda precisa ser null");
+  assert.match(shopee, /ticket == null \? "—"/, "Shopee: a tela precisa exibir o traco");
+  // No ML o card devolve "—" pelo proprio modulo, coberto por
+  // mercadoLivreFinancialCards.test.mjs ("sem venda aprovada o ticket e desconhecido").
+  const ml = fonte("src/app/components/mercadoLivreFinancialCards.ts");
+  assert.match(ml, /paidOrders > 0/, "ML: o ticket precisa depender de haver venda aprovada");
+  assert.match(ml, /Nenhuma venda aprovada no período/, "ML: sem venda o card diz o motivo");
 });
 
 test("Shopee soma receita e conta pedidos com o MESMO filtro de status", () => {

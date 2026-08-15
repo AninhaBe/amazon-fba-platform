@@ -17,6 +17,7 @@ import { brDate, brTime } from "@/lib/datetime";
 import { Boxes, PackageOpen, Percent } from "lucide-react";
 import type { ProfitabilityLine } from "@/lib/profitability";
 import { MercadoLivreSaldo } from "./MercadoLivreSaldo";
+import { mercadoLivreFinancialCards } from "./mercadoLivreFinancialCards";
 
 interface Overview {
   account: { id: string; nickname: string; siteId: string; };
@@ -216,34 +217,66 @@ export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
 function Dashboard({ overview, updatedAt }: { overview: Overview; updatedAt: Date | null }) {
   const [costsOpen, setCostsOpen] = useState(false);
   const profitCoverage = overview.profit.coverage;
-  // Ticket das APROVADAS, não do faturamento bruto: `revenue30d` inclui
-  // canceladas de propósito (é o "Vendas brutas" do painel do ML), mas
-  // `paidOrders` não as conta. Dividir um pelo outro inflava o ticket em 3,8% na
-  // conta 1191100170 e 4,7% na 648425194 (medido em 15/08/2026) — numerador e
-  // denominador de bases diferentes, o mesmo defeito achado na Amazon.
-  // `null` sem venda aprovada: R$ 0,00 afirmaria ticket zero.
-  const ticket = overview.metrics.paidOrders > 0
-    ? overview.metrics.approvedRevenue / overview.metrics.paidOrders
-    : null;
   const units = overview.dailySales.reduce((total, point) => total + point.units, 0);
   const critical = overview.stockRadar.filter((product) => product.status === "critical" || product.status === "out");
-  const roi = overview.profit.cogs > 0 ? overview.profit.estimatedProfit / overview.profit.cogs * 100 : null;
-  // Sem custos cadastrados o "lucro" é só margem antes do produto — não engana.
-  const costsIncomplete = overview.profit.unitsWithoutCost > 0;
   return <div className="dashboard-sections space-y-8">
     {updatedAt && <p className="-mt-5 text-xs text-slate-400">Atualizado às {brTime(updatedAt)}{overview.metrics.lastSaleAt ? ` · última venda contabilizada às ${brTime(overview.metrics.lastSaleAt, true)}` : ""}. Compare no mesmo horário com o painel do Mercado Livre.</p>}
 
     <OperationPending items={overview.metrics.productsWithoutCost > 0 ? [{ label: `Cadastrar custo de ${overview.metrics.productsWithoutCost} produto(s)`, href: "/mercado-livre/produtos" }] : []} />
 
-    <section className="metric-grid grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-4" aria-label="Indicadores Mercado Livre">
-      <Metric label="Vendas brutas" value={<AnimatedNumber id="ml-dash-revenue" value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={`${overview.metrics.paidOrders} aprovadas + ${overview.metrics.cancelledOrders} canceladas`} trend={getRevenueTrend(overview.dailySales)} />
-      <div className="metric-cell metric-primary relative overflow-hidden p-5">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">{costsIncomplete ? "Margem antes do custo" : "Lucro estimado"}</p>
-        <p className="mt-2 text-[27px] font-bold leading-none tabular-nums text-emerald-800"><AnimatedNumber id="ml-dash-profit" value={overview.profit.estimatedProfit} format={(amount) => money(amount, overview.metrics.currency)} /></p>
-        {costsIncomplete
-          ? <p className="mt-1.5 text-xs font-medium text-amber-700">cadastre custos para o lucro real</p>
-          : <p className="mt-2 flex items-baseline gap-1.5"><span className="text-[17px] font-extrabold tabular-nums text-emerald-600">{percent(overview.profit.marginPct)}</span><span className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700/70">margem</span></p>}
-      </div>
+    {/* Doze cards, mesmo padrão da Amazon e do TikTok — adaptados às métricas do
+        ML: aqui não existe logística FBA nem comissão da Amazon, e existem frete
+        do vendedor, canceladas e a distinção entre faturamento bruto e aprovado.
+        Cada card sem dado diz o que falta, em vez de exibir zero. */}
+    {(() => {
+      const cards = mercadoLivreFinancialCards({
+        currency: overview.metrics.currency,
+        revenue30d: overview.metrics.revenue30d,
+        approvedRevenue: overview.metrics.approvedRevenue,
+        cancelledRevenue: overview.metrics.cancelledRevenue,
+        cancelledOrders: overview.metrics.cancelledOrders,
+        paidOrders: overview.metrics.paidOrders,
+        fees: overview.profit.fees,
+        cogs: overview.profit.cogs,
+        sellerShipping: overview.profit.sellerShipping,
+        buyerShipping: overview.profit.buyerShipping,
+        taxes: overview.profit.taxes,
+        taxRate: overview.profit.taxRate,
+        estimatedProfit: overview.profit.estimatedProfit,
+        marginPct: overview.profit.marginPct,
+        unitsWithoutCost: overview.profit.unitsWithoutCost,
+        shippingCostsComplete: overview.profit.shippingCostsComplete,
+      });
+      const margem = cards.find((c) => c.key === "marginPct");
+      return (
+        <section className="metric-grid grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-4" aria-label="Componentes financeiros do Mercado Livre">
+          {cards.map((card) => card.key === "profit" && card.raw != null ? (
+            <div key={card.key} className="metric-cell metric-primary relative overflow-hidden p-5">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">{card.label}</p>
+              <p className="mt-2 text-[27px] font-bold leading-none tabular-nums text-emerald-800">
+                <AnimatedNumber id="ml-dash-profit" value={card.raw} format={(amount) => money(amount, overview.metrics.currency)} />
+              </p>
+              {margem?.value === "—"
+                ? <p className="mt-1.5 text-xs font-medium text-amber-700">cadastre custos para o lucro real</p>
+                : <p className="mt-2 flex items-baseline gap-1.5"><span className="text-[17px] font-extrabold tabular-nums text-emerald-600">{margem?.value}</span><span className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700/70">margem</span></p>}
+            </div>
+          ) : (
+            <Metric
+              key={card.key}
+              label={card.label}
+              value={card.key === "revenue" && card.raw != null
+                ? <AnimatedNumber id="ml-dash-revenue" value={card.raw} format={(amount) => money(amount, overview.metrics.currency)} />
+                : card.value}
+              sub={card.context}
+              trend={card.key === "revenue" ? getRevenueTrend(overview.dailySales) : undefined}
+            />
+          ))}
+        </section>
+      );
+    })()}
+
+    {/* Operacionais fora da grade financeira: são de estoque, não de dinheiro. */}
+    <section className="metric-grid grid grid-cols-1 gap-0 sm:grid-cols-2" aria-label="Indicadores operacionais Mercado Livre">
       <Metric label="Estoque crítico" value={critical.length.toLocaleString("pt-BR")} sub={critical.length ? "repor com urgência — ver radar" : "tudo sob controle — ver radar"} tone={critical.length ? "danger" : "ok"} icon={dashboardKpiIcons.stock} href="/mercado-livre/estoque" />
       <Metric label="Produtos sem custo" value={overview.metrics.productsWithoutCost.toLocaleString("pt-BR")} sub={overview.metrics.productsWithoutCost ? "cadastre para ver o lucro" : "todos cadastrados"} tone={overview.metrics.productsWithoutCost ? "warn" : "ok"} icon={dashboardKpiIcons.box} />
     </section>
@@ -255,11 +288,10 @@ function Dashboard({ overview, updatedAt }: { overview: Overview; updatedAt: Dat
           <span className="text-sm font-semibold tabular-nums text-slate-900">{money(overview.metrics.revenue30d, overview.metrics.currency)} <span className="font-normal text-slate-400">no período</span></span>
         </div>
         <div className="chart-inline-stats" aria-label="Indicadores complementares">
-          <span><small>Aprovadas</small><strong className="text-emerald-700">{money(overview.metrics.approvedRevenue, overview.metrics.currency)}</strong></span>
-          <span><small>Canceladas</small><strong className={overview.metrics.cancelledRevenue > 0 ? "text-red-600" : "text-slate-400"}>{money(overview.metrics.cancelledRevenue, overview.metrics.currency)}</strong></span>
+          {/* Aprovadas, Canceladas, Ticket e ROI viraram cards na grade acima —
+              repetir aqui só duplicaria o mesmo número em duas leituras. */}
           <span><small>Unidades</small><strong>{units.toLocaleString("pt-BR")}</strong></span>
-          <span><small>Ticket médio</small><strong>{ticket == null ? "—" : money(ticket, overview.metrics.currency)}</strong></span>
-          <span><small>ROI</small><strong>{roi == null ? "—" : `${roi.toFixed(1)}%`}</strong></span>
+          <span><small>Pedidos</small><strong>{overview.metrics.paidOrders.toLocaleString("pt-BR")}</strong></span>
         </div>
         <RevenueChart points={overview.dailySales} />
       </div>
