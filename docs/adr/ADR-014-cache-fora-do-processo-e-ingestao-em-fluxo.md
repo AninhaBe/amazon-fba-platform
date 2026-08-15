@@ -1,4 +1,4 @@
-# ADR-014 — Cache fora do processo e ingestão em fluxo
+# ADR-014 — Cache fora do processo e leituras com teto de memória
 
 - **Status:** Proposto
 - **Data:** 2026-08-15
@@ -47,12 +47,20 @@ dashboard passa a mostrar dado velho sem dizer que é velho. O ADR-002 descreve 
 aquecimento como cobrindo "todas as contas ativas"; o código tem teto de 2. A
 descrição e a implementação divergiram, e a divergência só aparece com volume.
 
-**3. O pico de memória do sync é proporcional à maior conta.**
+**3. O overview ao vivo carrega o período inteiro na memória do web.**
 `collectMercadoLivreOrders` acumula até `maxResultsPerRange = 10_000` pedidos num
-array antes de gravar — com itens e pagamentos aninhados, algo como **30 MB por
-sincronização**. Três em paralelo dão ~90 MB de pico. Em 512 MB isso já derrubou
-o container (14/08 e 15/08/2026). Em 2 GB cabe, mas o número continua ditado pelo
-maior vendedor da base — e vendedores grandes são exatamente os que queremos.
+array — com itens e pagamentos aninhados, algo como **30 MB por leitura**.
+
+Importante, porque é contraintuitivo: **o sync NÃO tem esse problema**.
+`mercadoLivreSync.ts` busca uma página de 50, chama `saveOrders()` e avança o
+cursor; nunca segura o conjunto. O acúmulo está no **caminho legado do overview
+ao vivo**, que é o fallback de quando o canônico não cobre o período — e roda
+numa **requisição de tela**, no processo web, não no cron.
+
+Consequência prática: este pico não é resolvido pelo ADR-013. Separar o worker
+tira o sync da frente, mas o overview legado continua no web, e um único usuário
+pedindo um período não coberto de uma conta grande pode derrubar a instância que
+serve todo mundo.
 
 ## Decisão
 
@@ -78,15 +86,17 @@ Motivo: aquecer conta que ninguém abriu gasta cota de API e desloca da fila que
 está com a tela aberta. Contagem fixa trata conta grande e pequena como iguais;
 orçamento não.
 
-### 3. Ingestão grava por página, nunca acumula o conjunto
+### 3. Nenhuma requisição de tela carrega período inteiro
 
-`collectMercadoLivreOrders` e equivalentes deixam de devolver `T[]` completo e
-passam a entregar página a página, com a gravação acontecendo a cada uma. O
-`maxResultsPerRange` deixa de ser teto de array e vira teto de janela.
+O overview ao vivo deixa de ser fallback silencioso e passa a **recusar** o que
+não cabe: quando o canônico não cobre o período, a tela diz que a sincronização
+está em andamento em vez de puxar 10.000 pedidos para dentro do processo web.
 
-Consequência: memória do worker fica constante e independente do tamanho da
-conta. É o que permite subir `connectionLimit` quando o volume exigir — hoje,
-subir concorrência multiplica o pico.
+O caminho definitivo é o canônico, que já agrega em SQL sem trazer pedido para a
+memória. O legado existe porque o backfill ainda não terminou; ele deve morrer
+quando terminar, e até lá não pode ser um caminho que qualquer clique dispara.
+
+Consequência: memória do web deixa de depender do tamanho da conta consultada.
 
 ## Alternativas consideradas
 
@@ -112,8 +122,9 @@ multiplica o pico de memória linearmente. Trata o sintoma na direção errada.
 **Custos**
 - Leitura do cache passa a ter latência de banco onde hoje é acesso a memória.
   Mitigado pelo `swr()`, que devolve o valor vencido na hora e revalida atrás.
-- A mudança do item 3 altera a assinatura de `collectMercadoLivreOrders` e de
-  quem consome — é a parte mais invasiva das três.
+- O item 3 remove um fallback: períodos ainda não cobertos pelo canônico deixam
+  de ter resposta ao vivo e passam a mostrar "sincronização em andamento". É uma
+  troca consciente de disponibilidade por previsibilidade.
 - Divergência entre ADR-002 e o comportamento novo: este documento revisa
   parcialmente a camada 1 daquele (memória como armazenamento), preservando as
   camadas 2 e 3.
@@ -122,7 +133,8 @@ multiplica o pico de memória linearmente. Trata o sintoma na direção errada.
 
 1. **Item 2** (aquecimento por demanda) — contido, mede-se sozinho, sem mudança
    de contrato.
-2. **Item 3** (ingestão em fluxo) — remove o pico que já derrubou o container.
+2. **Item 3** (nenhuma tela carrega período inteiro) — remove o único pico de
+   memória que escala com o tamanho da conta.
 3. **Item 1** (cache no banco) — o mais invasivo e o que de fato destrava escala.
 
 O ADR-013 é pré-requisito: sem worker separado, web e sync disputam a mesma
