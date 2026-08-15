@@ -114,6 +114,42 @@ terceiro), `/highlights/{site}/category/{id}` (top 20 da categoria, com
 
 ## Changelog observado (mais recente primeiro)
 
+- **2026-08-15** — **A API do Mercado Pago abre com o MESMO token do ML.** Não
+  precisa de credencial nova nem de novo OAuth: basta trocar o host para
+  `https://api.mercadopago.com`. É a fonte de saldo, retenção e tarifa real.
+
+  | Endpoint | Resposta | Serve para |
+  |---|---|---|
+  | `GET /v1/payments/{id}` | 200 | liberação, líquido e tarifas do pagamento |
+  | `GET /v1/payments/search` | 200 | varredura (226 pagamentos na conta 648425194) |
+  | `GET /v1/account/settlement_report/list` | 200 | relatórios de liquidação |
+  | `GET /v1/account/release_report/list` | 200 | relatórios de liberação (vazio até gerar) |
+  | `GET /users/{id}/mercadopago_account/balance` | **403** | legado — não usar |
+
+  Campos que importam (medidos no pagamento `173015808309`):
+
+  ```
+  money_release_date    "2026-09-13T00:42:51.000-04:00"   ← quando o dinheiro cai
+  money_release_status  "pending"                          ← retido x liberado
+  transaction_amount    35.33                              ← o que o comprador pagou
+  transaction_details.net_received_amount  24.62           ← o que sobra de fato
+  charges_details  [ shp_fulfillment 6.65 (shipping),
+                     ml_sale_fee     4.02 (fee),
+                     mp_processing_fee 0.04 (fee) ]        ← tarifa DISCRIMINADA
+  ```
+
+  - `money_release_date` é o equivalente do `maturityDate` da Amazon; `pending`
+    vs liberado é o equivalente de `DEFERRED`/`RELEASED`.
+  - **`net_received_amount` é melhor do que o que calculamos hoje**: é o líquido
+    informado pela fonte, não uma estimativa a partir de `sale_fee`.
+  - `charges_details` discrimina a tarifa por nome — hoje o painel do ML mostra
+    "Tarifa de venda" como um bloco só.
+  - Amostra de 30 pagamentos recentes da conta 648425194: **R$ 1.027,50 a
+    liberar** e R$ 108,48 já liberado.
+  - ⚠️ Pagamento `rejected` vem com `money_release_date: null` — não confundir
+    com "retido para sempre".
+
+
 - **2026-08-15** — **CORREÇÃO da entrada anterior: a API do ML NÃO bloqueia a rede
   de desenvolvimento.** A conclusão de que havia bloqueio por IP estava errada e
   ficou registrada aqui por algumas horas — está desmentida por medição:
