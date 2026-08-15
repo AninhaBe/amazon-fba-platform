@@ -396,13 +396,19 @@ export default function Dashboard() {
             </p>
           ) : (
             <div className="financial-lines">
-              {/* Faturamento = o que o comprador pagou, o MESMO número do card
-                  acima. Partir do bruto e descontar o cupom fechava a conta, mas
-                  punha dois "faturamentos" diferentes na mesma tela (42,01 aqui,
-                  39,80 no card). O cupom vira nota explicativa, não dedução. */}
-              <Flow label="Faturamento" value={loading ? "…" : money(profit?.finance.revenue ?? 0, currency)} />
-              {!loading && promocoes > 0 && (
-                <Flow label={`Cupons já descontados (tabela ${money((profit?.finance.revenue ?? 0) + promocoes, currency)})`} value={money(promocoes, currency)} detail muted />
+              {/* O cupom é dedução de verdade — sai do bolso dela e merece o "−",
+                  como qualquer custo. Mas `revenue` já vem líquido dele, então
+                  descontá-lo do líquido contaria duas vezes. A cascata parte do
+                  preço de tabela, desconta, e FECHA num subtotal igual ao card
+                  de Faturamento — a ponte que faltava entre os dois números. */}
+              {promocoes > 0 ? (
+                <>
+                  <Flow label="Faturamento (preço de tabela)" value={loading ? "…" : money(faturamentoConciliado + promocoes, currency)} />
+                  <Flow label="Cupons e promoções" value={loading ? "…" : money(promocoes, currency)} muted sign="−" />
+                  <Flow label="Faturamento líquido" value={loading ? "…" : money(faturamentoConciliado, currency)} subtotal sign="=" />
+                </>
+              ) : (
+                <Flow label="Faturamento" value={loading ? "…" : money(faturamentoConciliado, currency)} />
               )}
               <Flow label="Taxas Amazon" value={loading ? "…" : money(profit?.finance.fees ?? 0, currency)} muted sign="−" />
               {!loading && (profit?.finance.feeBreakdown ?? []).map((t) => (
@@ -582,6 +588,7 @@ function Flow({
   accent,
   sign,
   detail,
+  subtotal,
 }: {
   detail?: boolean;
   label: string;
@@ -589,9 +596,11 @@ function Flow({
   muted?: boolean;
   accent?: boolean;
   sign?: "−" | "=";
+  /** Fecha um trecho da cascata sem ser o resultado final (que é verde). */
+  subtotal?: boolean;
 }) {
   return (
-    <div className={`financial-line ${accent ? "is-result" : ""}`}>
+    <div className={`financial-line ${accent ? "is-result" : ""} ${subtotal ? "is-subtotal" : ""}`}>
       <span className="financial-sign" aria-hidden="true">{sign}</span>
       <p className={detail ? "pl-3 text-xs text-slate-400" : "text-xs font-medium text-slate-500"}>{label}</p>
       <p

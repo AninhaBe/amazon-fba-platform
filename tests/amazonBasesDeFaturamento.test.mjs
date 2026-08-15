@@ -53,3 +53,19 @@ test("sem nenhuma venda conciliada o ticket é desconhecido, não zero", () => {
   const ticket = conciliadas > 0 ? 39.8 / conciliadas : null;
   assert.equal(ticket, null, "R$ 0,00 afirmaria que a venda não rendeu nada");
 });
+
+test("a cascata desconta o cupom uma vez só e fecha no valor do card", () => {
+  // Ana pediu o cupom como dedução visível, "igual está com Anúncios". Ele sai
+  // do bolso dela e merece o "−" — mas `revenue` já vem líquido, então a cascata
+  // parte do preço de tabela e fecha num subtotal igual ao card.
+  const tabela = +(CONCILIADO.revenue + CONCILIADO.promotions).toFixed(2);
+  const liquido = +(tabela - CONCILIADO.promotions).toFixed(2);
+  const taxas = 6.12, custo = 13.64;
+
+  assert.equal(tabela, 42.01);
+  assert.equal(liquido, CONCILIADO.revenue, "o subtotal É o número do card");
+  assert.equal(+(liquido - taxas - custo).toFixed(2), 20.04);
+
+  // A armadilha que isso evita: descontar o cupom do líquido.
+  assert.equal(+(CONCILIADO.revenue - CONCILIADO.promotions - taxas - custo).toFixed(2), 17.83);
+});
