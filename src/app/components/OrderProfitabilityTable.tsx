@@ -25,8 +25,30 @@ function statusLabel(status: string) {
   return labels[status] || status.replaceAll("_", " ");
 }
 
+/**
+ * Por que o cálculo não fechou — e, sobretudo, DE QUEM depende. "Aguardando
+ * dados" fazia parecer falha nossa; na maioria das vezes é o marketplace que
+ * ainda não liberou o número (a Amazon só informa o valor do pedido depois de
+ * aprovar o pagamento, e a tarifa só entra quando liquida). Quando a pendência
+ * é da vendedora — custo não cadastrado — a tela precisa dizer isso e não
+ * esconder no meio do mesmo rótulo genérico.
+ */
+function motivoPendente(line: ProfitabilityLine): { titulo: string; ajuda: string; deNos: boolean } {
+  if (line.revenueKnown === false)
+    return { titulo: "Aguardando pagamento", ajuda: "O canal informa o valor ao aprovar o pagamento", deNos: false };
+  if (line.productCost == null)
+    return { titulo: "Custo não cadastrado", ajuda: `Cadastre o custo de ${line.sku || "este produto"}`, deNos: true };
+  return { titulo: "Tarifas não postadas", ajuda: "Entram quando o canal liquida o pedido", deNos: false };
+}
+
 function Margin({ line }: { line: ProfitabilityLine }) {
-  if (line.contribution == null || line.marginPct == null) return <span className="profit-pending">Aguardando dados</span>;
+  if (line.contribution == null || line.marginPct == null) {
+    const motivo = motivoPendente(line);
+    return <div className={`profit-pending${motivo.deNos ? " is-acao" : ""}`}>
+      <strong>{motivo.titulo}</strong>
+      <span>{motivo.ajuda}</span>
+    </div>;
+  }
   // Mesma faixa da curva ABC: ≥18% verde, 12–18% âmbar, abaixo vermelho.
   const tone = line.marginPct >= 18 ? "positive" : line.marginPct >= 12 ? "warning" : "negative";
   return <div className={`profit-result is-${tone}`}><strong>{money(line.contribution, line.currency)}</strong><span>{percent(line.marginPct)}</span></div>;
@@ -45,7 +67,7 @@ function Breakdown({ line }: { line: ProfitabilityLine }) {
     {line.sellerShipping != null && <div><span>Frete assumido pelo vendedor</span><strong>− {money(line.sellerShipping, line.currency)}</strong></div>}
     {line.netReceived != null && <div className="is-subtotal"><span>Líquido repassado antes do produto</span><strong>{money(line.netReceived, line.currency)}</strong></div>}
     {line.tax != null && <div><span>Impostos</span><strong>− {money(line.tax, line.currency)}</strong></div>}
-    <div className="is-total"><span>Margem de contribuição</span><strong>{line.contribution == null ? "Cálculo incompleto" : money(line.contribution, line.currency)}</strong></div>
+    <div className="is-total"><span>Margem de contribuição</span><strong>{line.contribution == null ? motivoPendente(line).titulo : money(line.contribution, line.currency)}</strong></div>
   </div>;
 }
 
@@ -106,7 +128,10 @@ export function ProfitabilitySale({ line, expanded, onToggle }: { line: Profitab
       </div>
       <div className="profit-sale-meta" aria-label="Informações da venda">
         <span>{brDate(line.date)}</span>
-        <span>{line.fulfillment || statusLabel(line.status)}</span>
+        {/* Logística e status são fatos distintos. Mostrar só um escondia que o
+            pedido está pendente — a Amazon exibe os dois lado a lado. */}
+        {line.fulfillment && <span>{line.fulfillment}</span>}
+        <span className={line.revenueKnown === false ? "is-pendente" : undefined}>{statusLabel(line.status)}</span>
         <span>{line.quantity} {line.quantity === 1 ? "unidade" : "unidades"}{line.revenueKnown === false ? "" : ` × ${money(line.unitPrice, line.currency)}`}</span>
       </div>
       <div className="profit-equation" aria-label="Resumo financeiro da venda">

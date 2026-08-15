@@ -1097,7 +1097,16 @@ summary:hover { background: var(--paper-soft); }
 .profit-equation .profit-result.is-positive span { background: var(--positive); }
 .profit-equation .profit-result.is-warning span { background: var(--warning); }
 .profit-equation .profit-result.is-negative span { background: var(--danger); }
-.profit-pending { display: inline-flex; max-width: 112px; border-radius: 999px; background: var(--paper); padding: 5px 7px; color: var(--ink-muted); font-size: 10px; font-weight: 650; line-height: 1.2; text-align: center; }
+/* Pendência explicada em duas linhas: o que falta e de quem depende. Um rótulo
+   único ("Aguardando dados") lia-se como falha nossa quando é o canal que ainda
+   não liberou o número. */
+.profit-pending { display: flex; max-width: 168px; flex-direction: column; align-items: flex-end; gap: 2px; border-radius: var(--radius-sm); background: var(--paper); padding: 6px 8px; text-align: end; }
+.profit-pending strong { color: var(--ink-soft); font-size: 10px; font-weight: 700; line-height: 1.2; }
+.profit-pending span { color: var(--ink-muted); font-size: 9px; font-weight: 500; line-height: 1.25; }
+/* Pendência que depende da vendedora, não do canal — esta pede ação. */
+.profit-pending.is-acao { background: oklch(0.968 0.03 84); }
+.profit-pending.is-acao strong { color: var(--warning); }
+.profit-sale-meta .is-pendente { color: var(--warning); font-weight: 700; }
 .profit-expand { display: grid; width: 40px; min-width: 40px; min-height: 40px; place-items: center; border: 1px solid var(--line); border-radius: 999px; background: var(--paper-soft); color: var(--ink-soft); transition-property: background-color, border-color, color; transition-duration: 160ms; }
 .profit-expand:hover { border-color: var(--channel-accent); background: var(--channel-accent-soft); color: var(--channel-accent-dark); }
 .profit-expand span { font-size: 18px; font-weight: 800; line-height: 1; transform: rotate(0); transition-property: transform; transition-duration: 160ms; }
