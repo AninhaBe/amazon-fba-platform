@@ -1,9 +1,6 @@
 import { getInventory, hasAnyStock } from "./inventory";
 import { getListings } from "./listings";
 import { getCosts } from "./costStore";
-import { dbQuery, hasDb } from "./db";
-import { currentWorkspaceId } from "./workspaceScope";
-import { tiktokCostId } from "./integrations/tiktokContract";
 
 export interface Product {
   id: string;
@@ -14,7 +11,7 @@ export interface Product {
   salePrice: number | null; // preço de venda anunciado
   fulfillable?: number | null; // estoque FBA disponível
   cost: number | null; // custo (null = não cadastrado)
-  source: "listing" | "fba" | "manual" | "tiktok";
+  source: "listing" | "fba" | "manual";
 }
 
 /**
@@ -25,17 +22,22 @@ export interface Product {
  *  - Produtos adicionados manualmente por ASIN
  */
 export async function getProducts(): Promise<Product[]> {
-  const [listings, inventory, costs, tiktokProducts] = await Promise.all([
+  // ⚠️ SÓ AMAZON. Esta função alimenta telas dentro de "Operação Amazon"; canal
+  // nenhum além dela pode entrar aqui.
+  //
+  // Até 15/08/2026 ela também consultava `workspace_channel_products` com
+  // `provider='tiktok_shop'` e juntava tudo na mesma lista (entrou no commit
+  // fb48a81, de 186 arquivos). O efeito na conta real: 70 produtos da loja TikTok
+  // do sócio apareciam em `/amazon/produtos`, e o card "produtos sem custo" do
+  // dashboard da Amazon mandava cadastrar custo de 70 itens que não eram nem
+  // dela nem da Amazon.
+  //
+  // Custo compartilhado entre canais continua fazendo sentido como ideia — mas
+  // como página própria, fora do escopo de um canal.
+  const [listings, inventory, costs] = await Promise.all([
     getListings().catch(() => []),
     getInventory().catch(() => []),
     getCosts(),
-    hasDb() ? dbQuery<{
-      connection_id: string; external_product_id: string; sku: string | null;
-      title: string; price: string; available_qty: number; thumbnail: string | null;
-    }>(`SELECT connection_id, external_product_id, sku, title, price, available_qty, thumbnail
-          FROM workspace_channel_products
-         WHERE workspace_id=$1 AND provider='tiktok_shop' AND status <> 'closed'`,
-      [currentWorkspaceId()]) : [],
   ]);
 
   const invBySku = new Map(inventory.map((i) => [i.sellerSku, i]));
@@ -79,23 +81,7 @@ export async function getProducts(): Promise<Product[]> {
     });
   }
 
-  // 3) Ofertas TikTok usam o mesmo cadastro de custo com chave namespaced por
-  // loja. Assim SKUs iguais em lojas/canais diferentes nunca colidem.
-  for (const product of tiktokProducts) {
-    const id = tiktokCostId(product.connection_id, product.external_product_id, product.sku);
-    map.set(id, {
-      id,
-      sku: product.sku ?? undefined,
-      title: product.title,
-      imageUrl: product.thumbnail ?? undefined,
-      salePrice: Number(product.price),
-      fulfillable: product.available_qty,
-      cost: costs[id]?.cost ?? null,
-      source: "tiktok",
-    });
-  }
-
-  // 4) Produtos cadastrados manualmente (por ASIN) nesta conta Amazon.
+  // 3) Produtos cadastrados manualmente (por ASIN) nesta conta Amazon.
   //    A tabela de custos é do workspace inteiro (agnóstica de canal), então um
   //    custo cadastrado para um produto do ML também aparece aqui. Filtramos por
   //    ASIN: produto manual da Amazon sempre tem ASIN (fluxo "Adicionar por ASIN");

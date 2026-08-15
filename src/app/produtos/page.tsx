@@ -6,8 +6,6 @@ import { TableLoading } from "../components/LoadingState";
 import { EmptyState } from "../components/EmptyState";
 import { readJson } from "../../lib/readJson";
 import { Pagination } from "../components/Pagination";
-import { useSearchParams } from "next/navigation";
-import { productMatchesTiktokScope } from "../components/TikTokWorkspaceModel";
 
 interface Product {
   id: string;
@@ -28,7 +26,6 @@ function money(v: number) {
 const PAGE_SIZE = 30;
 
 export default function ProdutosPage() {
-  const searchParams = useSearchParams();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -144,9 +141,9 @@ export default function ProdutosPage() {
     }
   }
 
-  const selectedTikTokConnection = searchParams.get("connection_id");
-  const scopedProducts = products.filter((p) => searchParams.get("canal") !== "tiktok"
-    || productMatchesTiktokScope(p, selectedTikTokConnection));
+  // Esta página é da Amazon. O TikTok tem superfície própria e isolada
+  // (/tiktok/produtos → /api/integrations/tiktok/costs, com requireTiktokConnection).
+  const scopedProducts = products;
   const withCost = scopedProducts.filter((p) => p.cost != null && p.cost > 0).length;
   const visibleProducts = scopedProducts
     .filter((p) => {
@@ -167,7 +164,7 @@ export default function ProdutosPage() {
   return (
     <div className="products-page space-y-8">
       <PageHeader
-        eyebrow={searchParams.get("canal") === "tiktok" ? "TikTok Shop · Custos" : "FBA Inventory · Catalog"}
+        eyebrow={"FBA Inventory · Catalog"}
         title="Produtos"
         icon={pageIcons.box}
         subtitle={
