@@ -350,7 +350,8 @@ export async function getMercadoLivreOverviewFromCanonical(
       const lineFees = commissionKnown ? commissionShares[index] : null;
       const lineSellerShipping = shippingKnown ? sellerShares[index] : null;
       const lineBuyerShipping = orderBuyerShipping == null ? null : buyerShares[index];
-      const lineTax = lineRevenue * taxRate / 100;
+      // Mesmo contrato do caminho legado: sem alíquota, imposto é desconhecido.
+      const lineTax = taxRate == null ? null : lineRevenue * taxRate / 100;
       const lineProductCost = unitCost > 0 ? unitCost * line.qty : null;
       const complete = lineFees != null && lineSellerShipping != null;
       const lineResult = complete
@@ -390,8 +391,11 @@ export async function getMercadoLivreOverviewFromCanonical(
     });
   }
 
-  const taxes = processedRevenue * taxRate / 100;
-  const estimatedProfit = processedRevenue - fees - cogs - taxes - sellerShipping;
+  const taxes = taxRate == null ? null : processedRevenue * taxRate / 100;
+  // `taxes ?? 0`: sem alíquota o lucro sai sem imposto, exatamente como saía
+  // antes. Quem avisa é a tela — mudar o número aqui seria alterar o resultado
+  // exibido sem a vendedora ter pedido.
+  const estimatedProfit = processedRevenue - fees - cogs - (taxes ?? 0) - sellerShipping;
 
   // Cobertura: mesmo critério do loadMercadoLivreSource.
   const coveredFrom = syncRow.covered_from ? new Date(syncRow.covered_from).getTime() : Number.POSITIVE_INFINITY;

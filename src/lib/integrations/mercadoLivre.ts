@@ -120,9 +120,24 @@ export function mercadoLivreCostEntry(
   return Object.values(costs).find((entry) => entry.sku === sku && entry.id.startsWith(`mercado_livre:${connectionId}:`));
 }
 
-export function mercadoLivreTaxRate(connection: IntegrationConnection): number {
-  const value = Number(connection.metadata.taxRate ?? 0);
-  return Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : 0;
+/**
+ * Alíquota declarada pela vendedora. **`null` = não configurada**, que NÃO é o
+ * mesmo que 0%.
+ *
+ * Antes: `Number(metadata.taxRate ?? 0)`. Quem nunca configurou era tratado como
+ * isento, o painel exibia "Imposto R$ 0,00" e o lucro parecia líquido de tudo —
+ * "não sei" virando um fato falso, a confusão entre `null` e zero que o projeto
+ * proíbe. Mesmo defeito corrigido na Amazon em 15/08/2026.
+ *
+ * A aritmética a jusante segue somando `?? 0` de propósito: sem alíquota o lucro
+ * continua saindo sem imposto, como sempre saiu. O que muda é a tela DIZER isso
+ * em vez de afirmar zero.
+ */
+export function mercadoLivreTaxRate(connection: IntegrationConnection): number | null {
+  const bruto = connection.metadata.taxRate;
+  if (bruto == null || bruto === "") return null;
+  const value = Number(bruto);
+  return Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : null;
 }
 
 function sellerSku(item: MercadoLivreItem): string | null {
@@ -886,7 +901,9 @@ export async function getMercadoLivreOverview(
       const unitCost = entry ? costAt(entry, order.date_created) : 0;
       const lineFees = (line.sale_fee ?? 0) * line.quantity;
       const lineRevenue = line.unit_price * line.quantity;
-      const lineTax = lineRevenue * taxRate / 100;
+      // `null` sem alíquota: a linha some do detalhe em vez de exibir
+      // "Impostos R$ 0,00", que afirmaria isenção.
+      const lineTax = taxRate == null ? null : lineRevenue * taxRate / 100;
       const lineProductCost = unitCost > 0 ? unitCost * line.quantity : null;
       const lineSellerShipping = sellerShippingByLine.get(reference.key) ?? null;
       const lineBuyerShipping = buyerShippingByLine.get(reference.key) ?? null;
@@ -929,10 +946,13 @@ export async function getMercadoLivreOverview(
   }
   const revenue = paidOrders.reduce((total, order) => total + (order.total_amount || 0), 0);
   const processedRevenue = detailedPaidOrders.reduce((total, order) => total + (order.total_amount || 0), 0);
-  const taxes = processedRevenue * taxRate / 100;
+  const taxes = taxRate == null ? null : processedRevenue * taxRate / 100;
   sellerShipping = +sellerShipping.toFixed(2);
   buyerShipping = +buyerShipping.toFixed(2);
-  const estimatedProfit = processedRevenue - fees - cogs - taxes - sellerShipping;
+  // `taxes ?? 0`: sem alíquota o lucro sai sem imposto, exatamente como saía
+  // antes. Quem avisa é a tela — mudar o número aqui seria alterar o resultado
+  // exibido sem a vendedora ter pedido.
+  const estimatedProfit = processedRevenue - fees - cogs - (taxes ?? 0) - sellerShipping;
   const daily = new Map<string, { date: string; revenue: number; orders: number; units: number }>();
   for (const order of paidOrders) {
     const date = brazilDateKey(order.date_created);

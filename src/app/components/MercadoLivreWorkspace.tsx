@@ -21,7 +21,7 @@ interface Overview {
   account: { id: string; nickname: string; siteId: string; };
   period: { from: string; to: string; label: string; };
   metrics: { activeListings: number; productsWithoutCost: number; orders30d: number; paidOrders: number; revenue30d: number; approvedRevenue: number; cancelledRevenue: number; cancelledOrders: number; lastSaleAt: string | null; currency: string; revenueCoverage: { capturedOrders: number; totalOrders: number; complete: boolean; }; };
-  profit: { fees: number; cogs: number; taxes: number; taxRate: number; sellerShipping: number; buyerShipping: number; shippingCostsComplete: boolean; revenueProcessed: number; coverage: { processedOrders: number; paidOrders: number; complete: boolean; }; estimatedProfit: number; marginPct: number; unitsWithoutCost: number; };
+  profit: { fees: number; cogs: number; taxes: number | null; taxRate: number | null; sellerShipping: number; buyerShipping: number; shippingCostsComplete: boolean; revenueProcessed: number; coverage: { processedOrders: number; paidOrders: number; complete: boolean; }; estimatedProfit: number; marginPct: number; unitsWithoutCost: number; };
   dailySales: DailyPoint[];
   topProducts: Array<{ id: string; sku: string | null; title: string; units: number; revenue: number; cost: number; contribution: number; complete: boolean; marginPct: number | null; }>;
   stockRadar: Array<{ id: string; sku: string | null; title: string; availableQuantity: number; unitsSold: number; calculationDays: number; daysRemaining: number | null; status: "out" | "critical" | "ok"; }>;
@@ -53,6 +53,22 @@ const views = {
   monitor: { eyebrow: "Pedidos e financeiro Mercado Livre", title: "Monitor da conta", subtitle: "Pedidos recentes e o resultado financeiro real da sua conta.", icon: pageIcons.chart },
   estoque: { eyebrow: "Operação Mercado Livre", title: "Radar de estoque", subtitle: "Cobertura dos anúncios ativos com base no estoque e no ritmo de vendas do período.", icon: pageIcons.box },
 } as const;
+
+/**
+ * Linha de imposto do detalhamento. Sem alíquota configurada o valor é
+ * DESCONHECIDO, não zero: "Impostos (0%) R$ 0,00" afirmava isenção para quem
+ * simplesmente ainda não tinha informado o percentual. Mesma regra da Amazon,
+ * da Shopee e do TikTok.
+ */
+function rotuloImposto(taxRate: number | null, taxes: number | null, currency: string): { label: string; value: string } {
+  if (taxRate == null || taxes == null) {
+    return { label: "Impostos", value: "Alíquota não configurada" };
+  }
+  return {
+    label: `Impostos (${taxRate.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%)`,
+    value: money(taxes, currency),
+  };
+}
 
 function money(value: number, currency = "BRL") {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(value);
@@ -244,14 +260,14 @@ function Dashboard({ overview, updatedAt }: { overview: Overview; updatedAt: Dat
           <Flow label={profitCoverage.complete ? "Receita paga" : "Receita processada"} value={money(overview.profit.revenueProcessed, overview.metrics.currency)} />
           <FlowExpandable
             label="Custos do canal e do produto"
-            value={money(overview.profit.fees + overview.profit.sellerShipping + overview.profit.cogs + overview.profit.taxes, overview.metrics.currency)}
+            value={money(overview.profit.fees + overview.profit.sellerShipping + overview.profit.cogs + (overview.profit.taxes ?? 0), overview.metrics.currency)}
             open={costsOpen}
             onToggle={() => setCostsOpen((open) => !open)}
             items={[
               { label: "Tarifa de venda", value: money(overview.profit.fees, overview.metrics.currency) },
               { label: "Frete pago pelo vendedor", value: money(overview.profit.sellerShipping, overview.metrics.currency) },
               { label: "Custo dos produtos", value: money(overview.profit.cogs, overview.metrics.currency) },
-              { label: `Impostos (${overview.profit.taxRate.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%)`, value: money(overview.profit.taxes, overview.metrics.currency) },
+              rotuloImposto(overview.profit.taxRate, overview.profit.taxes, overview.metrics.currency),
             ]}
           />
           <Flow label={profitCoverage.complete ? "Lucro estimado" : "Lucro processado"} value={money(overview.profit.estimatedProfit, overview.metrics.currency)} sign="=" accent />
@@ -411,7 +427,7 @@ function Monitor({ overview }: { overview: Overview }) {
         <Flow label="Frete pago pelo vendedor" value={money(overview.profit.sellerShipping, overview.metrics.currency)} sign="−" />
         <Flow label="Total recebido" value={money(netReceived, overview.metrics.currency)} sign="=" />
         <Flow label="Custo dos produtos" value={money(overview.profit.cogs, overview.metrics.currency)} sign="−" />
-        <Flow label={`Impostos (${overview.profit.taxRate.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%)`} value={money(overview.profit.taxes, overview.metrics.currency)} sign="−" />
+        <Flow label={rotuloImposto(overview.profit.taxRate, overview.profit.taxes, overview.metrics.currency).label} value={rotuloImposto(overview.profit.taxRate, overview.profit.taxes, overview.metrics.currency).value} sign="−" />
         <Flow label="Margem de contribuição" value={money(overview.profit.estimatedProfit, overview.metrics.currency)} sign="=" accent />
       </div>
       {overview.profit.buyerShipping > 0 && <p className="text-xs text-slate-400">O comprador pagou {money(overview.profit.buyerShipping, overview.metrics.currency)} de frete no período. Assim como no &quot;Vendas brutas&quot; do Mercado Livre, o frete não compõe o faturamento (só o produto); o lucro considera o frete que o vendedor efetivamente paga.</p>}

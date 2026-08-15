@@ -80,7 +80,7 @@ A auditoria dos números da Amazon achou sete defeitos. Todos foram corrigidos
 **só na Amazon**; a Ana pediu para adaptar aos demais canais — lembrando que
 adaptar **não é copiar código**: cada API entrega a informação de um jeito.
 
-- [ ] **ML: alíquota `null` ≠ `0`.** `mercadoLivreTaxRate` faz
+- [x] **ML: alíquota `null` ≠ `0`.** Feito em 15/08/2026. `mercadoLivreTaxRate` faz
   `Number(metadata.taxRate ?? 0)` — quem nunca configurou é tratado como
   **isento**, e o painel exibe "Imposto R$ 0,00" afirmando um fato falso.
   Espelhar o desenho da Amazon/Shopee (`null` quando não configurado; `0` só

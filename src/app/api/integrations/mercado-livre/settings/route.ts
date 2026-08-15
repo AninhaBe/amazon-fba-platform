@@ -29,9 +29,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Nenhuma conta do Mercado Livre conectada." }, { status: 404 });
     }
     const body = await req.json();
-    const taxRate = Number(body.taxRate);
+    // `null` limpa a configuração e volta para "não sei" — distinto de 0%, que é
+    // isenção declarada. Mesmo contrato da Amazon e da Shopee.
+    const bruto = (body as { taxRate?: unknown }).taxRate;
+    if (bruto === null) {
+      const semAliquota = { ...connection.metadata };
+      delete semAliquota.taxRate;
+      await saveIntegration({ ...connection, metadata: semAliquota });
+      return NextResponse.json({ taxRate: null });
+    }
+    const taxRate = Number(bruto);
     if (!Number.isFinite(taxRate) || taxRate < 0 || taxRate > 100) {
-      return NextResponse.json({ error: "Informe uma alíquota entre 0% e 100%." }, { status: 400 });
+      return NextResponse.json({ error: "Informe uma alíquota entre 0% e 100%, ou null para limpar." }, { status: 400 });
     }
     await saveIntegration({ ...connection, metadata: { ...connection.metadata, taxRate } });
     return NextResponse.json({ taxRate });

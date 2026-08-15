@@ -50,7 +50,9 @@ export default function MercadoLivreCalculatorPage() {
   const [itemId, setItemId] = useState("");
   const [price, setPrice] = useState("");
   const [cost, setCost] = useState("");
-  const [taxRate, setTaxRate] = useState("0");
+  // Vazio, não "0": campo pré-preenchido com zero afirma isenção antes de a
+  // vendedora informar qualquer coisa.
+  const [taxRate, setTaxRate] = useState("");
   const [sellerShipping, setSellerShipping] = useState("");
   const [adsRate, setAdsRate] = useState("");
   const [otherCosts, setOtherCosts] = useState("");
@@ -67,7 +69,8 @@ export default function MercadoLivreCalculatorPage() {
     void fetch("/api/integrations/mercado-livre/settings", { cache: "no-store", signal: controller.signal }).then(async (response) => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Não foi possível carregar o imposto configurado.");
-      setTaxRate(String(data.taxRate));
+      // `null` = não configurada. `String(null)` escreveria "null" no campo.
+      setTaxRate(data.taxRate == null ? "" : String(data.taxRate));
     }).catch((reason) => {
       if (!(reason instanceof DOMException && reason.name === "AbortError")) {
         setError(reason instanceof Error ? reason.message : "Não foi possível carregar a calculadora.");
@@ -226,7 +229,7 @@ export default function MercadoLivreCalculatorPage() {
           <MoneyField label="Preço de venda" value={price} onChange={setPrice} placeholder="0,00" />
           <MoneyField label="Custo do produto" value={cost} onChange={setCost} placeholder="0,00" hint={selected?.cost == null ? "Ainda não cadastrado" : "Preenchido pelo cadastro"} />
           <MoneyField label="Frete pago por você" value={sellerShipping} onChange={setSellerShipping} placeholder="0,00" hint={externalListing?.estimatedSellerShipping == null ? undefined : "Estimado para sua conta e a logística encontrada"} />
-          <RateField label="Imposto sobre a venda" value={taxRate} onChange={setTaxRate} hint="Alíquota configurada" />
+          <RateField label="Imposto sobre a venda" value={taxRate} onChange={setTaxRate} hint={taxRate.trim() === "" ? "Não configurada" : "Alíquota configurada"} />
           <RateField label="Publicidade" value={adsRate} onChange={setAdsRate} hint="ACOS esperado" />
           <MoneyField label="Embalagem e outros" value={otherCosts} onChange={setOtherCosts} placeholder="0,00" />
         </div>

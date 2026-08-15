@@ -41,7 +41,8 @@ export interface AbcProduct {
 export interface MercadoLivreAbc {
   currency: string;
   covered: boolean;
-  taxRate: number;
+  /** `null` quando a alíquota não foi configurada. */
+  taxRate: number | null;
   products: AbcProduct[];
 }
 
@@ -156,7 +157,8 @@ async function computeAbc(connection: IntegrationConnection, period: MercadoLivr
 
   const partial = [...bySku.values()].map((acc) => {
     const costMissing = !acc.costKnown;
-    const tax = acc.revenue * taxRate / 100;
+    // Sem alíquota o imposto é desconhecido; some da conta em vez de virar zero.
+    const tax = taxRate == null ? 0 : acc.revenue * taxRate / 100;
     // Sem custo cadastrado não há margem confiável — não supomos zero.
     const contribution = costMissing ? null : +(acc.revenue - acc.cost - acc.fees - tax).toFixed(2);
     return {
