@@ -228,6 +228,8 @@ export default function Dashboard() {
   const cogs = profit?.cogs ?? 0;
   const missingCostUnits = profit?.unitsWithoutCost ?? 0;
   const costsIncomplete = missingCostUnits > 0;
+  /** Cupom resgatado pelo comprador — já abatido de `revenue` pela camada financeira. */
+  const promocoes = profit?.finance.promotions ?? 0;
   // O financeiro vem das transações, que a Amazon posta na data de POSTAGEM —
   // uma venda recém-feita já conta no faturamento e ainda não tem repasse.
   // Repasse ausente é desconhecido, não zero: exibir "R$ 0,00 / 0,0% de margem"
@@ -364,11 +366,15 @@ export default function Dashboard() {
             </p>
           ) : (
             <div className="financial-lines">
-              <Flow label="Faturamento" value={loading ? "…" : money(profit?.finance.revenue ?? 0, currency)} />
-              {!loading && (profit?.finance.promotions ?? 0) > 0 && (
-                // Cupom resgatado pelo comprador. Sem esta linha a cascata não fechava:
-                // o desconto era abatido do faturamento sem aparecer em lugar nenhum.
-                <Flow label="Cupons e promoções" value={`já descontado · ${money(profit?.finance.promotions ?? 0, currency)}`} detail />
+              {/* O cupom já vem abatido de `revenue`. Para ele aparecer como dedução
+                  de verdade — e não como nota solta — a cascata parte do BRUTO e
+                  desconta. Assim cada linha soma e o resultado bate com o card. */}
+              <Flow
+                label={promocoes > 0 ? "Faturamento bruto" : "Faturamento"}
+                value={loading ? "…" : money((profit?.finance.revenue ?? 0) + promocoes, currency)}
+              />
+              {!loading && promocoes > 0 && (
+                <Flow label="Cupons e promoções" value={money(promocoes, currency)} muted sign="−" />
               )}
               <Flow label="Taxas Amazon" value={loading ? "…" : money(profit?.finance.fees ?? 0, currency)} muted sign="−" />
               {!loading && (profit?.finance.feeBreakdown ?? []).map((t) => (
