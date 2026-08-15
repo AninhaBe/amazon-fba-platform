@@ -114,6 +114,28 @@ terceiro), `/highlights/{site}/category/{id}` (top 20 da categoria, com
 
 ## Changelog observado (mais recente primeiro)
 
+- **2026-08-15** — **A API do ML bloqueia a rede de desenvolvimento (403 `PolicyAgent`).**
+  Toda chamada feita da máquina local devolve
+  `{"blocked_by":"PolicyAgent","code":"PA_UNAUTHORIZED_RESULT_FROM_POLICIES"}` —
+  inclusive `GET /sites/MLB`, que é **público e não usa token**. Não é token
+  expirado nem escopo: é bloqueio por origem. Produção (Render) segue chamando
+  normalmente; confirmado por sync bem-sucedido às 19:56 e 19:59 do mesmo dia,
+  nas duas conexões.
+  - Provável resquício do PolicyAgent disparado em 14/08 por navegação
+    automatizada na sessão logada (ver `nunca-fazer-scraping`).
+  - **Consequência prática:** validação contra a API do ML só é possível a partir
+    de produção. Não interpretar 403 local como conexão quebrada — checar
+    `workspace_marketplace_syncs.last_success_at` antes de concluir qualquer
+    coisa sobre a saúde do canal.
+  - Os segredos são `MELI_CLIENT_ID` / `MELI_CLIENT_SECRET` (não `ML_*`).
+  - ⚠️ **Nunca renovar token fora do app:** o ML rotaciona o refresh a cada uso.
+    Renovar por script invalida o que está guardado e derruba a sincronização.
+
+- **2026-08-15** — **Pedido real não guarda `raw`.** `workspace_channel_orders.raw`
+  está preenchido só nos 186 pedidos da conexão `demo`; nas duas conexões reais
+  (36.317 e 192 pedidos) é `NULL`. Auditoria retroativa de desconto, cupom ou
+  `full_unit_price` é impossível pelo banco — só relendo a API.
+
 O ML muda regra **sem aviso e sem changelog público** — já aconteceu duas vezes em duas
 semanas. Toda mudança de comportamento observada na API entra aqui, com data; o detalhe
 fica nas seções acima.
