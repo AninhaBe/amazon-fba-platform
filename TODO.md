@@ -89,8 +89,15 @@ adaptar **não é copiar código**: cada API entrega a informação de um jeito.
   `/api/integrations/mercado-livre/settings` (hoje devolve `0`).
   A aritmética deve seguir com `?? 0` para **não mudar o lucro já exibido** —
   o que muda é a tela dizer "sem imposto" em vez de afirmar zero.
-- [ ] **Todos os canais: faturamento = o que o comprador pagou**, nunca preço de
-  tabela. Conferir se ML/Shopee/TikTok usam valor cheio em algum ponto.
+- [x] **Todos os canais: faturamento = o que o comprador pagou.** Auditado em
+  15/08/2026: ML (`unit_price`, nunca `full_unit_price`), Shopee
+  (`model_discounted_price ?? model_original_price`) e TikTok
+  (`sale_price ?? original_price`) **já estavam corretos** — o defeito era só do
+  cálculo ao vivo da Amazon. Travado por `tests/faturamentoValorPago.test.mjs`.
+  - [ ] **Ressalva:** Shopee e TikTok caem para o preço de tabela quando o campo
+    de preço com desconto vem ausente. Não observado na prática, e trocar o
+    fallback por "desconhecido" apagaria a receita do período inteiro — decisão
+    consciente de manter, registrada aqui para não virar surpresa.
 - [ ] **Todos: desconto/cupom não é custo** — se já vier abatido da receita,
   somá-lo às deduções desconta duas vezes.
 - [ ] **Todos: não misturar bases** (data do pedido × data de repasse) na mesma
