@@ -368,7 +368,9 @@ function ShopeeDemoNotice({ connectHref }: { connectHref?: string }) {
 function Dashboard({ overview, updatedAt, sync, onPage }: { overview: Overview; updatedAt: Date | null; sync: ShopeeSyncStatus | null; onPage: (offset: number) => void }) {
   const [costsOpen, setCostsOpen] = useState(false);
   const profitCoverage = overview.profit.coverage;
-  const ticket = overview.metrics.paidOrders > 0 ? overview.metrics.revenue30d / overview.metrics.paidOrders : 0;
+  // Bases já coincidem (receita e contagem usam o mesmo filtro de status).
+  // `null` sem venda: R$ 0,00 afirmaria que cada venda rendeu zero.
+  const ticket = overview.metrics.paidOrders > 0 ? overview.metrics.revenue30d / overview.metrics.paidOrders : null;
   const units = overview.dailySales.reduce((total, point) => total + point.units, 0);
   const critical = overview.stockRadar.filter((product) => product.status === "critical" || product.status === "out");
   const roi = overview.profit.cogs != null && overview.profit.cogs > 0 && overview.profit.estimatedProfit != null ? (overview.profit.estimatedProfit / overview.profit.cogs) * 100 : null;
@@ -434,7 +436,7 @@ function Dashboard({ overview, updatedAt, sync, onPage }: { overview: Overview; 
           <div className="chart-inline-stats" aria-label="Indicadores complementares">
             <span><small>Canceladas</small><strong className={overview.metrics.cancelledRevenue > 0 ? "text-red-600" : "text-slate-400"}>{money(overview.metrics.cancelledRevenue, overview.metrics.currency)}</strong></span>
             <span><small>Unidades</small><strong>{units.toLocaleString("pt-BR")}</strong></span>
-            <span><small>Ticket médio</small><strong>{money(ticket, overview.metrics.currency)}</strong></span>
+            <span><small>Ticket médio</small><strong>{ticket == null ? "—" : money(ticket, overview.metrics.currency)}</strong></span>
             <span><small>ROI</small><strong>{roi == null ? "—" : `${roi.toFixed(1)}%`}</strong></span>
           </div>
           <RevenueChart points={overview.dailySales} />

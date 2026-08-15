@@ -100,8 +100,13 @@ adaptar **não é copiar código**: cada API entrega a informação de um jeito.
     consciente de manter, registrada aqui para não virar surpresa.
 - [ ] **Todos: desconto/cupom não é custo** — se já vier abatido da receita,
   somá-lo às deduções desconta duas vezes.
-- [ ] **Todos: não misturar bases** (data do pedido × data de repasse) na mesma
-  conta. Ticket médio tem de sair do mesmo par que o faturamento exibido.
+- [x] **Todos: não misturar bases.** Auditado em 15/08/2026. Achado no **ML**:
+  `revenue30d` soma aprovadas **+ canceladas** (proposital, é o "Vendas brutas"
+  do painel), mas `paidOrders` conta só aprovadas — o ticket saía inflado em
+  3,8% (conta 1191100170) e 4,7% (648425194), medido sobre dados reais. Passou a
+  usar `approvedRevenue / paidOrders`, a mesma base do "Aprovadas" exibido ao
+  lado. Shopee e TikTok já usavam base única. Travado por
+  `tests/ticketMesmaBase.test.mjs`.
 - [ ] **Todos: pendência diz de quem é a espera.** "Aguardando dados" parece
   falha nossa; separar "o canal ainda não informou" de "falta você cadastrar".
 - [ ] **Todos: ausência em período conciliado = zero explicado**, não "—" eterno.

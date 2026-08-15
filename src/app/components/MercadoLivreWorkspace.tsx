@@ -215,7 +215,15 @@ export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
 function Dashboard({ overview, updatedAt }: { overview: Overview; updatedAt: Date | null }) {
   const [costsOpen, setCostsOpen] = useState(false);
   const profitCoverage = overview.profit.coverage;
-  const ticket = overview.metrics.paidOrders > 0 ? overview.metrics.revenue30d / overview.metrics.paidOrders : 0;
+  // Ticket das APROVADAS, não do faturamento bruto: `revenue30d` inclui
+  // canceladas de propósito (é o "Vendas brutas" do painel do ML), mas
+  // `paidOrders` não as conta. Dividir um pelo outro inflava o ticket em 3,8% na
+  // conta 1191100170 e 4,7% na 648425194 (medido em 15/08/2026) — numerador e
+  // denominador de bases diferentes, o mesmo defeito achado na Amazon.
+  // `null` sem venda aprovada: R$ 0,00 afirmaria ticket zero.
+  const ticket = overview.metrics.paidOrders > 0
+    ? overview.metrics.approvedRevenue / overview.metrics.paidOrders
+    : null;
   const units = overview.dailySales.reduce((total, point) => total + point.units, 0);
   const critical = overview.stockRadar.filter((product) => product.status === "critical" || product.status === "out");
   const roi = overview.profit.cogs > 0 ? overview.profit.estimatedProfit / overview.profit.cogs * 100 : null;
@@ -249,7 +257,7 @@ function Dashboard({ overview, updatedAt }: { overview: Overview; updatedAt: Dat
           <span><small>Aprovadas</small><strong className="text-emerald-700">{money(overview.metrics.approvedRevenue, overview.metrics.currency)}</strong></span>
           <span><small>Canceladas</small><strong className={overview.metrics.cancelledRevenue > 0 ? "text-red-600" : "text-slate-400"}>{money(overview.metrics.cancelledRevenue, overview.metrics.currency)}</strong></span>
           <span><small>Unidades</small><strong>{units.toLocaleString("pt-BR")}</strong></span>
-          <span><small>Ticket médio</small><strong>{money(ticket, overview.metrics.currency)}</strong></span>
+          <span><small>Ticket médio</small><strong>{ticket == null ? "—" : money(ticket, overview.metrics.currency)}</strong></span>
           <span><small>ROI</small><strong>{roi == null ? "—" : `${roi.toFixed(1)}%`}</strong></span>
         </div>
         <RevenueChart points={overview.dailySales} />
