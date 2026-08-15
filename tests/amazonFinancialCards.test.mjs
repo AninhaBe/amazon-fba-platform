@@ -62,7 +62,7 @@ test("SKU sem custo invalida custo, lucro, margem e ROI — e diz quantos faltam
 });
 
 test("tarifa ausente em periodo conciliado vale zero, nao desconhecido", () => {
-  // Só o AdvertisingFee foi postado. Logística FBA e retenções não apareceram —
+  // Só o AdvertisingFee foi postado. Logística FBA e comissão não apareceram —
   // e não apareceram porque NÃO foram cobradas (hoje o FBA está isento pela
   // promoção de vendedor novo), não porque falhamos em ler.
   const cards = amazonFinancialCards({
@@ -76,8 +76,8 @@ test("tarifa ausente em periodo conciliado vale zero, nao desconhecido", () => {
   assert.notEqual(por("fbaShipping").value, "—", "period conciliado: a ausencia da tarifa e um fato");
   assert.equal(por("fbaShipping").raw, 0);
   assert.match(por("fbaShipping").context, /não cobrou logística/);
-  assert.equal(por("taxesWithheld").raw, 0);
-  assert.match(por("taxesWithheld").context, /não reteve imposto/);
+  assert.equal(por("commission").raw, 0);
+  assert.match(por("commission").context, /não cobrou comissão/);
   // O que existe continua sendo mostrado normalmente.
   assert.equal(por("ads").raw, 6.12);
 });
@@ -87,7 +87,7 @@ test("sem extrato conciliado a tarifa segue desconhecida", () => {
   const por = (k) => cards.find((c) => c.key === k);
   assert.equal(por("fbaShipping").value, "—", "sem extrato, zero seria invencao");
   assert.equal(por("fbaShipping").raw, null);
-  assert.equal(por("taxesWithheld").value, "—");
+  assert.equal(por("commission").value, "—");
 });
 
 test("o card de imposto nao culpa a Amazon por uma configuracao nossa", () => {
@@ -95,4 +95,68 @@ test("o card de imposto nao culpa a Amazon por uma configuracao nossa", () => {
   const imposto = cards.find((c) => c.key === "tax");
   assert.equal(imposto.value, "—");
   assert.doesNotMatch(imposto.context, /Aguardando/, "nao estamos esperando a Amazon: falta a tela de aliquota");
+});
+
+// A categorização por lista de nomes exatos era um risco silencioso: a conta da
+// Ana é nova e não paga tarifa FBA, então nenhum teste pegava um nome errado.
+// Numa conta que PAGA, um tipo fora da lista sairia como R$ 0,00 — errado com
+// cara de certeza. Estes nomes são tarifas reais da Amazon.
+test("tarifas FBA sao reconhecidas pelo padrao, nao por lista fechada", () => {
+  const tarifas = [
+    "FBAPerUnitFulfillmentFee",
+    "FBAPerOrderFulfillmentFee",
+    "FBAWeightBasedFee",
+    "FBAStorageFee",
+    "FBALongTermStorageFee",
+    "FBADisposalFee",
+    "FBARemovalFee",
+    "FBAInboundPlacementServiceFee",
+  ];
+  const cards = amazonFinancialCards({
+    finance: {
+      currency: "BRL", revenue: 1000, fees: tarifas.length, refunds: 0,
+      feeBreakdown: tarifas.map((type) => ({ type, amount: 1 })),
+    },
+    cogs: 100, estimatedProfit: 200, unitsWithoutCost: 0,
+  });
+  assert.equal(carta(cards, "fbaShipping").raw, tarifas.length, "toda tarifa FBA precisa cair na Logistica");
+});
+
+test("comissao ganhou card e nao se mistura com logistica", () => {
+  const cards = amazonFinancialCards({
+    finance: {
+      currency: "BRL", revenue: 100, fees: 25, refunds: 0,
+      feeBreakdown: [
+        { type: "Commission", amount: 15 },
+        { type: "FBAPerUnitFulfillmentFee", amount: 8 },
+        { type: "AdvertisingFee", amount: 2 },
+      ],
+    },
+    cogs: 30, estimatedProfit: 45, unitsWithoutCost: 0,
+  });
+  assert.equal(carta(cards, "commission").raw, 15);
+  assert.equal(carta(cards, "fbaShipping").raw, 8);
+  assert.equal(carta(cards, "ads").raw, 2);
+  // As categorias nunca podem passar do total — "Taxas" e a autoridade.
+  const soma = carta(cards, "commission").raw + carta(cards, "fbaShipping").raw + carta(cards, "ads").raw;
+  assert.ok(soma <= carta(cards, "fees").raw, "categorias nao podem exceder o total de Taxas");
+});
+
+test("tarifa de tipo desconhecido nao some do total", () => {
+  const cards = amazonFinancialCards({
+    finance: {
+      currency: "BRL", revenue: 100, fees: 9, refunds: 0,
+      feeBreakdown: [{ type: "UmaTarifaQueAindaNaoExiste", amount: 9 }],
+    },
+    cogs: 30, estimatedProfit: 61, unitsWithoutCost: 0,
+  });
+  assert.equal(carta(cards, "fees").raw, 9, "continua contando em Taxas");
+  assert.equal(carta(cards, "commission").raw, 0);
+  assert.equal(carta(cards, "fbaShipping").raw, 0);
+});
+
+test("o card de impostos retidos foi removido", () => {
+  const cards = amazonFinancialCards({ finance: FINANCE, cogs: 13.64, estimatedProfit: 20.04, unitsWithoutCost: 0 });
+  assert.equal(cards.length, 12, "a grade continua com doze");
+  assert.equal(cards.find((c) => c.key === "taxesWithheld"), undefined);
 });
