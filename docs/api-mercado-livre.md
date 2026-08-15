@@ -45,6 +45,11 @@ Faturamento ML = vendas APROVADAS + CANCELADAS (paid_amount dos itens, SEM frete
 | `GET /catalog_domains/{domain}/categories` | Categorias do domínio | — |
 | `GET /users/{id}/items/search?user_product_id={id}` | Meus itens ligados a um user product | — |
 
+> 📍 **Mapa completo do que dá para puxar:**
+> [`api-mercado-livre-superficie.md`](./api-mercado-livre-superficie.md) — os 25
+> endpoints que responderam 200 em 14–15/08/2026, com o payload de cada um e a marcação
+> de quais servem **anúncio tradicional** (e não só catálogo).
+
 ## Endpoints bloqueados pelo ML (verificado em 2026-07-23)
 
 Testado com o token da conexão **e** anonimamente. O ML fechou a busca e a

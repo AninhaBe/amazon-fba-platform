@@ -24,6 +24,13 @@ export interface ProfitabilityLine {
   sellerShipping: number | null;
   netReceived?: number | null;
   tax: number | null;
+  /**
+   * Cupom/promoção bancada pela vendedora. É descontado da margem por
+   * `calculateContribution`, então PRECISA aparecer entre os custos na tela —
+   * sem ele a linha "venda − custos = margem" não fecha (visto em 15/08/2026:
+   * 22,11 − 6,82 exibia margem de 13,08, porque faltavam os 2,21 do cupom).
+   */
+  promotions?: number | null;
   contribution: number | null;
   marginPct: number | null;
   complete: boolean;

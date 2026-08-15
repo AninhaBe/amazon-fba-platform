@@ -82,16 +82,27 @@ callback, justamente para permitir o aviso.
 | Causa | Evita? |
 |---|---|
 | `access_token` curto, renovado pelo `refresh_token` | Sim — `refreshAccessToken` |
-| **Autorização da loja vence em 90 dias** | Não, mas dá para avisar antes |
+| **Autorização da loja nasce com 90 dias** — o vendedor pode estender | Sim — pedir para estender no ato |
 | Vendedor revoga no Seller Center | Não |
 
-⚠️ **São 90 dias, não 365 como a Shopee** — a janela é 4× mais curta e o aviso
-precisa ser proporcionalmente mais cedo. Confirmado na tela *Authorization
-details* do Partner Center (09/08): "Authorization period: 90 days", autorização
-`7671858184827848468` da loja Crystal Fancy válida de 09/08 a 07/11/2026.
+⚠️ **O padrão são 90 dias, não 365 como a Shopee** — a janela nasce 4× mais curta.
+**Mas o vendedor pode estender para ilimitado**, e é isso que se deve pedir no
+momento da autorização: um clique dele evita a re-autorização trimestral.
 
-O prazo conta da autorização, não do último refresh: renovar token não estende
-a data. Ao fim dos 90 dias o vendedor precisa passar pelo link de convite de novo.
+✅ **Nossa conexão está ilimitada.** Reverificado no Partner Center em **14/08/2026**:
+autorização `7671858184827848468` (loja Crystal Fancy, `7494291387899806731`) com
+`Authorization period: Unlimited (Extended)` e status *Active*. O histórico mostra
+*"Client extended the authorization — Extended until: unlimited (valid until seller
+deauthorizes)"* em **09/08/2026 21:57**.
+
+📌 **Lição de manutenção, não de API.** Este doc afirmava "válida de 09/08 a
+07/11/2026" e estava **correto quando foi escrito** — a loja estendeu para ilimitado
+poucas horas depois, na noite do mesmo dia. Prazo copiado de tela envelhece sem avisar;
+por isso a data agora vem sempre com **a data em que foi verificada**.
+
+O prazo conta da autorização, não do último refresh: renovar token não estende a data.
+Se a autorização for a de 90 dias e vencer, o vendedor precisa passar pelo link de
+convite de novo.
 
 ## O que falta (backlog, em ordem de valor)
 

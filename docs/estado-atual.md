@@ -42,7 +42,16 @@ isso valida os campos observados, não todos os estados possíveis da API.
 | Escopos | `order.info`, `finance.info`, `product.basic`, `authorization.info` — todos Active |
 | Link de convite | `/api/tiktok/invite` (autenticado) devolve a URL assinada, válida 30 dias |
 
-⚠️ **A autorização vence em 07/11/2026 — são 90 dias, não 365 como a Shopee.**
+✅ **A autorização NÃO vence.** Verificado no Partner Center em 14/08/2026
+(*Authorization details · Active*): `Authorization period: **Unlimited (Extended)**`,
+`2026-08-09 01:12 - Unlimited`. O histórico registra *"Client extended the
+authorization — Extended until: unlimited (valid until seller deauthorizes)"*, feito
+pela própria Crystal Fancy em **09/08/2026 21:57**. Authorization ID
+`7671858184827848468`.
+
+Este doc dizia "vence em 07/11/2026 — são 90 dias". **Era falso** — provavelmente o
+prazo padrão no momento da autorização inicial, antes de a loja estender. Só cai se o
+vendedor desautorizar.
 
 **PRÓXIMO PASSO, exatamente:** executar o procedimento autenticado e sem mutação
 de [`tiktok-qa-evidence.md`](./tiktok-qa-evidence.md), deixar a fila financeira

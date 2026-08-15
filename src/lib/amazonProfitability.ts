@@ -65,6 +65,7 @@ export function getAmazonProfitability(period: Period): Promise<ProfitabilityRes
           buyerShipping,
           sellerShipping: null,
           tax: null,
+          promotions: promotions || null,
           contribution: result.contribution,
           marginPct: result.marginPct,
           complete: result.complete,

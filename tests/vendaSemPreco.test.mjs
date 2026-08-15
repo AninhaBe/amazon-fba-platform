@@ -34,3 +34,20 @@ test("custo conhecido não pode ser reportado como ausente", () => {
   assert.equal(deducoes, null, "sem tarifa não há total de custos");
   assert.notEqual(productCost, null, "mas o custo do produto é conhecido e deve ser exibido");
 });
+
+test("a linha na tela precisa fechar: venda − custos = margem", () => {
+  // Pedido real 702-6105524-7663427: venda 22,11, custo 6,82, cupom 2,21.
+  const linha = { revenue: 22.11, productCost: 6.82, marketplaceFees: 0, sellerShipping: null, tax: null, promotions: 2.21 };
+  const r = calculateContribution({
+    revenue: linha.revenue,
+    productCost: linha.productCost,
+    marketplaceFees: linha.marketplaceFees,
+    promotions: linha.promotions,
+  });
+  // O que a tela soma como "Custos" tem de explicar a margem exibida.
+  const custosNaTela =
+    linha.productCost + linha.marketplaceFees + (linha.sellerShipping ?? 0) + (linha.tax ?? 0) + (linha.promotions ?? 0);
+  assert.equal(+custosNaTela.toFixed(2), 9.03);
+  assert.equal(+(linha.revenue - custosNaTela).toFixed(2), r.contribution);
+  assert.equal(r.contribution, 13.08);
+});

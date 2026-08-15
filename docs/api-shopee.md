@@ -146,6 +146,45 @@ Mesma convenção dos docs da Amazon e do ML: mudanças de comportamento da API 
 na prática entram aqui, com data. Enquanto o canal não for implementado, a lista fica
 vazia — ao implementar, re-validar tudo marcado com ⚠️ e registrar o que divergir.
 
+- **2026-08-14 — cadeia pública revalidada no sandbox; nenhuma loja autorizada.**
+  `scripts/shopee-sandbox-probe.mjs` (novo) devolveu **HTTP 200** em
+  `get_shops_by_partner` e `get_merchants_by_partner` — a **assinatura HMAC continua
+  correta** (sign errado devolveria `error_sign`), confirmando a validação de 05/08.
+  Mas ambos vieram com **lista vazia: zero lojas e zero merchants autorizados**.
+  Consequência: `signPublic` está exercitado, e **`signShop` segue sem prova** — é o
+  mesmo aviso que já está no código. Sem uma loja de teste autorizando o app no
+  sandbox, não há payload real para conferir o `shopeeCanonical.ts`, que continua
+  escrito somente contra a documentação.
+
+- **2026-08-14 — três mudanças anunciadas por e-mail (`info@shopee.sg`), nenhuma nos
+  atinge hoje.** Registradas porque atingem quando o canal escrever ou ler devoluções:
+  - `v2.returns.get_return_list` / `get_return_detail` ganham
+    `is_partial_quantity_return` e `is_refund_amount_adjusted` (vigência **17/08/2026**).
+    Não chamamos APIs de devolução.
+  - **`condition` vira OBRIGATÓRIO no BR** em `v2.product.add_item`,
+    `v2.product.update_item` e `v2.global_product.add_global_item` (vigência
+    **17/08/2026**). Ausente/vazio/null → request **rejeitado**; só aceita `NEW` ou
+    `USED` (case-insensitive). `get_item_base_info` passa a devolver o valor correto.
+    ⚠️ **Só lemos** (`get_item_list`, `get_item_base_info`) e não parseamos `condition`
+    — mas no dia em que o canal criar ou editar anúncio no BR, isto quebra na primeira
+    chamada se o campo não for enviado.
+  - Nova `v2.sbs.get_fulfillment_mapping_inventory_list` (vigência 12/08/2026), aditiva.
+
+- **2026-08-14 — ⚠️ a Partner Key expira em 180 dias e NÃO é renovada sozinha.**
+  Do guia oficial para novos desenvolvedores (e-mail `info@shopee.sg` de 13/08): passada
+  a validade, *"a plataforma não irá gerar uma nova chave automaticamente. A chave será
+  marcada como inválida e as chamadas de API que a utilizarem serão bloqueadas"*. O reset
+  é manual, no Console (App List), e a chave nova vale na hora; dá para manter a antiga
+  por até **72h** de transição. **O reset não invalida a autorização das lojas.**
+  Esse relógio é **independente** do da autorização da loja (7/30/90/180/365 dias, à
+  escolha do vendedor) — ver [`conexoes-que-expiram.md`](./conexoes-que-expiram.md).
+
+- **2026-08-14 — permissão de app é imutável.** As capacidades vêm **exclusivamente da
+  categoria escolhida na criação do App**. A Shopee **não** libera API nem escopo
+  individualmente, e **não dá para adicionar permissão a um app existente** — precisa
+  criar um app novo com outra categoria. Vale lembrar antes de prometer qualquer feature
+  que dependa de endpoint fora da nossa categoria.
+
 - **2026-08-11 — hardening local, sem evidência Live:** transporte HTTP passou a
   falhar fechado; o catálogo percorre todos os status com checkpoint retomável;
   dashboard/settings isolam múltiplas lojas; e a gestão de integrações oferece
