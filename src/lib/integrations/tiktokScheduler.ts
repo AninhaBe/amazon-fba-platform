@@ -29,9 +29,21 @@ export interface ScheduledTiktokResult {
  * Seleciona diretamente as lojas autorizadas. O LEFT JOIN inclui conexões
  * antigas, criadas antes de existir workspace_marketplace_syncs para TikTok.
  */
+/**
+ * `budgetMs` era 180_000 — nove vezes o de todos os outros canais (Shopee e o
+ * próprio `runTiktokSyncBatch` usam 20_000). Com os quatro jobs do cron
+ * disparando em paralelo contra o mesmo container, o TikTok era o único que
+ * ficava minutos segurando memória, e era sempre ele que morria: o Render
+ * devolvia 502 em tempos variados (37s, 75s, 100s — medidos em 15/08/2026), o
+ * processo caía antes de avançar o checkpoint, e a janela financeira de
+ * 12/08→13/08 foi retentada 80 vezes sem sair da página 0.
+ *
+ * Fazer menos por rodada e TERMINAR avança mais que fazer muito e morrer, porque
+ * o trabalho só é registrado no fim. Rodando a cada 5 minutos, o backfill anda.
+ */
 export async function runScheduledTiktokSync(
   connectionLimit = 3,
-  budgetMs = 180_000
+  budgetMs = 60_000
 ): Promise<ScheduledTiktokResult[]> {
   if (!hasDb()) return [];
 

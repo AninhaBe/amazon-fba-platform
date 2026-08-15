@@ -14,6 +14,11 @@ name: Sync agendado (SellerCore)
 # minutos sob carga; para backfill de histórico isso é irrelevante. O mínimo de
 # intervalo do GitHub é 5 minutos.
 
+# Sobre o `--retry`: um deploy no Render reinicia o container, e qualquer cron
+# que dispare nessa janela recebe 502 — falha real para o curl, mas nada quebrado.
+# Repetir resolve o transitorio SEM esconder problema: se persistir depois das
+# tentativas, o job falha e o e-mail chega, que e quando importa.
+
 on:
   schedule:
     - cron: "*/5 * * * *"
@@ -26,7 +31,7 @@ concurrency:
 jobs:
   sync-mercado-livre:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     env:
       APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
       CRON_SECRET: ${{ secrets.CRON_SECRET }}
@@ -40,13 +45,14 @@ jobs:
 
       - name: Sync Mercado Livre
         run: |
-          curl -sS --fail-with-body --max-time 250 \
+          curl -sS --fail-with-body \
+            --retry 2 --retry-delay 15 --retry-all-errors --max-time 120 \
             -H "Authorization: Bearer ${CRON_SECRET}" \
             "${APP_BASE_URL%/}/api/cron/mercado-livre-sync"
 
   sync-amazon:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     env:
       APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
       CRON_SECRET: ${{ secrets.CRON_SECRET }}
@@ -60,13 +66,14 @@ jobs:
 
       - name: Sync Amazon
         run: |
-          curl -sS --fail-with-body --max-time 250 \
+          curl -sS --fail-with-body \
+            --retry 2 --retry-delay 15 --retry-all-errors --max-time 120 \
             -H "Authorization: Bearer ${CRON_SECRET}" \
             "${APP_BASE_URL%/}/api/cron/amazon-sync"
 
   sync-shopee:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     env:
       APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
       CRON_SECRET: ${{ secrets.CRON_SECRET }}
@@ -82,7 +89,8 @@ jobs:
       # endpoint responde de imediato com processed: 0.
       - name: Sync Shopee
         run: |
-          curl -sS --fail-with-body --max-time 250 \
+          curl -sS --fail-with-body \
+            --retry 2 --retry-delay 15 --retry-all-errors --max-time 120 \
             -H "Authorization: Bearer ${CRON_SECRET}" \
             "${APP_BASE_URL%/}/api/cron/shopee-sync"
 
@@ -90,7 +98,7 @@ jobs:
   # pode impedir a ingestão TikTok. Não declarar `needs` é intencional.
   sync-tiktok:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     env:
       APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
       CRON_SECRET: ${{ secrets.CRON_SECRET }}
@@ -105,6 +113,7 @@ jobs:
       # Responde processed: 0 quando não há loja elegível.
       - name: Sync TikTok Shop
         run: |
-          curl -sS --fail-with-body --max-time 250 \
+          curl -sS --fail-with-body \
+            --retry 2 --retry-delay 15 --retry-all-errors --max-time 120 \
             -H "Authorization: Bearer ${CRON_SECRET}" \
             "${APP_BASE_URL%/}/api/cron/tiktok-sync"
