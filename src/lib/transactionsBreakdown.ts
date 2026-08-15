@@ -23,6 +23,8 @@ export interface ParsedTransaction {
   reimbursements: number;
   /** Desconto que saiu do bolso da vendedora (cupom/promoção), já abatido de `revenue`. */
   promotions: number;
+  /** Frete que o comprador REALMENTE pagou (já líquido do rebate que o anula). */
+  buyerShipping: number;
   feeMap: Map<string, number>;
 }
 
@@ -49,7 +51,7 @@ const REBATE = "PromoRebates";
 
 export function parseTransactionFinancials(transaction: { breakdowns?: Breakdown[] }): ParsedTransaction {
   const parsed: ParsedTransaction = {
-    revenue: 0, fees: 0, refunds: 0, reimbursements: 0, promotions: 0, feeMap: new Map(),
+    revenue: 0, fees: 0, refunds: 0, reimbursements: 0, promotions: 0, buyerShipping: 0, feeMap: new Map(),
   };
   let frete = 0;
   let rebate = 0;
@@ -98,6 +100,8 @@ export function parseTransactionFinancials(transaction: { breakdowns?: Breakdown
     parsed.promotions += sobra;
     parsed.revenue -= sobra;
   }
+  // O que o comprador pagou de frete é o que sobrou do frete depois do rebate.
+  parsed.buyerShipping += Math.max(0, frete - rebate);
 
   return parsed;
 }

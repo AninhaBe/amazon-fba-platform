@@ -9,6 +9,7 @@ import { EmptyState } from "../components/EmptyState";
 import { DashboardPeriodFilter, useDashboardPeriod } from "../components/DashboardPeriodFilter";
 import { OperationPending, type OperationPendingItem } from "../components/OperationPending";
 import { Metric as Kpi, getRevenueTrend } from "../components/Metric";
+import { amazonFinancialCards } from "./amazonFinancialCards";
 import { AnimatedNumber } from "../components/AnimatedNumber";
 import { OrderProfitabilityTable } from "../components/OrderProfitabilityTable";
 import { ConnectionBroken, isBrokenConnection } from "../components/ConnectionBroken";
@@ -52,6 +53,8 @@ interface ProfitData {
     orderCount: number; units: number; daily: DailyPoint[];
     /** Cupom bancado pela vendedora, já abatido de `revenue`. */
     promotions?: number;
+    /** Frete que o comprador pagou de fato. */
+    buyerShipping?: number;
     /** Cada tarifa nomeada, para a cascata não esconder o que compõe "Taxas Amazon". */
     feeBreakdown?: { type: string; amount: number }[];
   };
@@ -366,6 +369,31 @@ export default function Dashboard() {
             </div>
           )}
         </aside>
+      </section>
+
+      {/* Doze componentes financeiros, um card cada. Componente sem dado mostra o que
+          falta em vez de zero — mesmo padrão do painel da TikTok Shop. */}
+      <section className="dashboard-sections" aria-labelledby="amazon-financeiro-title">
+        <div className="mb-4">
+          <p className="section-kicker">Financeiro do período</p>
+          <h2 id="amazon-financeiro-title" className="mt-1 text-lg font-semibold text-slate-900">
+            Componentes do resultado
+          </h2>
+          <p className="mt-1 max-w-3xl text-sm leading-relaxed text-slate-500">
+            Cada componente aparece só quando é conhecido. Onde estiver “—”, o dado ainda não
+            chegou — nenhum valor desconhecido foi convertido em zero.
+          </p>
+        </div>
+        <div className="metric-grid grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-4" aria-label="Componentes financeiros da Amazon">
+          {amazonFinancialCards({
+            finance: profit?.finance ?? null,
+            cogs: profit?.cogs ?? 0,
+            estimatedProfit: profit?.estimatedProfit ?? 0,
+            unitsWithoutCost: profit?.unitsWithoutCost ?? 0,
+          }).map((card) => (
+            <Kpi key={card.key} label={card.label} value={loading ? "…" : card.value} sub={card.context} tone={card.tone} />
+          ))}
+        </div>
       </section>
 
       {/* Duas colunas: alertas de estoque + pedidos recentes */}

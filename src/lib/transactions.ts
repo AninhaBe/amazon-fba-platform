@@ -192,6 +192,8 @@ export interface FinanceSummaryFromTransactions {
   refunds: number;      // produto reembolsado ao comprador, positivo
   /** Cupom/promoção bancada pela vendedora, positivo. Já abatido de `revenue`. */
   promotions: number;
+  /** Frete que o comprador pagou de fato, positivo. */
+  buyerShipping: number;
   reimbursements: number; // ressarcimentos de estoque FBA, positivo
   netProceeds: number;  // resultado líquido do período (exclui transferências ao banco)
   orderCount: number;
@@ -249,6 +251,7 @@ function computeFinanceFromTransactions(rawTransactions: ApiTransaction[], perio
   let refunds = 0;
   let reimbursements = 0;
   let promotions = 0;
+  let buyerShipping = 0;
   let netProceeds = 0;
   let units = 0;
   const orders = new Set<string>();
@@ -270,6 +273,7 @@ function computeFinanceFromTransactions(rawTransactions: ApiTransaction[], perio
     refunds += parsed.refunds;
     reimbursements += parsed.reimbursements;
     promotions += parsed.promotions;
+    buyerShipping += parsed.buyerShipping;
     for (const [type, amount] of parsed.feeMap) feeMap.set(type, (feeMap.get(type) ?? 0) + amount);
 
     const day = transaction.postedDate ? brazilDay(transaction.postedDate) : null;
@@ -314,6 +318,7 @@ function computeFinanceFromTransactions(rawTransactions: ApiTransaction[], perio
     fees: round(fees),
     refunds: round(refunds),
     promotions: round(promotions),
+    buyerShipping: round(buyerShipping),
     reimbursements: round(reimbursements),
     netProceeds: round(netProceeds),
     orderCount: orders.size,
