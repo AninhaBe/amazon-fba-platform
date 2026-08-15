@@ -64,3 +64,26 @@ export function cacheSize(): number {
 export function clearCache(): void {
   store.clear();
 }
+
+/**
+ * Remove entradas cuja chave contenha qualquer um dos trechos. Existe para
+ * invalidação **dirigida por evento**: quando a vendedora troca o custo de um
+ * SKU, o resultado que depende dele tem de sair na hora, sem esperar o TTL.
+ *
+ * Casa por trecho, não por chave inteira, porque a chave carrega o namespace
+ * (`workspace|conta|chaveCrua`) e o parâmetro da consulta (período, página) —
+ * o chamador conhece só o prefixo cru.
+ *
+ * Devolve quantas saíram, para o chamador poder registrar/testar.
+ */
+export function invalidateByKeyPart(...parts: string[]): number {
+  if (parts.length === 0) return 0;
+  let removidas = 0;
+  for (const key of [...store.keys()]) {
+    if (parts.some((part) => key.includes(part))) {
+      store.delete(key);
+      removidas += 1;
+    }
+  }
+  return removidas;
+}

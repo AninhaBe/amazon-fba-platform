@@ -9,7 +9,7 @@ import { currentAccountId } from "./accountContext";
 import { optionalWorkspaceId } from "./workspaceScope";
 import { cachedByKey } from "./memoryCache";
 
-export { cacheSize, clearCache, MAX_ENTRIES } from "./memoryCache";
+export { cacheSize, clearCache, invalidateByKeyPart, MAX_ENTRIES } from "./memoryCache";
 
 export function cached<T>(rawKey: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
   const key = `${optionalWorkspaceId() ?? "public"}|${currentAccountId()}|${rawKey}`;

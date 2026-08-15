@@ -74,6 +74,37 @@ conforme for concluindo.
   remoção local). Go Live e payload real seguem **BLOCKED**; ao conectar,
   revisar `shopeeCanonical.ts` contra a resposta Live.
 
+## Paridade financeira entre canais (pedido em 15/08/2026)
+
+A auditoria dos números da Amazon achou sete defeitos. Todos foram corrigidos
+**só na Amazon**; a Ana pediu para adaptar aos demais canais — lembrando que
+adaptar **não é copiar código**: cada API entrega a informação de um jeito.
+
+- [ ] **ML: alíquota `null` ≠ `0`.** `mercadoLivreTaxRate` faz
+  `Number(metadata.taxRate ?? 0)` — quem nunca configurou é tratado como
+  **isento**, e o painel exibe "Imposto R$ 0,00" afirmando um fato falso.
+  Espelhar o desenho da Amazon/Shopee (`null` quando não configurado; `0` só
+  quando declarado). Toca 4 pontos: `mercadoLivre.ts`,
+  `mercadoLivreOverviewCanonical.ts`, `mercadoLivreAbc.ts` e a rota
+  `/api/integrations/mercado-livre/settings` (hoje devolve `0`).
+  A aritmética deve seguir com `?? 0` para **não mudar o lucro já exibido** —
+  o que muda é a tela dizer "sem imposto" em vez de afirmar zero.
+- [ ] **Todos os canais: faturamento = o que o comprador pagou**, nunca preço de
+  tabela. Conferir se ML/Shopee/TikTok usam valor cheio em algum ponto.
+- [ ] **Todos: desconto/cupom não é custo** — se já vier abatido da receita,
+  somá-lo às deduções desconta duas vezes.
+- [ ] **Todos: não misturar bases** (data do pedido × data de repasse) na mesma
+  conta. Ticket médio tem de sair do mesmo par que o faturamento exibido.
+- [ ] **Todos: pendência diz de quem é a espera.** "Aguardando dados" parece
+  falha nossa; separar "o canal ainda não informou" de "falta você cadastrar".
+- [ ] **Todos: ausência em período conciliado = zero explicado**, não "—" eterno.
+- [ ] **Todos: categorizar tarifa por padrão, não por lista de nomes exatos.**
+  Nome fora da lista vira R$ 0,00 numa conta que paga. O total é a autoridade.
+- [ ] **Saldo e retenção nos outros canais.** Na Amazon saiu de
+  `financialEventGroups` + `transactionStatus`/`maturityDate`. Investigar o
+  equivalente em ML (`/users/{id}/mercadopago_account/balance`?), Shopee
+  (escrow) e TikTok, e montar o mesmo bloco "o que tenho hoje".
+
 ## Limpeza (depois que o overview SQL do ML estiver estável no Render)
 
 - [ ] Remover o código dormente de snapshots/materializer do ML
