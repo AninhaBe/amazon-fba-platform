@@ -114,22 +114,34 @@ terceiro), `/highlights/{site}/category/{id}` (top 20 da categoria, com
 
 ## Changelog observado (mais recente primeiro)
 
-- **2026-08-15** — **A API do ML bloqueia a rede de desenvolvimento (403 `PolicyAgent`).**
-  Toda chamada feita da máquina local devolve
-  `{"blocked_by":"PolicyAgent","code":"PA_UNAUTHORIZED_RESULT_FROM_POLICIES"}` —
-  inclusive `GET /sites/MLB`, que é **público e não usa token**. Não é token
-  expirado nem escopo: é bloqueio por origem. Produção (Render) segue chamando
-  normalmente; confirmado por sync bem-sucedido às 19:56 e 19:59 do mesmo dia,
-  nas duas conexões.
-  - Provável resquício do PolicyAgent disparado em 14/08 por navegação
-    automatizada na sessão logada (ver `nunca-fazer-scraping`).
-  - **Consequência prática:** validação contra a API do ML só é possível a partir
-    de produção. Não interpretar 403 local como conexão quebrada — checar
-    `workspace_marketplace_syncs.last_success_at` antes de concluir qualquer
-    coisa sobre a saúde do canal.
-  - Os segredos são `MELI_CLIENT_ID` / `MELI_CLIENT_SECRET` (não `ML_*`).
-  - ⚠️ **Nunca renovar token fora do app:** o ML rotaciona o refresh a cada uso.
-    Renovar por script invalida o que está guardado e derruba a sincronização.
+- **2026-08-15** — **CORREÇÃO da entrada anterior: a API do ML NÃO bloqueia a rede
+  de desenvolvimento.** A conclusão de que havia bloqueio por IP estava errada e
+  ficou registrada aqui por algumas horas — está desmentida por medição:
+  `GET /categories/MLB1051` responde **200** da mesma máquina, e
+  `www.mercadolivre.com.br` também. Só `/sites/*` devolve 403, que é a restrição
+  **por certificação** já conhecida, não bloqueio de origem.
+  - **A causa real dos 403 autenticados:** os tokens são guardados **cifrados**
+    (`enc:v1:`, AES-256-GCM, chave `INTEGRATION_TOKEN_KEY`). Mandar o valor do
+    banco direto como `Bearer` envia o ciphertext, e o ML responde 403
+    `PolicyAgent` — não 401, o que induz ao erro. **Sempre passar por
+    `revealSecret()`** (`src/lib/integrations/secrets.ts`) antes de usar. Vale
+    igual para TikTok, Amazon e Shopee.
+  - Com o token decifrado: `/users/me` → 200 (NEXAHUBBRASIL) e `/orders/search`
+    → 200 com 179 pedidos, direto da máquina local.
+  - Segue valendo: os segredos são `MELI_CLIENT_ID` / `MELI_CLIENT_SECRET`, e
+    **nunca renovar token fora do app** (o ML rotaciona o refresh a cada uso).
+
+- **2026-08-15** — **Data de liberação do dinheiro não vem pela API de pedidos.**
+  Os pagamentos em `GET /orders/{id}` trazem `status`, `date_approved`,
+  `transaction_amount`, `total_paid_amount`, `coupon_amount`, `marketplace_fee`,
+  `taxes_amount`, `shipping_cost`, `deferred_period` — mas **não**
+  `money_release_date`. Saldo e retenção ficam do lado do Mercado Pago e exigem
+  permissão que a aplicação não tem hoje:
+  - `GET /users/{id}/mercadopago_account/balance` → **403 ForbiddenApiError**
+  - `GET /v1/payments/{id}` → **404** (namespace do MP, credencial própria)
+  - Consequência: o bloco "saldo e retenção" do ML depende de autorização
+    adicional no Mercado Pago. O `coupon_amount` do pagamento, porém, está
+    acessível e é o candidato para auditar cupom no ML.
 
 - **2026-08-15** — **Pedido real não guarda `raw`.** `workspace_channel_orders.raw`
   está preenchido só nos 186 pedidos da conexão `demo`; nas duas conexões reais
