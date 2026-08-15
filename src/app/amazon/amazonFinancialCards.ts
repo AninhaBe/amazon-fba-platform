@@ -21,8 +21,10 @@ export interface AmazonCardsInput {
   estimatedProfit: number;
   /** Unidades vendidas sem custo cadastrado — invalida COGS, lucro, margem e ROI. */
   unitsWithoutCost: number;
-  /** Alíquota de imposto configurada para a conta; hoje não existe na Amazon. */
+  /** Alíquota declarada pela vendedora. `null` = não configurada. */
   taxRate?: number | null;
+  /** Imposto do período, já descontado de `estimatedProfit`. `null` sem alíquota. */
+  taxes?: number | null;
 }
 
 export interface AmazonCard {
@@ -125,12 +127,17 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
     { key: "refunds", label: "Estornos", ...num(f?.refunds, semExtrato, undefined, "Nenhum estorno no período") },
     {
       key: "tax", label: "Impostos",
-      value: input.taxRate == null ? "—" : percent(input.taxRate),
       // Diferente dos demais: não é dado que a Amazon manda, é alíquota que a
-      // vendedora define. Enquanto a Amazon não tiver a tela de configuração que
-      // ML, Shopee e TikTok já têm, o card não tem como preencher — e precisa
-      // dizer isso, em vez de parecer que estamos esperando a Amazon.
-      context: input.taxRate == null ? "Depende de configurar a alíquota" : "Alíquota configurada",
+      // vendedora declara — a Amazon não conhece o regime tributário dela.
+      // Configurada, o card mostra o VALOR do período (o que importa no bolso) e
+      // a alíquota como contexto.
+      ...(input.taxRate == null
+        ? { value: "—", context: "Configure a alíquota na calculadora", raw: null }
+        : {
+            value: money(input.taxes ?? 0, currency),
+            context: `${percent(input.taxRate)} sobre o faturamento`,
+            raw: input.taxes ?? 0,
+          }),
     },
     {
       key: "cogs", label: "Custo dos produtos",
@@ -141,7 +148,9 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
     {
       key: "profit", label: "Lucro",
       ...(resultadoValido
-        ? { value: money(input.estimatedProfit, currency), context: "Faturamento − taxas − custo", tone: "positive" as const, raw: input.estimatedProfit }
+        // Sem alíquota o lucro sai SEM imposto — e precisa dizer, senão parece
+        // líquido de tudo e a pessoa decide preço com um número otimista.
+        ? { value: money(input.estimatedProfit, currency), context: input.taxRate == null ? "Faturamento − taxas − custo (sem imposto)" : "Faturamento − taxas − custo − imposto", tone: "positive" as const, raw: input.estimatedProfit }
         : { value: "—", context: custoIncompleto ? faltaCusto : "Aguardando todos os componentes financeiros", raw: null }),
     },
     {

@@ -642,6 +642,16 @@ button[class*="bg-blue-"]:hover, a[class*="bg-blue-"]:hover { background: var(--
 .financial-subline { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 4px 0; color: var(--ink-muted); font-size: 11.5px; }
 .financial-subline strong { color: var(--danger); font-weight: 700; font-variant-numeric: tabular-nums; }
 
+/* Alíquota de imposto: configuração, não entrada de cálculo. */
+.tax-setting { display: grid; gap: 14px; border-radius: var(--radius-md); background: var(--paper); padding: 20px 22px; box-shadow: var(--shadow-surface); }
+.tax-setting-help { margin-block-start: 6px; max-width: 68ch; color: var(--ink-muted); font-size: 12px; line-height: 1.55; }
+.tax-setting-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+.tax-setting-form label { min-width: min(100%, 190px); }
+.tax-setting-save { border: 0; border-radius: var(--radius-sm); background: var(--brand-dark, oklch(0.45 0.14 250)); padding: 9px 20px; color: white; font-size: 13px; font-weight: 650; cursor: pointer; }
+.tax-setting-save:disabled { opacity: 0.55; cursor: default; }
+.tax-setting-erro { color: var(--danger); font-size: 12px; }
+.tax-setting-ok { color: var(--positive); font-size: 12px; }
+
 /* Saldo e liberação: onde o dinheiro está, não quanto foi vendido. */
 .saldo-panel { display: grid; gap: 14px; border-radius: var(--radius-md); background: var(--paper); padding: 20px 22px; box-shadow: var(--shadow-surface); }
 .saldo-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }

@@ -60,6 +60,8 @@ interface ProfitData {
   cogs: number;
   estimatedProfit: number;
   unitsWithoutCost: number;
+  taxRate?: number | null;
+  taxes?: number | null;
 }
 interface SaldoData {
   currency: string;
@@ -296,6 +298,8 @@ export default function Dashboard() {
           cogs: profit?.cogs ?? 0,
           estimatedProfit: profit?.estimatedProfit ?? 0,
           unitsWithoutCost: profit?.unitsWithoutCost ?? 0,
+          taxRate: profit?.taxRate ?? null,
+          taxes: profit?.taxes ?? null,
         });
         const margem = cards.find((c) => c.key === "marginPct");
         return (

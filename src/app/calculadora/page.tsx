@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { PageHeader, pageIcons } from "../components/PageHeader";
 import { readJson } from "../../lib/readJson";
+import { AmazonTaxRateSetting } from "../components/AmazonTaxRateSetting";
 
 interface ModeFees {
   totalFees: number;
@@ -292,6 +293,10 @@ export default function CalculatorPage() {
           {error}
         </div>
       )}
+
+      {/* Configuração persistente, não entrada do cálculo acima: fica salva na
+          conta e alimenta o lucro do dashboard. Mesmo desenho do ML. */}
+      <AmazonTaxRateSetting />
 
       {/* Comparação lado a lado */}
       {result && (

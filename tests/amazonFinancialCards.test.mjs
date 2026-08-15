@@ -21,11 +21,11 @@ test("componente sem dado mostra o que falta, nunca zero", () => {
   for (const c of cards) {
     assert.equal(c.value, "—", `${c.key} deveria estar vazio`);
     // Todo card vazio diz o que falta. "Impostos" é o único cuja pendência não
-    // é da Amazon — é alíquota que a vendedora configura —, então ele não pode
-    // dizer "Aguardando" e fingir que espera o marketplace.
+    // é da Amazon — é alíquota que a vendedora declara —, então ele não pode
+    // dizer "Aguardando" e fingir que espera o marketplace: diz onde resolver.
     assert.match(
       c.context,
-      c.key === "tax" ? /configurar a alíquota/ : /Aguardando/,
+      c.key === "tax" ? /Configure a alíquota na calculadora/ : /Aguardando/,
       `${c.key} precisa dizer o que falta`
     );
   }
@@ -159,4 +159,29 @@ test("o card de impostos retidos foi removido", () => {
   const cards = amazonFinancialCards({ finance: FINANCE, cogs: 13.64, estimatedProfit: 20.04, unitsWithoutCost: 0 });
   assert.equal(cards.length, 12, "a grade continua com doze");
   assert.equal(cards.find((c) => c.key === "taxesWithheld"), undefined);
+});
+
+test("sem aliquota o card de lucro avisa que esta sem imposto", () => {
+  const cards = amazonFinancialCards({ finance: FINANCE, cogs: 13.64, estimatedProfit: 20.04, unitsWithoutCost: 0 });
+  assert.match(carta(cards, "profit").context, /sem imposto/, "R$ 20,04 nao e o que sobra no bolso");
+  assert.equal(carta(cards, "tax").value, "—");
+  assert.match(carta(cards, "tax").context, /Configure a alíquota/);
+});
+
+test("com aliquota o card mostra o valor do imposto e o lucro deixa de avisar", () => {
+  const cards = amazonFinancialCards({
+    finance: FINANCE, cogs: 13.64, estimatedProfit: 17.65, unitsWithoutCost: 0, taxRate: 6, taxes: 2.39,
+  });
+  assert.equal(carta(cards, "tax").value, brl(2.39), "o card mostra o VALOR, nao so o percentual");
+  assert.match(carta(cards, "tax").context, /6,0% sobre o faturamento/);
+  assert.doesNotMatch(carta(cards, "profit").context, /sem imposto/);
+  assert.equal(carta(cards, "profit").value, brl(17.65));
+});
+
+test("isencao declarada e zero exibido, nao vazio", () => {
+  const cards = amazonFinancialCards({
+    finance: FINANCE, cogs: 13.64, estimatedProfit: 20.04, unitsWithoutCost: 0, taxRate: 0, taxes: 0,
+  });
+  assert.equal(carta(cards, "tax").value, brl(0), "0% configurado e um fato, nao uma ausencia");
+  assert.notEqual(carta(cards, "tax").value, "—");
 });
