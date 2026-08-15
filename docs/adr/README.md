@@ -40,6 +40,7 @@ O que ganhamos, o que abrimos mão, o que passa a ser obrigatório respeitar.
 | [ADR-003](./ADR-003-cron-github-actions.md) | Cron via GitHub Actions (Render ignora `vercel.json`) | Aceito |
 | [ADR-004](./ADR-004-custo-por-vigencia.md) | Custo do produto resolvido na consulta, por vigência | Aceito |
 | [ADR-013](./ADR-013-worker-de-sync-separado-do-web.md) | Worker de sync separado do web + agendador que honra o horário | Proposto |
+| [ADR-014](./ADR-014-cache-fora-do-processo-e-ingestao-em-fluxo.md) | Cache fora do processo e ingestão em fluxo (escala além de ~50 contas) | Proposto |
 
 ⚠️ Este índice está incompleto: os ADRs **005 a 012** existem no diretório e não estão
 listados aqui.
