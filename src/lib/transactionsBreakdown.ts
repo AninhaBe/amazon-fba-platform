@@ -21,6 +21,8 @@ export interface ParsedTransaction {
   fees: number;
   refunds: number;
   reimbursements: number;
+  /** Desconto que saiu do bolso da vendedora (cupom/promoção), já abatido de `revenue`. */
+  promotions: number;
   feeMap: Map<string, number>;
 }
 
@@ -28,25 +30,30 @@ function amountOf(node: Breakdown): number {
   return node.breakdownAmount?.currencyAmount ?? 0;
 }
 
-// Frete grátis vira DOIS lançamentos que se anulam: `Sales → Shipping` (+8,90) e
-// `Expenses → PromoRebates` (−8,90). O `totalAmount` do pedido já vem líquido, e
-// `parsed.revenue` conta só `ProductCharges` — de propósito, porque é o que a
-// compradora efetivamente pagou. Contar o rebate como despesa sem contar o frete
-// como receita descontaria o valor duas vezes.
+// `PromoRebates` faz DOIS papéis diferentes, e tratá-los igual quebra a conta:
 //
-// Observado em 14/08/2026 no pedido 702-2192919-5915420: ShippingPrice 8,90 e
-// ShippingDiscount 8,90, com OrderTotal de 19,90.
-const CONTRAPARTIDAS_DE_RECEITA_IGNORADA = new Set(["PromoRebates"]);
+//   Frete grátis   Sales: ProductCharges 19,90 + Shipping 8,90 | Expenses: PromoRebates −8,90
+//                  → o rebate ANULA o frete. Faturamento = 19,90.
+//
+//   Cupom          Sales: ProductCharges 22,11                 | Expenses: PromoRebates −2,21
+//                  → o rebate é DESCONTO REAL. Faturamento = 19,90.
+//
+// Nos dois o `totalAmount` do pedido é 19,90. A regra que resolve os dois: o rebate
+// primeiro cancela o `Shipping` (que de propósito não entra em `revenue`, porque a
+// compradora não pagou frete), e **o que sobra é desconto sobre o produto**.
+//
+// Antes, `PromoRebates` era ignorado por completo: o cupom de R$ 2,21 sumia e a tela
+// mostrava R$ 42,01 de receita onde o recebido foi R$ 39,80 (observado em 15/08/2026,
+// pedido 702-6105524-7663427).
+const REBATE = "PromoRebates";
 
-function ehContrapartidaDeReceitaIgnorada(tipo?: string): boolean {
-  return !!tipo && CONTRAPARTIDAS_DE_RECEITA_IGNORADA.has(tipo);
-}
-
-// Extrai receita/taxas/reembolsos de UMA transação a partir da árvore de
-// breakdowns (Sales/Expenses → ProductCharges/AmazonFees). Compartilhado pelo
-// resumo do período e pela conciliação por pedido.
 export function parseTransactionFinancials(transaction: { breakdowns?: Breakdown[] }): ParsedTransaction {
-  const parsed: ParsedTransaction = { revenue: 0, fees: 0, refunds: 0, reimbursements: 0, feeMap: new Map() };
+  const parsed: ParsedTransaction = {
+    revenue: 0, fees: 0, refunds: 0, reimbursements: 0, promotions: 0, feeMap: new Map(),
+  };
+  let frete = 0;
+  let rebate = 0;
+
   for (const top of transaction.breakdowns ?? []) {
     const kind = top.breakdownType;
     if (kind === "Sales" || kind === "Refunded Sales") {
@@ -55,6 +62,9 @@ export function parseTransactionFinancials(transaction: { breakdowns?: Breakdown
         if (child.breakdownType === "ProductCharges") {
           if (value >= 0) parsed.revenue += value;
           else parsed.refunds += -value; // "Refunded Sales" traz ProductCharges negativo
+        } else if (child.breakdownType === "Shipping") {
+          // Não entra em `revenue`: quando existe, veio acompanhado do rebate que o anula.
+          frete += value;
         } else if (child.breakdownType?.includes("Reimbursement")) {
           parsed.reimbursements += value;
         }
@@ -70,13 +80,24 @@ export function parseTransactionFinancials(transaction: { breakdowns?: Breakdown
       for (const feesNode of top.breakdowns ?? []) {
         const filhos = feesNode.breakdowns ?? [];
         for (const fee of filhos.length > 0 ? filhos : [feesNode]) {
-          if (ehContrapartidaDeReceitaIgnorada(fee.breakdownType)) continue;
           const magnitude = -amountOf(fee); // tarifas vêm negativas → positivo
+          if (fee.breakdownType === REBATE) {
+            rebate += magnitude;
+            continue; // resolvido abaixo, contra o frete
+          }
           parsed.fees += magnitude;
           parsed.feeMap.set(fee.breakdownType ?? "Outra", (parsed.feeMap.get(fee.breakdownType ?? "Outra") ?? 0) + magnitude);
         }
       }
     }
   }
+
+  // O rebate cancela o frete primeiro; o excedente é desconto sobre o produto.
+  const sobra = Math.max(0, rebate - frete);
+  if (sobra > 0) {
+    parsed.promotions += sobra;
+    parsed.revenue -= sobra;
+  }
+
   return parsed;
 }

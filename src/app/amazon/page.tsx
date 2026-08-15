@@ -50,6 +50,10 @@ interface ProfitData {
   finance: {
     revenue: number; fees: number; refunds: number; netProceeds: number; currency: string;
     orderCount: number; units: number; daily: DailyPoint[];
+    /** Cupom bancado pela vendedora, já abatido de `revenue`. */
+    promotions?: number;
+    /** Cada tarifa nomeada, para a cascata não esconder o que compõe "Taxas Amazon". */
+    feeBreakdown?: { type: string; amount: number }[];
   };
   cogs: number;
   estimatedProfit: number;
@@ -340,10 +344,25 @@ export default function Dashboard() {
             </p>
           ) : (
             <div className="financial-lines">
-              <Flow label="Receita conciliada" value={loading ? "…" : money(profit?.finance.revenue ?? 0, currency)} />
+              <Flow label="Faturamento" value={loading ? "…" : money(profit?.finance.revenue ?? 0, currency)} />
+              {!loading && (profit?.finance.promotions ?? 0) > 0 && (
+                // Cupom resgatado pelo comprador. Sem esta linha a cascata não fechava:
+                // o desconto era abatido do faturamento sem aparecer em lugar nenhum.
+                <Flow label="Cupons e promoções" value={`já descontado · ${money(profit?.finance.promotions ?? 0, currency)}`} detail />
+              )}
               <Flow label="Taxas Amazon" value={loading ? "…" : money(profit?.finance.fees ?? 0, currency)} muted sign="−" />
+              {!loading && (profit?.finance.feeBreakdown ?? []).map((t) => (
+                <Flow key={t.type} label={nomeDaTarifa(t.type)} value={money(t.amount, currency)} detail muted />
+              ))}
               <Flow label="Custo dos produtos" value={loading ? "…" : money(profit?.cogs ?? 0, currency)} muted sign="−" />
               <Flow label={costsIncomplete ? "Repasse líquido" : "Lucro estimado"} value={loading ? "…" : money(profit?.estimatedProfit ?? 0, currency)} accent sign="=" />
+              {!loading && (profit?.finance.revenue ?? 0) > 0 && (
+                <Flow
+                  label="Margem"
+                  value={`${(((profit?.estimatedProfit ?? 0) / (profit?.finance.revenue || 1)) * 100).toFixed(1).replace(".", ",")}%`}
+                  accent
+                />
+              )}
             </div>
           )}
         </aside>
@@ -489,13 +508,37 @@ function CompactMetric({ label, value, loading }: { label: string; value: string
   );
 }
 
+// A Transactions API nomeia cada tarifa em inglês. "Taxas Amazon" somava tudo num
+// número só e a pergunta "qual taxa é essa?" não tinha resposta na tela.
+// Tipo desconhecido aparece com o nome original — nunca some nem vira "Outras".
+const NOME_DA_TARIFA: Record<string, string> = {
+  Commission: "Comissão",
+  AdvertisingFee: "Anúncios",
+  FBAPerUnitFulfillmentFee: "Logística FBA",
+  FBAStorageFee: "Armazenagem FBA",
+  FBAInventoryFee: "Estoque FBA",
+  StorageFee: "Armazenagem",
+  SubscriptionFee: "Assinatura",
+  RefundCommission: "Comissão de reembolso",
+  ShippingChargeback: "Estorno de frete",
+  DigitalServicesFee: "Taxa de serviços digitais",
+  VariableClosingFee: "Taxa de fechamento",
+  PerItemFee: "Taxa por item",
+};
+
+function nomeDaTarifa(tipo: string): string {
+  return NOME_DA_TARIFA[tipo] ?? tipo;
+}
+
 function Flow({
   label,
   value,
   muted,
   accent,
   sign,
+  detail,
 }: {
+  detail?: boolean;
   label: string;
   value: string;
   muted?: boolean;
@@ -505,10 +548,10 @@ function Flow({
   return (
     <div className={`financial-line ${accent ? "is-result" : ""}`}>
       <span className="financial-sign" aria-hidden="true">{sign}</span>
-      <p className="text-xs font-medium text-slate-500">{label}</p>
+      <p className={detail ? "pl-3 text-xs text-slate-400" : "text-xs font-medium text-slate-500"}>{label}</p>
       <p
-        className={`text-sm font-bold tabular-nums ${
-          accent ? "text-emerald-700" : muted ? "text-red-600" : "text-slate-900"
+        className={`tabular-nums ${detail ? "text-xs text-slate-500" : "text-sm font-bold"} ${
+          accent ? "text-emerald-700" : muted && !detail ? "text-red-600" : detail ? "" : "text-slate-900"
         }`}
       >
         {value}
