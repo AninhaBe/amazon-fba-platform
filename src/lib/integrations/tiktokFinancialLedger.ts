@@ -52,8 +52,16 @@ export class TiktokFinancialAdapters {
   async statements(input: { from: number; to: number; pageToken?: string }): Promise<FinancialPage<StatementRecord>> {
     // OAS 202309: a janela e statement_time_ge/lt (nao start_time/end_time) e sort_field
     // e obrigatorio, aceitando so `statement_time`. Enviar os nomes errados devolve 36009004.
+    //
+    // O status vem em `payment_status`, NAO em `status` (medido em 15/08/2026:
+    // {"id":"7672560861864609554","payment_status":"PAID","settlement_amount":"271.49",
+    //  "statement_time":1786492800}). Ler so `raw.status` deixava o status vazio,
+    // `isFinalStatement` recusava, `unknown` virava 1 e `processStatementsPage`
+    // lancava FINANCIAL_STATEMENT_STATUS_NOT_FINAL_RETRYABLE. O checkpoint ficou
+    // 85 rodadas na pagina 0 da janela 12/08 sem gravar nada — e sem registrar
+    // erro, porque a excecao subia antes de qualquer contador.
     const data = object(await this.call<unknown>("/finance/202309/statements", { query: { statement_time_ge: input.from, statement_time_lt: input.to, sort_field: "statement_time", page_size: 50, page_token: input.pageToken } }));
-    const result=page(data,items(data,["statements"]),raw=>({id:requiredId(raw.id??raw.statement_id,"statement"),status:text(raw.status).toUpperCase(),currency:requiredCurrency(raw.currency,"statement"),startTime:epoch(raw.start_time)||undefined,endTime:epoch(raw.end_time)||undefined,raw}));
+    const result=page(data,items(data,["statements"]),raw=>({id:requiredId(raw.id??raw.statement_id,"statement"),status:text(raw.status??raw.payment_status).toUpperCase(),currency:requiredCurrency(raw.currency,"statement"),startTime:epoch(raw.start_time??raw.statement_time)||undefined,endTime:epoch(raw.end_time)||undefined,raw}));
     const nonFinal=result.items.filter(statement=>!isFinalStatement(statement));
     result.unknown=nonFinal.filter(statement=>statement.status!=="PENDING").length;
     result.diagnostics=nonFinal.map(statement=>`statement:${statement.id}:status:${statement.status||"UNKNOWN"}`);
