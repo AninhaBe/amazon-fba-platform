@@ -112,10 +112,19 @@ adaptar **não é copiar código**: cada API entrega a informação de um jeito.
 - [ ] **Todos: ausência em período conciliado = zero explicado**, não "—" eterno.
 - [ ] **Todos: categorizar tarifa por padrão, não por lista de nomes exatos.**
   Nome fora da lista vira R$ 0,00 numa conta que paga. O total é a autoridade.
-- [ ] **Saldo e retenção nos outros canais.** Na Amazon saiu de
-  `financialEventGroups` + `transactionStatus`/`maturityDate`. Investigar o
-  equivalente em ML (`/users/{id}/mercadopago_account/balance`?), Shopee
-  (escrow) e TikTok, e montar o mesmo bloco "o que tenho hoje".
+- [x] **Saldo e retenção — Mercado Livre.** Feito em 15/08/2026 via API do
+  Mercado Pago (`/v1/payments/search` com `range=money_release_date`), que abre
+  com o MESMO token do ML. Usa o líquido real (`net_received_amount`), não o
+  bruto. Leitura limitada a 6 páginas e declarada parcial quando trunca.
+- [ ] **Saldo e retenção — TikTok.** `/finance/202507/orders/unsettled` devolve
+  `sum_est_settlement_amount` e `estimated_settlement` ("Delivered + 3 days").
+  Depende de o ledger financeiro encher — destravado hoje pela correção do
+  `payment_status`, falta confirmar que os dados chegaram.
+- [ ] **Saldo e retenção — Shopee.** Bloqueado: sem Go Live não há loja real.
+- [ ] **ML: usar `net_received_amount` e `charges_details` no lucro.** O MP
+  informa o líquido e a tarifa DISCRIMINADA (`ml_sale_fee`, `mp_processing_fee`,
+  `shp_fulfillment`); hoje estimamos a partir de `sale_fee` e exibimos "Tarifa de
+  venda" como bloco único.
 
 ## Limpeza (depois que o overview SQL do ML estiver estável no Render)
 

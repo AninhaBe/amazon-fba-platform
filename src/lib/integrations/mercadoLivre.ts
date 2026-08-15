@@ -5,6 +5,7 @@ import { costAt, getCosts } from "../costStore";
 import { allocateByWeight, calculateContribution, type ProfitabilityLine } from "../profitability";
 import { collectMercadoLivreOrders } from "./mercadoLivreOrders";
 import { ChannelAuthExpiredError } from "./authErrors";
+import { calcularSaldoML, type PagamentoMP, type SaldoMercadoLivre } from "./mercadoPagoBalance";
 
 const API_BASE = "https://api.mercadolibre.com";
 const AUTH_BASE = "https://auth.mercadolivre.com.br/authorization";
@@ -1050,4 +1051,66 @@ export async function getMercadoLivreOverview(
       items: order.order_items.reduce((total, item) => total + item.quantity, 0),
     })),
   };
+}
+
+// ---------- Mercado Pago: saldo e liberação ----------
+// A API do MP abre com o MESMO token do ML (medido em 15/08/2026); muda só o
+// host. É a única fonte de `money_release_date` e do líquido real — a API de
+// pedidos do ML não expõe nenhum dos dois.
+
+const MP_API_BASE = "https://api.mercadopago.com";
+
+/** Teto de páginas por leitura. A conta 1191100170 tem 3.233 pagamentos com
+ * liberação futura; ler tudo levaria ~40s e é o tipo de trabalho que já derrubou
+ * o container. Lemos as liberações MAIS PRÓXIMAS (a busca vem ordenada por data
+ * de liberação) e a tela declara que o total é parcial. */
+const MP_PAGINAS = 6;
+const MP_POR_PAGINA = 100;
+
+interface MercadoPagoBusca {
+  paging?: { total?: number };
+  results?: PagamentoMP[];
+}
+
+async function mercadoPagoFetch<T>(connection: IntegrationConnection, resource: string): Promise<T> {
+  const current = await validConnection(connection);
+  const response = await fetch(`${MP_API_BASE}${resource}`, {
+    headers: { Authorization: `Bearer ${current.accessToken}`, Accept: "application/json" },
+    cache: "no-store",
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!response.ok) {
+    throw new Error(`Mercado Pago respondeu ${response.status} em ${resource.split("?")[0]}.`);
+  }
+  return await response.json() as T;
+}
+
+/**
+ * Saldo e cronograma de liberação. Busca só o que ainda vai liberar
+ * (`range=money_release_date` a partir de agora), o que reduziu 15.828 → 3.233
+ * pagamentos na conta com mais volume.
+ */
+export async function getMercadoLivreBalance(
+  connection: IntegrationConnection,
+  now = new Date()
+): Promise<SaldoMercadoLivre> {
+  const de = new Date(now.getTime() - 24 * 3_600_000); // margem: liberações de hoje
+  const ate = new Date(now.getTime() + 180 * 86_400_000);
+  const pagamentos: PagamentoMP[] = [];
+  let total = 0;
+
+  for (let pagina = 0; pagina < MP_PAGINAS; pagina++) {
+    const busca = await mercadoPagoFetch<MercadoPagoBusca>(
+      connection,
+      `/v1/payments/search?sort=money_release_date&criteria=asc&range=money_release_date`
+      + `&begin_date=${encodeURIComponent(de.toISOString())}&end_date=${encodeURIComponent(ate.toISOString())}`
+      + `&status=approved&limit=${MP_POR_PAGINA}&offset=${pagina * MP_POR_PAGINA}`
+    );
+    const itens = busca.results ?? [];
+    total = busca.paging?.total ?? total;
+    pagamentos.push(...itens);
+    if (itens.length < MP_POR_PAGINA) break;
+  }
+
+  return calcularSaldoML(pagamentos, { agora: now, totalDaBusca: total });
 }

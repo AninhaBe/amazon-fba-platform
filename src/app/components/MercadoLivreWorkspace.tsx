@@ -16,6 +16,7 @@ import { Flow, FlowExpandable, Metric, getRevenueTrend } from "./Metric";
 import { brDate, brTime } from "@/lib/datetime";
 import { Boxes, PackageOpen, Percent } from "lucide-react";
 import type { ProfitabilityLine } from "@/lib/profitability";
+import { MercadoLivreSaldo } from "./MercadoLivreSaldo";
 
 interface Overview {
   account: { id: string; nickname: string; siteId: string; };
@@ -355,6 +356,10 @@ function Inventory({ overview }: { overview: Overview }) {
           : (urgencyRank[a.status] - urgencyRank[b.status]) || ((a.daysRemaining ?? Number.POSITIVE_INFINITY) - (b.daysRemaining ?? Number.POSITIVE_INFINITY))
     );
   return <div className="dashboard-sections space-y-8">
+    {/* Mesma posição do bloco da Amazon: logo depois da conversa sobre dinheiro,
+        respondendo o que o lucro sozinho deixa no ar — "então cadê?". */}
+    <MercadoLivreSaldo />
+
     <section className="metric-grid grid grid-cols-1 gap-0 sm:grid-cols-3" aria-label="Resumo de estoque Mercado Livre">
       <Metric label="Produtos ativos" value={overview.stockRadar.length.toLocaleString("pt-BR")} sub="monitorados no radar" icon={dashboardKpiIcons.box} />
       <Metric label="Estoque crítico" value={critical.toLocaleString("pt-BR")} sub={critical ? "repor com urgência" : "tudo sob controle"} tone={critical ? "danger" : "ok"} icon={dashboardKpiIcons.stock} />
