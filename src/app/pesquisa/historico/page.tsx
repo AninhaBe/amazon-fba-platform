@@ -467,7 +467,11 @@ export default function HistoricoPage() {
       )}
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200/70 bg-white shadow-sm ring-1 ring-slate-900/[0.02]">
-        <table className="w-full min-w-[880px] text-sm">
+        {/* `table-fixed`: com layout automático, todo conteúdo novo empurra a tabela
+              e força rolagem lateral. Foi o que aconteceu quando entraram a coluna de
+              seleção e os ícones de ajuda. Com largura fixa por coluna, o que sobra vai
+              para Produto e nada mais estoura. */}
+          <table className="w-full min-w-[880px] table-fixed text-sm">
           <caption className="sr-only">Anúncios acompanhados e a variação da posição de vendas</caption>
           <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
@@ -481,31 +485,31 @@ export default function HistoricoPage() {
                 />
               </th>
               <th scope="col" className="px-3 py-3">Produto</th>
-              <th scope="col" className="whitespace-nowrap px-3 py-3 text-center">
+              <th scope="col" className="w-28 whitespace-nowrap px-2 py-3 text-center">
                 Posição
                 <Ajuda texto="Posição de vendas (BSR) na categoria. Quanto MENOR o número, melhor: #1 é o mais vendido. Atenção: é uma foto tirada UMA VEZ POR DIA. A Amazon recalcula o BSR de hora em hora, então este valor pode diferir do que aparece agora na página do produto — os dois estão certos, cada um para o seu momento. Passe o mouse na posição para ver a data da foto." />
               </th>
-              <th scope="col" className="whitespace-nowrap px-3 py-3 text-center">
+              <th scope="col" className="w-28 whitespace-nowrap px-2 py-3 text-center">
                 Variação
                 <Ajuda texto="Quanto o número da posição mudou entre as duas últimas fotos. A seta acompanha o número: seta para cima = o número aumentou, e como número maior é pior, ela é vermelha. Seta para baixo = o número caiu, o anúncio melhorou, e ela é verde. Passe o mouse no valor para ver as datas e as posições exatas." />
               </th>
-              <th scope="col" className="whitespace-nowrap px-3 py-3 text-center">
+              <th scope="col" className="w-24 whitespace-nowrap px-2 py-3 text-center">
                 7 dias
                 <Ajuda texto="Mesma leitura da Variação, mas comparando com a foto de 7 dias atrás. Fica vazio enquanto não existir foto daquela data — preferimos não mostrar nada a chamar de '7 dias' um intervalo diferente." />
               </th>
-              <th scope="col" className="whitespace-nowrap px-3 py-3 text-center">
+              <th scope="col" className="w-24 whitespace-nowrap px-2 py-3 text-center">
                 30 dias
                 <Ajuda texto="Mesma leitura, comparando com a foto de 30 dias atrás." />
               </th>
-              <th scope="col" className="whitespace-nowrap px-3 py-3 text-center">
+              <th scope="col" className="w-28 whitespace-nowrap px-2 py-3 text-center">
                 Curva
                 <Ajuda texto="Posição ao longo dos últimos 30 dias. A linha sobe quando o anúncio melhora de posição. Verde = terminou melhor que começou; vermelho = pior; âmbar = igual." />
               </th>
-              <th scope="col" className="whitespace-nowrap px-3 py-3 text-center">
+              <th scope="col" className="w-24 whitespace-nowrap px-2 py-3 text-center">
                 Desde
                 <Ajuda texto="Quando este anúncio entrou na lista — normalmente a primeira vez que apareceu numa pesquisa sua." />
               </th>
-              <th scope="col" className="px-3 py-3 text-right">Ações</th>
+              <th scope="col" className="w-20 px-2 py-3 text-right">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -571,7 +575,7 @@ export default function HistoricoPage() {
                         <span className="h-10 w-10 shrink-0 rounded bg-slate-100" aria-hidden />
                       )}
                       <div className="min-w-0">
-                        <p className="flex max-w-[46ch] items-center gap-1.5 truncate font-medium">
+                        <p className="flex items-center gap-1.5 truncate font-medium">
                           {p.pinned && <Pin className="h-3.5 w-3.5 shrink-0 text-blue-600" strokeWidth={2} aria-label="Fixado" />}
                           {p.title || p.asin}
                         </p>
@@ -583,9 +587,9 @@ export default function HistoricoPage() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-3 py-2.5 text-center tabular-nums">
+                  <td className="overflow-hidden px-2 py-2.5 text-center tabular-nums">
                     {p.currentRank ? (
-                      <div className="flex flex-col items-center gap-0.5">
+                      <div className="flex min-w-0 flex-col items-center gap-0.5">
                         {/* A data da foto no tooltip é o que explica uma divergência com o
                             valor ao vivo da Amazon sem precisar poluir a célula. */}
                         <strong
@@ -595,7 +599,7 @@ export default function HistoricoPage() {
                           #{p.currentRank.toLocaleString("pt-BR")}
                         </strong>
                         {p.category && (
-                          <span className="max-w-[22ch] truncate text-[11px] text-slate-400" title={p.category}>
+                          <span className="max-w-full truncate text-[11px] text-slate-400" title={p.category}>
                             em {p.category}
                           </span>
                         )}
@@ -615,11 +619,11 @@ export default function HistoricoPage() {
                   </td>
                   <td className="px-3 py-2.5 text-center"><Delta value={p.delta7} dias={7} /></td>
                   <td className="px-3 py-2.5 text-center"><Delta value={p.delta30} dias={30} /></td>
-                  <td className="px-3 py-2.5 text-center"><Sparkline points={p.series} /></td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-center text-xs text-slate-500">
+                  <td className="overflow-hidden px-2 py-2.5 text-center"><Sparkline points={p.series} /></td>
+                  <td className="whitespace-nowrap px-2 py-2.5 text-center text-xs text-slate-500">
                     {brDate(p.firstSeenAt)}
                   </td>
-                  <td className="px-3 py-2.5 text-right">
+                  <td className="px-2 py-2.5 text-right">
                     <div className="flex items-center justify-end gap-1">
                       <button
                         type="button"
