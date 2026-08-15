@@ -485,11 +485,11 @@ export default function HistoricoPage() {
                 />
               </th>
               <th scope="col" className="px-3 py-3">Produto</th>
-              <th scope="col" className="w-28 whitespace-nowrap px-2 py-3 text-center">
+              <th scope="col" className="w-24 whitespace-nowrap px-2 py-3 text-center">
                 Posição
                 <Ajuda texto="Posição de vendas (BSR) na categoria. Quanto MENOR o número, melhor: #1 é o mais vendido. Atenção: é uma foto tirada UMA VEZ POR DIA. A Amazon recalcula o BSR de hora em hora, então este valor pode diferir do que aparece agora na página do produto — os dois estão certos, cada um para o seu momento. Passe o mouse na posição para ver a data da foto." />
               </th>
-              <th scope="col" className="w-28 whitespace-nowrap px-2 py-3 text-center">
+              <th scope="col" className="w-24 whitespace-nowrap px-2 py-3 text-center">
                 Variação
                 <Ajuda texto="Quanto o número da posição mudou entre as duas últimas fotos. A seta acompanha o número: seta para cima = o número aumentou, e como número maior é pior, ela é vermelha. Seta para baixo = o número caiu, o anúncio melhorou, e ela é verde. Passe o mouse no valor para ver as datas e as posições exatas." />
               </th>
@@ -509,7 +509,7 @@ export default function HistoricoPage() {
                 Desde
                 <Ajuda texto="Quando este anúncio entrou na lista — normalmente a primeira vez que apareceu numa pesquisa sua." />
               </th>
-              <th scope="col" className="w-20 px-2 py-3 text-right">Ações</th>
+              <th scope="col" className="w-36 px-2 py-3 text-right">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -623,8 +623,8 @@ export default function HistoricoPage() {
                   <td className="whitespace-nowrap px-2 py-2.5 text-center text-xs text-slate-500">
                     {brDate(p.firstSeenAt)}
                   </td>
-                  <td className="px-2 py-2.5 text-right">
-                    <div className="flex items-center justify-end gap-1">
+                  <td className="overflow-hidden px-2 py-2.5 text-right">
+                    <div className="flex flex-nowrap items-center justify-end gap-1">
                       <button
                         type="button"
                         onClick={() => void act(p.asin, p.pinned ? "desafixar" : "fixar")}
