@@ -31,7 +31,6 @@ function scopeSentence(scope?: ProfitabilityScope): string | undefined {
 }
 import type { ProfitabilityLine } from "@/lib/profitability";
 import { brDate, brTime } from "@/lib/datetime";
-import { Boxes, ChartSpline, PackageOpen, Percent, ShoppingCart, Tag } from "lucide-react";
 import { readJson } from "../../lib/readJson";
 
 function money(v: number, currency = "BRL") {
@@ -240,7 +239,6 @@ export default function Dashboard() {
       profit.finance.netProceeds !== 0 ||
       profit.finance.fees !== 0 ||
       profit.finance.refunds !== 0);
-  const marginPct = revenue > 0 ? (estProfit / revenue) * 100 : 0;
   const ticketMedio = salesCount > 0 ? revenue / salesCount : 0;
   const roiPct = cogs > 0 ? (estProfit / cogs) * 100 : 0;
   const revenueTrend = getRevenueTrend(sales?.points ?? []);
@@ -264,37 +262,56 @@ export default function Dashboard() {
       <AmazonPending products={products.length} productsLoading={productsLoading} missingCosts={noCost} />
 
       <div className="dashboard-sections space-y-8">
-      {/* KPIs principais */}
-      <div className="metric-grid grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi label="Faturamento" value={<AnimatedNumber id="amz-revenue" value={revenue} format={(amount) => money(amount, currency)} />} sub={`${salesCount} vendas no período`} loading={loading} trend={revenueTrend} />
-        <div className="metric-cell metric-primary relative overflow-hidden p-5">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">{costsIncomplete ? "Repasse líquido" : "Lucro conciliado"}</p>
-          <p className="mt-2 text-[27px] font-bold leading-none tabular-nums text-emerald-800">
-            {loading ? "···" : hasFinance ? <AnimatedNumber id="amz-profit" value={estProfit} format={(amount) => money(amount, currency)} /> : "—"}
-          </p>
-          {!hasFinance
-            ? <p className="mt-1.5 text-xs font-medium text-slate-500">{loading ? "" : "sem repasse da Amazon no período — o lucro aparece quando a venda é postada"}</p>
-            : costsIncomplete
-            ? <p className="mt-1.5 text-xs font-medium text-amber-700">antes do custo dos produtos — cadastre custos para o lucro real</p>
-            : <p className="mt-2 flex items-baseline gap-1.5"><span className="text-[17px] font-extrabold tabular-nums text-emerald-600">{marginPct.toFixed(1)}%</span><span className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700/70">margem sobre vendas</span></p>}
-        </div>
-        <Kpi
-          label="Estoque crítico"
-          value={loading ? "…" : String(critical.length)}
-          sub={critical.length > 0 ? "repor com urgência" : "tudo sob controle"}
-          tone={critical.length > 0 ? "danger" : "ok"}
-          loading={loading}
-          icon={kpiIcons.stock}
-        />
-        <Kpi
-          label="Produtos sem custo"
-          value={productsLoading ? "…" : String(noCost)}
-          sub={noCost > 0 ? "cadastre para ver o lucro" : "todos cadastrados"}
-          tone={noCost > 0 ? "warn" : "ok"}
-          loading={productsLoading}
-          icon={kpiIcons.box}
-        />
-      </div>
+      {/* Os doze componentes do resultado, um card cada — mesmo padrão do painel da
+          TikTok Shop. Componente sem dado diz o que falta em vez de mostrar zero.
+          O Lucro mantém o tratamento verde de destaque que já tinha. */}
+      {(() => {
+        const cards = amazonFinancialCards({
+          finance: profit?.finance ?? null,
+          cogs: profit?.cogs ?? 0,
+          estimatedProfit: profit?.estimatedProfit ?? 0,
+          unitsWithoutCost: profit?.unitsWithoutCost ?? 0,
+        });
+        const margem = cards.find((c) => c.key === "marginPct");
+        return (
+          <div className="metric-grid grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-4" aria-label="Componentes financeiros da Amazon">
+            {cards.map((card) =>
+              card.key === "profit" ? (
+                <div key={card.key} className="metric-cell metric-primary relative overflow-hidden p-5">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">
+                    {costsIncomplete ? "Repasse líquido" : "Lucro"}
+                  </p>
+                  <p className="mt-2 text-[27px] font-bold leading-none tabular-nums text-emerald-800">
+                    {loading ? "···" : card.raw != null
+                      ? <AnimatedNumber id="amz-profit" value={card.raw} format={(amount) => money(amount, currency)} />
+                      : card.value}
+                  </p>
+                  {card.value === "—" || margem?.value === "—" ? (
+                    <p className="mt-1.5 text-xs font-medium text-slate-500">{loading ? "" : card.context}</p>
+                  ) : (
+                    <p className="mt-2 flex items-baseline gap-1.5">
+                      <span className="text-[17px] font-extrabold tabular-nums text-emerald-600">{margem?.value}</span>
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700/70">margem sobre vendas</span>
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <Kpi
+                  key={card.key}
+                  label={card.label}
+                  value={loading ? "…" : card.key === "revenue" && card.raw != null
+                    ? <AnimatedNumber id="amz-revenue" value={card.raw} format={(amount) => money(amount, currency)} />
+                    : card.value}
+                  // O selo de tendência ("novo ritmo") só faz sentido no faturamento.
+                  sub={card.key === "revenue" && card.raw != null ? `${salesCount} vendas no período` : card.context}
+                  trend={card.key === "revenue" ? revenueTrend : undefined}
+                  loading={loading}
+                />
+              )
+            )}
+          </div>
+        );
+      })()}
 
       {/* Indicadores de contexto: uma faixa, não uma segunda parede de cartões. */}
       <div className="secondary-metrics" aria-label="Indicadores complementares">
@@ -369,31 +386,6 @@ export default function Dashboard() {
             </div>
           )}
         </aside>
-      </section>
-
-      {/* Doze componentes financeiros, um card cada. Componente sem dado mostra o que
-          falta em vez de zero — mesmo padrão do painel da TikTok Shop. */}
-      <section className="dashboard-sections" aria-labelledby="amazon-financeiro-title">
-        <div className="mb-4">
-          <p className="section-kicker">Financeiro do período</p>
-          <h2 id="amazon-financeiro-title" className="mt-1 text-lg font-semibold text-slate-900">
-            Componentes do resultado
-          </h2>
-          <p className="mt-1 max-w-3xl text-sm leading-relaxed text-slate-500">
-            Cada componente aparece só quando é conhecido. Onde estiver “—”, o dado ainda não
-            chegou — nenhum valor desconhecido foi convertido em zero.
-          </p>
-        </div>
-        <div className="metric-grid grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-4" aria-label="Componentes financeiros da Amazon">
-          {amazonFinancialCards({
-            finance: profit?.finance ?? null,
-            cogs: profit?.cogs ?? 0,
-            estimatedProfit: profit?.estimatedProfit ?? 0,
-            unitsWithoutCost: profit?.unitsWithoutCost ?? 0,
-          }).map((card) => (
-            <Kpi key={card.key} label={card.label} value={loading ? "…" : card.value} sub={card.context} tone={card.tone} />
-          ))}
-        </div>
       </section>
 
       {/* Duas colunas: alertas de estoque + pedidos recentes */}
@@ -517,15 +509,6 @@ export default function Dashboard() {
 }
 
 
-const kpiIconProps = { className: "h-5 w-5", strokeWidth: 1.7, "aria-hidden": true } as const;
-const kpiIcons = {
-  revenue: <ChartSpline {...kpiIconProps} />,
-  stock: <Boxes {...kpiIconProps} />,
-  tag: <Tag {...kpiIconProps} />,
-  cart: <ShoppingCart {...kpiIconProps} />,
-  box: <PackageOpen {...kpiIconProps} />,
-  percent: <Percent {...kpiIconProps} />,
-};
 
 function CompactMetric({ label, value, loading }: { label: string; value: string; loading?: boolean }) {
   return (

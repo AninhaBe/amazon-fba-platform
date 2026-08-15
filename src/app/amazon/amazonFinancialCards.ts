@@ -31,6 +31,8 @@ export interface AmazonCard {
   value: string;
   context: string;
   tone?: "positive" | "default";
+  /** Valor cru, quando conhecido. É o que permite animar o número na tela. */
+  raw?: number | null;
 }
 
 const money = (v: number, currency: string) =>
@@ -58,8 +60,8 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
 
   const num = (v: number | null | undefined, contextoQuandoFalta: string, tone?: "positive"): Omit<AmazonCard, "key" | "label"> =>
     v == null
-      ? { value: "—", context: contextoQuandoFalta }
-      : { value: money(v, currency), context: "Total do período conciliado", tone };
+      ? { value: "—", context: contextoQuandoFalta, raw: null }
+      : { value: money(v, currency), context: "Total do período conciliado", tone, raw: v };
 
   const logistica = somaTipos(f?.feeBreakdown, LOGISTICA_FBA);
   const anuncios = somaTipos(f?.feeBreakdown, ANUNCIOS);
@@ -97,8 +99,8 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
     {
       key: "profit", label: "Lucro",
       ...(resultadoValido
-        ? { value: money(input.estimatedProfit, currency), context: "Faturamento − taxas − custo", tone: "positive" as const }
-        : { value: "—", context: custoIncompleto ? faltaCusto : "Aguardando todos os componentes financeiros" }),
+        ? { value: money(input.estimatedProfit, currency), context: "Faturamento − taxas − custo", tone: "positive" as const, raw: input.estimatedProfit }
+        : { value: "—", context: custoIncompleto ? faltaCusto : "Aguardando todos os componentes financeiros", raw: null }),
     },
     {
       key: "marginPct", label: "Margem",
