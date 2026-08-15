@@ -9,6 +9,13 @@ export interface ProfitabilityLine {
   unitPrice: number;
   quantity: number;
   revenue: number;
+  /**
+   * `false` quando o marketplace ainda NÃO informou o valor da venda — o caso da
+   * Amazon com pedido `Pending`, que omite `ItemPrice` e `OrderTotal` até enviar.
+   * Sem isto, `revenue: 0` era exibido como "R$ 0,00", afirmando que a venda não
+   * rendeu nada quando o certo é "ainda não sei".
+   */
+  revenueKnown?: boolean;
   currency: string;
   productCost: number | null;
   marketplaceFees: number | null;

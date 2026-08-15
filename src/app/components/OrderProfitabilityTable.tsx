@@ -34,7 +34,7 @@ function Margin({ line }: { line: ProfitabilityLine }) {
 
 function Breakdown({ line }: { line: ProfitabilityLine }) {
   return <div className="profit-breakdown">
-    <div><span>Receita da venda</span><strong>{money(line.revenue, line.currency)}</strong></div>
+    <div><span>Receita da venda</span><strong>{line.revenueKnown === false ? "Aguardando envio" : money(line.revenue, line.currency)}</strong></div>
     {line.buyerShipping != null && <div><span>Frete pago pelo comprador</span><strong>{line.buyerShippingIsRevenue === false ? "" : "+ "}{money(line.buyerShipping, line.currency)}</strong></div>}
     <div><span>Custo dos produtos</span><strong>{line.productCost == null ? "Não cadastrado" : `− ${money(line.productCost, line.currency)}`}</strong></div>
     <div><span>Tarifas do canal</span><strong>{line.marketplaceFees == null ? "Ainda não conciliadas" : `− ${money(line.marketplaceFees, line.currency)}`}</strong></div>
@@ -82,6 +82,15 @@ export function ProfitabilitySale({ line, expanded, onToggle }: { line: Profitab
   const deductions = line.productCost == null || line.marketplaceFees == null
     ? null
     : line.productCost + line.marketplaceFees + (line.sellerShipping ?? 0) + (line.tax ?? 0);
+  const vendaConhecida = line.revenueKnown !== false;
+  // "Incompleto" não pode culpar o custo quando o custo é conhecido. Em pedido
+  // ainda não enviado, o que falta é o valor da venda e a tarifa que a Amazon
+  // só posta depois — e o custo do produto continua sabido.
+  const custoRotulo = deductions != null
+    ? money(deductions, line.currency)
+    : line.productCost != null
+    ? `${money(line.productCost, line.currency)} + tarifas`
+    : "Não cadastrado";
   return <article className={`profit-sale${expanded ? " is-expanded" : ""}`}>
     <div className="profit-sale-main">
       <div className="profit-sale-product">
@@ -92,12 +101,12 @@ export function ProfitabilitySale({ line, expanded, onToggle }: { line: Profitab
       <div className="profit-sale-meta" aria-label="Informações da venda">
         <span>{brDate(line.date)}</span>
         <span>{line.fulfillment || statusLabel(line.status)}</span>
-        <span>{line.quantity} {line.quantity === 1 ? "unidade" : "unidades"} × {money(line.unitPrice, line.currency)}</span>
+        <span>{line.quantity} {line.quantity === 1 ? "unidade" : "unidades"}{line.revenueKnown === false ? "" : ` × ${money(line.unitPrice, line.currency)}`}</span>
       </div>
       <div className="profit-equation" aria-label="Resumo financeiro da venda">
-        <div><span>Venda</span><strong>{money(line.revenue, line.currency)}</strong></div>
+        <div><span>Venda</span><strong>{vendaConhecida ? money(line.revenue, line.currency) : "—"}</strong></div>
         <i aria-hidden="true">−</i>
-        <div className="is-cost"><span>Custos</span><strong>{deductions == null ? "Incompleto" : money(deductions, line.currency)}</strong></div>
+        <div className="is-cost"><span>Custos</span><strong>{custoRotulo}</strong></div>
         <i aria-hidden="true">=</i>
         <div className="is-margin"><span>Margem</span><Margin line={line} /></div>
       </div>

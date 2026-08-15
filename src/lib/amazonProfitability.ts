@@ -29,6 +29,10 @@ export function getAmazonProfitability(period: Period): Promise<ProfitabilityRes
       const feeShares = orderFin ? allocateByWeight(orderFin.fees, itemRevenues) : null;
       items.forEach((item, index) => {
         const quantity = item.QuantityOrdered ?? item.QuantityShipped ?? 0;
+        // Pedido `Pending` vem SEM `ItemPrice` e sem `OrderTotal` — a Amazon só
+        // libera o valor quando envia. `amount()` devolveria 0, e a tela exibia
+        // "Venda R$ 0,00", afirmando que a venda não rendeu nada.
+        const revenueKnown = item.ItemPrice?.Amount != null;
         const revenue = amount(item.ItemPrice);
         const sku = item.SellerSKU ?? null;
         const costEntry = (sku ? costs[sku] : undefined) ?? (item.ASIN ? costs[item.ASIN] : undefined);
@@ -54,6 +58,7 @@ export function getAmazonProfitability(period: Period): Promise<ProfitabilityRes
           unitPrice: quantity > 0 ? revenue / quantity : revenue,
           quantity,
           revenue,
+          revenueKnown,
           currency,
           productCost,
           marketplaceFees: fees,
