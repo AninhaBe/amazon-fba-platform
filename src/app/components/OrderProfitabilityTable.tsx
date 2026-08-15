@@ -77,7 +77,14 @@ function Breakdown({ line }: { line: ProfitabilityLine }) {
 export function OrderProfitabilityTable({ lines, loading = false, error = null, scopeNote }: { lines: ProfitabilityLine[]; loading?: boolean; error?: string | null; scopeNote?: string }) {
   const [query, setQuery] = useState("");
   const [resultFilter, setResultFilter] = useState<"all" | "positive" | "negative" | "incomplete">("all");
-  const [expanded, setExpanded] = useState<string | null>(null);
+  // Conjunto, não um id só: comparar dois pedidos lado a lado é o uso normal
+  // desta tela, e o acordeão fechava o anterior a cada clique.
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
+  const toggleExpanded = (id: string) => setExpanded((atual) => {
+    const proximo = new Set(atual);
+    if (!proximo.delete(id)) proximo.add(id);
+    return proximo;
+  });
   const [pagination, setPagination] = useState<{ lines: ProfitabilityLine[]; page: number }>({ lines, page: 1 });
   const page = pagination.lines === lines ? pagination.page : 1;
   const visible = useMemo(() => lines.filter((line) => {
@@ -98,9 +105,11 @@ export function OrderProfitabilityTable({ lines, loading = false, error = null, 
     <div className="profitability-filters">
       <label><span className="sr-only">Buscar produto, SKU ou pedido</span><input value={query} onChange={(event) => { setQuery(event.target.value); setPagination({ lines, page: 1 }); }} placeholder="Buscar produto, SKU ou pedido" /></label>
       <select value={resultFilter} onChange={(event) => { setResultFilter(event.target.value as typeof resultFilter); setPagination({ lines, page: 1 }); }} aria-label="Filtrar resultado das vendas"><option value="all">Todos os resultados</option><option value="positive">Margem positiva</option><option value="negative">Margem negativa</option><option value="incomplete">Cálculo incompleto</option></select>
+      {/* Só aparece quando há o que recolher — com vários abertos, fechar um a um cansa. */}
+      {expanded.size > 0 && <button type="button" className="profit-collapse-all" onClick={() => setExpanded(new Set())}>Recolher {expanded.size} {expanded.size === 1 ? "aberto" : "abertos"}</button>}
     </div>
 
-    {error ? <div role="alert" className="profitability-error">{error}</div> : loading ? <TableLoading label="Calculando rentabilidade das vendas" /> : lines.length === 0 ? <EmptyState title="Nenhuma venda no período" description="Amplie o período para consultar vendas anteriores." /> : visible.length === 0 ? <EmptyState kind="search" title="Nenhuma venda encontrada" description="Ajuste a busca ou altere o filtro de resultado." /> : <><div className="profitability-list">{paged.map((line) => <ProfitabilitySale key={line.id} line={line} expanded={expanded === line.id} onToggle={() => setExpanded(expanded === line.id ? null : line.id)} />)}</div><Pagination page={current} pageCount={pageCount} total={visible.length} pageSize={PAGE_SIZE} onPage={(nextPage) => setPagination({ lines, page: nextPage })} /></>}
+    {error ? <div role="alert" className="profitability-error">{error}</div> : loading ? <TableLoading label="Calculando rentabilidade das vendas" /> : lines.length === 0 ? <EmptyState title="Nenhuma venda no período" description="Amplie o período para consultar vendas anteriores." /> : visible.length === 0 ? <EmptyState kind="search" title="Nenhuma venda encontrada" description="Ajuste a busca ou altere o filtro de resultado." /> : <><div className="profitability-list">{paged.map((line) => <ProfitabilitySale key={line.id} line={line} expanded={expanded.has(line.id)} onToggle={() => toggleExpanded(line.id)} />)}</div><Pagination page={current} pageCount={pageCount} total={visible.length} pageSize={PAGE_SIZE} onPage={(nextPage) => setPagination({ lines, page: nextPage })} /></>}
   </section>;
 }
 

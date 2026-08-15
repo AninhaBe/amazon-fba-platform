@@ -1068,6 +1068,8 @@ summary:hover { background: var(--paper-soft); }
 .profitability-filters label { min-width: min(100%, 280px); flex: 1; }
 .profitability-filters input, .profitability-filters select { width: 100%; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: white; padding-inline: 11px; color: var(--ink); font-size: 13px; }
 .profitability-filters select { width: auto; min-width: 185px; }
+.profit-collapse-all { border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: white; padding: 0 13px; color: var(--ink-soft); font-size: 12px; font-weight: 650; white-space: nowrap; cursor: pointer; }
+.profit-collapse-all:hover { border-color: var(--ink-muted); color: var(--ink); }
 .profitability-error { border-inline-start: 4px solid var(--danger); border-radius: var(--radius-sm); background: oklch(0.96 0.025 25); padding: 13px 15px; color: var(--danger); font-size: 13px; }
 .profitability-list { display: grid; gap: 8px; }
 .profit-sale { overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--paper); box-shadow: none; transition: box-shadow 160ms ease, border-color 160ms ease; }
@@ -1112,8 +1114,11 @@ summary:hover { background: var(--paper-soft); }
 .profit-expand span { font-size: 18px; font-weight: 800; line-height: 1; transform: rotate(0); transition-property: transform; transition-duration: 160ms; }
 .profit-expand[aria-expanded="true"] span { transform: rotate(180deg); }
 .profit-sale-details { border-block-start: 1px solid var(--line); background: color-mix(in oklch, var(--channel-accent-soft) 35%, white); padding: 14px 16px 16px; }
-.profit-breakdown { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; overflow: hidden; border-radius: var(--radius-sm); background: var(--line); }
-.profit-breakdown > div { display: flex; min-width: 0; justify-content: space-between; gap: 12px; background: white; padding: 11px 12px; color: var(--ink-muted); font-size: 11px; }
+/* As divisórias vêm de uma sombra em cada célula, não do fundo da grade. Com o
+   fundo colorido, qualquer linha incompleta (5 células em 3 colunas, o caso do
+   pedido com cupom) exibia o vão como uma barra cinza. */
+.profit-breakdown { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; overflow: hidden; border-radius: var(--radius-sm); background: white; box-shadow: 0 0 0 1px var(--line); }
+.profit-breakdown > div { display: flex; min-width: 0; justify-content: space-between; gap: 12px; background: white; padding: 11px 12px; color: var(--ink-muted); font-size: 11px; box-shadow: 0 0 0 1px var(--line); }
 .profit-breakdown strong { color: var(--ink-soft); font-weight: 700; font-variant-numeric: tabular-nums; text-align: end; }
 .profit-breakdown .is-subtotal { background: var(--paper-soft); color: var(--ink-soft); font-weight: 700; }
 .profit-breakdown .is-subtotal strong { color: var(--ink); }
@@ -1121,7 +1126,10 @@ summary:hover { background: var(--paper-soft); }
    mas NÃO são deduções — o cupom já está abatido. Recuam para não parecer custo. */
 .profit-breakdown .is-muted { background: var(--paper-soft); }
 .profit-breakdown .is-muted strong { color: var(--ink-muted); font-weight: 600; }
-.profit-breakdown .is-total { background: var(--positive-soft); color: var(--positive); }
+/* O total ocupa a linha inteira. Numa grade de 3 colunas ele sobrava sozinho e
+   as duas células vazias mostravam o fundo da grade — uma barra cinza larga que
+   parecia conteúdo faltando. */
+.profit-breakdown .is-total { grid-column: 1 / -1; background: var(--positive-soft); color: var(--positive); }
 .profit-breakdown .is-total strong { color: var(--positive); }
 
 /* Curva ABC: tooltip "i" por quadrante. */
