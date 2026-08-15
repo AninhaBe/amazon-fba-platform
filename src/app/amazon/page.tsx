@@ -241,7 +241,19 @@ export default function Dashboard() {
       profit.finance.netProceeds !== 0 ||
       profit.finance.fees !== 0 ||
       profit.finance.refunds !== 0);
-  const ticketMedio = salesCount > 0 ? revenue / salesCount : 0;
+  // Ticket e faturamento têm de sair da MESMA base. `revenue`/`salesCount` vêm do
+  // orderMetrics (data do pedido, preço de tabela, inclui pendente); o card de
+  // Faturamento mostra o conciliado. Misturar os dois exibia R$ 39,80 de
+  // faturamento ao lado de um ticket de R$ 21,67 — que é 108,34/5, de um total
+  // que não está em lugar nenhum da tela. O ticket real é 39,80/2 = R$ 19,90.
+  const vendasConciliadas = profit?.finance.orderCount ?? 0;
+  const faturamentoConciliado = profit?.finance.revenue ?? 0;
+  const ticketMedio = vendasConciliadas > 0 ? faturamentoConciliado / vendasConciliadas : null;
+  // Quanto dos pedidos recebidos a Amazon ainda não confirmou. As duas bases só
+  // podem ser subtraídas no MESMO critério: `revenue` (orderMetrics) é preço de
+  // tabela, então o conciliado precisa voltar ao bruto somando o cupom.
+  const pedidosAguardando = Math.max(0, salesCount - vendasConciliadas);
+  const valorAguardando = Math.max(0, revenue - (faturamentoConciliado + promocoes));
   const roiPct = cogs > 0 ? (estProfit / cogs) * 100 : 0;
   const revenueTrend = getRevenueTrend(sales?.points ?? []);
 
@@ -305,7 +317,11 @@ export default function Dashboard() {
                     ? <AnimatedNumber id="amz-revenue" value={card.raw} format={(amount) => money(amount, currency)} />
                     : card.value}
                   // O selo de tendência ("novo ritmo") só faz sentido no faturamento.
-                  sub={card.key === "revenue" && card.raw != null ? `${salesCount} vendas no período` : card.context}
+                  sub={card.key === "revenue" && card.raw != null
+                    // Dizer "5 vendas" sob um valor que cobre 2 sugere que os
+                    // R$ 39,80 são o resultado das cinco.
+                    ? (vendasConciliadas < salesCount ? `${vendasConciliadas} de ${salesCount} vendas conciliadas` : `${salesCount} vendas no período`)
+                    : card.context}
                   trend={card.key === "revenue" ? revenueTrend : undefined}
                   loading={loading}
                 />
@@ -319,7 +335,7 @@ export default function Dashboard() {
       <div className="secondary-metrics" aria-label="Indicadores complementares">
         <CompactMetric label="Vendas" value={String(salesCount)} loading={loading} />
         <CompactMetric label="Unidades" value={String(unitsCount)} loading={loading} />
-        <CompactMetric label="Ticket médio" value={money(ticketMedio, currency)} loading={loading} />
+        <CompactMetric label="Ticket médio" value={ticketMedio == null ? "—" : money(ticketMedio, currency)} loading={loading} />
         <CompactMetric label="ROI" value={cogs > 0 ? `${roiPct.toFixed(1)}%` : "—"} loading={loading} />
       </div>
 
@@ -337,15 +353,29 @@ export default function Dashboard() {
           <div className="mb-2 flex items-baseline justify-between gap-4">
             <div>
               <p className="section-kicker">Desempenho diário</p>
-              <h2 className="mt-1 text-lg font-semibold text-slate-900">Evolução do faturamento</h2>
+              {/* NÃO chamar de "faturamento": este total é o orderMetrics (data do
+                  pedido, preço de tabela, inclui pendente) e é maior que o card
+                  de Faturamento, que mostra o conciliado. Dois números com o
+                  mesmo nome na mesma tela era o que confundia. */}
+              <h2 className="mt-1 text-lg font-semibold text-slate-900">Evolução das vendas</h2>
             </div>
             <span className="text-sm font-semibold tabular-nums text-slate-900">
               {money(revenue, currency)}{" "}
-              <span className="font-normal text-slate-400">no período</span>
+              <span className="font-normal text-slate-400">em pedidos recebidos</span>
             </span>
           </div>
+          {/* Onde o dinheiro está, não só quanto foi vendido. A diferença entre os
+              dois totais da tela tem uma explicação concreta — pedido que a Amazon
+              ainda não confirmou — e escondê-la só deixava dois números brigando. */}
+          {!loading && pedidosAguardando > 0 && (
+            <p className="sales-split">
+              <span><strong>{vendasConciliadas}</strong> {vendasConciliadas === 1 ? "confirmado" : "confirmados"} · {money(faturamentoConciliado, currency)}</span>
+              <span className="is-pendente"><strong>{pedidosAguardando}</strong> {pedidosAguardando === 1 ? "aguardando" : "aguardando"} pagamento · {money(valorAguardando, currency)}</span>
+              <small>A Amazon confirma o pagamento antes de informar o valor, e só libera o repasse depois da entrega.</small>
+            </p>
+          )}
           {loading ? (
-            <span className="skeleton-chart" role="status" aria-label="Carregando evolução do faturamento" />
+            <span className="skeleton-chart" role="status" aria-label="Carregando evolução das vendas" />
           ) : (
             <RevenueChart points={sales?.points ?? []} />
           )}

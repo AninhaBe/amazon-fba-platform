@@ -604,6 +604,11 @@ button[class*="bg-blue-"]:hover, a[class*="bg-blue-"]:hover { background: var(--
   box-shadow: var(--shadow-surface);
 }
 .performance-chart { --rev: var(--channel-accent-dark); min-width: 0; padding: 22px 22px 15px; }
+/* Explica a diferença entre pedidos recebidos e faturamento conciliado. */
+.sales-split { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin-block-end: 12px; color: var(--ink-muted); font-size: 11px; }
+.sales-split strong { color: var(--ink-soft); font-weight: 750; font-variant-numeric: tabular-nums; }
+.sales-split .is-pendente strong { color: var(--warning); }
+.sales-split small { flex-basis: 100%; color: var(--ink-muted); font-size: 10px; line-height: 1.4; opacity: 0.85; }
 .financial-composition {
   display: flex;
   flex-direction: column;
