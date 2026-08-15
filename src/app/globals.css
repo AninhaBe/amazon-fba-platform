@@ -1108,6 +1108,10 @@ summary:hover { background: var(--paper-soft); }
 .profit-breakdown strong { color: var(--ink-soft); font-weight: 700; font-variant-numeric: tabular-nums; text-align: end; }
 .profit-breakdown .is-subtotal { background: var(--paper-soft); color: var(--ink-soft); font-weight: 700; }
 .profit-breakdown .is-subtotal strong { color: var(--ink); }
+/* Linhas informativas (preço de tabela, cupom): explicam de onde veio a receita,
+   mas NÃO são deduções — o cupom já está abatido. Recuam para não parecer custo. */
+.profit-breakdown .is-muted { background: var(--paper-soft); }
+.profit-breakdown .is-muted strong { color: var(--ink-muted); font-weight: 600; }
 .profit-breakdown .is-total { background: var(--positive-soft); color: var(--positive); }
 .profit-breakdown .is-total strong { color: var(--positive); }
 

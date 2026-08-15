@@ -33,7 +33,14 @@ export function getAmazonProfitability(period: Period): Promise<ProfitabilityRes
         // libera o valor quando envia. `amount()` devolveria 0, e a tela exibia
         // "Venda R$ 0,00", afirmando que a venda não rendeu nada.
         const revenueKnown = item.ItemPrice?.Amount != null;
-        const revenue = amount(item.ItemPrice);
+        // Receita é o que o comprador PAGOU — `ItemPrice` é preço de tabela e
+        // `OrderTotal` já vem líquido do cupom (22,11 − 2,21 = 19,90, confirmado
+        // na API em 15/08/2026). Mesma definição de `amazonCanonical.ts`, que já
+        // fazia certo; este caminho ao vivo é que estava fora do padrão e exibia
+        // duas vendas idênticas de R$ 19,90 com margens de 59,16% e 65,73%.
+        const listPrice = amount(item.ItemPrice);
+        const promotions = amount(item.PromotionDiscount);
+        const revenue = Math.max(0, listPrice - promotions);
         const sku = item.SellerSKU ?? null;
         const costEntry = (sku ? costs[sku] : undefined) ?? (item.ASIN ? costs[item.ASIN] : undefined);
         const productCost = costEntry && costEntry.cost > 0 ? costAt(costEntry, order.purchaseDate) * quantity : null;
@@ -44,9 +51,10 @@ export function getAmazonProfitability(period: Period): Promise<ProfitabilityRes
         // de R$ 19,90 aparecia com margem de R$ 21,98, maior que a própria venda.
         const freteLiquido = amount(item.ShippingPrice) - amount(item.ShippingDiscount);
         const buyerShipping = freteLiquido || null;
-        const promotions = amount(item.PromotionDiscount);
         const currency = item.ItemPrice?.CurrencyCode || order.orderTotal?.CurrencyCode || orderFin?.currency || "BRL";
-        const result = calculateContribution({ revenue, buyerShipping, productCost, marketplaceFees: fees, promotions });
+        // Sem `promotions` aqui: `revenue` já está líquido dele. Passar os dois
+        // descontaria o cupom duas vezes.
+        const result = calculateContribution({ revenue, buyerShipping, productCost, marketplaceFees: fees });
         lines.push({
           id: `${order.amazonOrderId}:${item.OrderItemId || sku || item.ASIN || lines.length}`,
           orderId: order.amazonOrderId,
@@ -65,6 +73,7 @@ export function getAmazonProfitability(period: Period): Promise<ProfitabilityRes
           buyerShipping,
           sellerShipping: null,
           tax: null,
+          listPrice: promotions > 0 ? listPrice : null,
           promotions: promotions || null,
           contribution: result.contribution,
           marginPct: result.marginPct,

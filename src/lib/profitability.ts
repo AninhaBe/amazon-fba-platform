@@ -8,6 +8,11 @@ export interface ProfitabilityLine {
   fulfillment: string | null;
   unitPrice: number;
   quantity: number;
+  /**
+   * SEMPRE o que o comprador pagou, líquido de cupom — nunca preço de tabela.
+   * É a base da margem %, e misturar as duas coisas fazia duas vendas idênticas
+   * de R$ 19,90 exibirem 59,16% e 65,73%.
+   */
   revenue: number;
   /**
    * `false` quando o marketplace ainda NÃO informou o valor da venda — o caso da
@@ -25,10 +30,13 @@ export interface ProfitabilityLine {
   netReceived?: number | null;
   tax: number | null;
   /**
-   * Cupom/promoção bancada pela vendedora. É descontado da margem por
-   * `calculateContribution`, então PRECISA aparecer entre os custos na tela —
-   * sem ele a linha "venda − custos = margem" não fecha (visto em 15/08/2026:
-   * 22,11 − 6,82 exibia margem de 13,08, porque faltavam os 2,21 do cupom).
+   * Preço de tabela, só quando houve desconto. INFORMATIVO — não entra na conta;
+   * serve para a tela mostrar de onde veio o abatimento.
+   */
+  listPrice?: number | null;
+  /**
+   * Cupom concedido: `listPrice − revenue`. INFORMATIVO, **não é custo** — já
+   * está abatido de `revenue`. Somá-lo às deduções desconta o cupom duas vezes.
    */
   promotions?: number | null;
   contribution: number | null;

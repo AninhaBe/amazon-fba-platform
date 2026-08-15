@@ -366,15 +366,13 @@ export default function Dashboard() {
             </p>
           ) : (
             <div className="financial-lines">
-              {/* O cupom já vem abatido de `revenue`. Para ele aparecer como dedução
-                  de verdade — e não como nota solta — a cascata parte do BRUTO e
-                  desconta. Assim cada linha soma e o resultado bate com o card. */}
-              <Flow
-                label={promocoes > 0 ? "Faturamento bruto" : "Faturamento"}
-                value={loading ? "…" : money((profit?.finance.revenue ?? 0) + promocoes, currency)}
-              />
+              {/* Faturamento = o que o comprador pagou, o MESMO número do card
+                  acima. Partir do bruto e descontar o cupom fechava a conta, mas
+                  punha dois "faturamentos" diferentes na mesma tela (42,01 aqui,
+                  39,80 no card). O cupom vira nota explicativa, não dedução. */}
+              <Flow label="Faturamento" value={loading ? "…" : money(profit?.finance.revenue ?? 0, currency)} />
               {!loading && promocoes > 0 && (
-                <Flow label="Cupons e promoções" value={money(promocoes, currency)} muted sign="−" />
+                <Flow label={`Cupons já descontados (tabela ${money((profit?.finance.revenue ?? 0) + promocoes, currency)})`} value={money(promocoes, currency)} detail muted />
               )}
               <Flow label="Taxas Amazon" value={loading ? "…" : money(profit?.finance.fees ?? 0, currency)} muted sign="−" />
               {!loading && (profit?.finance.feeBreakdown ?? []).map((t) => (

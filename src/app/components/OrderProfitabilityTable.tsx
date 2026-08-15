@@ -34,10 +34,13 @@ function Margin({ line }: { line: ProfitabilityLine }) {
 
 function Breakdown({ line }: { line: ProfitabilityLine }) {
   return <div className="profit-breakdown">
-    <div><span>Receita da venda</span><strong>{line.revenueKnown === false ? "Aguardando envio" : money(line.revenue, line.currency)}</strong></div>
+    {line.listPrice != null && line.promotions != null && line.promotions > 0 && <>
+      <div className="is-muted"><span>Preço de tabela</span><strong>{money(line.listPrice, line.currency)}</strong></div>
+      <div className="is-muted"><span>Cupom aplicado</span><strong>− {money(line.promotions, line.currency)}</strong></div>
+    </>}
+    <div><span>{line.promotions ? "Pago pelo comprador" : "Receita da venda"}</span><strong>{line.revenueKnown === false ? "Aguardando envio" : money(line.revenue, line.currency)}</strong></div>
     {line.buyerShipping != null && <div><span>Frete pago pelo comprador</span><strong>{line.buyerShippingIsRevenue === false ? "" : "+ "}{money(line.buyerShipping, line.currency)}</strong></div>}
     <div><span>Custo dos produtos</span><strong>{line.productCost == null ? "Não cadastrado" : `− ${money(line.productCost, line.currency)}`}</strong></div>
-    {line.promotions != null && line.promotions > 0 && <div><span>Cupons e promoções</span><strong>− {money(line.promotions, line.currency)}</strong></div>}
     <div><span>Tarifas do canal</span><strong>{line.marketplaceFees == null ? "Ainda não conciliadas" : `− ${money(line.marketplaceFees, line.currency)}`}</strong></div>
     {line.sellerShipping != null && <div><span>Frete assumido pelo vendedor</span><strong>− {money(line.sellerShipping, line.currency)}</strong></div>}
     {line.netReceived != null && <div className="is-subtotal"><span>Líquido repassado antes do produto</span><strong>{money(line.netReceived, line.currency)}</strong></div>}
@@ -80,11 +83,11 @@ export function OrderProfitabilityTable({ lines, loading = false, error = null, 
 }
 
 export function ProfitabilitySale({ line, expanded, onToggle }: { line: ProfitabilityLine; expanded: boolean; onToggle: () => void }) {
-  // TUDO que sai da venda. O cupom entra aqui porque `calculateContribution` o
-  // desconta da margem — deixá-lo de fora fazia a linha não fechar na tela.
+  // O cupom NÃO entra aqui: `line.revenue` já é o valor pago pelo comprador,
+  // líquido dele. Somá-lo descontaria o desconto duas vezes.
   const deductions = line.productCost == null || line.marketplaceFees == null
     ? null
-    : line.productCost + line.marketplaceFees + (line.sellerShipping ?? 0) + (line.tax ?? 0) + (line.promotions ?? 0);
+    : line.productCost + line.marketplaceFees + (line.sellerShipping ?? 0) + (line.tax ?? 0);
   const vendaConhecida = line.revenueKnown !== false;
   // "Incompleto" não pode culpar o custo quando o custo é conhecido. Em pedido
   // ainda não enviado, o que falta é o valor da venda e a tarifa que a Amazon
