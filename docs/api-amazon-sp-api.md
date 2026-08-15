@@ -37,6 +37,28 @@ expedição, também não existe transação financeira, e o lucro conciliado fi
 |---|---|---|
 | `GET /finances/2024-06-19/transactions` | **Fees e lucro** (`src/lib/transactions.ts`) | API atual (Transactions). Estrutura em árvore: `Sales → ProductCharges`, `Expenses → AmazonFees → {Commission, FBAPerUnitFulfillmentFee, …} → {Base, Tax}` (somar só as FOLHAS Base/Tax, senão duplica). |
 | `GET /finances/v0/financialEvents` | Legado (`src/lib/finances.ts`) | ⚠️ **Retorna valores ZERADOS nesta conta** (comportamento deprecado). Não confiar; migrar tudo para Transactions (item no TODO.md). |
+| `GET /finances/v0/financialEventGroups` | **Saldo disponível** (`getAmazonBalance`) | O `OriginalTotal` do grupo `Open` é o "Fundos disponíveis agora" do Seller Central. `FinancialEventGroupStart` é o início do extrato. Este endpoint **não** foi afetado pela depreciação acima. |
+
+### Saldo e retenção (medido em 2026-08-15)
+
+Responde "o que tenho hoje e o que vai ser descontado" — a pergunta que lucro
+sozinho não responde. Duas fontes:
+
+- **`financialEventGroups`** dá o saldo. A conta BR tem **mais de um grupo `Open`
+  ao mesmo tempo**, um por meio de pagamento do comprador (`accountType`
+  `"Mastercard Credit & Other"` e `"Boleto"`) — o saldo é a **soma** deles.
+  Somar só o primeiro dá número errado.
+- **`transactions`** dá o cronograma. Toda transação `DEFERRED` traz
+  `contexts[]` com `{contextType: "DeferredContext", maturityDate, deferralReason}`.
+  `maturityDate` é a **data exata de liberação**; `DD7` = entrega + 7 dias.
+
+⚠️ `contexts` fica no **nível da transação**, não dentro de `items[]` — o código
+já lia `items[].contexts` (para SKU) e por isso o `DeferredContext` passou
+despercebido até agora.
+
+Por que importa: as vendas ficam `DEFERRED` até depois da entrega, enquanto as
+despesas (anúncios) entram `RELEASED` na hora. Resultado observado: painel com
+lucro de R$ 20,04 e saldo de **−R$ 6,12**, os dois corretos.
 
 ### Pegadinhas do Transactions (aprendidas na prática)
 

@@ -3,6 +3,7 @@ import { swr } from "./swr";
 import type { Period } from "./period";
 import { collectAllNextTokenPages, splitDateRange } from "./nextTokenPagination";
 import { parseTransactionFinancials, type Breakdown, type CurrencyAmount } from "./transactionsBreakdown";
+import { calcularSaldo, type SaldoAmazon, type TransacaoDeSaldo } from "./amazonBalance";
 
 interface RelatedIdentifier {
   relatedIdentifierName?: string;
@@ -14,6 +15,10 @@ interface TransactionContext {
   sku?: string;
   asin?: string;
   quantityShipped?: number;
+  /** `DeferredContext`: quando a Amazon libera o valor retido. */
+  maturityDate?: string;
+  /** `DD7` = entrega + 7 dias, a reserva padrão da Amazon. */
+  deferralReason?: string;
 }
 
 interface TransactionItem {
@@ -32,6 +37,8 @@ interface ApiTransaction {
   relatedIdentifiers?: RelatedIdentifier[];
   breakdowns?: Breakdown[];
   items?: TransactionItem[];
+  /** No NÍVEL DA TRANSAÇÃO, não do item: é aqui que vem o `DeferredContext`. */
+  contexts?: TransactionContext[];
 }
 
 interface ListTransactionsResponse {
@@ -375,6 +382,85 @@ export function getOrderFinancialsFromTransactions(period: Period): Promise<Reco
     `order-fin-tx:${period.key}`,
     5 * 60_000,
     async () => computeOrderFinancials(await fetchRawTransactions(period)),
+    { awaitIfEmpty: true }
+  );
+}
+
+// ---------- Saldo e liberação ----------
+// NÃO depende do período selecionado: "quanto tenho hoje" é um fato do agora, e
+// filtrar por 7 dias esconderia uma venda retida de 10 dias atrás. A janela é
+// fixa e generosa o bastante para cobrir a reserva padrão (entrega + 7 dias).
+
+interface FinancialEventGroup {
+  FinancialEventGroupId?: string;
+  ProcessingStatus?: string;
+  OriginalTotal?: { CurrencyCode?: string; CurrencyAmount?: number };
+  FinancialEventGroupStart?: string;
+}
+
+interface ListEventGroupsResponse {
+  payload?: {
+    FinancialEventGroupList?: FinancialEventGroup[];
+    NextToken?: string;
+  };
+}
+
+const JANELA_DE_SALDO_DIAS = 60;
+
+function janelaDeSaldo(): Period {
+  const end = new Date(Date.now() - 3 * 60_000);
+  const start = new Date(end.getTime() - JANELA_DE_SALDO_DIAS * 86_400_000);
+  return { key: `saldo-${JANELA_DE_SALDO_DIAS}d`, startISO: start.toISOString(), endISO: end.toISOString() } as Period;
+}
+
+async function fetchEventGroups(): Promise<FinancialEventGroup[]> {
+  const startedAfter = new Date(Date.now() - 180 * 86_400_000).toISOString();
+  const pages = await collectAllNextTokenPages(
+    (nextToken) => spapiFetch<ListEventGroupsResponse>(
+      "/finances/v0/financialEventGroups",
+      { query: nextToken ? { NextToken: nextToken } : { FinancialEventGroupStartedAfter: startedAfter, MaxResultsPerPage: "100" } }
+    ),
+    (page) => page.payload?.NextToken
+  );
+  return pages.flatMap((page) => page.payload?.FinancialEventGroupList ?? []);
+}
+
+/** Saldo disponível, valores retidos e quando cada um é liberado. */
+export function getAmazonBalance(): Promise<SaldoAmazon> {
+  return swr(
+    "amazon-balance",
+    10 * 60_000,
+    async () => {
+      // O extrato é a fonte do saldo; as transações trazem o cronograma. Se o
+      // extrato falhar, ainda dá para mostrar o retido — meia informação certa
+      // vale mais que nenhuma, desde que a outra metade diga "não sei".
+      const [grupos, brutas] = await Promise.all([
+        fetchEventGroups().catch(() => [] as FinancialEventGroup[]),
+        fetchRawTransactions(janelaDeSaldo()),
+      ]);
+
+      const transacoes: TransacaoDeSaldo[] = brutas.map((transaction) => {
+        const diferido = transaction.contexts?.find((c) => c.contextType === "DeferredContext");
+        return {
+          status: transaction.transactionStatus,
+          amount: round(transaction.totalAmount?.currencyAmount ?? 0),
+          currency: transaction.totalAmount?.currencyCode,
+          orderId: orderIdOf(transaction),
+          postedDate: transaction.postedDate,
+          maturityDate: diferido?.maturityDate ?? null,
+          deferralReason: diferido?.deferralReason ?? null,
+        };
+      });
+
+      return calcularSaldo(
+        grupos.map((g) => ({
+          processingStatus: g.ProcessingStatus,
+          originalTotal: { currencyAmount: g.OriginalTotal?.CurrencyAmount, currencyCode: g.OriginalTotal?.CurrencyCode },
+          startDate: g.FinancialEventGroupStart ?? null,
+        })),
+        transacoes
+      );
+    },
     { awaitIfEmpty: true }
   );
 }

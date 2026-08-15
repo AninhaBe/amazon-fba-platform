@@ -61,6 +61,14 @@ interface ProfitData {
   estimatedProfit: number;
   unitsWithoutCost: number;
 }
+interface SaldoData {
+  currency: string;
+  disponivel: number | null;
+  retido: number;
+  liberacoes: { date: string; amount: number; orderIds: string[] }[];
+  extratoDesde: string | null;
+  seraCobrado: boolean;
+}
 interface RadarRow {
   sellerSku: string;
   productName?: string;
@@ -120,6 +128,7 @@ export default function Dashboard() {
   const [top, setTop] = useState<TopProduct[]>(initialDash?.top ?? []);
   const [profitability, setProfitability] = useState<ProfitabilityLine[]>(initialDash?.profitability ?? []);
   const [profitabilityScope, setProfitabilityScope] = useState<ProfitabilityScope | undefined>(initialDash?.profitabilityScope);
+  const [saldo, setSaldo] = useState<SaldoData | null>(null);
   const [profitabilityLoading, setProfitabilityLoading] = useState(!initialDash);
   const [productsLoading, setProductsLoading] = useState(!productsCache);
   const [errors, setErrors] = useState<string[]>([]);
@@ -203,6 +212,8 @@ export default function Dashboard() {
       () => active && setProductsLoading(false)
     );
     safe<TopProduct[]>(`/api/top-products?${periodQuery}`, (v) => { next.top = v; setTop(v); store(); }, (d) => (d as { products: TopProduct[] }).products, "top produtos");
+    // Saldo NÃO leva `periodQuery`: é o estado de agora, não do período escolhido.
+    safe<SaldoData | null>(`/api/amazon/balance`, (v) => setSaldo(v), (d) => d as SaldoData | null, "saldo");
     // Rentabilidade por venda: mesma fonte do monitor, com loading próprio para
     // não segurar os KPIs (o fallback ao vivo do endpoint pode ser lento).
     safe<{ lines: ProfitabilityLine[]; scope?: ProfitabilityScope }>(
@@ -428,6 +439,10 @@ export default function Dashboard() {
         </aside>
       </section>
 
+      {/* Logo abaixo da cascata: é a mesma conversa sobre dinheiro, e responde a
+          pergunta que o lucro sozinho deixa no ar — "então cadê?". */}
+      {saldo && <SaldoNaAmazon saldo={saldo} />}
+
       {/* Duas colunas: alertas de estoque + pedidos recentes */}
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
         <Panel title="Estoque crítico" href="/amazon/estoque" linkLabel="Ver radar">
@@ -611,6 +626,60 @@ function Flow({
         {value}
       </p>
     </div>
+  );
+}
+
+/**
+ * Saldo e liberação. Existe porque o dashboard dizia "lucro R$ 20,04" enquanto o
+ * app da Amazon dizia "Fundos disponíveis: −R$ 6,12" — os dois certos, e a
+ * pessoa sem entender qual acreditar. A Amazon retém o valor das vendas até
+ * depois da entrega, então o saldo só enxerga as despesas até lá.
+ */
+function SaldoNaAmazon({ saldo }: { saldo: SaldoData }) {
+  const proxima = saldo.liberacoes[0];
+  return (
+    <section className="saldo-panel" aria-labelledby="saldo-title">
+      <div>
+        <p className="section-kicker">Saldo na Amazon</p>
+        <h2 id="saldo-title" className="mt-1 text-lg font-semibold text-slate-900">O que você tem hoje</h2>
+      </div>
+      <div className="saldo-grid">
+        <div className={`saldo-card${saldo.seraCobrado ? " is-cobranca" : ""}`}>
+          <span>Disponível agora</span>
+          {/* Sem extrato devolvido não há saldo a afirmar — R$ 0,00 diria que não
+              há nada nem a receber nem a pagar, e isso é um fato, não um vazio. */}
+          <strong>{saldo.disponivel == null ? "—" : money(saldo.disponivel, saldo.currency)}</strong>
+          <small>
+            {saldo.disponivel == null
+              ? "Aguardando o extrato da Amazon"
+              : saldo.seraCobrado
+              ? "Negativo: a Amazon cobra no fechamento do extrato"
+              : "Liberado para transferência"}
+          </small>
+        </div>
+        <div className="saldo-card">
+          <span>Retido pela Amazon</span>
+          <strong>{money(saldo.retido, saldo.currency)}</strong>
+          <small>{proxima ? `Primeira liberação em ${brDate(proxima.date)}` : "Nenhuma venda retida"}</small>
+        </div>
+      </div>
+      {saldo.liberacoes.length > 0 && (
+        <ol className="saldo-liberacoes">
+          {saldo.liberacoes.map((l) => (
+            <li key={l.date}>
+              <span>{brDate(l.date)}</span>
+              <strong>{money(l.amount, saldo.currency)}</strong>
+              <small>{l.orderIds.length} {l.orderIds.length === 1 ? "pedido" : "pedidos"}</small>
+            </li>
+          ))}
+        </ol>
+      )}
+      <p className="saldo-nota">
+        A Amazon retém o valor de cada venda até depois da entrega — por isso o saldo disponível pode
+        estar negativo enquanto o lucro do período é positivo.
+        {saldo.extratoDesde && ` Extrato aberto desde ${brDate(saldo.extratoDesde)}.`}
+      </p>
+    </section>
   );
 }
 

@@ -642,6 +642,23 @@ button[class*="bg-blue-"]:hover, a[class*="bg-blue-"]:hover { background: var(--
 .financial-subline { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 4px 0; color: var(--ink-muted); font-size: 11.5px; }
 .financial-subline strong { color: var(--danger); font-weight: 700; font-variant-numeric: tabular-nums; }
 
+/* Saldo e liberação: onde o dinheiro está, não quanto foi vendido. */
+.saldo-panel { display: grid; gap: 14px; border-radius: var(--radius-md); background: var(--paper); padding: 20px 22px; box-shadow: var(--shadow-surface); }
+.saldo-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+.saldo-card { display: grid; gap: 3px; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 13px 15px; }
+.saldo-card > span { color: var(--ink-muted); font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+.saldo-card > strong { color: var(--ink); font-size: 22px; font-weight: 760; font-variant-numeric: tabular-nums; }
+.saldo-card > small { color: var(--ink-muted); font-size: 11px; line-height: 1.35; }
+/* Saldo negativo não é erro: é cobrança a caminho. Sinaliza sem alarmar. */
+.saldo-card.is-cobranca { border-color: oklch(0.86 0.06 72); background: oklch(0.978 0.022 84); }
+.saldo-card.is-cobranca > strong { color: var(--warning); }
+.saldo-liberacoes { display: grid; gap: 1px; overflow: hidden; border-radius: var(--radius-sm); background: white; box-shadow: 0 0 0 1px var(--line); list-style: none; }
+.saldo-liberacoes li { display: grid; grid-template-columns: auto 1fr auto; align-items: baseline; gap: 12px; background: white; padding: 9px 14px; box-shadow: 0 0 0 1px var(--line); }
+.saldo-liberacoes span { color: var(--ink-soft); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.saldo-liberacoes strong { color: var(--positive); font-size: 12px; font-weight: 750; font-variant-numeric: tabular-nums; text-align: end; }
+.saldo-liberacoes small { color: var(--ink-muted); font-size: 11px; }
+.saldo-nota { color: var(--ink-muted); font-size: 11px; line-height: 1.5; }
+
 .revenue-trend { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 5px 8px; font-size: 12px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
 .revenue-trend svg { width: 13px; height: 13px; }
 .revenue-trend-up { color: var(--brand-dark); background: var(--brand-soft); }
