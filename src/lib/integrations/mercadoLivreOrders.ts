@@ -42,7 +42,17 @@ export async function collectMercadoLivreOrders<T extends { id: number | string 
   fetchPage,
   pageSize = 50,
   concurrency = 5,
-  maxResultsPerRange = 10_000,
+  // 2.000, não 10.000: este coletor devolve TODOS os pedidos num array só, e a
+  // conta do sócio tem 36 mil. A 10.000 o pico passava de 30 MB dentro do
+  // processo web — o mesmo processo que serve todo mundo. Não é hipótese: o
+  // container de 512 MB caiu duas vezes em 14-15/08/2026.
+  //
+  // Hoje o caminho é inalcançável em produção (só roda sem banco, e o
+  // materializer que também o usava não é chamado por ninguém), mas o teto fica
+  // baixo para que voltar a usá-lo não traga o pico de volta junto. Períodos
+  // densos continuam funcionando: acima do teto o coletor divide o intervalo ao
+  // meio e busca em janelas menores.
+  maxResultsPerRange = 2_000,
 }: CollectOrdersInput<T>): Promise<CollectedMercadoLivreOrders<T>> {
   const collectRange = async (
     rangeFrom: Date,

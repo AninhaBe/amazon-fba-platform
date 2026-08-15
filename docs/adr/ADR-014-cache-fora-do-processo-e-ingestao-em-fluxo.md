@@ -57,10 +57,16 @@ cursor; nunca segura o conjunto. O acúmulo está no **caminho legado do overvie
 ao vivo**, que é o fallback de quando o canônico não cobre o período — e roda
 numa **requisição de tela**, no processo web, não no cron.
 
-Consequência prática: este pico não é resolvido pelo ADR-013. Separar o worker
-tira o sync da frente, mas o overview legado continua no web, e um único usuário
-pedindo um período não coberto de uma conta grande pode derrubar a instância que
-serve todo mundo.
+**Verificação posterior (15/08/2026):** o caminho legado é hoje **inalcançável em
+produção**. A rota só cai nele quando `hasDb()` é falso, e o
+`mercadoLivreOverviewMaterializer`, que também o usava, não é chamado por
+ninguém. Ou seja: o pico existe no código, não no comportamento.
+
+Ação tomada em vez da mudança planejada: o teto do coletor caiu de 10.000 para
+**2.000** (`mercadoLivreOrders.ts`), com teste provando que acima disso ele
+divide o intervalo em janelas menores em vez de carregar tudo. O modo sem banco
+continua funcionando, agora com pico de ~6 MB em vez de ~30 MB. A decisão de
+item 3 abaixo permanece válida como princípio, mas não há mudança pendente.
 
 ## Decisão
 
@@ -133,8 +139,10 @@ multiplica o pico de memória linearmente. Trata o sintoma na direção errada.
 
 1. **Item 2** (aquecimento por demanda) — contido, mede-se sozinho, sem mudança
    de contrato.
-2. **Item 3** (nenhuma tela carrega período inteiro) — remove o único pico de
-   memória que escala com o tamanho da conta.
+2. ~~**Item 3**~~ — **feito em 15/08/2026** por outro caminho: o teto do coletor
+   caiu para 2.000 e o caminho legado se mostrou inalcançável em produção. Não há
+   trabalho pendente aqui; o princípio fica registrado para quem for reativar o
+   overview ao vivo.
 3. **Item 1** (cache no banco) — o mais invasivo e o que de fato destrava escala.
 
 O ADR-013 é pré-requisito: sem worker separado, web e sync disputam a mesma
