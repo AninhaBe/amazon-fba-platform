@@ -3,6 +3,7 @@ import { currentWorkspaceId } from "../workspaceScope";
 import { getIntegrations } from "./integrationStore";
 import { getShopeeOverviewFromCanonical, shopeeCostId } from "./shopeeOverviewCanonical";
 import { getCosts, setCost } from "../costStore";
+import { invalidateCostDerivedCaches } from "../costInvalidation";
 import type { IntegrationConnection } from "./types";
 import { shopeeAbcClass, shopeePageRequest, shopeePeriodRequest, ShopeeModuleError } from "./shopeeModuleContract";
 import { withShopeeIntegrationWriteFence } from "./shopeeWriteFence";
@@ -80,7 +81,7 @@ export async function writeShopeeCost(connection: IntegrationConnection, body: u
   const value = body as Record<string, unknown>; const productId = typeof value?.productId === "string" ? value.productId.trim() : ""; const sku = typeof value?.sku === "string" ? value.sku.trim() : null; const cost = typeof value?.cost === "number" ? value.cost : Number.NaN;
   if (!productId || productId.length > 160 || (sku?.length ?? 0) > 160 || !Number.isFinite(cost) || cost < 0) throw new ShopeeModuleError(400, "INVALID_COST", "Produto, SKU ou custo inválido.");
   const entry = { id: shopeeCostId(connection.id, productId, sku), sku: sku ?? undefined, title: typeof value.title === "string" ? value.title.slice(0, 300) : undefined, cost };
-  if (!hasDb()) return setCost(entry);
+  if (!hasDb()) { const salvo = await setCost(entry); await invalidateCostDerivedCaches(); return salvo; }
   const fenced = await withShopeeIntegrationWriteFence(
     dbTransaction,
     currentWorkspaceId(),
@@ -88,5 +89,8 @@ export async function writeShopeeCost(connection: IntegrationConnection, body: u
     (query) => setCost(entry, query),
   );
   if (!fenced.owned) throw new ShopeeModuleError(404, "CONNECTION_NOT_FOUND", "Nenhuma loja Shopee conectada.");
+  // Depois do commit: invalidar antes deixaria a janela em que um leitor
+  // recacheia o valor velho e a troca some de novo.
+  await invalidateCostDerivedCaches();
   return fenced.value;
 }

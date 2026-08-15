@@ -16,11 +16,18 @@ const CHAVES_COM_CUSTO = [
   "order-profitability:",        // rentabilidade por venda (Amazon, cálculo ao vivo)
   "amazon-overview-canonical:",  // overview da Amazon por SQL
   "amazon-abc:",                 // curva ABC da Amazon
+  "ml-abc:",                     // curva ABC do Mercado Livre
 ];
 
 /**
  * Derruba tudo que depende de custo, em todos os canais. Chamar SEMPRE que um
- * custo for gravado ou removido.
+ * custo for gravado ou removido — de QUALQUER rota, incluindo as próprias de
+ * Shopee e TikTok.
+ *
+ * Chamar de canais que hoje não têm cache de custo (Shopee, TikTok leem direto)
+ * é de propósito: o dia em que alguém cachear o overview deles, a invalidação já
+ * está no lugar. O custo de chamar à toa é percorrer um Map pequeno; o custo de
+ * esquecer é um número errado na tela que ninguém relaciona com a causa.
  */
 export async function invalidateCostDerivedCaches(): Promise<void> {
   invalidateByKeyPart(...CHAVES_COM_CUSTO);

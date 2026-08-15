@@ -60,3 +60,48 @@ test("trecho que nao existe nao afeta o cache", async () => {
   assert.equal(invalidateByKeyPart("nao-existe:"), 0);
   assert.equal(cacheSize(), 1);
 });
+
+// Guarda de cobertura: todo cache que embute custo precisa estar na lista, e
+// toda rota que grava custo precisa chamar a invalidação. A pergunta da Ana —
+// "isso vale pra todas as integrações?" — só tem resposta estável se isso for
+// verificado, e não lembrado.
+import { readFileSync } from "node:fs";
+
+// Lido do fonte, não importado: `costInvalidation.ts` puxa banco na cadeia de
+// imports e não sobrevive ao strip-only mode dos testes.
+const fonteDe = (caminho) => readFileSync(new URL(`../${caminho}`, import.meta.url), "utf8");
+
+test("a lista cobre os caches de custo de todos os canais", () => {
+  const fonte = fonteDe("src/lib/costInvalidation.ts");
+  for (const chave of ["order-profitability:", "amazon-overview-canonical:", "amazon-abc:", "ml-abc:"]) {
+    assert.ok(fonte.includes(`"${chave}"`), `${chave} precisa ser invalidada ao trocar custo`);
+  }
+});
+
+test("nenhum cache com custo ficou de fora da lista", () => {
+  // Varre os módulos que cacheiam e cobra que cada chave que embute custo esteja
+  // coberta. Falha de propósito quando alguém adiciona um cache novo e esquece.
+  const lista = fonteDe("src/lib/costInvalidation.ts");
+  const comCusto = [
+    ["src/lib/amazonProfitability.ts", "order-profitability:"],
+    ["src/lib/integrations/amazonOverviewCanonical.ts", "amazon-overview-canonical:"],
+    ["src/lib/integrations/amazonAbc.ts", "amazon-abc:"],
+    ["src/lib/integrations/mercadoLivreAbc.ts", "ml-abc:"],
+  ];
+  for (const [modulo, chave] of comCusto) {
+    assert.ok(fonteDe(modulo).includes(chave), `${modulo} deveria usar a chave ${chave}`);
+    assert.ok(lista.includes(`"${chave}"`), `${chave} existe mas nao e invalidada`);
+  }
+});
+
+test("toda rota que grava custo invalida os caches", () => {
+  const rotas = [
+    "src/app/api/costs/route.ts",                        // Amazon e ML
+    "src/app/api/integrations/tiktok/costs/route.ts",    // TikTok
+    "src/lib/integrations/shopeeModules.ts",             // Shopee
+  ];
+  for (const rota of rotas) {
+    const fonte = readFileSync(new URL(`../${rota}`, import.meta.url), "utf8");
+    assert.match(fonte, /invalidateCostDerivedCaches/, `${rota} grava custo sem invalidar cache`);
+  }
+});
