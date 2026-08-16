@@ -1147,12 +1147,13 @@ async function freteEsperadoPorPedido(
   if (orderIds.length === 0) return [];
   const rows = await dbQuery<{
     external_order_id: string; shipment_id: string | null;
-    custo: string | null; cheio: string | null;
+    custo: string | null; custo_comprador: string | null; cheio: string | null;
   }>(
     `SELECT o.external_order_id,
             s.external_shipment_id AS shipment_id,
             (SELECT sender->>'cost' FROM jsonb_array_elements(s.payload->'senders') sender
               WHERE sender->>'user_id' = $3 LIMIT 1) AS custo,
+            s.payload->'receiver'->>'cost' AS custo_comprador,
             s.payload->>'gross_amount' AS cheio
        FROM workspace_marketplace_orders o
        JOIN workspace_marketplace_shipments s
@@ -1168,6 +1169,7 @@ async function freteEsperadoPorPedido(
     saida.push({
       orderId: row.external_order_id,
       custoVendedor: custo,
+      custoComprador: Number.isFinite(Number(row.custo_comprador)) ? Number(row.custo_comprador) : 0,
       freteCheio: Number.isFinite(Number(row.cheio)) ? Number(row.cheio) : null,
       shipmentId: row.shipment_id,
     });

@@ -11,6 +11,8 @@ interface PedidoARevisar {
   orderId: string;
   paymentId: string | null;
   esperado: number;
+  esperadoVendedor: number;
+  esperadoComprador: number;
   cobrado: number;
   diferenca: number;
   freteCheio: number | null;
@@ -176,7 +178,12 @@ export default function AuditoriaPage() {
                         <span className="block truncate font-mono text-xs">{p.orderId}</span>
                         {p.shipmentId && <span className="block truncate text-[11px] text-slate-400">envio {p.shipmentId}</span>}
                       </td>
-                      <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{money(p.esperado, dados.currency)}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">
+                        {money(p.esperado, dados.currency)}
+                        <span className="block text-[11px] text-slate-400">
+                          você {money(p.esperadoVendedor, dados.currency)} + comprador {money(p.esperadoComprador, dados.currency)}
+                        </span>
+                      </td>
                       <td className="px-3 py-2.5 text-right tabular-nums text-slate-900">{money(p.cobrado, dados.currency)}</td>
                       <td className={`px-3 py-2.5 text-right font-semibold tabular-nums ${p.diferenca > 0 ? "text-red-600" : "text-emerald-700"}`}>
                         {p.diferenca > 0 ? "+" : ""}{money(p.diferenca, dados.currency)}
@@ -195,7 +202,10 @@ export default function AuditoriaPage() {
           )}
 
           <p className="saldo-nota">
-            <strong>Previsto</strong> vem de <code>senders[].cost</code> do envio no Mercado Livre.
+            <strong>Previsto</strong> é o frete cheio do envio: a sua parte (<code>senders[].cost</code>)
+            mais a do comprador (<code>receiver.cost</code>). O Mercado Livre debita o cheio e credita de
+            volta a parte do comprador, então comparar só com a sua parte acusaria divergência em todo
+            pedido com frete dividido.
             <strong> Cobrado</strong> vem de <code>charges_details</code> do pagamento no Mercado Pago.
             Diferença negativa significa cobrança a menor, a seu favor — aparece na lista, mas não entra no total a contestar.
           </p>

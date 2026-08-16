@@ -1,19 +1,33 @@
 // Pedidos a revisar — divergência entre o frete que o Mercado Livre DIZ que
 // custa e o que o Mercado Pago efetivamente DESCONTOU.
 //
-// Descoberto em 16/08/2026 num pedido real da conta 1191100170:
+// ⚠️ CORRIGIDO em 16/08/2026, ANTES de qualquer contestação ser aberta.
 //
-//   total_amount   R$ 39,90   produto
-//   paid_amount    R$ 48,89   o comprador pagou R$ 8,99 de frete
-//   shipment       R$  6,65   o que o vendedor deveria pagar
-//   cobrado (MP)   R$ 15,64   o que foi descontado
-//                  ────────
-//   diferença      R$  8,99   exatamente o frete do comprador
+// A primeira versão comparava `shp_fulfillment` (o que o MP debita) direto com
+// `senders[].cost` (o que o envio diz que o VENDEDOR paga) — e acusou 8
+// divergências na conta 648425194 que **não existiam**. Bruto contra líquido.
 //
-// O vendedor foi cobrado como se o frete do comprador também fosse dele. Cinco
-// outros pedidos da mesma amostra bateram no centavo, então não é ruído de
-// arredondamento nem erro de junção (pedido único, sem pack, um envio, um
-// pagamento — verificado).
+// A tela do Mercado Pago mostrou a conta inteira no pedido 2000017874507858:
+//
+//   Pagamento do Mercado Envios (por conta do comprador)   R$ 16,99
+//   Tarifa por envios no Mercado Livre                    −R$ 23,64
+//                                                          ────────
+//   Envios (efeito para o vendedor)                       −R$  6,65
+//
+// O ML debita o frete CHEIO e credita de volta a parte do comprador. Conferido
+// em 6 pedidos, bate ao centavo em todos:
+//
+//   senders[].cost + receiver.cost == shp_fulfillment
+//    6,65 + 16,99 = 23,64      13,30 +  6,99 = 20,29
+//    6,65 + 11,99 = 18,64      13,30 + 14,99 = 28,29
+//    6,65 + 10,99 = 17,64       6,65 +  7,99 = 14,64
+//
+// Portanto o esperado é a SOMA das duas pontas. Divergência real é quando nem
+// isso fecha.
+//
+// 📌 Lição: antes de acusar o marketplace de cobrar errado, conferir se os dois
+// lados da comparação estão na mesma base. Um alerta financeiro falso custa mais
+// caro que alerta nenhum — a pessoa abre reclamação, é negada, e para de confiar.
 //
 // ⚠️ REGRA DE PRODUTO: divergência **não é** cobrança indevida provada. O
 // shipment é uma foto, e o ML pode reprecificar o frete depois da pesagem no
@@ -45,8 +59,10 @@ export interface PagamentoAuditoria {
 /** O que o shipment do ML diz que o frete custa para o vendedor. */
 export interface FreteEsperado {
   orderId: string;
-  /** `senders[].cost` do shipment. */
+  /** `senders[].cost` do shipment: a parte do vendedor. */
   custoVendedor: number;
+  /** `receiver.cost`: a parte do comprador, que o ML debita e credita de volta. */
+  custoComprador: number;
   /** `gross_amount`: frete cheio antes de desconto. Só informativo. */
   freteCheio: number | null;
   shipmentId: string | null;
@@ -55,8 +71,10 @@ export interface FreteEsperado {
 export interface PedidoARevisar {
   orderId: string;
   paymentId: string | null;
-  /** Frete que o shipment do ML declara para o vendedor. */
+  /** Frete cheio esperado: parte do vendedor + parte do comprador. */
   esperado: number;
+  esperadoVendedor: number;
+  esperadoComprador: number;
   /** Frete efetivamente descontado pelo Mercado Pago. */
   cobrado: number;
   /** `cobrado − esperado`. Positivo = cobrado a mais. */
@@ -121,13 +139,19 @@ export function auditarFrete(
 
     comparados += 1;
     const cobrado = freteCobrado(pagamento.charges);
-    const diferenca = round(cobrado - esperado.custoVendedor);
+    // O débito do MP é o frete CHEIO (vendedor + comprador); a parte do
+    // comprador volta como crédito. Comparar só com a do vendedor acusaria
+    // divergência em todo pedido com frete parcialmente pago pelo comprador.
+    const esperadoTotal = round(esperado.custoVendedor + esperado.custoComprador);
+    const diferenca = round(cobrado - esperadoTotal);
     if (Math.abs(diferenca) <= TOLERANCIA) continue;
 
     pedidos.push({
       orderId,
       paymentId: pagamento.id == null ? null : String(pagamento.id),
-      esperado: round(esperado.custoVendedor),
+      esperado: esperadoTotal,
+      esperadoVendedor: round(esperado.custoVendedor),
+      esperadoComprador: round(esperado.custoComprador),
       cobrado,
       diferenca,
       freteCheio: esperado.freteCheio,
