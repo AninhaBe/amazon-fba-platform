@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { NexoWordmark } from "../components/NexoWordmark";
-import { MostraFinanceiro, MostraSaldo, MostraAuditoria } from "./Mostruario";
+import { MostraSaldo, MostraAuditoria } from "./Mostruario";
+import { AnimacaoConciliacao } from "./AnimacaoConciliacao";
 import { VitrineAnimada } from "./VitrineAnimada";
 
 export const metadata = {
@@ -155,7 +156,7 @@ export default function LandingPage() {
           </div>
           {/* A UI de verdade é o argumento — o texto só apresenta. */}
           <div className="lp-pilar-ui">
-            {pilar.id === "financeiro" ? <MostraFinanceiro />
+            {pilar.id === "financeiro" ? <AnimacaoConciliacao />
               : pilar.id === "saldo" ? <MostraSaldo />
               : <MostraAuditoria />}
           </div>

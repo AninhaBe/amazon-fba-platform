@@ -8,35 +8,6 @@
  * o visitante a não confiar no que a tela do produto vai dizer depois.
  */
 
-/** Pilar 1 — a cascata financeira, com o cupom aparecendo como dedução real. */
-export function MostraFinanceiro() {
-  const linhas: Array<[string, string, string?]> = [
-    ["Faturamento (preço de tabela)", "R$ 42,01"],
-    ["Cupons e promoções", "− R$ 2,21", "menos"],
-    ["Faturamento líquido", "= R$ 39,80", "subtotal"],
-    ["Taxas Amazon", "− R$ 6,12", "menos"],
-    ["Custo dos produtos", "− R$ 13,64", "menos"],
-  ];
-  return (
-    <div className="lp-ui" aria-hidden="true">
-      <div className="lp-ui-topo"><span /><span /><span /><em>Financeiro conciliado</em></div>
-      <div className="lp-fluxo">
-        {linhas.map(([rotulo, valor, tipo]) => (
-          <div key={rotulo} className={tipo === "subtotal" ? "is-subtotal" : ""}>
-            <span>{rotulo}</span>
-            <strong className={tipo === "menos" ? "is-menos" : ""}>{valor}</strong>
-          </div>
-        ))}
-        <div className="is-resultado">
-          <span>Lucro estimado</span>
-          <strong>R$ 20,04</strong>
-        </div>
-        <div className="is-margem"><span>Margem</span><strong>50,4%</strong></div>
-      </div>
-    </div>
-  );
-}
-
 /** Pilar 2 — saldo e o cronograma de liberação, com datas de verdade. */
 export function MostraSaldo() {
   return (
