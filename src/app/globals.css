@@ -1826,3 +1826,65 @@ summary:hover { background: var(--paper-soft); }
 @media (prefers-reduced-motion: reduce) {
   .auth-tabs button, .auth-form input, .auth-submit, .logout-form button { transition: none !important; }
 }
+
+/* ---------- Assinatura NEXO ----------
+   Letras físicas assentando numa parede escura. Referência: as letras em relevo
+   do vídeo de marca — volume por sombra direcional, não por gradiente; giro em
+   torno da BASE, como peça colocada, não fade-in. */
+.nexo-wordmark {
+  --nexo-parede: oklch(0.22 0.006 250);
+  --nexo-letra: oklch(0.96 0.004 90);
+  display: block;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--nexo-parede);
+  /* Textura de parede: ruído sutil, o que impede o fundo de parecer chapado. */
+  background-image:
+    radial-gradient(circle at 18% 22%, oklch(0.26 0.006 250 / 0.55), transparent 42%),
+    radial-gradient(circle at 82% 78%, oklch(0.19 0.006 250 / 0.6), transparent 46%);
+  padding: clamp(26px, 6vw, 52px) clamp(20px, 5vw, 46px);
+  perspective: 900px;
+}
+.nexo-wall {
+  display: flex;
+  justify-content: center;
+  gap: clamp(2px, 0.8vw, 8px);
+  transform-style: preserve-3d;
+}
+.nexo-letter {
+  display: inline-block;
+  color: var(--nexo-letra);
+  font-size: clamp(38px, 11vw, 92px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  /* A luz vem de cima: aresta superior clara, sombra caindo para baixo e para a
+     direita. É o que cria o relevo sem recorrer a gradiente. */
+  text-shadow:
+    0 1px 0 oklch(1 0 0 / 0.55),
+    0 2px 1px oklch(0 0 0 / 0.35),
+    0 10px 22px oklch(0 0 0 / 0.5),
+    0 22px 44px oklch(0 0 0 / 0.32);
+  transform-origin: bottom center;
+  animation: nexo-assenta 0.86s cubic-bezier(0.16, 0.84, 0.28, 1) both;
+}
+@keyframes nexo-assenta {
+  /* Começa tombada para trás e um pouco acima; assenta com leve passagem do
+     ponto final, como peça que encosta e acomoda. */
+  0%   { transform: rotateX(-92deg) translateY(-14%); opacity: 0; }
+  55%  { opacity: 1; }
+  78%  { transform: rotateX(7deg) translateY(0); }
+  100% { transform: rotateX(0deg) translateY(0); opacity: 1; }
+}
+/* Deriva lenta da "câmera": o vídeo desliza de lado enquanto as letras assentam. */
+@media (prefers-reduced-motion: no-preference) {
+  .nexo-wall { animation: nexo-deriva 14s ease-in-out infinite alternate; }
+  @keyframes nexo-deriva {
+    from { transform: translateX(-1.1%); }
+    to   { transform: translateX(1.1%); }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nexo-letter { animation: none; transform: none; opacity: 1; }
+  .nexo-wall { animation: none; }
+}

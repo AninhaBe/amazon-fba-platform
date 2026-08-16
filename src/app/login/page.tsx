@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { Logo } from "../components/Logo";
+import { NexoWordmark } from "../components/NexoWordmark";
 import { LoginForm } from "./LoginForm";
 
 export const dynamic = "force-dynamic";
@@ -8,7 +8,8 @@ export default function LoginPage() {
   return (
     <main className="auth-page">
       <section className="auth-intro" aria-labelledby="auth-title">
-        <Logo />
+        {/* Assinatura da marca. Trocar de volta é uma linha: <Logo />. */}
+        <NexoWordmark className="mb-6" />
         <p className="auth-kicker">Operação multicanal, acesso individual</p>
         <h1 id="auth-title">Seus canais pertencem ao seu workspace.</h1>
         <p>Amazon, Mercado Livre e os próximos canais ficam isolados por conta. Você só vê as integrações autorizadas por você.</p>
