@@ -107,6 +107,7 @@ const navigation: Record<WorkspaceId, NavGroup[]> = {
       items: [
         { href: "/mercado-livre", label: "Dashboard", desc: "Visão do canal", icon: icons.dashboard, exact: true },
         { href: "/mercado-livre/monitor", label: "Monitor da conta", desc: "Pedidos e financeiro", icon: icons.monitor },
+        { href: "/mercado-livre/auditoria", label: "Pedidos a revisar", desc: "Frete cobrado × declarado", icon: icons.monitor },
       ],
     },
     {

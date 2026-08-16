@@ -6,6 +6,9 @@ import { allocateByWeight, calculateContribution, type ProfitabilityLine } from 
 import { collectMercadoLivreOrders } from "./mercadoLivreOrders";
 import { ChannelAuthExpiredError } from "./authErrors";
 import { calcularSaldoML, type PagamentoMP, type SaldoMercadoLivre } from "./mercadoPagoBalance";
+import { auditarFrete, type FreteEsperado, type PagamentoAuditoria, type ResultadoAuditoria } from "./mercadoLivreAuditoria";
+import { dbQuery } from "../db";
+import { currentWorkspaceId } from "../workspaceScope";
 
 const API_BASE = "https://api.mercadolibre.com";
 const AUTH_BASE = "https://auth.mercadolivre.com.br/authorization";
@@ -1113,4 +1116,97 @@ export async function getMercadoLivreBalance(
   }
 
   return calcularSaldoML(pagamentos, { agora: now, totalDaBusca: total });
+}
+
+// ---------- Pedidos a revisar (auditoria de frete) ----------
+// Cruza o frete que o shipment do ML declara com o que o Mercado Pago descontou.
+// Ver `mercadoLivreAuditoria.ts` para o caso real que originou isto e para a
+// regra de produto (divergência é candidata a revisão, não erro provado).
+
+const MP_AUDITORIA_PAGINAS = 5;
+
+interface PagamentoBrutoMP {
+  id?: number | string;
+  status?: string;
+  external_reference?: string | null;
+  transaction_amount?: number | null;
+  date_approved?: string | null;
+  transaction_details?: { net_received_amount?: number | null } | null;
+  charges_details?: Array<{ type?: string; name?: string; amounts?: { original?: number | null } | null }>;
+}
+
+/**
+ * Frete esperado por pedido, direto do payload do shipment já sincronizado.
+ * O `senders[]` do vendedor é identificado por `user_id` — em envio com mais de
+ * um remetente, pegar o primeiro daria o custo de outra pessoa.
+ */
+async function freteEsperadoPorPedido(
+  connection: IntegrationConnection,
+  orderIds: readonly string[]
+): Promise<FreteEsperado[]> {
+  if (orderIds.length === 0) return [];
+  const rows = await dbQuery<{
+    external_order_id: string; shipment_id: string | null;
+    custo: string | null; cheio: string | null;
+  }>(
+    `SELECT o.external_order_id,
+            s.external_shipment_id AS shipment_id,
+            (SELECT sender->>'cost' FROM jsonb_array_elements(s.payload->'senders') sender
+              WHERE sender->>'user_id' = $3 LIMIT 1) AS custo,
+            s.payload->>'gross_amount' AS cheio
+       FROM workspace_marketplace_orders o
+       JOIN workspace_marketplace_shipments s
+         ON s.workspace_id = o.workspace_id
+        AND s.external_shipment_id = (o.payload#>>'{shipping,id}')
+      WHERE o.workspace_id = $1 AND o.external_order_id = ANY($2::text[])`,
+    [currentWorkspaceId(), [...orderIds], connection.externalAccountId]
+  );
+  const saida: FreteEsperado[] = [];
+  for (const row of rows) {
+    const custo = Number(row.custo);
+    if (!Number.isFinite(custo)) continue; // sem custo do vendedor não há comparação
+    saida.push({
+      orderId: row.external_order_id,
+      custoVendedor: custo,
+      freteCheio: Number.isFinite(Number(row.cheio)) ? Number(row.cheio) : null,
+      shipmentId: row.shipment_id,
+    });
+  }
+  return saida;
+}
+
+/** Pedidos a revisar num período. */
+export async function getMercadoLivreAuditoria(
+  connection: IntegrationConnection,
+  input: { from: Date; to: Date }
+): Promise<ResultadoAuditoria> {
+  const pagamentos: PagamentoAuditoria[] = [];
+  let parcial = false;
+
+  for (let pagina = 0; pagina < MP_AUDITORIA_PAGINAS; pagina++) {
+    const busca = await mercadoPagoFetch<{ paging?: { total?: number }; results?: PagamentoBrutoMP[] }>(
+      connection,
+      `/v1/payments/search?sort=date_created&criteria=desc&range=date_created`
+      + `&begin_date=${encodeURIComponent(input.from.toISOString())}&end_date=${encodeURIComponent(input.to.toISOString())}`
+      + `&status=approved&limit=100&offset=${pagina * 100}`
+    );
+    const itens = busca.results ?? [];
+    for (const p of itens) {
+      pagamentos.push({
+        id: p.id,
+        orderId: p.external_reference ?? null,
+        status: p.status,
+        transactionAmount: p.transaction_amount ?? null,
+        netReceived: p.transaction_details?.net_received_amount ?? null,
+        charges: p.charges_details ?? [],
+        paidAt: p.date_approved ?? null,
+      });
+    }
+    if (itens.length < 100) break;
+    if (pagina === MP_AUDITORIA_PAGINAS - 1 && (busca.paging?.total ?? 0) > pagamentos.length) parcial = true;
+  }
+
+  const ids = [...new Set(pagamentos.map((p) => p.orderId).filter((id): id is string => !!id))];
+  const esperados = await freteEsperadoPorPedido(connection, ids);
+  return auditarFrete(pagamentos, esperados, { parcial });
 }
