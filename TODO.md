@@ -74,6 +74,19 @@ conforme for concluindo.
   remoção local). Go Live e payload real seguem **BLOCKED**; ao conectar,
   revisar `shopeeCanonical.ts` contra a resposta Live.
 
+## Marca NEXO (pedido em 15/08/2026)
+
+- [ ] **Terminar a assinatura NEXO.** A 1a versao criava a CENA do video (parede
+  escura atras das letras) e virou um retangulo preto colado numa pagina clara —
+  lia como banner, nao como marca. Ja refeita sem fundo proprio
+  (`NexoWordmark.tsx` + bloco "Assinatura NEXO" no `globals.css`), **falta ver
+  renderizada** na tela de login antes de dar por boa.
+- [ ] **Renomear SellerCore -> NEXO no produto.** Nao e substituir tudo: a URL
+  `sellercore.onrender.com` esta cadastrada como Redirect URI na Shopee e no
+  TikTok, que tem allowlist. Trocar a URL **quebra o OAuth** dos dois. Precisa de
+  plano: onde e so texto, onde e dominio, e a ordem de atualizar cada allowlist.
+  Ja trocado: botao do login ("Entrar no NEXO").
+
 ## Paridade financeira entre canais (pedido em 15/08/2026)
 
 A auditoria dos números da Amazon achou sete defeitos. Todos foram corrigidos
