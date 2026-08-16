@@ -14,6 +14,11 @@
 export interface PagamentoMP {
   id?: number | string;
   status?: string;
+  /** `charges_details`: tarifas e frete debitados. */
+  charges?: ReadonlyArray<{ type?: string; amounts?: { original?: number | null } | null }>;
+  charges_details?: ReadonlyArray<{ type?: string; amounts?: { original?: number | null } | null }>;
+  /** `senders[].cost` do envio: a parte do frete que é do VENDEDOR. */
+  freteDoVendedor?: number | null;
   /** `pending` enquanto o dinheiro está retido. */
   money_release_status?: string | null;
   money_release_date?: string | null;
@@ -31,7 +36,7 @@ export interface LiberacaoML {
 
 export interface SaldoMercadoLivre {
   currency: string;
-  /** Total BRUTO ainda retido pelo Mercado Pago (antes de tarifa e frete). */
+  /** Total LÍQUIDO ainda retido — já sem tarifa e sem a parte do vendedor no frete. */
   retido: number;
   /** Já liberado dentro da janela lida — NÃO é o saldo da conta. */
   liberadoNaJanela: number;
@@ -63,28 +68,40 @@ function diaDe(iso: string): string {
 }
 
 /**
- * Valor da venda que está a caminho.
+ * Líquido que a vendedora recebe por este pagamento.
  *
- * ⚠️ Deliberadamente o **bruto** (`transaction_amount`), não o líquido.
+ * Fórmula derivada do **relatório de liberações** do Mercado Pago
+ * (`POST /v1/account/release_report`, baixado em 16/08/2026), que traz por linha
+ * `GROSS_AMOUNT`, `MP_FEE_AMOUNT` e `NET_CREDIT_AMOUNT`:
  *
- * A primeira versão usava `net_received_amount`, apresentado como "o que sobra
- * de fato". Medido em 16/08/2026 sobre pagamentos reais da conta 648425194, esse
- * campo é **inconsistente**: em alguns pagamentos já inclui o crédito do frete
- * pago pelo comprador, em outros não, e não há regra na resposta que distinga.
+ *   GROSS 35,90 · MP_FEE −4,13 · frete do vendedor 6,65 → NET_CREDIT 25,12 ✓
  *
- *   venda 36,90 · tarifas 22,43 · net_received 26,01 · receiver 0,00
- *     → 36,90 − 22,43 = 14,47, mas a API diz 26,01
- *   venda 36,90 · tarifas 21,88 · net_received 26,01 · receiver 10,99
- *     → somar o receiver daria 37,00, alto demais
+ * Conferido contra a tela do próprio MP no pagamento 172276681179:
+ *   36,90 − 4,24 (tarifas) − 6,65 (frete do vendedor) = 26,01 = "Total a receber"
  *
- * Somar `receiver.cost` conserta um caso e quebra o outro. Como não dá para
- * derivar o líquido com confiança, o bloco mostra o BRUTO e diz que é bruto —
- * um número certo com rótulo certo vale mais que um líquido inventado. Quem
- * precisa do líquido tem a cascata financeira, que sai das tarifas conciliadas.
+ * ⚠️ Duas armadilhas que esta função evita, ambas custaram erro hoje:
+ *
+ * 1. **Não usar `net_received_amount`.** É inconsistente: em alguns pagamentos
+ *    já inclui o crédito do frete do comprador e em outros não, sem nada na
+ *    resposta que distinga (36,90 − 22,43 = 14,47 mas o campo dizia 26,01).
+ * 2. **Não descontar `shp_fulfillment`.** Esse é o frete CHEIO; o ML debita o
+ *    cheio e credita de volta a parte do comprador. Descontá-lo inteiro
+ *    subtrairia dinheiro que volta — foi o que gerou 8 falsos alertas de
+ *    cobrança indevida.
+ *
+ * Sem o frete do vendedor conhecido, devolve `null`: o pagamento é omitido em
+ * vez de entrar por um líquido inventado.
  */
-function valorDe(pagamento: PagamentoMP): number | null {
+function liquidoDe(pagamento: PagamentoMP): number | null {
   const bruto = pagamento.transaction_amount;
-  return typeof bruto === "number" && Number.isFinite(bruto) ? bruto : null;
+  if (typeof bruto !== "number" || !Number.isFinite(bruto)) return null;
+  const frete = pagamento.freteDoVendedor;
+  if (typeof frete !== "number" || !Number.isFinite(frete)) return null;
+  // Só tarifa entra aqui; frete tem tratamento próprio (ver armadilha 2).
+  const tarifas = (pagamento.charges ?? pagamento.charges_details ?? [])
+    .filter((c) => c.type !== "shipping")
+    .reduce((soma, c) => soma + (c.amounts?.original ?? 0), 0);
+  return round(bruto - tarifas - frete);
 }
 
 export function calcularSaldoML(
@@ -101,7 +118,7 @@ export function calcularSaldoML(
     // Recusado nunca vira dinheiro. Ele chega com `money_release_date: null`, e
     // tratá-lo como retido inventaria um recebimento que não existe.
     if (pagamento.status !== "approved") continue;
-    const valor = valorDe(pagamento);
+    const valor = liquidoDe(pagamento);
     if (valor == null) continue;
     if (!pagamento.money_release_date) continue;
 

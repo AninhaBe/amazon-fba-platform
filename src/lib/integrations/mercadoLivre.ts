@@ -1099,7 +1099,7 @@ export async function getMercadoLivreBalance(
 ): Promise<SaldoMercadoLivre> {
   const de = new Date(now.getTime() - 24 * 3_600_000); // margem: liberações de hoje
   const ate = new Date(now.getTime() + 180 * 86_400_000);
-  const pagamentos: PagamentoMP[] = [];
+  const pagamentos: Array<PagamentoMP & { external_reference?: string }> = [];
   let total = 0;
 
   for (let pagina = 0; pagina < MP_PAGINAS; pagina++) {
@@ -1115,7 +1115,17 @@ export async function getMercadoLivreBalance(
     if (itens.length < MP_POR_PAGINA) break;
   }
 
-  return calcularSaldoML(pagamentos, { agora: now, totalDaBusca: total });
+  // O líquido exige a parte do VENDEDOR no frete, que só o envio informa —
+  // `shp_fulfillment` do pagamento é o frete cheio e não serve (ver
+  // `mercadoPagoBalance.ts`).
+  const ids = [...new Set(pagamentos.map((p) => p.external_reference).filter((v): v is string => !!v))];
+  const fretes = new Map((await freteEsperadoPorPedido(connection, ids)).map((f) => [f.orderId, f.custoVendedor]));
+  const comFrete = pagamentos.map((p) => ({
+    ...p,
+    freteDoVendedor: fretes.get(p.external_reference ?? "") ?? null,
+  }));
+
+  return calcularSaldoML(comFrete, { agora: now, totalDaBusca: total });
 }
 
 // ---------- Pedidos a revisar (auditoria de frete) ----------
