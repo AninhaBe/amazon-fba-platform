@@ -8,6 +8,35 @@ Isto é mapa, não decisão fechada. Serve para discutir seção a seção.
 
 ---
 
+## ⚠️ De onde dá para copiar código (verificado em 16/08/2026)
+
+| Repo | Landing no repo? | O que serve |
+|---|---|---|
+| `midday-ai/midday` | **Sim** — `apps/website`, Next.js separado, 457 arquivos | página, seções e `components/motion-primitives` |
+| `dubinc/dub` | **Não** — só `app.dub.co` (o dashboard) | estrutura, lida da página renderizada; e a UI do produto em `apps/web/ui` |
+
+O dub teve `app/(marketing)` aberto até maio/2023 (commit `4ff9cb0`), mas é a landing
+de três anos atrás, não a que está no ar.
+
+📌 **Padrão que vale para a próxima referência:** empresa OSS quase sempre abre o produto
+e fecha o site de marketing (Dub, Cal.com, Documenso). O midday é exceção. Ao procurar
+código de landing, o filtro é `apps/website` ou `apps/www` no monorepo — o Supabase
+também tem.
+
+### A técnica de animação do midday
+
+De `time-tracking-calendar-animation.tsx`:
+
+```ts
+calendarEvents.forEach((e, i) =>
+  setTimeout(() => setVisible(prev => new Set(prev).add(e.id)), i * 150 + 300));
+setInterval(animateEvents, 8000);   // o REINÍCIO é o que faz parecer vídeo
+```
+
+Estado com os itens visíveis + `setTimeout` escalonado por índice + `setInterval` que
+zera e recomeça. Eles usam `motion/react`; aqui o mesmo resultado sai com transição CSS,
+sem dependência nova. Implementado em `src/app/landing/VitrineAnimada.tsx`.
+
 ## Por que o dub.co encaixa
 
 Os dois vendem a mesma promessa que o NEXO: **"você já tem os dados, mas não tem

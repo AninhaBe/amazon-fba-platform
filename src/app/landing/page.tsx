@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { NexoWordmark } from "../components/NexoWordmark";
+import { MostraFinanceiro, MostraSaldo, MostraAuditoria } from "./Mostruario";
+import { VitrineAnimada } from "./VitrineAnimada";
 
 export const metadata = {
   title: "NEXO — Pare de adivinhar quanto sobrou",
@@ -60,6 +62,13 @@ const PILARES = [
   },
 ];
 
+
+const CUSTOS: Array<[string, string, string]> = [
+  ["Conferir repasse", "2 horas por semana", "Abrir cada venda no marketplace e conferir tarifa, frete e imposto na mão."],
+  ["Fechar o mês", "meio dia", "Juntar quatro painéis numa planilha e torcer para os totais baterem."],
+  ["Achar o erro", "quando acha", "Cobrança divergente só aparece se alguém for procurar pedido a pedido."],
+];
+
 /** Só números medidos no banco em 16/08/2026. Ver `docs/landing-nexo.md`. */
 const CONTADORES = [
   { valor: "70.479", rotulo: "pedidos conciliados" },
@@ -88,6 +97,32 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* A tela inteira do produto logo abaixo do hero — o que o dub faz. */}
+      <section className="lp-vitrine-secao">
+        <VitrineAnimada
+          legenda="Visão do canal"
+          descricao="Faturamento, tarifa, custo e lucro de cada canal — com o que ainda não fechou marcado como pendente, nunca como zero."
+        />
+      </section>
+
+      {/* Padrão real do midday (`time-savings-section.tsx`): problema + custo em
+          horas, em cartões quadrados. Serve melhor que manifesto solto. */}
+      <section className="lp-custos">
+        <div className="lp-custos-topo">
+          <h2>Menos conferência. Mais operação.</h2>
+          <p>O NEXO tira o trabalho manual de saber quanto sobrou.</p>
+        </div>
+        <div className="lp-custos-grade">
+          {CUSTOS.map(([o_que, quanto, texto]) => (
+            <article key={o_que}>
+              <p>{o_que}</p>
+              <h3>{quanto}</h3>
+              <span>{texto}</span>
+            </article>
+          ))}
+        </div>
+      </section>
+
       <section className="lp-manifesto">
         <h2>
           Não é sobre quanto você vendeu.
@@ -103,21 +138,27 @@ export default function LandingPage() {
         </p>
       </section>
 
-      {PILARES.map((pilar) => (
-        <section key={pilar.id} id={pilar.id} className="lp-pilar">
+      {PILARES.map((pilar, i) => (
+        <section key={pilar.id} id={pilar.id} className={`lp-pilar${i % 2 ? " is-invertido" : ""}`}>
           <div className="lp-pilar-texto">
             <p className="lp-kicker">{pilar.kicker}</p>
             <h2>{pilar.titulo}</h2>
             <p>{pilar.texto}</p>
+            <ul className="lp-itens">
+              {pilar.itens.map(([titulo, desc]) => (
+                <li key={titulo}>
+                  <strong>{titulo}</strong>
+                  <span>{desc}</span>
+                </li>
+              ))}
+            </ul>
           </div>
-          <ul className="lp-itens">
-            {pilar.itens.map(([titulo, desc]) => (
-              <li key={titulo}>
-                <strong>{titulo}</strong>
-                <span>{desc}</span>
-              </li>
-            ))}
-          </ul>
+          {/* A UI de verdade é o argumento — o texto só apresenta. */}
+          <div className="lp-pilar-ui">
+            {pilar.id === "financeiro" ? <MostraFinanceiro />
+              : pilar.id === "saldo" ? <MostraSaldo />
+              : <MostraAuditoria />}
+          </div>
         </section>
       ))}
 

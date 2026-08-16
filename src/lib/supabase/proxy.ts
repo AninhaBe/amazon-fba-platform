@@ -3,6 +3,8 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const publicPaths = [
   "/login",
+  // Landing: é a porta de entrada; exigir sessão para vê-la não faria sentido.
+  "/landing",
   "/privacidade",
   "/auth/confirm",
   "/api/health",
