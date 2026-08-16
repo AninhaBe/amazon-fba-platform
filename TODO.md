@@ -81,6 +81,9 @@ conforme for concluindo.
   lia como banner, nao como marca. Ja refeita sem fundo proprio
   (`NexoWordmark.tsx` + bloco "Assinatura NEXO" no `globals.css`), **falta ver
   renderizada** na tela de login antes de dar por boa.
+- [ ] **Landing do NEXO.** Estrutura do dub.co, efeitos do midday.ai. Mapa em
+  `docs/landing-nexo.md` (hero em 3 versoes, manifesto, contadores, riscos).
+  Depende da decisao de renomeacao abaixo — a URL entra na landing.
 - [ ] **Renomear SellerCore -> NEXO no produto.** Nao e substituir tudo: a URL
   `sellercore.onrender.com` esta cadastrada como Redirect URI na Shopee e no
   TikTok, que tem allowlist. Trocar a URL **quebra o OAuth** dos dois. Precisa de
