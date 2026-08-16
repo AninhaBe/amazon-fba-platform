@@ -66,7 +66,7 @@ export function MercadoLivreSaldo({ connectionId }: { connectionId?: string }) {
         <div className="saldo-card">
           <span>Pagamentos a liberar</span>
           <strong>{saldo.pagamentosTotais.toLocaleString("pt-BR")}</strong>
-          <small>Já descontadas a tarifa do anúncio e o frete</small>
+          <small>Valor bruto das vendas, antes de tarifa e frete</small>
         </div>
       </div>
       {saldo.liberacoes.length > 0 && (
@@ -81,7 +81,9 @@ export function MercadoLivreSaldo({ connectionId }: { connectionId?: string }) {
         </ol>
       )}
       <p className="saldo-nota">
-        O valor é o <strong>líquido</strong> informado pelo Mercado Pago — já sem a tarifa de venda e o frete.
+        O valor é <strong>bruto</strong>: é o que o comprador pagou, antes da tarifa de venda e do frete.
+        O Mercado Pago não informa o líquido de forma confiável — o campo varia conforme o crédito do frete
+        já ter sido aplicado ou não —, e preferimos um número certo a um líquido estimado.
         {saldo.parcial
           ? ` Total parcial: lemos as ${saldo.pagamentosLidos} liberações mais próximas de ${saldo.pagamentosTotais} pendentes, então o retido real é maior que o exibido.`
           : ""}

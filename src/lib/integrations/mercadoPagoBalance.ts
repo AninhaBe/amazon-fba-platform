@@ -31,7 +31,7 @@ export interface LiberacaoML {
 
 export interface SaldoMercadoLivre {
   currency: string;
-  /** Total ainda retido pelo Mercado Pago. */
+  /** Total BRUTO ainda retido pelo Mercado Pago (antes de tarifa e frete). */
   retido: number;
   /** Já liberado dentro da janela lida — NÃO é o saldo da conta. */
   liberadoNaJanela: number;
@@ -63,14 +63,28 @@ function diaDe(iso: string): string {
 }
 
 /**
- * O que entra no saldo é o **líquido**, não o valor pago pelo comprador: a
- * tarifa do ML e o frete já saem antes de o dinheiro cair. Sem
- * `net_received_amount`, o pagamento é ignorado em vez de entrar pelo bruto —
- * inflar o saldo é pior que omitir uma linha.
+ * Valor da venda que está a caminho.
+ *
+ * ⚠️ Deliberadamente o **bruto** (`transaction_amount`), não o líquido.
+ *
+ * A primeira versão usava `net_received_amount`, apresentado como "o que sobra
+ * de fato". Medido em 16/08/2026 sobre pagamentos reais da conta 648425194, esse
+ * campo é **inconsistente**: em alguns pagamentos já inclui o crédito do frete
+ * pago pelo comprador, em outros não, e não há regra na resposta que distinga.
+ *
+ *   venda 36,90 · tarifas 22,43 · net_received 26,01 · receiver 0,00
+ *     → 36,90 − 22,43 = 14,47, mas a API diz 26,01
+ *   venda 36,90 · tarifas 21,88 · net_received 26,01 · receiver 10,99
+ *     → somar o receiver daria 37,00, alto demais
+ *
+ * Somar `receiver.cost` conserta um caso e quebra o outro. Como não dá para
+ * derivar o líquido com confiança, o bloco mostra o BRUTO e diz que é bruto —
+ * um número certo com rótulo certo vale mais que um líquido inventado. Quem
+ * precisa do líquido tem a cascata financeira, que sai das tarifas conciliadas.
  */
-function liquidoDe(pagamento: PagamentoMP): number | null {
-  const liquido = pagamento.transaction_details?.net_received_amount;
-  return typeof liquido === "number" && Number.isFinite(liquido) ? liquido : null;
+function valorDe(pagamento: PagamentoMP): number | null {
+  const bruto = pagamento.transaction_amount;
+  return typeof bruto === "number" && Number.isFinite(bruto) ? bruto : null;
 }
 
 export function calcularSaldoML(
@@ -87,23 +101,23 @@ export function calcularSaldoML(
     // Recusado nunca vira dinheiro. Ele chega com `money_release_date: null`, e
     // tratá-lo como retido inventaria um recebimento que não existe.
     if (pagamento.status !== "approved") continue;
-    const liquido = liquidoDe(pagamento);
-    if (liquido == null) continue;
+    const valor = valorDe(pagamento);
+    if (valor == null) continue;
     if (!pagamento.money_release_date) continue;
 
     const quando = new Date(pagamento.money_release_date).getTime();
     if (!Number.isFinite(quando)) continue;
 
     if (quando > agora) {
-      retido += liquido;
+      retido += valor;
       pagamentosLidos += 1;
       const dia = diaDe(pagamento.money_release_date);
       const atual = porDia.get(dia) ?? { date: dia, amount: 0, pagamentos: 0 };
-      atual.amount = round(atual.amount + liquido);
+      atual.amount = round(atual.amount + valor);
       atual.pagamentos += 1;
       porDia.set(dia, atual);
     } else {
-      liberadoNaJanela += liquido;
+      liberadoNaJanela += valor;
     }
   }
 

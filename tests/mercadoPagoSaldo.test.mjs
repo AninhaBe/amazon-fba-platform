@@ -28,32 +28,36 @@ const PAGO_RECUSADO = {
   transaction_amount: 36.9, transaction_details: { net_received_amount: null },
 };
 
-test("o saldo usa o liquido, nao o que o comprador pagou", () => {
+test("o saldo usa o BRUTO, porque o liquido da API nao e confiavel", () => {
+  // Medido em 16/08/2026: `net_received_amount` as vezes ja inclui o credito do
+  // frete pago pelo comprador e as vezes nao, sem nada na resposta que distinga.
+  //   venda 36,90 · tarifas 22,43 · net 26,01 · receiver 0    -> 14,47 != 26,01
+  //   venda 36,90 · tarifas 21,88 · net 26,01 · receiver 10,99 -> somar daria 37,00
+  // Numero certo com rotulo certo vale mais que liquido inventado.
   const s = calcularSaldoML([PAGO_RETIDO], { agora: AGORA });
-  // 24,62 e o que sobra; 35,33 inclui tarifa de venda e frete que nunca chegam.
-  assert.equal(s.retido, 24.62);
-  assert.notEqual(s.retido, 35.33);
+  assert.equal(s.retido, 35.33, "bruto: o que o comprador pagou");
+  assert.notEqual(s.retido, 24.62, "nao usar net_received_amount");
 });
 
 test("pagamento recusado nao vira dinheiro retido", () => {
   // Chega com money_release_date null; conta-lo inventaria um recebimento.
   const s = calcularSaldoML([PAGO_RETIDO, PAGO_RECUSADO], { agora: AGORA });
-  assert.equal(s.retido, 24.62);
+  assert.equal(s.retido, 35.33);
   assert.equal(s.pagamentosLidos, 1);
 });
 
 test("liberacao passada nao entra no retido", () => {
   const s = calcularSaldoML([PAGO_RETIDO, PAGO_LIBERADO], { agora: AGORA });
-  assert.equal(s.retido, 24.62);
-  assert.equal(s.liberadoNaJanela, 26.1);
+  assert.equal(s.retido, 35.33);
+  assert.equal(s.liberadoNaJanela, 36.9);
   assert.equal(s.liberacoes.length, 1, "so a futura entra no cronograma");
 });
 
 test("liberacoes do mesmo dia viram uma linha", () => {
-  const outro = { ...PAGO_RETIDO, id: 999, transaction_details: { net_received_amount: 10 } };
+  const outro = { ...PAGO_RETIDO, id: 999, transaction_amount: 10 };
   const s = calcularSaldoML([PAGO_RETIDO, outro], { agora: AGORA });
   assert.equal(s.liberacoes.length, 1);
-  assert.equal(s.liberacoes[0].amount, 34.62);
+  assert.equal(s.liberacoes[0].amount, 45.33);
   assert.equal(s.liberacoes[0].pagamentos, 2);
 });
 
@@ -63,10 +67,9 @@ test("as liberacoes saem da mais proxima para a mais distante", () => {
   assert.deepEqual(s.liberacoes.map((l) => l.date), ["2026-08-22", "2026-09-13"]);
 });
 
-test("sem liquido informado o pagamento e omitido, nao contado pelo bruto", () => {
-  // Inflar o saldo e pior que omitir uma linha: a pessoa planeja caixa com ele.
-  const semLiquido = { ...PAGO_RETIDO, id: 2, transaction_details: { net_received_amount: null } };
-  const s = calcularSaldoML([semLiquido], { agora: AGORA });
+test("sem valor informado o pagamento e omitido", () => {
+  const semValor = { ...PAGO_RETIDO, id: 2, transaction_amount: null };
+  const s = calcularSaldoML([semValor], { agora: AGORA });
   assert.equal(s.retido, 0);
   assert.equal(s.pagamentosLidos, 0);
 });
