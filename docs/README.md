@@ -97,9 +97,18 @@ não encontrar:
 
 | Onde | O que tem | Por que fora |
 |---|---|---|
-| `.claude/skills/monitorar-ads/SKILL.md` | Toda a operação de Amazon Ads: cada leitura datada, mudanças aplicadas com data e hora, limiares de decisão, e as pegadinhas do console | `.claude` está no `.gitignore` — **é local, não versionado** |
+| `.claude/skills/gerenciar-ads/` | **Gerenciador de Amazon Ads**: motor de decisão, matemática do lance (com calculadora `scripts/lance.mjs`), ciclo de colheita e negativas, armadilhas da tela de criação, diagnóstico, benchmarks 2026 e os dados da conta NEXAHUB | `.claude` está no `.gitignore` — **é local, não versionado** |
+| `.claude/skills/monitorar-ads/SKILL.md` | **Leitura e log**: cada leitura datada, mudanças aplicadas com data e hora, e o histórico da operação | idem |
 | `~/.claude/skills/pesquisa-produto-amazon/` | Análise de nicho por termo (menor preço FBA via `competitiveSummary`, BSR, margem) e comparação por atributo | Ferramenta pessoal, não faz parte do produto |
 
-📌 **Antes de opinar sobre campanha de Ads, leia a skill.** Ela guarda o histórico que o
-git não tem — inclusive erros já cometidos e a regra de que toda leitura termina em
-**esperar**, **agir** ou **investigar**.
+📌 **Antes de opinar sobre campanha de Ads, leia as duas skills.** Elas guardam o
+histórico que o git não tem — inclusive erros já cometidos e a regra de que toda leitura
+termina em **esperar**, **agir** ou **investigar**.
+
+⚠️ **Isso é uma fragilidade conhecida:** conhecimento operacional caro vive fora do
+controle de versão. Se `.claude/skills` for versionado um dia, estes arquivos deveriam ser
+os primeiros a entrar.
+
+As fontes **versionadas** desse conhecimento são [`amazon-ads.md`](./amazon-ads.md) e
+[`amazon-ads-especialista.html`](./amazon-ads-especialista.html) — as skills destilam esses
+dois em procedimento.
