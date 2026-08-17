@@ -1,7 +1,10 @@
-# TODO — SellerCore
+# TODO — NEXO
 
 Pendências combinadas da migração multicanal e melhorias. Atualize os checkboxes
 conforme for concluindo.
+
+> Itens marcados **"todos"** já estão feitos na **Amazon** (foi onde a auditoria
+> rodou) e faltam nos demais canais. Continuam abertos até os quatro fecharem.
 
 > Para **onde cada frente parou** (Shopee, Amazon, contas de teste) e o passo
 > exato de retomada, veja `docs/estado-atual.md`. Este arquivo é a lista de
@@ -19,19 +22,11 @@ conforme for concluindo.
 - [ ] **Shopee: confirmar IP Whitelist no ambiente Live** depois da aprovação;
   sem ela os dados do comprador vêm mascarados e não sai NF-e.
 
-- [ ] **Agendar o cron da Amazon.** "Cron" é só um despertador: um serviço
-  externo chama uma URL do app de tempos em tempos, e essa chamada empurra a
-  sincronização — sem depender de alguém abrir o dashboard.
-  1. Se ainda não existir, crie a variável `CRON_SECRET` no ambiente do Render
-     (Environment → Add) com um valor longo e aleatório. O cron do Mercado
-     Livre usa a mesma variável.
-  2. Num serviço gratuito de agendamento (ex.: [cron-job.org](https://cron-job.org)),
-     crie um job a cada **10 minutos** chamando:
-     `GET https://SEU-APP.onrender.com/api/cron/amazon-sync`
-     com o header `Authorization: Bearer <valor do CRON_SECRET>`.
-  3. Confira que o job do Mercado Livre também está agendado (mesmo formato,
-     URL `/api/cron/mercado-livre-sync`, a cada 5 minutos).
-  4. Teste: a resposta deve ser `{"ok":true,...}`. Sem o header correto, 401.
+- [x] ~~**Agendar o cron da Amazon**~~ — **já está feito e este item estava
+  desatualizado.** O `.github/workflows/cron.yml` chama os **quatro** canais
+  (`amazon-sync`, `mercado-livre-sync`, `shopee-sync`, `tiktok-sync`) a cada 5 min,
+  autenticado por `CRON_SECRET` (ADR-003). Não é preciso serviço externo de
+  agendamento. Verificado em 16/08/2026.
 
 ## Fase 5 — Amazon no modelo canônico (em andamento)
 
@@ -76,14 +71,27 @@ conforme for concluindo.
 
 ## Marca NEXO (pedido em 15/08/2026)
 
-- [ ] **Terminar a assinatura NEXO.** A 1a versao criava a CENA do video (parede
-  escura atras das letras) e virou um retangulo preto colado numa pagina clara —
-  lia como banner, nao como marca. Ja refeita sem fundo proprio
-  (`NexoWordmark.tsx` + bloco "Assinatura NEXO" no `globals.css`), **falta ver
-  renderizada** na tela de login antes de dar por boa.
-- [ ] **Landing do NEXO.** Estrutura do dub.co, efeitos do midday.ai. Mapa em
-  `docs/landing-nexo.md` (hero em 3 versoes, manifesto, contadores, riscos).
-  Depende da decisao de renomeacao abaixo — a URL entra na landing.
+- [x] **Assinatura NEXO.** A 1a versao criava a CENA do video (parede escura
+  atras das letras) e virou um retangulo preto colado numa pagina clara — lia como
+  banner, nao como marca. Refeita sem fundo proprio (`NexoWordmark.tsx` + bloco
+  "Assinatura NEXO" no `globals.css`) e vista renderizada na tela de login.
+- [ ] **Landing do NEXO** — esboço navegável em `/landing`. Estrutura do dub.co,
+  efeitos do midday.ai. Mapa em `docs/landing-nexo.md` (hero em 3 versoes,
+  manifesto, contadores, riscos).
+  - [x] Vitrine animada da tela do produto, com cursor navegando (`VitrineAnimada.tsx`)
+  - [x] Animação da conciliação financeira (`AnimacaoConciliacao.tsx`)
+  - [ ] **Animação da pesquisa de mercado da Amazon** — pedida, não começada
+  - [ ] **Animação do aviso de dia de repasse** — pedida, não começada
+  - [ ] **Fidelidade à tela real:** faltam a borda superior colorida dos cards, as
+    seções da sidebar (PAINÉIS/CATÁLOGO/FERRAMENTAS) e a faixa
+    VENDAS/UNIDADES/TICKET/ROI
+  - [ ] Contadores: conferir o número de "tarifas auditadas" antes de publicar —
+    número em landing é promessa
+  - ⚠️ **Não há depoimento de cliente e não se inventa um.** A parede de prova
+    social do dub não tem equivalente honesto ainda.
+  - 📌 **Ao usar um repositório de referência, leia o código antes de codar.** Três
+    iterações foram perdidas construindo a partir de screenshot. E o dub **não tem**
+    a landing aberta no repo (só o dashboard); o midday tem, em `apps/website`.
 - [ ] **Renomear SellerCore -> NEXO no produto.** Nao e substituir tudo: a URL
   `sellercore.onrender.com` esta cadastrada como Redirect URI na Shopee e no
   TikTok, que tem allowlist. Trocar a URL **quebra o OAuth** dos dois. Precisa de
@@ -115,7 +123,10 @@ adaptar **não é copiar código**: cada API entrega a informação de um jeito.
     fallback por "desconhecido" apagaria a receita do período inteiro — decisão
     consciente de manter, registrada aqui para não virar surpresa.
 - [ ] **Todos: desconto/cupom não é custo** — se já vier abatido da receita,
-  somá-lo às deduções desconta duas vezes.
+  somá-lo às deduções desconta duas vezes. ✅ Amazon (15/08): a cascata parte do
+  **preço de tabela**, mostra "Cupons e promoções" como dedução e fecha num
+  subtotal que **é** o card de faturamento. Assim o cupom aparece sem descontar
+  duas vezes. Falta ML, Shopee e TikTok.
 - [x] **Todos: não misturar bases.** Auditado em 15/08/2026. Achado no **ML**:
   `revenue30d` soma aprovadas **+ canceladas** (proposital, é o "Vendas brutas"
   do painel), mas `paidOrders` conta só aprovadas — o ticket saía inflado em
@@ -125,22 +136,58 @@ adaptar **não é copiar código**: cada API entrega a informação de um jeito.
   `tests/ticketMesmaBase.test.mjs`.
 - [ ] **Todos: pendência diz de quem é a espera.** "Aguardando dados" parece
   falha nossa; separar "o canal ainda não informou" de "falta você cadastrar".
+  ✅ Amazon (15/08): a tela diz quantos pedidos a Amazon ainda não confirmou e
+  quanto valor está esperando, no formato que o Seller Central usa. Falta ML,
+  Shopee e TikTok.
 - [ ] **Todos: ausência em período conciliado = zero explicado**, não "—" eterno.
+  ✅ Amazon (15/08): `somaTipos()` em `src/app/amazon/amazonFinancialCards.ts`
+  devolve `0` quando o período está conciliado e `null` quando não está — três
+  cards ficavam mudos para sempre. Falta ML, Shopee e TikTok.
 - [ ] **Todos: categorizar tarifa por padrão, não por lista de nomes exatos.**
   Nome fora da lista vira R$ 0,00 numa conta que paga. O total é a autoridade.
-- [x] **Saldo e retenção — Mercado Livre.** Feito em 15/08/2026 via API do
+  ✅ Amazon (15/08): trocado por regex (`/^FBA/i`, `/advertis|productads/i`,
+  `/commission|referralfee/i`) em `amazonFinancialCards.ts`. Falta ML, Shopee e
+  TikTok.
+- [x] **Saldo e retenção — Mercado Livre.** Feito em 15–16/08/2026 via API do
   Mercado Pago (`/v1/payments/search` com `range=money_release_date`), que abre
-  com o MESMO token do ML. Usa o líquido real (`net_received_amount`), não o
-  bruto. Leitura limitada a 6 páginas e declarada parcial quando trunca.
+  com o MESMO token do ML. Leitura limitada a 6 páginas e declarada parcial
+  quando trunca.
+  - ⚠️ **`net_received_amount` NÃO serve** — a API devolve valor inconsistente
+    com a própria tela do MP. Este TODO já mandou usá-lo; era errado. O líquido é
+    **derivado**: `transaction_amount − tarifas − frete do vendedor`, onde as
+    tarifas vêm de `charges_details` **excluindo** as de `type: "shipping"` (senão
+    o frete desconta duas vezes). Conferido contra a tela do MP:
+    `36,90 − 4,24 − 6,65 = 26,01` = "Total a receber". Ver
+    `src/lib/integrations/mercadoPagoBalance.ts`.
 - [ ] **Saldo e retenção — TikTok.** `/finance/202507/orders/unsettled` devolve
   `sum_est_settlement_amount` e `estimated_settlement` ("Delivered + 3 days").
   Depende de o ledger financeiro encher — destravado hoje pela correção do
   `payment_status`, falta confirmar que os dados chegaram.
 - [ ] **Saldo e retenção — Shopee.** Bloqueado: sem Go Live não há loja real.
-- [ ] **ML: usar `net_received_amount` e `charges_details` no lucro.** O MP
-  informa o líquido e a tarifa DISCRIMINADA (`ml_sale_fee`, `mp_processing_fee`,
-  `shp_fulfillment`); hoje estimamos a partir de `sale_fee` e exibimos "Tarifa de
-  venda" como bloco único.
+- [ ] **ML: usar `charges_details` no lucro.** O MP informa a tarifa
+  DISCRIMINADA (`ml_sale_fee`, `mp_processing_fee`, `shp_fulfillment`); hoje
+  estimamos a partir de `sale_fee` e exibimos "Tarifa de venda" como bloco único.
+  Discriminar aproxima o ML do padrão de tarifa por categoria já aplicado na
+  Amazon. ⚠️ **Não usar `net_received_amount`** — ver a ressalva no item de saldo
+  acima.
+
+## Pedidos a revisar — ML (entregue em 16/08/2026)
+
+Auditoria de frete: compara o que o Mercado Pago **cobrou** (`shp_fulfillment`)
+com o que o envio **declara**. Divergência não vira acusação — vira lista para ela
+decidir. Ideia veio de um print de concorrente (Hunter Hub) que ela mandou.
+
+- [x] **Implementado** em `src/lib/integrations/mercadoLivreAuditoria.ts`.
+- [x] **Corrigido o falso positivo que quase virou reclamação.** A primeira versão
+  acusou **8 divergências, todas falsas**: comparava o `shp_fulfillment` **bruto**
+  contra `senders[].cost` (**líquido**). O esperado é a **soma das duas pontas** —
+  `custoVendedor + custoComprador`. Confirmado pelo print dela:
+  `16,99 (comprador) − 23,64 = −6,65`.
+  📌 **Lição:** antes de apresentar divergência financeira ao usuário, conferir
+  se os dois lados da comparação estão na mesma base. Acusar cobrança errada sem
+  isso queima confiança de um jeito que não se recupera.
+- [ ] **Replicar para os outros canais.** Amazon, Shopee e TikTok também cobram
+  frete e também declaram envio — mesma garantia, campos diferentes.
 
 ## Limpeza (depois que o overview SQL do ML estiver estável no Render)
 

@@ -39,8 +39,16 @@ O que ganhamos, o que abrimos mão, o que passa a ser obrigatório respeitar.
 | [ADR-002](./ADR-002-cache-swr.md) | Cache stale-while-revalidate + aquecimento | Aceito |
 | [ADR-003](./ADR-003-cron-github-actions.md) | Cron via GitHub Actions (Render ignora `vercel.json`) | Aceito |
 | [ADR-004](./ADR-004-custo-por-vigencia.md) | Custo do produto resolvido na consulta, por vigência | Aceito |
+| [ADR-005](./ADR-005-painel-personalizado.md) | Painel personalizado — preferências de KPI por workspace | Proposto |
+| [ADR-006](./ADR-006-migracao-self-hosted-coolify.md) | Migração para stack self-hosted open source (Coolify) | Proposto |
+| [ADR-007](./ADR-007-arquitetura-de-auth.md) | Arquitetura de autenticação e autorização (Better Auth) | Proposto |
+| [ADR-008](./ADR-008-seller-intelligence.md) | Seller Intelligence — briefing diário de prioridades | Proposto |
+| [ADR-009](./ADR-009-historico-de-ranking.md) | Histórico de ranking (tendência de BSR) | Proposto (v1 em implementação) |
+| [ADR-010](./ADR-010-historico-de-oferta.md) | Histórico de oferta (estoque, preço e disponibilidade) | Aceito (v1 em implementação) |
+| [ADR-011](./ADR-011-watchlist-de-pesquisa.md) | Watchlist de pesquisa (identidade dos ASINs acompanhados) | Aceito |
+| [ADR-012](./ADR-012-contrato-0005-sem-runtime-role.md) | Contrato da 0005 sem exigência de runtime role dedicada | Aceito |
 | [ADR-013](./ADR-013-worker-de-sync-separado-do-web.md) | Worker de sync separado do web + agendador que honra o horário | Proposto |
 | [ADR-014](./ADR-014-cache-fora-do-processo-e-ingestao-em-fluxo.md) | Cache fora do processo e leituras com teto de memória (escala além de ~50 contas) | Proposto |
 
-⚠️ Este índice está incompleto: os ADRs **005 a 012** existem no diretório e não estão
-listados aqui.
+**Índice completo em 16/08/2026** — 14 ADRs, todos listados. Ao criar um ADR novo,
+adicione a linha aqui na mesma hora; este índice já ficou 8 ADRs atrás uma vez.

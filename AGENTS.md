@@ -4,6 +4,24 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+# O produto se chama NEXO
+
+**SellerCore é o nome antigo.** Em qualquer texto que uma pessoa lê — tela, doc novo,
+mensagem, commit — o produto é **NEXO**.
+
+⚠️ **Isso NÃO autoriza um find-and-replace.** O identificador `sellercore` continua vivo
+de propósito em três lugares que quebram se você mexer:
+
+| Onde | Por que não trocar |
+|---|---|
+| `sellercore.onrender.com` | Está cadastrada como **Redirect URI** na allowlist da Shopee e do TikTok. Trocar a URL **quebra o OAuth** dos dois canais. |
+| `admin@sellercore.test`, `admin2@sellercore.test` | Contas reais no banco de produção. |
+| Nomes de variável, arquivo e tabela | Renomear é churn sem ganho e conflita com tudo em andamento. |
+
+A renomeação de verdade precisa de plano próprio (qual allowlist atualizar, em que ordem)
+e **não foi pedida**. Está registrada em `TODO.md` → "Marca NEXO". Até lá: **texto novo diz
+NEXO, identificador existente fica quieto.**
+
 # Comece por aqui
 
 **`docs/estado-atual.md`** — foto de onde cada frente parou, o passo exato para

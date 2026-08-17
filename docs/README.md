@@ -1,13 +1,17 @@
 # Mapa do `docs/` — leia isto primeiro
 
 Guia de orientação para qualquer pessoa (ou agente de IA) chegando no projeto. O
-conhecimento do SellerCore mora no repo: **antes de implementar, leia o doc da área** —
+conhecimento do **NEXO** mora no repo: **antes de implementar, leia o doc da área** —
 não re-deduza o que já foi decidido nem repita pegadinha já paga.
 
 > **Chegando agora ou retomando o trabalho?** Comece por
 > [`estado-atual.md`](./estado-atual.md): diz onde cada frente parou, o passo
 > exato para retomar as que estão no meio do caminho, e o que está bloqueado
 > esperando terceiros.
+
+> ⚠️ **"SellerCore" é o nome antigo do produto** e aparece em docs escritos antes de
+> 15/08. Continua nos identificadores de propósito (URL, contas, variáveis) — ver
+> `AGENTS.md` antes de renomear qualquer coisa.
 
 ## Convenções
 
@@ -17,6 +21,9 @@ não re-deduza o que já foi decidido nem repita pegadinha já paga.
   aviso; toda mudança observada entra datada no fim do doc do canal, mais recente
   primeiro. Ao esbarrar num comportamento novo, registre na hora.
 - **Pegadinhas ficam no doc do canal**, junto do endpoint — não em arquivo separado.
+- **Doc datado é doc verificável.** Ao afirmar algo observado (estado de uma
+  candidatura, resposta de uma API, número de produção), registre **quando** foi medido.
+  Data velha não quer dizer errado — quer dizer *não reconferido*.
 
 ## Desenvolvimento e qualidade
 
@@ -32,11 +39,13 @@ não re-deduza o que já foi decidido nem repita pegadinha já paga.
 | Doc | O que tem |
 |---|---|
 | [`api-amazon-sp-api.md`](./api-amazon-sp-api.md) | SP-API: endpoints usados, semântica de PATCH com selectors, orderMetrics vs Transactions, FNSKU/FBA, agendamento de entrega, changelog |
-| [`api-mercado-livre.md`](./api-mercado-livre.md) | ML: endpoints, regra do faturamento (validada ao centavo), refresh token rotativo, endpoints bloqueados (403), o que sobrou para pesquisa de mercado, changelog |
+| [`api-mercado-livre.md`](./api-mercado-livre.md) | ML: endpoints, regra do faturamento (validada ao centavo), refresh token rotativo, endpoints bloqueados (403), **API do Mercado Pago** (abre com o mesmo token do ML), changelog |
+| [`api-mercado-livre-superficie.md`](./api-mercado-livre-superficie.md) | O que a API do ML **respondeu de verdade** com as nossas credenciais, testado endpoint a endpoint (14–15/08) — não é lista de documentação |
 | [`api-shopee.md`](./api-shopee.md) | Shopee Open Platform v2 — implementação local com HTTP fail-closed, OAuth, sweep retomável multi-status, multi-loja, settings e remoção local; Go Live e payload Live seguem bloqueados |
 | [`api-endpoints.md`](./api-endpoints.md) | Panorama geral das duas APIs (grupos e endpoints principais) — visão de mapa, não substitui os docs acima |
 | [`sp-api-notifications.md`](./sp-api-notifications.md) | Notificações/webhooks da SP-API (SQS/EventBridge) |
-| [`tiktok-shop-integracao.md`](./tiktok-shop-integracao.md) | Histórico, contrato e estado TikTok — OAuth, sync, cron e leitura canônica implementados, com Dashboard, Financeiro e módulos filtráveis; QA autenticado bloqueado por ownership/0005 e validação financeira real ainda parcial |
+| [`tiktok-shop-integracao.md`](./tiktok-shop-integracao.md) | Histórico, contrato e estado TikTok — OAuth, sync, cron e leitura canônica implementados, com Dashboard, Financeiro e módulos filtráveis; validação financeira real ainda parcial |
+| [`tiktok-modules-api.md`](./tiktok-modules-api.md) | Contrato modular de leitura do TikTok — rotas, erros seguros e paginação |
 
 ## Arquitetura (fonte de verdade)
 
@@ -48,7 +57,7 @@ não re-deduza o que já foi decidido nem repita pegadinha já paga.
 | [`architecture/read-and-cache.md`](./architecture/read-and-cache.md) | Leitura por SQL e cache |
 | [`canonical-schema.md`](./canonical-schema.md) | Schema canônico detalhado (pedidos, taxas, produtos) |
 | [`integrations-architecture.md`](./integrations-architecture.md) | Arquitetura multicanal (visão que o schema materializa) |
-| [`adr/`](./adr/) | Decisões e trade-offs — o **porquê** de cada escolha (11 ADRs; índice no [`adr/README.md`](./adr/README.md)) |
+| [`adr/`](./adr/) | Decisões e trade-offs — o **porquê** de cada escolha (14 ADRs; índice no [`adr/README.md`](./adr/README.md)). Os dois mais recentes tratam de escala: ADR-013 (worker de sync separado do web) e ADR-014 (cache fora do processo e ingestão em fluxo) |
 | [`arquitetura-plano.md`](./arquitetura-plano.md) | Plano de arquitetura faseado — o que já foi feito e o que espera volume |
 
 ## Operação nos canais
@@ -57,6 +66,7 @@ não re-deduza o que já foi decidido nem repita pegadinha já paga.
 |---|---|
 | [`amazon-politicas.md`](./amazon-politicas.md) | Políticas da Amazon extraídas do Seller Central BR: título ≤75 chars, capa fundo branco sem texto, atributos fiscais do FBA, limites de caixa, manual de entrega no CD |
 | [`amazon-ads.md`](./amazon-ads.md) | Amazon Ads BR: como funciona, créditos, as campanhas no ar e as pegadinhas da tela de criação |
+| [`mercado-livre-diferencial.md`](./mercado-livre-diferencial.md) | Levantamento do que dá para oferecer no ML que a concorrência não oferece (13/08) — pesquisa, não implementação |
 | [`amazon-ads-especialista.pdf`](./amazon-ads-especialista.pdf) | Material de estudo (18 páginas): leilão, correspondências, matemática do lance, colheita, benchmarks 2026, COSMO/Rufus, glossário PT↔EN. Fonte em `amazon-ads-especialista.html` |
 | [`ferramentas-locais.md`](./ferramentas-locais.md) | Scripts de apoio que rodam fora do app: monitor de estoque FBA, seed do workspace demo, contas de avaliação |
 | [`conexoes-que-expiram.md`](./conexoes-que-expiram.md) | Por que a autorização de cada canal cai, o que o app já detecta/mostra e o backlog para evitar (self-authorization da Amazon, vencimento de 365 dias da Shopee) |
@@ -66,6 +76,7 @@ não re-deduza o que já foi decidido nem repita pegadinha já paga.
 
 | Doc | O que tem |
 |---|---|
+| [`landing-nexo.md`](./landing-nexo.md) | Landing do NEXO: estrutura mapeada do dub.co, efeitos do midday.ai, três versões de hero, contadores e os riscos a resolver antes de publicar. Esboço navegável em `/landing` |
 | [`plans/plano-aquisicao-e-posicionamento.md`](./plans/plano-aquisicao-e-posicionamento.md) | GTM: aquisição e posicionamento |
 | [`plans/seller-intelligence-plan.md`](./plans/seller-intelligence-plan.md) | Plano do Seller Intelligence (briefing diário de prioridades — ver ADR-008) |
 | [`plans/migracao-coolify.md`](./plans/migracao-coolify.md) | Migração para self-hosted Coolify (ver ADR-006) |
@@ -78,3 +89,17 @@ não re-deduza o que já foi decidido nem repita pegadinha já paga.
 |---|---|
 | [`compliance/personal-information-protection-standard.md`](./compliance/personal-information-protection-standard.md) | Padrão de proteção de dados pessoais |
 | [`compliance/tiktok-review-response.md`](./compliance/tiktok-review-response.md) | Resposta à revisão do app TikTok |
+
+## ⚠️ Conhecimento que NÃO está aqui
+
+Nem tudo o que o projeto sabe está em `docs/`. Duas fontes ficam fora e são fáceis de
+não encontrar:
+
+| Onde | O que tem | Por que fora |
+|---|---|---|
+| `.claude/skills/monitorar-ads/SKILL.md` | Toda a operação de Amazon Ads: cada leitura datada, mudanças aplicadas com data e hora, limiares de decisão, e as pegadinhas do console | `.claude` está no `.gitignore` — **é local, não versionado** |
+| `~/.claude/skills/pesquisa-produto-amazon/` | Análise de nicho por termo (menor preço FBA via `competitiveSummary`, BSR, margem) e comparação por atributo | Ferramenta pessoal, não faz parte do produto |
+
+📌 **Antes de opinar sobre campanha de Ads, leia a skill.** Ela guarda o histórico que o
+git não tem — inclusive erros já cometidos e a regra de que toda leitura termina em
+**esperar**, **agir** ou **investigar**.
