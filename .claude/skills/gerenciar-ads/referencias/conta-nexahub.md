@@ -32,6 +32,31 @@ início 12/08 · sem data de término.
 
 ## Margens
 
+### 🔴 Hoje esta conta NÃO paga comissão nem tarifa de FBA
+
+**Verificado na Transactions API em 17/08/2026.** Uma venda real do `kitprote-8` devolve
+uma linha só:
+
+```
+Pedido R$ 44,22
+  ProductCharges → OurPricePrincipal   R$ 22,11
+```
+
+Não existe lançamento de `Commission` nem de `FBAPerUnitFulfillmentFee`. O vendedor recebe
+o preço cheio.
+
+📌 **Não repetir o erro de assumir 15% de comissão.** Já errei duas vezes com isso: disse a
+ela que "paga comissão" e calculei o `kitprote-32` como margem **negativa** de R$ 0,60
+quando na verdade é **+R$ 6,05** (44,33 − 38,28). Ela corrigiu as duas vezes.
+
+**Como conferir sem discutir:** puxar `/finances/2024-06-19/transactions` e olhar os
+`breakdownType` presentes. ⚠️ O campo do valor é `breakdownAmount.currencyAmount`, **não**
+`.amount` — usar o nome errado devolve 0,00 em tudo e parece que não há cobrança nenhuma.
+
+⚠️ **Isso é temporário** (promoção de vendedor novo). Quando acabar, TODA margem desta
+página muda e os lances precisam ser recalculados. Conferir a data de término no card do
+Seller Central.
+
 ⚠️ **Estas margens dependem da tarifa zerada.** A promoção "O FBA agora é GRÁTIS" (vendedor
 novo) está ativa e é **temporária**. Quando acabar, clips e protetor ficam apertados nestes
 preços. Conferir a data de término no card do Seller Central antes de decidir lance com
