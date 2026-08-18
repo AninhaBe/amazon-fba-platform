@@ -1131,3 +1131,80 @@ Frase. Menos aposta, mesma evidência.
   exigiu fechar a aba. **Editar uma palavra por vez.**
 - O filtro de busca da tabela **persiste até depois de recarregar** a página — limpar pelo
   X nem sempre funciona; abrir aba nova é mais rápido.
+
+---
+
+## Colheita aplicada em 18/08/2026 — Auto - Protetor → Manual - Protetor
+
+### O relatório de termos (65 dias) da `Auto - Protetor Kit 8`
+
+| Termo | Custo | Compras | Vendas | ROAS |
+|---|---|---|---|---|
+| **protetor de pés de cadeiras** | R$ 36,82 | **2** | R$ 88,55 | 2,4 |
+| **protetor cadeira pé** | R$ 3,10 | **1** | R$ 44,22 | **14,3** |
+| protetor de pe de cadeira silicone (Substitutos) | R$ 3,60 | — | — | — |
+| protetor de pe de cadeira silicone (Substitutos) | R$ 2,11 | — | — | — |
+| protetor anti impacto | R$ 1,29 | — | — | — |
+| protetor de cadeira silicone | R$ 1,29 | — | — | — |
+| **protetor de pé de cama** | R$ 1,25 | — | — | produto errado |
+| protetor | R$ 1,14 | — | — | — |
+
+📌 **Isso explica a `Manual - Protetor` fazer 1 clique em 6 dias:** os termos que vendem
+**não estavam nela**. A automática descobriu; a manual apostava em outras palavras.
+
+### Aplicado
+
+✅ **`protetor de pés de cadeiras` e `protetor cadeira pé` adicionadas ao grupo
+`Exata - Protetor Kit 8`** (de 12 para 14 palavras). Confirmado após recarregar.
+
+Lances ficaram nos **sugeridos da Amazon**: R$ 0,82 e R$ 2,08. O alvo era R$ 1,20 nas
+duas — **ajuste pendente**, reconferir na próxima leitura.
+
+⛔ **Ainda pendente:** as negativas exatas na `Auto - Protetor Kit 8`
+(`protetor de pés de cadeiras`, `protetor cadeira pé`, `protetor de pé de cama`).
+Sem elas, automática e manual leiloam entre si.
+
+---
+
+## 🖱️ Como operar o console — o que custou 2 horas para descobrir
+
+### ⚠️ A CAUSA DE QUASE TODA FALHA: escala de coordenadas
+
+**O screenshot vem em 1568px de largura; o viewport tem 1920.** Coordenada tirada de
+`getBoundingClientRect()` **não** serve direto para `computer.left_click`.
+
+```js
+const escala = 1568 / window.innerWidth;   // 0,8167
+x_clique = Math.round(rect_x * escala)
+```
+
+Sem isso o clique cai em outro elemento — foi o que fechou modal, abriu editor errado e
+me fez concluir por três vezes que "o React não aceita automação". **Aceitava; eu é que
+clicava no lugar errado.**
+
+📌 Coordenada lida **de um screenshot** já está na escala certa. Só converter as que vêm
+do DOM.
+
+### Modal "Adicionar palavras-chave"
+
+1. Abrir → clicar aba **"Inserir lista"**
+2. ⚠️ **Desmarcar "Ampla" e "De frase" ANTES de digitar** — os três tipos vêm marcados,
+   e digitar antes faz o autocomplete cobrir o botão
+3. Clicar na textarea (coordenada convertida) e digitar; **Enter** separa palavras
+4. Clicar num ponto neutro do modal para fechar o autocomplete —
+   ⛔ **NÃO usar Escape: fecha o modal inteiro**
+5. **"Adicione palavras-chave"** → aparece "N/N keywords were added successfully"
+6. **"Salvar"** no rodapé
+
+### Editar lance na tabela
+
+- **`triple_click` + digitar + Enter.** Enter salva.
+- ⛔ Clicar no botão "Salvar" falha — ele muda de posição conforme o popup renderiza.
+- ⛔ **`ctrl+A` seleciona a PÁGINA inteira**, não o campo. Triple-click já seleciona.
+- Linha fora da tela: `scrollIntoView({block:'center'})` **e recalcular** a coordenada.
+
+### Outros
+
+- ⛔ **Selecionar várias linhas de uma vez congela a página** — uma por vez.
+- O filtro de busca da tabela **persiste após recarregar**; abrir aba nova é mais rápido.
+- Período: seletor de data → "Últimos 65 dias" (é o limite do relatório de termos).
