@@ -231,3 +231,82 @@ Propagação da oferta leva **~2h**.
 📌 Os kits 16/24/32 **não têm campanha e quase não vendem**. Subir o preço deles custa
 pouco em ranqueamento, porque não estavam ranqueando. O que rankeia hoje é onde há
 tráfego: clips, kitprote-8 e martelo.
+
+---
+
+## 🎯 Preços-alvo e a escada de subida
+
+**Fonte: DANFE da remessa ao FBA, 02/08/2026** (`Remessa para Depósito Temporário`,
+NF 000.000.001 série 420, chave `3526 0866 1062 0200 0120 5542 0000 0000 0111 3680 6269`,
+total R$ 10.158,10 / 279 unidades).
+
+⚠️ **Os valores unitários dessa nota são o PREÇO DE VENDA PRETENDIDO**, confirmado por ela
+em 18/08. **Não são custo** — os custos cadastrados são muito menores (kitprote-8: nota
+R$ 47,90 × custo R$ 9,57).
+
+📌 Reforço externo: o kit 32 está na nota a **R$ 78,90**, e o concorrente FBA equivalente
+vende a **R$ 79,99**. O alvo bate com o mercado.
+
+| SKU | Alvo (nota) | Em 18/08 | Falta |
+|---|---|---|---|
+| kit-clips-320 | 19,90 | **22,11** | ✅ já passou do alvo |
+| kitprote-16 | 38,90 | 37,90 | −3% |
+| martelo-borracha | 38,90 | 27,90 | +39% |
+| kitprote-32 | 78,90 | 59,90 | +32% |
+| kitprote-8 | 47,90 | **24,90** | +92% |
+
+### A estratégia dela, nas palavras dela
+
+> *"vender mais barato pra atrair vendas e ir subindo no algoritmo, e com isso, ir
+> aumentando aos poucos o preço"*
+
+Preço de entrada baixo → volume → ranqueamento → **sobe o preço aos poucos**.
+
+⚠️ **Eu errei contra isso em 18/08**, subindo três preços no dia 11 da lua de mel com
+lógica de maturidade. Ela corrigiu. **Fase de lançamento inclina para conversão, não para
+margem** — ver capítulo 25 do guia `amazon-ads-do-zero-ao-especialista`.
+
+### O gatilho para cada degrau
+
+Não é tempo. São **três condições juntas**:
+
+1. Vendas constantes por **7 dias seguidos** no preço atual
+2. **Conversão mantida** — se a CVR cair mais de um terço, subiu demais: voltar
+3. Idealmente uma avaliação nova desde o último degrau
+
+**Tamanho do degrau: 10–15%.** Nunca saltar direto ao alvo — mata a conversão que
+comprou o ranqueamento.
+
+### A prova de que funciona
+
+O **kit-clips-320** subiu de R$ 19,90 → R$ 22,11 e **continuou convertendo a 25–40%**,
+o dobro do benchmark. É a evidência local de que subir preço com ranqueamento consolidado
+não derruba a conversão.
+
+### Aplicado em 18/08/2026
+
+| SKU | De | Para | % | submissionId |
+|---|---|---|---|---|
+| kitprote-8 | 22,11 | **24,90** | +12,6% | `9d94b844e11045178e071c81f1946c71` |
+
+Escolhido por ter o maior gap para o alvo (+117%) **e** o melhor ROAS da conta (15,11 na
+`Auto - Protetor Kit 8`) — vendia bem justamente por estar barato demais.
+
+⛔ **Não mexer agora:** `martelo` (preço acabou de cair para destravar teste) e
+`kitprote-32` (acabou de subir). Os dois precisam de dado limpo antes do próximo degrau.
+
+### Estoque em 18/08 (para dimensionar o faturamento)
+
+| SKU | Vendável | +trânsito | Preço | Valor |
+|---|---|---|---|---|
+| martelo | 118 | 1 | 27,90 | R$ 3.320 |
+| kit-clips-320 | 89 | 1 | 22,11 | R$ 1.990 |
+| kitprote-32 | 15 | 2 | 59,90 | R$ 1.018 |
+| kitprote-8 | 31 | 6 | 24,90 | R$ 921 |
+| kitprote-16 | 2 | 0 | 37,90 | R$ 76 |
+
+**265 unidades.** Aos preços atuais ≈ R$ 7.325; **aos preços-alvo ≈ R$ 10.158**.
+A diferença de ~R$ 2.900 é exatamente o que a escada de preços vai capturar.
+
+⚠️ `kitprote-16` com **2 unidades** — vai romper. Ruptura derruba ranqueamento (ver guia
+orgânico, cap. 23).
