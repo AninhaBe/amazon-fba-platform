@@ -24,6 +24,38 @@ leitura termina com uma de três conclusões: **esperar**, **agir** (com o quê)
 > registradas aqui, com data e hora. Foi esse histórico que permitiu, dias depois, provar
 > que o preço era a causa e não a campanha.
 
+## 🔴 O ERRO QUE JÁ COMETI TRÊS VEZES — leia antes de concluir qualquer coisa
+
+**Concluir sobre uma janela curta demais.** Três vezes em três dias, sempre o mesmo
+mecanismo, sempre com prejuízo:
+
+| Quando | O que eu concluí | O que era de verdade |
+|---|---|---|
+| 16/08 | "Auto - Protetor tem 21 cliques e zero venda" → cortei o orçamento pela metade | Era a **melhor campanha da conta** (ROAS 15,11). A atribuição ainda não tinha fechado |
+| 16/08 | "Manual - Clips desabou, CTR de 0,12%" → candidata a investigar/negativar | Lendo **só o dia 17**. No período de 2–15/08 ela tem **CVR de 25% a 40%** — a melhor conversão da conta |
+| 16/08 | "os números não mudaram em 5 horas" | Era **DOM em cache**; eu não tinha recarregado |
+
+### A regra, agora obrigatória
+
+**Antes de qualquer conclusão, diga em voz alta qual é o período da leitura.**
+
+```
+[ ] Qual filtro de data está aplicado AGORA na tela?
+[ ] Esse período tem volume suficiente? (500 impr / 10 cliques / 45 cliques)
+[ ] A janela de atribuição fechou? (7 dias + 3 de folga)
+[ ] Eu recarreguei a página, ou estou lendo DOM velho?
+```
+
+⚠️ **O console mostra períodos DIFERENTES na mesma tela.** O cartão de resumo, o gráfico e
+a tabela podem estar em três janelas distintas — já vi "17 de ago" na tabela e
+"12 ago - 17 ago" no gráfico simultaneamente. **Ler o rótulo de cada bloco antes de citar
+o número.**
+
+📌 **Nunca concluir "não converte" com um dia de dado.** Um dia serve para ver se a máquina
+parou, nada além disso.
+
+---
+
 ## 🔁 A ANÁLISE DIÁRIA — campanha por campanha, sempre
 
 **Regra dela, dada em 17/08/2026:** *"é esse tipo de análise que quero de você, todo dia,
@@ -945,3 +977,38 @@ cabeçalho não é editável.
    vendeu — candidata a revisão de termos.
 4. **Manual - Clips** continua sem vender, com o CTR que desabou em 16/08. Puxar o
    relatório de termos dela.
+
+
+## Mudança aplicada em 17/08/2026, ~23h50 — lance dos termos que convertem
+
+Descoberto pelo cartão **"Analise os segmentos de melhor desempenho"** da tela de campanhas
+(`Ver dados de segmentação filtrados`). Ele entrega o ciclo de colheita pronto: quais
+termos venderam e quais gastaram sem vender, nos últimos 14 dias.
+
+📌 **Usar esse cartão toda semana.** É a colheita do capítulo 17 do guia, pré-calculada
+pela Amazon — e mostra as colunas de venda que a tabela de campanhas esconde fora da tela.
+
+**Os 2 segmentos com vendas** (período 2–15/08):
+
+| Termo | Grupo | CVR | ROAS | Lance antes | Lance agora |
+|---|---|---|---|---|---|
+| `clips` | Frase - Clips 320 | **25%** | 12,74 | R$ 0,70 | **R$ 1,50** |
+| `clipe` | Frase - Clips 320 | **40%** | 22,00 | R$ 0,68 | **R$ 1,50** |
+
+**Por que subir:** clips vende a R$ 22,11 com custo de R$ 6,82 → margem R$ 15,29.
+
+| | CVR 25% | CVR 40% |
+|---|---|---|
+| CPC de equilíbrio | R$ 3,82 | R$ 6,12 |
+| CPC para ACOS 30% | R$ 1,66 | R$ 2,65 |
+| Pagávamos | R$ 0,70 | R$ 0,68 |
+
+Estávamos pagando **menos de um quinto** do que o clique vale. Os dois estavam no lance
+sugerido pela Amazon — e **a sugestão dela não conhece a nossa margem**.
+
+📌 **Lição:** "lance sugerido aplicado" não quer dizer "lance certo". A sugestão otimiza o
+leilão da Amazon, não o seu lucro. Sempre conferir contra o CPC de equilíbrio
+(`node scripts/lance.mjs` na skill `gerenciar-ads`).
+
+**O que observar:** volume deve subir bastante nos dois. Se o CVR se mantiver acima de 20%
+com mais volume, dá para subir de novo — ainda há folga até R$ 3,82.
