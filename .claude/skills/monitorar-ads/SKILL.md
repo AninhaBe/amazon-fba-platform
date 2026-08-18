@@ -121,6 +121,37 @@ grep -o "bad-scope\|unknown scope\|invalid-parameter" /tmp/ads-scope.html | sort
 | **16/08/2026 22h45** | **pendente** — `ADS_REFRESH_TOKEN` e `ADS_PROFILE_ID` seguem vazios no `.env.local` |
 | **17/08/2026 23h05** | **pendente** — 4 dias após o pedido; o prazo indicado era 14/08 (sexta). 🔴 **Vencido: abrir caso no suporte de desenvolvedores.** |
 
+### 2ª solicitação enviada em 17/08/2026, ~23h30
+
+A 1ª (13/08) venceu o prazo sem resposta. Reenviada pela vendedora em
+`advertising.amazon.com/partner-network/register-api`, categoria **Direct advertiser**.
+
+**O que foi declarado** (guardar — se pedirem correção, é daqui que se parte):
+
+| Campo | Valor |
+|---|---|
+| Razão social | `66.106.202 ANA BEATRIZ DE OLIVEIRA` |
+| Site | `https://sellercore.onrender.com` |
+| País / Nome da marca | Brasil · NEXAHUB BR |
+| Relacionamento | *Vendedor da Amazon, e pretendo usar a API em meus negócios* |
+| Escopo | Apenas **Publicidade** (não marcar "Provedor de dados" — exige avaliação maior) |
+
+⚠️ **A razão social é o campo que reprova.** É "CNPJ + nome da titular", porque é
+empresário individual — **não existe nome fantasia registrado**. Foi exatamente escrever
+"NEXAHUB" aqui que reprovou duas categorias no TikTok.
+
+**O que mudou em relação à 1ª:** os dois campos de texto livre passaram a descrever a
+operação concreta (6 campanhas no ar, integração com custo e tarifa já no sistema, e os
+quatro processos a automatizar) em vez de descrição genérica. É a única variável sob nosso
+controle.
+
+⚠️ **Preencher esse formulário por automação NÃO funciona** — a digitação não entra nos
+campos (React re-renderiza) e o renderizador chegou a travar. Passar os valores prontos
+para ela colar. É formulário legal: um campo errado custa semanas.
+
+**Próximo passo se não sair até ~24/08:** abrir caso no suporte de desenvolvedores. Foi o
+que moveu a candidatura do Solution Provider.
+
 ⚠️ O prazo que ela mencionou era **17/08**. Se passar disso sem aprovação, vale abrir caso
 no suporte de desenvolvedores em vez de continuar esperando — foi o que destravou (ou
 pelo menos moveu) a candidatura do Solution Provider.
