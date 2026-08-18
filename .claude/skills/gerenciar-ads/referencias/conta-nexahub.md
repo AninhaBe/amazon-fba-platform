@@ -160,3 +160,74 @@ do programa no Seller Central, e é ela que define o prazo real.
 - [Guia de conceitos básicos](https://advertising.amazon.com/pt-br/library/guides/getting-started-with-sponsored-ads)
 - [Guia para novos anunciantes](https://advertising.amazon.com/pt-br/library/guides/new-advertiser-success-guide)
 - [Políticas de anúncios patrocinados](https://advertising.amazon.com/pt-br/resources/ad-policy/sponsored-ads-policies)
+
+---
+
+## Reprecificação da linha de protetores — 18/08/2026, ~00h30
+
+Disparada por ela: *"38,28 é o preço de custo, não faz sentido ficar sem margem"*. Estava
+certa — e o problema não era o custo.
+
+**O custo por unidade é idêntico entre os kits** (`9,57÷8 = 38,28÷32 = R$ 1,196`). O
+cadastro estava coerente. **O que quebrava era a escada de preços.**
+
+| un | Antes | R$/un | Problema |
+|---|---|---|---|
+| 8 | 22,11 | 2,76 | ok |
+| 16 | 43,22 | 2,70 | 6 centavos de desconto sobre o kit de 8 — não incentiva subir |
+| 24 | 45,90 | 1,91 | colado no de 16: R$ 2,68 a mais por 8 unidades a mais |
+| 32 | 44,33 | 1,39 | 🔴 **mais barato que o de 24** — inversão |
+
+### Concorrência (preço FBA por unidade, medido em 17/08)
+
+| un | Nós (antes) | Concorrentes |
+|---|---|---|
+| 8 | 2,76 | 1,24 · 2,38 · 3,03 · 3,54 · 5,11 |
+| 16 | 2,70 | 0,87 · 1,31 · 3,21 · 4,37 · 4,49 · 6,55 |
+| 24 | **1,91** | 2,46 · 2,50 · 2,92 — **éramos o mais barato de todos** |
+| 32 | **1,39** | 2,50 (concorrente direto a R$ 79,99) |
+
+⚠️ Descartado: um kit de 32 a R$ 18,90 que é **feltro adesivo**, não capa de silicone.
+**Comparar só equivalente** — a lição do martelo.
+
+### Aplicado
+
+| SKU | De | Para | R$/un | submissionId |
+|---|---|---|---|---|
+| kitprote-16 | 43,22 | **37,90** | 2,37 | `93e7e5e4772d490a9ef977e1cca9b354` |
+| kitprote-24 | 45,90 | **51,90** | 2,16 | `73ddc89467ca4c04bcb74d8cd3e7f3a3` |
+| kitprote-32 | 44,33 | **59,90** | 1,87 | `50620737271c48d1b74144b004bcfd6d` |
+
+Margem do kit 32: R$ 6,05 → **R$ 21,62 (36%)**, ainda 25% abaixo do concorrente direto.
+
+📌 **Lição:** quando a margem de um SKU não fecha, conferir **preço por unidade em toda a
+linha** antes de culpar o custo. Custo proporcional entre tamanhos indica cadastro certo;
+preço que não escala junto indica tabela mal montada.
+
+⚠️ **`kitprote-16` continua sem custo cadastrado** — margem desconhecida.
+
+### Como mudar preço pela API
+
+```
+PATCH /listings/2021-08-01/items/{seller}/{sku}?marketplaceIds={mp}
+{ "productType": "<ler do proprio SKU, nao assumir>",
+  "patches": [{ "op":"replace", "path":"/attributes/purchasable_offer",
+    "value":[{ "currency":"BRL", "marketplace_id":"<mp>", "audience":"ALL",
+               "our_price":[{"schedule":[{"value_with_tax": 59.90}]}] }] }] }
+```
+
+Rodar com `&mode=VALIDATION_PREVIEW` antes (devolve `status: VALID`) e só então aplicar.
+Propagação da oferta leva **~2h**.
+
+### Vendas por SKU em 45 dias (contexto da decisão)
+
+| SKU | Pedidos | Unid |
+|---|---|---|
+| kit-clips-320 | 6 | 6 |
+| kitprote-8 | 2 | 3 |
+| kitprote-32 | 1 | 1 |
+| martelo-borracha | 1 | 1 |
+
+📌 Os kits 16/24/32 **não têm campanha e quase não vendem**. Subir o preço deles custa
+pouco em ranqueamento, porque não estavam ranqueando. O que rankeia hoje é onde há
+tráfego: clips, kitprote-8 e martelo.
