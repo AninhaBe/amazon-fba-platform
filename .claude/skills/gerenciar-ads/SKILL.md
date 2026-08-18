@@ -45,6 +45,19 @@ tempo com eles.
 
 ---
 
+## ⛔ Formato obrigatório de toda leitura
+
+```
+Período lido: <as datas EXATAS na tela>
+Recarreguei: sim/não
+Volume: <impressões> · <cliques> · atribuição <fechada/pendente>
+```
+
+Sem esse bloco, a leitura não vira conclusão. Detalhe e o porquê em
+[`../monitorar-ads/SKILL.md`](../monitorar-ads/SKILL.md).
+
+---
+
 ## 🔁 Analisar = campanha por campanha
 
 **Regra dela (17/08/2026):** *"quando falo pra você analisar, é pra ver as campanhas uma a

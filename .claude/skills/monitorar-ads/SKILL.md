@@ -24,6 +24,38 @@ leitura termina com uma de três conclusões: **esperar**, **agir** (com o quê)
 > registradas aqui, com data e hora. Foi esse histórico que permitiu, dias depois, provar
 > que o preço era a causa e não a campanha.
 
+## ⛔ FORMATO OBRIGATÓRIO DE TODA LEITURA
+
+Ela cobrou, com razão: *"não adianta você criar um puta guia e você mesmo não seguir"*.
+
+Escrever a regra num doc **não faz ninguém segui-la** — o doc é passivo, e eu li os
+capítulos de atribuição e volume mínimo e errei no dia seguinte mesmo assim.
+
+**Por isso a regra virou formato de saída, não lembrete.** Toda leitura de campanha começa
+com este bloco, sem exceção:
+
+```
+Período lido: <as datas EXATAS que estão na tela>
+Recarreguei: sim/não
+Volume: <impressões> · <cliques> · atribuição <fechada/pendente>
+```
+
+**Por que formato e não checklist:** checklist mental se esquece em silêncio. Cabeçalho
+ausente aparece na tela — ela vê, e eu tropeço nele antes de concluir.
+
+### O que cada linha impede
+
+| Linha | Erro que ela bloqueia |
+|---|---|
+| **Período lido** | Concluir sobre um dia achando que é o acumulado (aconteceu com a Manual - Clips) |
+| **Recarreguei** | Ler DOM em cache e jurar que o dia não andou |
+| **Volume + atribuição** | Cortar orçamento de campanha que estava convertendo (aconteceu com a Auto - Protetor) |
+
+⚠️ **Se qualquer uma das três não puder ser preenchida com certeza, a leitura está
+incompleta — e leitura incompleta não vira conclusão.** Diga o que falta e pare.
+
+---
+
 ## 🔴 O ERRO QUE JÁ COMETI TRÊS VEZES — leia antes de concluir qualquer coisa
 
 **Concluir sobre uma janela curta demais.** Três vezes em três dias, sempre o mesmo
