@@ -1160,9 +1160,24 @@ Frase. Menos aposta, mesma evidência.
 Lances ficaram nos **sugeridos da Amazon**: R$ 0,82 e R$ 2,08. O alvo era R$ 1,20 nas
 duas — **ajuste pendente**, reconferir na próxima leitura.
 
-⛔ **Ainda pendente:** as negativas exatas na `Auto - Protetor Kit 8`
-(`protetor de pés de cadeiras`, `protetor cadeira pé`, `protetor de pé de cama`).
-Sem elas, automática e manual leiloam entre si.
+✅ **Negativas exatas aplicadas na `Auto - Protetor Kit 8`** — a lista estava **vazia**
+(mesmo defeito que a Auto - Martelo tinha). Adicionadas 3, confirmado após recarregar:
+
+| Negativa exata | Por quê |
+|---|---|
+| `protetor de pés de cadeiras` | promovida à manual — impede as duas de leiloarem entre si |
+| `protetor cadeira pé` | idem (ROAS 14,3 na manual agora) |
+| `protetor de pé de cama` | produto errado; R$ 1,25 gastos sem venda |
+
+📌 **Promover e negativar têm de andar juntos, na mesma sessão.** O intervalo entre as duas
+ações é exatamente o período em que se paga mais caro pelo clique que já era seu.
+
+### Modal de negativas — mais simples que o de palavras-chave
+
+`/cm/sp/campaigns/<id>/negative-targeting` → **"Adicione palavras-chave negativas"**.
+**"Exata negativa" já vem marcada** por padrão (não precisa desmarcar nada, ao contrário do
+modal de segmentação, que vem com Ampla+Frase+Exata). Digitar com Enter entre as palavras,
+clicar em ponto neutro, **"Adicione palavras-chave"** → "N/N added" → **Salvar**.
 
 ---
 
