@@ -141,13 +141,26 @@ grupo, exceto onde a margem não aguentava:
 
 | Campanha | Antes | Depois | Sugerido pela Amazon |
 |---|---|---|---|
-| Auto - Martelo | R$ 0,35 | **R$ 0,84** | R$ 0,84 |
+| Auto - Martelo | R$ 0,35 | ~~R$ 0,84~~ ⚠️ | R$ 0,84 |
 | Auto - Clips 320 | R$ 0,35 | **R$ 0,61** | R$ 0,61 |
 | Auto - Protetor Kit 8 | R$ 0,35 | **R$ 1,29** | R$ 1,29 |
 | Manual Exata - Martelo | — | inalterada | — |
 
 O orçamento **não** foi aumentado: teto é rede de proteção, e aumentá-lo com 1% de
 uso não destrava volume nenhum. Só mexer quando o gasto encostar em ~50% do teto.
+
+⚠️ **CORREÇÃO (17/08/2026): a mudança da `Auto - Martelo` NUNCA foi aplicada.** Ao abrir
+o grupo de anúncios em 17/08, os quatro grupos de segmentação automática estavam em
+**R$ 3,00** — o default alto da criação, não os R$ 0,84 anotados aqui. Ficou assim por 4
+dias, pagando **R$ 1,92 por clique** (9× a sugestão de R$ 0,33 da Amazon) e consumindo 25%
+do gasto da conta com o pior CTR.
+
+Corrigido em 17/08: os quatro para **R$ 0,50**, e **Substitutos pausado** — essa
+segmentação sozinha trazia 1.799 das 2.390 impressões, todas de página de concorrente.
+
+📌 **Lição:** anotar a mudança não prova que ela foi salva. **Conferir o CPC real
+(custo ÷ cliques) contra o lance anotado** — se o CPC passa do lance com dinâmico em
+"somente redução", o lance anotado está errado. Foi assim que este defeito apareceu.
 
 `Ajuste de lance para o topo da pesquisa` segue em **0%** nas quatro. É o
 multiplicador mais caro e compra posição, não aprendizado — só depois de o CTR

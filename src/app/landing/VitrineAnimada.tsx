@@ -17,6 +17,9 @@ import { useEffect, useState } from "react";
  *
  * Sem dependência nova: o midday usa `motion/react`, que não está no projeto.
  * Estado + transição CSS entrega o mesmo resultado.
+ *
+ * Devolve só a JANELA. A moldura, a legenda e a troca de abas são de
+ * `Vitrine.tsx` — cada aba tem a sua tela e a sua animação, como no dub.
  */
 
 const CICLO_MS = 9000;
@@ -45,7 +48,7 @@ const ROTA = [
   { x: 78, y: 76, clica: false },
 ];
 
-export function VitrineAnimada({ legenda, descricao }: { legenda: string; descricao: string }) {
+export function PainelCanal() {
   const [visiveis, setVisiveis] = useState(0);
   const [etapa, setEtapa] = useState(0);
 
@@ -73,8 +76,7 @@ export function VitrineAnimada({ legenda, descricao }: { legenda: string; descri
   const alvo = ROTA[etapa] ?? ROTA[0];
 
   return (
-    <figure className="lp-vitrine">
-      <div className="lp-app" aria-hidden="true">
+    <div className="lp-app" aria-hidden="true">
         <aside className="lp-app-nav">
           <span className="lp-app-marca">N</span>
           {["Central", "Amazon", "Mercado Livre", "Shopee", "TikTok"].map((canal, i) => (
@@ -135,20 +137,11 @@ export function VitrineAnimada({ legenda, descricao }: { legenda: string; descri
           </div>
         </div>
 
-        {/* Cursor percorrendo a tela — a ideia é do dub.co. */}
-        <span
-          className={`lp-cursor${alvo.clica ? " is-clicando" : ""}`}
-          style={{ left: `${alvo.x}%`, top: `${alvo.y}%` }}
-        />
-      </div>
-
-      <figcaption className="lp-legenda">
-        <span className="lp-legenda-icone">◆</span>
-        <span>
-          <strong>{legenda}</strong>
-          <em>{descricao}</em>
-        </span>
-      </figcaption>
-    </figure>
+      {/* Cursor percorrendo a tela — a ideia é do dub.co. */}
+      <span
+        className={`lp-cursor${alvo.clica ? " is-clicando" : ""}`}
+        style={{ left: `${alvo.x}%`, top: `${alvo.y}%` }}
+      />
+    </div>
   );
 }

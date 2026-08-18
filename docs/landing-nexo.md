@@ -175,3 +175,129 @@ painel é claro. Copiar o efeito sem copiar a paleta.
 5. CTA final
 
 As duas primeiras já entregam uma landing defensável. O resto é incremento.
+
+---
+
+## A voz: o NEXO é um funcionário *(17/08/2026)*
+
+Decisão dela: a proposta do NEXO é **ser um funcionário**, não um painel. A copy passou
+a falar dele em terceira pessoa — "ele abre", "ele confere", "ele compara" — porque o que
+se vende é **assumir um trabalho**, não entregar mais uma tela para a pessoa interpretar.
+
+| Antes | Depois |
+|---|---|
+| Pare de adivinhar quanto sobrou. | **Você vende. Ele confere.** |
+| Menos conferência. Mais operação. | O trabalho que ele tira das suas mãos. |
+| Começar agora | Colocar para trabalhar |
+| Sua operação inteira numa aba. | Ele começa a conferir hoje. |
+
+### ⚠️ O limite da voz — leia antes de escrever mais copy
+
+Só entra verbo que descreve o que o código **executa hoje**: ler tarifa, conciliar pedido,
+comparar frete, acompanhar liberação. Isso é honesto porque o motor de sync e a
+conciliação rodam de verdade.
+
+**O que a landing NÃO pode prometer enquanto for backlog:** chat sobre a operação, alerta
+proativo, recomendação e ação autônoma. Tudo isso está em `docs/ai-agent-harness.md` com
+status *ideia / backlog — não implementar agora* (12/07/2026). "Funcionário" na landing é
+a **descrição do serviço que já roda**, não a antecipação do que o produto vai virar.
+
+Quando o harness sair do backlog, esta seção é o lugar de registrar o que passou a ser
+verdade — e só então a copy pode crescer.
+
+## Abas na vitrine do hero *(17/08/2026)*
+
+O dub tem três abas no hero (Short Links / Conversion Analytics / Affiliate Programs), e
+cada uma troca a tela **e a animação**. Replicado em `src/app/landing/Vitrine.tsx`:
+
+| Aba | Tela | Animação |
+|---|---|---|
+| Financeiro | painel do canal (`VitrineAnimada.tsx`) | cards escalonados, barras subindo, cursor clicando o filtro |
+| Saldo | `MostraSaldo` | cartões entrando, depois cada data de liberação |
+| Auditoria | `MostraAuditoria` | linhas comparando de cima para baixo até a que não fecha |
+
+O truque da troca é `key={aba}` no contêiner da tela: React remonta o componente e o
+`useEffect` de cada animação recomeça do zero. Sem isso, quem clica cai no meio de um
+ciclo já rodando.
+
+As três telas são as mesmas das seções profundas — a aba é atalho e demonstração ao mesmo
+tempo. Nenhuma é mock inventado: todas usam a UI real com os números de 16/08/2026.
+
+## Efeitos do dub que entraram junto *(17/08/2026)*
+
+- **Contadores subindo de 0** (`Contadores.tsx`) — com três travas para nunca exibir um
+  zero falso: o valor final é o estado inicial, número abaixo de 1.000 não anima ("4
+  canais" passaria 1,2s mostrando "0"), e se o scroll for rápido a ponto de o gatilho
+  chegar com a seção já visível, a animação simplesmente não acontece.
+- **Manifesto com ênfase rotativa** (`Manifesto.tsx`) — o dub troca o texto; aqui as três
+  frases *são* a conta, então o que rotaciona é qual delas está acesa.
+- **Réguas verticais do container** e **textura de pontos** atrás do manifesto — o
+  `pattern`/`lines` do dub, sem cor e sem glow (a regra de não copiar a paleta continua).
+- **Container 1080px**, que é o valor medido na página deles.
+
+---
+
+## Segunda referência: `dub.co/analytics` *(17/08/2026)*
+
+Ela apontou a aba Analytics do dub. É um **template diferente** do da home — página de
+produto — e rendeu três padrões, todos implementados.
+
+⚠️ A galeria a1 tem 10 páginas do dub capturadas (about, blog, careers, customers,
+changelog, contact, docs, solutions/creators, integrations, pricing) e **`/analytics` não
+está entre elas**. Foi preciso abrir a página. Para a próxima referência: conferir
+`get_website_pages` antes de prometer que a galeria cobre.
+
+### 1. Fita de funil — `FitaFunil.tsx`
+
+O "Visualize your journey" deles é o funil de conversão. Aqui virou a conciliação: entra
+o faturamento largo, cada dedução estreita a faixa, sai o lucro.
+
+**A largura de cada trecho é `valor / faturamento`, calculada dos centavos no componente.**
+Não é proporção desenhada no olho — se alguém trocar um número, o desenho acompanha. É o
+que autoriza a nota "a fita mede o que diz" embaixo do gráfico.
+
+Substituiu a `AnimacaoConciliacao` no pilar Financeiro. A cascata de linhas continua no
+repo e pode voltar se a fita não convencer.
+
+### 2. Métricas que trocam o gráfico — `GraficoMetricas.tsx`
+
+O "Success at a glance": três números grandes com bolinha colorida, o ativo sublinhado em
+preto, gráfico de área trocando junto.
+
+**A curva é acumulada, e isso foi decisão de honestidade, não de estética.** O período real
+tem 5 vendas; um gráfico diário seria quase todo zero com cinco picos — e zero, nesta base,
+significa "não vendeu nada". O acumulado sobe de verdade e cada ponto é um fato ("até aqui
+tinha entrado tanto").
+
+⚠️ **O que ainda não é medido:** as três séries compartilham a forma do faturamento, e a
+distribuição entre os dias é proporcional, não apurada. Só o **ponto final de cada métrica**
+é o valor real. Isso está escrito na nota ao pé do gráfico, na tela — não escondido no
+código. Se um dia a série diária real sair do banco, é trocar `ACUMULADO` e apagar a
+segunda frase da nota.
+
+### 3. Arte do hero — `HeroGrafico.tsx`
+
+Três linhas subindo, sangrando pela direita até a borda da janela, desbotadas à esquerda
+por máscara para não brigar com o texto. Componente de servidor: sem estado, entrada por
+CSS.
+
+**Não tem eixo, rótulo nem valor, de propósito.** Gráfico decorativo com escala numerada
+afirmaria um resultado que ninguém apurou. Aqui o problema se resolve tirando o número, e
+não conferindo — o dado com valor aparece logo abaixo, onde tem origem.
+
+### Padrões do dub que ficaram de fora
+
+- **Parede de logos de clientes** — de novo, e pelo mesmo motivo.
+- **Cards com a UI flutuando e desbotando no topo** (o 2-up deles) — cabe, não foi feito.
+- **Linha de 4 features pequenas com ícone** — cabe, não foi feito.
+
+## Nota de ambiente: o Turbopack em dev
+
+Durante esta sessão o dev server serviu CSS e chunks velhos **cinco vezes** — regra que já
+estava na memória, mas que aqui apareceu em três formas: CSS antigo com o arquivo novo em
+disco, `ChunkLoadError` com o overlay marcando "(stale)", e `MODULE_NOT_FOUND` no runtime
+do Turbopack.
+
+**O que funciona:** parar o servidor, `rm -rf .next`, subir de novo. **O que engana:**
+validar pelo print — o print mostrava o estado velho. Validar pelo **CSS computado**
+(`getComputedStyle`) ou pelo erro no output do servidor.

@@ -1,13 +1,17 @@
 import Link from "next/link";
 import { NexoWordmark } from "../components/NexoWordmark";
 import { MostraSaldo, MostraAuditoria } from "./Mostruario";
-import { AnimacaoConciliacao } from "./AnimacaoConciliacao";
-import { VitrineAnimada } from "./VitrineAnimada";
+import { FitaFunil } from "./FitaFunil";
+import { Vitrine } from "./Vitrine";
+import { Contadores } from "./Contadores";
+import { Manifesto } from "./Manifesto";
+import { GraficoMetricas } from "./GraficoMetricas";
+import { HeroGrafico } from "./HeroGrafico";
 
 export const metadata = {
-  title: "NEXO — Pare de adivinhar quanto sobrou",
+  title: "NEXO — o funcionário que confere cada venda",
   description:
-    "Faturamento, tarifa, imposto e frete de todos os seus canais numa conta só. Amazon, Mercado Livre, Shopee e TikTok Shop.",
+    "O NEXO abre cada venda dos seus canais, lê a tarifa que foi cobrada e fecha a conta. Amazon, Mercado Livre, Shopee e TikTok Shop.",
 };
 
 /**
@@ -18,8 +22,22 @@ export const metadata = {
  * → contadores → CTA). Os efeitos de revelação vêm do midday.ai. Mapa completo,
  * com as três versões de hero e os riscos, em `docs/landing-nexo.md`.
  *
+ * ## A voz: o NEXO é um funcionário, não um painel
+ *
+ * A copy fala dele em terceira pessoa — "ele abre", "ele confere", "ele compara" —
+ * porque a proposta do produto é assumir um trabalho que hoje alguém faz na mão,
+ * não oferecer mais um dashboard para a pessoa interpretar.
+ *
+ * ⚠️ **O limite dessa voz.** Só entram verbos que descrevem o que o código
+ * realmente executa hoje: ler tarifa, conciliar pedido, comparar frete,
+ * acompanhar liberação. O harness de agente — chat sobre a operação, alerta
+ * proativo, recomendação, ação autônoma — está em `docs/ai-agent-harness.md`
+ * com status **ideia / backlog, não implementar agora**. Enquanto for backlog, a
+ * landing não promete nada disso: "funcionário" aqui é a descrição do serviço
+ * que já roda, não a antecipação do que ele vai virar.
+ *
  * Duas regras que valem aqui como valem no produto:
- * — número em landing é promessa; só entra o que foi medido (ver `contadores`);
+ * — número em landing é promessa; só entra o que foi medido (ver `CONTADORES`);
  * — nada de depoimento inventado. A seção de prova social do dub não tem
  *   equivalente honesto ainda, então não existe aqui.
  */
@@ -28,21 +46,21 @@ const PILARES = [
   {
     id: "financeiro",
     kicker: "Financeiro",
-    titulo: "O que sobrou, com a tarifa que foi cobrada",
+    titulo: "Ele abre cada venda e fecha a conta",
     texto:
-      "Não é estimativa. Lemos a tarifa que o marketplace postou e mostramos a conta inteira — inclusive quando ela ainda não fechou.",
+      "Não é estimativa. Ele lê a tarifa que o marketplace postou e monta a conta inteira — inclusive quando ela ainda não fechou.",
     itens: [
       ["Faturamento é o valor pago", "Preço de tabela não conta. Cupom já vem descontado."],
       ["Tarifa discriminada", "Comissão, logística e anúncios separados, não um bloco só."],
-      ["Diz o que falta", "Sem custo cadastrado, o lucro fica em branco em vez de mentir."],
+      ["Diz o que falta", "Sem custo cadastrado, ele deixa o lucro em branco em vez de chutar."],
     ],
   },
   {
     id: "saldo",
     kicker: "Saldo",
-    titulo: "Quando o dinheiro cai",
+    titulo: "Ele acompanha quando o dinheiro cai",
     texto:
-      "Lucro no papel não paga fornecedor. Mostramos o que está retido, quanto já liberou e a data de cada liberação.",
+      "Lucro no papel não paga fornecedor. Ele mostra o que está retido, quanto já liberou e a data de cada liberação.",
     itens: [
       ["Data por venda", "Cada pedido tem a sua data de liberação, não uma média."],
       ["Líquido de verdade", "Já sem tarifa e sem a sua parte do frete."],
@@ -52,18 +70,19 @@ const PILARES = [
   {
     id: "auditoria",
     kicker: "Auditoria",
-    titulo: "Pedidos a revisar",
+    titulo: "Ele confere o frete, pedido a pedido",
     texto:
-      "Comparamos o frete que o marketplace cobrou com o que o envio declara. Diferença não vira acusação — vira lista para você decidir.",
+      "Ele compara o frete que o marketplace cobrou com o que o envio declara. Diferença não vira acusação — vira lista para você decidir.",
     itens: [
       ["Duas fontes independentes", "O que foi cobrado contra o que era para custar."],
       ["Pronto para contestar", "Número do pedido, valores e diferença, em um clique."],
-      ["Sem alarme falso", "Divergência só aparece quando as duas pontas não fecham."],
+      ["Sem alarme falso", "Ele só levanta a mão quando as duas pontas não fecham."],
     ],
   },
 ];
 
 
+/** A descrição do cargo: o que hoje é feito na mão, e quanto custa fazer. */
 const CUSTOS: Array<[string, string, string]> = [
   ["Conferir repasse", "2 horas por semana", "Abrir cada venda no marketplace e conferir tarifa, frete e imposto na mão."],
   ["Fechar o mês", "meio dia", "Juntar quatro painéis numa planilha e torcer para os totais baterem."],
@@ -72,8 +91,8 @@ const CUSTOS: Array<[string, string, string]> = [
 
 /** Só números medidos no banco em 16/08/2026. Ver `docs/landing-nexo.md`. */
 const CONTADORES = [
-  { valor: "70.479", rotulo: "pedidos conciliados" },
-  { valor: "4", rotulo: "canais integrados" },
+  { valor: "70.479", rotulo: "pedidos já conferidos" },
+  { valor: "4", rotulo: "canais que ele acompanha" },
   { valor: "1", rotulo: "aba para a operação inteira" },
 ];
 
@@ -86,32 +105,35 @@ export default function LandingPage() {
       </header>
 
       <section className="lp-hero">
+        <HeroGrafico />
         <p className="lp-pill">Amazon · Mercado Livre · Shopee · TikTok Shop</p>
-        <h1>Pare de adivinhar quanto sobrou.</h1>
+        <h1>Você vende. Ele confere.</h1>
         <p className="lp-sub">
-          Faturamento, tarifa, imposto e frete de todos os seus canais numa conta só.
-          Quando o dado não existe, a gente diz que não existe.
+          O NEXO assume o trabalho que hoje alguém faz na mão: abre cada venda dos seus
+          quatro canais, lê a tarifa que foi cobrada e fecha a conta. Quando o dado não
+          existe, ele diz que não existe.
         </p>
         <div className="lp-acoes">
-          <Link href="/login" className="lp-cta">Começar agora</Link>
-          <Link href="#financeiro" className="lp-cta-secundaria">Ver como funciona</Link>
+          <Link href="/login" className="lp-cta">Colocar para trabalhar</Link>
+          <Link href="#financeiro" className="lp-cta-secundaria">Ver o que ele faz</Link>
         </div>
       </section>
 
-      {/* A tela inteira do produto logo abaixo do hero — o que o dub faz. */}
+      {/* A tela inteira do produto logo abaixo do hero — o que o dub faz.
+          As pills acima dela são as abas flutuantes deles (Short Links /
+          Conversion Analytics / Affiliate Programs). Lá são abas que trocam o
+          mock; aqui são âncoras de verdade para as três seções profundas —
+          mesmo elemento visual, sem fingir interação que não existe. */}
       <section className="lp-vitrine-secao">
-        <VitrineAnimada
-          legenda="Visão do canal"
-          descricao="Faturamento, tarifa, custo e lucro de cada canal — com o que ainda não fechou marcado como pendente, nunca como zero."
-        />
+        <Vitrine />
       </section>
 
       {/* Padrão real do midday (`time-savings-section.tsx`): problema + custo em
           horas, em cartões quadrados. Serve melhor que manifesto solto. */}
       <section className="lp-custos">
         <div className="lp-custos-topo">
-          <h2>Menos conferência. Mais operação.</h2>
-          <p>O NEXO tira o trabalho manual de saber quanto sobrou.</p>
+          <h2>O trabalho que ele tira das suas mãos.</h2>
+          <p>Três tarefas que hoje comem o seu dia — e que ele refaz a cada venda que entra.</p>
         </div>
         <div className="lp-custos-grade">
           {CUSTOS.map(([o_que, quanto, texto]) => (
@@ -124,20 +146,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="lp-manifesto">
-        <h2>
-          Não é sobre quanto você vendeu.
-          <br />
-          <strong>É sobre quanto sobrou.</strong>
-        </h2>
-        <p>
-          O NEXO junta <em>o que o marketplace cobrou</em>, <em>o que o comprador pagou</em> e{" "}
-          <em>quando o dinheiro cai</em> — numa conta só.
-        </p>
-        <p className="lp-manifesto-fecho">
-          Porque relatório que arredonda para zero não é relatório. É palpite bonito.
-        </p>
-      </section>
+      <Manifesto />
 
       {PILARES.map((pilar, i) => (
         <section key={pilar.id} id={pilar.id} className={`lp-pilar${i % 2 ? " is-invertido" : ""}`}>
@@ -156,25 +165,20 @@ export default function LandingPage() {
           </div>
           {/* A UI de verdade é o argumento — o texto só apresenta. */}
           <div className="lp-pilar-ui">
-            {pilar.id === "financeiro" ? <AnimacaoConciliacao />
+            {pilar.id === "financeiro" ? <FitaFunil />
               : pilar.id === "saldo" ? <MostraSaldo />
               : <MostraAuditoria />}
           </div>
         </section>
       ))}
 
-      <section className="lp-contadores" aria-label="Números da plataforma">
-        {CONTADORES.map((c) => (
-          <div key={c.rotulo}>
-            <strong>{c.valor}</strong>
-            <span>{c.rotulo}</span>
-          </div>
-        ))}
-      </section>
+      <GraficoMetricas />
+
+      <Contadores itens={CONTADORES} />
 
       <section className="lp-fim">
-        <h2>Sua operação inteira numa aba.</h2>
-        <Link href="/login" className="lp-cta">Começar agora</Link>
+        <h2>Ele começa a conferir hoje.</h2>
+        <Link href="/login" className="lp-cta">Colocar para trabalhar</Link>
       </section>
     </main>
   );

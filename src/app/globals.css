@@ -1874,28 +1874,56 @@ summary:hover { background: var(--paper-soft); }
    produto é claro, e copiar o escuro do midday junto com o efeito deixaria a
    landing e o app parecendo produtos diferentes. */
 .lp { --lp-tinta: oklch(0.22 0.012 250); --lp-suave: oklch(0.52 0.02 250);
-  max-width: 1120px; margin: 0 auto; padding: 0 clamp(20px, 5vw, 48px) 80px; color: var(--lp-tinta); }
+  --lp-linha: oklch(0.22 0.012 250 / 0.1);
+  position: relative; max-width: 1080px; margin: 0 auto; padding: 0 clamp(20px, 5vw, 48px) 80px; color: var(--lp-tinta); }
+/* As duas réguas verticais que delimitam o container no dub. Só isso: linha de
+   1px, sem cor. É o que dá a sensação de página construída em cima de um grid. */
+.lp::before { content: ""; position: absolute; inset: 0 calc(clamp(20px, 5vw, 48px) / 2);
+  border-inline: 1px solid var(--lp-linha); pointer-events: none; }
+@media (max-width: 700px) { .lp::before { display: none; } }
 .lp-nav { display: flex; align-items: center; justify-content: space-between; padding: 26px 0 0; }
 .lp-marca .nexo-letter { font-size: clamp(22px, 3vw, 28px); }
 .lp-cta-mini { border-radius: 999px; padding: 9px 18px; font-size: 13px; font-weight: 650;
-  color: var(--lp-tinta); box-shadow: inset 0 0 0 1px oklch(0.22 0.012 250 / 0.18); }
+  color: var(--lp-tinta); box-shadow: inset 0 0 0 1px oklch(0.22 0.012 250 / 0.18);
+  transition: box-shadow 0.18s, background-color 0.18s; }
+.lp-cta-mini:hover { background: oklch(0.22 0.012 250 / 0.04); box-shadow: inset 0 0 0 1px oklch(0.22 0.012 250 / 0.32); }
 
 .lp-hero { padding: clamp(56px, 11vw, 116px) 0 clamp(40px, 7vw, 76px); }
-.lp-pill { display: inline-block; margin-bottom: 22px; border-radius: 999px; padding: 7px 14px;
-  background: oklch(0.22 0.012 250 / 0.05); color: var(--lp-suave); font-size: 12px; font-weight: 600; white-space: nowrap; }
+/* Pílula do topo no acabamento do dub: branca sobre o fundo, borda de 1px e
+   sombra rasa — não o preenchimento cinza chapado. */
+.lp-pill { display: inline-block; margin-bottom: 22px; border-radius: 999px; padding: 7px 15px;
+  background: white; color: var(--lp-suave); font-size: 12px; font-weight: 600; white-space: nowrap;
+  box-shadow: 0 0 0 1px oklch(0.22 0.012 250 / 0.1), 0 1px 2px oklch(0.22 0.012 250 / 0.06); }
 .lp-hero h1 { max-width: 20ch; font-family: ui-serif, Georgia, 'Times New Roman', serif; font-size: clamp(34px, 5vw, 54px);
   font-weight: 400; letter-spacing: -0.02em; line-height: 1.08; text-wrap: balance; }
 .lp-sub { max-width: 58ch; margin-top: 22px; color: var(--lp-suave); font-size: clamp(16px, 2vw, 19px); line-height: 1.55; }
 .lp-acoes { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 34px; }
-.lp-cta { border-radius: 999px; background: var(--lp-tinta); padding: 14px 28px; color: white; font-size: 15px; font-weight: 650; }
+.lp-cta { border-radius: 999px; background: var(--lp-tinta); padding: 14px 28px; color: white; font-size: 15px; font-weight: 650;
+  box-shadow: 0 1px 2px oklch(0.22 0.012 250 / 0.2); transition: transform 0.18s, box-shadow 0.18s, background-color 0.18s; }
+.lp-cta:hover { background: oklch(0.28 0.012 250); box-shadow: 0 3px 12px oklch(0.22 0.012 250 / 0.26); transform: translateY(-1px); }
+.lp-cta:active { transform: translateY(0); }
 .lp-cta-secundaria { border-radius: 999px; padding: 14px 26px; font-size: 15px; font-weight: 600;
-  color: var(--lp-tinta); box-shadow: inset 0 0 0 1px oklch(0.22 0.012 250 / 0.2); }
+  color: var(--lp-tinta); box-shadow: inset 0 0 0 1px oklch(0.22 0.012 250 / 0.2);
+  transition: box-shadow 0.18s, background-color 0.18s; }
+.lp-cta-secundaria:hover { background: oklch(0.22 0.012 250 / 0.04); box-shadow: inset 0 0 0 1px oklch(0.22 0.012 250 / 0.34); }
 
-.lp-manifesto { padding: clamp(60px, 10vw, 110px) 0; border-block-start: 1px solid oklch(0.22 0.012 250 / 0.1); }
+.lp-manifesto { position: relative; padding: clamp(60px, 10vw, 110px) 0; border-block-start: 1px solid var(--lp-linha); }
+/* Textura de pontos atrás do manifesto — o `pattern` do dub. Sem cor e sem
+   glow (`docs/landing-nexo.md`: copiar o efeito, não a paleta); a máscara apaga
+   as bordas para não virar papel de parede. */
+.lp-manifesto::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background-image: radial-gradient(oklch(0.22 0.012 250 / 0.16) 1px, transparent 1px);
+  background-size: 22px 22px;
+  mask-image: radial-gradient(ellipse 70% 65% at 30% 45%, black, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 65% at 30% 45%, black, transparent 75%); }
 .lp-manifesto h2 { font-family: ui-serif, Georgia, serif; font-size: clamp(24px, 3.4vw, 34px); font-weight: 400; letter-spacing: -0.015em; line-height: 1.2; }
 .lp-manifesto h2 strong { font-weight: 500; }
 .lp-manifesto p { max-width: 62ch; margin-top: 24px; color: var(--lp-suave); font-size: 17px; line-height: 1.6; }
-.lp-manifesto em { color: var(--lp-tinta); font-style: normal; font-weight: 600; }
+/* Ênfase rotativa (`Manifesto.tsx`): a acesa fica em tinta cheia, as outras
+   recuam. Sem `is-aceso` em nenhuma — JS fora do ar — todas ficam acesas. */
+.lp-manifesto em { color: oklch(0.22 0.012 250 / 0.42); font-style: normal; font-weight: 600;
+  transition: color 0.55s ease; }
+.lp-manifesto em.is-aceso { color: var(--lp-tinta); }
 .lp-manifesto-fecho { font-size: 15px !important; }
 
 .lp-pilar { display: grid; gap: clamp(24px, 4vw, 56px); padding: clamp(48px, 8vw, 88px) 0;
@@ -1908,7 +1936,8 @@ summary:hover { background: var(--paper-soft); }
 .lp-itens { display: grid; gap: 1px; overflow: hidden; border-radius: 14px; background: white;
   box-shadow: 0 0 0 1px oklch(0.22 0.012 250 / 0.12); list-style: none; }
 .lp-itens li { display: grid; gap: 4px; background: white; padding: 20px 22px;
-  box-shadow: 0 0 0 1px oklch(0.22 0.012 250 / 0.08); }
+  box-shadow: 0 0 0 1px oklch(0.22 0.012 250 / 0.08); transition: background-color 0.2s; }
+@media (hover: hover) { .lp-itens li:hover { background: oklch(0.985 0.002 250); } }
 .lp-itens strong { font-size: 15px; font-weight: 700; }
 .lp-itens span { color: var(--lp-suave); font-size: 14px; line-height: 1.5; }
 
@@ -1917,15 +1946,22 @@ summary:hover { background: var(--paper-soft); }
 .lp-contadores div { display: grid; gap: 6px; }
 .lp-contadores strong { font-size: clamp(34px, 5vw, 52px); font-weight: 800; letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums; line-height: 1; }
-.lp-contadores span { color: var(--lp-suave); font-size: 14px; }
+/* Filho direto de propósito: o número dentro do `<strong>` também é um `<span>`
+   (`Contadores.tsx`) e herdaria estes 14px no lugar do corpo grande. */
+.lp-contadores > div > span { color: var(--lp-suave); font-size: 14px; }
 
 .lp-fim { display: grid; justify-items: start; gap: 26px; padding: clamp(56px, 9vw, 96px) 0 0;
   border-block-start: 1px solid oklch(0.22 0.012 250 / 0.1); }
 .lp-fim h2 { font-family: ui-serif, Georgia, serif; font-size: clamp(24px, 3.4vw, 34px); font-weight: 400; letter-spacing: -0.015em; text-wrap: balance; }
 
-/* Revelação por scroll, no espírito do midday — sem gradiente nem glow. */
+/* Revelação por scroll, no espírito do midday — sem gradiente nem glow.
+   `animation-timeline: view()` é progressivo: onde o navegador não suporta, a
+   seção simplesmente aparece pronta. Nunca some. */
 @media (prefers-reduced-motion: no-preference) {
-  .lp-manifesto, .lp-pilar, .lp-contadores, .lp-fim { animation: lp-entra linear both; animation-timeline: view();
+  /* A vitrine fica de fora de propósito: está na dobra, e revelar por scroll a
+     deixaria meio apagada já no primeiro paint. Ela tem animação própria. */
+  .lp-custos, .lp-manifesto, .lp-pilar, .lp-contadores, .lp-fim {
+    animation: lp-entra linear both; animation-timeline: view();
     animation-range: entry 8% cover 26%; }
   @keyframes lp-entra { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: none; } }
 }
@@ -2045,6 +2081,48 @@ summary:hover { background: var(--paper-soft); }
 }
 .lp-vitrine-secao { padding-block-end: clamp(20px, 4vw, 40px); }
 
+/* Abas flutuantes sobre a vitrine — o elemento de assinatura do hero do dub.
+   Pill branca, ponto colorido, sombra rasa. Aqui elas são âncoras reais para as
+   três seções profundas, então respondem a hover e a foco de teclado. */
+.lp-vitrine-abas { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-bottom: 18px; }
+.lp-vitrine-abas button { display: inline-flex; align-items: center; gap: 8px; border: 0; border-radius: 999px;
+  background: white; padding: 8px 16px; color: var(--lp-suave); font: inherit; font-size: 13px; font-weight: 650;
+  cursor: pointer; box-shadow: 0 0 0 1px oklch(0.22 0.012 250 / 0.1), 0 1px 3px oklch(0.22 0.012 250 / 0.08);
+  transition: transform 0.18s, box-shadow 0.18s, color 0.18s; }
+.lp-vitrine-abas button:hover { color: var(--lp-tinta); transform: translateY(-1px);
+  box-shadow: 0 0 0 1px oklch(0.22 0.012 250 / 0.16), 0 4px 12px oklch(0.22 0.012 250 / 0.14); }
+/* A aba ativa precisa se distinguir sem cor de marca: tinta cheia e a sombra
+   um pouco mais firme, como as pills do dub. */
+.lp-vitrine-abas button.is-ativa { color: var(--lp-tinta);
+  box-shadow: 0 0 0 1px oklch(0.22 0.012 250 / 0.22), 0 4px 14px oklch(0.22 0.012 250 / 0.13); }
+.lp-aba-ponto { width: 9px; height: 9px; border-radius: 3px; opacity: 0.45; transition: opacity 0.18s; }
+.lp-vitrine-abas button.is-ativa .lp-aba-ponto { opacity: 1; }
+/* As três cores já são as do produto: verde de resultado, azul de gráfico,
+   âmbar de pendência. Nada importado da paleta do dub. */
+.lp-aba-ponto.is-financeiro { background: oklch(0.55 0.13 160); }
+.lp-aba-ponto.is-saldo { background: oklch(0.55 0.13 250); }
+.lp-aba-ponto.is-auditoria { background: oklch(0.65 0.13 72); }
+@media (prefers-reduced-motion: reduce) { .lp-vitrine-abas button:hover { transform: none; } }
+
+/* Altura fixa para a troca de aba não sacudir a página, e a moldura arredondada
+   fica com a `.lp-vitrine`: a tela de dentro não repete borda nem sombra. */
+.lp-vitrine-tela { display: grid; min-height: 420px; background: oklch(0.985 0.002 250); }
+.lp-vitrine-tela .lp-ui { border-radius: 0; box-shadow: none; align-content: start; }
+
+/* Entrada das telas de Saldo e Auditoria (`Mostruario.tsx`), no mesmo padrão dos
+   cards do painel: escalonado por índice e reiniciando em loop. */
+.lp-saldo-cards > div, .lp-liberacoes li, .lp-tabela tbody tr {
+  opacity: 0; transition: opacity 0.45s ease-out, transform 0.45s cubic-bezier(0.22, 1, 0.36, 1); }
+.lp-saldo-cards > div { transform: translateY(10px); }
+.lp-liberacoes li { transform: translateX(-6px); }
+.lp-tabela tbody tr { transform: translateY(-6px); }
+.lp-saldo-cards > div.is-visivel, .lp-liberacoes li.is-visivel, .lp-tabela tbody tr.is-visivel {
+  opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .lp-saldo-cards > div, .lp-liberacoes li, .lp-tabela tbody tr {
+    opacity: 1; transform: none; transition: none; }
+}
+
 /* Seção de custo em horas — padrão de `time-savings-section.tsx` do midday:
    título serifado pequeno e centralizado, cartões QUADRADOS com hover discreto.
    Nada de canto arredondado nem sombra: a borda de 1px é o recurso. */
@@ -2110,3 +2188,166 @@ summary:hover { background: var(--paper-soft); }
 .lp-cascata-linhas .is-resultado strong, .lp-cascata-linhas .is-margem strong { color: oklch(0.42 0.13 160); }
 .lp-cascata-linhas .is-resultado .lp-cascata-sinal { color: oklch(0.45 0.12 160); }
 @media (prefers-reduced-motion: reduce) { .lp-cascata-linhas > div { opacity: 1; transform: none; transition: none; } }
+
+/* ---------- Fita de funil: a conta estreitando ----------
+   Padrão "Visualize your journey" de dub.co/analytics. Componente em
+   `FitaFunil.tsx`; as larguras saem dos centavos reais, não do olho. */
+.lp-funil { margin: 0; }
+.lp-funil-topo { margin-bottom: 18px; }
+.lp-funil-kicker { color: oklch(0.45 0.14 250); font-size: 11px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; }
+.lp-funil h3 { margin-top: 8px; font-family: ui-serif, Georgia, serif; font-size: 21px; font-weight: 400; }
+
+/* O padding abre a faixa dos cartões: sobrepostos, eles tapavam o topo da fita
+   e ela parecia estreitar só para baixo. */
+.lp-funil-palco { position: relative; padding-top: 58px; }
+.lp-funil-svg { display: block; width: 100%; height: clamp(200px, 28vw, 280px); overflow: visible; }
+.lp-funil-faixa { opacity: 0; transform: scaleX(0.6); transform-origin: left center;
+  transition: opacity 0.5s ease-out, transform 0.7s cubic-bezier(0.22, 1, 0.36, 1); }
+.lp-funil-faixa.is-visivel { opacity: 1; transform: none; }
+/* Azul de entrada → verde de resultado: a paleta do produto, não a do dub. */
+.lp-funil-faixa.is-entrada { fill: oklch(0.63 0.14 250); }
+.lp-funil-faixa.is-cupom { fill: oklch(0.62 0.13 220); }
+.lp-funil-faixa.is-taxa { fill: oklch(0.61 0.13 192); }
+.lp-funil-faixa.is-lucro { fill: oklch(0.59 0.14 162); }
+
+.lp-funil-cartao { position: absolute; top: 0; transform: translate(-50%, -6px);
+  display: grid; gap: 2px; border-radius: 10px; background: white; padding: 8px 12px;
+  white-space: nowrap; opacity: 0;
+  box-shadow: 0 0 0 1px oklch(0.22 0.012 250 / 0.1), 0 4px 14px oklch(0.22 0.012 250 / 0.14);
+  transition: opacity 0.45s ease-out, transform 0.45s cubic-bezier(0.22, 1, 0.36, 1); }
+.lp-funil-cartao.is-visivel { opacity: 1; transform: translate(-50%, 0); }
+.lp-funil-cartao span { color: var(--lp-suave); font-size: 10.5px; font-weight: 650; }
+.lp-funil-cartao strong { font-size: 13px; font-weight: 750; font-variant-numeric: tabular-nums; }
+.lp-funil-cartao.is-deducao strong { color: oklch(0.55 0.19 25); }
+
+/* Centrado na saída da fita: `50%` da altura do palco mais metade do padding
+   dos cartões aponta exatamente para o meio do SVG. O `translate` fica separado
+   do `transform` para não brigar com a animação de entrada. */
+.lp-funil-saida { position: absolute; right: 0; top: calc(29px + 50%); translate: 0 -50%;
+  display: grid; gap: 1px;
+  border: 1px solid oklch(0.86 0.05 160); border-radius: 12px; background: oklch(0.96 0.03 160);
+  padding: 10px 14px; opacity: 0; transform: translateY(8px);
+  transition: opacity 0.5s ease-out, transform 0.5s cubic-bezier(0.22, 1, 0.36, 1); }
+.lp-funil-saida.is-visivel { opacity: 1; transform: none; }
+.lp-funil-saida span { color: oklch(0.45 0.12 160); font-size: 10.5px; font-weight: 700;
+  letter-spacing: 0.05em; text-transform: uppercase; }
+.lp-funil-saida strong { color: oklch(0.42 0.13 160); font-size: 20px; font-weight: 780;
+  font-variant-numeric: tabular-nums; }
+.lp-funil-saida em { color: oklch(0.45 0.12 160); font-size: 11px; font-style: normal; }
+
+.lp-funil-nota { margin-top: 16px; color: var(--lp-suave); font-size: 12px; line-height: 1.5; }
+
+@media (max-width: 600px) {
+  /* Quatro cartões não cabem lado a lado; some com o rótulo e deixa a fita falar. */
+  .lp-funil-cartao { font-size: 10px; padding: 6px 8px; }
+  .lp-funil-cartao span { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-funil-faixa, .lp-funil-cartao, .lp-funil-saida {
+    opacity: 1; transform: none; transition: none; }
+  .lp-funil-cartao { transform: translate(-50%, 0); }
+}
+
+/* ---------- Métricas que trocam o gráfico ----------
+   Padrão "Success at a glance" de dub.co/analytics (`GraficoMetricas.tsx`). */
+.lp-metricas { padding: clamp(56px, 9vw, 96px) 0; border-block-start: 1px solid var(--lp-linha); }
+.lp-metricas-topo { margin-bottom: 32px; text-align: center; }
+.lp-metricas-topo h2 { margin-top: 12px; font-family: ui-serif, Georgia, serif;
+  font-size: clamp(24px, 3.4vw, 34px); font-weight: 400; letter-spacing: -0.015em; }
+.lp-metricas-topo > p:last-child { margin-top: 12px; color: var(--lp-suave); font-size: 15px; }
+
+.lp-metricas-quadro { overflow: hidden; border-radius: 16px; background: white;
+  box-shadow: 0 1px 2px oklch(0.22 0.012 250 / 0.06), 0 16px 44px oklch(0.22 0.012 250 / 0.1),
+    0 0 0 1px oklch(0.22 0.012 250 / 0.08); }
+
+.lp-metricas-abas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.lp-metricas-abas button { border: 0; border-block-end: 2px solid transparent;
+  border-inline-end: 1px solid oklch(0.22 0.012 250 / 0.08);
+  background: oklch(0.985 0.002 250); padding: 16px 18px; font: inherit; text-align: left;
+  cursor: pointer; transition: background-color 0.2s, border-color 0.2s; }
+.lp-metricas-abas button:last-child { border-inline-end: 0; }
+.lp-metricas-abas button:hover { background: white; }
+/* A ativa fica branca e ganha a barra preta embaixo, como no dub. */
+.lp-metricas-abas button.is-ativa { border-block-end-color: var(--lp-tinta); background: white; }
+.lp-metricas-rotulo { display: flex; align-items: center; gap: 7px; color: var(--lp-suave);
+  font-size: 12px; font-weight: 650; }
+.lp-metricas-abas strong { display: block; margin-top: 4px; font-size: clamp(19px, 2.4vw, 25px);
+  font-weight: 760; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+
+.lp-metricas-ponto { width: 8px; height: 8px; flex-shrink: 0; border-radius: 2px;
+  display: inline-block; }
+.is-azul .lp-metricas-ponto, .lp-metricas-ponto.is-azul { background: oklch(0.58 0.15 250); }
+.is-vermelho .lp-metricas-ponto, .lp-metricas-ponto.is-vermelho { background: oklch(0.6 0.19 25); }
+.is-verde .lp-metricas-ponto, .lp-metricas-ponto.is-verde { background: oklch(0.56 0.14 160); }
+
+.lp-metricas-grafico { position: relative; padding: 18px 0 0; }
+.lp-metricas-grafico svg { display: block; width: 100%; height: clamp(180px, 22vw, 240px); }
+.lp-metricas-guia { stroke: oklch(0.22 0.012 250 / 0.09); stroke-width: 1; stroke-dasharray: 3 5; }
+.lp-metricas-linha { fill: none; stroke-width: 2.5; vector-effect: non-scaling-stroke;
+  stroke-linecap: round; stroke-linejoin: round; }
+.lp-metricas-area { stroke: none; opacity: 0.13; }
+/* Marcador do fim da curva: elemento HTML, imune à distorção do SVG. */
+.lp-metricas-alvo { position: absolute; right: 8px; width: 11px; height: 11px;
+  translate: 0 -50%; border: 2.5px solid white; border-radius: 50%;
+  box-shadow: 0 1px 3px oklch(0.22 0.012 250 / 0.3); }
+.lp-metricas-linha.is-azul { stroke: oklch(0.58 0.15 250); }
+.lp-metricas-area.is-azul { fill: oklch(0.58 0.15 250); }
+.lp-metricas-alvo.is-azul { background: oklch(0.58 0.15 250); }
+.lp-metricas-linha.is-vermelho { stroke: oklch(0.6 0.19 25); }
+.lp-metricas-area.is-vermelho { fill: oklch(0.6 0.19 25); }
+.lp-metricas-alvo.is-vermelho { background: oklch(0.6 0.19 25); }
+.lp-metricas-linha.is-verde { stroke: oklch(0.56 0.14 160); }
+.lp-metricas-area.is-verde { fill: oklch(0.56 0.14 160); }
+.lp-metricas-alvo.is-verde { background: oklch(0.56 0.14 160); }
+
+/* A curva se redesenha na troca de métrica: traço "correndo" da esquerda. */
+@media (prefers-reduced-motion: no-preference) {
+  .lp-metricas-linha { stroke-dasharray: 2000; animation: lp-tracar 0.9s cubic-bezier(0.4, 0, 0.2, 1) both; }
+  @keyframes lp-tracar { from { stroke-dashoffset: 2000; } to { stroke-dashoffset: 0; } }
+  .lp-metricas-area, .lp-metricas-alvo { animation: lp-surge 0.7s ease-out both; }
+  @keyframes lp-surge { from { opacity: 0; } }
+  .lp-metricas-area { animation-name: lp-surge-area; }
+  @keyframes lp-surge-area { from { opacity: 0; } to { opacity: 0.13; } }
+}
+
+.lp-metricas-balao { position: absolute; top: 26px; right: 22px; display: grid; gap: 3px;
+  border-radius: 10px; background: white; padding: 9px 12px;
+  box-shadow: 0 0 0 1px oklch(0.22 0.012 250 / 0.1), 0 6px 18px oklch(0.22 0.012 250 / 0.14); }
+.lp-metricas-balao span { color: var(--lp-suave); font-size: 11px; font-weight: 650; }
+.lp-metricas-balao strong { display: flex; align-items: center; gap: 7px; font-size: 12.5px;
+  font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.lp-metricas-eixo { display: flex; justify-content: space-between;
+  border-block-start: 1px solid oklch(0.22 0.012 250 / 0.07); padding: 10px 18px 14px;
+  color: var(--lp-suave); font-size: 11px; }
+@media (max-width: 560px) { .lp-metricas-eixo span:nth-child(even) { display: none; } }
+
+.lp-metricas-nota { margin-top: 16px; color: var(--lp-suave); font-size: 12px; line-height: 1.55; }
+
+/* ---------- Arte do hero: o gráfico como ilustração ----------
+   Padrão de dub.co/analytics (`HeroGrafico.tsx`). Sangra até a borda da janela
+   pela direita e desbota à esquerda, para não brigar com o texto. */
+.lp-hero { position: relative; }
+.lp-hero > * { position: relative; z-index: 1; }
+.lp-hero-arte { position: absolute; z-index: 0; top: 50%; translate: 0 -50%;
+  right: calc(50% - 50vw); width: min(62vw, 780px); pointer-events: none;
+  mask-image: linear-gradient(90deg, transparent, black 42%);
+  -webkit-mask-image: linear-gradient(90deg, transparent, black 42%); }
+.lp-hero-arte svg { display: block; width: 100%; height: clamp(280px, 34vw, 420px); }
+.lp-hero-linha { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke;
+  stroke-linecap: round; stroke-linejoin: round; }
+.lp-hero-area { stroke: none; opacity: 0.1; }
+.lp-hero-linha.is-azul { stroke: oklch(0.6 0.16 250); }
+.lp-hero-area.is-azul { fill: oklch(0.6 0.16 250); }
+.lp-hero-linha.is-roxo { stroke: oklch(0.62 0.15 305); }
+.lp-hero-area.is-roxo { fill: oklch(0.62 0.15 305); }
+.lp-hero-linha.is-verde { stroke: oklch(0.62 0.13 168); }
+.lp-hero-area.is-verde { fill: oklch(0.62 0.13 168); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .lp-hero-serie { animation: lp-hero-sobe 1.1s cubic-bezier(0.22, 1, 0.36, 1) both; }
+  @keyframes lp-hero-sobe { from { opacity: 0; transform: translateY(14px); } }
+}
+/* Abaixo de 900px o texto ocupa a largura toda: a arte vira ruído atrás dele. */
+@media (max-width: 900px) { .lp-hero-arte { display: none; } }
