@@ -1044,3 +1044,90 @@ leilão da Amazon, não o seu lucro. Sempre conferir contra o CPC de equilíbrio
 
 **O que observar:** volume deve subir bastante nos dois. Se o CVR se mantiver acima de 20%
 com mais volume, dá para subir de novo — ainda há folga até R$ 3,82.
+
+---
+
+## Série consolidada — mudança × resultado (12–18/08/2026)
+
+Ela cobrou, com razão: *"nossas alterações precisam ter embasamento"*. Eu vinha decidindo
+sobre **fotos**, sem uma série. Esta tabela é o antídoto — **atualizar a cada leitura**.
+
+### O que foi mudado
+
+| Data | Mudança |
+|---|---|
+| 12/08 | 4 campanhas no ar, lance R$ 0,35 |
+| 13/08 15h30 | Lances R$ 0,35 → sugestão da Amazon (0,61–1,29) |
+| 13/08 17h | +2 campanhas manuais (6 no total) |
+| 15/08 | Preço martelo R$ 43,22 → 31,90 |
+| 16/08 12h05 | Negativa `martelo` na auto · orçamento Auto-Protetor 10 → 5 |
+| 16/08 12h20 | Preço martelo 31,90 → **27,90** |
+| 17/08 01h00 | Auto-Martelo: 4 grupos R$ 3,00 → **0,50** · Substitutos **pausado** |
+| 17/08 01h30 | Orçamento Auto-Protetor 5 → **15** (revertendo erro meu) |
+| 17/08 23h50 | `clips` e `clipe` (Frase) R$ 0,70/0,68 → **1,50** |
+| 18/08 00h30 | Preços protetores: 16→37,90 · 24→51,90 · 32→59,90 |
+| 18/08 ~01h | Campanha **Auto - Protetor Kit 32** criada (R$ 1,20 / R$ 10 dia) |
+| 18/08 | kitprote-8 22,11 → **24,90** · back-end do kitprote-8 preenchido |
+| 18/08 | `clips` e `clipe` (**Exata**) R$ 0,60/0,59 → **1,20** |
+
+### O que aconteceu
+
+| Dia | Impr | Cliq | CTR | Custo | Compras | Vendas | ACOS |
+|---|---|---|---|---|---|---|---|
+| 13/08 | 1.065 | 5 | 0,47% | 6,12 | — | — | — |
+| 14/08 | 2.868 | 16 | 0,56% | 14,06 | 1 | 22,11 | 63,6% |
+| 15/08 | 4.073 | 25 | 0,61% | 22,67 | 3 | 66,33 | 34,2% |
+| 16/08 | 4.409 | 15 | 0,34% | 13,31 | — | — | — |
+| 17/08 | 4.967 | 13 | 0,26% | 12,80 | 3 | 116,45 | 11,0% |
+| 18/08* | 1.992 | 24 | **1,20%** | 25,34 | 2 | 44,22 | — |
+
+\* parcial, atribuição aberta.
+
+### As quatro relações de causa e efeito comprovadas
+
+1. **Subir lance de R$ 0,35 (13/08)** — antes: 134 impressões em 19h. Depois: 1.065 →
+   2.868 → 4.073. **Destravou a conta.** Sem isso não havia operação.
+2. **Baixar preço do martelo (15–16/08)** — CTR da manual 1,27% → 2,72% → 6,56%.
+   **Preço era a causa**, confirmado.
+3. **Negativar `martelo` (16/08)** — gasto da Auto-Martelo de ~R$ 3,87/dia → ~R$ 1,22/dia.
+4. **Cortar lance da Auto-Martelo (17/08)** — o efeito mais forte. O CTR da conta vinha
+   **caindo** (0,61% → 0,34% → 0,26%) porque essa campanha despejava milhares de
+   impressões não clicadas. Cortada, o CTR foi a **1,20%** — quatro vezes.
+
+### O que nunca foi tocado (e é onde está o próximo ganho)
+
+`Manual - Protetor 8` · `Manual - Martelo` · `Auto - Clips` — nenhuma ação nossa até hoje.
+
+### 🔑 O padrão descoberto em 18/08: o piso do leilão
+
+Quase toda palavra com lance **abaixo de ~R$ 0,70 não entrega nada**. Prova mais limpa,
+as **mesmas 14 palavras** do Clips em dois grupos:
+
+| Grupo | Lance | Impressões (18/08) |
+|---|---|---|
+| Frase · `clips` e `clipe` | R$ 1,50 | **803** |
+| Frase · outras 12 | R$ 0,33–0,70 | 113 |
+| Exata · todas as 14 | R$ 0,33–0,63 | **zero** |
+
+Mesma palavra `clips`: a R$ 1,50 fez 659 impressões e 1 venda; a R$ 0,60, **nada**.
+Não é a palavra nem a página — **é o piso do leilão**.
+
+⚠️ **Metade da conta está abaixo desse piso**, gastando zero e entregando zero.
+
+### Aplicado em 18/08 — Exata do Clips
+
+`clips` R$ 0,60 → **R$ 1,20** ✅ confirmado na tela após recarga.
+`clipe` R$ 0,59 → R$ 1,20 — editado e salvo, **confirmação visual pendente** (o filtro de
+busca da tela ficou preso em "clips" e não deixou listar). Reconferir na próxima leitura.
+
+Escolhi só essas duas (não as 14) porque são as únicas com **venda comprovada** no grupo
+Frase. Menos aposta, mesma evidência.
+
+### 🖱️ Duas descobertas de operação do console
+
+- **Enter salva o lance** — muito mais confiável que clicar em "Salvar", cujo botão muda
+  de posição conforme o popup renderiza. Clique no botão falhou 2×; Enter funcionou 1ª vez.
+- ⚠️ **Selecionar as 14 linhas de uma vez CONGELA a página.** Travou o renderizador e
+  exigiu fechar a aba. **Editar uma palavra por vez.**
+- O filtro de busca da tabela **persiste até depois de recarregar** a página — limpar pelo
+  X nem sempre funciona; abrir aba nova é mais rápido.
