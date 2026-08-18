@@ -97,17 +97,20 @@ não encontrar:
 
 | Onde | O que tem | Por que fora |
 |---|---|---|
-| `.claude/skills/gerenciar-ads/` | **Gerenciador de Amazon Ads**: motor de decisão, matemática do lance (com calculadora `scripts/lance.mjs`), ciclo de colheita e negativas, armadilhas da tela de criação, diagnóstico, benchmarks 2026 e os dados da conta NEXAHUB | `.claude` está no `.gitignore` — **é local, não versionado** |
-| `.claude/skills/monitorar-ads/SKILL.md` | **Leitura e log**: cada leitura datada, mudanças aplicadas com data e hora, e o histórico da operação | idem |
+| `.claude/skills/gerenciar-ads/` | **Gerenciador de Amazon Ads**: motor de decisão, matemática do lance (com calculadora `scripts/lance.mjs`), ciclo de colheita e negativas, armadilhas da tela de criação, diagnóstico, benchmarks 2026 e os dados da conta NEXAHUB | ✅ **versionado desde 17/08/2026** |
+| `.claude/skills/monitorar-ads/SKILL.md` | **Leitura e log**: cada leitura datada, mudanças aplicadas com data e hora, e o histórico da operação | ✅ versionado |
 | `~/.claude/skills/pesquisa-produto-amazon/` | Análise de nicho por termo (menor preço FBA via `competitiveSummary`, BSR, margem) e comparação por atributo | Ferramenta pessoal, não faz parte do produto |
 
 📌 **Antes de opinar sobre campanha de Ads, leia as duas skills.** Elas guardam o
 histórico que o git não tem — inclusive erros já cometidos e a regra de que toda leitura
 termina em **esperar**, **agir** ou **investigar**.
 
-⚠️ **Isso é uma fragilidade conhecida:** conhecimento operacional caro vive fora do
-controle de versão. Se `.claude/skills` for versionado um dia, estes arquivos deveriam ser
-os primeiros a entrar.
+✅ **Resolvido em 17/08/2026.** As três skills nossas (`monitorar-ads`, `gerenciar-ads`,
+`amazon-listing`) passaram a ser versionadas — o `.gitignore` libera só elas, mantendo de
+fora o `settings.local.json` e as skills bundled da Anthropic.
+
+📌 **Ao criar uma skill nova que valha guardar, adicione a exceção no `.gitignore`** — o
+padrão continua sendo ignorar `/.claude/*`.
 
 As fontes **versionadas** desse conhecimento são [`amazon-ads.md`](./amazon-ads.md) e
 [`amazon-ads-especialista.html`](./amazon-ads-especialista.html) — as skills destilam esses

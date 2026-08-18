@@ -49,7 +49,16 @@ next-env.d.ts
 
 # Ferramentas locais de agentes e referencias de design
 /.agents
-/.claude
+# .claude: versionar SÓ as skills que são nossas.
+# O conhecimento operacional de Ads mora nelas e custou dias para ser levantado —
+# perder isso é perder o histórico que o git não tem em nenhum outro lugar.
+# Ficam de fora: settings.local.json (config local) e as skills bundled da Anthropic.
+/.claude/*
+!/.claude/skills/
+/.claude/skills/*
+!/.claude/skills/amazon-listing/
+!/.claude/skills/gerenciar-ads/
+!/.claude/skills/monitorar-ads/
 /.codex
 /ui-ux-pro-max-skill
 /skills-lock.json
