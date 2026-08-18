@@ -24,8 +24,11 @@ início 12/08 · sem data de término.
 **Total: 6 campanhas, R$ 65/dia** de teto.
 
 **Não anunciados:**
-- `kitprote-32` — R$ 44,33 de preço contra R$ 38,28 de custo = 13,6% de margem bruta, que a
-  comissão de 15% já consome. Ou o custo está errado, ou o preço está.
+- `kitprote-32` — R$ 44,33 de preço contra R$ 38,28 de custo = **R$ 6,05 (13,6%)**.
+  ⚠️ A decisão de não anunciar veio de assumir 15% de comissão, o que tornaria a margem
+  negativa. **Com a comissão zerada de hoje, a margem é positiva** — reavaliar se vale
+  anunciar enquanto a promoção durar. O custo de R$ 38,28 continua alto demais para o
+  preço; vale conferir se está certo.
 - `kitprote-16` — **sem custo cadastrado**, então a margem é desconhecida.
 
 ---
