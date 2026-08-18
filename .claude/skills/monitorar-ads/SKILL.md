@@ -119,6 +119,7 @@ grep -o "bad-scope\|unknown scope\|invalid-parameter" /tmp/ads-scope.html | sort
 | 13/08/2026 | pendente (solicitada neste dia) |
 | 16/08/2026 ~11h50 | pendente |
 | **16/08/2026 22h45** | **pendente** — `ADS_REFRESH_TOKEN` e `ADS_PROFILE_ID` seguem vazios no `.env.local` |
+| **17/08/2026 23h05** | **pendente** — 4 dias após o pedido; o prazo indicado era 14/08 (sexta). 🔴 **Vencido: abrir caso no suporte de desenvolvedores.** |
 
 ⚠️ O prazo que ela mencionou era **17/08**. Se passar disso sem aprovação, vale abrir caso
 no suporte de desenvolvedores em vez de continuar esperando — foi o que destravou (ou

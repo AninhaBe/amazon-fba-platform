@@ -1,6 +1,6 @@
 # Amazon orgânico: do zero ao especialista
 
-**Como ser encontrado sem pagar por clique.** Escrito em 18/08/2026, como par do guia
+**Como ser encontrado sem pagar por clique.** Escrito em 17/08/2026, como par do guia
 [`amazon-ads-do-zero-ao-especialista.pdf`](./amazon-ads-do-zero-ao-especialista.pdf).
 
 Aquele guia termina dizendo que o objetivo do anúncio é **comprar ranqueamento orgânico**.
@@ -194,7 +194,7 @@ inteiro.** Você fica com **zero** termos de back-end indexados e não recebe av
 
 ### O que encontramos na nossa conta
 
-**[MEDIDO — 18/08/2026]** Auditoria dos três SKUs principais:
+**[MEDIDO — 17/08/2026]** Auditoria dos três SKUs principais:
 
 | SKU | Termos de back-end | Problema |
 |---|---|---|
@@ -359,17 +359,20 @@ semanas; termos de meio de cauda entre os dias 45 e 60.
 
 ## 13. 🔴 Onde a conta NEXAHUB está agora
 
-**[MEDIDO — 18/08/2026]**
+**[MEDIDO — 17/08/2026]**
 
 | Marco | Data |
 |---|---|
 | Estoque virou vendável | ~06/08/2026 |
 | Campanhas de Ads no ar | 12/08/2026 |
-| **Hoje** | **18/08/2026** |
-| **Dia da lua de mel** | **~dia 12 de 30–45** |
+| **Hoje** | **17/08/2026** |
+| **Dia da lua de mel** | **~dia 11 de 30–45** |
 | Fim estimado da janela | **entre 05 e 20/09/2026** |
 
 **Estamos dentro da janela, com cerca de um terço dela consumido.**
+
+✅ **17/08: chegou a primeira avaliação** (pedido `702-2192919-5915420`, de 08/08). É o primeiro
+sinal de prova social dentro da janela em que a Amazon está medindo conversão.
 
 Isso reordena todas as prioridades. Ver capítulo 14.
 
@@ -613,7 +616,7 @@ disponível hoje e ainda não usada. O Search Query Performance é o mesmo bloqu
 
 ## 29. Estudo de caso: onde a NEXAHUB está
 
-**[MEDIDO — 18/08/2026]**
+**[MEDIDO — 17/08/2026]**
 
 | Sinal | Situação |
 |---|---|
