@@ -1268,3 +1268,37 @@ no dia seguinte para equilibrar).
    0,50 → 0,90 (dentro da faixa sugerida) OU aceitar como morta. Decisão dela.
 3. Manual - Protetor: palavras novas ativas, sem entrega ainda — esperar (1º dia completo).
 4. **Ads API: 3º teste pendente** (`unknown scope`, 19/08). 2ª solicitação foi 17/08.
+
+### Aplicado 19/08 ~11h30 — Auto - Martelo: lance 0,50 → 0,90
+
+Gatilho: **2 dias com impressão ~zero** (regra "impressões ~zero há 2+ dias = lance abaixo
+do piso"). Confirmado após recarregar:
+
+| Grupo | Lance | Status |
+|---|---|---|
+| Correspondência aproximada | **R$ 0,90** | ativo |
+| Complementos | **R$ 0,90** | ativo |
+| Correspondência vaga | **R$ 0,90** | ativo |
+| Substitutos | R$ 0,50 | **pausado** (mantido) |
+
+Sugestão da Amazon é R$ 0,33 (faixa 0,20–1,96); 0,90 fica bem acima dela e ainda 70% abaixo
+dos R$ 3,00 originais. **Se em 2 dias continuar sem impressão, a campanha é morta de fato**
+— o inventário dela era Substitutos, não busca.
+
+### ⛔ Corte do clips ADIADO para 22/08 — e por quê
+
+Ela perguntou "vai ter algum ganho?" e a resposta expôs falha no meu próprio gatilho.
+
+Eu combinei "dia 18 fechado acima de 49% → cortar". Fechou em **55,5%** — **mas com
+atribuição aberta**: houve **3 pedidos reais de clips no dia 18 e apenas 2 atribuídos**.
+Com a 3ª venda, o ACOS do dia cai para **~37%** — abaixo do teto, e R$ 1,50 estaria correto.
+
+📌 **A falha do gatilho:** "dia fechado" ≠ "atribuição fechada". Um gatilho de ACOS só pode
+disparar sobre janela com **7 dias + 3 de folga**. Corrigir isso em qualquer regra futura.
+
+Segundo motivo: **não há sangria para estancar hoje**. A Amazon está compensando o estouro
+de orçamento de 18/08 sozinha — R$ 1,84 gastos até meio-dia contra R$ 24,55 no dia inteiro
+de ontem.
+
+**Decisão: reavaliar 22/08** com a janela do dia 18 fechada. Acima de 49% → 1,50 → 1,20.
+Abaixo → mantém. Custo de esperar ≈ R$ 3.
