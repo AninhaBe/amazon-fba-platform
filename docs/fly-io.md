@@ -278,6 +278,49 @@ agora.
 
 ---
 
+## 9. Resultado do primeiro deploy (19/08/2026, ~18h30)
+
+App **`nexo`** no ar em `gru`: **https://nexo.fly.dev** · imagem de 62 MB · volume de 1 GB
+criptografado com snapshot diário · health check `1 total, 1 passing`.
+
+### Latência medida — a justificativa do ADR-015, confirmada
+
+| Rota | Fly (`gru`) | Render (Oregon) |
+|---|---|---|
+| `/api/health` (sem banco) | **0,074 – 0,080 s** | 0,210 – 0,525 s |
+| `/login` (toca o Supabase) | **0,094 – 0,147 s** | 0,208 – 0,514 s |
+
+**2 a 5× mais rápido — e muito mais estável.** O Fly variou ~6 ms entre rodadas; o Render
+variou de 210 a 525 ms. A instabilidade do Render é provavelmente o que faz o painel
+parecer travado de vez em quando.
+
+### O que ficou provado e o que não
+
+✅ Capacidade em `gru` existe (era dúvida do checklist) · ✅ o `Dockerfile` do repo sobe no
+Fly sem ajuste · ✅ 29 segredos aplicados por `fly secrets set` · ✅ o gate de "verificação
+de conta" **não bloqueia** o deploy depois do cartão cadastrado.
+
+❌ **Ainda não medido:** saldo de burst e throttling sob carga de sync, memória sob carga,
+persistência do volume entre deploys, custo real acumulado. São os itens que exigem a
+semana de piloto.
+
+⚠️ **`nexo.fly.dev` aponta para o banco de produção.** Render e Fly estão vivos ao mesmo
+tempo, sobre os mesmos dados. Não é problema — o Render segue sendo produção — mas evita
+disparar sync manual pelos dois ao mesmo tempo.
+
+⚠️ **OAuth não funciona em `nexo.fly.dev`**: o domínio não está nas allowlists de Shopee e
+TikTok. Leitura funciona; reautorizar canal, não. É o pré-requisito do domínio próprio.
+
+### Nota de método
+
+Este doc afirmou três coisas erradas sobre o Fly antes de serem verificadas: que dava para
+configurar limite de gasto (não dá), que duração de sync equivale a consumo de CPU (não
+equivale) e que o trial permitia testar sem cartão (a tela exige verificação para
+deployar). Duas foram corrigidas por revisão externa, uma pela própria tela. **Preço,
+limite e gate de plataforma são para ler na fonte antes de escrever, não depois.**
+
+---
+
 Relacionado: [ADR-015](./adr/ADR-015-compute-em-sao-paulo-com-banco-gerenciado.md) ·
 [`docker.md`](./docker.md) ·
 [`infra-decisao-hospedagem.md`](./infra-decisao-hospedagem.md)
