@@ -4,9 +4,11 @@
 `localhost:3333`.
 
 Existe por causa da **Fase A do [ADR-015](./adr/ADR-015-compute-em-sao-paulo-com-banco-gerenciado.md)**:
-o compute vai para uma VPS com Coolify, e o Coolify roda tudo em container. A receita
-sendo **nossa e versionada** é o que torna o build reproduzível — a mesma imagem roda na
-máquina de quem desenvolve e na VPS, sem "funciona aqui".
+o compute vai para o **Fly.io em São Paulo**, que roda a aplicação como container. A
+receita sendo **nossa e versionada** é o que torna o build reproduzível — a mesma imagem
+roda na máquina de quem desenvolve, no Fly e em qualquer VPS, sem "funciona aqui". É
+também o que mantém a decisão reversível: trocar de host vira reconfiguração, não
+reescrita.
 
 ## O que NÃO mudou
 
@@ -74,8 +76,8 @@ princípio, não só por causa desta falha.
 O app grava **custos e contas OAuth** em disco. No Render isso é `/var/data`, com disco
 persistente declarado no `render.yaml`.
 
-⚠️ **No Coolify, montar um volume e apontar `DATA_DIR` para ele.** Sem isso, cada deploy
-apaga esses dados.
+⚠️ **Em qualquer host novo, montar um volume e apontar `DATA_DIR` para ele.** Sem isso,
+cada deploy apaga esses dados. No Fly é o bloco `[mounts]` do `fly.toml`.
 
 ## Detalhes da imagem
 
@@ -100,13 +102,13 @@ pasta quebra o build.
 
 Instalado em 19/08: **Docker Engine 29.1.3** dentro do Ubuntu 24.04 do WSL2, com systemd.
 
-Motivo: é **a mesma coisa que a VPS vai rodar**. O Desktop é uma camada de GUI por cima,
-mora no `C:` (que está cheio nesta máquina) e tem licença comercial acima de certo porte.
-Os comandos aprendidos aqui valem na VPS sem tradução.
+Motivo: o Desktop é uma camada de GUI por cima, mora no `C:` (que está cheio nesta
+máquina) e tem licença comercial acima de certo porte. O Engine é o que builda a imagem
+que o Fly vai receber.
 
 ⚠️ **Limitação do WSL:** a VM hiberna quando não há sessão ativa, e o container morre
-junto (exit 137). Para deixar de pé, manter um terminal em primeiro plano. Na VPS o
-systemd resolve isso sozinho.
+junto (exit 137). Para deixar de pé, manter um terminal em primeiro plano. É limitação do
+ambiente local, não da imagem — no Fly a máquina fica de pé sozinha.
 
 ## Para onde esta imagem vai: Fly.io
 
