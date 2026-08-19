@@ -164,6 +164,50 @@ sendo o criterio**: a decisao e por latencia.
 Free tier nao existe mais (so trial). Suporte pago comeca em $29/mes — mais caro que a
 infra; o da comunidade atende neste porte.
 
+### O que o Fly entrega de maquina (levantado 19/08/2026)
+
+| Tipo | vCPU | RAM possivel |
+|---|---|---|
+| `shared-cpu-1x` a `8x` | 1 a 8 | 256 MB x N ate **2 GB x N** |
+| `performance-1x` a `8x` | 1 a 8 | 2 GB x N ate 8 GB x N |
+
+#### ⚠️ "shared" = 6,25% de um nucleo, com burst
+
+Shared e performance rodam no **mesmo hardware, mesmo clock**. A diferenca e tempo de
+execucao por periodo de 80 ms:
+
+```
+shared      ->  5 ms / 80 ms  =  6,25% de um nucleo (sustentado)
+performance -> 80 ms / 80 ms  =  100%
+```
+
+Tempo ocioso vira **saldo de burst, ate 500 segundos** de CPU cheia. Estourou o saldo, a
+maquina e estrangulada nos 6,25% ate recarregar.
+
+**Por que importa aqui:** o cron bate a cada 5 min, syncs tem orcamento de 20-60s e a
+conciliacao de tarifas roda em background — isso queima saldo. Referencia util: o **Render
+Free da 0,1 CPU sustentado e zero burst**, e o app sobrevive nele hoje. O Fly da menos
+base e 500s de rajada. Tende a ser melhor para este perfil, mas e **metrica para medir
+depois do deploy**, nao premissa.
+
+Se os syncs estourarem o saldo com frequencia, o caminho e `performance-1x` — e ai o custo
+sobe muito e a comparacao com Render Standard volta a ficar parelha. **Conferir o saldo de
+burst antes de declarar que `shared-cpu-1x` serve.**
+
+#### ⚠️ Volume e disco local sem replica
+
+Documentacao do Fly: um volume e *"uma fatia de um NVMe no mesmo servidor fisico da
+Machine"* — comparam com o disco interno de um notebook. **Sem replicacao**: se o NVMe
+falha, a aplicacao cai. Eles recomendam **provisionar pelo menos dois volumes por app**.
+Snapshot diario automatico existe (5 dias de retencao, configuravel), mas a propria
+documentacao diz que **nao deve ser o backup principal**. Volume nao encolhe depois de
+criado; maximo de 500 GB.
+
+Nossa topologia (1 maquina, 1 volume) e exatamente o arranjo que eles desaconselham.
+Aceito nesta fase porque o `DATA_DIR` guarda contas OAuth (reconectaveis) e custos — mas
+**reforca que esse dado deveria migrar para o Postgres**, o que vale igualmente em Fly,
+Render ou VPS.
+
 ### Dimensionamento inicial
 
 **1 vCPU compartilhada / 1 GB**, ajustando pela medição. Referência: o Render Free
