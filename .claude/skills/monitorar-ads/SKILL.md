@@ -1302,3 +1302,73 @@ de ontem.
 
 **Decisão: reavaliar 22/08** com a janela do dia 18 fechada. Acima de 49% → 1,50 → 1,20.
 Abaixo → mantém. Custo de esperar ≈ R$ 3.
+
+## Leitura de 19/08/2026, ~18h — dia em curso
+
+```
+Período lido: 19/08/2026 (hoje) — confirmado no seletor "ago 19, 2026"
+Recarreguei: sim, campanha a campanha
+Volume: 3.384 impressões · 24 cliques · atribuição ABERTA
+```
+
+| Campanha | Impr | Cliq | CTR | Custo | Vendas |
+|---|---|---|---|---|---|
+| Manual - Clips (Frase) | 1.389 | 12 | 0,86% | R$ 11,78 | — |
+| Auto - Protetor 8 | 778 | 4 | 0,51% | R$ 4,40 | — |
+| Auto - Clips | 616 | 4 | 0,65% | R$ 1,97 | — |
+| Auto - Protetor 32 | 290 | 1 | 0,34% | R$ 1,20 | — |
+| **Auto - Martelo** | **162** | 0 | — | R$ 0 | — |
+| Manual - Protetor 8 | 97 | 1 | 1,03% | R$ 0,56 | — |
+| **Manual - Martelo (Frase)** | 52 | 2 | **3,85%** | R$ 1,94 | **R$ 28,90 · ROAS 14,90** |
+
+⚠️ O cartão de resumo mostrou 2.830 impressões / 19 cliques contra 3.384 / 24 da tabela.
+Divergência não explicada — usar a tabela, que é por campanha, e registrar a diferença.
+
+### 🎉 Martelo vendeu 2 dias seguidos a R$ 28,90
+
+18/08 e 19/08, ambas pelo grupo **Frase**, palavra `martelo borracha`. A escada de preço
+não foi sorte de um dia.
+
+### ✅ O ajuste da manhã funcionou
+
+`Auto - Martelo` estava morta há 2 dias; 0,50 → 0,90 devolveu **162 impressões**
+(127 em Complementos, 18 em Vaga, 10 em Aproximada). Zero clique ainda — meio dia de
+veiculação, esperar mais um dia.
+
+📌 **Landmine registrada:** o **lance padrão do grupo** da Auto - Martelo continua em
+**R$ 3,00**. Não está em uso porque os 4 grupos de segmentação têm lance próprio (0,90),
+mas qualquer segmentação nova nasce em 3,00. Corrigir quando houver oportunidade.
+
+### 🔑 O piso do leilão, terceira confirmação
+
+**Uma palavra sustenta a campanha do martelo inteira:**
+
+| Palavra (Frase) | Lance | Impressões |
+|---|---|---|
+| **`martelo borracha`** | **R$ 1,20** | **52 · 1 venda** |
+| `martelo de borracha` | R$ 1,20 | zero |
+| as outras 8 | R$ 0,33–0,98 | **zero** |
+
+Mesmo padrão do Clips: `clips` e `clipe` a R$ 1,50 consumiram R$ 10,48 dos R$ 11,78 do
+grupo; as outras 12, a R$ 0,33–0,70, entregaram zero.
+
+⚠️ **Correção de leitura minha:** eu havia dito que a Frase do martelo estava em R$ 0,90.
+Aquilo era o **lance padrão do grupo de anúncios**, não o da palavra. A palavra que vende
+já estava em R$ 1,20. **Lance de grupo ≠ lance de palavra** — sempre abrir o nível de
+segmentação antes de propor mudança.
+
+### Aplicado 19/08 ~18h — `martelo borracha` R$ 1,20 → R$ 1,50
+
+Confirmado na tela após salvar. Motivo: é a **única palavra com venda** da campanha, com
+ROAS 14,90 e CTR de 3,85%, e ainda assim fez só 52 impressões — gastando R$ 1,94 de um
+orçamento de R$ 10. Não está limitada por dinheiro, está limitada por lance. R$ 1,50 é o
+topo da faixa sugerida (0,90–1,50) e o mesmo patamar que destravou o clips.
+
+**O que observar:** impressões devem subir bastante. Se o CVR se mantiver, há folga —
+margem do martelo é R$ 23,06 (vende 28,90, custo 5,84).
+
+### Ainda em aberto
+
+- **Manual - Clips:** 12 cliques e zero venda hoje contra 2 vendas ontem. **Não concluir**
+  — gatilho é 15+ cliques e a atribuição está aberta. Corte segue adiado para **22/08**.
+- **Auto - Martelo:** mais um dia para dizer se R$ 0,90 basta.
