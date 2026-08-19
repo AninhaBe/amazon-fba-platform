@@ -1223,3 +1223,48 @@ do DOM.
 - ⛔ **Selecionar várias linhas de uma vez congela a página** — uma por vez.
 - O filtro de busca da tabela **persiste após recarregar**; abrir aba nova é mais rápido.
 - Período: seletor de data → "Últimos 65 dias" (é o limite do relatório de termos).
+
+---
+
+## Leitura de 19/08/2026, ~meio-dia — dia 18 FECHADO + dia 19 parcial
+
+```
+Período: 18/08 via picker "Ontem" (confirmado no botão) · depois "Hoje"
+Recarreguei: sim (lista agregada travada em "Loading widget" — li campanha a campanha)
+Atribuição do dia 18: ABERTA (~5 dias restantes)
+```
+
+### Dia 18 fechado, por campanha
+
+| Campanha | Gasto | Compras | Vendas | ROAS |
+|---|---|---|---|---|
+| Manual - Clips (Frase) | R$ 24,55 | 2 | R$ 44,22 | 1,80 · **ACOS 55,5%** |
+| Auto - Protetor 8 | R$ 11,10 | — | — | |
+| Auto - Protetor 32 | R$ 4,45 | — | — | 1º dia |
+| Auto - Clips | R$ 1,49 | — | — | |
+| **Manual - Martelo (Frase)** | R$ 0,82 | **1** | **R$ 28,90** | **35,24** 🎉 |
+| Manual - Protetor | R$ 0,76 | — | — | Exata já com 14 alvos |
+| Auto - Martelo | R$ 0 | — | — | **morta (2º dia)** |
+| **Total** | **R$ 43,17** | 3 | R$ 73,12 | |
+
+🎉 **A 2ª venda do martelo saiu JÁ NO PREÇO NOVO (R$ 28,90)** — subimos o preço à tarde e
+ele vendeu à noite, pela Frase, com CPC de R$ 0,82. A escada de preço funcionou no 1º degrau.
+
+📌 Pedidos reais do dia 18: 3 clips + 1 martelo. Ads atribuiu 2 clips → **1 venda de clips
+foi orgânica** (TACOS clips do dia: 24,55 ÷ 66,33 = 37%).
+
+### Dia 19 parcial (~meio-dia)
+
+Gasto total ~R$ 5,45, sem venda atribuída ainda. Manual-Clips a R$ 1,84 — ritmo MUITO menor
+que ontem: efeito compensação após o estouro de orçamento de 18/08 (a Amazon entrega menos
+no dia seguinte para equilibrar).
+
+### Decisões
+
+1. **Clips Frase 1,50 → 1,20 aplicar** (combinado de ontem: teto ACOS 49% pela margem dela
+   de 20%; dia fechou em 55,5%). Corte moderado e não para 1,00 porque a atribuição segue
+   aberta e há venda orgânica no dia.
+2. **Auto - Martelo: 2º dia morta → regra dos 2 dias dispara.** Lance dos 3 grupos ativos
+   0,50 → 0,90 (dentro da faixa sugerida) OU aceitar como morta. Decisão dela.
+3. Manual - Protetor: palavras novas ativas, sem entrega ainda — esperar (1º dia completo).
+4. **Ads API: 3º teste pendente** (`unknown scope`, 19/08). 2ª solicitação foi 17/08.
