@@ -278,6 +278,64 @@ agora.
 
 ---
 
+## 8.5. Como desenvolver sem rodar nada local
+
+Contexto: a máquina de desenvolvimento aqui tem `C:` cheio e RAM apertada. Três medidas
+tiram o trabalho pesado dela.
+
+### 1. Build nos servidores do Fly (padrão)
+
+`fly deploy` usa o Docker **local** se encontrar um. No primeiro deploy foi o que
+aconteceu — o build rodou nesta máquina. Para não acontecer:
+
+```bash
+wsl bash scripts/fly-deploy.sh          # --remote-only por padrão
+wsl bash scripts/fly-deploy.sh --local  # força build local, se quiser
+```
+
+Com build remoto, o Fly compila nos servidores dele e a máquina local só envia os
+arquivos. **Zero RAM e zero disco seus.**
+
+### 2. Um app de staging que dorme
+
+Um segundo app (`nexo-staging`) com **`auto_stop_machines = true`** — ligado, ao contrário
+da produção.
+
+📌 **Aqui a hibernação é desejável.** O motivo de desligá-la em produção é o cache em
+memória ([ADR-002](./adr/ADR-002-cache-swr.md)); staging não precisa de cache quente. A
+máquina dorme quando ninguém usa e acorda no primeiro acesso.
+
+Custo: usando ~2h por dia, fica em torno de **$0,60/mês** em vez de $7.
+
+Fluxo que isso destrava:
+
+```
+edita o código  →  deploy no staging  →  testa no navegador  →  aprova  →  deploy em nexo
+```
+
+Nada roda na máquina local.
+
+⚠️ **Staging não deve apontar para o banco de produção.** Enquanto não houver um banco
+separado, tratar o staging como somente-leitura e nunca disparar sync manual por ele.
+
+### 3. Testes automatizados no GitHub Actions
+
+`npm test` roda na nuvem a cada push, de graça — a conta já usa Actions para o cron
+([ADR-003](./adr/ADR-003-cron-github-actions.md)).
+
+### Deploy: Fly é manual, Render é automático
+
+| | Render | Fly |
+|---|---|---|
+| Gatilho | `git push` na main (`autoDeploy: true`) | comando, quando você quiser |
+| Controle | nenhum — push errado vai ao ar | você escolhe a hora |
+| Estratégia | — | *rolling*: a máquina nova só entra depois de passar no health check |
+
+Dá para automatizar com GitHub Actions depois. **Não foi feito agora de propósito:** com o
+Render ainda em produção, dois hosts subindo sozinhos sobre o mesmo banco é confusão.
+
+---
+
 ## 9. Resultado do primeiro deploy (19/08/2026, ~18h30)
 
 App **`nexo`** no ar em `gru`: **https://nexo.fly.dev** · imagem de 62 MB · volume de 1 GB
