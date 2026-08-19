@@ -19,8 +19,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const workspace = workspaceFromPath(pathname);
   // Login e landing não usam a casca do app: a landing é a porta de entrada e
-  // não pode aparecer com o menu lateral de quem já está logado.
-  if (pathname.startsWith("/login") || pathname.startsWith("/landing")) return <>{children}</>;
+  // não pode aparecer com o menu lateral de quem já está logado. `/lab` é o
+  // laboratório de protótipos — ele desenha o próprio menu, e a casca por fora
+  // deixaria dois menus laterais na tela.
+  if (pathname.startsWith("/login") || pathname.startsWith("/landing") || pathname.startsWith("/lab")) return <>{children}</>;
   return (
     <div className="app-shell flex min-h-screen" data-channel={workspace}>
       <aside className="operations-rail sticky top-0 hidden h-screen w-72 shrink-0 lg:flex">

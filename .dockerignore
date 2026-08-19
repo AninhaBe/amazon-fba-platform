@@ -1,0 +1,26 @@
+# Segredos — NUNCA entram em camada de imagem
+.env
+.env.*
+
+# Dependências e builds (refeitos dentro da imagem)
+node_modules
+.next
+
+# Controle de versão e ferramentas locais
+.git
+.github
+.claude
+.vscode
+
+# Documentação e material de estudo — não servem em runtime
+docs
+*.md
+*.pdf
+
+# Testes — não servem em runtime
+tests
+supabase/.temp
+
+# scripts/ fica DENTRO do contexto: src/lib/db.ts importa
+# migration-contracts.mjs e migration-safety.mjs de lá (gate das migrações).
+# O tracing do standalone leva só o que é importado.
