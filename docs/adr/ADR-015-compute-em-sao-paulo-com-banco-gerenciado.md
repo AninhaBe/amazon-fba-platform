@@ -1,7 +1,16 @@
-# ADR-015: Compute em São Paulo com banco gerenciado — fase intermediária do ADR-006
+# ADR-015: Compute em São Paulo com banco gerenciado
 
 - **Status:** Proposto
 - **Data:** 2026-08-19
+
+> 🔄 **Revisado no mesmo dia, algumas horas depois de escrito.** A primeira versão
+> escolhia **VPS + Coolify**, e usava como justificativa, entre outras, o desejo declarado
+> da dona de *aprender a operar infraestrutura*. Ao ver a lista completa de
+> responsabilidades que isso traria, ela reviu a prioridade — textualmente: *"latência,
+> óbvio, a menor possível. não faço questão de aprender sobre infra, se o Fly cuida disso,
+> melhor ainda"*. A **decisão de fundo não mudou** (compute em São Paulo, banco
+> gerenciado); mudou o **mecanismo**, de VPS auto-administrada para **Fly.io**.
+> VPS + Coolify segue registrada em "Alternativas consideradas".
 
 ## Contexto
 
@@ -15,7 +24,7 @@ Enquanto isso, três dores estão medidas:
 
 | Dor | Medida | Quando |
 |---|---|---|
-| Banco acima do limite do plano | **526 MB de 500 MB** (Supabase Free) | 19/08 |
+| Banco acima do limite do plano | **559 MB** e subindo ~7 MB/dia (Supabase Free: 500 MB) | 19/08 |
 | Container derrubado por RAM | Render Free, 512 MB, durante cron do TikTok | 15/08 |
 | Latência app↔banco | **~180 ms** (Oregon ↔ São Paulo) | — |
 
@@ -24,19 +33,19 @@ Enquanto isso, três dores estão medidas:
 Dois operadores independentes, consultados pela dona do produto, convergiram na **mesma
 topologia**: compute em São Paulo, banco gerenciado. Um deles descreveu exatamente o
 nosso arranjo — app no Railway (Virgínia) com Supabase em SP — e relatou que mover o
-compute para SP (Fly.io `gru`) tornou a comunicação *"praticamente instantânea"*.
+compute para SP (**Fly.io `gru`**) tornou a comunicação *"praticamente instantânea"*.
 
 ⚠️ **Isso não é prova para o NEXO.** A leitura do painel vem do cache SWR
 ([ADR-002](./ADR-002-cache-swr.md)), que absorve a latência por design; o app dele pode
 ser sensível por request de um jeito que o nosso não é. Mas é **medição no eixo que o
 ADR-006 não considerou** — ele escolhe VPS na Hetzner, sem tratar de região.
 
-### A motivação declarada mudou
+### O objetivo, declarado sem ambiguidade
 
-A dona não quer isso para economizar: a economia é pequena (~R$ 215/mês contra ~R$ 275
-do Render Standard + Supabase Pro). Ela quer **aprender a operar a infraestrutura que
-vai rodar por anos num SaaS próprio**. É motivo diferente de "cortar custo" — e mais
-sólido, porque o retorno não depende de a conta fechar.
+**Latência, a menor possível. Operar servidor não é objetivo — é custo a evitar.**
+
+Isso descarta como critério de decisão tanto "aprender ops" quanto economia: a diferença
+de preço entre as opções viáveis é de dezenas de reais por mês e **não** decide nada aqui.
 
 ## O problema com o ADR-006 como está escrito
 
@@ -55,32 +64,42 @@ container continua caindo por RAM.
 
 ## Decisão
 
-**Dividir o ADR-006 em fases. Esta é a Fase A: mover apenas o compute** para uma VPS em
-São Paulo com Coolify. **Banco e Auth permanecem no Supabase.** Todo o resto do ADR-006
-segue valendo como escrito, para uma fase posterior.
+**Mover apenas o compute para o Fly.io na região `gru` (São Paulo).**
+**Banco e Auth permanecem no Supabase.** O resto do ADR-006 segue valendo como escrito,
+para uma fase posterior.
 
 ### A reversão que este ADR assume explicitamente
 
 O ADR-006 listou *"Manter Supabase Cloud só para Auth"* em **Alternativas consideradas** e
-a **rejeitou** — "deixa uma dependência SaaS, contra o objetivo de self-hosted/OSS".
+a **rejeitou** — "deixa uma dependência SaaS, contra o objetivo de self-hosted/OSS". Ele
+também rejeitou *"outro PaaS gerenciado (Railway/Fly)"* por "custo/OSS/controle" —
+**antes de a região São Paulo entrar na conta**, que é o critério que decide aqui.
 
-Este ADR **adota essa alternativa como estado intermediário, não como destino.** O objetivo
-de self-hosted/OSS do ADR-006 continua de pé; o que muda é a ordem. Trocamos pureza
-temporária por reversibilidade, num momento em que a operação está viva e o ADR-006 não
-estava.
+Este ADR **adota as duas alternativas como estado intermediário, não como destino.** O
+objetivo de self-hosted/OSS do ADR-006 continua de pé; o que muda é a ordem.
 
-### Topologia — Fase A
+### Topologia
 
 ```
-VPS em São Paulo (Coolify)
-├── Coolify (control plane)
-├── reverse proxy / TLS (Let's Encrypt)
-└── NEXO (Next.js 16)
+Fly.io — região gru (São Paulo)
+├── máquina rodando a imagem Docker do NEXO
+├── TLS e roteamento (gerenciados pelo Fly)
+└── volume persistente montado em DATA_DIR
 
 Gerenciado (inalterado)
 ├── Supabase — Postgres + Auth, São Paulo
 └── GitHub Actions — cron de sync (ADR-003, intocado)
 ```
+
+### Por que o Fly e não uma VPS
+
+A tabela de "ops que passam a ser nossos" da versão anterior deste ADR — patch de SO,
+atualizar o Coolify, firewall, monitoramento, limpeza de disco e **plantão** — **deixa de
+existir**. É gerenciado. Dado o objetivo declarado, isso não é um detalhe: é a decisão.
+
+O trabalho de containerização feito em 19/08 **não é perdido**: o Fly consome
+`Dockerfile` nativamente, e a mesma imagem roda em Fly, Coolify ou qualquer VPS. É o que
+mantém esta decisão reversível.
 
 ### 🔴 Pré-requisito duro: domínio próprio
 
@@ -92,67 +111,50 @@ Gerenciado (inalterado)
 dois**. Isso é necessário em **todos** os cenários, inclusive no de ficar no Render — não
 é custo desta migração.
 
+### ⚠️ Configuração que NÃO pode ser esquecida
+
+**`auto_stop_machines` deve ficar desligado, com no mínimo 1 máquina sempre de pé.**
+
+O cache do NEXO vive **na memória do processo** ([ADR-002](./ADR-002-cache-swr.md)), e a
+conciliação de tarifas roda em background dentro do web. Máquina que hiberna e reinicia
+perde o cache e mata trabalho em andamento — seria reintroduzir, por configuração, o
+mesmo problema que fez a Vercel ser rejeitada.
+
+Da mesma forma, **`DATA_DIR` precisa de volume montado**: o app grava custos e contas
+OAuth em disco. Sem volume, cada deploy apaga.
+
 ### Sequência (cada passo reversível)
 
 1. **Domínio** no Registro.br + cadastro nas allowlists de Shopee e TikTok.
 2. **Destravar o banco**: Supabase Pro **ou** reduzir o banco abaixo de 500 MB. Independe
    de hospedagem e é o que está pegando fogo hoje.
-3. **VPS + Coolify** em São Paulo; deploy do NEXO num **subdomínio** (`beta.`), com o
-   **Render servindo produção o tempo todo**.
-4. **Soak**: só avança depois de a VPS sobreviver a um deploy, um reboot e uma
-   atualização do Coolify.
+3. **Deploy no Fly** em `gru`, num subdomínio, com o **Render servindo produção o tempo
+   todo**.
+4. **Medir a latência de verdade**, comparando com o Render. É a justificativa inteira
+   desta decisão — se não melhorar, ela cai.
 5. **Cutover de DNS**; Render de pé por um período de observação.
 6. Só então avaliar a **Fase B** (Postgres self-hosted + Better Auth), pelo ADR-006.
 
-### Prazo de contrato
+### Dimensionamento inicial
 
-**O mais curto disponível — não 24 meses.** O plano longo cobra o período inteiro
-adiantado (~R$ 1.056 na Hostinger) e trava dois anos numa decisão ainda **Proposta**,
-cujo valor principal é aprendizado. Se depois de alguns meses a operação se provar,
-aí se compromete o prazo longo.
-
-### Dimensionamento
-
-**2 vCPU / 8 GB / ~100 GB** (ex.: Hostinger KVM 2), em São Paulo.
-
-- Sem Postgres na caixa, a preocupação do ADR-006 — *"build do Next.js disputa recursos
-  com o Postgres"* — **deixa de valer nesta fase**. 8 GB acomodam build, app e Coolify.
-- **Disco não é restrição em cenário nenhum**: o banco tem 526 MB. Os ~100 GB são a
-  **máquina inteira** (SO, imagens e cache de build do Docker, logs), não um volume de
-  dados — e o cache de build do Docker é o que enche disco em servidor Coolify sem
-  ninguém perceber.
-
-### Ops que passam a ser nossos
-
-| Nosso a partir da Fase A | Continua gerenciado |
-|---|---|
-| Patch de segurança do SO, reboot | **Backup do banco** |
-| Atualizar o Coolify | **Restore e PITR** |
-| Firewall e SSH (chave, não senha) | **Integridade do Postgres** |
-| Monitoramento e alerta | Auth (GoTrue) |
-| Limpeza do cache de build do Docker | |
-| **Plantão** | |
-
-**A coluna da direita é a razão de o banco ficar de fora nesta fase.** Backup que nunca
-foi restaurado não é backup, e essa é a responsabilidade mais cara de assumir — o próprio
-ADR-006 a trata como requisito duro, com drill de restore obrigatório antes do cutover.
-Adiá-la é o que torna a Fase A barata.
-
-⚠️ **Servidor único:** o painel que conserta mora na máquina que caiu, e o alerta que
-avisaria cai junto. Aceitável porque produção só depende dele **depois** do passo 5.
+**1 vCPU compartilhada / 1 GB**, ajustando pela medição. Referência: o Render Free
+morreu com 512 MB durante o cron do TikTok, então 512 MB está descartado. Subir só com
+número medido, não por precaução.
 
 ## Alternativas consideradas
 
+- **VPS + Coolify (Hostinger KVM 2 ou similar), em São Paulo** — era a escolha da primeira
+  versão deste ADR. Entrega a mesma latência pelo mesmo custo aproximado, mas transfere
+  patch de SO, firewall, monitoramento, backup de configuração e plantão para a operação.
+  **Rejeitada quando o objetivo foi declarado como latência, não aprendizado.** Continua
+  sendo o caminho natural se algum dia o objetivo voltar a incluir controle total — e o
+  `Dockerfile` mantém essa porta aberta.
 - **Ficar no Render Standard** (recomendação de
   [`../infra-decisao-hospedagem.md`](../infra-decisao-hospedagem.md), 19/08): menor
-  esforço, custo previsível, zero migração. Mantém os 180 ms e não ensina ops.
-  **Continua sendo o fallback** se o soak do passo 4 não fechar.
+  esforço, custo previsível, zero migração. **Mas mantém os 180 ms**, que é justamente o
+  que se quer eliminar. Continua sendo o fallback se o passo 4 não mostrar ganho.
 - **ADR-006 integral agora:** rejeitado por ora — bundle atômico, com o rework de auth
   segurando o resto, na pior janela para isso.
-- **Fly.io `gru`:** mesma topologia desta decisão, sem o painel do Coolify — e portanto
-  sem a parte que a dona quer aprender. Volta à mesa se administrar VPS custar mais
-  atenção que o previsto. O ADR-006 rejeitou Fly por "custo/OSS/controle" **antes** de a
-  região SP entrar na conta.
 - **Vercel `gru1`:** rejeitado — serverless mata o cache em processo
   ([ADR-002](./ADR-002-cache-swr.md)) e exigiria o
   [ADR-014](./ADR-014-cache-fora-do-processo-e-ingestao-em-fluxo.md) como pré-requisito,
@@ -161,38 +163,40 @@ avisaria cai junto. Aceitável porque produção só depende dele **depois** do 
 ## Consequências
 
 - ➕ Compute e banco na mesma região — remove os 180 ms do caminho frio.
-- ➕ Aprendizado real de ops, que é o objetivo declarado.
+- ➕ **Nenhuma responsabilidade de operação de servidor** é assumida.
 - ➕ **Rollback é troca de DNS.** Render e Supabase seguem de pé.
-- ➕ Destrava o caminho do ADR-006 sem big bang: quando o Better Auth ficar pronto, a
-  Fase B acontece numa máquina que já conhecemos.
-- ➕ Sem lock-in de compute: Coolify roda em qualquer VPS.
-- ➖ **Mantém dependência SaaS**, contra o objetivo declarado do produto — consciente e
-  temporário.
-- ➖ Ops de aplicação passam a ser nossos, com ponto único de falha.
-- ➖ **A economia é pequena** (~R$ 60/mês). Quem justifica esta decisão é latência e
-  aprendizado; se alguém a defender por custo, está defendendo pelo motivo errado.
+- ➕ O `Dockerfile` mantém a portabilidade: sair do Fly depois custa reconfiguração, não
+  reescrita.
+- ➕ Destrava o caminho do ADR-006 sem big bang.
+- ➖ **Mantém duas dependências SaaS** (Fly + Supabase), contra o objetivo declarado do
+  produto — consciente e temporário.
+- ➖ Menos controle que VPS: capacidade, manutenção e incidentes do Fly são dele, e a
+  região `gru` historicamente opera cheia. **Verificar disponibilidade antes de planejar.**
 - ➖ **Risco de o intermediário virar permanente por inércia** — daí os gatilhos abaixo.
+- ➖ `DATA_DIR` continua em volume de cópia única. Não é regressão (é assim no Render
+  hoje), mas contas OAuth em disco local é fragilidade que deveria migrar para o Postgres.
 
 ## Gatilhos que revisam esta decisão
 
 | Gatilho | Ação |
 |---|---|
-| Soak do passo 4 não fecha | Volta pro Render; este ADR é arquivado |
+| **Latência medida no passo 4 não melhorar** | **A justificativa inteira cai** — fica no Render |
+| Sem capacidade em `gru` | Reavalia VPS em SP (o Dockerfile serve aos dois) |
 | Better Auth (ADR-007) pronto | Abre a Fase B (ADR-006) |
 | Custo ou limite do Supabase apertando | Antecipa Postgres self-hosted |
-| Ops consumindo mais que ~2h/mês fora de incidente | Reavalia contra Render Standard |
-| Latência medida no usuário **não** melhorar após o cutover | Metade da justificativa cai; reavaliar |
+| Objetivo voltar a incluir controle/OSS | VPS + Coolify volta à mesa |
 
 ## O que este ADR NÃO decide
 
 - **Não revoga o ADR-006** — divide a execução dele em fases. O destino segue o mesmo.
-- Provedor final da VPS (Hostinger, Vultr ou outro) — o requisito é **região São Paulo**.
 - Data da Fase B.
 - Se o banco vai para Supabase Pro ou se dá para reduzi-lo abaixo de 500 MB — decisão do
-  passo 2, pendente de levantar o tamanho das tabelas.
+  passo 2, pendente de tratar a retenção de `workspace_marketplace_events` (172 MB, ~8.000
+  linhas/dia, sem política de expurgo).
 
 Relacionado: [ADR-006](./ADR-006-migracao-self-hosted-coolify.md) ·
 [ADR-007](./ADR-007-arquitetura-de-auth.md) ·
 [ADR-002](./ADR-002-cache-swr.md) ·
 [ADR-014](./ADR-014-cache-fora-do-processo-e-ingestao-em-fluxo.md) ·
+[`../docker.md`](../docker.md) ·
 [`../infra-decisao-hospedagem.md`](../infra-decisao-hospedagem.md)

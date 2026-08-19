@@ -108,13 +108,34 @@ Os comandos aprendidos aqui valem na VPS sem tradução.
 junto (exit 137). Para deixar de pé, manter um terminal em primeiro plano. Na VPS o
 systemd resolve isso sozinho.
 
-## O que o Coolify vai precisar
+## Para onde esta imagem vai: Fly.io
 
-1. Repositório conectado — ele detecta o `Dockerfile` sozinho
-2. **Build args:** `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-3. **Env de runtime:** todo o resto (ver a lista em `render.yaml`)
-4. **Volume** montado, com `DATA_DIR` apontando para ele
-5. **Health check:** `/api/health`
+O [ADR-015](./adr/ADR-015-compute-em-sao-paulo-com-banco-gerenciado.md) escolheu **Fly.io
+na região `gru` (São Paulo)**. O `fly.toml` já está no repo. Deploy:
+
+```bash
+wsl bash scripts/fly-deploy.sh
+```
+
+⚠️ **Não rodar `fly deploy` cru** — ele não passa os `--build-arg` e a imagem sobe com as
+credenciais vazias (pegadinha nº 1 acima). O script existe para isso.
+
+Antes do primeiro deploy, criar o volume:
+
+```bash
+fly volumes create nexo_data --region gru --size 1
+```
+
+Checklist, válido para Fly, Coolify ou qualquer host de container:
+
+1. **Build args:** `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+2. **Env/secrets de runtime:** todo o resto (ver a lista em `render.yaml`) — no Fly via
+   `fly secrets set`, nunca no `fly.toml`
+3. **Volume** montado, com `DATA_DIR` apontando para ele
+4. **Health check:** `/api/health`
+5. **Máquina sempre de pé** — `auto_stop_machines = false`. O cache do NEXO vive na
+   memória do processo (ADR-002); máquina que hiberna perde o cache e mata a conciliação
+   em background.
 
 Relacionado: [ADR-015](./adr/ADR-015-compute-em-sao-paulo-com-banco-gerenciado.md) ·
 [ADR-006](./adr/ADR-006-migracao-self-hosted-coolify.md) ·
