@@ -57,7 +57,7 @@ não re-deduza o que já foi decidido nem repita pegadinha já paga.
 | [`architecture/read-and-cache.md`](./architecture/read-and-cache.md) | Leitura por SQL e cache |
 | [`canonical-schema.md`](./canonical-schema.md) | Schema canônico detalhado (pedidos, taxas, produtos) |
 | [`integrations-architecture.md`](./integrations-architecture.md) | Arquitetura multicanal (visão que o schema materializa) |
-| [`adr/`](./adr/) | Decisões e trade-offs — o **porquê** de cada escolha (14 ADRs; índice no [`adr/README.md`](./adr/README.md)). Os dois mais recentes tratam de escala: ADR-013 (worker de sync separado do web) e ADR-014 (cache fora do processo e ingestão em fluxo) |
+| [`adr/`](./adr/) | Decisões e trade-offs — o **porquê** de cada escolha (15 ADRs; índice no [`adr/README.md`](./adr/README.md)). ADR-013 e ADR-014 tratam de escala (worker de sync separado do web; cache fora do processo). **ADR-015** divide o ADR-006 em fases: compute em São Paulo primeiro, banco e auth gerenciados por enquanto |
 | [`arquitetura-plano.md`](./arquitetura-plano.md) | Plano de arquitetura faseado — o que já foi feito e o que espera volume |
 
 ## Operação nos canais

@@ -3,6 +3,11 @@
 - **Status:** Proposto
 - **Data:** 2026-07
 
+> 📌 **Atualização 19/08/2026 — leia junto com o [ADR-015](./ADR-015-compute-em-sao-paulo-com-banco-gerenciado.md).** A premissa de contexto
+> deste ADR ("ainda não há usuários reais") venceu: há operação viva. O ADR-015 **não
+> revoga** nada aqui — propõe executar isto em fases, começando só pelo compute, com
+> banco e auth gerenciados até o Better Auth (ADR-007) ficar pronto.
+
 ## Contexto
 
 Objetivo do produto: **máximo de open source e self-hosted**, com custo baixo e sem
