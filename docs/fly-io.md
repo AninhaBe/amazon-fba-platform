@@ -352,6 +352,26 @@ criptografado com snapshot diário · health check `1 total, 1 passing`.
 variou de 210 a 525 ms. A instabilidade do Render é provavelmente o que faz o painel
 parecer travado de vez em quando.
 
+### ✅ Validado de ponta a ponta (19/08, ~20h)
+
+A vendedora fez login em `nexo.fly.dev` e **o dashboard carregou com os dados reais**.
+Isso fecha a cadeia inteira: imagem Docker → máquina em `gru` → Supabase Auth → Postgres →
+renderização.
+
+Antes disso, o que dava para provar de fora era parcial e vale registrar por quê:
+
+- `/api/health` **não toca o banco** — só devolve `{ok:true}`. Health check passando não
+  prova conectividade com Postgres.
+- Todas as rotas de dados (`/api/orders`, `/api/sales`, `/api/products`) respondem **401
+  antes** de consultar o banco.
+
+📌 **Lição:** um health check que não toca a dependência crítica dá falsa segurança. Vale
+considerar um `/api/health?deep=1` que faça um `SELECT 1` — hoje o app responde "saudável"
+mesmo se o banco estiver inacessível.
+
+Também confirmado nos logs: **o volume montou correto** em `/data` (1 GB, uid 100/gid 101),
+que era um dos riscos listados.
+
 ### O que ficou provado e o que não
 
 ✅ Capacidade em `gru` existe (era dúvida do checklist) · ✅ o `Dockerfile` do repo sobe no
