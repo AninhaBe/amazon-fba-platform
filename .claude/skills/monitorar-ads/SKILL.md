@@ -1449,3 +1449,76 @@ se lê errado sem atribuição madura.
 
 ⚠️ **O banco do NEXO não confirma nada disso:** o cron está parado desde 12h15 UTC de
 19/08 (Render suspenso). Fonte única confiável hoje é o Seller Central.
+
+## Aplicado 19/08/2026, ~20h — protetores: −R$ 3,00 em cada kit
+
+`PATCH /listings/2021-08-01` · productType `FURNITURE_FLOOR_PROTECTOR` · **os 4 ACCEPTED**
+(ensaio em `VALIDATION_PREVIEW` deu `VALID` nos 4 antes de aplicar). Preços novos já
+confirmados na API 20s depois.
+
+| SKU | Antes | Agora | submissionId |
+|---|---|---|---|
+| kitprote-8 | R$ 24,90 | **R$ 21,90** | `e7da08eedb334111ba10fee694bd3e33` |
+| kitprote-16 | R$ 37,90 | **R$ 34,90** | `aecb7736d10d4532825265ededa32418` |
+| kitprote-24 | R$ 51,90 | **R$ 48,90** | `48781d5b8b3e4600ade728507d756fe0` |
+| kitprote-32 | R$ 59,90 | **R$ 56,90** | `3cee5e780cb44b2088d0df05fe869270` |
+
+**Decisão dela**, com dois motivos declarados: *"os protetores até agora foram o que menos
+venderam e é o que tem mais estoque somando todos os kits"*. Ela observou também que
+**mesmo com os preços anteriores seguia abaixo dos concorrentes** — ou seja, o corte não é
+por estar caro no mercado, é por girar estoque parado.
+
+### O que motivou
+
+Ela levantou: *"ontem mexemos e hoje saíram apenas 2 vendas, pior dia de vendas até agora"*.
+
+Série real da **conta dela** (`amazon:AO62LVXJMX3AA`):
+
+| Dia | Pedidos |
+|---|---|
+| 08/08 | 1 |
+| 14/08 | 2 |
+| 15/08 | 3 |
+| 17/08 | 4 |
+| **18/08** | **5** ← melhor |
+| 19/08 | **2** |
+
+A escada quebrou. ⚠️ **Mas os preços subiram às 00h30 do dia 18, e o dia 18 foi o pico** —
+então o efeito imediato não foi negativo. O que sustenta a hipótese é a defasagem
+(propagação ~2h + comprador que viu o preço velho) e um indício específico do protetor:
+
+```
+Auto - Protetor 8   antes da alta: ROAS 15,11 (melhor campanha da conta)
+                    18/08: R$ 11,10 gastos, ZERO venda
+                    19/08: R$  4,40 gastos, ZERO venda
+```
+
+O martelo, que subiu bem menos (R$ 28,90), **vendeu nos dois dias**.
+
+### 🔴 Contaminação de dados descoberta aqui — regra nova
+
+A primeira consulta que fiz por SKU trouxe pincéis, canecas, alfinetes e cadarço. **Não é
+o catálogo dela.** O banco tem três conexões Amazon:
+
+| connection_id | Pedidos | De quem |
+|---|---|---|
+| `amazon:A15NQMF7A6J1Y0` | **21.573** | **do colega — nunca usar em análise dela** |
+| `amazon:demo` | 133 | seed de demonstração |
+| **`amazon:AO62LVXJMX3AA`** | **17** | **a dela** |
+
+📌 **Toda consulta de venda/pedido/produto DEVE filtrar
+`connection_id='amazon:AO62LVXJMX3AA'`.** Filtrar só por `provider='amazon'` mistura
+99,9% de dado de terceiro e produz análise completamente falsa.
+
+⚠️ **Além disso, 16 dos 17 pedidos dela estão `pending` e sem itens** — só o martelo de
+19/08 veio `shipped` com SKU e preço. Ou seja, o banco **não sabe o que ela vendeu** na
+maioria dos dias. Para leitura de venda por produto, a fonte hoje é o Seller Central.
+
+### O que observar
+
+1. **A venda dos protetores volta?** É a pergunta única deste corte. Reolhar em 2 dias
+   (propagação + acúmulo), não amanhã.
+2. **Não mexer em Ads enquanto isso.** O problema aparente é de oferta; mexer nos dois ao
+   mesmo tempo cega a leitura.
+3. Se voltar a vender, a lição é sobre **ritmo**: subir três kits de uma vez pulou etapa
+   na estratégia dela de subir aos poucos depois que a venda engrena.
