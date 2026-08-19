@@ -50,6 +50,7 @@ O que ganhamos, o que abrimos mão, o que passa a ser obrigatório respeitar.
 | [ADR-013](./ADR-013-worker-de-sync-separado-do-web.md) | Worker de sync separado do web + agendador que honra o horário | Proposto |
 | [ADR-014](./ADR-014-cache-fora-do-processo-e-ingestao-em-fluxo.md) | Cache fora do processo e leituras com teto de memória (escala além de ~50 contas) | Proposto |
 | [ADR-015](./ADR-015-compute-em-sao-paulo-com-banco-gerenciado.md) | Compute em São Paulo com banco gerenciado — divide o ADR-006 em fases | Proposto |
+| [ADR-016](./ADR-016-ciclo-de-vida-do-dado.md) | Ciclo de vida do dado: toda tabela responde "quando isso morre" | Aceito |
 
 **Índice completo em 16/08/2026** — 14 ADRs, todos listados. Ao criar um ADR novo,
 adicione a linha aqui na mesma hora; este índice já ficou 8 ADRs atrás uma vez.
