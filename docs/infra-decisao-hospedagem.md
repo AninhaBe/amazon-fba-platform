@@ -80,6 +80,19 @@ ferramenta. Não há doc nem plano no repo. **Só entra se A e C caírem.**
 
 ---
 
+### E. Nuvens genéricas avaliadas e descartadas (19/08)
+
+Perguntadas por ela; registradas para a dúvida não voltar do zero:
+
+| Nuvem | SP? | Veredito |
+|---|---|---|
+| **DigitalOcean** | ❌ [não tem Brasil](https://docs.digitalocean.com/platform/regional-availability/) | Latência do Render + operação nossa. Pior dos dois mundos |
+| **AWS** | ✅ `sa-east-1` | Região cara + maior complexidade operacional da lista. Desproporcional para o time |
+| **Google Cloud** | ✅ `southamerica-east1` | Única carta interessante: Cloud Run com min-instances=1 quase imita processo persistente. Mas instâncias reciclam (cache não garantido), preço SP alto, ferramenta desconhecida. **2ª opção atrás de VPS/Coolify** se o gatilho de latência disparar |
+
+O critério segue o mesmo: custo de migração contra benefício **medido** — e as três têm
+custo alto (aprender + operar + rework) contra latência que o cache já esconde.
+
 ## 3. Recomendação
 
 ### Agora (independe de qualquer migração)
