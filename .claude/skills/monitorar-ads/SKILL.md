@@ -1372,3 +1372,80 @@ margem do martelo é R$ 23,06 (vende 28,90, custo 5,84).
 - **Manual - Clips:** 12 cliques e zero venda hoje contra 2 vendas ontem. **Não concluir**
   — gatilho é 15+ cliques e a atribuição está aberta. Corte segue adiado para **22/08**.
 - **Auto - Martelo:** mais um dia para dizer se R$ 0,90 basta.
+
+## 🎯 Dia 18/08 FECHADO — lido em 19/08 ~19h (atribuição madura)
+
+```
+Período lido: 18 de ago de 2026 (seletor confirmado no canto superior direito)
+Recarreguei: sim (a tabela só veio depois de reload; ficou ~15min em esqueleto)
+Volume: 3.863 impressões · 42 cliques · atribuição bem mais madura que a leitura do meio-dia
+```
+
+| Campanha | Impr | Cliq | CTR | Custo | Compras | Vendas | ACOS |
+|---|---|---|---|---|---|---|---|
+| **Manual - Clips** | 1.388 | 23 | 1,66% | R$ 24,55 | **3** | **R$ 66,33** | **37,01%** |
+| Auto - Clips | 1.210 | 3 | 0,25% | R$ 1,49 | — | — | — |
+| Auto - Protetor 8 | 1.025 | 10 | 0,98% | R$ 11,10 | — | — | — |
+| Auto - Protetor 32 | 84 | 4 | 4,76% | R$ 4,45 | — | — | — |
+| **Manual - Martelo** | 66 | 1 | 1,52% | R$ 0,82 | **1** | **R$ 28,90** | **2,84%** |
+| Manual - Protetor 8 | 51 | 1 | 1,96% | R$ 0,76 | — | — | — |
+| Auto - Martelo | 39 | 0 | — | — | — | — | — |
+| **Total** | **3.863** | **42** | 1,09% | **R$ 43,17** | **4** | **R$ 95,23** | **45,33%** |
+
+### ✅ O CORTE DO CLIPS ESTÁ CANCELADO — a aposta de adiar se pagou
+
+```
+19/08 meio-dia:  2 vendas atribuídas → ACOS 55,5%   (acima do teto de 49%)
+19/08 ~19h:      3 vendas atribuídas → ACOS 37,01%  (bem abaixo)
+```
+
+A 3ª venda entrou, exatamente como previsto ao adiar. **R$ 1,50 estava certo o tempo
+todo** — cortar teria estrangulado a campanha que mais vende da conta.
+
+O dia 18 inteiro foi de **R$ 73,12 → R$ 95,23** em vendas atribuídas: **+30% só de
+atribuição amadurecendo**, em ~7 horas.
+
+📌 **Esta é a prova numérica da regra.** "Dia fechado" ≠ "atribuição fechada". Um gatilho
+de ACOS lido no mesmo dia teria mandado cortar; lido 7 horas depois, manda manter. Nenhum
+corte por ACOS pode disparar sem 7 dias + 3 de folga.
+
+### ⚠️ Correção: a leitura parcial de 1.992 impressões do dia 18 estava errada
+
+O dia fechou em **3.863**, quase o dobro. Uma pergunta dela ("hoje foi o dia que entregou
+menos?") foi respondida com aquele número furado, e a resposta saiu errada.
+
+📌 **Não citar número marcado como parcial em comparação entre dias.** Ou se relê fechado,
+ou se diz que não dá para comparar.
+
+### Série de impressões corrigida
+
+| Dia | Impressões |
+|---|---|
+| 13/08 | 1.065 |
+| 14/08 | 2.868 |
+| 15/08 | 4.073 |
+| 16/08 | 4.409 |
+| 17/08 | **4.967** (pico) |
+| **18/08** | **3.863** (era 1.992 — corrigido) |
+| 19/08 | 3.384 às ~18h, **dia ainda aberto** |
+
+A queda a partir de 17/08 é **de propósito**: foi quando a `Auto - Martelo` foi cortada,
+e ela sozinha despejava milhares de impressões não clicadas. CTR da conta subiu de 0,26%
+para 1,09% no mesmo movimento. **Menos impressão com mais clique é melhora.**
+
+### Faturamento real do dia 19 (fonte: Seller Central, informado por ela)
+
+**R$ 58** = 2 martelos a R$ 28,90. O Ads atribuiu **1**. Terceiro dia seguido em que o
+número real supera o atribuído — padrão consistente, não exceção.
+
+| | Gasto | Vendeu (real) |
+|---|---|---|
+| Campanhas do martelo | R$ 1,94 | R$ 57,80 |
+| Clips + protetores (5 campanhas) | R$ 19,91 | R$ 0 |
+
+TACOS do dia: **37,8%**. O martelo fez ROAS ~30 com menos de dois reais; 91% do gasto foi
+para campanhas que não venderam **naquele dia** — mas o dia 18 acabou de provar que isso
+se lê errado sem atribuição madura.
+
+⚠️ **O banco do NEXO não confirma nada disso:** o cron está parado desde 12h15 UTC de
+19/08 (Render suspenso). Fonte única confiável hoje é o Seller Central.
