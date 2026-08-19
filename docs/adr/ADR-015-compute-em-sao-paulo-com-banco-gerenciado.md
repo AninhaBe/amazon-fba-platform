@@ -97,6 +97,10 @@ A tabela de "ops que passam a ser nossos" da versão anterior deste ADR — patc
 atualizar o Coolify, firewall, monitoramento, limpeza de disco e **plantão** — **deixa de
 existir**. É gerenciado. Dado o objetivo declarado, isso não é um detalhe: é a decisão.
 
+⚠️ **Sem exagerar (correção de 19/08):** sai o **servidor**, não a operação. **Continuam
+nossos:** deploy, configuração da Machine, volume, segredos, métricas e resposta a
+incidente. É bem menos trabalho que uma VPS — não é zero.
+
 O trabalho de containerização feito em 19/08 **não é perdido**: o Fly consome
 `Dockerfile` nativamente, e a mesma imagem roda em Fly, Coolify ou qualquer VPS. É o que
 mantém esta decisão reversível.
@@ -129,9 +133,10 @@ OAuth em disco. Sem volume, cada deploy apaga.
 2. **Destravar o banco**: Supabase Pro **ou** reduzir o banco abaixo de 500 MB. Independe
    de hospedagem e é o que está pegando fogo hoje.
 3. **Deploy no Fly** em `gru`, num subdomínio, com o **Render servindo produção o tempo
-   todo**.
-4. **Medir a latência de verdade**, comparando com o Render. É a justificativa inteira
-   desta decisão — se não melhorar, ela cai.
+   todo**. Uma única Machine, **autostop desligado e sem autoscaling**.
+4. **Piloto de no mínimo uma semana rodando todos os syncs**, medindo: latência contra o
+   Render (a justificativa inteira — se não melhorar, a decisão cai), saldo de burst e
+   throttling, memória, persistência do volume entre deploys, e custo parcial no painel.
 5. **Cutover de DNS**; Render de pé por um período de observação.
 6. Só então avaliar a **Fase B** (Postgres self-hosted + Better Auth), pelo ADR-006.
 
@@ -140,22 +145,31 @@ OAuth em disco. Sem volume, cada deploy apaga.
 **Nao ha plano fixo — e pay-as-you-go por segundo de maquina, GB provisionado e GB de
 egress.**
 
-| Item | Preco | Nosso caso |
+| Item | Preco (regiao `gru`) | Nosso caso |
 |---|---|---|
-| `shared-cpu-1x` 1 GB | $0,00000228/s (~$5,92/mes) | 1 maquina 24/7 |
+| `shared-cpu-1x` 1 GB | **$0,00000279/s (~$7,23/mes)** | 1 maquina 24/7 |
 | Volume | $0,15/GB/mes | 1 GB = $0,15 |
 | Egress America do Sul | $0,04/GB | trafego de painel, centavos |
 | TLS (ate 10 hostnames) | gratis | $0 |
 | IPv4 dedicado | $2/mes | so se necessario |
 
-**~$6–8/mes**, contra ~$25 do Render Standard e ~$14 de uma VPS equivalente. O Fly e o
-mais barato dos tres, o unico gerenciado e o unico em Sao Paulo — mas **isso continua nao
-sendo o criterio**: a decisao e por latencia.
+**~$7,50/mes**, contra ~$25 do Render Standard e ~$14 de uma VPS equivalente. O Fly e o
+mais barato dos tres e **o unico que combina ambiente gerenciado com Sao Paulo** (o Render
+tambem e gerenciado; so nao tem regiao no Brasil) — mas **isso continua nao sendo o
+criterio**: a decisao e por latencia.
+
+📌 **Preco de Machine varia por regiao: `gru` custa ~27% acima da mais barata (IAD).**
+Corrigido em 19/08 apos revisao externa — a primeira versao usava o preco da regiao base.
 
 ⚠️ **Duas ressalvas do modelo de consumo:**
 
-1. **Nao existe teto.** Plano fixo protege de erro proprio; consumo nao. **Configurar
-   limite de gasto e alerta antes do primeiro deploy** e requisito, nao sugestao.
+1. 🔴 **Nao existe teto — e o Fly NAO oferece protecao.** A documentacao oficial diz
+   textualmente: *"We don't support billing alerts (yet), so budget accordingly"* e
+   *"Free allowances don't cap your bill"*. **Nao ha limite de gasto, alerta nem corte
+   automatico.** (A primeira versao deste ADR afirmava o contrario — erro corrigido em
+   19/08 apos revisao externa.) O que existe: conferir a fatura parcial no painel, orcar
+   pelo custo always-on, e **manter uma unica Machine sem autoscaling**. No Render nao da
+   para gastar mais que o plano; no Fly, da.
 2. **A economia principal da plataforma foi desligada de proposito.** O modelo do Fly
    brilha com maquina hibernando; `auto_stop_machines = false` mantem tudo de pe 24/7 por
    causa do cache em memoria (ADR-002). Pagamos o mes cheio conscientemente — os ~$6 ja
@@ -184,11 +198,15 @@ performance -> 80 ms / 80 ms  =  100%
 Tempo ocioso vira **saldo de burst, ate 500 segundos** de CPU cheia. Estourou o saldo, a
 maquina e estrangulada nos 6,25% ate recarregar.
 
-**Por que importa aqui:** o cron bate a cada 5 min, syncs tem orcamento de 20-60s e a
-conciliacao de tarifas roda em background — isso queima saldo. Referencia util: o **Render
-Free da 0,1 CPU sustentado e zero burst**, e o app sobrevive nele hoje. O Fly da menos
-base e 500s de rajada. Tende a ser melhor para este perfil, mas e **metrica para medir
-depois do deploy**, nao premissa.
+**Por que importa aqui — com uma correcao (19/08, revisao externa):** a primeira versao
+dizia que os syncs "queimam saldo" por durarem 20-60s. **Duracao nao e consumo de CPU.**
+Os syncs passam a maior parte do tempo *esperando* Amazon, ML, TikTok e Supabase
+responderem — espera de rede quase nao gasta processador. O que consome e o parsing e a
+materializacao, fracao pequena desse tempo. O cenario e **mais favoravel** ao
+`shared-cpu-1x` do que se supunha.
+
+Referencia util: o **Render Free da 0,1 CPU sustentado e zero burst**, e o app sobrevive
+nele hoje. Ainda assim e **metrica para medir depois do deploy**, nao premissa.
 
 Se os syncs estourarem o saldo com frequencia, o caminho e `performance-1x` — e ai o custo
 sobe muito e a comparacao com Render Standard volta a ficar parelha. **Conferir o saldo de
@@ -203,10 +221,14 @@ Snapshot diario automatico existe (5 dias de retencao, configuravel), mas a prop
 documentacao diz que **nao deve ser o backup principal**. Volume nao encolhe depois de
 criado; maximo de 500 GB.
 
-Nossa topologia (1 maquina, 1 volume) e exatamente o arranjo que eles desaconselham.
-Aceito nesta fase porque o `DATA_DIR` guarda contas OAuth (reconectaveis) e custos — mas
-**reforca que esse dado deveria migrar para o Postgres**, o que vale igualmente em Fly,
-Render ou VPS.
+⚠️ **Correcao (19/08, revisao externa):** provisionar dois volumes **nao compra
+disponibilidade sozinho** — volumes nao se replicam entre si. So ajuda com **duas Machines
+mais uma estrategia de replicacao** (LiteFS, ou o dado morar em Postgres gerenciado).
+
+**O ponto fraco real desta fase e o `DATA_DIR` com contas OAuth e custos em disco local** —
+mais serio que CPU ou preco. Aceitavel no piloto **com backup**; **precisa migrar para o
+Postgres antes de o NEXO depender definitivamente do Fly**. Vale igualmente em Render e
+VPS — nao e defeito do Fly, e divida nossa que ele torna visivel.
 
 ### Dimensionamento inicial
 
