@@ -372,6 +372,30 @@ mesmo se o banco estiver inacessível.
 Também confirmado nos logs: **o volume montou correto** em `/data` (1 GB, uid 100/gid 101),
 que era um dos riscos listados.
 
+### 🌐 Domínio próprio no ar (19/08, ~20h15)
+
+**`https://nexoaihub.com.br` e `https://www.nexoaihub.com.br`** servindo o NEXO, HTTPS
+válido nos dois (~0,17s). O Fly emitiu o certificado sozinho assim que a zona publicou.
+
+Sequência que funcionou, para repetir:
+
+1. Registrar no **Registro.br** (~R$ 40/ano), deixando o campo de servidores DNS **vazio**
+   na compra — assim usa o DNS gratuito deles.
+2. `fly certs add <domínio>` **antes** do DNS — o Fly já entrega os valores a cadastrar.
+3. Painel → DNS → **Configurar zona DNS** (exige *Modo avançado*), quatro registros:
+   A e AAAA na raiz (campo Nome **vazio**) e A e AAAA no `www`.
+4. Salvar e esperar a **transição** terminar.
+
+⚠️ **A pegadinha que me custou duas horas:** ao entrar no Modo avançado, o painel mostra
+*"os servidores DNS do domínio se encontram em transição — aproximadamente 2h"*. **Isso
+NÃO bloqueia a edição da zona** — bloqueia apenas voltar ao Modo básico. Eu li como
+bloqueio e parei; ela abriu e cadastrou normalmente. Durante a transição os registros
+ficam salvos mas não são servidos, então `nslookup` responde "não existe" — o que parece
+erro e não é.
+
+**Isso destrava o pré-requisito duro do ADR-015:** agora dá para cadastrar o domínio nas
+allowlists de Shopee e TikTok **ao lado** de `sellercore.onrender.com`, sem quebrar o OAuth.
+
 ### O que ficou provado e o que não
 
 ✅ Capacidade em `gru` existe (era dúvida do checklist) · ✅ o `Dockerfile` do repo sobe no
