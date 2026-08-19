@@ -81,6 +81,7 @@ não re-deduza o que já foi decidido nem repita pegadinha já paga.
 | [`plans/seller-intelligence-plan.md`](./plans/seller-intelligence-plan.md) | Plano do Seller Intelligence (briefing diário de prioridades — ver ADR-008) |
 | [`plans/migracao-coolify.md`](./plans/migracao-coolify.md) | Migração para self-hosted Coolify (ver ADR-006) |
 | [`ai-agent-harness.md`](./ai-agent-harness.md) | Ideia/backlog: AI agent harness no produto |
+| [`infra-decisao-hospedagem.md`](./infra-decisao-hospedagem.md) | Onde hospedar o NEXO: o que temos, as 4 opções e por que ficar no Render agora (19/08) — com os gatilhos medidos que reabrem a decisão |
 | [`vercel-deploy.md`](./vercel-deploy.md) | Deploy na Vercel (Render permanece ligado durante a migração) |
 
 ## Compliance
