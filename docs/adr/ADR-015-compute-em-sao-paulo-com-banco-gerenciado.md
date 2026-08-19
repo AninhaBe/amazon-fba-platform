@@ -135,6 +135,35 @@ OAuth em disco. Sem volume, cada deploy apaga.
 5. **Cutover de DNS**; Render de pé por um período de observação.
 6. Só então avaliar a **Fase B** (Postgres self-hosted + Better Auth), pelo ADR-006.
 
+### Custo (levantado em 19/08/2026, da pagina oficial de precos)
+
+**Nao ha plano fixo — e pay-as-you-go por segundo de maquina, GB provisionado e GB de
+egress.**
+
+| Item | Preco | Nosso caso |
+|---|---|---|
+| `shared-cpu-1x` 1 GB | $0,00000228/s (~$5,92/mes) | 1 maquina 24/7 |
+| Volume | $0,15/GB/mes | 1 GB = $0,15 |
+| Egress America do Sul | $0,04/GB | trafego de painel, centavos |
+| TLS (ate 10 hostnames) | gratis | $0 |
+| IPv4 dedicado | $2/mes | so se necessario |
+
+**~$6–8/mes**, contra ~$25 do Render Standard e ~$14 de uma VPS equivalente. O Fly e o
+mais barato dos tres, o unico gerenciado e o unico em Sao Paulo — mas **isso continua nao
+sendo o criterio**: a decisao e por latencia.
+
+⚠️ **Duas ressalvas do modelo de consumo:**
+
+1. **Nao existe teto.** Plano fixo protege de erro proprio; consumo nao. **Configurar
+   limite de gasto e alerta antes do primeiro deploy** e requisito, nao sugestao.
+2. **A economia principal da plataforma foi desligada de proposito.** O modelo do Fly
+   brilha com maquina hibernando; `auto_stop_machines = false` mantem tudo de pe 24/7 por
+   causa do cache em memoria (ADR-002). Pagamos o mes cheio conscientemente — os ~$6 ja
+   refletem isso.
+
+Free tier nao existe mais (so trial). Suporte pago comeca em $29/mes — mais caro que a
+infra; o da comunidade atende neste porte.
+
 ### Dimensionamento inicial
 
 **1 vCPU compartilhada / 1 GB**, ajustando pela medição. Referência: o Render Free
