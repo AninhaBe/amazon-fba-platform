@@ -153,6 +153,28 @@ Os passos 1–3 foram implementados na mesma noite da decisão:
   eternamente pendentes → 14 shipped com itens em uma passada; sobraram 3 genuinamente
   pendentes na Amazon.
 
+- **Faturamento do canônico estava 10× menor que o real** na conta grande
+  (R$ 2.180 contra R$ 20.944 do Seller Central em 15 dias). Causa: pedido ingerido como
+  `Pending` não tem `OrderTotal` na API e o normalizador gravava **`gross = 0`** —
+  violação do `null ≠ 0` do AGENTS.md — e nada relia o cabeçalho depois. Cura pontual em
+  20/08 (varredura de 16 dias regravando cabeçalhos): **R$ 19.524,87**, restando 71
+  pedidos genuinamente Pending na Amazon (~R$ 1.419 — o gap fecha exato). A
+  reverificação cobre o daqui-pra-frente.
+
+  📌 O NEXO passa a mostrar **receita confirmada** (sem pendentes); o Seller Central
+  inclui pendentes. Diferença de semântica, não de erro — documentar na tela quando
+  houver oportunidade.
+
+### Pendências que esta execução deixou
+
+1. **`gross = 0` em pedido pendente segue sendo gravado** (a coluna é NOT NULL). O
+   upsert corrige depois, mas o certo pelo AGENTS.md é `null` até haver valor — pede
+   migração pequena.
+2. **Agendador com 2 vagas e cláusula de pendente-velho sem memória**: conexão com
+   pendente genuíno (>6h na Amazon) vira candidata eterna e pode monopolizar vaga.
+   Refinar o critério (ex.: reverificado há pouco sai da fila).
+3. Passos 4 (replicar padrão para ML/Shopee/TikTok) e 5 (botão "Atualizar agora").
+
 📌 **Lição da noite:** typecheck roda ANTES do commit, sempre — um comentário SQL com
 crase dentro de template literal chegou a ser commitado quebrado (`c26246a`→`5c63ac8`).
 
