@@ -19,6 +19,26 @@ detalhe operacional — este arquivo não é histórico, é foto do presente.
 
 ---
 
+## 🌐 Domínio e OAuth — atualizado em 20/08/2026
+
+O produto vive em **`https://nexoaihub.com.br`** (Fly.io, São Paulo — ADR-015). O
+`sellercore.onrender.com` foi **suspenso pelo Render** em 19/08 e devolve 503; deixou de
+ser referência viva, mas **permanece nas allowlists** onde ainda está cadastrado.
+
+Estado dos cadastros de OAuth/webhook por portal (todos feitos em 19–20/08):
+
+| Portal | Campo | Valor novo | Antigo |
+|---|---|---|---|
+| Amazon Solution Provider (SP-API) | URI de login | `https://nexoaihub.com.br/api/auth/login` | substituído |
+| Amazon Solution Provider (SP-API) | Redirect OAuth | `https://nexoaihub.com.br/api/auth/callback` | mantido ao lado |
+| Mercado Livre DevCenter | Redirect URI | `https://nexoaihub.com.br/api/integrations/mercado-livre/callback` | mantido ao lado |
+| Mercado Livre DevCenter | Webhook de notificação | `https://nexoaihub.com.br/api/webhooks/mercado-livre` | substituído (campo único) |
+| TikTok Partner Center | Redirect URL | `https://nexoaihub.com.br/api/tiktok/callback` | substituído (campo único) |
+| Shopee Open Platform | Test/Live Redirect **Domain** | `https://nexoaihub.com.br` (⚠️ só domínio — URL completa é recusada) | substituído |
+| Shopee Open Platform | Live Version URL do produto | `https://nexoaihub.com.br` | substituído — o antigo apontava para o host suspenso, reprovação certa no Go Live |
+
+📌 O webhook do ML já está recebendo no domínio novo (2.406 eventos nas 12h seguintes).
+
 ## Canais
 
 | Canal | Situação | Verificado |
