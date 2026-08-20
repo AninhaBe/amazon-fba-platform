@@ -39,7 +39,7 @@ export async function runScheduledAmazonSync(
           OR (sync.status = 'error' AND sync.updated_at < now() - interval '30 minutes')
           OR (sync.status = 'complete'
             AND COALESCE(sync.last_success_at, sync.updated_at) < now() - interval '6 hours')
-          -- Pedido `pending` VELHO é suspeito: a Amazon muda o status em horas,
+          -- Pedido 'pending' VELHO é suspeito: a Amazon muda o status em horas,
           -- então pendente com 6h+ significa transição perdida (Pending → Shipped
           -- que ninguém releu). Sem esta cláusula, uma conexão "complete" com só
           -- pedidos pendentes não é candidata a nada e o buraco vira permanente —
