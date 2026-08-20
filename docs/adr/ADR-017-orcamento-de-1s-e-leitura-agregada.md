@@ -165,6 +165,33 @@ Os passos 1–3 foram implementados na mesma noite da decisão:
   inclui pendentes. Diferença de semântica, não de erro — documentar na tela quando
   houver oportunidade.
 
+### ✅ Medição de ponta a ponta (20/08/2026, conta de 21,6 mil pedidos)
+
+Instrumentação em `84932fc`: a rota registra a própria duração e separa o tempo do radar.
+Nove carregamentos reais, alternando os quatro períodos:
+
+| Pedidos no período | Duração | Radar |
+|---|---|---|
+| 1.821 | **1.391ms** ⚠️ | 75ms | ← primeira chamada, cache frio |
+| 63 | 39ms | 15ms |
+| 399 | 61ms | 13ms |
+| 1.013 | 79ms | 12ms |
+| 1.821 | **60ms** | 12ms |
+| (2ª rodada) | 20–55ms | 11–48ms |
+
+**O requisito está provado:** 63 pedidos → 39ms; 1.821 pedidos → 60ms. **29× mais volume
+por 21ms a mais** — o tempo deixou de escalar com o tamanho da conta, que era a exigência.
+
+Contra o orçamento (< 200ms na camada de dados): medido **20–79ms**, folga de 60%.
+
+O radar — a única ida à SP-API que sobrou — custou **11–75ms**: o SWR de 10 min segura, e
+ele não é gargalo. Não precisa sair da rota.
+
+⚠️ **Cold start:** a primeira chamada custou 1.391ms e estourou o orçamento. É cache frio
+do Postgres na conta grande; as seguintes custam 60ms. **Não aciona o plano B** (gatilho:
+p95 > 500ms; o p95 aqui é ~80ms), mas fica registrado — se virar reclamação, a
+pré-agregação já está desenhada.
+
 ### Pendências que esta execução deixou
 
 1. **`gross = 0` em pedido pendente segue sendo gravado** (a coluna é NOT NULL). O
