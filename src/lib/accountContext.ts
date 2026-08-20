@@ -27,3 +27,21 @@ export function currentAccountId(): string {
 export function currentRefreshToken(): string | undefined {
   return als.getStore()?.refreshToken;
 }
+
+import { optionalWorkspaceId } from "./workspaceScope";
+
+/**
+ * Prefixo OBRIGATÓRIO de toda chave de cache que guarda dado de conta.
+ *
+ * Em 20/08/2026 as chaves eram só `transactions:${period}` — sem workspace nem
+ * conta. Com duas contas Amazon no mesmo marketplace, trocar de conta servia os
+ * números da anterior por até 10 minutos: a vendedora viu o faturamento do sócio
+ * como se fosse o dela. Num NEXO multiusuário isso seria um usuário lendo dado
+ * de outro.
+ *
+ * `currentAccountId()` foi criado exatamente "para namespacing de cache" e nunca
+ * tinha sido usado pelas chaves.
+ */
+export function cacheScope(): string {
+  return `${optionalWorkspaceId() ?? "no-ws"}:${currentAccountId()}`;
+}

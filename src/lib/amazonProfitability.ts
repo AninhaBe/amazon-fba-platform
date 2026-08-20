@@ -1,4 +1,5 @@
 import { cached } from "./cache";
+import { cacheScope } from "./accountContext";
 import { costAt, getCosts } from "./costStore";
 import { getOrderItems, getOrders } from "./orders";
 import { getOrderFinancialsFromTransactions } from "./transactions";
@@ -10,7 +11,7 @@ function amount(value?: { Amount?: string }): number {
 }
 
 export function getAmazonProfitability(period: Period): Promise<ProfitabilityResult> {
-  return cached(`order-profitability:${period.key}`, 5 * 60_000, async () => {
+  return cached(`order-profitability:${cacheScope()}:${period.key}`, 5 * 60_000, async () => {
     // Taxas por pedido vêm da Transactions API (a Finances v0 devolve zerado);
     // a receita por item continua vindo do Order Items.
     const [page, orderFinancials, costs] = await Promise.all([

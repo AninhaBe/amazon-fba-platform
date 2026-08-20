@@ -1,4 +1,5 @@
 import { spapiFetch, defaultMarketplaceId } from "./spapi";
+import { cacheScope } from "./accountContext";
 import { swr } from "./swr";
 import { collectAllNextTokenPages } from "./nextTokenPagination";
 
@@ -60,7 +61,7 @@ export function dropGhostSkus(inventory: StockItem[], listingSkus: Set<string>):
 
 /** Lista o estoque FBA por SKU. Cache em disco (SWR): espera na 1ª vez, instantâneo depois. */
 export function getInventory(marketplaceId = defaultMarketplaceId()): Promise<StockItem[]> {
-  return swr(`inventory:${marketplaceId}`, 10 * 60_000, () => fetchInventory(marketplaceId), {
+  return swr(`inventory:${cacheScope()}:${marketplaceId}`, 10 * 60_000, () => fetchInventory(marketplaceId), {
     awaitIfEmpty: true,
     fallback: [],
   });

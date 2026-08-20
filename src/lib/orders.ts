@@ -1,4 +1,5 @@
 import { spapiFetch, defaultMarketplaceId } from "./spapi";
+import { cacheScope } from "./accountContext";
 import { cached } from "./cache";
 import type { Period } from "./period";
 import { normalizeAmazonOrder, type AmazonOrderResponse, type OrderSummary } from "./amazonOrder";
@@ -81,7 +82,7 @@ export interface AmazonOrderItem {
 }
 
 export function getOrderItems(amazonOrderId: string): Promise<AmazonOrderItem[]> {
-  return cached(`order-items:${amazonOrderId}`, 5 * 60_000, async () => {
+  return cached(`order-items:${cacheScope()}:${amazonOrderId}`, 5 * 60_000, async () => {
     const pages = await collectAllNextTokenPages(
       (nextToken) => spapiFetch<OrderItemsResponse>(
         `/orders/v0/orders/${encodeURIComponent(amazonOrderId)}/orderItems`,
@@ -108,7 +109,7 @@ export function getSalesVelocity(params: {
   marketplaceId?: string;
 }): Promise<SalesVelocity> {
   const { period, marketplaceId = defaultMarketplaceId() } = params;
-  return cached(`velocity:${period.key}:${marketplaceId}:finance`, 120_000, () =>
+  return cached(`velocity:${cacheScope()}:${period.key}:${marketplaceId}:finance`, 120_000, () =>
     computeSalesVelocity(period)
   );
 }

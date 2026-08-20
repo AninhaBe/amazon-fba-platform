@@ -1,4 +1,5 @@
 import { dbQuery, hasDb } from "../db";
+import { cacheScope } from "../accountContext";
 import { currentWorkspaceId } from "../workspaceScope";
 import { currentAccount } from "../accountContext";
 import { getIntegrations } from "./integrationStore";
@@ -440,5 +441,5 @@ export async function getAmazonOverviewFromCanonical(period: Period): Promise<Am
 // no mesmo carregamento (radar + top-products + rentabilidade). Namespaced por
 // conta/workspace pelo próprio `cached`.
 export function getAmazonOverviewCanonicalCached(period: Period): Promise<AmazonCanonicalOverview | null> {
-  return cached(`amazon-overview-canonical:${period.key}`, 60_000, () => getAmazonOverviewFromCanonical(period));
+  return cached(`amazon-overview-canonical:${cacheScope()}:${period.key}`, 60_000, () => getAmazonOverviewFromCanonical(period));
 }

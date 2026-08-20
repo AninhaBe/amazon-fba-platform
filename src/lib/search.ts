@@ -116,6 +116,8 @@ async function fetchLaunchDate(asin: string, marketplaceId: string): Promise<str
   return data.attributes?.product_site_launch_date?.[0]?.value;
 }
 function getLaunchDate(asin: string, marketplaceId: string): Promise<string | undefined> {
+  // Sem cacheScope() de propósito: data de lançamento é dado público do catálogo,
+  // igual para qualquer conta — escopo aqui só multiplicaria misses.
   return cached(`launch:${marketplaceId}:${asin}`, 3_600_000, () => fetchLaunchDate(asin, marketplaceId));
 }
 

@@ -1,4 +1,5 @@
 import { defaultMarketplaceId, spapiFetch } from "./spapi";
+import { cacheScope } from "./accountContext";
 import { swr } from "./swr";
 import type { Period } from "./period";
 import { collectAllNextTokenPages, splitDateRange } from "./nextTokenPagination";
@@ -98,7 +99,7 @@ export interface TransactionSummary {
 const round = (value: number) => +value.toFixed(2);
 
 export function getTransactionSummary(period: Period): Promise<TransactionSummary> {
-  return swr(`transactions:${period.key}`, 5 * 60_000, () => fetchTransactions(period), {
+  return swr(`transactions:${cacheScope()}:${period.key}`, 5 * 60_000, () => fetchTransactions(period), {
     awaitIfEmpty: true,
   });
 }

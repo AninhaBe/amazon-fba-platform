@@ -1,4 +1,5 @@
 import { spapiFetch } from "./spapi";
+import { cacheScope } from "./accountContext";
 import { swr } from "./swr";
 import type { Period } from "./period";
 import { collectAllNextTokenPages, splitDateRange } from "./nextTokenPagination";
@@ -111,7 +112,7 @@ export interface FinanceItemLine {
  * Operação: listFinancialEvents — GET /finances/v0/financialEvents
  */
 export function getFinanceSummary(period: Period): Promise<FinanceSummary> {
-  return swr(`finance:${period.key}`, 10 * 60_000, () => computeFinanceSummary(period), {
+  return swr(`finance:${cacheScope()}:${period.key}`, 10 * 60_000, () => computeFinanceSummary(period), {
     awaitIfEmpty: true,
   });
 }

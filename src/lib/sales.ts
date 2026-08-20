@@ -1,4 +1,5 @@
 import { spapiFetch, defaultMarketplaceId } from "./spapi";
+import { cacheScope } from "./accountContext";
 import { swr } from "./swr";
 import type { Period } from "./period";
 
@@ -42,7 +43,7 @@ export function getDailySales(
   period: Period,
   marketplaceId = defaultMarketplaceId()
 ): Promise<SalesSeries> {
-  return swr(`sales:${period.key}:${marketplaceId}`, 10 * 60_000, () => fetchDailySales(period, marketplaceId), {
+  return swr(`sales:${cacheScope()}:${period.key}:${marketplaceId}`, 10 * 60_000, () => fetchDailySales(period, marketplaceId), {
     awaitIfEmpty: true,
   });
 }
