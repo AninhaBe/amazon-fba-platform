@@ -111,7 +111,7 @@ interface DashboardPayload {
   metrics: { totalOrders: number; paidOrders: number; fbaOrders: number; revenue: number };
   dailySales: Array<{ date: string; revenue: number; orders: number; units: number }>;
   topProducts: Array<{ sku: string; title: string; units: number; revenue: number; marginPct: number | null }>;
-  profit: { revenueProcessed: number; fees: number; cogs: number; estimatedProfit: number; unitsWithCost: number; unitsWithoutCost: number };
+  profit: { revenueProcessed: number; fees: number; cogs: number; estimatedProfit: number; unitsWithCost: number; unitsWithoutCost: number; coverage?: { processedOrders: number; paidOrders: number; complete: boolean } };
   finance: ProfitData["finance"];
   profitabilityLines: ProfitabilityLine[];
   profitabilityScope?: ProfitabilityScope;
@@ -147,6 +147,10 @@ export default function Dashboard() {
   const [sales, setSales] = useState<SalesSeries | null>(initialDash?.sales ?? null);
   const [top, setTop] = useState<TopProduct[]>(initialDash?.top ?? []);
   const [profitability, setProfitability] = useState<ProfitabilityLine[]>(initialDash?.profitability ?? []);
+  // Cobertura da conciliação: quantos pedidos pagos já viraram linhas conciliadas.
+  // É o que permite à seção "Financeiro conciliado" DIZER que está parcial em vez
+  // de exibir um número menor que o faturamento sem explicação (20/08/2026).
+  const [conciliacao, setConciliacao] = useState<{ processedOrders: number; paidOrders: number; complete: boolean } | null>(null);
   const [profitabilityScope, setProfitabilityScope] = useState<ProfitabilityScope | undefined>(initialDash?.profitabilityScope);
   const [saldo, setSaldo] = useState<SaldoData | null>(null);
   const [profitabilityLoading, setProfitabilityLoading] = useState(!initialDash);
@@ -246,6 +250,7 @@ export default function Dashboard() {
       if (payload.radar) { next.radar = payload.radar; setRadar(payload.radar); }
       next.top = payload.topProducts; setTop(payload.topProducts);
       next.profitability = payload.profitabilityLines; setProfitability(payload.profitabilityLines);
+      setConciliacao(payload.profit.coverage ?? null);
       next.profitabilityScope = payload.profitabilityScope; setProfitabilityScope(payload.profitabilityScope);
     }, (d) => d as DashboardPayload, "dashboard").then(() => {
       if (active) {
@@ -442,6 +447,16 @@ export default function Dashboard() {
             <p className="section-kicker">Financeiro conciliado</p>
             <h2 className="mt-1 text-lg font-semibold text-slate-900">Repasses, taxas e {costsIncomplete ? "resultado" : "lucro"}</h2>
             <p className="mt-1 text-xs leading-relaxed text-slate-400">Base dos repasses da Amazon (data de postagem) — difere do faturamento acima, que segue a data do pedido como o Seller Central.</p>
+            {conciliacao && !conciliacao.complete && (
+              // Regra do AGENTS.md: dado parcial DIZ que é parcial. Sem esta faixa,
+              // esta seção mostrava R$ 10 mil ao lado de um faturamento de R$ 35 mil
+              // sem nenhuma pista de que a conciliação ainda estava correndo.
+              <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
+                Conciliação parcial: {conciliacao.processedOrders} de {conciliacao.paidOrders} pedidos
+                pagos já conciliados. Os valores desta seção ainda sobem — compare com o
+                faturamento só quando a conciliação terminar.
+              </p>
+            )}
           </div>
           {!loading && !hasFinance ? (
             // Sem transação postada não há cascata: zerar receita, taxas e lucro
