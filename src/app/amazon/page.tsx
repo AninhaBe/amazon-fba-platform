@@ -102,6 +102,24 @@ interface TopProduct {
 }
 
 
+// Payload da rota agregadora /api/amazon/dashboard (ADR-017): uma chamada
+// devolve a tela inteira, lida do banco canônico. As interfaces acima seguem
+// sendo o contrato interno da página — aqui só o mapeamento de chegada.
+interface DashboardPayload {
+  covered: boolean;
+  currency: string;
+  metrics: { totalOrders: number; paidOrders: number; fbaOrders: number; revenue: number };
+  dailySales: Array<{ date: string; revenue: number; orders: number; units: number }>;
+  topProducts: Array<{ sku: string; title: string; units: number; revenue: number; marginPct: number | null }>;
+  profit: { revenueProcessed: number; fees: number; cogs: number; estimatedProfit: number; unitsWithCost: number; unitsWithoutCost: number };
+  finance: ProfitData["finance"];
+  profitabilityLines: ProfitabilityLine[];
+  profitabilityScope?: ProfitabilityScope;
+  recentOrders: OrdersData["orders"];
+  radar: RadarRow[] | null;
+  durationMs: number;
+}
+
 interface DashSnapshot {
   orders: OrdersData | null;
   profit: ProfitData | null;
@@ -192,18 +210,50 @@ export default function Dashboard() {
           if (!broken) errs.push(name);
         });
 
-    // Chamadas rápidas — controlam o "loading" do dashboard.
-    Promise.all([
-      safe<OrdersData>(`/api/orders?${periodQuery}`, (v) => { next.orders = v; setOrders(v); }, (d) => d as OrdersData, "pedidos"),
-      safe<ProfitData>(`/api/profit?${periodQuery}`, (v) => { next.profit = v; setProfit(v); }, (d) => (d as { summary: ProfitData }).summary, "financeiro"),
-      safe<RadarRow[]>(`/api/radar?${periodQuery}`, (v) => { next.radar = v; setRadar(v); }, (d) => (d as { rows: RadarRow[] }).rows, "estoque"),
-      safe<SalesSeries>(`/api/sales?${periodQuery}`, (v) => { next.sales = v; setSales(v); }, (d) => (d as { series: SalesSeries }).series, "vendas"),
-    ]).then(() => {
+    // Uma tela = uma chamada (ADR-017): a rota agregadora devolve pedidos,
+    // financeiro, vendas, estoque, top e rentabilidade num payload só, lido do
+    // banco canônico — a SP-API saiu do caminho interativo.
+    safe<DashboardPayload>(`/api/amazon/dashboard?${periodQuery}`, (payload) => {
+      const orders: OrdersData = {
+        metrics: {
+          totalOrders: payload.metrics.totalOrders,
+          totalRevenue: payload.metrics.revenue,
+          currency: payload.currency,
+          fbaOrders: payload.metrics.fbaOrders,
+          // O canônico não separa "itens pendentes" (era um subproduto da
+          // paginação ao vivo). Zero aqui é honesto: a lista de recentes mostra
+          // o status real de cada pedido.
+          pendingItems: 0,
+        },
+        orders: payload.recentOrders,
+      };
+      const profit: ProfitData = {
+        finance: payload.finance,
+        cogs: payload.profit.cogs,
+        estimatedProfit: payload.profit.estimatedProfit,
+        unitsWithoutCost: payload.profit.unitsWithoutCost,
+      };
+      const sales: SalesSeries = {
+        currency: payload.currency,
+        points: payload.dailySales,
+        totalRevenue: payload.metrics.revenue,
+        totalOrders: payload.metrics.paidOrders,
+        totalUnits: payload.dailySales.reduce((sum, d) => sum + d.units, 0),
+      };
+      next.orders = orders; setOrders(orders);
+      next.profit = profit; setProfit(profit);
+      next.sales = sales; setSales(sales);
+      if (payload.radar) { next.radar = payload.radar; setRadar(payload.radar); }
+      next.top = payload.topProducts; setTop(payload.topProducts);
+      next.profitability = payload.profitabilityLines; setProfitability(payload.profitabilityLines);
+      next.profitabilityScope = payload.profitabilityScope; setProfitabilityScope(payload.profitabilityScope);
+    }, (d) => d as DashboardPayload, "dashboard").then(() => {
       if (active) {
         setErrors(errs);
         setBrokenConnection(broken);
         setUpdatedAt(new Date());
         setLoading(false);
+        setProfitabilityLoading(false);
         store();
       }
     });
@@ -213,17 +263,8 @@ export default function Dashboard() {
     safe<ProductRow[]>(`/api/products`, (v) => { productsCache = v; setProducts(v); }, (d) => (d as { products: ProductRow[] }).products, "produtos").finally(
       () => active && setProductsLoading(false)
     );
-    safe<TopProduct[]>(`/api/top-products?${periodQuery}`, (v) => { next.top = v; setTop(v); store(); }, (d) => (d as { products: TopProduct[] }).products, "top produtos");
     // Saldo NÃO leva `periodQuery`: é o estado de agora, não do período escolhido.
     safe<SaldoData | null>(`/api/amazon/balance`, (v) => setSaldo(v), (d) => d as SaldoData | null, "saldo");
-    // Rentabilidade por venda: mesma fonte do monitor, com loading próprio para
-    // não segurar os KPIs (o fallback ao vivo do endpoint pode ser lento).
-    safe<{ lines: ProfitabilityLine[]; scope?: ProfitabilityScope }>(
-      `/api/order-profitability?${periodQuery}`,
-      (v) => { next.profitability = v.lines; next.profitabilityScope = v.scope; setProfitability(v.lines); setProfitabilityScope(v.scope); store(); },
-      (d) => d as { lines: ProfitabilityLine[]; scope?: ProfitabilityScope },
-      "rentabilidade"
-    ).finally(() => active && setProfitabilityLoading(false));
 
     return () => {
       active = false;
