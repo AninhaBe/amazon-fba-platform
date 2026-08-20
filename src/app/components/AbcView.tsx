@@ -45,7 +45,7 @@ const QUAD: Record<Quadrant, { label: string; sub: string; act: string; info: st
   motor: { label: "Prioritários", sub: "alto giro · alta margem", act: "Proteger e garantir estoque", info: "<b>Seus melhores produtos:</b> giram bem e ainda deixam boa margem. São o motor do lucro — priorize estoque e posição, e nunca deixe faltar.", dot: "bg-emerald-500", tag: "bg-emerald-50 text-emerald-700" },
   vamp: { label: "Baixa margem", sub: "alto giro · baixa margem", act: "Rever preço ou frete grátis", info: "<b>Vendem muito, mas sobra pouco</b> por unidade. Costumam esconder frete grátis assumido ou preço apertado. Pequenos ajustes aqui rendem muito no total.", dot: "bg-red-500", tag: "bg-red-50 text-red-600" },
   joia: { label: "Potenciais", sub: "baixo giro · alta margem", act: "Investir: anúncio, ads, estoque", info: "<b>Margem alta, mas vendem pouco.</b> Têm espaço para crescer — vale investir em anúncio, ads ou preço mais competitivo sem perder rentabilidade.", dot: "bg-blue-600", tag: "bg-blue-50 text-blue-700" },
-  morto: { label: "Marginais", sub: "baixo giro · baixa margem", act: "Avaliar descontinuar", info: "<b>Vendem pouco e lucram pouco.</b> Consomem estoque, capital e atenção com pouco retorno. Candidatos a revisão de preço ou descontinuação.", dot: "bg-slate-400", tag: "bg-slate-100 text-slate-500" },
+  morto: { label: "Marginais", sub: "baixo giro · baixa margem", act: "Avaliar descontinuar", info: "<b>Vendem pouco e lucram pouco.</b> Consomem estoque, capital e atenção com pouco retorno. Candidatos a revisão de preço ou descontinuação.", dot: "bg-[var(--ink-32)]", tag: "bg-[var(--ink-05)] text-[var(--ink-muted)]" },
 };
 const QUAD_ORDER: Quadrant[] = ["motor", "vamp", "joia", "morto"];
 
@@ -139,13 +139,13 @@ function Results({ data, quad, setQuad, costsHref }: { data: Abc; quad: Quadrant
   return (
     <div className="abc-results">
       {classified > 0 ? (
-        <p className="text-[15px] text-slate-600">
-          <b className="font-bold text-slate-900">{skusMaking80} SKU{skusMaking80 !== 1 ? "s" : ""}</b>{" "}
+        <p className="text-[15px] text-[var(--ink-soft)]">
+          <b className="font-bold text-[var(--ink)]">{skusMaking80} SKU{skusMaking80 !== 1 ? "s" : ""}</b>{" "}
           ({Math.round((skusMaking80 / classified) * 100)}% dos classificados) fazem{" "}
-          <b className="font-bold text-slate-900">80% do seu lucro</b> no período.
+          <b className="font-bold text-[var(--ink)]">80% do seu lucro</b> no período.
         </p>
       ) : (
-        <p className="text-[15px] text-slate-600">Nenhum produto com custo cadastrado — cadastre os custos para ver o lucro por produto.</p>
+        <p className="text-[15px] text-[var(--ink-soft)]">Nenhum produto com custo cadastrado — cadastre os custos para ver o lucro por produto.</p>
       )}
 
       {costMissing > 0 && (
@@ -178,17 +178,17 @@ function Results({ data, quad, setQuad, costsHref }: { data: Abc; quad: Quadrant
               >
                 i<span className="abc-pop" dangerouslySetInnerHTML={{ __html: q.info }} />
               </span>
-              <div className="flex items-center gap-2 text-[13px] font-bold text-slate-800">
+              <div className="flex items-center gap-2 text-[13px] font-bold text-[var(--ink)]">
                 <span className={`h-2.5 w-2.5 rounded ${q.dot}`} />
                 {q.label}
               </div>
-              <div className="mt-0.5 text-[11px] text-slate-400">{q.sub}</div>
-              <div className="mt-2 text-[26px] font-extrabold tabular-nums tracking-tight text-slate-900">
+              <div className="mt-0.5 text-[11px] text-[var(--ink-muted)]">{q.sub}</div>
+              <div className="mt-2 text-[26px] font-extrabold tabular-nums tracking-tight text-[var(--ink)]">
                 {g.count}
-                <small className="ml-1 text-[13px] font-semibold text-slate-400">SKUs</small>
+                <small className="ml-1 text-[13px] font-semibold text-[var(--ink-muted)]">SKUs</small>
               </div>
-              <div className="text-xs text-slate-500">{share.toFixed(0)}% do lucro</div>
-              <div className="mt-2 border-t border-dashed border-slate-200 pt-2 text-xs text-slate-500">{q.act}</div>
+              <div className="text-xs text-[var(--ink-muted)]">{share.toFixed(0)}% do lucro</div>
+              <div className="mt-2 border-t border-dashed border-[var(--line-strong)] pt-2 text-xs text-[var(--ink-muted)]">{q.act}</div>
             </button>
           );
         })}
@@ -196,12 +196,12 @@ function Results({ data, quad, setQuad, costsHref }: { data: Abc; quad: Quadrant
 
       <div className="abc-detail-stack">
         <section className="abc-pareto-panel">
-          <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-slate-100 px-5 py-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-[var(--line)] px-5 py-4">
             <div>
-              <h2 className="text-[15px] font-bold text-slate-900">Concentração do lucro (Pareto)</h2>
-              <p className="mt-0.5 text-[12.5px] text-slate-400">Cada barra é um produto (do mais ao menos lucrativo); a linha é o lucro acumulado.</p>
+              <h2 className="text-[15px] font-bold text-[var(--ink)]">Concentração do lucro (Pareto)</h2>
+              <p className="mt-0.5 text-[12.5px] text-[var(--ink-muted)]">Cada barra é um produto (do mais ao menos lucrativo); a linha é o lucro acumulado.</p>
             </div>
-            <div className="flex flex-wrap gap-3.5 text-[11.5px] text-slate-500">
+            <div className="flex flex-wrap gap-3.5 text-[11.5px] text-[var(--ink-muted)]">
               <span><i className="mr-1 inline-block h-[11px] w-[11px] rounded-sm align-[-1px]" style={{ background: "var(--positive)" }} />Classe A (80%)</span>
               <span><i className="mr-1 inline-block h-[11px] w-[11px] rounded-sm align-[-1px]" style={{ background: "#f59e0b" }} />Classe B (+15%)</span>
               <span><i className="mr-1 inline-block h-[11px] w-[11px] rounded-sm align-[-1px]" style={{ background: "#94a3b8" }} />Classe C (5%)</span>
@@ -211,16 +211,16 @@ function Results({ data, quad, setQuad, costsHref }: { data: Abc; quad: Quadrant
         </section>
 
         <section className="listing-table-shell abc-products-panel">
-          <div className="border-b border-slate-100 px-5 py-4">
-            <h2 className="text-[15px] font-bold text-slate-900">
+          <div className="border-b border-[var(--line)] px-5 py-4">
+            <h2 className="text-[15px] font-bold text-[var(--ink)]">
               {quad ? `Produtos · ${QUAD[quad].label}` : `Produtos (${products.length})`}
             </h2>
-            <p className="mt-0.5 text-[12.5px] text-slate-400">Classe A/B/C pela contribuição acumulada. Clique num quadrante para filtrar.</p>
+            <p className="mt-0.5 text-[12.5px] text-[var(--ink-muted)]">Classe A/B/C pela contribuição acumulada. Clique num quadrante para filtrar.</p>
           </div>
           <div className="overflow-x-auto">
             <table className="listing-table abc-table">
               <thead>
-                <tr className="[&_th]:border-b [&_th]:border-slate-200 [&_th]:bg-slate-50 [&_th]:px-3 [&_th]:py-2.5 [&_th]:text-[11px] [&_th]:font-bold [&_th]:uppercase [&_th]:tracking-wide [&_th]:text-slate-500">
+                <tr className="[&_th]:border-b [&_th]:border-[var(--line-strong)] [&_th]:bg-[var(--ink-03)] [&_th]:px-3 [&_th]:py-2.5 [&_th]:text-[11px] [&_th]:font-bold [&_th]:uppercase [&_th]:tracking-wide [&_th]:text-[var(--ink-muted)]">
                   <th className="text-left">Produto</th>
                   <th className="text-right">Un.</th>
                   <th className="text-right">Faturamento</th>
@@ -233,23 +233,23 @@ function Results({ data, quad, setQuad, costsHref }: { data: Abc; quad: Quadrant
               <tbody>
                 {shown.map((p) => {
                   const q = p.quadrant ? QUAD[p.quadrant] : null;
-                  const clsColor = p.profitClass === "A" ? "bg-emerald-50 text-emerald-700" : p.profitClass === "B" ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-500";
+                  const clsColor = p.profitClass === "A" ? "bg-emerald-50 text-emerald-700" : p.profitClass === "B" ? "bg-amber-50 text-amber-700" : "bg-[var(--ink-05)] text-[var(--ink-muted)]";
                   const neg = p.contribution != null && p.contribution < 0;
                   return (
-                    <tr key={p.sku || p.productId} className="[&_td]:border-b [&_td]:border-slate-100 [&_td]:px-3 [&_td]:py-2.5 [&_td]:tabular-nums hover:bg-slate-50">
+                    <tr key={p.sku || p.productId} className="[&_td]:border-b [&_td]:border-[var(--line)] [&_td]:px-3 [&_td]:py-2.5 [&_td]:tabular-nums hover:bg-[var(--ink-03)]">
                       <td className="!text-left">
                         <div className="flex max-w-[240px] flex-col">
                           <strong className="truncate text-[13px] font-semibold" title={p.title}>{p.title}</strong>
-                          <small className="font-mono text-[11px] text-slate-400">{p.sku || p.productId}{!p.costMissing && !p.complete && " · parcial"}</small>
+                          <small className="font-mono text-[11px] text-[var(--ink-muted)]">{p.sku || p.productId}{!p.costMissing && !p.complete && " · parcial"}</small>
                         </div>
                       </td>
                       <td className="text-right">{p.units}</td>
                       <td className="text-right">{money(p.revenue, currency)}</td>
-                      <td className={`text-right font-bold ${p.contribution == null ? "text-slate-300" : neg ? "text-red-600" : "text-emerald-700"}`}>{p.contribution == null ? "—" : money(p.contribution, currency)}</td>
-                      <td className={`text-right ${p.marginPct == null ? "text-slate-300" : p.marginPct < 0 ? "font-bold text-red-600" : p.marginPct < 12 ? "text-red-600" : p.marginPct < 18 ? "text-amber-600" : "font-semibold text-emerald-700"}`}>{p.marginPct == null ? "—" : `${p.marginPct.toFixed(1)}%`}</td>
+                      <td className={`text-right font-bold ${p.contribution == null ? "text-[var(--ink-faint)]" : neg ? "text-red-600" : "text-emerald-700"}`}>{p.contribution == null ? "—" : money(p.contribution, currency)}</td>
+                      <td className={`text-right ${p.marginPct == null ? "text-[var(--ink-faint)]" : p.marginPct < 0 ? "font-bold text-red-600" : p.marginPct < 12 ? "text-red-600" : p.marginPct < 18 ? "text-amber-600" : "font-semibold text-emerald-700"}`}>{p.marginPct == null ? "—" : `${p.marginPct.toFixed(1)}%`}</td>
                       <td className="text-center">
                         {p.profitClass == null
-                          ? <span className="text-slate-300">—</span>
+                          ? <span className="text-[var(--ink-faint)]">—</span>
                           : <span className={`inline-grid h-[22px] w-[22px] place-items-center rounded-md text-[12px] font-extrabold ${clsColor}`}>{p.profitClass}</span>}
                       </td>
                       <td className="!text-left">
@@ -271,7 +271,7 @@ function Results({ data, quad, setQuad, costsHref }: { data: Abc; quad: Quadrant
       </div>
 
       {!data.covered && (
-        <p className="flex gap-2 px-1 text-xs text-slate-400">
+        <p className="flex gap-2 px-1 text-xs text-[var(--ink-muted)]">
           <span aria-hidden="true">ℹ️</span>
           <span>Ainda sincronizando o período — alguns produtos podem aparecer como &quot;parcial&quot; até a conciliação terminar.</span>
         </p>
@@ -282,7 +282,7 @@ function Results({ data, quad, setQuad, costsHref }: { data: Abc; quad: Quadrant
 
 function Pareto({ products }: { products: AbcProduct[] }) {
   const pos = products.filter((p): p is AbcProduct & { contribution: number } => p.contribution != null && p.contribution > 0);
-  if (pos.length < 2) return <p className="py-8 text-center text-sm text-slate-400">{pos.length === 0 ? "Sem produtos com custo cadastrado para calcular o lucro." : "Só 1 produto com custo cadastrado — cadastre o custo de mais produtos para a curva de Pareto fazer sentido."}</p>;
+  if (pos.length < 2) return <p className="py-8 text-center text-sm text-[var(--ink-muted)]">{pos.length === 0 ? "Sem produtos com custo cadastrado para calcular o lucro." : "Só 1 produto com custo cadastrado — cadastre o custo de mais produtos para a curva de Pareto fazer sentido."}</p>;
   const W = 1000, H = 190, padL = 6, padR = 6, padT = 12, padB = 8;
   const n = pos.length;
   const gap = (W - padL - padR) / n;

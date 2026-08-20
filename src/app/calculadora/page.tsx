@@ -178,7 +178,7 @@ export default function CalculatorPage() {
   const bestNet = columns.length ? Math.max(...columns.map((col) => col.net)) : 0;
 
   const inputCls =
-    "rounded-lg border border-slate-300 px-3 py-2 focus:border-blue-500 focus:outline-none";
+    "rounded-lg border border-[var(--line-strong)] px-3 py-2 focus:border-blue-500 focus:outline-none";
 
   return (
     <div className="calculator-page tool-page">
@@ -219,7 +219,7 @@ export default function CalculatorPage() {
           </div>
           {priceError && <span role="alert" className="text-xs text-red-600">{priceError}</span>}
           {product && (
-            <div className="mt-2 flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div className="mt-2 flex items-center gap-3 rounded-lg border border-[var(--line-strong)] bg-[var(--ink-03)] p-3">
               {product.imageUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -230,12 +230,12 @@ export default function CalculatorPage() {
               )}
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{product.title || "Produto encontrado"}</p>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-[var(--ink-muted)]">
                   {product.brand ? `${product.brand} · ` : ""}
                   Preço {product.source === "buybox" ? "do Buy Box" : "mais baixo"} preenchido
                 </p>
                 {product.dimensionsCm && (
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-[var(--ink-muted)]">
                     {product.dimensionsCm.length} × {product.dimensionsCm.width} ×{" "}
                     {product.dimensionsCm.height} cm · {product.volumeM3} m³
                     {product.storageRatePerM3
@@ -251,7 +251,7 @@ export default function CalculatorPage() {
         <label className="flex flex-col gap-1">
           <span className="text-sm font-medium">
             Preço de venda (R$){" "}
-            <span className="font-normal text-slate-400">— auto</span>
+            <span className="font-normal text-[var(--ink-muted)]">— auto</span>
           </span>
           <input
             type="number"
@@ -382,7 +382,7 @@ function EditCost({
   onChange: (v: string) => void;
 }) {
   return (
-    <label className="flex items-center justify-between gap-2 text-xs text-slate-500">
+    <label className="flex items-center justify-between gap-2 text-xs text-[var(--ink-muted)]">
       <span>{label}</span>
       <input
         type="number"
@@ -391,7 +391,7 @@ function EditCost({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="0.00"
-        className="w-24 rounded-md border border-slate-300 px-2 py-1 text-right text-sm tabular-nums focus:border-blue-500 focus:outline-none"
+        className="w-24 rounded-md border border-[var(--line-strong)] px-2 py-1 text-right text-sm tabular-nums focus:border-blue-500 focus:outline-none"
       />
     </label>
   );

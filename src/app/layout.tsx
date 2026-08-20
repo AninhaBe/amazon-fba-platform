@@ -23,8 +23,8 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="pt-BR" data-scroll-behavior="smooth" className={`${interSans.variable} h-full antialiased`} suppressHydrationWarning>
-      {/* Sem `text-slate-900`: era tinta azulada do Tailwind e vencia o
-          `body { color: var(--ink) }` do globals.css por especificidade de
+      {/* O `<body>` tinha `text-slate-900`: tinta azulada do Tailwind, e vencia
+          o `body { color: var(--ink) }` do globals.css por especificidade de
           classe — a identidade monocromática morria na raiz da árvore. */}
       <body className="min-h-full" suppressHydrationWarning>
         <a href="#main-content" className="skip-link">

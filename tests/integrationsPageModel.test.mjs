@@ -38,11 +38,15 @@ test("issue isolado deixa somente o provider afetado em atencao", () => {
 test("remoção Shopee explica que apaga somente o estado local", () => {
   const copy = connectionRemovalCopy("shopee", "Loja principal");
 
-  assert.equal(copy.button, "Remover do SellerCore");
+  // NEXO, não SellerCore. `AGENTS.md` é explícito: todo texto que uma pessoa
+  // lê usa o nome novo, e isto aqui é rótulo de botão e mensagem de sucesso —
+  // texto de tela. O identificador `sellercore` continua vivo de propósito em
+  // URL, contas e variáveis; nada disso é tocado por esta asserção.
+  assert.equal(copy.button, "Remover do NEXO");
   assert.match(copy.confirm, /credenciais, sincronizações e os dados locais/i);
   assert.match(copy.confirm, /não será revogado na Shopee/i);
   assert.match(copy.confirm, /painel da Shopee/i);
-  assert.match(copy.success ?? "", /apenas do SellerCore/i);
+  assert.match(copy.success ?? "", /apenas do NEXO/i);
   assert.match(copy.success ?? "", /não foi revogado/i);
 });
 

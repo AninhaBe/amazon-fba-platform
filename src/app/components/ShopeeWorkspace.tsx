@@ -382,7 +382,7 @@ function Dashboard({ overview, updatedAt, sync, onPage }: { overview: Overview; 
   return (
     <div className="dashboard-sections shopee-dashboard-body">
       {updatedAt && (
-        <p className="-mt-5 text-xs text-slate-400">
+        <p className="-mt-5 text-xs text-[var(--ink-muted)]">
           Atualizado às {brTime(updatedAt)}
           {overview.metrics.lastSaleAt ? ` · última venda contabilizada às ${brTime(overview.metrics.lastSaleAt, true)}` : ""}.
         </p>
@@ -429,14 +429,14 @@ function Dashboard({ overview, updatedAt, sync, onPage }: { overview: Overview; 
           <div className="mb-2 flex items-baseline justify-between gap-4">
             <div>
               <p className="section-kicker">Desempenho diário</p>
-              <h2 className="mt-1 text-lg font-semibold text-slate-900">Evolução do faturamento</h2>
+              <h2 className="mt-1 text-lg font-semibold text-[var(--ink)]">Evolução do faturamento</h2>
             </div>
-            <span className="text-sm font-semibold tabular-nums text-slate-900">
-              {money(overview.metrics.revenue30d, overview.metrics.currency)} <span className="font-normal text-slate-400">no período</span>
+            <span className="text-sm font-semibold tabular-nums text-[var(--ink)]">
+              {money(overview.metrics.revenue30d, overview.metrics.currency)} <span className="font-normal text-[var(--ink-muted)]">no período</span>
             </span>
           </div>
           <div className="chart-inline-stats" aria-label="Indicadores complementares">
-            <span><small>Canceladas</small><strong className={overview.metrics.cancelledRevenue > 0 ? "text-red-600" : "text-slate-400"}>{money(overview.metrics.cancelledRevenue, overview.metrics.currency)}</strong></span>
+            <span><small>Canceladas</small><strong className={overview.metrics.cancelledRevenue > 0 ? "text-red-600" : "text-[var(--ink-muted)]"}>{money(overview.metrics.cancelledRevenue, overview.metrics.currency)}</strong></span>
             <span><small>Unidades</small><strong>{units.toLocaleString("pt-BR")}</strong></span>
             <span><small>Ticket médio</small><strong>{ticket == null ? "—" : money(ticket, overview.metrics.currency)}</strong></span>
             <span><small>ROI</small><strong>{roi == null ? "—" : `${roi.toFixed(1)}%`}</strong></span>
@@ -446,8 +446,8 @@ function Dashboard({ overview, updatedAt, sync, onPage }: { overview: Overview; 
         <aside className="financial-composition" aria-label="Resumo do resultado financeiro">
           <div>
             <p className="section-kicker">Resultado do período</p>
-            <h2 className="mt-1 text-lg font-semibold text-slate-900">Do faturamento ao lucro</h2>
-            <p className="mt-1 text-xs leading-relaxed text-slate-400">
+            <h2 className="mt-1 text-lg font-semibold text-[var(--ink)]">Do faturamento ao lucro</h2>
+            <p className="mt-1 text-xs leading-relaxed text-[var(--ink-muted)]">
               {profitCoverage.complete ? "Valores efetivamente identificados no período." : `Detalhamento processado em ${profitCoverage.processedOrders} de ${profitCoverage.paidOrders} vendas.`}
             </p>
           </div>
@@ -484,7 +484,7 @@ function Dashboard({ overview, updatedAt, sync, onPage }: { overview: Overview; 
       <div className="shopee-detail-grid">
         <Panel title="Estoque crítico">
           {critical.length === 0 ? <Empty>Nenhum produto em ruptura iminente.</Empty> : (
-            <ul className="divide-y divide-slate-100">
+            <ul className="divide-y divide-[var(--line)]">
               {critical.slice(0, 6).map((product) => (
                 <li key={product.id} className="flex items-center justify-between py-2.5 text-sm">
                   <span className="min-w-0 truncate pr-3">{product.title || product.sku || product.id}</span>
@@ -496,12 +496,12 @@ function Dashboard({ overview, updatedAt, sync, onPage }: { overview: Overview; 
         </Panel>
         <Panel title="Pedidos recentes">
           {overview.recentOrders.length === 0 ? <Empty>Nenhum pedido no período.</Empty> : (
-            <ul className="divide-y divide-slate-100">
+            <ul className="divide-y divide-[var(--line)]">
               {overview.recentOrders.slice(0, 6).map((order) => (
                 <li key={order.id} className="flex items-center justify-between py-2.5 text-sm">
                   <span className="min-w-0">
-                    <span className="block truncate font-mono text-xs text-slate-500">#{order.id}</span>
-                    <span className="text-xs text-slate-400">{brDate(order.createdAt)} · {orderStatus(order.status)}</span>
+                    <span className="block truncate font-mono text-xs text-[var(--ink-muted)]">#{order.id}</span>
+                    <span className="text-xs text-[var(--ink-muted)]">{brDate(order.createdAt)} · {orderStatus(order.status)}</span>
                   </span>
                   <span className="shrink-0 font-medium tabular-nums">{money(order.total, order.currency)}</span>
                 </li>
@@ -529,8 +529,8 @@ function Dashboard({ overview, updatedAt, sync, onPage }: { overview: Overview; 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="shopee-detail-panel">
-      <div className="mb-3 flex items-center justify-between border-b border-slate-100 pb-3">
-        <h2 className="text-[13px] font-semibold text-slate-700">{title}</h2>
+      <div className="mb-3 flex items-center justify-between border-b border-[var(--line)] pb-3">
+        <h2 className="text-[13px] font-semibold text-[var(--ink-soft)]">{title}</h2>
       </div>
       {children}
     </section>

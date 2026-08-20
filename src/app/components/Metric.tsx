@@ -110,8 +110,8 @@ export function Flow({ label, value, sign, accent = false }: { label: string; va
   return (
     <div className={`financial-line ${accent ? "is-result" : ""}`}>
       <span className="financial-sign" aria-hidden="true">{sign}</span>
-      <p className="text-xs font-medium text-slate-500">{label}</p>
-      <p className={`text-sm font-bold tabular-nums ${accent ? "text-emerald-700" : sign === "−" ? "text-red-600" : "text-slate-900"}`}>{value}</p>
+      <p className="text-xs font-medium text-[var(--ink-muted)]">{label}</p>
+      <p className={`text-sm font-bold tabular-nums ${accent ? "text-emerald-700" : sign === "−" ? "text-red-600" : "text-[var(--ink)]"}`}>{value}</p>
     </div>
   );
 }
@@ -130,9 +130,9 @@ export function FlowExpandable({ label, value, items, open, onToggle }: {
     <>
       <button type="button" onClick={onToggle} aria-expanded={open} className="financial-line financial-line-toggle">
         <span className="financial-sign" aria-hidden="true">−</span>
-        <span className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+        <span className="flex items-center gap-1.5 text-xs font-medium text-[var(--ink-muted)]">
           {label}
-          <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true" className={`text-slate-400 transition-transform duration-150 ${open ? "rotate-180" : ""}`}>
+          <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true" className={`text-[var(--ink-muted)] transition-transform duration-150 ${open ? "rotate-180" : ""}`}>
             <path d="m4 6 4 4 4-4" />
           </svg>
         </span>

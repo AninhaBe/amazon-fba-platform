@@ -25,12 +25,12 @@ interface RadarRow {
 }
 
 const STATUS_META: Record<StockStatus, { label: string; dot: string; chip: string }> = {
-  out: { label: "Esgotado", dot: "bg-slate-800", chip: "bg-slate-200 text-slate-800" },
+  out: { label: "Esgotado", dot: "bg-[var(--ink)]", chip: "bg-[var(--ink-08)] text-[var(--ink)]" },
   critical: { label: "Repor já", dot: "bg-red-500", chip: "bg-red-100 text-red-700" },
   low: { label: "Repor em breve", dot: "bg-amber-500", chip: "bg-amber-100 text-amber-700" },
   ok: { label: "Ok", dot: "bg-emerald-500", chip: "bg-emerald-100 text-emerald-700" },
   overstock: { label: "Excesso", dot: "bg-sky-500", chip: "bg-sky-100 text-sky-700" },
-  idle: { label: "Sem venda", dot: "bg-slate-400", chip: "bg-slate-100 text-slate-500" },
+  idle: { label: "Sem venda", dot: "bg-[var(--ink-32)]", chip: "bg-[var(--ink-05)] text-[var(--ink-muted)]" },
 };
 
 export default function EstoquePage() {
@@ -140,7 +140,7 @@ export default function EstoquePage() {
         <div className="overflow-x-auto">
         <table className="inventory-table listing-table">
           <caption className="sr-only">Estoque disponível, velocidade de venda e risco de ruptura por SKU</caption>
-          <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+          <thead className="bg-[var(--ink-03)] text-left text-xs uppercase tracking-wide text-[var(--ink-muted)]">
             <tr>
               <th scope="col" className="px-4 py-3">Produto / SKU</th>
               <th scope="col" className="px-4 py-3 text-center">Disponível</th>
@@ -150,7 +150,7 @@ export default function EstoquePage() {
               <th scope="col" className="px-4 py-3 text-center">Status</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-[var(--line)]">
             {loading ? (
               <tr>
                 <td colSpan={6} className="px-4 py-8"><TableLoading label="Carregando estoque e velocidade de venda" /></td>
@@ -165,20 +165,20 @@ export default function EstoquePage() {
               pagedRows.map((r) => {
                 const meta = STATUS_META[r.status];
                 return (
-                  <tr key={r.sellerSku} className="hover:bg-slate-50">
+                  <tr key={r.sellerSku} className="hover:bg-[var(--ink-03)]">
                     <td className="px-4 py-3">
                       <p className="max-w-[280px] truncate font-medium">
                         {r.productName || r.sellerSku}
                       </p>
-                      <p className="font-mono text-xs text-slate-400">{r.sellerSku}</p>
+                      <p className="font-mono text-xs text-[var(--ink-muted)]">{r.sellerSku}</p>
                     </td>
                     <td className="px-4 py-3 text-center tabular-nums font-medium">
                       {r.fulfillable}
                     </td>
-                    <td className="px-4 py-3 text-center tabular-nums text-slate-500">
+                    <td className="px-4 py-3 text-center tabular-nums text-[var(--ink-muted)]">
                       {r.inbound || "—"}
                     </td>
-                    <td className="px-4 py-3 text-center tabular-nums text-slate-600">
+                    <td className="px-4 py-3 text-center tabular-nums text-[var(--ink-soft)]">
                       {r.perDay > 0 ? r.perDay.toFixed(1) : "—"}
                     </td>
                     <td className="px-4 py-3 text-center tabular-nums font-semibold">

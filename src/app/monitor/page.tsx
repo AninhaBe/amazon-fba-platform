@@ -364,7 +364,7 @@ export default function MonitorPage() {
               <div className="table-scroll monitor-transaction-table">
                 <table className="data-table min-w-[720px]">
                   <caption className="sr-only">Transações financeiras recentes</caption>
-                  <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                  <thead className="bg-[var(--ink-03)] text-left text-xs uppercase tracking-wide text-[var(--ink-muted)]">
                     <tr>
                       <th scope="col" className="px-4 py-3">Data</th>
                       <th scope="col" className="px-4 py-3">Transação</th>
@@ -373,17 +373,17 @@ export default function MonitorPage() {
                       <th scope="col" className="px-4 py-3 text-right">Valor</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-[var(--line)]">
                     {transactions.recent.map((transaction) => (
-                      <tr key={transaction.id} className="hover:bg-slate-50">
-                        <td className="whitespace-nowrap px-4 py-3 text-slate-600">
+                      <tr key={transaction.id} className="hover:bg-[var(--ink-03)]">
+                        <td className="whitespace-nowrap px-4 py-3 text-[var(--ink-soft)]">
                           {brDate(transaction.postedDate)}
                         </td>
                         <td className="px-4 py-3">
-                          <p className="font-medium text-slate-800">{transaction.description}</p>
-                          <p className="text-xs text-slate-400">{transaction.type}</p>
+                          <p className="font-medium text-[var(--ink)]">{transaction.description}</p>
+                          <p className="text-xs text-[var(--ink-muted)]">{transaction.type}</p>
                         </td>
-                        <td className="px-4 py-3 font-mono text-xs text-slate-600">
+                        <td className="px-4 py-3 font-mono text-xs text-[var(--ink-soft)]">
                           {transaction.orderId || transaction.sku || "—"}
                         </td>
                         <td className="px-4 py-3">
@@ -392,7 +392,7 @@ export default function MonitorPage() {
                               ? "bg-emerald-100 text-emerald-700"
                               : transaction.status === "DEFERRED"
                                 ? "bg-amber-100 text-amber-700"
-                                : "bg-slate-100 text-slate-600"
+                                : "bg-[var(--ink-05)] text-[var(--ink-soft)]"
                           }`}>
                             {transaction.status === "RELEASED"
                               ? "Liberada"

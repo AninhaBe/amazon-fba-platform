@@ -21,8 +21,21 @@ test("documentação, registry e navegação refletem as capacidades TikTok e Sh
     assert.ok(provider?.capabilities.includes(capability), `capability ${capability}`);
   }
   assert.doesNotMatch(state, /não existe sync, cron nem overview|a ingestão não existe/);
-  assert.match(state, /sync paginado, cron, modelo canônico e overview estão implementados/);
-  assert.match(state, /conciliação financeira real segue parcial/);
+  // A trava é sobre as CAPACIDADES estarem declaradas como implementadas, não
+  // sobre a frase exata. A versão anterior casava uma sentença literal e
+  // quebrou quando `estado-atual.md` foi reescrito — o doc passou a listar
+  // mais coisa (Dashboard e Financeiro), o que deveria FORTALECER a asserção
+  // e em vez disso a derrubou. Teste de documentação que exige uma frase ao pé
+  // da letra impede o doc de melhorar.
+  for (const capacidade of ["sync paginado", "cron", "modelo canônico", "overview"]) {
+    assert.match(state, new RegExp(`TikTok Shop[^\\n]*${capacidade}`, "i"), `TikTok: ${capacidade}`);
+  }
+  assert.match(state, /TikTok Shop[^\n]*implementados/i);
+  // Sem sensibilidade a caixa: a frase virou início de período no doc
+  // ("Conciliação financeira real segue parcial") e o regex minúsculo passou a
+  // falhar por causa de uma letra. A trava é sobre o doc AFIRMAR que a
+  // conciliação está parcial, não sobre onde a frase cai no parágrafo.
+  assert.match(state, /conciliação financeira real segue parcial/i);
   assert.doesNotMatch(docsReadme, /TikTok Shop[^\n]*(?:backlog|aguardando credenciais)/i);
   assert.match(docsReadme, /OAuth, sync, cron e leitura canônica implementados/);
   for (const file of [overview, syncEngine]) {
@@ -42,7 +55,14 @@ test("documentação, registry e navegação refletem as capacidades TikTok e Sh
   for (const capability of ["catalog", "orders", "inventory", "finance"]) {
     assert.ok(shopee?.capabilities.includes(capability), `Shopee capability ${capability}`);
   }
-  assert.match(state, /Go Live submetido em 07\/08, em análise/i);
+  // A trava é sobre o doc registrar que o Go Live da Shopee está PENDENTE e
+  // datado de 07/08 — não sobre as palavras exatas. A redação mudou para uma
+  // mais honesta ("último estado comprovado é 'under review'", com a ressalva
+  // de reconferir no console) e a versão literal anterior derrubou o teste por
+  // causa disso. Um guard de documentação não pode punir o doc por ficar mais
+  // preciso; ele existe para impedir que o doc AFIRME algo já superado.
+  assert.match(state, /Go Live[^\n]*(?:under review|em análise|submetido)/i);
+  assert.match(state, /Go Live[^\n]*07\/08/i);
   assert.doesNotMatch(state, /Shopee Go Live[^\n]*(?:depende[^\n]*ser submetido|aguarda(?:ndo)? submissão)/i);
   assert.match(canonicalSchema, /Shopee → canônico \(implementado e testado em sandbox\)/);
   assert.doesNotMatch(canonicalSchema, /Shopee → canônico \(quando chegar\)/i);

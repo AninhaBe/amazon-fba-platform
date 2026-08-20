@@ -52,7 +52,7 @@ export function MercadoLivreSaldo({ connectionId }: { connectionId?: string }) {
     <section className="saldo-panel" aria-labelledby="saldo-ml-title">
       <div>
         <p className="section-kicker">Saldo no Mercado Livre</p>
-        <h2 id="saldo-ml-title" className="mt-1 text-lg font-semibold text-slate-900">Quando o dinheiro cai</h2>
+        <h2 id="saldo-ml-title" className="mt-1 text-lg font-semibold text-[var(--ink)]">Quando o dinheiro cai</h2>
       </div>
       <div className="saldo-grid">
         <div className="saldo-card">

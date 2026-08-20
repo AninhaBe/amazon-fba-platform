@@ -67,7 +67,7 @@ export function RevenueChart({
   // demais famílias que reutilizam o componente mantêm o vazio já aprovado.
   if (!explorable && points.length === 0) {
     return (
-      <div className="flex h-56 items-center justify-center text-sm text-slate-400">
+      <div className="flex h-56 items-center justify-center text-sm text-[var(--ink-muted)]">
         Sem dados de vendas no período.
       </div>
     );

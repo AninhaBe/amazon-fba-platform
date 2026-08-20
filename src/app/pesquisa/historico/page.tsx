@@ -46,7 +46,7 @@ function Sparkline({ points }: { points: RankPoint[] }) {
   const h = 26;
   if (points.length < 2) {
     return (
-      <span className="text-xs text-slate-300" title="Precisa de pelo menos duas fotos para desenhar a curva">
+      <span className="text-xs text-[var(--ink-faint)]" title="Precisa de pelo menos duas fotos para desenhar a curva">
         —
       </span>
     );
@@ -82,7 +82,7 @@ function Delta({ value, dias }: { value?: number; dias: number }) {
   // dá para comparar"; o âmbar significa "comparei e não mudou".
   if (value == null) {
     return (
-      <span className="text-slate-300" title={`Ainda não há foto de ${dias} dias atrás para comparar`}>
+      <span className="text-[var(--ink-faint)]" title={`Ainda não há foto de ${dias} dias atrás para comparar`}>
         —
       </span>
     );
@@ -128,7 +128,7 @@ function Ajuda({ texto }: { texto: string }) {
       role="img"
       aria-label={texto}
       title={texto}
-      className="ml-1 inline-flex cursor-help align-middle text-slate-400 hover:text-blue-600 focus:text-blue-600 focus:outline-none"
+      className="ml-1 inline-flex cursor-help align-middle text-[var(--ink-muted)] hover:text-blue-600 focus:text-blue-600 focus:outline-none"
     >
       <Info className="h-3.5 w-3.5" strokeWidth={2.2} aria-hidden />
     </span>
@@ -152,7 +152,7 @@ function DeltaUltima({
   const seta = { className: "h-4 w-4 shrink-0", strokeWidth: 3, "aria-hidden": true } as const;
   if (value == null) {
     return (
-      <span className="text-slate-300" title="Só há uma foto até agora — sem comparação possível">
+      <span className="text-[var(--ink-faint)]" title="Só há uma foto até agora — sem comparação possível">
         —
       </span>
     );
@@ -374,12 +374,12 @@ export default function HistoricoPage() {
 
       {terms.length > 0 && (
         <div className="history-terms">
-          <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Você pesquisou</span>
+          <span className="text-xs font-semibold uppercase tracking-wide text-[var(--ink-muted)]">Você pesquisou</span>
           {terms.map((t) => (
             <Link
               key={t}
               href={`/amazon/pesquisa?q=${encodeURIComponent(t)}`}
-              className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 hover:border-blue-400 hover:text-blue-600"
+              className="rounded-full border border-[var(--line-strong)] bg-white px-3 py-1 text-xs font-medium text-[var(--ink-soft)] hover:border-blue-400 hover:text-blue-600"
             >
               {t}
             </Link>
@@ -408,22 +408,22 @@ export default function HistoricoPage() {
                   setPage(1);
                 }}
                 placeholder="Buscar por título, marca, categoria ou ASIN"
-                className="w-full rounded-lg border border-slate-300 px-3.5 py-2 text-base focus:border-blue-500 focus:outline-none sm:text-sm"
+                className="w-full rounded-lg border border-[var(--line-strong)] px-3.5 py-2 text-base focus:border-blue-500 focus:outline-none sm:text-sm"
               />
             </label>
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-[var(--ink-muted)]">
               {query.trim()
                 ? `${visible.length} de ${items.length} anúncio(s)`
                 : `${items.length} anúncio(s) acompanhado(s)`}
               {atualizando && <span className="ml-2 text-xs text-blue-500">· atualizando posições…</span>}
             </p>
           </div>
-          <div className="flex gap-1 rounded-lg border border-slate-200 bg-white p-1 text-xs">
+          <div className="flex gap-1 rounded-lg border border-[var(--line-strong)] bg-white p-1 text-xs">
             {([["recentes", "Mais recentes"], ["alta", "Maior alta"], ["queda", "Maior queda"]] as const).map(([k, label]) => (
               <button
                 key={k}
                 onClick={() => setSort(k)}
-                className={`rounded-md px-3 py-1.5 font-medium ${sort === k ? "bg-blue-100 text-blue-700" : "text-slate-500 hover:text-slate-900"}`}
+                className={`rounded-md px-3 py-1.5 font-medium ${sort === k ? "bg-blue-100 text-blue-700" : "text-[var(--ink-muted)] hover:text-[var(--ink)]"}`}
               >
                 {label}
               </button>
@@ -450,7 +450,7 @@ export default function HistoricoPage() {
             <button
               type="button"
               onClick={() => setSelecionados(new Set())}
-              className="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800"
+              className="rounded-lg px-3 py-1.5 text-xs font-semibold text-[var(--ink-muted)] hover:text-[var(--ink)]"
             >
               Limpar seleção
             </button>
@@ -483,7 +483,7 @@ export default function HistoricoPage() {
               para Produto e nada mais estoura. */}
           <table className="listing-table history-table table-fixed">
           <caption className="sr-only">Anúncios acompanhados e a variação da posição de vendas</caption>
-          <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+          <thead className="bg-[var(--ink-03)] text-left text-xs uppercase tracking-wide text-[var(--ink-muted)]">
             <tr>
               <th scope="col" className="w-10 px-3 py-3">
                 <input
@@ -522,7 +522,7 @@ export default function HistoricoPage() {
               <th scope="col" className="w-36 px-2 py-3 text-right">Ações</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-[var(--line)]">
             {loading && items.length === 0 ? (
               <tr>
                 <td colSpan={9} className="px-4 py-8"><TableLoading label="Carregando histórico" /></td>
@@ -553,7 +553,7 @@ export default function HistoricoPage() {
                       <button
                         type="button"
                         onClick={() => setQuery("")}
-                        className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:border-blue-400 hover:text-blue-600"
+                        className="rounded-lg border border-[var(--line-strong)] px-4 py-2 text-sm font-semibold text-[var(--ink-soft)] hover:border-blue-400 hover:text-blue-600"
                       >
                         Limpar busca
                       </button>
@@ -565,7 +565,7 @@ export default function HistoricoPage() {
               paged.map((p) => (
                 <tr
                   key={p.asin}
-                  className={`hover:bg-slate-50 ${busy === p.asin ? "opacity-50" : ""}${selecionados.has(p.asin) ? " bg-red-50/40" : ""}`}
+                  className={`hover:bg-[var(--ink-03)] ${busy === p.asin ? "opacity-50" : ""}${selecionados.has(p.asin) ? " bg-red-50/40" : ""}`}
                 >
                   <td className="px-3 py-2.5">
                     <input
@@ -582,14 +582,14 @@ export default function HistoricoPage() {
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={p.imageUrl} alt="" className="h-10 w-10 shrink-0 rounded object-contain ring-1 ring-black/10" />
                       ) : (
-                        <span className="h-10 w-10 shrink-0 rounded bg-slate-100" aria-hidden />
+                        <span className="h-10 w-10 shrink-0 rounded bg-[var(--ink-05)]" aria-hidden />
                       )}
                       <div className="min-w-0">
                         <p className="flex items-center gap-1.5 truncate font-medium">
                           {p.pinned && <Pin className="h-3.5 w-3.5 shrink-0 text-blue-600" strokeWidth={2} aria-label="Fixado" />}
                           {p.title || p.asin}
                         </p>
-                        <p className="truncate font-mono text-xs text-slate-400">
+                        <p className="truncate font-mono text-xs text-[var(--ink-muted)]">
                           {p.asin}
                           {p.brand ? ` · ${p.brand}` : ""}
                           {p.lastSearchTerm ? ` · de "${p.lastSearchTerm}"` : ""}
@@ -603,19 +603,19 @@ export default function HistoricoPage() {
                         {/* A data da foto no tooltip é o que explica uma divergência com o
                             valor ao vivo da Amazon sem precisar poluir a célula. */}
                         <strong
-                          className="cursor-help font-semibold text-slate-700"
+                          className="cursor-help font-semibold text-[var(--ink-soft)]"
                           title={p.currentDate ? `Foto de ${brDate(p.currentDate)} — a Amazon recalcula o BSR de hora em hora` : undefined}
                         >
                           #{p.currentRank.toLocaleString("pt-BR")}
                         </strong>
                         {p.category && (
-                          <span className="max-w-full truncate text-[11px] text-slate-400" title={p.category}>
+                          <span className="max-w-full truncate text-[11px] text-[var(--ink-muted)]" title={p.category}>
                             em {p.category}
                           </span>
                         )}
                       </div>
                     ) : (
-                      <span className="text-slate-300" title="Sem posição capturada — o anúncio pode não ter rank na categoria">—</span>
+                      <span className="text-[var(--ink-faint)]" title="Sem posição capturada — o anúncio pode não ter rank na categoria">—</span>
                     )}
                   </td>
                   <td className="px-3 py-2.5 text-center">
@@ -630,7 +630,7 @@ export default function HistoricoPage() {
                   <td className="px-3 py-2.5 text-center"><Delta value={p.delta7} dias={7} /></td>
                   <td className="px-3 py-2.5 text-center"><Delta value={p.delta30} dias={30} /></td>
                   <td className="overflow-hidden px-2 py-2.5 text-center"><Sparkline points={p.series} /></td>
-                  <td className="whitespace-nowrap px-2 py-2.5 text-center text-xs text-slate-500">
+                  <td className="whitespace-nowrap px-2 py-2.5 text-center text-xs text-[var(--ink-muted)]">
                     {brDate(p.firstSeenAt)}
                   </td>
                   <td className="overflow-hidden px-2 py-2.5 text-right">
@@ -641,7 +641,7 @@ export default function HistoricoPage() {
                         disabled={busy === p.asin}
                         title={p.pinned ? "Desafixar" : "Fixar — garante a foto diária mesmo com a lista cheia"}
                         aria-label={p.pinned ? `Desafixar ${p.asin}` : `Fixar ${p.asin}`}
-                        className={`flex h-10 w-10 items-center justify-center rounded-md transition-colors ${p.pinned ? "text-blue-600 hover:bg-blue-50" : "text-slate-400 hover:bg-slate-100 hover:text-slate-700"}`}
+                        className={`flex h-10 w-10 items-center justify-center rounded-md transition-colors ${p.pinned ? "text-blue-600 hover:bg-blue-50" : "text-[var(--ink-muted)] hover:bg-[var(--ink-05)] hover:text-[var(--ink-soft)]"}`}
                       >
                         {p.pinned ? <PinOff className="h-4 w-4" strokeWidth={1.8} /> : <Pin className="h-4 w-4" strokeWidth={1.8} />}
                       </button>
@@ -651,7 +651,7 @@ export default function HistoricoPage() {
                         disabled={busy === p.asin}
                         title="Remover da lista — para de acompanhar, mas o histórico já coletado é preservado"
                         aria-label={`Remover ${p.asin} da lista`}
-                        className="flex h-10 w-10 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                        className="flex h-10 w-10 items-center justify-center rounded-md text-[var(--ink-muted)] transition-colors hover:bg-red-50 hover:text-red-600"
                       >
                         <X className="h-4 w-4" strokeWidth={1.8} />
                       </button>
@@ -659,7 +659,7 @@ export default function HistoricoPage() {
                         href={`https://www.amazon.com.br/dp/${p.asin}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="whitespace-nowrap rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:border-blue-400 hover:text-blue-600"
+                        className="whitespace-nowrap rounded-md border border-[var(--line-strong)] px-2.5 py-1 text-xs font-medium text-[var(--ink-soft)] hover:border-blue-400 hover:text-blue-600"
                       >
                         abrir ↗
                       </a>
@@ -679,15 +679,15 @@ export default function HistoricoPage() {
       </section>
 
       {items.length > 0 && (
-        <div className="space-y-1 text-xs text-slate-400">
+        <div className="space-y-1 text-xs text-[var(--ink-muted)]">
           <p>
-            <strong className="text-slate-500">Posição menor é melhor</strong> — #1 é o mais vendido da categoria.
+            <strong className="text-[var(--ink-muted)]">Posição menor é melhor</strong> — #1 é o mais vendido da categoria.
             A seta segue o número: <strong className="text-red-500">para cima em vermelho</strong> quer dizer que o
             número aumentou e o anúncio piorou; <strong className="text-emerald-600">para baixo em verde</strong>,
             que o número caiu e o anúncio melhorou.
           </p>
           <p>
-            <strong className="text-slate-500">É uma foto por dia.</strong> A Amazon recalcula a posição de vendas
+            <strong className="text-[var(--ink-muted)]">É uma foto por dia.</strong> A Amazon recalcula a posição de vendas
             de hora em hora, então o número aqui pode não bater com o que aparece agora na página do produto — e
             isso não é erro: cada um mostra um momento diferente. Passe o mouse na posição para ver a data da foto.
             Uma captura diária é o suficiente para acompanhar tendência; para reagir a oscilação de hora em hora,
@@ -698,8 +698,8 @@ export default function HistoricoPage() {
             lista, as colunas ficam vazias em vez de comparar prazos diferentes.
           </p>
           <p>
-            <strong className="text-slate-500">Fixar</strong> garante a foto diária: há um teto de anúncios por dia, e o
-            que está fixado nunca fica de fora. <strong className="text-slate-500">Remover</strong> só interrompe o
+            <strong className="text-[var(--ink-muted)]">Fixar</strong> garante a foto diária: há um teto de anúncios por dia, e o
+            que está fixado nunca fica de fora. <strong className="text-[var(--ink-muted)]">Remover</strong> só interrompe o
             acompanhamento — o histórico já coletado é preservado e volta se você pesquisar o produto de novo.
           </p>
         </div>

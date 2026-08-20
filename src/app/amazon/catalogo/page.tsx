@@ -181,7 +181,7 @@ export default function AmazonCatalogPage() {
             {pageCount > 1 && <div className="listing-pagination"><Pagination page={current} pageCount={pageCount} total={visible.length} pageSize={PAGE_SIZE} onPage={setPage} /></div>}
           </section>
 
-          <p className="text-xs text-slate-400">O estoque vem do relatório de anúncios; para itens FBA, a quantidade em estoque na Amazon pode aparecer zerada aqui (o estoque FBA é gerenciado pela Amazon) — use o Radar de estoque para a cobertura FBA.</p>
+          <p className="text-xs text-[var(--ink-muted)]">O estoque vem do relatório de anúncios; para itens FBA, a quantidade em estoque na Amazon pode aparecer zerada aqui (o estoque FBA é gerenciado pela Amazon) — use o Radar de estoque para a cobertura FBA.</p>
         </>
       )}
     </div>

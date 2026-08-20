@@ -81,7 +81,7 @@ export function AmazonTaxRateSetting() {
     <section className="tax-setting" aria-labelledby="tax-setting-title">
       <div>
         <p className="section-kicker">Imposto sobre vendas</p>
-        <h2 id="tax-setting-title" className="mt-1 text-lg font-semibold text-slate-900">Alíquota da Amazon</h2>
+        <h2 id="tax-setting-title" className="mt-1 text-lg font-semibold text-[var(--ink)]">Alíquota da Amazon</h2>
         <p className="tax-setting-help">
           Percentual que você paga sobre o faturamento (no Simples Nacional, o comércio começa perto de 4%).
           Enquanto estiver em branco, o lucro da Amazon aparece <strong>sem imposto</strong> — e não dá para
@@ -101,7 +101,7 @@ export function AmazonTaxRateSetting() {
             onChange={(event) => { setRate(event.target.value); setSalvo(false); }}
             placeholder={carregado ? "ex.: 6" : "Carregando…"}
             disabled={!carregado}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="w-full rounded-lg border border-[var(--line-strong)] px-3 py-2 text-sm"
           />
         </label>
         <button type="submit" disabled={!carregado || salvando} className="tax-setting-save">

@@ -288,8 +288,8 @@ export default function OverviewDashboard() {
         {series.length > 0 && (
           <section className="central-revenue-panel" aria-labelledby="central-revenue-title">
             <div className="mb-2 flex items-baseline justify-between gap-4">
-              <div><p className="section-kicker">Todos os canais</p><h2 id="central-revenue-title" className="mt-1 text-lg font-semibold text-slate-900">Faturamento consolidado por dia</h2></div>
-              <span className="text-sm font-semibold tabular-nums text-slate-900">{money(totals.revenue)} <span className="font-normal text-slate-400">nos últimos 30 dias</span></span>
+              <div><p className="section-kicker">Todos os canais</p><h2 id="central-revenue-title" className="mt-1 text-lg font-semibold text-[var(--ink)]">Faturamento consolidado por dia</h2></div>
+              <span className="text-sm font-semibold tabular-nums text-[var(--ink)]">{money(totals.revenue)} <span className="font-normal text-[var(--ink-muted)]">nos últimos 30 dias</span></span>
             </div>
             <RevenueChart points={series} />
           </section>

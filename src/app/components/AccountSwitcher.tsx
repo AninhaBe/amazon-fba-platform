@@ -162,15 +162,15 @@ export function AccountSwitcher({ compact = false }: { compact?: boolean }) {
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2.5 rounded-xl border border-slate-200/80 bg-slate-50/80 px-3 py-2">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-slate-500 shadow-sm ring-1 ring-slate-200">
+      <div className="flex items-center gap-2.5 rounded-xl border border-[var(--line-strong)]/80 bg-[var(--ink-03)]/80 px-3 py-2">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-[var(--ink-muted)] shadow-sm ring-1 ring-[var(--line-strong)]">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-4 w-4">
             <circle cx="12" cy="8" r="3.2" />
             <path d="M5 20a7 7 0 0 1 14 0" strokeLinecap="round" />
           </svg>
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink-muted)]">
             Conta Amazon ativa
           </p>
           {editing && activeAccount ? (
@@ -184,7 +184,7 @@ export function AccountSwitcher({ compact = false }: { compact?: boolean }) {
                   if (e.key === "Escape") setEditing(false);
                 }}
                 placeholder="Apelido da conta"
-                className="w-full rounded-md border border-slate-300 px-2 py-0.5 text-sm focus:border-blue-500 focus:outline-none"
+                className="w-full rounded-md border border-[var(--line-strong)] px-2 py-0.5 text-sm focus:border-blue-500 focus:outline-none"
               />
               <button
                 onClick={() => saveName(activeAccount.sellerId)}
@@ -197,7 +197,7 @@ export function AccountSwitcher({ compact = false }: { compact?: boolean }) {
             </div>
           ) : (
             <div className="flex items-center gap-1.5">
-              <p className="truncate text-sm font-semibold text-slate-700" title={activeLabel}>
+              <p className="truncate text-sm font-semibold text-[var(--ink-soft)]" title={activeLabel}>
                 {activeLabel}
               </p>
               {activeAccount && (
@@ -208,7 +208,7 @@ export function AccountSwitcher({ compact = false }: { compact?: boolean }) {
                   }}
                   title="Renomear conta"
                   aria-label="Renomear conta"
-                  className="icon-hit-area text-slate-400 hover:text-blue-600"
+                  className="icon-hit-area text-[var(--ink-muted)] hover:text-blue-600"
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-3.5 w-3.5">
                     <path d="M12 20h9" strokeLinecap="round" />
@@ -219,7 +219,7 @@ export function AccountSwitcher({ compact = false }: { compact?: boolean }) {
             </div>
           )}
           {activeAccount && !editing && (
-            <p className="truncate font-mono text-[10px] text-slate-400" title={activeAccount.sellerId}>
+            <p className="truncate font-mono text-[10px] text-[var(--ink-muted)]" title={activeAccount.sellerId}>
               {activeAccount.sellerId}
             </p>
           )}
@@ -232,7 +232,7 @@ export function AccountSwitcher({ compact = false }: { compact?: boolean }) {
           onChange={(e) => switchTo(e.target.value)}
           disabled={busy}
           aria-label="Trocar conta Amazon ativa"
-          className="w-full cursor-pointer rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-600 hover:border-slate-300"
+          className="w-full cursor-pointer rounded-lg border border-[var(--line-strong)] bg-white px-2.5 py-1.5 text-xs text-[var(--ink-soft)] hover:border-[var(--line-strong)]"
         >
           {info.hasOwnerToken && <option value="">Conta principal</option>}
           {info.accounts.map((a) => (

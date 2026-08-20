@@ -129,14 +129,14 @@ export function CustomizableMetricGrid({
     const rows = draftOrder;
     const visibleCount = rows.filter((id) => !draftHidden.has(id)).length;
     return (
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="rounded-2xl border border-[var(--line-strong)] bg-white p-4 shadow-sm">
         <div className="mb-3 flex items-center justify-between gap-2">
           <div>
-            <p className="text-sm font-semibold text-slate-800">Personalizar indicadores</p>
-            <p className="text-xs text-slate-400">Arraste para reordenar · clique no olho para ocultar</p>
+            <p className="text-sm font-semibold text-[var(--ink)]">Personalizar indicadores</p>
+            <p className="text-xs text-[var(--ink-muted)]">Arraste para reordenar · clique no olho para ocultar</p>
           </div>
           <div className="flex items-center gap-2">
-            <button type="button" onClick={() => setEditing(false)} disabled={saving} className="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 disabled:opacity-50">
+            <button type="button" onClick={() => setEditing(false)} disabled={saving} className="rounded-lg px-3 py-1.5 text-xs font-semibold text-[var(--ink-muted)] hover:text-[var(--ink)] disabled:opacity-50">
               Cancelar
             </button>
             <button type="button" onClick={save} disabled={saving || visibleCount === 0} className="rounded-lg bg-blue-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
@@ -156,16 +156,16 @@ export function CustomizableMetricGrid({
                 onDragStart={() => (dragId.current = id)}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={() => onDrop(id)}
-                className={`flex items-center gap-3 rounded-lg border px-3 py-2 ${isHidden ? "border-slate-200 bg-slate-50 opacity-60" : "border-slate-200 bg-white"}`}
+                className={`flex items-center gap-3 rounded-lg border px-3 py-2 ${isHidden ? "border-[var(--line-strong)] bg-[var(--ink-03)] opacity-60" : "border-[var(--line-strong)] bg-white"}`}
               >
-                <span className="cursor-grab text-slate-300" aria-hidden="true"><GripVertical className="h-4 w-4" /></span>
-                <span className="flex-1 truncate text-sm font-medium text-slate-700">{widget.label}</span>
+                <span className="cursor-grab text-[var(--ink-faint)]" aria-hidden="true"><GripVertical className="h-4 w-4" /></span>
+                <span className="flex-1 truncate text-sm font-medium text-[var(--ink-soft)]">{widget.label}</span>
                 <button
                   type="button"
                   onClick={() => toggleHidden(id)}
                   aria-pressed={!isHidden}
                   aria-label={isHidden ? `Mostrar ${widget.label}` : `Ocultar ${widget.label}`}
-                  className={`icon-hit-area ${isHidden ? "text-slate-400 hover:text-slate-600" : "text-blue-600 hover:text-blue-700"}`}
+                  className={`icon-hit-area ${isHidden ? "text-[var(--ink-muted)] hover:text-[var(--ink-soft)]" : "text-blue-600 hover:text-blue-700"}`}
                 >
                   {isHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -185,7 +185,7 @@ export function CustomizableMetricGrid({
         <button
           type="button"
           onClick={startEdit}
-          className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+          className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold text-[var(--ink-muted)] transition-colors hover:bg-[var(--ink-05)] hover:text-[var(--ink-soft)]"
         >
           <Settings2 className="h-3.5 w-3.5" />
           Personalizar

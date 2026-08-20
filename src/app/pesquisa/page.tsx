@@ -206,7 +206,7 @@ export default function PesquisaPage() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="ex: cadeira gamer, fone bluetooth, tapete de yoga…"
-          className="flex-1 rounded-lg border border-slate-300 px-4 py-2.5 focus:border-blue-500 focus:outline-none"
+          className="flex-1 rounded-lg border border-[var(--line-strong)] px-4 py-2.5 focus:border-blue-500 focus:outline-none"
         />
         <button
           type="submit"
@@ -218,11 +218,11 @@ export default function PesquisaPage() {
       </form>
 
       <details className="group research-explainer">
-        <summary className="flex cursor-pointer items-center gap-2 px-4 py-3 font-medium text-slate-700 marker:content-['']">
+        <summary className="flex cursor-pointer items-center gap-2 px-4 py-3 font-medium text-[var(--ink-soft)] marker:content-['']">
           <span className="text-blue-600 transition-transform group-open:rotate-90">▶</span>
           Entenda as colunas: por que “Anúncio criado” e “Idade da linha” diferem?
         </summary>
-        <div className="space-y-3 border-t border-slate-200 px-4 py-3 text-slate-600">
+        <div className="space-y-3 border-t border-[var(--line-strong)] px-4 py-3 text-[var(--ink-soft)]">
           <p>
             Muitos produtos são vendidos em várias <strong>cores/tamanhos</strong>. Cada cor ou
             tamanho é um <strong>anúncio (ASIN) separado</strong>, com sua própria data — mas
@@ -230,15 +230,15 @@ export default function PesquisaPage() {
             <strong>compartilham as avaliações</strong>.
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-lg border border-slate-200 bg-white p-3">
-              <p className="font-semibold text-slate-800">Anúncio criado</p>
+            <div className="rounded-lg border border-[var(--line-strong)] bg-white p-3">
+              <p className="font-semibold text-[var(--ink)]">Anúncio criado</p>
               <p className="mt-1 text-xs">
                 Data de disponibilização <em>daquela variação específica</em> (aquela cor/tamanho).
                 Se o vendedor adicionou uma cor nova hoje a um produto antigo, essa data é recente.
               </p>
             </div>
-            <div className="rounded-lg border border-slate-200 bg-white p-3">
-              <p className="font-semibold text-slate-800">Idade da linha</p>
+            <div className="rounded-lg border border-[var(--line-strong)] bg-white p-3">
+              <p className="font-semibold text-[var(--ink)]">Idade da linha</p>
               <p className="mt-1 text-xs">
                 Quando o <em>produto</em> surgiu no mercado — usamos a data do{" "}
                 <strong>produto-pai</strong>. É a idade real, que bate com as avaliações antigas.
@@ -250,7 +250,7 @@ export default function PesquisaPage() {
             existe desde 12/04/2025 → “Anúncio criado” recente, “Idade da linha” de +1 ano. Uma
             avaliação de 2025 aparece porque a família compartilha reviews.
           </p>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-[var(--ink-muted)]">
             Ressalva honesta: se o vendedor <em>relistou</em> o produto do zero (ASIN novo, sem
             variação), a data reseta e a fonte não informa a idade real — somente a avaliação
             mais antiga poderia indicar isso, mas o histórico de reviews não está disponível.
@@ -270,14 +270,14 @@ export default function PesquisaPage() {
       {items.length > 0 && (
         <div className="filter-toolbar research-controls">
           <div>
-            <p className="text-sm text-slate-500">{items.length} de ~{total.toLocaleString("pt-BR")} resultados</p>
+            <p className="text-sm text-[var(--ink-muted)]">{items.length} de ~{total.toLocaleString("pt-BR")} resultados</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => void search(searchedQuery)}
               disabled={loading}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-600 hover:border-blue-400 hover:text-blue-600 disabled:opacity-50"
+              className="rounded-lg border border-[var(--line-strong)] bg-white px-3 py-2 text-xs font-medium text-[var(--ink-soft)] hover:border-blue-400 hover:text-blue-600 disabled:opacity-50"
             >
               {loading ? "Atualizando…" : "Atualizar resultados"}
             </button>
@@ -289,7 +289,7 @@ export default function PesquisaPage() {
               className={`rounded-lg border px-3 py-2 text-xs font-medium ${
                 somenteFba
                   ? "border-blue-500 bg-blue-50 text-blue-700"
-                  : "border-slate-300 bg-white text-slate-600 hover:border-blue-400 hover:text-blue-600"
+                  : "border-[var(--line-strong)] bg-white text-[var(--ink-soft)] hover:border-blue-400 hover:text-blue-600"
               }`}
             >
               {somenteFba ? "✓ " : ""}Somente FBA
@@ -305,14 +305,14 @@ export default function PesquisaPage() {
                 Logística não consultada — o filtro fica inativo em vez de esconder o que não foi verificado
               </span>
             )}
-            <div className="flex gap-1 rounded-lg border border-slate-200 bg-white p-1 text-xs">
+            <div className="flex gap-1 rounded-lg border border-[var(--line-strong)] bg-white p-1 text-xs">
             {([["recentes", "Mais novos"], ["antigos", "Mais antigos"], ["bsr", "Melhor posição"], ["fba", "Menor preço FBA"]] as const).map(
               ([k, label]) => (
                 <button
                   key={k}
                   onClick={() => setSort(k)}
                   className={`rounded-md px-3 py-1.5 font-medium ${
-                    sort === k ? "bg-blue-100 text-blue-700" : "text-slate-500 hover:text-slate-900"
+                    sort === k ? "bg-blue-100 text-blue-700" : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
                   }`}
                 >
                   {label}
@@ -328,7 +328,7 @@ export default function PesquisaPage() {
         <header><div><p className="section-kicker">Mercado Amazon</p><h2 id="research-results-title">{searched ? `${sorted.length} ${sorted.length === 1 ? "resultado carregado" : "resultados carregados"}` : "Encontre e compare produtos"}</h2></div><p>{searched ? `cerca de ${total.toLocaleString("pt-BR")} encontrados` : "preço, concorrência, idade e posição"}</p></header>
         <div className="overflow-x-auto"><table className="listing-table research-table">
           <caption className="sr-only">Resultados da pesquisa de anúncios da Amazon</caption>
-          <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+          <thead className="bg-[var(--ink-03)] text-left text-xs uppercase tracking-wide text-[var(--ink-muted)]">
             <tr>
               <th scope="col" className="px-3 py-3">Produto</th>
               <th
@@ -360,7 +360,7 @@ export default function PesquisaPage() {
               <th scope="col" className="px-3 py-3 text-right">Ações</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-[var(--line)]">
             {!searched ? (
               <tr>
                 <td colSpan={6} className="px-4 py-6"><EmptyState kind="search" title="Pesquise o mercado Amazon" description="Digite um produto, marca ou palavra-chave para comparar anúncios, preços e concorrência." /></td>
@@ -379,7 +379,7 @@ export default function PesquisaPage() {
                 const age = ageLabel(eff);
                 const isNew = eff && REFERENCE_NOW - new Date(eff).getTime() < 180 * 86400000;
                 return (
-                  <tr key={p.asin} className="hover:bg-slate-50">
+                  <tr key={p.asin} className="hover:bg-[var(--ink-03)]">
                     <td className="px-3 py-2.5">
                       <div className="flex items-center gap-3">
                         {p.imageUrl && (
@@ -398,14 +398,14 @@ export default function PesquisaPage() {
                               </span>
                             )}
                           </p>
-                          <p className="font-mono text-xs text-slate-400">
+                          <p className="font-mono text-xs text-[var(--ink-muted)]">
                             {p.asin}
                             {p.brand ? ` · ${p.brand}` : ""}
                           </p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-3 py-2.5 text-right tabular-nums font-medium text-slate-700">
+                    <td className="px-3 py-2.5 text-right tabular-nums font-medium text-[var(--ink-soft)]">
                       {somenteFba ? (
                         <span className="inline-flex items-center gap-1.5">
                           <span className="font-semibold text-blue-700">{money(p.fbaPrice, p.currency)}</span>
@@ -422,7 +422,7 @@ export default function PesquisaPage() {
                         money(p.price, p.currency)
                       )}
                     </td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">
+                    <td className="px-3 py-2.5 text-right tabular-nums text-[var(--ink-soft)]">
                       {p.offerCount != null ? p.offerCount : "—"}
                     </td>
                     <td className="px-3 py-2.5 text-right">
@@ -430,7 +430,7 @@ export default function PesquisaPage() {
                         {age ? (
                           <span
                             className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${
-                              isNew ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
+                              isNew ? "bg-emerald-100 text-emerald-700" : "bg-[var(--ink-05)] text-[var(--ink-muted)]"
                             }`}
                             title={
                               p.isVariation
@@ -442,14 +442,14 @@ export default function PesquisaPage() {
                             {p.isVariation && <span className="ml-1 opacity-60">·var</span>}
                           </span>
                         ) : (
-                          <span className="text-slate-400">—</span>
+                          <span className="text-[var(--ink-muted)]">—</span>
                         )}
-                        <span className="whitespace-nowrap text-[11px] text-slate-400">
+                        <span className="whitespace-nowrap text-[11px] text-[var(--ink-muted)]">
                           criado {fmtDate(p.launchDate)}
                         </span>
                       </div>
                     </td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">
+                    <td className="px-3 py-2.5 text-right tabular-nums text-[var(--ink-soft)]">
                       {p.salesRank ? (
                         <div className="flex flex-col items-end gap-0.5">
                           <span className="inline-flex items-baseline gap-1.5">
@@ -475,10 +475,10 @@ export default function PesquisaPage() {
                                 {Math.abs(p.rankDelta).toLocaleString("pt-BR")}
                               </span>
                             )}
-                            <strong className="font-semibold text-slate-700">#{p.salesRank.toLocaleString("pt-BR")}</strong>
+                            <strong className="font-semibold text-[var(--ink-soft)]">#{p.salesRank.toLocaleString("pt-BR")}</strong>
                           </span>
                           {p.salesRankCategory && (
-                            <span className="max-w-[24ch] truncate text-[11px] text-slate-400" title={p.salesRankCategory}>
+                            <span className="max-w-[24ch] truncate text-[11px] text-[var(--ink-muted)]" title={p.salesRankCategory}>
                               em {p.salesRankCategory}
                             </span>
                           )}
@@ -505,7 +505,7 @@ export default function PesquisaPage() {
                           className={`inline-flex items-center gap-1 whitespace-nowrap rounded-md border px-2.5 py-1 text-xs font-semibold disabled:opacity-50 ${
                             p.monitorado
                               ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:border-red-300 hover:bg-red-50 hover:text-red-600"
-                              : "border-slate-300 text-slate-600 hover:border-blue-400 hover:text-blue-600"
+                              : "border-[var(--line-strong)] text-[var(--ink-soft)] hover:border-blue-400 hover:text-blue-600"
                           }`}
                         >
                           {p.monitorado ? (
@@ -530,7 +530,7 @@ export default function PesquisaPage() {
                           href={`https://www.amazon.com.br/dp/${p.asin}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="whitespace-nowrap rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:border-blue-400 hover:text-blue-600"
+                          className="whitespace-nowrap rounded-md border border-[var(--line-strong)] px-2.5 py-1 text-xs font-medium text-[var(--ink-soft)] hover:border-blue-400 hover:text-blue-600"
                         >
                           abrir ↗
                         </a>
@@ -548,7 +548,7 @@ export default function PesquisaPage() {
           <button
             onClick={loadMore}
             disabled={loading}
-            className="rounded-lg border border-slate-300 px-6 py-2 text-sm font-medium hover:bg-slate-100 disabled:opacity-50"
+            className="rounded-lg border border-[var(--line-strong)] px-6 py-2 text-sm font-medium hover:bg-[var(--ink-05)] disabled:opacity-50"
           >
             {loading ? "Carregando…" : "Carregar mais"}
           </button>
@@ -557,10 +557,10 @@ export default function PesquisaPage() {
       </section>
 
       {items.length > 0 && (
-        <div className="space-y-1 text-xs text-slate-400">
+        <div className="space-y-1 text-xs text-[var(--ink-muted)]">
           <p>
-            <strong className="text-slate-500">Anúncio criado</strong> = data deste ASIN
-            específico (cor/tamanho). <strong className="text-slate-500">Idade da linha</strong> =
+            <strong className="text-[var(--ink-muted)]">Anúncio criado</strong> = data deste ASIN
+            específico (cor/tamanho). <strong className="text-[var(--ink-muted)]">Idade da linha</strong> =
             idade do produto no mercado; para <span className="text-violet-600">variações</span>,
             usa a data do produto-pai (a família compartilha as avaliações, por isso a data do
             anúncio pode ser mais recente que reviews antigas).

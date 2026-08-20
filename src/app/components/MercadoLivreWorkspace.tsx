@@ -223,7 +223,7 @@ function Dashboard({ overview, updatedAt }: { overview: Overview; updatedAt: Dat
   const resultIncomplete = !profitCoverage.complete || overview.profit.unitsWithoutCost > 0 || !overview.profit.shippingCostsComplete || overview.profit.taxes == null;
   const netReceived = overview.profit.revenueProcessed - overview.profit.fees - overview.profit.sellerShipping;
   return <div className="dashboard-sections ml-dashboard-body">
-    {updatedAt && <p className="-mt-5 text-xs text-slate-400">Atualizado às {brTime(updatedAt)}{overview.metrics.lastSaleAt ? ` · última venda contabilizada às ${brTime(overview.metrics.lastSaleAt, true)}` : ""}. Compare no mesmo horário com o painel do Mercado Livre.</p>}
+    {updatedAt && <p className="-mt-5 text-xs text-[var(--ink-muted)]">Atualizado às {brTime(updatedAt)}{overview.metrics.lastSaleAt ? ` · última venda contabilizada às ${brTime(overview.metrics.lastSaleAt, true)}` : ""}. Compare no mesmo horário com o painel do Mercado Livre.</p>}
 
     <OperationPending items={overview.metrics.productsWithoutCost > 0 ? [{ label: `Cadastrar custo de ${overview.metrics.productsWithoutCost} produto(s)`, href: "/mercado-livre/produtos" }] : []} />
 
@@ -244,8 +244,8 @@ function Dashboard({ overview, updatedAt }: { overview: Overview; updatedAt: Dat
     <section className="performance-panel">
       <div className="performance-chart">
         <div className="mb-2 flex items-baseline justify-between gap-4">
-          <div><p className="section-kicker">Desempenho diário</p><h2 className="mt-1 text-lg font-semibold text-slate-900">Evolução do faturamento</h2></div>
-          <span className="text-sm font-semibold tabular-nums text-slate-900">{money(overview.metrics.revenue30d, overview.metrics.currency)} <span className="font-normal text-slate-400">no período</span></span>
+          <div><p className="section-kicker">Desempenho diário</p><h2 className="mt-1 text-lg font-semibold text-[var(--ink)]">Evolução do faturamento</h2></div>
+          <span className="text-sm font-semibold tabular-nums text-[var(--ink)]">{money(overview.metrics.revenue30d, overview.metrics.currency)} <span className="font-normal text-[var(--ink-muted)]">no período</span></span>
         </div>
         <div className="chart-inline-stats" aria-label="Indicadores complementares">
           {/* Aprovadas, Canceladas, Ticket e ROI viraram cards na grade acima —
@@ -256,7 +256,7 @@ function Dashboard({ overview, updatedAt }: { overview: Overview; updatedAt: Dat
         <RevenueChart points={overview.dailySales} />
       </div>
       <aside className="financial-composition" aria-label="Resumo do resultado financeiro">
-        <div><p className="section-kicker">Resultado do período</p><h2 className="mt-1 text-lg font-semibold text-slate-900">Do faturamento ao lucro</h2><p className="mt-1 text-xs leading-relaxed text-slate-400">{profitCoverage.complete ? "Valores efetivamente identificados no período." : `Detalhamento processado em ${profitCoverage.processedOrders} de ${profitCoverage.paidOrders} vendas.`}</p></div>
+        <div><p className="section-kicker">Resultado do período</p><h2 className="mt-1 text-lg font-semibold text-[var(--ink)]">Do faturamento ao lucro</h2><p className="mt-1 text-xs leading-relaxed text-[var(--ink-muted)]">{profitCoverage.complete ? "Valores efetivamente identificados no período." : `Detalhamento processado em ${profitCoverage.processedOrders} de ${profitCoverage.paidOrders} vendas.`}</p></div>
         <div className="financial-lines">
           <Flow label={profitCoverage.complete ? "Receita paga" : "Receita processada"} value={money(overview.profit.revenueProcessed, overview.metrics.currency)} />
           <FlowExpandable
@@ -282,10 +282,10 @@ function Dashboard({ overview, updatedAt }: { overview: Overview; updatedAt: Dat
 
     <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
       <Panel title="Estoque crítico" href="/mercado-livre/estoque" linkLabel="Ver radar">
-        {critical.length === 0 ? <Empty>Nenhum produto em ruptura iminente.</Empty> : <ul className="divide-y divide-slate-100">{critical.slice(0, 6).map((product) => <li key={product.id} className="flex items-center justify-between py-2.5 text-sm"><span className="min-w-0 truncate pr-3">{product.title || product.sku || product.id}</span><span className="shrink-0 font-semibold text-red-600">{product.status === "out" ? "esgotado" : `${product.daysRemaining} dias`}</span></li>)}</ul>}
+        {critical.length === 0 ? <Empty>Nenhum produto em ruptura iminente.</Empty> : <ul className="divide-y divide-[var(--line)]">{critical.slice(0, 6).map((product) => <li key={product.id} className="flex items-center justify-between py-2.5 text-sm"><span className="min-w-0 truncate pr-3">{product.title || product.sku || product.id}</span><span className="shrink-0 font-semibold text-red-600">{product.status === "out" ? "esgotado" : `${product.daysRemaining} dias`}</span></li>)}</ul>}
       </Panel>
       <Panel title="Pedidos recentes" href="/mercado-livre/monitor" linkLabel="Abrir monitor">
-        {overview.recentOrders.length === 0 ? <Empty>Nenhum pedido no período.</Empty> : <ul className="divide-y divide-slate-100">{overview.recentOrders.slice(0, 6).map((order) => <li key={order.id} className="flex items-center justify-between py-2.5 text-sm"><span className="min-w-0"><span className="block truncate font-mono text-xs text-slate-500">#{order.id}</span><span className="text-xs text-slate-400">{brDate(order.createdAt)} · {orderStatus(order.status)}</span></span><span className="shrink-0 font-medium tabular-nums">{money(order.total, order.currency)}</span></li>)}</ul>}
+        {overview.recentOrders.length === 0 ? <Empty>Nenhum pedido no período.</Empty> : <ul className="divide-y divide-[var(--line)]">{overview.recentOrders.slice(0, 6).map((order) => <li key={order.id} className="flex items-center justify-between py-2.5 text-sm"><span className="min-w-0"><span className="block truncate font-mono text-xs text-[var(--ink-muted)]">#{order.id}</span><span className="text-xs text-[var(--ink-muted)]">{brDate(order.createdAt)} · {orderStatus(order.status)}</span></span><span className="shrink-0 font-medium tabular-nums">{money(order.total, order.currency)}</span></li>)}</ul>}
       </Panel>
     </div>
 
@@ -315,7 +315,7 @@ const dashboardKpiIcons = {
 };
 
 function Panel({ title, href, linkLabel, children }: { title: string; href: string; linkLabel: string; children: React.ReactNode }) {
-  return <div className="work-panel border-t border-slate-300 py-5"><div className="mb-3 flex items-center justify-between border-b border-slate-100 pb-3"><h2 className="text-[13px] font-semibold text-slate-700">{title}</h2><Link href={href} className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:gap-1.5 hover:text-blue-700">{linkLabel}<span aria-hidden="true">→</span></Link></div>{children}</div>;
+  return <div className="work-panel border-t border-[var(--line-strong)] py-5"><div className="mb-3 flex items-center justify-between border-b border-[var(--line)] pb-3"><h2 className="text-[13px] font-semibold text-[var(--ink-soft)]">{title}</h2><Link href={href} className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:gap-1.5 hover:text-blue-700">{linkLabel}<span aria-hidden="true">→</span></Link></div>{children}</div>;
 }
 
 function Empty({ children }: { children: React.ReactNode }) {
@@ -323,7 +323,7 @@ function Empty({ children }: { children: React.ReactNode }) {
 }
 
 function QuickLink({ href, label, desc }: { href: string; label: string; desc: string }) {
-  return <Link href={href} className="quick-command group flex items-center justify-between border-t border-slate-300 py-4"><div><p className="text-sm font-semibold text-slate-900">{label}</p><p className="text-xs text-slate-400">{desc}</p></div><span className="text-slate-300 transition-[transform,color] group-hover:translate-x-0.5 group-hover:text-yellow-600">→</span></Link>;
+  return <Link href={href} className="quick-command group flex items-center justify-between border-t border-[var(--line-strong)] py-4"><div><p className="text-sm font-semibold text-[var(--ink)]">{label}</p><p className="text-xs text-[var(--ink-muted)]">{desc}</p></div><span className="text-[var(--ink-faint)] transition-[transform,color] group-hover:translate-x-0.5 group-hover:text-yellow-600">→</span></Link>;
 }
 
 function Inventory({ overview }: { overview: Overview }) {

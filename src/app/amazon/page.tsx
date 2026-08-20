@@ -449,11 +449,11 @@ export default function Dashboard() {
                   pedido, preço de tabela, inclui pendente) e é maior que o card
                   de Faturamento, que mostra o conciliado. Dois números com o
                   mesmo nome na mesma tela era o que confundia. */}
-              <h2 className="mt-1 text-lg font-semibold text-slate-900">Evolução das vendas</h2>
+              <h2 className="mt-1 text-lg font-semibold text-[var(--ink)]">Evolução das vendas</h2>
             </div>
-            <span className="text-sm font-semibold tabular-nums text-slate-900">
+            <span className="text-sm font-semibold tabular-nums text-[var(--ink)]">
               {money(revenue, currency)}{" "}
-              <span className="font-normal text-slate-400">em pedidos recebidos</span>
+              <span className="font-normal text-[var(--ink-muted)]">em pedidos recebidos</span>
             </span>
           </div>
           {/* Onde o dinheiro está, não só quanto foi vendido. A diferença entre os
@@ -476,8 +476,8 @@ export default function Dashboard() {
         <aside className="financial-composition" aria-label="Financeiro conciliado do período">
           <div>
             <p className="section-kicker">Financeiro conciliado</p>
-            <h2 className="mt-1 text-lg font-semibold text-slate-900">Repasses, taxas e {costsIncomplete ? "resultado" : "lucro"}</h2>
-            <p className="mt-1 text-xs leading-relaxed text-slate-400">Base dos repasses da Amazon (data de postagem) — difere do faturamento acima, que segue a data do pedido como o Seller Central.</p>
+            <h2 className="mt-1 text-lg font-semibold text-[var(--ink)]">Repasses, taxas e {costsIncomplete ? "resultado" : "lucro"}</h2>
+            <p className="mt-1 text-xs leading-relaxed text-[var(--ink-muted)]">Base dos repasses da Amazon (data de postagem) — difere do faturamento acima, que segue a data do pedido como o Seller Central.</p>
             {conciliacao && !conciliacao.complete && (
               // Regra do AGENTS.md: dado parcial DIZ que é parcial. Sem esta faixa,
               // esta seção mostrava R$ 10 mil ao lado de um faturamento de R$ 35 mil
@@ -492,7 +492,7 @@ export default function Dashboard() {
           {!loading && !hasFinance ? (
             // Sem transação postada não há cascata: zerar receita, taxas e lucro
             // faria a tela afirmar que a venda não rendeu nada.
-            <p className="text-sm leading-relaxed text-slate-500">
+            <p className="text-sm leading-relaxed text-[var(--ink-muted)]">
               A Amazon ainda não postou repasse deste período. As vendas já aparecem no faturamento
               (data do pedido); taxas e lucro entram aqui quando o pedido é postado e liquidado.
             </p>
@@ -561,7 +561,7 @@ export default function Dashboard() {
           ) : critical.length === 0 ? (
             <Empty>Nenhum SKU em ruptura iminente.</Empty>
           ) : (
-            <ul className="divide-y divide-slate-100">
+            <ul className="divide-y divide-[var(--line)]">
               {critical.slice(0, 6).map((r) => (
                 <li key={r.sellerSku} className="flex items-center justify-between py-2.5 text-sm">
                   <span className="min-w-0 truncate pr-3">{r.productName || r.sellerSku}</span>
@@ -580,14 +580,14 @@ export default function Dashboard() {
           ) : !orders || orders.orders.length === 0 ? (
             <Empty>Nenhum pedido no período.</Empty>
           ) : (
-            <ul className="divide-y divide-slate-100">
+            <ul className="divide-y divide-[var(--line)]">
               {orders.orders.slice(0, 6).map((o) => (
                 <li key={o.amazonOrderId} className="flex items-center justify-between py-2.5 text-sm">
                   <span className="min-w-0">
-                    <span className="block truncate font-mono text-xs text-slate-500">
+                    <span className="block truncate font-mono text-xs text-[var(--ink-muted)]">
                       {o.amazonOrderId}
                     </span>
-                    <span className="text-xs text-slate-400">
+                    <span className="text-xs text-[var(--ink-muted)]">
                       {brDate(o.purchaseDate)} · {o.orderStatus}
                     </span>
                   </span>
@@ -701,20 +701,20 @@ function Flow({
   return (
     <div className={`financial-line ${accent ? `is-result is-result-${tone}` : ""} ${subtotal ? "is-subtotal" : ""}`}>
       <span className="financial-sign" aria-hidden="true">{sign}</span>
-      <p className={detail ? "pl-3 text-xs text-slate-400" : "text-xs font-medium text-slate-500"}>{label}</p>
+      <p className={detail ? "pl-3 text-xs text-[var(--ink-muted)]" : "text-xs font-medium text-[var(--ink-muted)]"}>{label}</p>
       <p
-        className={`tabular-nums ${detail ? "text-xs text-slate-500" : "text-sm font-bold"} ${
+        className={`tabular-nums ${detail ? "text-xs text-[var(--ink-muted)]" : "text-sm font-bold"} ${
           accent
             ? tone === "positive"
               ? "text-emerald-700"
               : tone === "danger"
                 ? "text-red-600"
-                : "text-slate-900"
+                : "text-[var(--ink)]"
             : muted && !detail
-              ? "text-slate-700"
+              ? "text-[var(--ink-soft)]"
               : detail
                 ? ""
-                : "text-slate-900"
+                : "text-[var(--ink)]"
         }`}
       >
         {value}
@@ -738,7 +738,7 @@ function SaldoNaAmazon({ saldo }: { saldo: SaldoData }) {
     <section className="saldo-panel" aria-labelledby="saldo-title">
       <div>
         <p className="section-kicker">Saldo na Amazon</p>
-        <h2 id="saldo-title" className="mt-1 text-lg font-semibold text-slate-900">O que você tem hoje</h2>
+        <h2 id="saldo-title" className="mt-1 text-lg font-semibold text-[var(--ink)]">O que você tem hoje</h2>
       </div>
       <div className="saldo-grid">
         <div className={`saldo-card${saldo.seraCobrado ? " is-cobranca" : ""}`}>
@@ -806,9 +806,9 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <div className="work-panel border-t border-slate-300 py-5">
-      <div className="mb-3 flex items-center justify-between border-b border-slate-100 pb-3">
-        <h2 className="text-[13px] font-semibold text-slate-700">{title}</h2>
+    <div className="work-panel border-t border-[var(--line-strong)] py-5">
+      <div className="mb-3 flex items-center justify-between border-b border-[var(--line)] pb-3">
+        <h2 className="text-[13px] font-semibold text-[var(--ink-soft)]">{title}</h2>
         <Link
           href={href}
           className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:gap-1.5 hover:text-blue-700"
@@ -830,13 +830,13 @@ function QuickLink({ href, label, desc }: { href: string; label: string; desc: s
   return (
     <Link
       href={href}
-      className="quick-command group flex items-center justify-between border-t border-slate-300 py-4"
+      className="quick-command group flex items-center justify-between border-t border-[var(--line-strong)] py-4"
     >
       <div>
-        <p className="text-sm font-semibold text-slate-900">{label}</p>
-        <p className="text-xs text-slate-400">{desc}</p>
+        <p className="text-sm font-semibold text-[var(--ink)]">{label}</p>
+        <p className="text-xs text-[var(--ink-muted)]">{desc}</p>
       </div>
-      <span className="text-slate-300 transition-[transform,color] group-hover:translate-x-0.5 group-hover:text-blue-500">
+      <span className="text-[var(--ink-faint)] transition-[transform,color] group-hover:translate-x-0.5 group-hover:text-blue-500">
         →
       </span>
     </Link>

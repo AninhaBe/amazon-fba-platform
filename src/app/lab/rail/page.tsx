@@ -36,11 +36,11 @@ export default function LabRail() {
       <OperationsRail workspace={workspace} />
       <div className="flex min-w-0 flex-1 flex-col">
         <main className="operations-canvas mx-auto w-full max-w-[1500px] flex-1 px-5 py-7 sm:px-8 lg:px-10 lg:py-9">
-          <div className="mb-6 rounded-xl border border-slate-200 bg-white p-5">
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
+          <div className="mb-6 rounded-xl border border-[var(--line-strong)] bg-white p-5">
+            <p className="text-xs font-bold uppercase tracking-wider text-[var(--ink-muted)]">
               Bancada do menu real
             </p>
-            <p className="mt-2 text-sm text-slate-700">
+            <p className="mt-2 text-sm text-[var(--ink-soft)]">
               Este é o <code>OperationsRail</code> de produção. Passe o mouse: o painel abre
               por cima e os cards abaixo <strong>não se mexem</strong>. O botão no topo do
               painel fixa aberto, e a escolha sobrevive ao reload.
@@ -53,8 +53,8 @@ export default function LabRail() {
                   onClick={() => setWorkspace(c.id)}
                   className={`rounded-lg border px-3 py-1.5 text-xs font-semibold ${
                     c.id === workspace
-                      ? "border-slate-800 bg-slate-900 text-white"
-                      : "border-slate-200 bg-white text-slate-700"
+                      ? "border-[var(--ink)] bg-[var(--ink)] text-white"
+                      : "border-[var(--line-strong)] bg-white text-[var(--ink-soft)]"
                   }`}
                 >
                   {c.nome}
@@ -66,15 +66,15 @@ export default function LabRail() {
           {/* Cards de mentira: existem só para ter o que o painel sobrepor. */}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {["Faturamento", "Taxas", "Lucro", "Estoque"].map((t) => (
-              <div key={t} className="rounded-xl border border-slate-200 bg-white p-4">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{t}</p>
-                <div className="mt-3 h-4 rounded bg-slate-100" />
-                <div className="mt-2 h-2.5 w-1/2 rounded bg-slate-50" />
+              <div key={t} className="rounded-xl border border-[var(--line-strong)] bg-white p-4">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--ink-muted)]">{t}</p>
+                <div className="mt-3 h-4 rounded bg-[var(--ink-05)]" />
+                <div className="mt-2 h-2.5 w-1/2 rounded bg-[var(--ink-03)]" />
               </div>
             ))}
           </div>
-          <div className="mt-3 h-64 rounded-xl border border-slate-200 bg-white" />
-          <div className="mt-3 h-40 rounded-xl border border-slate-200 bg-white" />
+          <div className="mt-3 h-64 rounded-xl border border-[var(--line-strong)] bg-white" />
+          <div className="mt-3 h-40 rounded-xl border border-[var(--line-strong)] bg-white" />
         </main>
       </div>
     </div>

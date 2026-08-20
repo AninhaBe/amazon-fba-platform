@@ -11,8 +11,8 @@ export default function ErrorPage({ reset }: { error: Error & { digest?: string 
   return (
     <section role="alert" className="mx-auto max-w-xl rounded-2xl border border-red-200 bg-white p-8 text-center shadow-sm">
       <p className="text-xs font-semibold uppercase tracking-wide text-red-600">Algo deu errado</p>
-      <h1 className="mt-2 text-2xl font-bold text-slate-900">Não foi possível abrir esta área</h1>
-      <p className="mt-2 text-sm text-slate-500">
+      <h1 className="mt-2 text-2xl font-bold text-[var(--ink)]">Não foi possível abrir esta área</h1>
+      <p className="mt-2 text-sm text-[var(--ink-muted)]">
         Pode ter sido uma falha momentânea. Tente novamente; se continuar, recarregue a página.
       </p>
       <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
@@ -24,7 +24,7 @@ export default function ErrorPage({ reset }: { error: Error & { digest?: string 
         </button>
         <button
           onClick={() => window.location.reload()}
-          className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          className="rounded-lg border border-[var(--line-strong)] px-4 py-2 text-sm font-semibold text-[var(--ink-soft)] hover:bg-[var(--ink-03)]"
         >
           Recarregar a página
         </button>

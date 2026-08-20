@@ -169,7 +169,7 @@ export default function AuditoriaPage() {
               <div className="overflow-x-auto">
               <table className="listing-table audit-table table-fixed">
                 <caption className="sr-only">Pedidos com frete cobrado diferente do declarado</caption>
-                <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                <thead className="bg-[var(--ink-03)] text-left text-xs uppercase tracking-wide text-[var(--ink-muted)]">
                   <tr>
                     <th scope="col" className="px-3 py-3">Pedido</th>
                     <th scope="col" className="w-28 px-3 py-3 text-right">Previsto</th>
@@ -179,27 +179,27 @@ export default function AuditoriaPage() {
                     <th scope="col" className="w-28 px-3 py-3 text-right">Data</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-[var(--line)]">
                   {dados.pedidos.map((p) => (
                     <tr key={p.orderId}>
                       <td className="px-3 py-2.5">
                         <span className="block truncate font-mono text-xs">{p.orderId}</span>
-                        {p.shipmentId && <span className="block truncate text-[11px] text-slate-400">envio {p.shipmentId}</span>}
+                        {p.shipmentId && <span className="block truncate text-[11px] text-[var(--ink-muted)]">envio {p.shipmentId}</span>}
                       </td>
-                      <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">
+                      <td className="px-3 py-2.5 text-right tabular-nums text-[var(--ink-soft)]">
                         {money(p.esperado, dados.currency)}
-                        <span className="block text-[11px] text-slate-400">
+                        <span className="block text-[11px] text-[var(--ink-muted)]">
                           você {money(p.esperadoVendedor, dados.currency)} + comprador {money(p.esperadoComprador, dados.currency)}
                         </span>
                       </td>
-                      <td className="px-3 py-2.5 text-right tabular-nums text-slate-900">{money(p.cobrado, dados.currency)}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums text-[var(--ink)]">{money(p.cobrado, dados.currency)}</td>
                       <td className={`px-3 py-2.5 text-right font-semibold tabular-nums ${p.diferenca > 0 ? "text-red-600" : "text-emerald-700"}`}>
                         {p.diferenca > 0 ? "+" : ""}{money(p.diferenca, dados.currency)}
                       </td>
-                      <td className="px-3 py-2.5 text-right tabular-nums text-slate-500">
+                      <td className="px-3 py-2.5 text-right tabular-nums text-[var(--ink-muted)]">
                         {p.transactionAmount == null ? "—" : money(p.transactionAmount, dados.currency)}
                       </td>
-                      <td className="px-3 py-2.5 text-right text-xs text-slate-500">
+                      <td className="px-3 py-2.5 text-right text-xs text-[var(--ink-muted)]">
                         {p.paidAt ? brDate(p.paidAt) : "—"}
                       </td>
                     </tr>

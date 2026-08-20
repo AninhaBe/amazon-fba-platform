@@ -174,10 +174,10 @@ export default function DesempenhoPage() {
 
       {!error && summary && (
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-[var(--ink-muted)]">
             Dados consolidados de {new Date(`${summary.startDate}T12:00:00`).toLocaleDateString("pt-BR")} a {new Date(`${summary.endDate}T12:00:00`).toLocaleDateString("pt-BR")}
           </p>
-          <button type="button" onClick={() => void load(days)} disabled={loading} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-600 disabled:opacity-50">
+          <button type="button" onClick={() => void load(days)} disabled={loading} className="rounded-lg border border-[var(--line-strong)] bg-white px-3 py-2 text-xs font-semibold text-[var(--ink-soft)] disabled:opacity-50">
             {loading ? "Atualizando…" : "Atualizar dados"}
           </button>
         </div>
@@ -200,7 +200,7 @@ export default function DesempenhoPage() {
         <header><div><p className="section-kicker">Detalhamento</p><h2 id="performance-results-title">{loading ? "Carregando desempenho" : error ? "Dados indisponíveis" : `${rows.length} ${rows.length === 1 ? "produto encontrado" : "produtos encontrados"}`}</h2></div><p>Sales & Traffic por produto</p></header>
         <div className="overflow-x-auto"><table className="listing-table performance-table">
           <caption className="sr-only">Desempenho de tráfego e conversão por produto</caption>
-          <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+          <thead className="bg-[var(--ink-03)] text-left text-xs uppercase tracking-wide text-[var(--ink-muted)]">
             <tr>
               <th scope="col" className="px-4 py-3">Produto / SKU</th>
               <th scope="col" className="px-4 py-3 text-right">Sessões</th>
@@ -211,7 +211,7 @@ export default function DesempenhoPage() {
               <th scope="col" className="px-4 py-3 text-right">Receita</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-[var(--line)]">
             {loading ? (
               <tr><td colSpan={7} className="px-4 py-8"><TableLoading label="A Amazon está consolidando as métricas de tráfego" /></td></tr>
             ) : error ? (
@@ -221,11 +221,11 @@ export default function DesempenhoPage() {
             ) : pagedRows.map((row) => (
               <tr key={`${row.sku}-${row.asin || ""}`}>
                 <td className="px-4 py-3">
-                  <p className="max-w-[300px] truncate font-medium text-slate-800">{row.title || row.asin || row.sku}</p>
-                  <p className="mt-0.5 font-mono text-xs text-slate-400">{row.sku}{row.asin ? ` · ${row.asin}` : ""}</p>
+                  <p className="max-w-[300px] truncate font-medium text-[var(--ink)]">{row.title || row.asin || row.sku}</p>
+                  <p className="mt-0.5 font-mono text-xs text-[var(--ink-muted)]">{row.sku}{row.asin ? ` · ${row.asin}` : ""}</p>
                 </td>
                 <td className="px-4 py-3 text-right font-medium tabular-nums">{integer.format(row.sessions)}</td>
-                <td className="px-4 py-3 text-right text-slate-500 tabular-nums">{integer.format(row.pageViews)}</td>
+                <td className="px-4 py-3 text-right text-[var(--ink-muted)] tabular-nums">{integer.format(row.pageViews)}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{integer.format(row.orders)}</td>
                 <td className="px-4 py-3 text-right font-semibold tabular-nums">{percent(row.conversion)}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{percent(row.buyBoxPercentage)}</td>

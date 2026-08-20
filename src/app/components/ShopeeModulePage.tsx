@@ -97,20 +97,20 @@ function ShopeeTaxRateEditor({connectionId}:{connectionId:string}) {
 
   return <form onSubmit={save} className="channel-tax-panel">
     <div className="flex flex-wrap items-end gap-3">
-      <label className="flex min-w-60 flex-1 flex-col gap-1 text-sm font-medium text-slate-700">
+      <label className="flex min-w-60 flex-1 flex-col gap-1 text-sm font-medium text-[var(--ink-soft)]">
         <span>Alíquota média de imposto</span>
         <span className="flex items-center rounded-lg bg-white shadow-[inset_0_0_0_1px_rgb(203_213_225)]">
           <input aria-label="Alíquota média de imposto da Shopee" type="text" inputMode="decimal" value={draft}
             disabled={state==="loading"||state==="saving"} onChange={event=>{setDraft(event.target.value);setState("idle");setMessage("")}}
             placeholder="Desconhecida" className="min-h-11 min-w-0 flex-1 bg-transparent px-3 outline-none"/>
-          <span className="pr-3 text-slate-500">%</span>
+          <span className="pr-3 text-[var(--ink-muted)]">%</span>
         </span>
       </label>
       <button type="submit" disabled={state==="loading"||state==="saving"} className="meli-primary-action min-h-11 disabled:opacity-50">
         {state==="loading"?"Carregando…":state==="saving"?"Salvando…":"Salvar alíquota"}
       </button>
     </div>
-    <p className="mt-2 text-xs text-slate-500">Use a alíquota efetiva da empresa para esta loja. Zero é um valor conhecido; deixe em branco e salve para voltar a desconhecido.</p>
+    <p className="mt-2 text-xs text-[var(--ink-muted)]">Use a alíquota efetiva da empresa para esta loja. Zero é um valor conhecido; deixe em branco e salve para voltar a desconhecido.</p>
     {message&&<p role={state==="error"?"alert":"status"} className={`mt-2 text-sm ${state==="error"?"text-red-700":"text-emerald-700"}`}>{message}</p>}
   </form>;
 }
