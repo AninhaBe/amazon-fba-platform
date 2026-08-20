@@ -53,6 +53,7 @@ export async function GET(req: NextRequest) {
         );
       }
 
+      let radarMs = 0;
       const workspaceId = currentWorkspaceId();
       const scope = [workspaceId, canonical.connectionId, period.startISO, period.endISO];
 
@@ -102,7 +103,12 @@ export async function GET(req: NextRequest) {
               AND status <> 'cancelled'`,
           scope
         ),
-        getStockRadar(period, canonical.velocityBySku).catch(() => null),
+        (async () => {
+          const t = performance.now();
+          const r = await getStockRadar(period, canonical.velocityBySku).catch(() => null);
+          radarMs = Math.round(performance.now() - t);
+          return r;
+        })(),
       ]);
 
       const feeBreakdown = feeRows
@@ -120,6 +126,15 @@ export async function GET(req: NextRequest) {
       const pedidosFaturados = Number(billingRows[0]?.pedidos ?? 0);
 
       const durationMs = Math.round(performance.now() - t0);
+      // ADR-017 fixou orçamento de 1s por interação, com < 200ms para a camada de
+      // dados. Sem registrar, "está rápido?" vira opinião — e o custo real só
+      // aparece na conta grande, que ninguém abre por acidente. `radarMs` separa
+      // a única ida externa que sobrou (inventário FBA, SWR de 10 min): quando o
+      // cache expira, ela entra no caminho da tela.
+      const acima = durationMs > 800 ? " ⚠️ ACIMA DO ORÇAMENTO" : "";
+      console.log(
+        `[dashboard/amazon] ${durationMs}ms (radar ${radarMs}ms, ${canonical.metrics.totalOrders} pedidos no período)${acima}`
+      );
       return NextResponse.json({
         source: "canonical" as const,
         covered: canonical.covered,
