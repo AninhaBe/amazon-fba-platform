@@ -126,6 +126,11 @@ export async function GET(req: NextRequest) {
         currency: canonical.currency,
         // Faturamento do período — a MESMA definição em toda tela do produto.
         billing: { revenue: faturamento, orders: pedidosFaturados },
+        // Canceladas: somadas no bruto (ADR-020) e exibidas à parte, como no ML.
+        cancelled: {
+          revenue: canonical.metrics.cancelledRevenue,
+          orders: canonical.metrics.cancelledOrders,
+        },
         metrics: canonical.metrics,
         dailySales: canonical.dailySales,
         topProducts: canonical.topProducts,

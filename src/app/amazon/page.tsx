@@ -108,8 +108,10 @@ interface TopProduct {
 interface DashboardPayload {
   covered: boolean;
   currency: string;
-  /** Faturamento do período — definição única do produto (ADR-017). */
+  /** Faturamento bruto do período — espelha o painel do canal (ADR-020). */
   billing: { revenue: number; orders: number };
+  /** Canceladas: somadas no bruto, exibidas à parte — mesmo padrão do ML. */
+  cancelled: { revenue: number; orders: number };
   metrics: { totalOrders: number; paidOrders: number; fbaOrders: number; revenue: number };
   dailySales: Array<{ date: string; revenue: number; orders: number; units: number }>;
   topProducts: Array<{ sku: string; title: string; units: number; revenue: number; marginPct: number | null }>;
@@ -157,6 +159,9 @@ export default function Dashboard() {
   // exibia a receita conciliada (subconjunto), e por isso três telas do produto
   // mostravam três valores diferentes de "faturamento" (20/08/2026).
   const [faturamento, setFaturamento] = useState<{ revenue: number; orders: number } | null>(null);
+  // Canceladas entram no bruto (ADR-020); mostrar à parte é o que impede o número
+  // de parecer inflado sem explicação — o ML já fazia, a Amazon não tinha.
+  const [canceladas, setCanceladas] = useState<{ revenue: number; orders: number } | null>(null);
   const [profitabilityScope, setProfitabilityScope] = useState<ProfitabilityScope | undefined>(initialDash?.profitabilityScope);
   const [saldo, setSaldo] = useState<SaldoData | null>(null);
   const [profitabilityLoading, setProfitabilityLoading] = useState(!initialDash);
@@ -258,6 +263,7 @@ export default function Dashboard() {
       next.profitability = payload.profitabilityLines; setProfitability(payload.profitabilityLines);
       setConciliacao(payload.profit.coverage ?? null);
       setFaturamento(payload.billing ?? null);
+      setCanceladas(payload.cancelled ?? null);
       next.profitabilityScope = payload.profitabilityScope; setProfitabilityScope(payload.profitabilityScope);
     }, (d) => d as DashboardPayload, "dashboard").then(() => {
       if (active) {
@@ -406,6 +412,11 @@ export default function Dashboard() {
         <CompactMetric label="Unidades" value={String(unitsCount)} loading={loading} />
         <CompactMetric label="Ticket médio" value={ticketMedio == null ? "—" : money(ticketMedio, currency)} loading={loading} />
         <CompactMetric label="ROI" value={cogs > 0 ? `${roiPct.toFixed(1)}%` : "—"} loading={loading} />
+        <CompactMetric
+          label="Canceladas"
+          value={canceladas ? `${money(canceladas.revenue, currency)} · ${canceladas.orders}` : "—"}
+          loading={loading}
+        />
       </div>
 
       {brokenConnection && <ConnectionBroken channel="amazon" message={brokenConnection} />}
