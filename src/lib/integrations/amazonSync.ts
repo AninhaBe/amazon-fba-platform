@@ -30,7 +30,11 @@ const DAY = 86_400_000;
 const HISTORY_DAYS = 366;
 const WINDOW_DAYS = 7;
 const PAGE_SIZE = 100;
-const ITEM_BATCH_SIZE = 20;
+// 20 → 40 em 20/08: com 930 pedidos sem itens na conta grande, 20/passo dava
+// ~320/h e a conciliação levaria o dia. O teto real é o rate limit da
+// getOrderItems (0,5 req/s, burst 30) — 40 por passo continua com folga porque
+// os passos se espaçam pelo cron.
+const ITEM_BATCH_SIZE = 40;
 // Uma única chamada à Transactions API cobre a janela inteira, então dá para
 // reconciliar muitos pedidos por passada.
 const FEES_BATCH_SIZE = 500;

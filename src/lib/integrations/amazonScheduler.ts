@@ -23,7 +23,10 @@ export interface ScheduledAmazonSyncResult {
 }
 
 export async function runScheduledAmazonSync(
-  connectionLimit = 2,
+  // 2 → 3 em 20/08: com três conexões Amazon (dela, sócio, demo), duas vagas
+  // deixavam sempre uma para trás — e era justamente a do sócio, com 930 itens
+  // pendentes de conciliação.
+  connectionLimit = 3,
   stepsPerConnection = 6
 ): Promise<ScheduledAmazonSyncResult[]> {
   if (!hasDb()) return [];
