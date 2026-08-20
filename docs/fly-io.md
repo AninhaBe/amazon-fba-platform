@@ -349,6 +349,57 @@ Render ainda em produção, dois hosts subindo sozinhos sobre o mesmo banco é c
 
 ---
 
+## 8.6. ⚠️ O WSL como pedágio — e por que ele saiu do caminho (19/08/2026)
+
+O `flyctl` foi instalado primeiro **dentro do WSL**, porque era onde o Docker estava. Isso
+criou uma dependência que não devia existir: **para fazer deploy, o Windows precisava
+ligar a VM do WSL** — e ligar essa VM exige ~1 GB de RAM livre.
+
+Na noite de 19/08 o deploy passou a falhar com:
+
+```
+Não existem recursos de sistema suficientes para concluir o serviço solicitado.
+Wsl/Service/CreateInstance/CreateVm/HCS/0x800705aa
+```
+
+Medição da máquina naquele momento:
+
+| | |
+|---|---|
+| RAM total | 15,9 GB |
+| **RAM livre** | **0,9 GB** |
+| `chrome` | **5.762 MB em 67 processos** |
+| `claude` | 1.692 MB |
+| `msedgewebview2` | 1.307 MB |
+| `vmmem` (o próprio WSL) | 1.002 MB |
+| `node` | 959 MB em 13 processos |
+
+Não foi um evento único: foi **acúmulo de um dia longo de trabalho** — dezenas de abas
+abertas para operar Fly, Registro.br, Amazon Ads, Solution Provider e Seller Central, mais
+os processos de script.
+
+### O absurdo que isso revelou
+
+**O deploy não usa recurso local nenhum.** O build roda nos servidores do Fly
+(`--remote-only`); o `flyctl` só envia arquivos e conversa com a API. Ou seja: a máquina
+não conseguia iniciar uma VM de 1 GB para executar um comando que existe justamente para
+que ela **não** faça trabalho pesado.
+
+### A correção
+
+`flyctl` instalado **nativamente no Windows** e `scripts/fly-deploy.ps1` criado. O WSL
+continua útil para o Docker local, mas **saiu do caminho crítico do deploy**.
+
+A autenticação **não precisou ser refeita**: o `config.yml` do flyctl dentro do WSL é
+acessível pelo sistema de arquivos do Windows (via `wsl.localhost`), e foi copiado para
+`%USERPROFILE%/.fly/`.
+
+📌 **Lição:** ferramenta de deploy não deve morar atrás de um runtime que pode não subir.
+Se o comando falha por falta de recurso numa máquina que só faz uma chamada de rede, a
+dependência está no lugar errado — não o recurso.
+
+---
+
 ## 9. Resultado do primeiro deploy (19/08/2026, ~18h30)
 
 App **`nexo`** no ar em `gru`: **https://nexo.fly.dev** · imagem de 62 MB · volume de 1 GB
