@@ -288,10 +288,23 @@ tiram o trabalho pesado dela.
 `fly deploy` usa o Docker **local** se encontrar um. No primeiro deploy foi o que
 aconteceu — o build rodou nesta máquina. Para não acontecer:
 
-```bash
-wsl bash scripts/fly-deploy.sh          # --remote-only por padrão
-wsl bash scripts/fly-deploy.sh --local  # força build local, se quiser
+```powershell
+powershell -File scripts/fly-deploy.ps1   # Windows, sem WSL — recomendado
 ```
+```bash
+wsl bash scripts/fly-deploy.sh            # via WSL (--remote-only por padrão)
+wsl bash scripts/fly-deploy.sh --local    # força build local, se quiser
+```
+
+📌 **Prefira a versão PowerShell.** O `flyctl` vivia só dentro do WSL, e ligar a VM do
+WSL exige ~1 GB de RAM livre. Em 19/08/2026 a máquina de desenvolvimento ficou com
+**0,9 GB livres** (Chrome com 67 processos ocupando 5,7 GB) e o WSL parou de subir —
+bloqueando o deploy, que **não precisa de recurso local nenhum**: o build roda nos
+servidores do Fly.
+
+Instalar no Windows: `iwr https://fly.io/install.ps1 -useb | iex`. A autenticação pode
+ser reaproveitada copiando o `config.yml` de dentro do WSL (acessível pelo Explorer em
+`wsl.localhost`) para `%USERPROFILE%/.fly/` — não precisa logar de novo.
 
 Com build remoto, o Fly compila nos servidores dele e a máquina local só envia os
 arquivos. **Zero RAM e zero disco seus.**
