@@ -22,8 +22,14 @@ interface GetOrdersResponse {
  * Operação: getOrders — GET /orders/v0/orders
  */
 export async function getOrders(params: {
-  createdAfter: string; // ISO 8601, ex: 2026-06-01T00:00:00Z
+  createdAfter?: string; // ISO 8601, ex: 2026-06-01T00:00:00Z
   createdBefore?: string; // fim do intervalo (ISO)
+  /**
+   * Alternativa a createdAfter: pedidos ATUALIZADOS desde a data — é como se
+   * revisita pedido que mudou de status (Pending → Shipped) depois de ingerido.
+   * A SP-API exige exatamente um dos dois (CreatedAfter OU LastUpdatedAfter).
+   */
+  lastUpdatedAfter?: string;
   marketplaceId?: string;
   orderStatuses?: string[];
   maxResults?: number;
@@ -32,19 +38,26 @@ export async function getOrders(params: {
   const {
     createdAfter,
     createdBefore,
+    lastUpdatedAfter,
     marketplaceId = defaultMarketplaceId(),
     orderStatuses,
     maxResults = 50,
     nextToken,
   } = params;
+  if (!nextToken && !createdAfter && !lastUpdatedAfter) {
+    throw new Error("getOrders exige createdAfter ou lastUpdatedAfter.");
+  }
 
   const query: Record<string, string | number | undefined> = {
     MarketplaceIds: marketplaceId,
     MaxResultsPerPage: maxResults,
   };
-  // NextToken e CreatedAfter são mutuamente exclusivos na SP-API.
+  // NextToken e os filtros de data são mutuamente exclusivos na SP-API.
   if (nextToken) {
     query.NextToken = nextToken;
+  } else if (lastUpdatedAfter) {
+    query.LastUpdatedAfter = lastUpdatedAfter;
+    if (orderStatuses?.length) query.OrderStatuses = orderStatuses.join(",");
   } else {
     query.CreatedAfter = createdAfter;
     if (createdBefore) query.CreatedBefore = createdBefore;

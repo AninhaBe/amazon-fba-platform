@@ -195,6 +195,56 @@ async function syncMissingOrderFees(connectionId: string): Promise<void> {
   if (applications.length) await upsertCanonicalOrderFees({ provider: PROVIDER, connectionId }, applications);
 }
 
+// Quantas páginas de reverificação por passada. Uma página = 100 pedidos; na
+// conta pequena sobra, na grande o cron de 15 min alcança o ritmo sem estourar
+// o rate limit da Orders API.
+const REVERIFY_PAGES = 2;
+
+/**
+ * Revisita pedidos que MUDARAM na Amazon depois de ingeridos — o buraco que
+ * deixou 16 de 17 pedidos eternamente "pending" e sem itens (20/08/2026).
+ *
+ * O backfill varre por data de CRIAÇÃO e nunca relê: pedido visto como Pending
+ * ficava Pending para sempre, e o backfill de itens pula pendentes (correto —
+ * a API não entrega itens de pedido pendente). Esta passada usa LastUpdatedAfter
+ * para pegar as transições (Pending → Shipped) e regravar os cabeçalhos; os
+ * itens entram na mesma passada, via syncMissingOrderItems.
+ *
+ * A janela é derivada do que precisa de cura: começa no pedido `pending` mais
+ * antigo (limitado a 30 dias), ou 48h quando não há pendência — assim ela se
+ * auto-corrige depois de qualquer buraco de cron, sem precisar de coluna nova.
+ */
+async function reverifyUpdatedOrders(connectionId: string): Promise<void> {
+  const [row] = await dbQuery<{ oldest_pending: Date | string | null }>(
+    `SELECT MIN(occurred_at) AS oldest_pending
+       FROM workspace_channel_orders
+      WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
+        AND status = 'pending'
+        AND occurred_at >= now() - interval '30 days'`,
+    [currentWorkspaceId(), PROVIDER, connectionId]
+  );
+  const fallback = Date.now() - 48 * 3_600_000;
+  const oldest = row?.oldest_pending ? new Date(row.oldest_pending).getTime() - 3_600_000 : fallback;
+  const since = new Date(Math.min(oldest, fallback));
+
+  let nextToken: string | undefined;
+  for (let page = 0; page < REVERIFY_PAGES; page++) {
+    const result = await getOrders({
+      lastUpdatedAfter: since.toISOString(),
+      maxResults: PAGE_SIZE,
+      nextToken,
+    });
+    if (result.orders.length) {
+      await saveCanonicalOrderHeaders(
+        { provider: PROVIDER, connectionId, storeRaw: true },
+        result.orders.map(normalizeAmazonOrderHeader)
+      );
+    }
+    nextToken = result.nextToken;
+    if (!nextToken) break;
+  }
+}
+
 export async function runAmazonSyncStep(account: AccountCtx): Promise<void> {
   if (!hasDb()) return;
   const connectionId = amazonConnectionId(account.sellerId);
@@ -212,6 +262,9 @@ export async function runAmazonSyncStep(account: AccountCtx): Promise<void> {
     // Sem trabalho de janela (completo ou outro processo na frente): as
     // conciliações de itens e fees ainda podem avançar.
     await runWithAccount(account, async () => {
+      // Reverificação antes dos itens: o pedido precisa sair de `pending` para o
+      // backfill de itens enxergá-lo. Best-effort — rate limit fica para a próxima.
+      await reverifyUpdatedOrders(connectionId).catch(() => {});
       await syncMissingOrderItems(connectionId);
       await syncMissingOrderFees(connectionId);
     });
@@ -264,6 +317,7 @@ export async function runAmazonSyncStep(account: AccountCtx): Promise<void> {
       );
     }
     await runWithAccount(account, async () => {
+      await reverifyUpdatedOrders(connectionId).catch(() => {});
       await syncMissingOrderItems(connectionId);
       await syncMissingOrderFees(connectionId);
     });
