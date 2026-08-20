@@ -82,15 +82,18 @@ export async function GET(req: NextRequest) {
             GROUP BY f.fee_type`,
           scope
         ),
-        // FATURAMENTO — a definição única do produto (ADR-017): soma dos pedidos
-        // NÃO cancelados, por data do pedido, incluindo o frete pago pelo
-        // comprador. É o que reproduz o "Vendas brutas" do Seller Central
-        // (medido em 20/08: R$ 36.033 canônico contra R$ 36.523 da Sales API —
-        // a diferença são pedidos pendentes, que ainda não têm valor).
+        // FATURAMENTO — definição única do produto, igual em todos os canais
+        // (ADR-020): **só vendas aprovadas** (paid/shipped/delivered), somando o
+        // produto, SEM frete do comprador e SEM canceladas.
+        //
+        // ⚠️ Fica ~R$ 1,6 mil ABAIXO do "Vendas brutas" do Seller Central em 30
+        // dias (medido 20/08: 34.905 contra 36.523). É esperado: o Seller Central
+        // soma frete do comprador e pedidos pendentes. Frete do comprador não é
+        // receita da vendedora — é repasse de transporte, exibido à parte.
         //
         // ⚠️ NÃO confundir com receita conciliada (pedidos com item e tarifa já
-        // casados), que é subconjunto e vive na seção "Financeiro conciliado".
-        // Emparelhar as duas foi o que produziu "Taxas > Faturamento" na tela.
+        // casados), subconjunto que vive na seção "Financeiro conciliado".
+        // Emparelhar as duas produziu "Taxas > Faturamento" na tela (20/08).
         dbQuery<BillingRow>(
           `SELECT COUNT(*)::text AS pedidos,
                   COALESCE(SUM(gross), 0)::text AS receita,
@@ -98,7 +101,7 @@ export async function GET(req: NextRequest) {
              FROM workspace_channel_orders
             WHERE workspace_id = $1 AND provider = 'amazon' AND connection_id = $2
               AND occurred_at BETWEEN $3 AND $4
-              AND status <> 'cancelled'`,
+              AND status IN ('paid', 'shipped', 'delivered')`,
           scope
         ),
         getStockRadar(period, canonical.velocityBySku).catch(() => null),
@@ -114,7 +117,8 @@ export async function GET(req: NextRequest) {
         .reduce((sum, f) => sum + f.amount, 0)
         .toFixed(2);
       const buyerShipping = Number(billingRows[0]?.frete ?? 0);
-      const faturamento = +(Number(billingRows[0]?.receita ?? 0) + buyerShipping).toFixed(2);
+      // Sem somar `buyerShipping`: frete do comprador é exibido à parte (ADR-020).
+      const faturamento = +Number(billingRows[0]?.receita ?? 0).toFixed(2);
       const pedidosFaturados = Number(billingRows[0]?.pedidos ?? 0);
 
       const durationMs = Math.round(performance.now() - t0);

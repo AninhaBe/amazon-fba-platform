@@ -13,11 +13,28 @@ Referência interna do SellerCore. Base: `https://api.mercadolibre.com` (`src/li
 | `GET /orders/search?seller={id}&order.date_created.from=...&order.date_created.to=...&sort=date_desc&limit&offset` | Ingestão de pedidos (`mercadoLivreSync.ts`, overview legado) | Paginação por `offset` (máx. 51 pedidos/página na prática com limit=51). Datas em ISO com offset. |
 | `GET /shipments/{id}/costs` | Custo real de frete do vendedor | Usado no sync e webhook. `senders[].cost` = frete pago pelo vendedor; `receiver.cost` = frete do comprador. |
 
-### ⚠️ A regra do faturamento (validada ao centavo — Mercado Turbo, conta 648425194)
+### ⚠️ A regra do faturamento — MUDOU em 20/08/2026 (ver ADR-020)
+
+```
+Faturamento ML = vendas APROVADAS (paid_amount dos itens, SEM frete e SEM canceladas)
+```
+
+🔴 **Isto NÃO bate mais com "Vendas brutas" do painel do ML, de propósito.** A regra
+anterior — `APROVADAS + CANCELADAS, sem frete`, validada ao centavo contra o Mercado Livre
+e o Mercado Turbo — foi trocada por decisão da dona para uniformizar a definição de
+faturamento entre todos os canais ([ADR-020](./adr/ADR-020-definicao-unica-de-faturamento.md)):
+um consolidado que somava "aprovadas" da Amazon com "aprovadas + canceladas" do ML não
+significava nada.
+
+Canceladas continuam sendo exibidas — em cartão próprio, não somadas ao faturamento.
+
+<details><summary>Regra anterior (histórico — não usar)</summary>
 
 ```
 Faturamento ML = vendas APROVADAS + CANCELADAS (paid_amount dos itens, SEM frete do comprador)
 ```
+
+</details>
 
 - No canônico: `GROSS_STATUSES = [paid, shipped, delivered, cancelled]` somando `gross` (produto, sem `buyer_shipping`). Implementado em `mercadoLivreOverviewCanonical.ts`.
 - `REVENUE_STATUSES = [paid, shipped, delivered]` = só aprovadas (exibida como métrica separada).
