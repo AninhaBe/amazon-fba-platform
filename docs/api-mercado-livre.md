@@ -13,28 +13,22 @@ Referência interna do SellerCore. Base: `https://api.mercadolibre.com` (`src/li
 | `GET /orders/search?seller={id}&order.date_created.from=...&order.date_created.to=...&sort=date_desc&limit&offset` | Ingestão de pedidos (`mercadoLivreSync.ts`, overview legado) | Paginação por `offset` (máx. 51 pedidos/página na prática com limit=51). Datas em ISO com offset. |
 | `GET /shipments/{id}/costs` | Custo real de frete do vendedor | Usado no sync e webhook. `senders[].cost` = frete pago pelo vendedor; `receiver.cost` = frete do comprador. |
 
-### ⚠️ A regra do faturamento — MUDOU em 20/08/2026 (ver ADR-020)
+### ⚠️ A regra do faturamento (validada ao centavo — Mercado Turbo, conta 648425194)
 
 ```
-Faturamento ML = vendas APROVADAS (paid_amount dos itens, SEM frete e SEM canceladas)
+Faturamento BRUTO ML = vendas APROVADAS + CANCELADAS (paid_amount dos itens, SEM frete do comprador)
 ```
 
-🔴 **Isto NÃO bate mais com "Vendas brutas" do painel do ML, de propósito.** A regra
-anterior — `APROVADAS + CANCELADAS, sem frete`, validada ao centavo contra o Mercado Livre
-e o Mercado Turbo — foi trocada por decisão da dona para uniformizar a definição de
-faturamento entre todos os canais ([ADR-020](./adr/ADR-020-definicao-unica-de-faturamento.md)):
-um consolidado que somava "aprovadas" da Amazon com "aprovadas + canceladas" do ML não
-significava nada.
+📌 **Incluir canceladas é correto e proposital** — é assim que o painel do ML mostra, e o
+bruto existe justamente para a vendedora **conferir** contra a tela que ela conhece.
 
-Canceladas continuam sendo exibidas — em cartão próprio, não somadas ao faturamento.
+⚠️ **Não confundir com o faturamento CONCILIADO**, que é outra pergunta e usa
+`[paid, shipped, delivered]` (só aprovadas, sem canceladas) em **todos** os canais — é a
+base de margem, ROI e lucro. Ver [ADR-020](./adr/ADR-020-definicao-unica-de-faturamento.md).
 
-<details><summary>Regra anterior (histórico — não usar)</summary>
-
-```
-Faturamento ML = vendas APROVADAS + CANCELADAS (paid_amount dos itens, SEM frete do comprador)
-```
-
-</details>
+Em 20/08/2026 esta regra chegou a ser trocada por engano (uniformização mal interpretada)
+e foi **revertida no mesmo dia**. Se alguém propuser "uniformizar o faturamento", leia o
+ADR-020 antes: bruto e conciliado são indicadores distintos de propósito.
 
 - No canônico: `GROSS_STATUSES = [paid, shipped, delivered, cancelled]` somando `gross` (produto, sem `buyer_shipping`). Implementado em `mercadoLivreOverviewCanonical.ts`.
 - `REVENUE_STATUSES = [paid, shipped, delivered]` = só aprovadas (exibida como métrica separada).

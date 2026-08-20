@@ -82,18 +82,16 @@ export async function GET(req: NextRequest) {
             GROUP BY f.fee_type`,
           scope
         ),
-        // FATURAMENTO — definição única do produto, igual em todos os canais
-        // (ADR-020): **só vendas aprovadas** (paid/shipped/delivered), somando o
-        // produto, SEM frete do comprador e SEM canceladas.
+        // FATURAMENTO BRUTO — espelha o "Vendas brutas" do Seller Central, que é
+        // a visão que a vendedora conhece e usa para conferir (ADR-020): pedidos
+        // NÃO cancelados (inclui pendentes), somando produto + frete do comprador.
+        // Medido 20/08: R$ 36.033 canônico contra R$ 36.523 da Sales API — a
+        // diferença são pendentes ainda sem valor postado pela Amazon.
         //
-        // ⚠️ Fica ~R$ 1,6 mil ABAIXO do "Vendas brutas" do Seller Central em 30
-        // dias (medido 20/08: 34.905 contra 36.523). É esperado: o Seller Central
-        // soma frete do comprador e pedidos pendentes. Frete do comprador não é
-        // receita da vendedora — é repasse de transporte, exibido à parte.
-        //
-        // ⚠️ NÃO confundir com receita conciliada (pedidos com item e tarifa já
-        // casados), subconjunto que vive na seção "Financeiro conciliado".
-        // Emparelhar as duas produziu "Taxas > Faturamento" na tela (20/08).
+        // ⚠️ É pergunta DIFERENTE da receita conciliada (só aprovadas, com item e
+        // tarifa casados), que vive na seção "Financeiro conciliado" e é a visão
+        // que o marketplace NÃO oferece. Emparelhar as duas produziu
+        // "Taxas > Faturamento" na tela (20/08).
         dbQuery<BillingRow>(
           `SELECT COUNT(*)::text AS pedidos,
                   COALESCE(SUM(gross), 0)::text AS receita,
@@ -101,7 +99,7 @@ export async function GET(req: NextRequest) {
              FROM workspace_channel_orders
             WHERE workspace_id = $1 AND provider = 'amazon' AND connection_id = $2
               AND occurred_at BETWEEN $3 AND $4
-              AND status IN ('paid', 'shipped', 'delivered')`,
+              AND status <> 'cancelled'`,
           scope
         ),
         getStockRadar(period, canonical.velocityBySku).catch(() => null),
@@ -117,8 +115,8 @@ export async function GET(req: NextRequest) {
         .reduce((sum, f) => sum + f.amount, 0)
         .toFixed(2);
       const buyerShipping = Number(billingRows[0]?.frete ?? 0);
-      // Sem somar `buyerShipping`: frete do comprador é exibido à parte (ADR-020).
-      const faturamento = +Number(billingRows[0]?.receita ?? 0).toFixed(2);
+      // Bruto inclui o frete do comprador para espelhar o Seller Central (ADR-020).
+      const faturamento = +(Number(billingRows[0]?.receita ?? 0) + buyerShipping).toFixed(2);
       const pedidosFaturados = Number(billingRows[0]?.pedidos ?? 0);
 
       const durationMs = Math.round(performance.now() - t0);

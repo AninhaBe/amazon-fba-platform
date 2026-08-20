@@ -21,20 +21,16 @@ import type { IntegrationConnection } from "./types";
 
 const PROVIDER = "mercado_livre";
 const DETAILED_ORDER_LIMIT = 1_000;
+// Conciliado / receita real: SÓ vendas aprovadas (ADR-020).
 const REVENUE_STATUSES = ["paid", "shipped", "delivered"];
-// ⚠️ MUDANÇA DELIBERADA (20/08/2026) — decisão da dona: faturamento é **só
-// vendas aprovadas**, sem canceladas e sem frete do comprador, IGUAL em todos os
-// canais (ADR-020).
+// BRUTO: "Vendas brutas" do painel do ML = aprovadas + canceladas, só produto
+// (sem frete). Confirmado ao centavo contra o Mercado Livre e o Mercado Turbo.
 //
-// Antes: `[paid, shipped, delivered, cancelled]`, para reproduzir "Vendas
-// brutas" do painel do ML — regra validada ao centavo contra o Mercado Livre e o
-// Mercado Turbo, e que agora **deixa de bater com o painel do ML de propósito**.
-//
-// Motivo da troca: o consolidado multicanal somava critérios diferentes
-// (Amazon "aprovadas" + ML "aprovadas + canceladas"), e um total assim não
-// significa nada. Consistência entre canais vale mais que igualdade com o painel
-// de um deles — a tela de cancelados continua existindo à parte.
-const GROSS_STATUSES = REVENUE_STATUSES;
+// ⚠️ Incluir canceladas aqui é DE PROPÓSITO e não é inconsistência com o
+// conciliado: são duas perguntas diferentes (ADR-020). O bruto existe para a
+// pessoa conferir contra o painel do marketplace, que é a visão que ela conhece;
+// o conciliado é a que o marketplace não dá. Canceladas seguem exibidas à parte.
+const GROSS_STATUSES = ["paid", "shipped", "delivered", "cancelled"];
 const COVERAGE_TOLERANCE_MS = 15 * 60_000;
 
 export type MercadoLivreOverview = Awaited<ReturnType<typeof getMercadoLivreOverview>>;
