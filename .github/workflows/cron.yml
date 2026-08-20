@@ -13,6 +13,20 @@ name: Sync agendado (SellerCore)
 # Observação: o agendamento do GitHub Actions é best-effort e pode atrasar alguns
 # minutos sob carga; para backfill de histórico isso é irrelevante. O mínimo de
 # intervalo do GitHub é 5 minutos.
+#
+# ⚠️ 19/08/2026 — intervalo passou de 5 para 15 minutos por COTA, não por técnica.
+# A conta bateu 1.801 dos 2.000 minutos/mês de Actions com 13 dias de ciclo pela
+# frente (~95 min/dia). A 5 minutos, os 199 restantes acabariam em ~2 dias, e aí
+# o sync pararia ou passaria a ser cobrado.
+#
+# Piorou justamente quando o cron voltou a funcionar: execução que falhava rápido
+# levava 37-45s; bem-sucedida leva 1m11s-1m44s.
+#
+# 📌 Isto é PALIATIVO. A correção é o agendador rodar dentro do app no Fly, que
+# fica de pé 24/7 de qualquer forma — sem cota de terceiro, sem volta pela
+# internet pública e sem segredo de cron. Ver ADR-017 (a escrever).
+# A máquina agendada nativa do Fly NÃO serve: `--schedule` só aceita hourly,
+# daily, weekly e monthly — não aceita expressão cron.
 
 # Sobre o `--retry`: um deploy no Render reinicia o container, e qualquer cron
 # que dispare nessa janela recebe 502 — falha real para o curl, mas nada quebrado.
@@ -21,7 +35,7 @@ name: Sync agendado (SellerCore)
 
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "*/15 * * * *"
   workflow_dispatch: {} # permite rodar manualmente pela aba Actions (para testar)
 
 concurrency:
