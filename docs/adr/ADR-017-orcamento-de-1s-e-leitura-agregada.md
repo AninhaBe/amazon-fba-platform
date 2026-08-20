@@ -135,6 +135,27 @@ na conta de maior volume. Não implementar antes do gatilho.
 - ➖ Métricas que hoje só existem na resposta da SP-API precisam estar no canônico antes
   da tela migrar — se faltar coluna, o gap aparece nesta migração (e é bom que apareça).
 
+## Execução (20/08/2026, madrugada)
+
+Os passos 1–3 foram implementados na mesma noite da decisão:
+
+- **Rota agregadora** `/api/amazon/dashboard` no ar (`9d82da3`) — a leitura canônica
+  completa **já existia** (`amazonOverviewCanonical.ts`, 444 linhas) e nunca tinha sido
+  ligada ao dashboard; as tarifas por tipo também já estavam no canônico.
+- **Cache com vazamento entre contas corrigido** (`124ab5c`): 8 chaves de cache do
+  servidor não incluíam workspace nem conta — trocar de conta servia os números da
+  anterior por até 10 min. `cacheScope()` agora prefixa todas.
+- **Ingestão curada** (`5ca0fa9` + `5c63ac8`): pedido ingerido como Pending ficava
+  pending para sempre (o backfill anda por data de criação e nunca relê; o backfill de
+  itens pula pendentes). Dois consertos: `reverifyUpdatedOrders` via `LastUpdatedAfter`,
+  e a cláusula de candidatura do agendador — conexão "complete" cujo único defeito era
+  pedido pendente velho **não era candidata a nada**. Resultado medido: 16 pedidos
+  eternamente pendentes → 14 shipped com itens em uma passada; sobraram 3 genuinamente
+  pendentes na Amazon.
+
+📌 **Lição da noite:** typecheck roda ANTES do commit, sempre — um comentário SQL com
+crase dentro de template literal chegou a ser commitado quebrado (`c26246a`→`5c63ac8`).
+
 ## Ordem de execução
 
 1. **Rota agregadora** `/api/amazon/dashboard` lendo do canônico (o que der do canônico
