@@ -108,6 +108,8 @@ interface TopProduct {
 interface DashboardPayload {
   covered: boolean;
   currency: string;
+  /** Faturamento do período — definição única do produto (ADR-017). */
+  billing: { revenue: number; orders: number };
   metrics: { totalOrders: number; paidOrders: number; fbaOrders: number; revenue: number };
   dailySales: Array<{ date: string; revenue: number; orders: number; units: number }>;
   topProducts: Array<{ sku: string; title: string; units: number; revenue: number; marginPct: number | null }>;
@@ -151,6 +153,10 @@ export default function Dashboard() {
   // É o que permite à seção "Financeiro conciliado" DIZER que está parcial em vez
   // de exibir um número menor que o faturamento sem explicação (20/08/2026).
   const [conciliacao, setConciliacao] = useState<{ processedOrders: number; paidOrders: number; complete: boolean } | null>(null);
+  // Faturamento do período — o MESMO número que a central mostra. Antes o card
+  // exibia a receita conciliada (subconjunto), e por isso três telas do produto
+  // mostravam três valores diferentes de "faturamento" (20/08/2026).
+  const [faturamento, setFaturamento] = useState<{ revenue: number; orders: number } | null>(null);
   const [profitabilityScope, setProfitabilityScope] = useState<ProfitabilityScope | undefined>(initialDash?.profitabilityScope);
   const [saldo, setSaldo] = useState<SaldoData | null>(null);
   const [profitabilityLoading, setProfitabilityLoading] = useState(!initialDash);
@@ -251,6 +257,7 @@ export default function Dashboard() {
       next.top = payload.topProducts; setTop(payload.topProducts);
       next.profitability = payload.profitabilityLines; setProfitability(payload.profitabilityLines);
       setConciliacao(payload.profit.coverage ?? null);
+      setFaturamento(payload.billing ?? null);
       next.profitabilityScope = payload.profitabilityScope; setProfitabilityScope(payload.profitabilityScope);
     }, (d) => d as DashboardPayload, "dashboard").then(() => {
       if (active) {
@@ -374,14 +381,15 @@ export default function Dashboard() {
                 <Kpi
                   key={card.key}
                   label={card.label}
-                  value={loading ? "…" : card.key === "revenue" && card.raw != null
-                    ? <AnimatedNumber id="amz-revenue" value={card.raw} format={(amount) => money(amount, currency)} />
+                  value={loading ? "…" : card.key === "revenue" && (faturamento || card.raw != null)
+                    ? <AnimatedNumber id="amz-revenue" value={faturamento?.revenue ?? card.raw ?? 0} format={(amount) => money(amount, currency)} />
                     : card.value}
                   // O selo de tendência ("novo ritmo") só faz sentido no faturamento.
-                  sub={card.key === "revenue" && card.raw != null
-                    // Dizer "5 vendas" sob um valor que cobre 2 sugere que os
-                    // R$ 39,80 são o resultado das cinco.
-                    ? (vendasConciliadas < salesCount ? `${vendasConciliadas} de ${salesCount} vendas conciliadas` : `${salesCount} vendas no período`)
+                  sub={card.key === "revenue"
+                    // O subtítulo acompanha a MESMA base do valor: pedidos não
+                    // cancelados do período. A cobertura da conciliação é assunto
+                    // da seção "Financeiro conciliado", que a declara lá.
+                    ? `${faturamento?.orders ?? salesCount} pedidos no período`
                     : card.context}
                   trend={card.key === "revenue" ? revenueTrend : undefined}
                   loading={loading}

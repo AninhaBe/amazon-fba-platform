@@ -31,8 +31,10 @@ interface FeeRow {
   fee_type: string;
   total: string | null;
 }
-interface ShippingRow {
-  buyer_shipping: string | null;
+interface BillingRow {
+  pedidos: string;
+  receita: string | null;
+  frete: string | null;
 }
 
 export async function GET(req: NextRequest) {
@@ -57,7 +59,7 @@ export async function GET(req: NextRequest) {
       // Tarifas por tipo e frete do comprador, em paralelo com o radar. Os nomes
       // canônicos (commission, fulfillment, refund) casam com os padrões que os
       // cartões financeiros usam para categorizar (amazonFinancialCards.ts).
-      const [feeRows, shippingRows, radar] = await Promise.all([
+      const [feeRows, billingRows, radar] = await Promise.all([
         dbQuery<FeeRow>(
           `SELECT f.fee_type, SUM(f.amount)::text AS total
              FROM workspace_channel_order_fees f
@@ -68,11 +70,31 @@ export async function GET(req: NextRequest) {
               AND o.external_order_id = f.external_order_id
             WHERE f.workspace_id = $1 AND f.provider = 'amazon' AND f.connection_id = $2
               AND o.occurred_at BETWEEN $3 AND $4
+              -- Só pedidos JÁ conciliados por item: a cascata do "Financeiro
+              -- conciliado" tem de somar receita e tarifa do MESMO conjunto.
+              -- Sem este filtro, tarifas de 1.536 pedidos apareciam ao lado da
+              -- receita de 883 — e a tela exibia "Taxas > Faturamento" (20/08).
+              AND EXISTS (
+                SELECT 1 FROM workspace_channel_order_items i
+                 WHERE i.workspace_id = o.workspace_id AND i.provider = o.provider
+                   AND i.connection_id = o.connection_id AND i.external_order_id = o.external_order_id
+              )
             GROUP BY f.fee_type`,
           scope
         ),
-        dbQuery<ShippingRow>(
-          `SELECT SUM(buyer_shipping)::text AS buyer_shipping
+        // FATURAMENTO — a definição única do produto (ADR-017): soma dos pedidos
+        // NÃO cancelados, por data do pedido, incluindo o frete pago pelo
+        // comprador. É o que reproduz o "Vendas brutas" do Seller Central
+        // (medido em 20/08: R$ 36.033 canônico contra R$ 36.523 da Sales API —
+        // a diferença são pedidos pendentes, que ainda não têm valor).
+        //
+        // ⚠️ NÃO confundir com receita conciliada (pedidos com item e tarifa já
+        // casados), que é subconjunto e vive na seção "Financeiro conciliado".
+        // Emparelhar as duas foi o que produziu "Taxas > Faturamento" na tela.
+        dbQuery<BillingRow>(
+          `SELECT COUNT(*)::text AS pedidos,
+                  COALESCE(SUM(gross), 0)::text AS receita,
+                  COALESCE(SUM(buyer_shipping), 0)::text AS frete
              FROM workspace_channel_orders
             WHERE workspace_id = $1 AND provider = 'amazon' AND connection_id = $2
               AND occurred_at BETWEEN $3 AND $4
@@ -91,18 +113,25 @@ export async function GET(req: NextRequest) {
         .filter((f) => !/refund/i.test(f.type))
         .reduce((sum, f) => sum + f.amount, 0)
         .toFixed(2);
-      const buyerShipping = Number(shippingRows[0]?.buyer_shipping ?? 0);
+      const buyerShipping = Number(billingRows[0]?.frete ?? 0);
+      const faturamento = +(Number(billingRows[0]?.receita ?? 0) + buyerShipping).toFixed(2);
+      const pedidosFaturados = Number(billingRows[0]?.pedidos ?? 0);
 
       const durationMs = Math.round(performance.now() - t0);
       return NextResponse.json({
         source: "canonical" as const,
         covered: canonical.covered,
         currency: canonical.currency,
+        // Faturamento do período — a MESMA definição em toda tela do produto.
+        billing: { revenue: faturamento, orders: pedidosFaturados },
         metrics: canonical.metrics,
         dailySales: canonical.dailySales,
         topProducts: canonical.topProducts,
         profit: canonical.profit,
         // O formato que os cartões financeiros já consomem (ProfitData.finance).
+        // Cascata do conciliado: receita, tarifas e repasse do MESMO conjunto de
+        // pedidos (os que já têm item e tarifa casados). Subconjunto do
+        // faturamento acima — a seção da tela declara a cobertura.
         finance: {
           revenue: canonical.profit.revenueProcessed,
           fees,
