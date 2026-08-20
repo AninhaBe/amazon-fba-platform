@@ -1522,3 +1522,46 @@ maioria dos dias. Para leitura de venda por produto, a fonte hoje é o Seller Ce
    mesmo tempo cega a leitura.
 3. Se voltar a vender, a lição é sobre **ritmo**: subir três kits de uma vez pulou etapa
    na estratégia dela de subir aos poucos depois que a venda engrena.
+
+## Leitura de 20/08/2026, ~10h50 — dia 19 FECHADO, campanha a campanha
+
+```
+Período lido: Ontem (19/08) via picker, aplicado e persistente entre campanhas
+Recarreguei: sim (a LISTA de campanhas está quebrada em esqueleto desde ontem à noite —
+  li pelas páginas por campanha, que funcionam)
+Volume: atribuição do dia 19 ainda ABERTA (~5 dias restantes)
+```
+
+| Campanha | Custo | Compras | Vendas | ROAS |
+|---|---|---|---|---|
+| Manual - Clips (Frase) | R$ 17,47 | — | — | atribuição aberta |
+| **Manual - Martelo (Frase)** | R$ 5,13 | **1** | **R$ 28,90** | **5,63** |
+| Auto - Protetor 8 | R$ 5,13 | — | — | |
+| Auto - Protetor 32 | R$ 3,26 | — | — | |
+| Auto - Clips | R$ 2,36 | — | — | |
+| **Auto - Martelo** | **R$ 0,79** | — | — | **viva de novo** |
+| Manual - Protetor 8 | R$ 0,56 | — | — | |
+| **Total** | **R$ 34,70** | 1 | R$ 28,90 | |
+
+Dia real (banco): **2 martelos a R$ 28,90** — 1 atribuído ao Ads, 1 orgânico/pendente de
+atribuição. Quarto dia seguido em que o real supera o atribuído.
+
+### 🎉 A atribuição madura reescreveu a semana do martelo
+
+Período 9–19/08 da Manual - Martelo: **5 compras, R$ 142,50, ROAS 10,33** (Frase).
+Conhecíamos 2. Três vendas antigas entraram com a janela amadurecendo — mais uma prova
+de que leitura de dia recente é sempre provisória.
+
+### ✅ Auto - Martelo ressuscitou de fato
+
+R$ 0,79 gastos no dia 19 (dois dias antes: zero absoluto). O lance de R$ 0,90 devolveu a
+campanha ao leilão. ⚠️ O lance padrão do grupo segue R$ 3,00 (inofensivo hoje, os 4
+grupos têm lance próprio — mas segmentação nova nasceria nele).
+
+### Conclusões
+
+- **Esperar** em tudo. Nenhum gatilho dispara com atribuição aberta.
+- Manual - Clips gastou R$ 17,47 sem venda atribuída no dia — MAS o dia 18 ensinou:
+  55%→37% de ACOS em 7h de maturação. **Decisão segue marcada para 22/08.**
+- Protetores com preço novo (−R$ 3, ~20h de 19/08): nenhuma venda ainda; reolhar 21/08
+  (o combinado é 2 dias).
