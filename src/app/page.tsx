@@ -85,8 +85,24 @@ function money(value: number | null, currency = "BRL") {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(value);
 }
 
+// Teto de espera por rota. Sem ele, uma rota que pendura trava a tela inteira:
+// o `await` nunca retorna, o `finally` que desliga o carregamento nunca roda, e
+// a central fica em esqueleto para sempre — foi o que aconteceu em 19/08/2026
+// numa conta com 21.573 pedidos. Estourar o teto vira erro legível, que é o que
+// o AGENTS.md exige ("tela sem dado mostra o estado real").
+const TIMEOUT_MS = 20_000;
+
 async function json<T>(url: string): Promise<T> {
-  const response = await fetch(url, { cache: "no-store" });
+  let response: Response;
+  try {
+    response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(TIMEOUT_MS) });
+  } catch (error) {
+    // TimeoutError e AbortError chegam aqui; distinguir ajuda a diagnosticar.
+    if (error instanceof DOMException && (error.name === "TimeoutError" || error.name === "AbortError")) {
+      throw new Error(`A consulta demorou mais de ${TIMEOUT_MS / 1000}s e foi interrompida.`);
+    }
+    throw error;
+  }
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || "Não foi possível consultar o canal.");
   return data as T;
