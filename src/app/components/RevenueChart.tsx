@@ -14,23 +14,58 @@ const H = 320;
 // left comporta o rótulo mais largo ("R$ 18,3k") sem cortar o "R$".
 const PAD = { top: 20, right: 16, bottom: 28, left: 72 };
 
-function brl(v: number) {
-  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
+type ChartMetric = "revenue" | "orders" | "units";
+
+const METRICS: Array<{ key: ChartMetric; label: string }> = [
+  { key: "revenue", label: "Faturamento" },
+  { key: "orders", label: "Pedidos" },
+  { key: "units", label: "Unidades" },
+];
+
+function money(v: number, currency: string) {
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(v);
 }
-function compact(v: number) {
-  if (v >= 1000) return `R$ ${(v / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}k`;
-  return `R$ ${v.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`;
+function compact(v: number, metric: ChartMetric, currency: string) {
+  if (metric !== "revenue") return v.toLocaleString("pt-BR", { maximumFractionDigits: 0 });
+  const symbol = currency === "BRL" ? "R$" : currency;
+  if (v >= 1000) return `${symbol} ${(v / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}k`;
+  return `${symbol} ${v.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`;
 }
 function shortDate(iso: string) {
   const [, m, d] = iso.split("-");
   return `${d}/${m}`;
 }
 
-export function RevenueChart({ points }: { points: DailyPoint[] }) {
+function fullDate(iso: string) {
+  const [year, month, day] = iso.split("-");
+  return `${day}/${month}/${year}`;
+}
+
+function niceCeiling(maximum: number) {
+  if (maximum <= 0) return 1;
+  const roughStep = maximum / 4;
+  const magnitude = 10 ** Math.floor(Math.log10(roughStep));
+  const normalized = roughStep / magnitude;
+  const factor = [1, 2, 2.5, 5, 10].find((candidate) => candidate >= normalized) ?? 10;
+  return factor * magnitude * 4;
+}
+
+export function RevenueChart({
+  points,
+  explorable = false,
+  currency = "BRL",
+}: {
+  points: DailyPoint[];
+  explorable?: boolean;
+  currency?: string;
+}) {
   const ref = useRef<SVGSVGElement>(null);
   const [hover, setHover] = useState<number | null>(null);
+  const [metric, setMetric] = useState<ChartMetric>("revenue");
 
-  if (points.length === 0) {
+  // O estado estrutural novo pertence ao dashboard Amazon em validação. As
+  // demais famílias que reutilizam o componente mantêm o vazio já aprovado.
+  if (!explorable && points.length === 0) {
     return (
       <div className="flex h-56 items-center justify-center text-sm text-slate-400">
         Sem dados de vendas no período.
@@ -38,8 +73,11 @@ export function RevenueChart({ points }: { points: DailyPoint[] }) {
     );
   }
 
-  const maxRev = Math.max(...points.map((p) => p.revenue), 0);
-  const niceMax = maxRev <= 0 ? 100 : Math.ceil(maxRev / 4) * 4 * 1.05;
+  const activeMetric = explorable ? metric : "revenue";
+  const hasPoints = points.length > 0;
+  const values = points.map((point) => point[activeMetric]);
+  const maximum = Math.max(...values, 0);
+  const niceMax = niceCeiling(maximum);
   const plotW = W - PAD.left - PAD.right;
   const plotH = H - PAD.top - PAD.bottom;
 
@@ -47,8 +85,8 @@ export function RevenueChart({ points }: { points: DailyPoint[] }) {
     PAD.left + (points.length === 1 ? plotW / 2 : (i / (points.length - 1)) * plotW);
   const y = (v: number) => PAD.top + plotH - (v / niceMax) * plotH;
 
-  const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"} ${x(i)} ${y(p.revenue)}`).join(" ");
-  const areaPath = `${linePath} L ${x(points.length - 1)} ${y(0)} L ${x(0)} ${y(0)} Z`;
+  const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"} ${x(i)} ${y(p[activeMetric])}`).join(" ");
+  const areaPath = hasPoints ? `${linePath} L ${x(points.length - 1)} ${y(0)} L ${x(0)} ${y(0)} Z` : "";
 
   // Linhas de grade / rótulos do eixo Y
   const gridLines = [0, 0.25, 0.5, 0.75, 1].map((t) => ({ t, v: niceMax * t, yy: y(niceMax * t) }));
@@ -57,11 +95,9 @@ export function RevenueChart({ points }: { points: DailyPoint[] }) {
   const step = Math.max(1, Math.ceil(points.length / 7));
   const xLabels = points.filter((_, i) => i % step === 0 || i === points.length - 1);
 
-  const empty = maxRev <= 0;
-
   function onMove(e: React.MouseEvent) {
     const svg = ref.current;
-    if (!svg) return;
+    if (!svg || !hasPoints) return;
     const rect = svg.getBoundingClientRect();
     const ratio = (e.clientX - rect.left) / rect.width;
     const px = ratio * W;
@@ -77,7 +113,37 @@ export function RevenueChart({ points }: { points: DailyPoint[] }) {
   const hoverLeftPct = hover != null ? (x(hover) / W) * 100 : 0;
 
   return (
-    <div className="relative">
+    <div className={`revenue-chart${explorable ? " is-explorable is-chart-v2" : ""}`}>
+      {explorable && (
+        <div className="revenue-chart-toolbar" role="tablist" aria-label="Métrica do gráfico">
+          {METRICS.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              role="tab"
+              aria-selected={activeMetric === item.key}
+              tabIndex={activeMetric === item.key ? 0 : -1}
+              onClick={() => {
+                setMetric(item.key);
+                setHover(null);
+              }}
+              onKeyDown={(event) => {
+                if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+                event.preventDefault();
+                const index = METRICS.findIndex((candidate) => candidate.key === item.key);
+                const offset = event.key === "ArrowRight" ? 1 : -1;
+                const nextIndex = (index + offset + METRICS.length) % METRICS.length;
+                setMetric(METRICS[nextIndex].key);
+                setHover(null);
+                const buttons = event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>("[role='tab']");
+                buttons?.[nextIndex]?.focus();
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
       <svg
         ref={ref}
         viewBox={`0 0 ${W} ${H}`}
@@ -95,11 +161,13 @@ export function RevenueChart({ points }: { points: DailyPoint[] }) {
         }}
         tabIndex={0}
         role="img"
-        aria-label="Faturamento diário no período. Use as setas para consultar cada dia."
+        aria-label={hasPoints
+          ? `${METRICS.find((item) => item.key === activeMetric)?.label} por dia no período. Use as setas para consultar cada dia.`
+          : "Sem vendas no período selecionado."}
       >
         <defs>
           <linearGradient id="revFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--rev)" stopOpacity="0.28" />
+            <stop offset="0%" stopColor="var(--rev)" stopOpacity="0.2" />
             <stop offset="100%" stopColor="var(--rev)" stopOpacity="0.02" />
           </linearGradient>
         </defs>
@@ -112,19 +180,24 @@ export function RevenueChart({ points }: { points: DailyPoint[] }) {
               x2={W - PAD.right}
               y1={g.yy}
               y2={g.yy}
-              className="stroke-slate-200 dark:stroke-slate-700"
+              className="revenue-grid-line"
+              stroke="var(--ink-12)"
               strokeWidth={1}
+              strokeDasharray={explorable ? "3 4" : undefined}
               vectorEffect="non-scaling-stroke"
             />
-            <text
-              x={PAD.left - 8}
-              y={g.yy + 4}
-              textAnchor="end"
-              className="fill-slate-400"
-              fontSize={13}
-            >
-              {compact(g.v)}
-            </text>
+            {hasPoints && (
+              <text
+                x={PAD.left - 8}
+                y={g.yy + 4}
+                textAnchor="end"
+                className="revenue-axis-label"
+                fill="var(--ink-50)"
+                fontSize={13}
+              >
+                {compact(g.v, activeMetric, currency)}
+              </text>
+            )}
           </g>
         ))}
 
@@ -138,7 +211,8 @@ export function RevenueChart({ points }: { points: DailyPoint[] }) {
               x={x(i)}
               y={H - 8}
               textAnchor={anchor}
-              className="fill-slate-400"
+              className="revenue-axis-label"
+              fill="var(--ink-50)"
               fontSize={13}
             >
               {shortDate(p.date)}
@@ -146,21 +220,43 @@ export function RevenueChart({ points }: { points: DailyPoint[] }) {
           );
         })}
 
-        {!empty && (
+        {hasPoints && (
           <>
-            <path d={areaPath} fill="url(#revFill)" />
+            {!explorable && <path d={areaPath} fill="url(#revFill)" />}
             <path
               d={linePath}
               fill="none"
               stroke="var(--rev)"
-              strokeWidth={2}
+              strokeWidth={explorable ? 1.5 : 2}
               strokeLinejoin="round"
               strokeLinecap="round"
               vectorEffect="non-scaling-stroke"
             />
-            {/* Ponto final destacado */}
-            <circle cx={x(points.length - 1)} cy={y(points[points.length - 1].revenue)} r={4} fill="var(--rev)" />
+            {explorable ? points.map((point, index) => (
+              <circle
+                key={point.date}
+                cx={x(index)}
+                cy={y(point[activeMetric])}
+                r={2.5}
+                fill="var(--rev)"
+              />
+            )) : (
+              <circle cx={x(points.length - 1)} cy={y(points[points.length - 1].revenue)} r={4} fill="var(--rev)" />
+            )}
           </>
+        )}
+
+        {!hasPoints && (
+          <text
+            x={PAD.left + plotW / 2}
+            y={PAD.top + plotH / 2}
+            textAnchor="middle"
+            className="revenue-empty-label"
+            fill="var(--ink-50)"
+            fontSize={13}
+          >
+            Sem vendas no período selecionado
+          </text>
         )}
 
         {/* Crosshair + ponto do hover */}
@@ -171,15 +267,16 @@ export function RevenueChart({ points }: { points: DailyPoint[] }) {
               x2={x(hover!)}
               y1={PAD.top}
               y2={PAD.top + plotH}
-              stroke="var(--rev)"
+              className="revenue-crosshair"
+              stroke="var(--ink-32)"
               strokeWidth={1}
-              strokeDasharray="4 4"
+              strokeDasharray="3 3"
               vectorEffect="non-scaling-stroke"
             />
             <circle
               cx={x(hover!)}
-              cy={y(hp.revenue)}
-              r={5}
+              cy={y(hp[activeMetric])}
+              r={4}
               fill="var(--rev)"
               stroke="white"
               strokeWidth={2}
@@ -191,16 +288,23 @@ export function RevenueChart({ points }: { points: DailyPoint[] }) {
       {/* Tooltip */}
       {hp && (
         <div
-          className={`pointer-events-none absolute top-2 z-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-md ${
-            hover === 0 ? "" : hover === points.length - 1 ? "-translate-x-full" : "-translate-x-1/2"
+          className={`revenue-chart-tooltip is-structured ${
+            hover === 0 ? "is-start" : hover === points.length - 1 ? "is-end" : "is-middle"
           }`}
           style={{ left: `${hoverLeftPct}%` }}
         >
-          <p className="font-semibold text-slate-900">{shortDate(hp.date)}</p>
-          <p className="mt-0.5 text-slate-600">{brl(hp.revenue)}</p>
-          <p className="text-slate-400">
-            {hp.orders} {hp.orders === 1 ? "pedido" : "pedidos"} · {hp.units} un
-          </p>
+          <time dateTime={hp.date}>{fullDate(hp.date)}</time>
+          <dl>
+            <div className={activeMetric === "revenue" ? "is-active" : ""}>
+              <dt><i aria-hidden />Faturamento</dt><dd>{money(hp.revenue, currency)}</dd>
+            </div>
+            <div className={activeMetric === "orders" ? "is-active" : ""}>
+              <dt><i aria-hidden />Pedidos</dt><dd>{hp.orders.toLocaleString("pt-BR")}</dd>
+            </div>
+            <div className={activeMetric === "units" ? "is-active" : ""}>
+              <dt><i aria-hidden />Unidades</dt><dd>{hp.units.toLocaleString("pt-BR")}</dd>
+            </div>
+          </dl>
         </div>
       )}
     </div>

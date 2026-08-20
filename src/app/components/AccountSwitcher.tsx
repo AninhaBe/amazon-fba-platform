@@ -20,7 +20,7 @@ function labelOf(a: Acct): string {
   return a.name || a.marketplace || a.sellerId;
 }
 
-export function AccountSwitcher() {
+export function AccountSwitcher({ compact = false }: { compact?: boolean }) {
   const [info, setInfo] = useState<AccountInfo | null>(null);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -99,6 +99,66 @@ export function AccountSwitcher() {
     : info.hasOwnerToken
       ? "Minha conta"
       : "Nenhuma conta";
+
+  if (compact) {
+    return (
+      <div className="account-switcher-compact">
+        {editing && activeAccount ? (
+          <div className="account-switcher-edit">
+            <input
+              autoFocus
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") void saveName(activeAccount.sellerId);
+                if (event.key === "Escape") setEditing(false);
+              }}
+              placeholder="Apelido da conta"
+              aria-label="Apelido da conta Amazon"
+            />
+            <button type="button" onClick={() => void saveName(activeAccount.sellerId)} disabled={saving}>
+              Salvar
+            </button>
+          </div>
+        ) : (
+          <div className="account-switcher-row">
+            <select
+              value={info.active ?? ""}
+              onChange={(event) => void switchTo(event.target.value)}
+              disabled={busy}
+              aria-label="Trocar conta Amazon ativa"
+              title={activeLabel}
+            >
+              {info.hasOwnerToken && <option value="">Conta principal</option>}
+              {info.accounts.map((account) => (
+                <option key={account.sellerId} value={account.sellerId}>
+                  {labelOf(account)}
+                </option>
+              ))}
+            </select>
+            {activeAccount && (
+              <button
+                type="button"
+                className="account-switcher-rename"
+                onClick={() => {
+                  setDraft(activeAccount.name ?? activeAccount.marketplace ?? "");
+                  setEditing(true);
+                }}
+                title="Renomear conta"
+                aria-label="Renomear conta"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+                  <path d="M12 20h9" strokeLinecap="round" />
+                  <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" strokeLinejoin="round" />
+                </svg>
+              </button>
+            )}
+          </div>
+        )}
+        {error && <p role="alert">{error}</p>}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-2">

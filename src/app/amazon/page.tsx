@@ -13,6 +13,7 @@ import { amazonFinancialCards } from "./amazonFinancialCards";
 import { AnimatedNumber } from "../components/AnimatedNumber";
 import { OrderProfitabilityTable } from "../components/OrderProfitabilityTable";
 import { ConnectionBroken, isBrokenConnection } from "../components/ConnectionBroken";
+import { TopProductsRanking } from "../components/TopProductsRanking";
 
 /**
  * Cobertura do cálculo de rentabilidade, como a API devolve. É objeto, não
@@ -32,6 +33,8 @@ function scopeSentence(scope?: ProfitabilityScope): string | undefined {
 import type { ProfitabilityLine } from "@/lib/profitability";
 import { brDate, brTime } from "@/lib/datetime";
 import { readJson } from "../../lib/readJson";
+
+const PRIMARY_FINANCIAL_CARDS = new Set(["revenue", "fees", "cogs", "profit", "marginPct"]);
 
 function money(v: number, currency = "BRL") {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(v);
@@ -330,27 +333,25 @@ export default function Dashboard() {
   const revenueTrend = getRevenueTrend(sales?.points ?? []);
 
   return (
-    <div className="dashboard-page space-y-8">
-      <PageHeader
-        eyebrow="Operação Amazon"
-        title="Dashboard Amazon"
-        subtitle="Resumo de vendas, lucro, FBA e desempenho da conta Amazon ativa."
-        icon={pageIcons.dashboard}
+    <div className="dashboard-page amazon-dashboard">
+      <DashboardPeriodFilter
+        {...period.filterProps}
+        meta={updatedAt ? <>Atualizado às {brTime(updatedAt)}</> : undefined}
       />
-      <DashboardPeriodFilter {...period.filterProps} />
-
-      {updatedAt && (
-        <p className="-mt-5 text-xs text-slate-400">
-          Atualizado às {brTime(updatedAt)}. Dados de vendas, pedidos e financeiro sincronizados.
-        </p>
-      )}
 
       <AmazonPending products={products.length} productsLoading={productsLoading} missingCosts={noCost} />
 
-      <div className="dashboard-sections space-y-8">
-      {/* Os doze componentes do resultado, um card cada — mesmo padrão do painel da
-          TikTok Shop. Componente sem dado diz o que falta em vez de mostrar zero.
-          O Lucro mantém o tratamento verde de destaque que já tinha. */}
+      <PageHeader
+        eyebrow="Operação Amazon"
+        title="Resumo financeiro"
+        subtitle="O que entrou, saiu e ainda depende de conciliação no período selecionado."
+        icon={pageIcons.dashboard}
+      />
+
+      <div className="dashboard-sections">
+      {/* A primeira faixa contém somente os indicadores que resumem o resultado.
+          O detalhamento continua abaixo, na composição financeira, sem perder
+          nenhuma distinção entre zero e dado ainda desconhecido. */}
       {(() => {
         const cards = amazonFinancialCards({
           finance: profit?.finance ?? null,
@@ -361,28 +362,32 @@ export default function Dashboard() {
           taxes: profit?.taxes ?? null,
         });
         const margem = cards.find((c) => c.key === "marginPct");
+        const primaryCards = cards.filter((card) => PRIMARY_FINANCIAL_CARDS.has(card.key));
         return (
-          <div className="metric-grid grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-4" aria-label="Componentes financeiros da Amazon">
-            {cards.map((card) =>
+          <div className="metric-grid" aria-label="Resumo financeiro da Amazon">
+            {primaryCards.map((card) =>
+              // O bloco de lucro era markup próprio: rótulo 11px maiúsculo,
+              // valor 27px e um fundo verde, tudo escrito à mão dentro desta
+              // página. Numa faixa contínua ele virava um bloco colorido no
+              // meio de nada, e o `overflow: hidden` sobre 132px de largura
+              // CORTAVA o valor no meio ("R$ 222,9").
+              //
+              // Agora usa o `Metric` como todos os outros. O lucro continua se
+              // distinguindo — pela cor do número (`tone="positive"`), que é
+              // informação, e não pelo fundo, que era decoração.
               card.key === "profit" ? (
-                <div key={card.key} className="metric-cell metric-primary relative overflow-hidden p-5">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">
-                    {costsIncomplete ? "Repasse líquido" : "Lucro"}
-                  </p>
-                  <p className="mt-2 text-[27px] font-bold leading-none tabular-nums text-emerald-800">
-                    {loading ? "···" : card.raw != null
-                      ? <AnimatedNumber id="amz-profit" value={card.raw} format={(amount) => money(amount, currency)} />
-                      : card.value}
-                  </p>
-                  {card.value === "—" || margem?.value === "—" ? (
-                    <p className="mt-1.5 text-xs font-medium text-slate-500">{loading ? "" : card.context}</p>
-                  ) : (
-                    <p className="mt-2 flex items-baseline gap-1.5">
-                      <span className="text-[17px] font-extrabold tabular-nums text-emerald-600">{margem?.value}</span>
-                      <span className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700/70">margem sobre vendas</span>
-                    </p>
-                  )}
-                </div>
+                <Kpi
+                  key={card.key}
+                  label={costsIncomplete ? "Repasse líquido" : "Lucro"}
+                  tone={card.tone}
+                  loading={loading}
+                  value={card.raw != null
+                    ? <AnimatedNumber id="amz-profit" value={card.raw} format={(amount) => money(amount, currency)} />
+                    : card.value}
+                  sub={card.value === "—" || margem?.value === "—"
+                    ? card.context
+                    : `${margem?.value} de margem sobre vendas`}
+                />
               ) : (
                 <Kpi
                   key={card.key}
@@ -398,6 +403,7 @@ export default function Dashboard() {
                     ? `${faturamento?.orders ?? salesCount} pedidos no período`
                     : card.context}
                   trend={card.key === "revenue" ? revenueTrend : undefined}
+                  tone={card.tone}
                   loading={loading}
                 />
               )
@@ -411,10 +417,16 @@ export default function Dashboard() {
         <CompactMetric label="Vendas" value={String(salesCount)} loading={loading} />
         <CompactMetric label="Unidades" value={String(unitsCount)} loading={loading} />
         <CompactMetric label="Ticket médio" value={ticketMedio == null ? "—" : money(ticketMedio, currency)} loading={loading} />
-        <CompactMetric label="ROI" value={cogs > 0 ? `${roiPct.toFixed(1)}%` : "—"} loading={loading} />
+        <CompactMetric
+          label="ROI"
+          value={cogs > 0 ? `${roiPct.toFixed(1)}%` : "—"}
+          tone={cogs > 0 ? (roiPct > 0 ? "positive" : roiPct < 0 ? "danger" : "default") : "default"}
+          loading={loading}
+        />
         <CompactMetric
           label="Canceladas"
           value={canceladas ? `${money(canceladas.revenue, currency)} · ${canceladas.orders}` : "—"}
+          tone={canceladas && canceladas.orders > 0 ? "danger" : "default"}
           loading={loading}
         />
       </div>
@@ -457,7 +469,7 @@ export default function Dashboard() {
           {loading ? (
             <span className="skeleton-chart" role="status" aria-label="Carregando evolução das vendas" />
           ) : (
-            <RevenueChart points={sales?.points ?? []} />
+            <RevenueChart points={sales?.points ?? []} currency={currency} explorable />
           )}
         </div>
 
@@ -505,12 +517,31 @@ export default function Dashboard() {
                 <Flow key={t.type} label={nomeDaTarifa(t.type)} value={money(t.amount, currency)} detail muted />
               ))}
               <Flow label="Custo dos produtos" value={loading ? "…" : money(profit?.cogs ?? 0, currency)} muted sign="−" />
-              <Flow label={costsIncomplete ? "Repasse líquido" : "Lucro estimado"} value={loading ? "…" : money(profit?.estimatedProfit ?? 0, currency)} accent sign="=" />
+              <Flow
+                label={costsIncomplete ? "Repasse líquido" : "Lucro estimado"}
+                value={loading ? "…" : money(profit?.estimatedProfit ?? 0, currency)}
+                accent
+                tone={costsIncomplete || loading
+                  ? "default"
+                  : (profit?.estimatedProfit ?? 0) > 0
+                    ? "positive"
+                    : (profit?.estimatedProfit ?? 0) < 0
+                      ? "danger"
+                      : "default"}
+                sign="="
+              />
               {!loading && (profit?.finance.revenue ?? 0) > 0 && (
                 <Flow
                   label="Margem"
                   value={`${(((profit?.estimatedProfit ?? 0) / (profit?.finance.revenue || 1)) * 100).toFixed(1).replace(".", ",")}%`}
                   accent
+                  tone={costsIncomplete
+                    ? "default"
+                    : (profit?.estimatedProfit ?? 0) > 0
+                      ? "positive"
+                      : (profit?.estimatedProfit ?? 0) < 0
+                        ? "danger"
+                        : "default"}
                 />
               )}
             </div>
@@ -573,62 +604,24 @@ export default function Dashboard() {
       </div>
 
       {/* Rentabilidade por venda — a mesma visão do monitor, direto no dashboard. */}
-      <OrderProfitabilityTable lines={profitability} loading={profitabilityLoading} scopeNote={scopeSentence(profitabilityScope)} />
+      <OrderProfitabilityTable
+        lines={profitability}
+        loading={profitabilityLoading}
+        scopeNote={scopeSentence(profitabilityScope)}
+        pageSize={6}
+      />
 
-      {/* Top produtos */}
-      <div className="work-panel border-t border-slate-300 py-5">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-            Top produtos
-          </h2>
-          <Link href="/produtos" className="text-xs font-medium text-blue-600 hover:underline">
-            Ver produtos →
-          </Link>
-        </div>
-        {productsLoading ? (
+      {/* Barras proporcionais favorecem comparação; os valores e a incerteza da
+          margem continuam explícitos, sem reduzir o dado a decoração. */}
+      {productsLoading ? (
+        <div className="top-products-loading">
           <InlineLoading label="Carregando produtos com melhor desempenho" />
-        ) : top.length === 0 ? (
-          <Empty>Sem vendas no período para ranquear.</Empty>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[520px] text-sm">
-              <caption className="sr-only">Produtos com melhor desempenho no período</caption>
-              <thead className="text-left text-xs uppercase tracking-wide text-slate-400">
-                <tr>
-                  <th scope="col" className="pb-2 pr-3 font-medium">#</th>
-                  <th scope="col" className="pb-2 pr-3 font-medium">Produto</th>
-                  <th scope="col" className="pb-2 px-3 text-right font-medium">Un</th>
-                  <th scope="col" className="pb-2 px-3 text-right font-medium">Faturamento</th>
-                  <th scope="col" className="pb-2 pl-3 text-right font-medium">Margem</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {top.map((p, i) => (
-                  <tr key={p.sku}>
-                    <td className="py-2.5 pr-3 tabular-nums text-slate-400">{i + 1}</td>
-                    <td className="py-2.5 pr-3">
-                      <span className="block max-w-[260px] truncate font-medium">
-                        {p.title || p.sku}
-                      </span>
-                    </td>
-                    <td className="py-2.5 px-3 text-right tabular-nums text-slate-600">{p.units}</td>
-                    <td className="py-2.5 px-3 text-right tabular-nums font-medium">
-                      {money(p.revenue, currency)}
-                    </td>
-                    <td className="py-2.5 pl-3 text-right">
-                      <MarginBadge pct={p.marginPct} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <p className="mt-3 text-xs text-slate-400">
-              Margem de contribuição = (preço de venda − custo) ÷ preço. Cadastre custos em
-              Produtos para ver a margem.
-            </p>
-          </div>
-        )}
-      </div>
+        </div>
+      ) : top.length === 0 ? (
+        <div className="top-products-loading"><Empty>Sem vendas no período para ranquear.</Empty></div>
+      ) : (
+        <TopProductsRanking products={top} currency={currency} productsHref="/amazon/produtos" />
+      )}
 
       {/* Atalhos: no desktop a sidebar já cobre; no mobile os cartões ajudam. */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:hidden">
@@ -644,9 +637,19 @@ export default function Dashboard() {
 
 
 
-function CompactMetric({ label, value, loading }: { label: string; value: string; loading?: boolean }) {
+function CompactMetric({
+  label,
+  value,
+  loading,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  loading?: boolean;
+  tone?: "default" | "positive" | "danger" | "warn";
+}) {
   return (
-    <div className="compact-metric">
+    <div className={`compact-metric compact-metric-${tone}`}>
       <p>{label}</p>
       <strong>{loading ? "···" : value}</strong>
     </div>
@@ -680,6 +683,7 @@ function Flow({
   value,
   muted,
   accent,
+  tone = "default",
   sign,
   detail,
   subtotal,
@@ -689,17 +693,28 @@ function Flow({
   value: string;
   muted?: boolean;
   accent?: boolean;
+  tone?: "default" | "positive" | "danger";
   sign?: "−" | "=";
   /** Fecha um trecho da cascata sem ser o resultado final (que é verde). */
   subtotal?: boolean;
 }) {
   return (
-    <div className={`financial-line ${accent ? "is-result" : ""} ${subtotal ? "is-subtotal" : ""}`}>
+    <div className={`financial-line ${accent ? `is-result is-result-${tone}` : ""} ${subtotal ? "is-subtotal" : ""}`}>
       <span className="financial-sign" aria-hidden="true">{sign}</span>
       <p className={detail ? "pl-3 text-xs text-slate-400" : "text-xs font-medium text-slate-500"}>{label}</p>
       <p
         className={`tabular-nums ${detail ? "text-xs text-slate-500" : "text-sm font-bold"} ${
-          accent ? "text-emerald-700" : muted && !detail ? "text-red-600" : detail ? "" : "text-slate-900"
+          accent
+            ? tone === "positive"
+              ? "text-emerald-700"
+              : tone === "danger"
+                ? "text-red-600"
+                : "text-slate-900"
+            : muted && !detail
+              ? "text-slate-700"
+              : detail
+                ? ""
+                : "text-slate-900"
         }`}
       >
         {value}
@@ -715,7 +730,10 @@ function Flow({
  * depois da entrega, então o saldo só enxerga as despesas até lá.
  */
 function SaldoNaAmazon({ saldo }: { saldo: SaldoData }) {
+  const [todasLiberacoes, setTodasLiberacoes] = useState(false);
   const proxima = saldo.liberacoes[0];
+  const liberacoesVisiveis = todasLiberacoes ? saldo.liberacoes : saldo.liberacoes.slice(0, 6);
+  const temMaisLiberacoes = saldo.liberacoes.length > liberacoesVisiveis.length;
   return (
     <section className="saldo-panel" aria-labelledby="saldo-title">
       <div>
@@ -743,15 +761,29 @@ function SaldoNaAmazon({ saldo }: { saldo: SaldoData }) {
         </div>
       </div>
       {saldo.liberacoes.length > 0 && (
-        <ol className="saldo-liberacoes">
-          {saldo.liberacoes.map((l) => (
-            <li key={l.date}>
-              <span>{brDate(l.date)}</span>
-              <strong>{money(l.amount, saldo.currency)}</strong>
-              <small>{l.orderIds.length} {l.orderIds.length === 1 ? "pedido" : "pedidos"}</small>
-            </li>
-          ))}
-        </ol>
+        <div className="saldo-liberacoes-wrap">
+          <ol className="saldo-liberacoes">
+            {liberacoesVisiveis.map((l) => (
+              <li key={l.date}>
+                <span>{brDate(l.date)}</span>
+                <strong>{money(l.amount, saldo.currency)}</strong>
+                <small>{l.orderIds.length} {l.orderIds.length === 1 ? "pedido" : "pedidos"}</small>
+              </li>
+            ))}
+          </ol>
+          {(temMaisLiberacoes || todasLiberacoes) && (
+            <button
+              type="button"
+              className="saldo-liberacoes-toggle"
+              aria-expanded={todasLiberacoes}
+              onClick={() => setTodasLiberacoes((atual) => !atual)}
+            >
+              {todasLiberacoes
+                ? "Mostrar apenas as próximas liberações"
+                : `Ver todas as ${saldo.liberacoes.length} liberações`}
+            </button>
+          )}
+        </div>
       )}
       <p className="saldo-nota">
         A Amazon retém o valor de cada venda até depois da entrega — por isso o saldo disponível pode
@@ -792,23 +824,6 @@ function Panel({
 
 function Empty({ children }: { children: React.ReactNode }) {
   return <EmptyState compact title={String(children)} />;
-}
-
-function MarginBadge({ pct }: { pct: number | null }) {
-  if (pct == null) {
-    return <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-400">—</span>;
-  }
-  const cls =
-    pct >= 18
-      ? "bg-emerald-100 text-emerald-700"
-      : pct >= 12
-        ? "bg-amber-100 text-amber-700"
-        : "bg-red-100 text-red-700";
-  return (
-    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${cls}`}>
-      {pct.toFixed(1)}%
-    </span>
-  );
 }
 
 function QuickLink({ href, label, desc }: { href: string; label: string; desc: string }) {

@@ -10,6 +10,7 @@ import { PageHeader } from "./PageHeader";
 import { RevenueChart, type DailyPoint } from "./RevenueChart";
 import { DashboardPeriodFilter, useDashboardPeriod } from "./DashboardPeriodFilter";
 import { OrderProfitabilityTable } from "./OrderProfitabilityTable";
+import { TopProductsRanking } from "./TopProductsRanking";
 import { OperationPending } from "./OperationPending";
 import { ConnectionBroken } from "./ConnectionBroken";
 import { Flow, FlowExpandable, Metric, getRevenueTrend } from "./Metric";
@@ -287,7 +288,7 @@ export function ShopeeWorkspace() {
         <PageHeader eyebrow="Shopee" title="Visão do canal" subtitle="Conecte uma loja para começar a sincronizar pedidos e taxas." />
         <EmptyState
           title="Nenhuma loja Shopee conectada"
-          description="Ao autorizar, o SellerCore passa a ler pedidos, produtos e as taxas reais de cada venda (escrow)."
+            description="Ao autorizar, o NEXO passa a ler pedidos, produtos e as taxas reais de cada venda (escrow)."
           action={
             <Link className="meli-primary-action" href={status.connectHref || "/integracoes"}>
               Conectar loja Shopee <span aria-hidden="true">→</span>
@@ -333,22 +334,23 @@ export function ShopeeWorkspace() {
   }
 
   return (
-    <>
+    <div className="channel-dashboard shopee-dashboard-page">
       <PageHeader
         eyebrow="Shopee"
         title={status.demo ? "Visão de demonstração" : overview.account.name}
         subtitle={status.demo ? `Dados sintéticos · ${overview.period.label}` : `Loja ${overview.account.id} · ${overview.account.region} · ${overview.period.label}`}
-        action={<div className="flex flex-wrap items-end gap-3">{status.connections.length > 1 && <label className="flex min-w-52 flex-col gap-1 text-xs font-semibold text-slate-500">Loja<select aria-label="Loja Shopee" className="min-h-11 rounded-lg bg-white px-3 text-base shadow-[inset_0_0_0_1px_rgb(203_213_225)] focus:outline-none focus:ring-2 focus:ring-[var(--channel-accent)] sm:text-sm" value={status.connections.find((item)=>item.id===searchParams.get("connection_id"))?.id??status.connections[0]?.id} onChange={(event)=>{const next=new URLSearchParams(searchParams.toString());next.set("connection_id",event.target.value);next.set("offset","0");router.push(`/shopee?${next}`,{scroll:false})}}>{status.connections.map((item)=><option key={item.id} value={item.id}>{item.displayName||item.externalAccountId||item.id}</option>)}</select></label>}<DashboardPeriodFilter {...period.filterProps} /></div>}
+        action={status.connections.length > 1 && <label className="channel-store-selector">Loja<select aria-label="Loja Shopee" value={status.connections.find((item)=>item.id===searchParams.get("connection_id"))?.id??status.connections[0]?.id} onChange={(event)=>{const next=new URLSearchParams(searchParams.toString());next.set("connection_id",event.target.value);next.set("offset","0");router.push(`/shopee?${next}`,{scroll:false})}}>{status.connections.map((item)=><option key={item.id} value={item.id}>{item.displayName||item.externalAccountId||item.id}</option>)}</select></label>}
       />
+      <DashboardPeriodFilter {...period.filterProps} />
       {status.demo && <ShopeeDemoNotice connectHref={status.configured ? status.connectHref : undefined} />}
       <Dashboard overview={overview} updatedAt={updatedAt} sync={sync} onPage={(offset)=>{const next=new URLSearchParams(searchParams.toString());next.set("offset",String(offset));router.push(`/shopee?${next}`,{scroll:false})}} />
-    </>
+    </div>
   );
 }
 
 function ShopeeDemoNotice({ connectHref }: { connectHref?: string }) {
   return (
-    <aside className="mb-8 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-950 sm:flex-row sm:items-center sm:justify-between" aria-labelledby="shopee-demo-title">
+    <aside className="channel-module-notice is-warning shopee-demo-notice" aria-labelledby="shopee-demo-title">
       <div className="flex gap-3">
         <FlaskConical className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
         <div>
@@ -378,7 +380,7 @@ function Dashboard({ overview, updatedAt, sync, onPage }: { overview: Overview; 
   const profitPresentation = shopeeProfitPresentation({ coverageComplete: profitCoverage.complete, feesComplete: overview.profit.feesComplete, costsComplete: !costsIncomplete });
 
   return (
-    <div className="dashboard-sections space-y-8">
+    <div className="dashboard-sections shopee-dashboard-body">
       {updatedAt && (
         <p className="-mt-5 text-xs text-slate-400">
           Atualizado às {brTime(updatedAt)}
@@ -402,7 +404,7 @@ function Dashboard({ overview, updatedAt, sync, onPage }: { overview: Overview; 
 
       <OperationPending items={overview.metrics.productsWithoutCost > 0 ? [{ label: `Cadastrar custo de ${overview.metrics.productsWithoutCost} produto(s)`, href: "/shopee/produtos" }] : []} />
 
-      <section className="metric-grid grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-4" aria-label="Indicadores Shopee">
+      <section className="metric-grid listing-summary-band is-4 shopee-dashboard-metrics" aria-label="Indicadores Shopee">
         <Metric
           label="Vendas"
           value={<AnimatedNumber id="shopee-dash-revenue" value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />}
@@ -422,7 +424,7 @@ function Dashboard({ overview, updatedAt, sync, onPage }: { overview: Overview; 
         <Metric label="Produtos sem custo" value={overview.metrics.productsWithoutCost.toLocaleString("pt-BR")} sub={overview.metrics.productsWithoutCost ? "cadastre para ver o lucro" : "todos cadastrados"} tone={overview.metrics.productsWithoutCost ? "warn" : "ok"} icon={<PackageOpen className="h-5 w-5" strokeWidth={1.7} aria-hidden />} />
       </section>
 
-      <section className="performance-panel">
+      <section className="performance-panel shopee-performance-panel">
         <div className="performance-chart">
           <div className="mb-2 flex items-baseline justify-between gap-4">
             <div>
@@ -479,7 +481,7 @@ function Dashboard({ overview, updatedAt, sync, onPage }: { overview: Overview; 
         </aside>
       </section>
 
-      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
+      <div className="shopee-detail-grid">
         <Panel title="Estoque crítico">
           {critical.length === 0 ? <Empty>Nenhum produto em ruptura iminente.</Empty> : (
             <ul className="divide-y divide-slate-100">
@@ -509,66 +511,32 @@ function Dashboard({ overview, updatedAt, sync, onPage }: { overview: Overview; 
         </Panel>
       </div>
 
-      <div>
+      <section className="shopee-profitability-section">
         {!overview.profitabilityPage.complete && <div role="status" className="mb-3 integration-message is-error">Detalhamento parcial: exibindo {overview.profitabilityPage.offset + 1}–{overview.profitabilityPage.offset + overview.profitabilityPage.returnedOrders} de {overview.profitabilityPage.totalOrders} pedido(s). Há mais resultados.</div>}
         <OrderProfitabilityTable lines={overview.profitabilityLines} />
         <nav aria-label="Paginação da rentabilidade" className="mt-3 flex justify-end gap-2"><button type="button" className="min-h-11 rounded-lg px-4 shadow-[inset_0_0_0_1px_rgb(203_213_225)] active:scale-[0.96] transition-transform disabled:opacity-40" disabled={overview.profitabilityPage.offset===0} onClick={()=>onPage(Math.max(0,overview.profitabilityPage.offset-overview.profitabilityPage.limit))}>Anterior</button><button type="button" className="min-h-11 rounded-lg px-4 shadow-[inset_0_0_0_1px_rgb(203_213_225)] active:scale-[0.96] transition-transform disabled:opacity-40" disabled={!overview.profitabilityPage.hasMore} onClick={()=>onPage(overview.profitabilityPage.offset+overview.profitabilityPage.limit)}>Próxima</button></nav>
-      </div>
+      </section>
 
-      <div className="work-panel border-t border-slate-300 py-5">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Top produtos</h2>
-        </div>
-        {overview.topProducts.length === 0 ? <Empty>Sem vendas no período para ranquear.</Empty> : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[520px] text-sm">
-              <caption className="sr-only">Produtos com melhor desempenho no período</caption>
-              <thead className="text-left text-xs uppercase tracking-wide text-slate-400">
-                <tr>
-                  <th scope="col" className="pb-2 pr-3 font-medium">#</th>
-                  <th scope="col" className="pb-2 pr-3 font-medium">Produto</th>
-                  <th scope="col" className="pb-2 px-3 text-right font-medium">Un</th>
-                  <th scope="col" className="pb-2 px-3 text-right font-medium">Faturamento</th>
-                  <th scope="col" className="pb-2 pl-3 text-right font-medium">Margem</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {overview.topProducts.map((product, index) => (
-                  <tr key={`${product.id}:${product.sku || ""}`}>
-                    <td className="py-2.5 pr-3 tabular-nums text-slate-400">{index + 1}</td>
-                    <td className="py-2.5 pr-3"><span className="block max-w-[260px] truncate font-medium" title={product.title}>{product.title}</span></td>
-                    <td className="py-2.5 px-3 text-right tabular-nums text-slate-600">{product.units}</td>
-                    <td className="py-2.5 px-3 text-right tabular-nums font-medium">{money(product.revenue, overview.metrics.currency)}</td>
-                    <td className="py-2.5 pl-3 text-right"><MarginBadge pct={product.marginPct} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <p className="mt-3 text-xs text-slate-400">O faturamento considera todas as vendas do período. A margem aparece somente quando todos os custos daquele produto foram processados.</p>
-          </div>
-        )}
-      </div>
+      <TopProductsRanking
+        products={overview.topProducts.map((product) => ({ sku: product.sku || product.id, title: product.title, units: product.units, revenue: product.revenue, marginPct: product.marginPct }))}
+        currency={overview.metrics.currency}
+        productsHref="/shopee/produtos"
+      />
     </div>
   );
 }
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="work-panel border-t border-slate-300 py-5">
+    <section className="shopee-detail-panel">
       <div className="mb-3 flex items-center justify-between border-b border-slate-100 pb-3">
         <h2 className="text-[13px] font-semibold text-slate-700">{title}</h2>
       </div>
       {children}
-    </div>
+    </section>
   );
 }
 
 function Empty({ children }: { children: React.ReactNode }) {
   return <EmptyState compact title={String(children)} />;
-}
-
-function MarginBadge({ pct }: { pct: number | null }) {
-  if (pct == null) return <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-400">—</span>;
-  const tone = pct >= 15 ? "bg-emerald-50 text-emerald-700" : pct >= 5 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700";
-  return <span className={`rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${tone}`}>{pct.toFixed(1)}%</span>;
 }

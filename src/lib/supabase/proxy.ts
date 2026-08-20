@@ -19,7 +19,13 @@ export async function updateSession(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL &&
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
   );
-  const isPublic = publicPaths.some((path) => request.nextUrl.pathname.startsWith(path));
+  // Laboratório de protótipos (`/lab`): liberado SÓ em desenvolvimento. Não tem
+  // dado nem API atrás dele, mas em produção seria superfície pública sem
+  // motivo — e a regra da casa é não deixar nada aberto por conveniência.
+  const isLab =
+    process.env.NODE_ENV !== "production" && request.nextUrl.pathname.startsWith("/lab");
+  const isPublic =
+    isLab || publicPaths.some((path) => request.nextUrl.pathname.startsWith(path));
   const isApi = request.nextUrl.pathname.startsWith("/api/");
 
   if (isPublic && request.nextUrl.pathname === "/api/health") {

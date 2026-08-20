@@ -32,7 +32,7 @@ export interface AmazonCard {
   label: string;
   value: string;
   context: string;
-  tone?: "positive" | "default";
+  tone?: "positive" | "danger" | "default";
   /** Valor cru, quando conhecido. É o que permite animar o número na tela. */
   raw?: number | null;
 }
@@ -87,7 +87,7 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
   const num = (
     v: number | null | undefined,
     contextoQuandoFalta: string,
-    tone?: "positive",
+    tone?: "positive" | "danger",
     contextoQuandoZero?: string
   ): Omit<AmazonCard, "key" | "label"> =>
     v == null
@@ -150,18 +150,27 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
       ...(resultadoValido
         // Sem alíquota o lucro sai SEM imposto — e precisa dizer, senão parece
         // líquido de tudo e a pessoa decide preço com um número otimista.
-        ? { value: money(input.estimatedProfit, currency), context: input.taxRate == null ? "Faturamento − taxas − custo (sem imposto)" : "Faturamento − taxas − custo − imposto", tone: "positive" as const, raw: input.estimatedProfit }
+        ? {
+            value: money(input.estimatedProfit, currency),
+            context: input.taxRate == null ? "Faturamento − taxas − custo (sem imposto)" : "Faturamento − taxas − custo − imposto",
+            tone: input.estimatedProfit > 0 ? "positive" as const : input.estimatedProfit < 0 ? "danger" as const : "default" as const,
+            raw: input.estimatedProfit,
+          }
         : { value: "—", context: custoIncompleto ? faltaCusto : "Aguardando todos os componentes financeiros", raw: null }),
     },
     {
       key: "marginPct", label: "Margem",
       value: margem == null ? "—" : percent(margem),
       context: margem == null ? (custoIncompleto ? faltaCusto : "Aguardando receita e lucro completos") : "Lucro sobre faturamento",
+      tone: margem == null ? "default" : margem > 0 ? "positive" : margem < 0 ? "danger" : "default",
+      raw: margem,
     },
     {
       key: "roiPct", label: "ROI",
       value: roi == null ? "—" : percent(roi),
       context: roi == null ? (custoIncompleto ? faltaCusto : "Aguardando lucro e custo completos") : "Lucro sobre o custo investido",
+      tone: roi == null ? "default" : roi > 0 ? "positive" : roi < 0 ? "danger" : "default",
+      raw: roi,
     },
   ];
 }

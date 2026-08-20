@@ -13,7 +13,11 @@ export default function LoginPage() {
         <p className="auth-kicker">Operação multicanal, acesso individual</p>
         <h1 id="auth-title">Seus canais pertencem ao seu workspace.</h1>
         <p>Amazon, Mercado Livre e os próximos canais ficam isolados por conta. Você só vê as integrações autorizadas por você.</p>
-        <div className="auth-assurance"><span aria-hidden="true">✓</span> Sessão protegida e dados separados por usuário</div>
+        <dl className="auth-assurance-list">
+          <div><dt>Isolamento</dt><dd>Dados separados por usuário e workspace</dd></div>
+          <div><dt>Autorização</dt><dd>Somente as lojas conectadas por você</dd></div>
+          <div><dt>Transparência</dt><dd>Dado ausente nunca aparece como zero</dd></div>
+        </dl>
       </section>
       <Suspense fallback={<div className="auth-card min-h-[390px]" aria-label="Carregando acesso" />}>
         <LoginForm />

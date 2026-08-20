@@ -194,7 +194,7 @@ export default function MercadoLivreCalculatorPage() {
   const ready = !!feeIsCurrent && currentPrice > 0;
   const currency = fee?.currency || selected?.currency || "BRL";
 
-  return <div className="meli-calculator-page space-y-8">
+  return <div className="meli-calculator-page tool-page">
     <PageHeader
       eyebrow="Simulação Mercado Livre"
       title="Calculadora de margem"

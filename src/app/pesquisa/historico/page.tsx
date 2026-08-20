@@ -351,7 +351,7 @@ export default function HistoricoPage() {
   }, [chaveVisivel, loading]);
 
   return (
-    <div className="space-y-6">
+    <div className="analysis-page research-history-page">
       <PageHeader
         eyebrow="Inteligência de mercado"
         title="Histórico de pesquisa"
@@ -365,7 +365,7 @@ export default function HistoricoPage() {
         action={
           <Link
             href="/amazon/pesquisa"
-            className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+            className="listing-refresh"
           >
             Nova pesquisa
           </Link>
@@ -373,7 +373,7 @@ export default function HistoricoPage() {
       />
 
       {terms.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="history-terms">
           <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Você pesquisou</span>
           {terms.map((t) => (
             <Link
@@ -397,7 +397,7 @@ export default function HistoricoPage() {
       )}
 
       {items.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="listing-controls history-controls">
           <div className="flex min-w-[260px] flex-1 flex-col gap-1.5">
             <label>
               <span className="sr-only">Buscar no histórico</span>
@@ -466,12 +466,22 @@ export default function HistoricoPage() {
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-2xl border border-slate-200/70 bg-white shadow-sm ring-1 ring-slate-900/[0.02]">
+      <section className="listing-table-shell history-table-shell" aria-labelledby="history-results-title">
+        <header>
+          <div>
+            <p className="section-kicker">Acompanhamento diário</p>
+            <h2 id="history-results-title">
+              {loading && items.length === 0 ? "Carregando histórico" : `${visible.length} anúncio(s) acompanhado(s)`}
+            </h2>
+          </div>
+          <p>{atualizando ? "Atualizando posições…" : `${items.length} no histórico`}</p>
+        </header>
+        <div className="overflow-x-auto">
         {/* `table-fixed`: com layout automático, todo conteúdo novo empurra a tabela
               e força rolagem lateral. Foi o que aconteceu quando entraram a coluna de
               seleção e os ícones de ajuda. Com largura fixa por coluna, o que sobra vai
               para Produto e nada mais estoura. */}
-          <table className="w-full min-w-[880px] table-fixed text-sm">
+          <table className="listing-table history-table table-fixed">
           <caption className="sr-only">Anúncios acompanhados e a variação da posição de vendas</caption>
           <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
@@ -659,14 +669,14 @@ export default function HistoricoPage() {
               ))
             )}
           </tbody>
-        </table>
-      </div>
-
-      {pageCount > 1 && (
-        <div className="listing-pagination">
-          <Pagination page={current} pageCount={pageCount} total={visible.length} pageSize={PAGE_SIZE} onPage={setPage} />
+          </table>
         </div>
-      )}
+        {pageCount > 1 && (
+          <div className="listing-pagination">
+            <Pagination page={current} pageCount={pageCount} total={visible.length} pageSize={PAGE_SIZE} onPage={setPage} />
+          </div>
+        )}
+      </section>
 
       {items.length > 0 && (
         <div className="space-y-1 text-xs text-slate-400">

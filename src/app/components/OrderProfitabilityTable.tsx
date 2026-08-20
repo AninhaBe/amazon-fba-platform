@@ -74,7 +74,20 @@ function Breakdown({ line }: { line: ProfitabilityLine }) {
 // `scopeNote` é uma FRASE pronta, não a estrutura de cobertura da API. Quem
 // consome `/api/order-profitability` recebe `scope` como objeto e precisa
 // formatá-lo antes — renderizar o objeto cru derruba a página (React #31).
-export function OrderProfitabilityTable({ lines, loading = false, error = null, scopeNote }: { lines: ProfitabilityLine[]; loading?: boolean; error?: string | null; scopeNote?: string }) {
+export function OrderProfitabilityTable({
+  lines,
+  loading = false,
+  error = null,
+  scopeNote,
+  pageSize = PAGE_SIZE,
+}: {
+  lines: ProfitabilityLine[];
+  loading?: boolean;
+  error?: string | null;
+  scopeNote?: string;
+  /** Dashboards usam uma prévia curta; o monitor mantém a paginação operacional. */
+  pageSize?: number;
+}) {
   const [query, setQuery] = useState("");
   const [resultFilter, setResultFilter] = useState<"all" | "positive" | "negative" | "incomplete">("all");
   // Conjunto, não um id só: comparar dois pedidos lado a lado é o uso normal
@@ -93,9 +106,9 @@ export function OrderProfitabilityTable({ lines, loading = false, error = null, 
     return matches && resultMatches;
   }), [lines, query, resultFilter]);
   const complete = lines.filter((line) => line.complete).length;
-  const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
+  const pageCount = Math.max(1, Math.ceil(visible.length / pageSize));
   const current = Math.min(page, pageCount);
-  const paged = visible.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
+  const paged = visible.slice((current - 1) * pageSize, current * pageSize);
 
   return <section className="profitability-view" aria-labelledby="profitability-title">
     <header className="profitability-heading">
@@ -109,7 +122,7 @@ export function OrderProfitabilityTable({ lines, loading = false, error = null, 
       {expanded.size > 0 && <button type="button" className="profit-collapse-all" onClick={() => setExpanded(new Set())}>Recolher {expanded.size} {expanded.size === 1 ? "aberto" : "abertos"}</button>}
     </div>
 
-    {error ? <div role="alert" className="profitability-error">{error}</div> : loading ? <TableLoading label="Calculando rentabilidade das vendas" /> : lines.length === 0 ? <EmptyState title="Nenhuma venda no período" description="Amplie o período para consultar vendas anteriores." /> : visible.length === 0 ? <EmptyState kind="search" title="Nenhuma venda encontrada" description="Ajuste a busca ou altere o filtro de resultado." /> : <><div className="profitability-list">{paged.map((line) => <ProfitabilitySale key={line.id} line={line} expanded={expanded.has(line.id)} onToggle={() => toggleExpanded(line.id)} />)}</div><Pagination page={current} pageCount={pageCount} total={visible.length} pageSize={PAGE_SIZE} onPage={(nextPage) => setPagination({ lines, page: nextPage })} /></>}
+    {error ? <div role="alert" className="profitability-error">{error}</div> : loading ? <TableLoading label="Calculando rentabilidade das vendas" /> : lines.length === 0 ? <EmptyState title="Nenhuma venda no período" description="Amplie o período para consultar vendas anteriores." /> : visible.length === 0 ? <EmptyState kind="search" title="Nenhuma venda encontrada" description="Ajuste a busca ou altere o filtro de resultado." /> : <><div className="profitability-list">{paged.map((line) => <ProfitabilitySale key={line.id} line={line} expanded={expanded.has(line.id)} onToggle={() => toggleExpanded(line.id)} />)}</div><Pagination page={current} pageCount={pageCount} total={visible.length} pageSize={pageSize} onPage={(nextPage) => setPagination({ lines, page: nextPage })} /></>}
   </section>;
 }
 

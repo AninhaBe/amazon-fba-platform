@@ -40,6 +40,7 @@ export default function ProdutosPage() {
   const [newAsin, setNewAsin] = useState("");
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -119,6 +120,7 @@ export default function ProdutosPage() {
       const saved = await readJson(saveRes);
       if (!saveRes.ok) throw new Error(saved.error || "Erro ao adicionar produto.");
       setNewAsin("");
+      setAddOpen(false);
       await load();
     } catch (err) {
       setAddError(err instanceof Error ? err.message : "Não foi possível adicionar esse ASIN.");
@@ -145,6 +147,7 @@ export default function ProdutosPage() {
   // (/tiktok/produtos → /api/integrations/tiktok/costs, com requireTiktokConnection).
   const scopedProducts = products;
   const withCost = scopedProducts.filter((p) => p.cost != null && p.cost > 0).length;
+  const missingCost = scopedProducts.length - withCost;
   const visibleProducts = scopedProducts
     .filter((p) => {
       const matchesQuery = `${p.title || ""} ${p.sku || ""} ${p.asin || ""}`.toLowerCase().includes(query.toLowerCase());
@@ -162,211 +165,69 @@ export default function ProdutosPage() {
   const paged = visibleProducts.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
 
   return (
-    <div className="products-page space-y-8">
+    <div className="products-page listing-page">
       <PageHeader
-        eyebrow={"FBA Inventory · Catalog"}
+        eyebrow="Custos e cobertura Amazon"
         title="Produtos"
         icon={pageIcons.box}
-        subtitle={
-          <>
-            Seus produtos são puxados automaticamente dos canais conectados, já com o{" "}
-            <strong className="text-slate-700">preço de venda</strong>. Você só cadastra o{" "}
-            <strong className="text-slate-700">custo</strong> — é ele que permite calcular o lucro
-            real das vendas.
-          </>
-        }
+        subtitle="Complete os custos que transformam repasse em lucro real. Preço e estoque continuam vindo dos canais conectados."
+        action={<button type="button" className="listing-refresh" aria-expanded={addOpen} onClick={() => setAddOpen((open) => !open)}>{addOpen ? "Fechar cadastro" : "Adicionar por ASIN"}</button>}
       />
 
-      {/* Adicionar por ASIN */}
-      <form
-        onSubmit={addByAsin}
-        className="catalog-entry flex flex-wrap items-end gap-3 border-y border-slate-300 py-5"
-      >
-        <label className="flex flex-1 flex-col gap-1">
-          <span className="text-sm font-medium">Adicionar produto por ASIN</span>
-          <input
-            value={newAsin}
-            onChange={(e) => setNewAsin(e.target.value)}
-            placeholder="B0XXXXXXXX"
-            className="rounded-lg border border-slate-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
-          />
-        </label>
-        <button
-          type="submit"
-          disabled={adding}
-          className="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-        >
-          {adding ? "Adicionando…" : "Adicionar"}
-        </button>
-        {addError && <span role="alert" className="w-full text-xs text-red-600">{addError}</span>}
-      </form>
+      {addOpen && (
+        <form onSubmit={addByAsin} className="product-add-panel">
+          <div><strong>Adicionar produto manual</strong><span>Use o ASIN para buscar título e imagem antes de cadastrar o custo.</span></div>
+          <label><span className="sr-only">ASIN do produto</span><input value={newAsin} onChange={(event) => setNewAsin(event.target.value)} placeholder="B0XXXXXXXX" autoFocus /></label>
+          <button type="submit" disabled={adding || newAsin.trim() === ""}>{adding ? "Adicionando…" : "Adicionar"}</button>
+          {addError && <span role="alert" className="product-add-error">{addError}</span>}
+        </form>
+      )}
 
-      {error && (
-        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          <p>{error}</p>
-          <button type="button" onClick={() => void load()} className="mt-3 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white">
-            Tentar novamente
-          </button>
-        </div>
+      {error && <div role="alert" className="listing-error"><div><strong>Não foi possível carregar os produtos.</strong><p>{error}</p></div><button type="button" onClick={() => void load()}>Tentar novamente</button></div>}
+
+      {!loading && products.length > 0 && (
+        <section className="listing-summary-band" aria-label="Cobertura de custos">
+          <div><span>Produtos</span><strong>{scopedProducts.length.toLocaleString("pt-BR")}</strong><small>sincronizados e manuais</small></div>
+          <div className="is-positive"><span>Com custo</span><strong>{withCost.toLocaleString("pt-BR")}</strong><small>{Math.round((withCost / scopedProducts.length) * 100)}% da base</small></div>
+          <div className={missingCost > 0 ? "is-warning" : "is-positive"}><span>Sem custo</span><strong>{missingCost.toLocaleString("pt-BR")}</strong><small>{missingCost > 0 ? "pendentes para lucro real" : "cobertura completa"}</small></div>
+        </section>
       )}
 
       {!loading && products.length > 0 && (
-        <div className="filter-toolbar flex flex-wrap items-end justify-between gap-3">
-          <p className="text-sm text-slate-500">
-            {visibleProducts.length} de {scopedProducts.length} produto(s) · {withCost} com custo cadastrado
-          </p>
-          <div className="flex flex-1 flex-wrap justify-end gap-2">
-            <label className="min-w-52 flex-1 sm:max-w-xs">
-              <span className="sr-only">Buscar produto</span>
-              <input value={query} onChange={(e) => { setQuery(e.target.value); setPage(1); }} placeholder="Buscar SKU, ASIN ou título" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
-            </label>
-            <select value={costFilter} onChange={(e) => { setCostFilter(e.target.value as typeof costFilter); setPage(1); }} aria-label="Filtrar por cadastro de custo" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
-              <option value="all">Todos os custos</option>
-              <option value="missing">Sem custo</option>
-              <option value="complete">Com custo</option>
-            </select>
-            <select value={sort} onChange={(e) => { setSort(e.target.value as typeof sort); setPage(1); }} aria-label="Ordenar produtos" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
-              <option value="title">Ordenar por nome</option>
-              <option value="stock">Maior estoque</option>
-              <option value="cost">Maior custo</option>
-            </select>
-          </div>
-        </div>
+        <section className="listing-controls cols-3" aria-label="Filtros dos produtos">
+          <label className="listing-search"><span className="sr-only">Buscar produto</span><input value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="Buscar título, SKU ou ASIN" /></label>
+          <select value={costFilter} onChange={(event) => { setCostFilter(event.target.value as typeof costFilter); setPage(1); }} aria-label="Filtrar cobertura de custo"><option value="all">Todos os custos</option><option value="missing">Sem custo</option><option value="complete">Com custo</option></select>
+          <select value={sort} onChange={(event) => { setSort(event.target.value as typeof sort); setPage(1); }} aria-label="Ordenar produtos"><option value="title">Ordenar por nome</option><option value="stock">Maior estoque</option><option value="cost">Maior custo</option></select>
+        </section>
       )}
 
-      <div className="overflow-x-auto rounded-2xl border border-slate-200/70 bg-white shadow-sm ring-1 ring-slate-900/[0.02]">
-        <table className="w-full min-w-[640px] text-sm">
-          <caption className="sr-only">Produtos, estoque, preço de venda e custo cadastrado</caption>
-          <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-            <tr>
-              <th scope="col" className="px-4 py-3">Produto</th>
-              <th scope="col" className="px-4 py-3">Origem</th>
-              <th scope="col" className="px-4 py-3 text-right">Estoque</th>
-              <th scope="col" className="px-4 py-3 text-right">Preço venda</th>
-              <th scope="col" className="px-4 py-3 text-right">Custo (R$)</th>
-              <th scope="col" className="px-4 py-3"><span className="sr-only">Ações</span></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {loading ? (
-              <tr>
-                <td colSpan={6} className="px-4 py-8"><TableLoading label="Puxando anúncios da conta Amazon" /></td>
-              </tr>
-            ) : products.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-4 py-6"><EmptyState title="Nenhum produto sincronizado" description="Anúncios ativos aparecem automaticamente. Você também pode começar adicionando um produto pelo ASIN acima." /></td>
-              </tr>
-            ) : visibleProducts.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-6"><EmptyState kind="search" title="Nenhum produto encontrado" description="Ajuste a busca ou altere o filtro de custos." /></td></tr>
-            ) : (
-              paged.map((p) => (
-                <tr key={p.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      {p.imageUrl && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={p.imageUrl}
-                          alt=""
-                          className="h-10 w-10 shrink-0 rounded object-contain"
-                        />
-                      )}
-                      <div className="min-w-0">
-                        <p className="max-w-[320px] truncate font-medium">
-                          {p.title || p.id}
-                        </p>
-                        <p className="font-mono text-xs text-slate-400">
-                          {p.sku ? `SKU ${p.sku}` : ""}
-                          {p.sku && p.asin ? " · " : ""}
-                          {p.asin ? `ASIN ${p.asin}` : ""}
-                        </p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                        p.source === "manual"
-                          ? "bg-slate-100 text-slate-600"
-                          : p.source === "tiktok" ? "bg-cyan-100 text-cyan-800" : "bg-blue-100 text-blue-700"
-                      }`}
-                    >
-                      {p.source === "manual" ? "Manual" : p.source === "fba" ? "FBA" : p.source === "tiktok" ? "TikTok Shop" : "Anúncio"}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right tabular-nums text-slate-500">
-                    {p.fulfillable != null ? p.fulfillable : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-right tabular-nums text-slate-600">
-                    {p.salePrice != null ? money(p.salePrice) : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex flex-col items-end gap-1">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={draftCosts[p.id] ?? ""}
-                          onChange={(e) => setDraftCosts((prev) => ({ ...prev, [p.id]: e.target.value }))}
-                          onKeyDown={(e) => {
-                            if (e.key !== "Enter") return;
-                            e.preventDefault();
-                            commitCost(p, e.currentTarget.value);
-                            e.currentTarget.blur();
-                          }}
-                          onBlur={(e) => commitCost(p, e.target.value)}
-                          aria-label={`Custo de ${p.title || p.id}`}
-                          aria-describedby={`cost-status-${p.id}`}
-                          placeholder="0.00"
-                          className={`product-cost-input w-24 rounded-md border px-2 py-1 text-right text-sm tabular-nums focus:outline-none ${p.cost == null || p.cost === 0 ? "is-missing" : "border-slate-300"}`}
-                        />
-                        <button
-                          type="button"
-                          // onMouseDown: o blur do input dispara antes do click e já grava.
-                          // Prevenir o blur garante que o clique seja o caminho único.
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => commitCost(p, draftCosts[p.id] ?? "")}
-                          disabled={!canCommit(p)}
-                          title={canCommit(p) ? "Cadastrar custo" : "Digite um custo diferente do atual"}
-                          className="min-h-[40px] shrink-0 rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 transition-[background-color,color,border-color] hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-slate-300 disabled:hover:bg-transparent"
-                        >
-                          Cadastrar
-                        </button>
-                      </div>
-                      <span id={`cost-status-${p.id}`} aria-live="polite" className={`text-[10px] ${saveState[p.id] === "error" ? "text-red-600" : "text-slate-400"}`}>
-                        {saveState[p.id] === "saving" ? "Salvando…" : saveState[p.id] === "saved" ? "Salvo" : saveState[p.id] === "error" ? "Falha ao salvar" : ""}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    {p.source === "manual" && (
-                      <button
-                        onClick={() => remove(p)}
-                        className="text-xs text-slate-400 hover:text-red-600"
-                        title="Remover"
-                      >
-                        remover
-                      </button>
-                    )}
-                  </td>
+      <section className="listing-table-shell product-table-shell" aria-labelledby="product-results-title">
+        <header><div><p className="section-kicker">Base de custos</p><h2 id="product-results-title">{loading ? "Carregando produtos" : `${visibleProducts.length} ${visibleProducts.length === 1 ? "produto encontrado" : "produtos encontrados"}`}</h2></div><p>{withCost} de {scopedProducts.length} com custo cadastrado</p></header>
+        <div className="overflow-x-auto">
+          <table className="listing-table product-table">
+            <caption className="sr-only">Produtos, estoque, preço de venda e custo cadastrado</caption>
+            <thead><tr><th>Produto</th><th>Origem</th><th>Estoque</th><th>Preço de venda</th><th>Custo unitário</th><th><span className="sr-only">Ações</span></th></tr></thead>
+            <tbody>
+              {loading ? <tr><td colSpan={6}><TableLoading label="Puxando anúncios da conta Amazon" /></td></tr> : products.length === 0 ? <tr><td colSpan={6}><EmptyState title="Nenhum produto sincronizado" description="Anúncios ativos aparecem automaticamente. Você também pode adicionar um produto pelo ASIN." /></td></tr> : visibleProducts.length === 0 ? <tr><td colSpan={6}><EmptyState kind="search" title="Nenhum produto encontrado" description="Ajuste a busca ou altere o filtro de custos." /></td></tr> : paged.map((product) => (
+                <tr key={product.id}>
+                  <td><div className="listing-product product-identity">{product.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={product.imageUrl} alt="" loading="lazy" />
+                  ) : <span className="listing-image-fallback" aria-hidden="true">AMZ</span>}<div><strong title={product.title}>{product.title || product.id}</strong><small>{product.sku ? `SKU ${product.sku}` : ""}{product.sku && product.asin ? " · " : ""}{product.asin ? `ASIN ${product.asin}` : ""}</small></div></div></td>
+                  <td><span className={`product-source is-${product.source}`}>{product.source === "manual" ? "Manual" : product.source === "fba" ? "FBA" : product.source === "tiktok" ? "TikTok Shop" : "Anúncio"}</span></td>
+                  <td className="tabular-nums">{product.fulfillable ?? "—"}</td>
+                  <td className="tabular-nums">{product.salePrice == null ? "—" : money(product.salePrice)}</td>
+                  <td><div className="product-cost-editor"><label><span>R$</span><input type="number" step="0.01" min="0" value={draftCosts[product.id] ?? ""} onChange={(event) => setDraftCosts((previous) => ({ ...previous, [product.id]: event.target.value }))} onKeyDown={(event) => { if (event.key !== "Enter") return; event.preventDefault(); commitCost(product, event.currentTarget.value); event.currentTarget.blur(); }} onBlur={(event) => commitCost(product, event.target.value)} aria-label={`Custo de ${product.title || product.id}`} aria-describedby={`cost-status-${product.id}`} placeholder="0,00" className={`product-cost-input ${product.cost == null || product.cost === 0 ? "is-missing" : ""}`} /></label><button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => commitCost(product, draftCosts[product.id] ?? "")} disabled={!canCommit(product)} title={canCommit(product) ? "Salvar custo" : "Digite um custo diferente do atual"}>Salvar</button><small id={`cost-status-${product.id}`} aria-live="polite" className={saveState[product.id] === "error" ? "is-error" : ""}>{saveState[product.id] === "saving" ? "Salvando…" : saveState[product.id] === "saved" ? "Salvo" : saveState[product.id] === "error" ? "Falha ao salvar" : product.cost == null || product.cost === 0 ? "Pendente" : ""}</small></div></td>
+                  <td>{product.source === "manual" ? <button type="button" onClick={() => void remove(product)} className="listing-row-danger" title="Remover produto manual">Remover</button> : <span className="listing-open is-disabled" aria-hidden="true">—</span>}</td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {!loading && pageCount > 1 && <div className="listing-pagination"><Pagination page={current} pageCount={pageCount} total={visibleProducts.length} pageSize={PAGE_SIZE} onPage={setPage} /></div>}
+      </section>
 
-      {!loading && pageCount > 1 && (
-        <div className="listing-pagination"><Pagination page={current} pageCount={pageCount} total={visibleProducts.length} pageSize={PAGE_SIZE} onPage={setPage} /></div>
-      )}
-
-      <p className="text-xs text-slate-400">
-        Digite o custo e pressione <kbd className="rounded border border-slate-300 px-1 font-sans">Enter</kbd>,
-        clique em <strong className="font-medium text-slate-500">Cadastrar</strong> ou apenas saia do campo — nos
-        três casos o valor é salvo. Campos em amarelo ainda não têm custo cadastrado — as vendas
-        desses SKUs não entram no cálculo de lucro real.
-      </p>
+      <p className="listing-method-note">O custo é salvo ao pressionar <kbd>Enter</kbd>, ao sair do campo ou em Salvar. Produtos sem custo permanecem fora do lucro real; nenhum valor é extrapolado.</p>
     </div>
   );
 }

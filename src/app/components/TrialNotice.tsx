@@ -103,11 +103,11 @@ export function TrialNotice() {
               {trial.expired ? (
                 <>
                   O acesso de avaliação era válido até <strong>{brDate(trial.endsAt)}</strong>. Para
-                  continuar usando o SellerCore, fale com quem liberou seu acesso.
+                  continuar usando o NEXO, fale com quem liberou seu acesso.
                 </>
               ) : (
                 <>
-                  Este acesso é uma avaliação do SellerCore, válida de{" "}
+                  Este acesso é uma avaliação do NEXO, válida de{" "}
                   <strong>{brDate(trial.startsAt)}</strong> até <strong>{brDate(trial.endsAt)}</strong>.
                   Depois dessa data a conta deixa de abrir.
                 </>

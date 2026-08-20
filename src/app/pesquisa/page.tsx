@@ -178,7 +178,7 @@ export default function PesquisaPage() {
   const pisoFba = comFba.length ? Math.min(...comFba.map((i) => i.fbaPrice!)) : null;
 
   return (
-    <div className="research-page space-y-6">
+    <div className="research-page analysis-page research-workspace">
       <PageHeader
         eyebrow="Inteligência de mercado"
         title="Pesquisa de produtos"
@@ -194,14 +194,14 @@ export default function PesquisaPage() {
         action={
           <Link
             href="/amazon/pesquisa/historico"
-            className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:border-blue-400 hover:text-blue-600"
+            className="listing-refresh"
           >
             Ver histórico
           </Link>
         }
       />
 
-      <form onSubmit={run} className="search-deck flex gap-2 border-y border-slate-300 py-5">
+      <form onSubmit={run} className="search-deck research-searchbar">
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -217,7 +217,7 @@ export default function PesquisaPage() {
         </button>
       </form>
 
-      <details className="group rounded-xl border border-slate-200 bg-slate-50 text-sm">
+      <details className="group research-explainer">
         <summary className="flex cursor-pointer items-center gap-2 px-4 py-3 font-medium text-slate-700 marker:content-['']">
           <span className="text-blue-600 transition-transform group-open:rotate-90">▶</span>
           Entenda as colunas: por que “Anúncio criado” e “Idade da linha” diferem?
@@ -268,7 +268,7 @@ export default function PesquisaPage() {
       )}
 
       {items.length > 0 && (
-        <div className="filter-toolbar flex flex-wrap items-center justify-between gap-3">
+        <div className="filter-toolbar research-controls">
           <div>
             <p className="text-sm text-slate-500">{items.length} de ~{total.toLocaleString("pt-BR")} resultados</p>
           </div>
@@ -324,8 +324,9 @@ export default function PesquisaPage() {
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-2xl border border-slate-200/70 bg-white shadow-sm ring-1 ring-slate-900/[0.02]">
-        <table className="w-full min-w-[760px] text-sm">
+      <section className="listing-table-shell research-results-shell" aria-labelledby="research-results-title">
+        <header><div><p className="section-kicker">Mercado Amazon</p><h2 id="research-results-title">{searched ? `${sorted.length} ${sorted.length === 1 ? "resultado carregado" : "resultados carregados"}` : "Encontre e compare produtos"}</h2></div><p>{searched ? `cerca de ${total.toLocaleString("pt-BR")} encontrados` : "preço, concorrência, idade e posição"}</p></header>
+        <div className="overflow-x-auto"><table className="listing-table research-table">
           <caption className="sr-only">Resultados da pesquisa de anúncios da Amazon</caption>
           <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
@@ -540,11 +541,10 @@ export default function PesquisaPage() {
               })
             )}
           </tbody>
-        </table>
-      </div>
+        </table></div>
 
       {nextToken && (
-        <div className="text-center">
+        <div className="research-load-more">
           <button
             onClick={loadMore}
             disabled={loading}
@@ -554,6 +554,7 @@ export default function PesquisaPage() {
           </button>
         </div>
       )}
+      </section>
 
       {items.length > 0 && (
         <div className="space-y-1 text-xs text-slate-400">

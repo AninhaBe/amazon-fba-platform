@@ -107,7 +107,12 @@ export default function LandingPage() {
       <section className="lp-hero">
         <HeroGrafico />
         <p className="lp-pill">Amazon · Mercado Livre · Shopee · TikTok Shop</p>
-        <h1>Você vende. Ele confere.</h1>
+        {/* As duas metades são elementos separados de propósito: a segunda recua
+            para preto 42% (`.lp-hero h1 span`). É a assinatura do peec.ai — dá
+            hierarquia dentro de uma frase só, sem cor e sem segunda família. */}
+        <h1>
+          Você vende. <span>Ele confere.</span>
+        </h1>
         <p className="lp-sub">
           O NEXO assume o trabalho que hoje alguém faz na mão: abre cada venda dos seus
           quatro canais, lê a tarifa que foi cobrada e fecha a conta. Quando o dado não
@@ -180,6 +185,15 @@ export default function LandingPage() {
         <h2>Ele começa a conferir hoje.</h2>
         <Link href="/login" className="lp-cta">Colocar para trabalhar</Link>
       </section>
+
+      <footer className="lp-footer">
+        <NexoWordmark as="span" className="lp-footer-marca" />
+        <span>Operação multicanal com dados explícitos.</span>
+        <nav aria-label="Links institucionais">
+          <Link href="/privacidade">Privacidade</Link>
+          <Link href="/login">Entrar</Link>
+        </nav>
+      </footer>
     </main>
   );
 }

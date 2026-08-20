@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { EmptyState } from "../../components/EmptyState";
 import { PanelLoading } from "../../components/LoadingState";
 import { PageHeader, pageIcons } from "../../components/PageHeader";
@@ -119,20 +120,20 @@ export default function AmazonCatalogPage() {
   const paged = visible.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
 
   return (
-    <div className="amazon-listings-page space-y-8">
+    <div className="amazon-listings-page listing-page">
       <PageHeader
         eyebrow="Catálogo Amazon"
         title="Anúncios"
         subtitle="Seus anúncios publicados na Amazon: preço, estoque, logística (FBA/FBM) e status da conta conectada."
         icon={pageIcons.search}
-        action={<button type="button" onClick={() => void load()} disabled={loading} className="listing-refresh">{loading ? "Atualizando…" : "Atualizar anúncios"}</button>}
+        action={<div className="listing-heading-actions"><Link href="/amazon/anuncios" className="listing-create-action">Criar anúncio</Link><button type="button" onClick={() => void load()} disabled={loading} className="listing-refresh">{loading ? "Atualizando…" : "Atualizar anúncios"}</button></div>}
       />
 
       {loading && !data ? <PanelLoading label="Carregando anúncios da Amazon" /> : error || !data ? (
         <EmptyState title="Não foi possível carregar os anúncios" description={error || "Conecte sua conta Amazon para visualizar o catálogo publicado."} />
       ) : (
         <>
-          <section className="metric-grid grid grid-cols-2 gap-4 lg:grid-cols-4" aria-label="Resumo dos anúncios">
+          <section className="listing-summary-band is-4" aria-label="Resumo dos anúncios">
             <ListingMetric label="Anúncios" value={listings.length} note="no catálogo" />
             <ListingMetric label="Ativos" value={activeCount} note="publicados" />
             <ListingMetric label="FBA" value={fbaCount} note="logística da Amazon" />
@@ -188,5 +189,5 @@ export default function AmazonCatalogPage() {
 }
 
 function ListingMetric({ label, value, note }: { label: string; value: number; note: string }) {
-  return <article className="metric-cell p-5"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p><strong className="mt-3 block text-2xl font-bold tabular-nums text-slate-900">{value.toLocaleString("pt-BR")}</strong><p className="mt-1 text-xs text-slate-500">{note}</p></article>;
+  return <div><span>{label}</span><strong>{value.toLocaleString("pt-BR")}</strong><small>{note}</small></div>;
 }

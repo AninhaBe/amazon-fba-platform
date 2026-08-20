@@ -89,6 +89,8 @@ interface MonitorSnapshot {
   profitabilityScope?: string;
 }
 
+type MonitorSection = "composition" | "transactions" | "profitability";
+
 // Escopo de módulo: sobrevive à navegação entre telas/canais (mesmo padrão do
 // dashboard Amazon e do workspace ML). Ao voltar, o período já visto pinta no
 // primeiro paint e a revalidação roda em segundo plano.
@@ -109,6 +111,7 @@ export default function MonitorPage() {
   const [profitabilityError, setProfitabilityError] = useState<string | null>(null);
   const [profitabilityScope, setProfitabilityScope] = useState<string | undefined>(initialCached?.profitabilityScope);
   const [feesOpen, setFeesOpen] = useState(false);
+  const [section, setSection] = useState<MonitorSection>("composition");
 
   async function load(periodQuery: string) {
     const cached = monitorCache.get(periodQuery);
@@ -192,16 +195,23 @@ export default function MonitorPage() {
     return () => window.clearTimeout(timer);
   }, [period.query]);
 
+  const costsIncomplete = (profit?.unitsWithoutCost ?? 0) > 0;
+  const estimatedProfit = profit?.estimatedProfit ?? finance?.netProceeds ?? 0;
+  const otherAdjustments = finance
+    ? Math.round((finance.netProceeds - (finance.revenue - finance.fees - finance.refunds)) * 100) / 100
+    : 0;
+  const marginPct = finance && finance.revenue > 0 ? (estimatedProfit / finance.revenue) * 100 : null;
+
   return (
-    <div className="monitor-page space-y-8">
+    <div className="monitor-page">
+      <DashboardPeriodFilter {...period.filterProps} />
+
       <PageHeader
         eyebrow="Pedidos e financeiro Amazon"
         title="Monitor da conta"
-        subtitle="Pedidos recentes e o resultado financeiro real da sua conta."
+        subtitle="Conciliação, movimentações e rentabilidade por venda no período selecionado."
         icon={pageIcons.chart}
       />
-
-      <DashboardPeriodFilter {...period.filterProps} />
 
       {error && (
         <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
@@ -217,127 +227,118 @@ export default function MonitorPage() {
           {financeError}
         </div>
       ) : finance ? (
-        (() => {
-          const costsIncomplete = (profit?.unitsWithoutCost ?? 0) > 0;
-          const estimatedProfit = profit?.estimatedProfit ?? finance.netProceeds;
-          // Repasse líquido vem somado direto da Transactions API; o resíduo
-          // (reembolsos de estoque, promoções, frete) fecha a cascata sem mentir.
-          const otherAdjustments = Math.round((finance.netProceeds - (finance.revenue - finance.fees - finance.refunds)) * 100) / 100;
-          const marginPct = finance.revenue > 0 ? (estimatedProfit / finance.revenue) * 100 : 0;
-          return (
-            <div className="dashboard-sections space-y-8">
-              {finance.orderCount === 0 && (
-                <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-500">
-                  Nenhum evento financeiro no período ainda — assim que houver vendas conciliadas, os valores abaixo se preenchem (receita, taxas efetivas e reembolsos).
-                </div>
-              )}
-              <CustomizableMetricGrid
-                viewKey="amazon-monitor"
-                ariaLabel="Resumo financeiro Amazon"
-                gridClassName="metric-grid grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5"
-                widgets={[
-                  {
-                    id: "receita-conciliada",
-                    label: "Receita conciliada",
-                    node: <Metric label="Receita conciliada" value={money(finance.revenue, finance.currency)} sub={metrics ? `${metrics.totalOrders} pedido(s) no período` : "repasses da Amazon"} />,
-                  },
-                  {
-                    id: "reembolsos",
-                    label: "Reembolsos",
-                    node: <Metric label="Reembolsos" value={money(finance.refunds, finance.currency)} sub="estornos ao comprador" tone={finance.refunds > 0 ? "danger" : "ok"} className="metric-cancelled" />,
-                  },
-                  {
-                    id: "repasse-liquido",
-                    label: "Repasse líquido",
-                    node: <Metric label="Repasse líquido" value={money(finance.netProceeds, finance.currency)} sub="após taxas e reembolsos" />,
-                  },
-                  {
-                    id: "lucro",
-                    label: costsIncomplete ? "Repasse antes do custo" : "Lucro estimado",
-                    node: <Metric label={costsIncomplete ? "Repasse antes do custo" : "Lucro estimado"} value={money(estimatedProfit, finance.currency)} sub={costsIncomplete ? "cadastre custos para o lucro real" : "repasse − custo dos produtos"} tone="positive" />,
-                  },
-                  {
-                    id: "margem-pct",
-                    label: "Margem %",
-                    node: (
-                      <article className="metric-cell metric-primary p-5">
-                        <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">Margem %</p>
-                        <p className="mt-2 text-[27px] font-bold leading-none tabular-nums text-emerald-800">{finance.revenue > 0 ? percent(marginPct) : "—"}</p>
-                        <p className="mt-1.5 text-xs font-medium text-emerald-700/70">sobre a receita</p>
-                      </article>
-                    ),
-                  },
-                ]}
-              />
-
-              <section className="work-panel space-y-4" aria-labelledby="amz-financial-title">
-                <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-slate-100 pb-3">
-                  <div>
-                    <p className="section-kicker">Financeiro realizado</p>
-                    <h2 id="amz-financial-title" className="mt-1 text-lg font-semibold text-slate-900">Do faturamento à margem</h2>
-                  </div>
-                  <span className="text-xs text-slate-400">repasses conciliados da Amazon</span>
-                </div>
-                <div className="financial-lines">
-                  <Flow label="Receita de produtos" value={money(finance.revenue, finance.currency)} />
-                  {finance.feeBreakdown.length > 0 ? (
-                    <FlowExpandable
-                      label="Taxas Amazon"
-                      value={money(finance.fees, finance.currency)}
-                      open={feesOpen}
-                      onToggle={() => setFeesOpen((open) => !open)}
-                      items={finance.feeBreakdown.map((f) => ({ label: FEE_LABELS[f.type] || f.type, value: money(f.amount, finance.currency) }))}
-                    />
-                  ) : (
-                    <Flow label="Taxas Amazon" value={money(finance.fees, finance.currency)} sign="−" />
-                  )}
-                  <Flow label="Reembolsos" value={money(finance.refunds, finance.currency)} sign="−" />
-                  {Math.abs(otherAdjustments) >= 0.005 && (
-                    <Flow label="Outros ajustes (promoções, frete, estoque)" value={money(otherAdjustments, finance.currency)} />
-                  )}
-                  <Flow label="Repasse líquido" value={money(finance.netProceeds, finance.currency)} sign="=" />
-                  <Flow label="Custo dos produtos" value={money(profit?.cogs ?? 0, finance.currency)} sign="−" />
-                  <Flow label={costsIncomplete ? "Repasse antes do custo" : "Lucro estimado"} value={money(estimatedProfit, finance.currency)} sign="=" accent />
-                </div>
-                {costsIncomplete && (
-                  <p className="text-xs leading-relaxed text-amber-700">
-                    {profit?.unitsWithoutCost} unidade(s) vendida(s) sem custo cadastrado — o lucro está superestimado.{" "}
-                    <a href="/produtos" className="font-semibold underline">Cadastrar custos em Produtos</a>
-                  </p>
-                )}
-              </section>
+        <div className="monitor-summary">
+          {finance.orderCount === 0 && (
+            <div className="monitor-empty-finance">
+              Nenhum evento financeiro no período. Os valores serão preenchidos quando houver vendas conciliadas.
             </div>
-          );
-        })()
+          )}
+          <CustomizableMetricGrid
+            viewKey="amazon-monitor"
+            ariaLabel="Resumo financeiro Amazon"
+            gridClassName="metric-grid monitor-metric-grid"
+            widgets={[
+              {
+                id: "receita-conciliada",
+                label: "Receita conciliada",
+                node: <Metric label="Receita conciliada" value={money(finance.revenue, finance.currency)} sub={metrics ? `${metrics.totalOrders} pedido(s) no período` : "repasses da Amazon"} />,
+              },
+              {
+                id: "reembolsos",
+                label: "Reembolsos",
+                node: <Metric label="Reembolsos" value={money(finance.refunds, finance.currency)} sub="estornos ao comprador" tone={finance.refunds > 0 ? "danger" : "ok"} className="metric-cancelled" />,
+              },
+              {
+                id: "repasse-liquido",
+                label: "Repasse líquido",
+                node: <Metric label="Repasse líquido" value={money(finance.netProceeds, finance.currency)} sub="após taxas e reembolsos" />,
+              },
+              {
+                id: "lucro",
+                label: costsIncomplete ? "Repasse antes do custo" : "Lucro estimado",
+                node: <Metric label={costsIncomplete ? "Repasse antes do custo" : "Lucro estimado"} value={money(estimatedProfit, finance.currency)} sub={costsIncomplete ? "resultado parcial; faltam custos" : "repasse − custo dos produtos"} tone={costsIncomplete ? "default" : estimatedProfit > 0 ? "positive" : estimatedProfit < 0 ? "danger" : "default"} />,
+              },
+              {
+                id: "margem-pct",
+                label: "Margem",
+                node: <Metric label="Margem" value={costsIncomplete || marginPct == null ? "—" : percent(marginPct)} sub={costsIncomplete ? "aguardando todos os custos" : "sobre a receita"} tone={costsIncomplete || marginPct == null ? "default" : marginPct > 0 ? "positive" : marginPct < 0 ? "danger" : "default"} />,
+              },
+            ]}
+          />
+        </div>
       ) : (
         <PanelLoading label="Carregando resumo financeiro" />
       )}
 
-      <section className="space-y-3">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
+      <nav className="monitor-section-tabs" aria-label="Visões do monitor">
+        {([
+          ["composition", "Composição"],
+          ["transactions", "Transações"],
+          ["profitability", "Rentabilidade por venda"],
+        ] as Array<[MonitorSection, string]>).map(([key, label]) => (
+          <button key={key} type="button" aria-current={section === key ? "page" : undefined} onClick={() => setSection(key)}>{label}</button>
+        ))}
+      </nav>
+
+      {section === "composition" && (
+        finance ? (
+          <section className="monitor-composition" aria-labelledby="amz-financial-title">
+            <header className="monitor-section-heading">
+              <div><p>Financeiro realizado</p><h2 id="amz-financial-title">Do faturamento ao resultado</h2></div>
+              <span>Repasses conciliados da Amazon</span>
+            </header>
+            <div className="financial-lines">
+              <Flow label="Receita de produtos" value={money(finance.revenue, finance.currency)} />
+              {finance.feeBreakdown.length > 0 ? (
+                <FlowExpandable
+                  label="Taxas Amazon"
+                  value={money(finance.fees, finance.currency)}
+                  open={feesOpen}
+                  onToggle={() => setFeesOpen((open) => !open)}
+                  items={finance.feeBreakdown.map((fee) => ({ label: FEE_LABELS[fee.type] || fee.type, value: money(fee.amount, finance.currency) }))}
+                />
+              ) : (
+                <Flow label="Taxas Amazon" value={money(finance.fees, finance.currency)} sign="−" />
+              )}
+              <Flow label="Reembolsos" value={money(finance.refunds, finance.currency)} sign="−" />
+              {Math.abs(otherAdjustments) >= 0.005 && <Flow label="Outros ajustes (promoções, frete, estoque)" value={money(otherAdjustments, finance.currency)} />}
+              <Flow label="Repasse líquido" value={money(finance.netProceeds, finance.currency)} sign="=" />
+              <Flow label="Custo dos produtos" value={money(profit?.cogs ?? 0, finance.currency)} sign="−" />
+              <Flow label={costsIncomplete ? "Repasse antes do custo" : "Lucro estimado"} value={money(estimatedProfit, finance.currency)} sign="=" accent={!costsIncomplete} />
+            </div>
+            {costsIncomplete && (
+              <p className="monitor-coverage-note">
+                <strong>Resultado parcial:</strong> {profit?.unitsWithoutCost} unidade(s) vendida(s) ainda estão sem custo cadastrado. <a href="/amazon/produtos">Cadastrar custos em Produtos</a>
+              </p>
+            )}
+          </section>
+        ) : <PanelLoading label="Carregando composição financeira" />
+      )}
+
+      {section === "transactions" && <section className="monitor-transactions">
+        <header className="monitor-section-heading">
           <div>
-            <h2 className="text-lg font-semibold">Conciliação de transações</h2>
-            <p className="mt-0.5 text-sm text-slate-500">
+            <p>Financeiro conciliado</p>
+            <h2>Conciliação de transações</h2>
+            <small>
               Transações do período, separadas pelo que já foi liberado e pelo que a Amazon
               ainda retém. Não é o saldo da sua conta.
-            </p>
+            </small>
           </div>
-          <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
-            Dados financeiros atualizados
-          </span>
-        </div>
+          <span>Dados financeiros atualizados</span>
+        </header>
 
         {transactionsError ? (
           <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
             {transactionsError}
           </div>
         ) : transactions ? (
-          <div className="space-y-4">
+          <div className="monitor-transactions-body">
             {/* Estes números são a soma das transações DO PERÍODO por status — não são
                 saldo de conta na Amazon. Os rótulos anteriores diziam "Saldo liberado" e
                 "Saldo diferido", e um pagamento de anúncio caindo antes de uma venda
                 liberar fazia a tela mostrar um negativo que parecia dívida. */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="transaction-summary-band">
               <Stat
                 label="Já liberado no período"
                 value={money(transactions.releasedAmount, transactions.currency)}
@@ -360,8 +361,8 @@ export default function MonitorPage() {
             </div>
 
             {transactions.recent.length > 0 && (
-              <div className="overflow-x-auto rounded-2xl border border-slate-200/70 bg-white shadow-sm ring-1 ring-slate-900/[0.02]">
-                <table className="w-full min-w-[720px] text-sm">
+              <div className="table-scroll monitor-transaction-table">
+                <table className="data-table min-w-[720px]">
                   <caption className="sr-only">Transações financeiras recentes</caption>
                   <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                     <tr>
@@ -415,19 +416,19 @@ export default function MonitorPage() {
         ) : (
           <PanelLoading label="Carregando transações" />
         )}
-      </section>
+      </section>}
 
-      <OrderProfitabilityTable lines={profitabilityLines} loading={profitabilityLoading} error={profitabilityError} scopeNote={profitabilityScope} />
+      {section === "profitability" && <OrderProfitabilityTable lines={profitabilityLines} loading={profitabilityLoading} error={profitabilityError} scopeNote={profitabilityScope} />}
     </div>
   );
 }
 
 function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</p>
-      <p className="mt-1 text-xl font-bold tabular-nums text-slate-900">{value}</p>
-      {hint && <p className="mt-1 text-xs leading-snug text-slate-500">{hint}</p>}
+    <div className="transaction-stat">
+      <p>{label}</p>
+      <strong>{value}</strong>
+      {hint && <small>{hint}</small>}
     </div>
   );
 }

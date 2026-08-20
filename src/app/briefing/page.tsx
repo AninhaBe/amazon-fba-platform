@@ -37,19 +37,35 @@ const EVIDENCE_LABEL: Record<string, string> = {
   unidades: "Unidades",
 };
 
+type BriefingFilter = "all" | "critical" | "attention" | "monitor";
+
+const FILTERS: Array<{ key: BriefingFilter; label: string }> = [
+  { key: "all", label: "Todas" },
+  { key: "critical", label: "Críticas" },
+  { key: "attention", label: "Atenção" },
+  { key: "monitor", label: "Monitorar" },
+];
+
 function greeting() {
   const h = new Date().getHours();
   return h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";
 }
 
-function severityStripe(sev: number) {
-  return sev >= 90 ? "bg-red-500" : sev >= 70 ? "bg-amber-500" : "bg-slate-300";
+function severityBand(severity: number): Exclude<BriefingFilter, "all"> {
+  return severity >= 90 ? "critical" : severity >= 70 ? "attention" : "monitor";
+}
+
+function severityLabel(severity: number) {
+  return severity >= 90 ? "Crítica" : severity >= 70 ? "Atenção" : "Monitorar";
 }
 
 export default function BriefingPage() {
   const [insights, setInsights] = useState<Insight[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [filter, setFilter] = useState<BriefingFilter>("all");
+  const [visibleLimit, setVisibleLimit] = useState(12);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   async function load(analyze = false) {
     setError(null);
@@ -85,109 +101,152 @@ export default function BriefingPage() {
     }
   }
 
+  const counts = insights?.reduce(
+    (current, insight) => {
+      current.all += 1;
+      current[severityBand(insight.severity)] += 1;
+      return current;
+    },
+    { all: 0, critical: 0, attention: 0, monitor: 0 } as Record<BriefingFilter, number>,
+  );
+  const filteredInsights = insights?.filter((insight) => filter === "all" || severityBand(insight.severity) === filter) ?? [];
+  const visibleInsights = filteredInsights.slice(0, visibleLimit);
+
   return (
-    <div className="briefing-page space-y-6">
+    <div className="briefing-page">
       <PageHeader
-        eyebrow="Seller Intelligence"
+        eyebrow="Prioridades da operação"
         title="Briefing"
         icon={pageIcons.chart}
-        subtitle="As poucas coisas da sua operação que merecem atenção hoje — com evidência, impacto e o próximo passo."
+        subtitle="Evidência, impacto e próximo passo para o que realmente precisa de atenção hoje."
       />
 
       {error && (
-        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          <p>{error}</p>
-          <button type="button" onClick={() => void load()} className="mt-3 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white">
-            Tentar novamente
-          </button>
+        <div role="alert" className="briefing-error">
+          <div><strong>Não foi possível atualizar o briefing.</strong><p>{error}</p></div>
+          <button type="button" onClick={() => void load()}>Tentar novamente</button>
         </div>
       )}
 
       {insights == null ? (
-        <PanelLoading label="Analisando sua operação" />
+        <div className="briefing-loading"><PanelLoading label="Analisando sua operação" /></div>
       ) : insights.length === 0 ? (
-        <EmptyState
-          title="Tudo sob controle"
-          description="Nenhuma prioridade exige sua atenção agora. A análise roda todo dia junto com o sync."
-          action={
-            <button type="button" onClick={() => void load(true)} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
-              Analisar agora
-            </button>
-          }
-        />
+        <div className="briefing-empty">
+          <EmptyState
+            title="Tudo sob controle"
+            description="Nenhuma prioridade exige sua atenção agora. A análise roda todo dia junto com o sync."
+            action={<button type="button" onClick={() => void load(true)} className="briefing-primary-action">Analisar agora</button>}
+          />
+        </div>
       ) : (
         <>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-lg font-semibold text-slate-900">
-              {greeting()}. Hoje há <span className="text-blue-600">{insights.length}</span>{" "}
-              {insights.length === 1 ? "coisa" : "coisas"} que {insights.length === 1 ? "merece" : "merecem"} sua atenção.
-            </p>
-            <button type="button" onClick={() => void load(true)} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:border-blue-400 hover:text-blue-600">
-              Analisar agora ↻
-            </button>
-          </div>
+          <section className="briefing-summary" aria-labelledby="briefing-summary-title">
+            <div>
+              <p className="briefing-summary-label">Resumo de hoje</p>
+              <h2 id="briefing-summary-title">
+                {greeting()}. Há {insights.length} {insights.length === 1 ? "prioridade" : "prioridades"} para revisar.
+              </h2>
+              <p>Ordenadas por severidade, sempre com a evidência que sustenta cada recomendação.</p>
+            </div>
+            <dl className="briefing-counts" aria-label="Prioridades por severidade">
+              <div className="is-critical"><dt>Críticas</dt><dd>{counts?.critical ?? 0}</dd></div>
+              <div className="is-attention"><dt>Atenção</dt><dd>{counts?.attention ?? 0}</dd></div>
+              <div className="is-monitor"><dt>Monitorar</dt><dd>{counts?.monitor ?? 0}</dd></div>
+            </dl>
+          </section>
 
-          <ul className="space-y-3">
-            {insights.map((it) => {
-              const impactUnits = it.impact?.unidadesEmRiscoEstimadas as number | undefined;
-              const premissa = it.impact?.premissa as string | undefined;
-              return (
-                <li key={it.id} className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                  <span className={`absolute inset-y-0 left-0 w-1 ${severityStripe(it.severity)}`} aria-hidden="true" />
-                  <div className="space-y-3 p-5 pl-6">
-                    <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-wide">
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">{TYPE_LABEL[it.type] || it.type}</span>
-                      <span className="text-slate-400">{CHANNEL[it.provider] || it.provider}</span>
-                    </div>
+          <section className="briefing-worklist" aria-labelledby="briefing-list-title">
+            <header className="briefing-toolbar">
+              <div>
+                <h2 id="briefing-list-title">Fila de decisões</h2>
+                <p>{filteredInsights.length} {filteredInsights.length === 1 ? "item" : "itens"} neste recorte</p>
+              </div>
+              <button type="button" className="briefing-refresh" onClick={() => void load(true)}>Analisar agora <span aria-hidden>↻</span></button>
+            </header>
 
-                    <h2 className="text-[15px] font-semibold text-slate-900">{it.title}</h2>
+            <div className="briefing-tabs" role="tablist" aria-label="Filtrar prioridades por severidade">
+              {FILTERS.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={filter === item.key}
+                  onClick={() => { setFilter(item.key); setVisibleLimit(12); }}
+                >
+                  {item.label}<span>{counts?.[item.key] ?? 0}</span>
+                </button>
+              ))}
+            </div>
 
-                    {it.recommendation && <p className="text-sm text-slate-600">{it.recommendation}</p>}
-
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-                      {Object.entries(it.evidence).map(([k, v]) => (
-                        <span key={k}>
-                          <span className="text-slate-400">{EVIDENCE_LABEL[k] || k}:</span>{" "}
-                          <strong className="font-semibold tabular-nums text-slate-700">{v == null ? "—" : String(v)}</strong>
-                        </span>
-                      ))}
-                    </div>
-
-                    {impactUnits != null && (
-                      <p className="text-xs text-amber-700">
-                        Impacto estimado: ≈ <strong className="tabular-nums">{impactUnits}</strong> unidade(s) em risco
-                        {premissa ? <span className="text-amber-600/80"> · {premissa}</span> : null}
-                      </p>
-                    )}
-
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
-                      {it.actionHref ? (
-                        <Link href={it.actionHref} className="text-xs font-semibold text-blue-600 hover:text-blue-700">
-                          Ver e agir →
-                        </Link>
-                      ) : <span />}
-                      <div className="flex items-center gap-1.5">
-                        <button type="button" disabled={busy === it.id} onClick={() => void act(it.id, "adiar")} className="rounded-md px-2.5 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800 disabled:opacity-50">
-                          Adiar 3d
-                        </button>
-                        <button type="button" disabled={busy === it.id} onClick={() => void act(it.id, "dispensar")} className="rounded-md px-2.5 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800 disabled:opacity-50">
-                          Dispensar
-                        </button>
-                        <button type="button" disabled={busy === it.id} onClick={() => void act(it.id, "resolver")} className="rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
-                          Resolver
-                        </button>
-                      </div>
-                    </div>
+            {visibleInsights.length === 0 ? (
+              <div className="briefing-filter-empty"><p>Nenhuma prioridade neste recorte.</p><button type="button" onClick={() => setFilter("all")}>Ver todas</button></div>
+            ) : (
+              <div className="briefing-table-scroll">
+                <div className="briefing-table" role="table" aria-label="Prioridades da operação">
+                  <div className="briefing-table-head" role="row">
+                    <span role="columnheader">Prioridade</span>
+                    <span role="columnheader">Evidência</span>
+                    <span role="columnheader">Impacto</span>
+                    <span role="columnheader">Canal</span>
+                    <span role="columnheader"><span className="sr-only">Ações</span></span>
                   </div>
-                </li>
-              );
-            })}
-          </ul>
+                  {visibleInsights.map((it) => {
+                  const impactUnits = it.impact?.unidadesEmRiscoEstimadas as number | undefined;
+                  const premissa = it.impact?.premissa as string | undefined;
+                  const band = severityBand(it.severity);
+                  const evidence = Object.entries(it.evidence);
+                  const expanded = expandedId === it.id;
+                  return (
+                    <div key={it.id} className={`briefing-table-group is-${band}${expanded ? " is-expanded" : ""}`} role="rowgroup">
+                      <div className="briefing-table-row" role="row">
+                        <div className="briefing-priority-cell" role="cell">
+                          <span className="briefing-severity-mark" aria-hidden />
+                          <div>
+                            <strong>{it.title}</strong>
+                            <span>{it.recommendation || TYPE_LABEL[it.type] || it.type}</span>
+                          </div>
+                        </div>
+                        <div className="briefing-evidence-cell" role="cell">
+                          {evidence.slice(0, 2).map(([key, value]) => <span key={key}><small>{EVIDENCE_LABEL[key] || key}</small><strong>{value == null ? "—" : String(value)}</strong></span>)}
+                          {evidence.length > 2 && <em>+{evidence.length - 2}</em>}
+                        </div>
+                        <div className="briefing-impact-cell" role="cell">
+                          {impactUnits == null ? <span>—</span> : <><strong>≈ {impactUnits}</strong><small>unidade(s) em risco</small></>}
+                        </div>
+                        <div className="briefing-channel-cell" role="cell">
+                          <strong>{CHANNEL[it.provider] || it.provider}</strong>
+                          <span>{severityLabel(it.severity)}</span>
+                        </div>
+                        <div className="briefing-row-actions" role="cell">
+                          {it.actionHref ? <Link href={it.actionHref} aria-label={`Ver e agir sobre ${it.title}`} title="Ver e agir">→</Link> : null}
+                          <button type="button" aria-expanded={expanded} onClick={() => setExpandedId(expanded ? null : it.id)}>{expanded ? "Fechar" : "Detalhes"}</button>
+                        </div>
+                      </div>
+                      {expanded && (
+                        <div className="briefing-row-detail">
+                          <dl>{evidence.map(([key, value]) => <div key={key}><dt>{EVIDENCE_LABEL[key] || key}</dt><dd>{value == null ? "—" : String(value)}</dd></div>)}</dl>
+                          <p>{impactUnits == null ? "Impacto ainda não estimado." : <>Impacto estimado: <strong>≈ {impactUnits} unidade(s) em risco</strong>{premissa ? <small>{premissa}</small> : null}</>}</p>
+                          <div>
+                            <button type="button" disabled={busy === it.id} onClick={() => void act(it.id, "adiar")}>Adiar 3d</button>
+                            <button type="button" disabled={busy === it.id} onClick={() => void act(it.id, "dispensar")}>Dispensar</button>
+                            <button type="button" className="is-resolve" disabled={busy === it.id} onClick={() => void act(it.id, "resolver")}>Resolver</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                  })}
+                </div>
+              </div>
+            )}
 
-          <p className="text-xs text-slate-400">
-            Detectores ativos (Amazon): <strong>ruptura</strong>, <strong>queda de vendas</strong> e{" "}
-            <strong>margem</strong> — recalculados todo dia junto com o sync (ou no “Analisar agora”).
-            Detecção determinística: cada item traz a evidência que o sustenta.
+            {visibleLimit < filteredInsights.length && (
+              <div className="briefing-more"><button type="button" onClick={() => setVisibleLimit((current) => current + 12)}>Mostrar mais 12</button><span>{visibleInsights.length} de {filteredInsights.length}</span></div>
+            )}
+          </section>
+
+          <p className="briefing-method-note">
+            Detectores ativos na Amazon: ruptura, queda de vendas e margem. A análise é determinística e recalculada diariamente junto com a sincronização.
           </p>
         </>
       )}

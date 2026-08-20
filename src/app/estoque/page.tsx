@@ -5,6 +5,9 @@ import { PageHeader, pageIcons } from "../components/PageHeader";
 import { TableLoading } from "../components/LoadingState";
 import { EmptyState } from "../components/EmptyState";
 import { readJson } from "../../lib/readJson";
+import { Pagination } from "../components/Pagination";
+
+const PAGE_SIZE = 30;
 
 type StockStatus = "out" | "critical" | "low" | "ok" | "overstock" | "idle";
 
@@ -38,6 +41,7 @@ export default function EstoquePage() {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StockStatus | "all">("all");
   const [sort, setSort] = useState<"urgency" | "stock" | "sales">("urgency");
+  const [page, setPage] = useState(1);
 
   async function load(d: number) {
     setLoading(true);
@@ -71,9 +75,12 @@ export default function EstoquePage() {
   const visibleRows = rows
     .filter((row) => `${row.productName || ""} ${row.sellerSku} ${row.asin || ""}`.toLowerCase().includes(query.toLowerCase()) && (statusFilter === "all" || row.status === statusFilter))
     .sort((a, b) => sort === "stock" ? b.fulfillable - a.fulfillable : sort === "sales" ? b.perDay - a.perDay : urgency[a.status] - urgency[b.status]);
+  const pageCount = Math.max(1, Math.ceil(visibleRows.length / PAGE_SIZE));
+  const current = Math.min(page, pageCount);
+  const pagedRows = visibleRows.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
 
   return (
-    <div className="inventory-page space-y-8">
+    <div className="inventory-page listing-page">
       <PageHeader
         eyebrow="FBA Inventory · Orders"
         title="Radar de estoque"
@@ -83,7 +90,7 @@ export default function EstoquePage() {
           <select
             value={days}
             onChange={(e) => setDays(Number(e.target.value))}
-            className="cursor-pointer rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 shadow-sm ring-1 ring-slate-900/[0.02] hover:border-slate-300"
+            className="listing-period-select"
           >
             <option value={7}>Ritmo dos últimos 7 dias</option>
             <option value={30}>Ritmo dos últimos 30 dias</option>
@@ -102,38 +109,25 @@ export default function EstoquePage() {
       )}
 
       {!loading && !error && rows.length > 0 && (
-        <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-slate-200/70 bg-white shadow-sm ring-1 ring-slate-900/[0.02] p-4">
-          <span className="text-sm font-medium">
-            {attention > 0 ? (
-              <span className="inline-flex items-center gap-2 text-red-600"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true"><path d="M10 3 18 17H2L10 3Z" strokeLinejoin="round"/><path d="M10 8v4m0 2.5v.1" strokeLinecap="round"/></svg>{attention} SKU(s) precisam de atenção</span>
-            ) : (
-              <span className="inline-flex items-center gap-2 text-emerald-600"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="m7 10 2 2 4-4" strokeLinecap="round" strokeLinejoin="round"/></svg>Nenhum SKU em ruptura iminente</span>
-            )}
-          </span>
-          <div className="flex flex-wrap gap-3 text-xs text-slate-500">
-            {(Object.keys(STATUS_META) as StockStatus[]).map((s) =>
-              counts[s] ? (
-                <span key={s} className="flex items-center gap-1.5">
-                  <span className={`h-2 w-2 rounded-full ${STATUS_META[s].dot}`} />
-                  {STATUS_META[s].label}: {counts[s]}
-                </span>
-              ) : null
-            )}
-          </div>
-        </div>
+        <section className="listing-summary-band is-4" aria-label="Resumo do risco de estoque">
+          <div><span>SKUs monitorados</span><strong>{rows.length.toLocaleString("pt-BR")}</strong><small>com estoque FBA</small></div>
+          <div className={attention > 0 ? "is-danger" : "is-positive"}><span>Ação imediata</span><strong>{attention.toLocaleString("pt-BR")}</strong><small>esgotados ou críticos</small></div>
+          <div className={(counts.low || 0) > 0 ? "is-warning" : undefined}><span>Repor em breve</span><strong>{(counts.low || 0).toLocaleString("pt-BR")}</strong><small>abaixo da cobertura ideal</small></div>
+          <div className="is-positive"><span>Saudáveis</span><strong>{(counts.ok || 0).toLocaleString("pt-BR")}</strong><small>cobertura dentro do esperado</small></div>
+        </section>
       )}
 
       {!loading && rows.length > 0 && (
-        <div className="filter-toolbar flex flex-wrap gap-2" role="search" aria-label="Filtros de estoque">
-          <label className="min-w-52 flex-1">
+        <div className="listing-controls cols-3" role="search" aria-label="Filtros de estoque">
+          <label className="listing-search">
             <span className="sr-only">Buscar no estoque</span>
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar SKU, ASIN ou produto" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+            <input value={query} onChange={(e) => { setQuery(e.target.value); setPage(1); }} placeholder="Buscar SKU, ASIN ou produto" />
           </label>
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as StockStatus | "all")} aria-label="Filtrar status do estoque" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+          <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value as StockStatus | "all"); setPage(1); }} aria-label="Filtrar status do estoque">
             <option value="all">Todos os status</option>
             {(Object.keys(STATUS_META) as StockStatus[]).map((status) => <option key={status} value={status}>{STATUS_META[status].label}</option>)}
           </select>
-          <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} aria-label="Ordenar estoque" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+          <select value={sort} onChange={(e) => { setSort(e.target.value as typeof sort); setPage(1); }} aria-label="Ordenar estoque">
             <option value="urgency">Maior urgência</option>
             <option value="stock">Maior estoque</option>
             <option value="sales">Maior venda/dia</option>
@@ -141,8 +135,10 @@ export default function EstoquePage() {
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-2xl border border-slate-200/70 bg-white shadow-sm ring-1 ring-slate-900/[0.02]">
-        <table className="inventory-table w-full min-w-[720px] text-sm">
+      <section className="listing-table-shell inventory-table-shell" aria-labelledby="inventory-results-title">
+        <header><div><p className="section-kicker">Cobertura operacional</p><h2 id="inventory-results-title">{loading ? "Carregando estoque" : `${visibleRows.length} ${visibleRows.length === 1 ? "SKU encontrado" : "SKUs encontrados"}`}</h2></div><p>Ritmo dos últimos {days} dias</p></header>
+        <div className="overflow-x-auto">
+        <table className="inventory-table listing-table">
           <caption className="sr-only">Estoque disponível, velocidade de venda e risco de ruptura por SKU</caption>
           <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
@@ -166,7 +162,7 @@ export default function EstoquePage() {
             ) : visibleRows.length === 0 ? (
               <tr><td colSpan={6} className="px-4 py-6"><EmptyState kind="search" title="Nenhum SKU encontrado" description="Limpe a busca ou selecione outro status para ampliar os resultados." /></td></tr>
             ) : (
-              visibleRows.map((r) => {
+              pagedRows.map((r) => {
                 const meta = STATUS_META[r.status];
                 return (
                   <tr key={r.sellerSku} className="hover:bg-slate-50">
@@ -202,9 +198,11 @@ export default function EstoquePage() {
             )}
           </tbody>
         </table>
-      </div>
+        </div>
+        {!loading && pageCount > 1 && <div className="listing-pagination"><Pagination page={current} pageCount={pageCount} total={visibleRows.length} pageSize={PAGE_SIZE} onPage={setPage} /></div>}
+      </section>
 
-      <p className="text-xs text-slate-400">
+      <p className="listing-method-note">
         &quot;Acaba em&quot; = estoque disponível ÷ velocidade de venda no período escolhido.
         SKUs sem venda no período aparecem como &quot;Sem venda&quot; (não dá para prever ruptura).
       </p>

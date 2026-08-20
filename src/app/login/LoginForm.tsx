@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { signIn, signUp, type AuthActionState } from "./actions";
@@ -16,7 +17,12 @@ export function LoginForm() {
 
   return (
     <div className="auth-card">
-      <div className="auth-tabs" role="tablist" aria-label="Acesso ao SellerCore">
+      <header className="auth-card-heading">
+        <span>Conta NEXO</span>
+        <h2>{mode === "login" ? "Acesse seu workspace" : "Crie seu workspace"}</h2>
+        <p>{mode === "login" ? "Continue de onde sua operação parou." : "Comece com uma conta individual e conecte seus canais depois."}</p>
+      </header>
+      <div className="auth-tabs" role="tablist" aria-label="Acesso ao NEXO">
         <button type="button" role="tab" aria-selected={mode === "login"} className={mode === "login" ? "is-active" : ""} onClick={() => setMode("login")}>Entrar</button>
         <button type="button" role="tab" aria-selected={mode === "signup"} className={mode === "signup" ? "is-active" : ""} onClick={() => setMode("signup")}>Criar conta</button>
       </div>
@@ -40,9 +46,13 @@ export function LoginForm() {
         )}
 
         <button className="auth-submit" type="submit" disabled={pending || setupMissing}>
-          {pending ? "Aguarde…" : mode === "login" ? "Entrar no SellerCore" : "Criar minha conta"}
+          {pending ? "Aguarde…" : mode === "login" ? "Entrar no NEXO" : "Criar minha conta"}
         </button>
       </form>
+      <footer className="auth-card-footer">
+        <Link href="/landing">Conhecer o NEXO</Link>
+        <Link href="/privacidade">Privacidade e dados</Link>
+      </footer>
     </div>
   );
 }

@@ -59,25 +59,40 @@ export interface MetricProps {
   className?: string;
 }
 
+// A anatomia do bloco veio do peec.ai (`docs/identidade-visual.md`). Três coisas
+// aqui são contraintuitivas e todas são deliberadas:
+//
+//   • O valor tem 16px, não 27px. Num painel com quatro, seis ou oito KPIs,
+//     número grande não cria hierarquia — cria ruído uniforme, porque tudo grita
+//     no mesmo volume. Quem diz o que importa é a frase acima da faixa.
+//   • O rótulo é 14px em tinta terciária, não 11px em maiúscula espaçada.
+//     Maiúscula pequena com tracking custa legibilidade e não estava marcando
+//     hierarquia nenhuma — era decoração.
+//   • As classes `text-slate-*` saíram. Eram tinta azulada do Tailwind dentro de
+//     uma identidade monocromática, o mesmo defeito que o `<body>` carregava.
+//     Tom agora sai de token, e só existe quando significa algo.
 export function Metric({ label, value, sub, tone = "default", loading, icon, trend, href, className }: MetricProps) {
   const toneCls =
-    tone === "danger" ? "text-red-600" : tone === "warn" ? "text-amber-600" : tone === "positive" ? "text-emerald-700" : tone === "ok" ? "text-slate-700" : "text-slate-900";
+    tone === "danger" ? " metric-tone-danger"
+      : tone === "warn" ? " metric-tone-warn"
+        : tone === "positive" ? " metric-tone-positive"
+          : "";
   const body = (
     <>
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{label}</p>
+      <div className="metric-head">
+        <p className="metric-label">{label}</p>
         {trend ? <TrendIndicator trend={trend} /> : icon && <span className="metric-icon">{icon}</span>}
       </div>
-      <p className={`mt-2 text-[27px] font-bold leading-none tabular-nums ${toneCls}`}>
-        {loading ? <span className="text-slate-300">···</span> : value}
+      <p className={`metric-value${toneCls}`}>
+        {loading ? <span className="metric-loading">···</span> : value}
       </p>
-      {sub && <p className="mt-1.5 text-xs text-slate-400">{sub}</p>}
+      {sub && <p className="metric-sub">{sub}</p>}
     </>
   );
   if (href) {
-    return <Link href={href} className={`metric-cell metric-cell-link block p-5${className ? ` ${className}` : ""}`}>{body}</Link>;
+    return <Link href={href} className={`metric-cell metric-cell-link${className ? ` ${className}` : ""}`}>{body}</Link>;
   }
-  return <article className={`metric-cell p-5${className ? ` ${className}` : ""}`}>{body}</article>;
+  return <article className={`metric-cell${className ? ` ${className}` : ""}`}>{body}</article>;
 }
 
 export function CompactMetric({ label, value }: { label: string; value: string }) {

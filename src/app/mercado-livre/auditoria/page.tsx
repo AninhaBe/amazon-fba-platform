@@ -51,6 +51,9 @@ export default function AuditoriaPage() {
   const [carregando, setCarregando] = useState(true);
   const [dias, setDias] = useState(30);
   const [copiado, setCopiado] = useState(false);
+  const totalEsperado = dados?.pedidos.reduce((total, pedido) => total + pedido.esperado, 0) ?? 0;
+  const totalCobrado = dados?.pedidos.reduce((total, pedido) => total + pedido.cobrado, 0) ?? 0;
+  const maiorTotal = Math.max(totalEsperado, totalCobrado, 1);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -94,7 +97,7 @@ export default function AuditoriaPage() {
   }
 
   return (
-    <div className="dashboard-sections space-y-8">
+    <div className="analysis-page audit-page">
       <PageHeader
         icon={pageIcons.monitor}
         eyebrow="Mercado Livre"
@@ -102,7 +105,7 @@ export default function AuditoriaPage() {
         subtitle="Compara o frete que o Mercado Pago descontou com o que o envio do Mercado Livre declara. Diferença não é erro provado — o frete pode ser reprecificado depois da pesagem. Use a lista para decidir o que contestar."
       />
 
-      <div className="profitability-filters">
+      <div className="listing-controls audit-controls">
         <label>
           <span className="sr-only">Período</span>
           <select value={dias} onChange={(e) => setDias(Number(e.target.value))} aria-label="Período da auditoria">
@@ -125,31 +128,31 @@ export default function AuditoriaPage() {
         <TableLoading label="Comparando fretes" />
       ) : !dados ? null : (
         <>
-          <section className="metric-grid grid grid-cols-1 gap-0 sm:grid-cols-3" aria-label="Resumo da auditoria">
-            <div className="metric-cell p-5">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">A contestar</p>
-              <p className="mt-2 text-[27px] font-bold leading-none tabular-nums text-slate-900">
-                {money(dados.totalACustestar, dados.currency)}
-              </p>
-              <p className="mt-1.5 text-xs text-slate-400">soma do que foi cobrado a mais</p>
-            </div>
-            <div className="metric-cell p-5">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Pedidos a revisar</p>
-              <p className="mt-2 text-[27px] font-bold leading-none tabular-nums text-slate-900">{dados.pedidos.length}</p>
-              <p className="mt-1.5 text-xs text-slate-400">de {dados.comparados} comparados</p>
-            </div>
-            <div className="metric-cell p-5">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Sem comparação</p>
-              <p className="mt-2 text-[27px] font-bold leading-none tabular-nums text-slate-900">{dados.semReferencia}</p>
-              <p className="mt-1.5 text-xs text-slate-400">pagamento sem envio conhecido</p>
-            </div>
+          <section className="listing-summary-band is-4 audit-summary-band" aria-label="Resumo da auditoria">
+            <div className={dados.totalACustestar > 0 ? "is-danger" : "is-positive"}><span>A contestar</span><strong>{money(dados.totalACustestar, dados.currency)}</strong><small>soma do que foi cobrado a mais</small></div>
+            <div><span>Pedidos a revisar</span><strong>{dados.pedidos.length}</strong><small>casos com alguma divergência</small></div>
+            <div><span>Comparados</span><strong>{dados.comparados}</strong><small>pedidos com referência de envio</small></div>
+            <div className={dados.semReferencia > 0 ? "is-warning" : ""}><span>Sem comparação</span><strong>{dados.semReferencia}</strong><small>pagamentos sem envio conhecido</small></div>
           </section>
 
           {dados.parcial && (
-            <p className="saldo-nota">
+            <p className="audit-partial-note">
               Leitura parcial: o período tem mais pagamentos do que foi possível ler de uma vez. Reduza o
               período para cobrir tudo.
             </p>
+          )}
+
+          {dados.pedidos.length > 0 && (
+            <section className="audit-comparison" aria-labelledby="audit-comparison-title">
+              <header>
+                <div><p className="section-kicker">Composição dos casos</p><h2 id="audit-comparison-title">Previsto versus cobrado</h2></div>
+                <p>Somente os {dados.pedidos.length} pedidos listados abaixo</p>
+              </header>
+              <div className="audit-comparison-bars">
+                <div><span>Frete previsto</span><i><b style={{ width: `${(totalEsperado / maiorTotal) * 100}%` }} /></i><strong>{money(totalEsperado, dados.currency)}</strong></div>
+                <div className={totalCobrado > totalEsperado ? "is-danger" : ""}><span>Frete cobrado</span><i><b style={{ width: `${(totalCobrado / maiorTotal) * 100}%` }} /></i><strong>{money(totalCobrado, dados.currency)}</strong></div>
+              </div>
+            </section>
           )}
 
           {dados.pedidos.length === 0 ? (
@@ -158,8 +161,13 @@ export default function AuditoriaPage() {
               description={`Comparamos ${dados.comparados} pedido(s) e o frete cobrado bateu com o declarado no envio.`}
             />
           ) : (
-            <div className="overflow-x-auto rounded-2xl border border-slate-200/70 bg-white shadow-sm">
-              <table className="w-full min-w-[720px] table-fixed text-sm">
+            <section className="listing-table-shell audit-table-shell" aria-labelledby="audit-table-title">
+              <header>
+                <div><p className="section-kicker">Drill-down</p><h2 id="audit-table-title">Pedidos candidatos à revisão</h2></div>
+                <p>{dados.pedidos.length} de {dados.comparados} comparados</p>
+              </header>
+              <div className="overflow-x-auto">
+              <table className="listing-table audit-table table-fixed">
                 <caption className="sr-only">Pedidos com frete cobrado diferente do declarado</caption>
                 <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                   <tr>
@@ -198,10 +206,11 @@ export default function AuditoriaPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+              </div>
+            </section>
           )}
 
-          <p className="saldo-nota">
+          <p className="audit-method-note">
             <strong>Previsto</strong> é o frete cheio do envio: a sua parte (<code>senders[].cost</code>)
             mais a do comprador (<code>receiver.cost</code>). O Mercado Livre debita o cheio e credita de
             volta a parte do comprador, então comparar só com a sua parte acusaria divergência em todo

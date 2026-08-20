@@ -41,23 +41,26 @@ export function PageHeader({
           ? "tiktok_shop"
         : "sellercore";
   return (
-    <div className="page-heading flex flex-wrap items-end justify-between gap-5">
-      <div className="flex items-start gap-4">
-        <span className="page-glyph is-bare flex h-11 w-11 shrink-0 items-center justify-center">
-          <MarketplaceIcon provider={provider} app size={40} />
-        </span>
-        <div className="min-w-0">
-          <p className="page-kicker text-xs font-semibold uppercase tracking-[0.14em]">
-            {eyebrow}
-          </p>
-          <h1 className="mt-1.5 text-balance text-[30px] font-bold leading-[1.08] tracking-[-0.035em] text-slate-900 lg:text-[34px]">
-            {title}
-          </h1>
-          {subtitle && <p className="mt-2.5 max-w-3xl text-pretty text-[15px] leading-relaxed text-slate-600">{subtitle}</p>}
+    <div className="page-heading">
+      {/* Trilha: canal › página. Substitui o eyebrow em maiúscula espaçada no
+          acento do canal. O eyebrow gritava a mesma informação que a sidebar já
+          dava (em que canal você está) e gritava em cor. A trilha diz o mesmo em
+          13px terciário e ainda situa a página dentro do canal. */}
+      <p className="page-crumb">
+        <MarketplaceIcon provider={provider} app size={16} />
+        <span>{eyebrow}</span>
+      </p>
+      <div className="page-heading-row">
+        <div className="page-heading-texto">
+          {/* 20px, não 34px. O app do Peec não tem NADA acima de 16px numa tela
+              de dado, e o título de seção fica em 20px — ver a seção 3 de
+              `docs/peec-ui-audit.md`. Título grande não cria hierarquia num
+              painel cheio de números; cria uma segunda coisa gritando. */}
+          <h1>{title}</h1>
+          {subtitle && <p className="page-subtitle">{subtitle}</p>}
         </div>
+        {action && <div className="page-actions shrink-0">{action}</div>}
       </div>
-      {action && <div className="page-actions shrink-0">{action}</div>}
-      <span className="coreline" aria-hidden="true"><i /><i /><i /></span>
     </div>
   );
 }

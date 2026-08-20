@@ -21,7 +21,7 @@ const appSources: Record<MarketplaceIconProvider, string> = {
 
 export function MarketplaceIcon({ provider, size = 24, className = "", app = false }: { provider: MarketplaceIconProvider; size?: number; className?: string; app?: boolean }) {
   if (app) {
-    return <Image src={appSources[provider]} width={size} height={size} alt="" aria-hidden="true" className={`marketplace-icon marketplace-app marketplace-app-${provider} ${className}`} />;
+    return <Image src={appSources[provider]} width={size} height={size} style={{ width: size, height: size }} alt="" aria-hidden="true" className={`marketplace-icon marketplace-app marketplace-app-${provider} ${className}`} />;
   }
   if (provider === "sellercore") return <LogoMark className={className || "h-6 w-6"} />;
   return <Image src={sources[provider]} width={size} height={size} alt="" aria-hidden="true" className={`marketplace-icon marketplace-icon-${provider} ${className}`} />;

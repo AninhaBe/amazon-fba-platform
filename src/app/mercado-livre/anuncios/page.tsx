@@ -148,7 +148,7 @@ export default function MercadoLivreListingsPage() {
   const paged = visible.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
 
   return (
-    <div className="meli-listings-page space-y-8">
+    <div className="meli-listings-page listing-page">
       <PageHeader
         eyebrow="Catálogo Mercado Livre"
         title="Anúncios"
@@ -161,7 +161,7 @@ export default function MercadoLivreListingsPage() {
         <EmptyState title="Não foi possível carregar os anúncios" description={error || "Conecte sua conta para visualizar o catálogo publicado."} action={<Link href="/integracoes" className="meli-primary-action">Gerenciar integração <span aria-hidden="true">→</span></Link>} />
       ) : (
         <>
-          <section className="metric-grid grid grid-cols-2 gap-4 lg:grid-cols-4" aria-label="Resumo dos anúncios">
+          <section className="listing-summary-band is-4" aria-label="Resumo dos anúncios">
             <ListingMetric label="Anúncios carregados" value={products.length} note={data.complete ? "catálogo sincronizado" : `de ${data.total} encontrados`} />
             <ListingMetric label="Ativos" value={data.activeTotal} note="publicados no marketplace" />
             <ListingMetric label="Pausados" value={paused} note="fora da exposição" />
@@ -218,5 +218,5 @@ export default function MercadoLivreListingsPage() {
 }
 
 function ListingMetric({ label, value, note, danger = false }: { label: string; value: number; note: string; danger?: boolean }) {
-  return <article className="metric-cell p-5"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p><strong className={`mt-3 block text-2xl font-bold tabular-nums ${danger ? "text-red-600" : "text-slate-900"}`}>{value.toLocaleString("pt-BR")}</strong><p className="mt-1 text-xs text-slate-500">{note}</p></article>;
+  return <div className={danger ? "is-danger" : undefined}><span>{label}</span><strong>{value.toLocaleString("pt-BR")}</strong><small>{note}</small></div>;
 }

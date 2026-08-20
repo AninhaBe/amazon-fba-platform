@@ -83,22 +83,21 @@ export function AbcView({ endpoint, eyebrow, subtitle, costsHref }: { endpoint: 
   }, [days, endpoint, requestKey]);
 
   return (
-    <div className="dashboard-page space-y-6">
+    <div className="dashboard-page analysis-page abc-page">
       <PageHeader eyebrow={eyebrow} title="Curva ABC por lucro" subtitle={subtitle} />
 
-      <div className="flex flex-wrap gap-2">
-        <div className="inline-flex overflow-hidden rounded-xl border border-slate-300 bg-white">
+      <div className="abc-period-tabs" role="tablist" aria-label="Período da curva ABC">
           {[7, 15, 30].map((d) => (
             <button
               key={d}
               type="button"
               onClick={() => selectDays(d)}
-              className={`px-3.5 py-2 text-[13px] font-semibold ${days === d ? "bg-amber-600 text-white" : "text-slate-500 hover:text-slate-800"}`}
+              role="tab"
+              aria-selected={days === d}
             >
               {d} dias
             </button>
           ))}
-        </div>
       </div>
 
       {loading ? (
@@ -138,7 +137,7 @@ function Results({ data, quad, setQuad, costsHref }: { data: Abc; quad: Quadrant
   const shown = quad ? products.filter((p) => p.quadrant === quad) : products;
 
   return (
-    <div className="space-y-5">
+    <div className="abc-results">
       {classified > 0 ? (
         <p className="text-[15px] text-slate-600">
           <b className="font-bold text-slate-900">{skusMaking80} SKU{skusMaking80 !== 1 ? "s" : ""}</b>{" "}
@@ -157,7 +156,7 @@ function Results({ data, quad, setQuad, costsHref }: { data: Abc; quad: Quadrant
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="abc-quadrant-band">
         {QUAD_ORDER.map((k) => {
           const q = QUAD[k];
           const g = byQuadrant[k];
@@ -168,7 +167,7 @@ function Results({ data, quad, setQuad, costsHref }: { data: Abc; quad: Quadrant
               key={k}
               type="button"
               onClick={() => setQuad(selected ? null : k)}
-              className={`abc-quad rounded-2xl border bg-white p-4 text-left shadow-sm transition ${selected ? "border-amber-500 ring-2 ring-amber-500/20" : "border-slate-200 hover:border-amber-400"}`}
+              className={`abc-quad${selected ? " is-selected" : ""}`}
             >
               <span
                 className="abc-info"
@@ -195,8 +194,8 @@ function Results({ data, quad, setQuad, costsHref }: { data: Abc; quad: Quadrant
         })}
       </div>
 
-      <div className="space-y-5">
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="abc-detail-stack">
+        <section className="abc-pareto-panel">
           <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-slate-100 px-5 py-4">
             <div>
               <h2 className="text-[15px] font-bold text-slate-900">Concentração do lucro (Pareto)</h2>
@@ -211,7 +210,7 @@ function Results({ data, quad, setQuad, costsHref }: { data: Abc; quad: Quadrant
           <div className="px-5 py-4"><Pareto products={products} /></div>
         </section>
 
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <section className="listing-table-shell abc-products-panel">
           <div className="border-b border-slate-100 px-5 py-4">
             <h2 className="text-[15px] font-bold text-slate-900">
               {quad ? `Produtos · ${QUAD[quad].label}` : `Produtos (${products.length})`}
@@ -219,7 +218,7 @@ function Results({ data, quad, setQuad, costsHref }: { data: Abc; quad: Quadrant
             <p className="mt-0.5 text-[12.5px] text-slate-400">Classe A/B/C pela contribuição acumulada. Clique num quadrante para filtrar.</p>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-[13px]">
+            <table className="listing-table abc-table">
               <thead>
                 <tr className="[&_th]:border-b [&_th]:border-slate-200 [&_th]:bg-slate-50 [&_th]:px-3 [&_th]:py-2.5 [&_th]:text-[11px] [&_th]:font-bold [&_th]:uppercase [&_th]:tracking-wide [&_th]:text-slate-500">
                   <th className="text-left">Produto</th>

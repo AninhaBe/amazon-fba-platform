@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 
 export type DashboardPeriodOption = "today" | "7" | "15" | "30" | "custom";
 
@@ -66,7 +67,7 @@ export function useDashboardPeriod(initialQuery = "", onQueryChange?: (query: st
   };
 }
 
-export function DashboardPeriodFilter({ selected, from, to, error, onPreset, onCustom, onFrom, onTo, onApply }: {
+export function DashboardPeriodFilter({ selected, from, to, error, onPreset, onCustom, onFrom, onTo, onApply, meta }: {
   selected: DashboardPeriodOption;
   from: string;
   to: string;
@@ -76,6 +77,7 @@ export function DashboardPeriodFilter({ selected, from, to, error, onPreset, onC
   onFrom: (value: string) => void;
   onTo: (value: string) => void;
   onApply: () => void;
+  meta?: ReactNode;
 }) {
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
   const options = [{ value: "today", label: "Hoje" }, { value: "7", label: "7 dias" }, { value: "15", label: "15 dias" }, { value: "30", label: "30 dias" }] as const;
@@ -107,6 +109,7 @@ export function DashboardPeriodFilter({ selected, from, to, error, onPreset, onC
       <button type="button" className="dashboard-period-apply" onClick={onApply}>Aplicar período</button>
       {error && <p role="alert">{error}</p>}
     </div>}
+    {meta && <div className="dashboard-period-meta">{meta}</div>}
     </section>
   </>;
 }

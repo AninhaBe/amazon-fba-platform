@@ -5,16 +5,16 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Activity,
-  Blocks,
-  Boxes,
+  Box,
   Calculator,
   ChevronDown,
   History,
   LayoutDashboard,
+  Gauge,
+  Lightbulb,
   Megaphone,
-  Radar,
+  Plug,
   Search,
-  Sparkles,
   SquarePen,
   TrendingUp,
 } from "lucide-react";
@@ -36,20 +36,42 @@ interface NavGroup {
   items: NavItem[];
 }
 
-const iconProps = { className: "h-5 w-5", strokeWidth: 1.8, "aria-hidden": true } as const;
+/**
+ * Peso e tamanho medidos no menu do `2.datadive.tools` (19/08/2026): ícones de
+ * 18px com traço 1.5. O nosso estava em 20px com 1.8, o que engrossava o
+ * desenho e deixava a calha visualmente pesada.
+ *
+ * Só o SVG encolhe — a caixa que o envolve continua 24px (`h-6 w-6`), que é a
+ * medida que centraliza o ícone na calha de 60px do menu fechado. Ver a conta
+ * em `globals.css` → "Menu que encolhe".
+ */
+const iconProps = { className: "h-[18px] w-[18px]", strokeWidth: 1.5, "aria-hidden": true } as const;
+/**
+ * Glifos escolhidos pelo mesmo critério do menu do DataDive: **um objeto só,
+ * sem detalhe interno**. Quatro dos nossos eram desenhos carregados e é o que
+ * fazia a calha parecer suja, mais do que a espessura do traço:
+ *
+ *   Boxes (3 cubos sobrepostos)   → Box       — uma caixa lisa
+ *   Radar (arcos + varredura)     → Gauge     — um ponteiro
+ *   Sparkles (3 estrelas)         → Lightbulb — uma lâmpada
+ *   Blocks (blocos em 3D)         → Plug      — uma tomada
+ *
+ * `Calculator` fica: a grade de teclas é detalhada, mas qualquer troca perde o
+ * significado, e significado ganha de limpeza num menu.
+ */
 const icons = {
   dashboard: <LayoutDashboard {...iconProps} />,
-  integrations: <Blocks {...iconProps} />,
+  integrations: <Plug {...iconProps} />,
   calculator: <Calculator {...iconProps} />,
   monitor: <Activity {...iconProps} />,
   performance: <TrendingUp {...iconProps} />,
   ads: <Megaphone {...iconProps} />,
   create: <SquarePen {...iconProps} />,
-  products: <Boxes {...iconProps} />,
-  stock: <Radar {...iconProps} />,
+  products: <Box {...iconProps} />,
+  stock: <Gauge {...iconProps} />,
   search: <Search {...iconProps} />,
   history: <History {...iconProps} />,
-  briefing: <Sparkles {...iconProps} />,
+  briefing: <Lightbulb {...iconProps} />,
 };
 
 const navigation: Record<WorkspaceId, NavGroup[]> = {
@@ -204,12 +226,15 @@ function ItemLink({
   return (
     <Link
       href={item.href}
+      title={`${item.label} — ${item.desc}`}
       aria-current={active ? "page" : undefined}
       tabIndex={tabIndex}
       className={`rail-nav-item group relative flex flex-1 items-center gap-2.5 px-2.5${sub ? " is-sub py-2" : " py-2.5"}${active ? " is-active" : ""}`}
     >
       <span className={`rail-nav-icon flex shrink-0 items-center justify-center ${sub ? "h-5 w-5" : "h-6 w-6"}`}>{item.icon}</span>
-      <span className="min-w-0">
+      {/* `rail-nav-text` existe para o menu encolhido poder apagar só o texto,
+          mantendo o ícone na calha. Ver `globals.css` → "Menu que encolhe". */}
+      <span className="rail-nav-text min-w-0">
         <span className={`block overflow-hidden text-ellipsis whitespace-nowrap font-semibold leading-tight ${sub ? "text-[12.5px]" : "text-[13px]"}`}>
           {item.label}
         </span>
@@ -279,9 +304,19 @@ function ItemBlock({
   );
 }
 
-export function NavLinks({ variant }: { variant: "sidebar" | "top" }) {
+export function NavLinks({
+  variant,
+  workspace: workspaceForcado,
+  compact = false,
+}: {
+  variant: "sidebar" | "top";
+  /** Só a bancada `/lab/rail` passa isto: fora dela o canal vem da URL. */
+  workspace?: WorkspaceId;
+  /** Sidebar inteira recolhida: mantém todas as rotas acessíveis por ícone. */
+  compact?: boolean;
+}) {
   const pathname = usePathname();
-  const workspace = workspaceFromPath(pathname);
+  const workspace = workspaceForcado ?? workspaceFromPath(pathname);
   const groups = navigation[workspace];
   const workspaceLabel: Record<WorkspaceId, string> = { overview: "geral", amazon: "Amazon", mercado_livre: "Mercado Livre", shopee: "Shopee", tiktok_shop: "TikTok Shop" };
   const ariaLabel = `Navegação ${workspaceLabel[workspace]}`;
@@ -364,6 +399,20 @@ export function NavLinks({ variant }: { variant: "sidebar" | "top" }) {
   // janela entre navegação e efeito (inclusive enquanto o storage ainda hidrata).
   const activeTitle = groups.find((group) => flatten(group.items).some((item) => isActive(pathname, item)))?.title;
 
+  // Ao ENTRAR numa rota, revele o grupo correspondente. Depois disso o controle
+  // continua sendo uma sanfona de verdade: a pessoa pode recolher inclusive o
+  // grupo atual, como na referência, e a seta sempre representa o estado real.
+  useEffect(() => {
+    if (!activeTitle) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCollapsed((prev) => {
+      if (!prev.has(activeTitle)) return prev;
+      const next = new Set(prev);
+      next.delete(activeTitle);
+      return next;
+    });
+  }, [activeTitle, pathname]);
+
   function toggle(title: string) {
     setCollapsed((prev) => {
       const next = new Set(prev);
@@ -392,6 +441,20 @@ export function NavLinks({ variant }: { variant: "sidebar" | "top" }) {
     );
   }
 
+  if (compact) {
+    return (
+      <nav aria-label={ariaLabel} className="rail-nav flex flex-col">
+        {groups.map((group, index) => (
+          <div key={group.title ?? `group-${index}`} className="rail-group flex flex-col gap-1" data-tone={group.tone}>
+            {flatten(group.items).map((item) => (
+              <ItemLink key={item.href} item={item} active={isActive(pathname, item)} sub={item.href.split("/").length > 3} />
+            ))}
+          </div>
+        ))}
+      </nav>
+    );
+  }
+
   return (
     <nav aria-label={ariaLabel} className="rail-nav flex flex-col">
       {groups.map((group, index) => {
@@ -405,13 +468,23 @@ export function NavLinks({ variant }: { variant: "sidebar" | "top" }) {
           );
         }
         const title = group.title;
-        const open = title === activeTitle || !collapsed.has(title);
+        const open = !collapsed.has(title);
         const bodyId = `rail-group-${workspace}-${index}`;
         return (
           <div key={title} className="rail-group" data-tone={group.tone}>
             <button type="button" className="rail-group-header" aria-expanded={open} aria-controls={bodyId} onClick={() => toggle(title)}>
+              <svg
+                className={`rail-group-chevron${open ? " is-open" : ""}`}
+                viewBox="0 0 14 14"
+                fill="none"
+                aria-hidden
+              >
+                <path
+                  d="M8.67171 5.25C9.66052 5.25031 10.2007 6.40372 9.56777 7.16351L7.8964 9.1693C7.43003 9.72866 6.57066 9.72854 6.10423 9.1693L4.43286 7.16351C3.79969 6.40366 4.33991 5.25012 5.32894 5.25H8.67171Z"
+                  fill="currentColor"
+                />
+              </svg>
               <span className="rail-group-label">{title}</span>
-              <ChevronDown className={`rail-group-chevron h-3.5 w-3.5${open ? " is-open" : ""}`} strokeWidth={2} aria-hidden />
             </button>
             <div id={bodyId} className={`rail-group-body${open ? " is-open" : ""}`} aria-hidden={!open}>
               <div className="rail-group-body-inner flex flex-col gap-1 pt-1">

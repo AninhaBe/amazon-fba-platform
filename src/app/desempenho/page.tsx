@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PageHeader, pageIcons } from "../components/PageHeader";
 import { TableLoading } from "../components/LoadingState";
 import { EmptyState } from "../components/EmptyState";
+import { Pagination } from "../components/Pagination";
 
 interface TrafficRow {
   sku: string;
@@ -28,6 +29,8 @@ interface TrafficSummary {
 }
 
 type SortKey = "sessions" | "conversion" | "revenue" | "buybox";
+type RankMetric = "sessions" | "conversion" | "revenue" | "buybox";
+const PAGE_SIZE = 30;
 
 const compact = new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 });
 const integer = new Intl.NumberFormat("pt-BR");
@@ -41,13 +44,7 @@ function percent(value: number | null) {
 }
 
 function Metric({ label, value, note }: { label: string; value: string; note: string }) {
-  return (
-    <div className="metric-cell p-5">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500">{label}</p>
-      <strong className="mt-3 block text-2xl font-bold tracking-[-0.035em] text-slate-900 tabular-nums">{value}</strong>
-      <p className="mt-1 text-xs text-slate-500">{note}</p>
-    </div>
-  );
+  return <div><span>{label}</span><strong>{value}</strong><small>{note}</small></div>;
 }
 
 export default function DesempenhoPage() {
@@ -58,6 +55,8 @@ export default function DesempenhoPage() {
   const [permissionMissing, setPermissionMissing] = useState(false);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("sessions");
+  const [rankMetric, setRankMetric] = useState<RankMetric>("sessions");
+  const [page, setPage] = useState(1);
   const retryTimer = useRef<number | undefined>(undefined);
 
   const load = useCallback(async function loadTraffic(periodDays: number) {
@@ -106,9 +105,17 @@ export default function DesempenhoPage() {
   }, [query, sort, summary]);
 
   const totals = summary?.totals;
+  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const current = Math.min(page, pageCount);
+  const pagedRows = rows.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
+  const rankedRows = [...(summary?.rows ?? [])]
+    .sort((a, b) => rankMetric === "conversion" ? b.conversion - a.conversion : rankMetric === "revenue" ? b.revenue - a.revenue : rankMetric === "buybox" ? (b.buyBoxPercentage ?? -1) - (a.buyBoxPercentage ?? -1) : b.sessions - a.sessions)
+    .slice(0, 8);
+  const rankValue = (row: TrafficRow) => rankMetric === "conversion" ? row.conversion : rankMetric === "revenue" ? row.revenue : rankMetric === "buybox" ? row.buyBoxPercentage ?? 0 : row.sessions;
+  const rankMax = Math.max(1, ...rankedRows.map(rankValue));
 
   return (
-    <div className="performance-page space-y-8">
+    <div className="performance-page analysis-page">
       <PageHeader
         eyebrow="Amazon Sales & Traffic"
         title="Visitas e conversão"
@@ -118,7 +125,7 @@ export default function DesempenhoPage() {
           <select
             value={days}
             onChange={(event) => setDays(Number(event.target.value))}
-            className="cursor-pointer rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 shadow-sm"
+            className="listing-period-select"
             aria-label="Período do desempenho"
           >
             <option value={7}>Últimos 7 dias</option>
@@ -129,19 +136,19 @@ export default function DesempenhoPage() {
       />
 
       {error && (
-        <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800">
-          <p className="font-semibold">{permissionMissing ? "Permissão Brand Analytics necessária" : "Não foi possível carregar o desempenho"}</p>
-          <p className="mt-1 leading-relaxed">
+        <div role="alert" className="performance-error">
+          <p><strong>{permissionMissing ? "Permissão Brand Analytics necessária" : "Não foi possível carregar o desempenho"}</strong></p>
+          <p>
             {permissionMissing
               ? "Ative o acesso a Brand Analytics nas permissões da integração Amazon. Depois, reconecte a conta para conceder o novo acesso."
               : error}
           </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <button type="button" onClick={() => void load(days)} className="rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white">
+          <div>
+            <button type="button" onClick={() => void load(days)}>
               Tentar novamente
             </button>
             {permissionMissing && (
-              <a href="/api/auth/login" className="inline-flex min-h-10 items-center rounded-lg border border-amber-300 bg-white px-3.5 py-2 text-xs font-semibold text-amber-800">
+              <a href="/api/auth/login">
                 Reconectar conta
               </a>
             )}
@@ -149,13 +156,21 @@ export default function DesempenhoPage() {
         </div>
       )}
 
-      <div className="metric-grid grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <Metric label="Sessões" value={loading ? "…" : compact.format(totals?.sessions ?? 0)} note="Visitas únicas aproximadas" />
-        <Metric label="Visualizações" value={loading ? "…" : compact.format(totals?.pageViews ?? 0)} note="Páginas vistas" />
-        <Metric label="Pedidos" value={loading ? "…" : integer.format(totals?.orders ?? 0)} note={`${integer.format(totals?.units ?? 0)} unidades`} />
-        <Metric label="Conversão" value={loading ? "…" : percent(totals?.conversion ?? 0)} note="Unidades ÷ sessões" />
-        <Metric label="Receita" value={loading ? "…" : money(totals?.revenue ?? 0, totals?.currency)} note={`Buy Box média ${percent(totals?.buyBoxPercentage ?? null)}`} />
-      </div>
+      <section className="performance-summary-band" aria-label="Resumo de desempenho">
+        <Metric label="Sessões" value={loading ? "…" : totals ? compact.format(totals.sessions) : "—"} note={totals ? "Visitas únicas aproximadas" : "dado indisponível"} />
+        <Metric label="Visualizações" value={loading ? "…" : totals ? compact.format(totals.pageViews) : "—"} note={totals ? "Páginas vistas" : "dado indisponível"} />
+        <Metric label="Pedidos" value={loading ? "…" : totals ? integer.format(totals.orders) : "—"} note={totals ? `${integer.format(totals.units)} unidades` : "dado indisponível"} />
+        <Metric label="Conversão" value={loading ? "…" : totals ? percent(totals.conversion) : "—"} note={totals ? "Unidades ÷ sessões" : "dado indisponível"} />
+        <Metric label="Receita" value={loading ? "…" : totals ? money(totals.revenue, totals.currency) : "—"} note={totals ? `Buy Box média ${percent(totals.buyBoxPercentage)}` : "dado indisponível"} />
+      </section>
+
+      {!loading && !error && rankedRows.length > 0 && (
+        <section className="performance-ranking" aria-labelledby="performance-ranking-title">
+          <header><div><p>Comparação visual</p><h2 id="performance-ranking-title">Produtos que lideram o período</h2></div><span>{summary ? `${new Date(`${summary.startDate}T12:00:00`).toLocaleDateString("pt-BR")} — ${new Date(`${summary.endDate}T12:00:00`).toLocaleDateString("pt-BR")}` : ""}</span></header>
+          <div className="performance-ranking-tabs" role="tablist" aria-label="Métrica do ranking">{([['sessions', 'Sessões'], ['conversion', 'Conversão'], ['revenue', 'Receita'], ['buybox', 'Buy Box']] as Array<[RankMetric, string]>).map(([key, label]) => <button key={key} type="button" role="tab" aria-selected={rankMetric === key} onClick={() => setRankMetric(key)}>{label}</button>)}</div>
+          <ol>{rankedRows.map((row, index) => { const value = rankValue(row); return <li key={`${row.sku}-${row.asin || ""}`} style={{ "--performance-bar": `${Math.max(2, (value / rankMax) * 100)}%` } as React.CSSProperties}><span className="performance-rank-bar" aria-hidden="true" /><i>{index + 1}</i><div><strong title={row.title}>{row.title || row.asin || row.sku}</strong><small>{row.sku}{row.asin ? ` · ${row.asin}` : ""}</small></div><b>{rankMetric === "revenue" ? money(value, row.currency) : rankMetric === "conversion" || rankMetric === "buybox" ? percent(value) : integer.format(value)}</b></li>; })}</ol>
+        </section>
+      )}
 
       {!error && summary && (
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -168,21 +183,22 @@ export default function DesempenhoPage() {
         </div>
       )}
 
-      <div className="filter-toolbar flex flex-wrap gap-2" role="search" aria-label="Filtros de desempenho">
-        <label className="min-w-52 flex-1">
+      {!error && summary && <div className="listing-controls cols-3 performance-controls" role="search" aria-label="Filtros de desempenho">
+        <label className="listing-search">
           <span className="sr-only">Buscar produto</span>
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar SKU, ASIN ou produto" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+          <input value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="Buscar SKU, ASIN ou produto" />
         </label>
-        <select value={sort} onChange={(event) => setSort(event.target.value as SortKey)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" aria-label="Ordenar produtos">
+        <select value={sort} onChange={(event) => { setSort(event.target.value as SortKey); setPage(1); }} aria-label="Ordenar produtos">
           <option value="sessions">Mais visitados</option>
           <option value="conversion">Maior conversão</option>
           <option value="revenue">Maior receita</option>
           <option value="buybox">Maior Buy Box</option>
-        </select>
-      </div>
+        </select><span className="listing-filter-context">{rows.length} no recorte</span>
+      </div>}
 
-      <div className="overflow-x-auto rounded-2xl border border-slate-200/70 bg-white shadow-sm">
-        <table className="w-full min-w-[850px] text-sm">
+      <section className="listing-table-shell performance-table-shell" aria-labelledby="performance-results-title">
+        <header><div><p className="section-kicker">Detalhamento</p><h2 id="performance-results-title">{loading ? "Carregando desempenho" : error ? "Dados indisponíveis" : `${rows.length} ${rows.length === 1 ? "produto encontrado" : "produtos encontrados"}`}</h2></div><p>Sales & Traffic por produto</p></header>
+        <div className="overflow-x-auto"><table className="listing-table performance-table">
           <caption className="sr-only">Desempenho de tráfego e conversão por produto</caption>
           <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
@@ -202,7 +218,7 @@ export default function DesempenhoPage() {
               <tr><td colSpan={7} className="px-4 py-6"><EmptyState kind="permission" title="Dados de desempenho indisponíveis" description="Libere a permissão Brand Analytics e reconecte a conta para visualizar visitas e conversão." /></td></tr>
             ) : rows.length === 0 ? (
               <tr><td colSpan={7} className="px-4 py-6"><EmptyState title="Nenhum tráfego neste período" description="Experimente ampliar o intervalo ou aguarde a consolidação diária da Amazon." /></td></tr>
-            ) : rows.map((row) => (
+            ) : pagedRows.map((row) => (
               <tr key={`${row.sku}-${row.asin || ""}`}>
                 <td className="px-4 py-3">
                   <p className="max-w-[300px] truncate font-medium text-slate-800">{row.title || row.asin || row.sku}</p>
@@ -217,10 +233,11 @@ export default function DesempenhoPage() {
               </tr>
             ))}
           </tbody>
-        </table>
-      </div>
+        </table></div>
+        {!loading && pageCount > 1 && <div className="listing-pagination"><Pagination page={current} pageCount={pageCount} total={rows.length} pageSize={PAGE_SIZE} onPage={setPage} /></div>}
+      </section>
 
-      <p className="text-xs leading-relaxed text-slate-400">
+      <p className="listing-method-note">
         Conversão = unidades pedidas ÷ sessões. A Amazon consolida esses dados diariamente; por isso, o período termina no último dia completo.
       </p>
     </div>

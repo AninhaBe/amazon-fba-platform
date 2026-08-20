@@ -273,11 +273,11 @@ export default function OverviewDashboard() {
   const maxRevenue = Math.max(...channels.map((channel) => channel.revenue ?? 0), 1);
 
   return (
-    <div className="overview-page space-y-8">
+    <div className="overview-page channel-dashboard">
       <PageHeader eyebrow="Central multicanal" title="Visão geral" subtitle="Acompanhe sua operação inteira e entre em cada canal quando precisar dos detalhes próprios da plataforma." icon={pageIcons.dashboard} action={updatedAt && <span className="data-freshness">Atualizado às {brTime(updatedAt)}</span>} />
       {loading ? <DashboardSkeleton label="Consolidando seus canais" chart={false} rows={2} /> : channels.length === 0 ? (
         <section className="central-empty"><span>SC</span><div><p className="section-kicker">Primeira conexão</p><h2>Monte sua central de vendas</h2><p>Conecte Amazon, Mercado Livre, Shopee ou TikTok Shop para começar a consolidar faturamento e pedidos.</p></div><Link href="/integracoes">Conectar um canal <b aria-hidden="true">→</b></Link></section>
-      ) : <div className="dashboard-sections space-y-8">
+      ) : <div className="dashboard-sections channel-dashboard-sections">
         <section className="central-kpis" aria-label="Indicadores consolidados">
           <article><p>Faturamento conhecido</p><strong><AnimatedNumber id="central-revenue" value={totals.revenue} format={(amount) => money(amount)} /></strong><small>Soma dos canais com dados disponíveis</small></article>
           <article><p>Lucro conhecido</p><strong>{totals.profitSources ? <AnimatedNumber id="central-profit" value={totals.profit} format={(amount) => money(amount)} /> : "Indisponível"}</strong><small>{totals.profitSources} de {totals.connected} canais com cálculo de lucro</small></article>
@@ -297,18 +297,16 @@ export default function OverviewDashboard() {
 
         <section aria-labelledby="channel-comparison-title">
           <div className="central-section-heading"><div><p className="section-kicker">Comparação por canal</p><h2 id="channel-comparison-title">Onde sua operação acontece</h2></div><p>Valores indisponíveis permanecem explícitos e nunca entram como zero no consolidado.</p></div>
-          <div className="channel-overview-grid">
+          <div className="channel-comparison-table" role="table" aria-label="Comparação de canais">
+            <div className="channel-comparison-head" role="row"><span role="columnheader">Canal</span><span role="columnheader">Faturamento conhecido</span><span role="columnheader">Pedidos</span><span role="columnheader">Resultado</span><span role="columnheader"><span className="sr-only">Ação</span></span></div>
             {channels.map((channel) => (
-              <article key={channel.id} className={`channel-overview-card is-${channel.id}`}>
-                <header><span className="channel-overview-mark" aria-hidden="true"><MarketplaceIcon provider={channel.id} size={40} app /></span><div><h3>{channel.name}</h3><p>{channel.attention ? "Canal temporariamente indisponível" : !channel.connected ? "Aguardando conexão" : channel.error ? "Conectado, sem leitura" : "Canal conectado"}</p></div><span className={`channel-health${channel.connected && !channel.error ? " is-connected" : ""}`}>{channel.attention ? "Atenção" : !channel.connected ? "Conectar" : channel.error ? "Atenção" : "Ativo"}</span></header>
-                {channel.attention ? <div className="channel-card-empty"><p>{channel.error || "Não foi possível carregar este canal agora."}</p></div> : channel.connected ? <>
-                  <div className="channel-value"><span>Vendas brutas</span><strong>{channel.error ? "Indisponível" : money(channel.revenue, channel.currency)}</strong></div>
-                  <div className="channel-share" aria-label={`Participação relativa de ${channel.name}`}><i style={{ width: `${((channel.revenue ?? 0) / maxRevenue) * 100}%` }} /></div>
-                  <dl><div><dt>Pedidos</dt><dd>{channel.orders?.toLocaleString("pt-BR") ?? "—"}</dd></div><div><dt>{channel.profitPartial ? "Lucro parcial" : "Lucro"}</dt><dd>{money(channel.profit, channel.currency)}</dd></div>{channel.cancelled != null && channel.cancelled > 0 ? <div><dt>Canceladas</dt><dd className="text-red-600">{money(channel.cancelled, channel.currency)}</dd></div> : null}</dl>
-                  <p className="channel-note">{channel.error || channel.note}</p>
-                </> : <div className="channel-card-empty"><p>Conecte sua conta para incluir este canal no dashboard geral.</p></div>}
-                <Link href={channel.connected && !channel.attention ? channel.href : "/integracoes"}>{channel.attention ? "Revisar integração" : channel.connected ? `Abrir ${channel.name}` : `Conectar ${channel.name}`} <span aria-hidden="true">→</span></Link>
-              </article>
+              <div key={channel.id} className={`channel-comparison-row is-${channel.id}`} role="row">
+                <div className="channel-comparison-identity" role="cell"><span aria-hidden="true"><MarketplaceIcon provider={channel.id} size={28} app /></span><div><strong>{channel.name}</strong><small>{channel.attention ? "Canal temporariamente indisponível" : !channel.connected ? "Aguardando conexão" : channel.error ? "Conectado, sem leitura" : channel.error || channel.note}</small></div><em className={`channel-health${channel.connected && !channel.error ? " is-connected" : ""}`}>{channel.attention ? "Atenção" : !channel.connected ? "Conectar" : channel.error ? "Atenção" : "Ativo"}</em></div>
+                <div className="channel-comparison-revenue" role="cell"><strong>{channel.connected && !channel.error ? money(channel.revenue, channel.currency) : "—"}</strong><span aria-label={`Participação relativa de ${channel.name}`}><i style={{ width: `${channel.connected ? ((channel.revenue ?? 0) / maxRevenue) * 100 : 0}%` }} /></span></div>
+                <div className="channel-comparison-number" role="cell"><strong>{channel.orders?.toLocaleString("pt-BR") ?? "—"}</strong><small>últimos 30 dias</small></div>
+                <div className="channel-comparison-number" role="cell"><strong className={channel.profit == null ? undefined : channel.profit < 0 ? "is-negative" : "is-positive"}>{channel.connected ? money(channel.profit, channel.currency) : "—"}</strong><small>{channel.profitPartial ? "lucro parcial" : "lucro conhecido"}{channel.cancelled != null && channel.cancelled > 0 ? ` · ${money(channel.cancelled, channel.currency)} canceladas` : ""}</small></div>
+                <div className="channel-comparison-action" role="cell"><Link href={channel.connected && !channel.attention ? channel.href : "/integracoes"} aria-label={channel.attention ? `Revisar integração ${channel.name}` : channel.connected ? `Abrir ${channel.name}` : `Conectar ${channel.name}`} title={channel.attention ? "Revisar integração" : channel.connected ? `Abrir ${channel.name}` : `Conectar ${channel.name}`}>→</Link></div>
+              </div>
             ))}
           </div>
         </section>

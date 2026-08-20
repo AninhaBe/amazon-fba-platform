@@ -109,34 +109,53 @@ export default function IntegracoesPage() {
   }
 
   const connectedCount = activeConnectionCount(providers);
+  const connectedProviders = providers.filter((provider) => provider.connections.some((connection) => connection.status === "connected")).length;
+  const attentionProviders = providers.filter((provider) => provider.issue || provider.connections.some((connection) => connection.status !== "connected")).length;
+  const availableProviders = providers.filter((provider) => provider.availability === "available").length;
 
   return (
-    <div className="integrations-page space-y-8">
+    <div className="integrations-page analysis-page">
       <PageHeader
-        eyebrow="Ecossistema SellerCore"
+        eyebrow="Configuração do NEXO"
         title="Integrações"
         subtitle="Conecte seus canais de venda em uma única operação. Cada integração alimenta o mesmo catálogo, pedidos, estoque e visão financeira."
         icon={pageIcons.integrations}
-        action={<span className="integration-summary">{connectedCount} {connectedCount === 1 ? "conta conectada" : "contas conectadas"}</span>}
       />
 
       {message && (
         <div role="status" className={`integration-message is-${message.tone}`}>{message.text}</div>
       )}
 
-      <section aria-labelledby="channels-title">
-        <div className="integration-section-heading">
-          <div>
-            <p className="section-kicker">Canais de venda</p>
-            <h2 id="channels-title">Seu ecossistema comercial</h2>
-          </div>
-          <p>Comece conectando um canal. As próximas fontes entram sem mudar as telas operacionais.</p>
-        </div>
+      <section className="listing-summary-band is-4 integration-summary-band" aria-label="Resumo das integrações">
+        <div><span>Contas conectadas</span><strong>{connectedCount}</strong><small>credenciais ativas nesta operação</small></div>
+        <div><span>Canais ativos</span><strong>{connectedProviders}</strong><small>de {providers.length || 4} canais mapeados</small></div>
+        <div className={attentionProviders > 0 ? "is-warning" : "is-positive"}><span>Pedem atenção</span><strong>{attentionProviders}</strong><small>conexões degradadas ou interrompidas</small></div>
+        <div><span>Disponíveis agora</span><strong>{availableProviders}</strong><small>provedores com conexão habilitada</small></div>
+      </section>
+
+      <section className="integration-settings-layout" aria-labelledby="channels-title">
+        <aside className="integration-settings-nav" aria-label="Seções de integração">
+          <p>Configurações</p>
+          <span aria-current="page">Canais de venda</span>
+          <small>Conecte, acompanhe e corrija o acesso de cada marketplace.</small>
+          <p>Como funciona</p>
+          <span>Modelo comum</span>
+          <small>Os dados permanecem separados por conta e comparáveis no consolidado.</small>
+        </aside>
+
+        <div className="integration-provider-workspace">
+          <header className="integration-section-heading">
+            <div>
+              <p className="section-kicker">Canais de venda</p>
+              <h2 id="channels-title">Contas e permissões</h2>
+            </div>
+            <p>O estado de cada canal fica explícito; reconexões e remoções continuam separadas.</p>
+          </header>
 
         {loading ? (
           <PanelLoading label="Carregando integrações" />
         ) : (
-          <div className="integration-grid">
+          <div className="integration-grid integration-provider-list">
             {providers.map((provider) => {
               const planned = provider.availability === "planned";
               const state = providerState(provider.connections, {
@@ -219,13 +238,14 @@ export default function IntegracoesPage() {
             })}
           </div>
         )}
+        </div>
       </section>
 
       <section className="integration-architecture" aria-labelledby="architecture-title">
         <div>
           <p className="section-kicker">Arquitetura comum</p>
           <h2 id="architecture-title">Um produto, vários canais</h2>
-          <p>O SellerCore normaliza as diferenças de cada marketplace antes de entregar os dados às telas.</p>
+          <p>O NEXO normaliza as diferenças de cada marketplace antes de entregar os dados às telas.</p>
         </div>
         <ol>
           <li><span>01</span><strong>Conectar</strong><small>Acesso seguro e separado por canal</small></li>

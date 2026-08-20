@@ -20,7 +20,7 @@ export async function GET() {
         expiraEm: convite,
         instrucao:
           "Envie este link ao vendedor. Ele autoriza a loja na TikTok e a conexão " +
-          "aparece aqui — não é preciso criar conta no SellerCore.",
+          "aparece aqui — não é preciso criar conta no NEXO.",
       });
     } catch (error) {
       return NextResponse.json(

@@ -181,7 +181,7 @@ export default function CalculatorPage() {
     "rounded-lg border border-slate-300 px-3 py-2 focus:border-blue-500 focus:outline-none";
 
   return (
-    <div className="calculator-page space-y-8">
+    <div className="calculator-page tool-page">
       <PageHeader
         eyebrow="Simulação de rentabilidade"
         title="Calculadora de lucro"
@@ -192,7 +192,7 @@ export default function CalculatorPage() {
       {/* Entradas compartilhadas */}
       <form
         onSubmit={calculate}
-        className="decision-sheet grid grid-cols-1 gap-4 border-y border-slate-300 py-6 sm:grid-cols-3"
+        className="decision-sheet calculator-input-panel grid grid-cols-1 gap-4 sm:grid-cols-3"
       >
         <div className="flex flex-col gap-1 sm:col-span-3">
           <label htmlFor="calculator-asin" className="text-sm font-medium">ASIN do produto</label>
@@ -289,7 +289,7 @@ export default function CalculatorPage() {
       </form>
 
       {error && (
-        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+        <div role="alert" className="tool-error">
           {error}
         </div>
       )}
@@ -361,7 +361,7 @@ export default function CalculatorPage() {
       )}
 
       {result && (
-        <p className="text-xs text-slate-400">
+        <p className="listing-method-note">
           Comissão e logística FBA são calculadas automaticamente. Armazenagem,
           frete e a taxa DBA são custos que você controla — edite em cada coluna e o lucro
           recalcula na hora. O DBA usa a mesma comissão; a taxa de coleta/entrega é a da

@@ -50,9 +50,9 @@ export function connectionRemovalCopy(
 ): ConnectionRemovalCopy {
   if (providerId === "shopee") {
     return {
-      button: "Remover do SellerCore",
-      confirm: `Remover ${connectionLabel} do SellerCore? As credenciais, sincronizações e os dados locais desta loja serão apagados. O acesso não será revogado na Shopee; para revogá-lo, use o painel da Shopee.`,
-      success: "Conexão removida apenas do SellerCore. O acesso na Shopee não foi revogado.",
+      button: "Remover do NEXO",
+      confirm: `Remover ${connectionLabel} do NEXO? As credenciais, sincronizações e os dados locais desta loja serão apagados. O acesso não será revogado na Shopee; para revogá-lo, use o painel da Shopee.`,
+      success: "Conexão removida apenas do NEXO. O acesso na Shopee não foi revogado.",
     };
   }
 

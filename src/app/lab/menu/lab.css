@@ -14,12 +14,19 @@
   /* A curva e a duração são as do DataDive (`ease-out` + `duration-300`). */
   --lab-curva: cubic-bezier(0, 0, 0.2, 1);
   --lab-tempo: 300ms;
-  min-height: 100vh;
+  /* Coluna de altura fixa: cabeçalho no tamanho que precisar e o palco ficando
+     com o resto. Sem isso o rodapé do menu era cortado por um `calc(100vh -
+     96px)` chutado — número mágico que quebra quando o cabeçalho quebra linha. */
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
   background: oklch(0.975 0.004 250);
   color: var(--lab-tinta);
 }
 
 .lab-topo {
+  flex: none;
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
@@ -52,14 +59,13 @@
 .lab-escolha small { color: var(--lab-suave); font-size: 11px; }
 
 /* O palco é o que imita a casca do app: menu à esquerda, canvas à direita. */
-.lab-palco { display: flex; align-items: flex-start; min-height: calc(100vh - 96px); }
+.lab-palco { display: flex; flex: 1; min-height: 0; }
 
 /* ---- A aside: largura fixa. Ela é o espaço reservado, nada mais. ---- */
 .lab-aside {
-  position: sticky;
-  top: 0;
+  position: relative;
   z-index: 30;
-  height: calc(100vh - 96px);
+  height: 100%;
   flex: none;
   display: flex;
 }
@@ -77,6 +83,10 @@
   border-inline-end: 1px solid var(--lab-linha);
   background: white;
   box-shadow: 0 1px 3px oklch(0 0 0 / 0.1), 0 1px 2px -1px oklch(0 0 0 / 0.1);
+  /* Recorta o próprio conteúdo: sem isso a marca e a barrinha do item ativo
+     vazam para o canvas quando o painel está estreito (visível na opção C, que
+     fecha em zero). A sombra é desenhada fora da caixa e não é afetada. */
+  overflow: hidden;
   transition: width var(--lab-tempo) var(--lab-curva);
 }
 .is-unico .lab-painel { left: 0; width: 68px; }
@@ -255,7 +265,7 @@
 }
 
 /* ---- Canvas de mentira: existe só para ter o que sobrepor ---- */
-.lab-canvas { flex: 1; min-width: 0; padding: 26px 30px; }
+.lab-canvas { flex: 1; min-width: 0; overflow-y: auto; padding: 26px 30px; }
 .lab-ficha {
   margin-bottom: 20px;
   border: 1px solid var(--lab-linha);

@@ -1,0 +1,157 @@
+/* ---------- Bancada de identidade (rota /lab/identidade) ----------
+   Três direções sobre a MESMA marcação. Tudo que muda entre elas está nos
+   blocos `.is-a`, `.is-b`, `.is-c` — se uma regra estiver fora deles, ela é
+   comum às três e não faz parte da decisão. */
+
+.idp {
+  min-height: 100vh;
+  background: oklch(0.975 0.004 250);
+  color: oklch(0.24 0.014 250);
+}
+
+.idp-topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  border-block-end: 1px solid oklch(0.24 0.014 250 / 0.1);
+  background: white;
+  padding: 20px 28px;
+}
+.idp-topo h1 { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; }
+.idp-topo p { margin-top: 6px; max-width: 66ch; color: oklch(0.54 0.02 250); font-size: 13.5px; line-height: 1.55; }
+
+.idp-escolha { display: flex; gap: 8px; }
+.idp-escolha button {
+  display: grid; gap: 2px;
+  border: 1px solid oklch(0.24 0.014 250 / 0.12);
+  border-radius: 10px; background: white; padding: 9px 14px;
+  font: inherit; text-align: left; cursor: pointer;
+  transition: border-color 0.18s, background-color 0.18s;
+}
+.idp-escolha button:hover { border-color: oklch(0.24 0.014 250 / 0.3); }
+.idp-escolha button.is-ativa { border-color: oklch(0.24 0.014 250); background: oklch(0.24 0.014 250 / 0.04); }
+.idp-escolha strong { font-size: 13px; font-weight: 650; }
+.idp-escolha small { color: oklch(0.54 0.02 250); font-size: 11px; font-family: ui-monospace, monospace; }
+
+.idp-ficha {
+  border-block-end: 1px solid oklch(0.24 0.014 250 / 0.1);
+  background: white; padding: 14px 28px 18px;
+}
+.idp-ficha > p { font-size: 14.5px; }
+.idp-ficha dl { display: grid; gap: 10px; margin-top: 12px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.idp-ficha dt { color: oklch(0.54 0.02 250); font-size: 10.5px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; }
+.idp-ficha dd { margin-top: 3px; font-size: 13px; line-height: 1.5; }
+
+/* ---------- A amostra ---------- */
+.idp-amostra { position: relative; overflow: hidden; padding: clamp(48px, 7vw, 88px) clamp(24px, 6vw, 72px) 64px; }
+.idp-hero { position: relative; z-index: 1; max-width: 62ch; }
+.idp-pill {
+  display: inline-block; margin-bottom: 22px; border-radius: 999px;
+  padding: 7px 15px; font-size: 12px; font-weight: 600; white-space: nowrap;
+}
+.idp-amostra h2 { margin: 0; text-wrap: balance; }
+.idp-sub { margin-top: 20px; max-width: 58ch; font-size: 16px; line-height: 1.6; }
+.idp-acoes { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
+.idp-cta, .idp-cta-2 { display: inline-block; padding: 13px 26px; font-size: 15px; font-weight: 650; }
+
+.idp-cards {
+  position: relative; z-index: 1;
+  display: grid; gap: 12px; margin-top: clamp(40px, 6vw, 72px);
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+.idp-cards > div { display: grid; gap: 5px; padding: 16px 18px; }
+.idp-cards small { font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+.idp-cards strong { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.idp-cards em { font-size: 11.5px; font-style: normal; }
+
+.idp-canais { position: relative; z-index: 1; margin-top: 36px; }
+.idp-canais-titulo { font-size: 10.5px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; }
+.idp-canais-fila { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.idp-canal { display: inline-flex; align-items: center; gap: 9px; padding: 9px 16px; font-size: 13px; font-weight: 600; }
+.idp-canal i { width: 10px; height: 10px; flex: none; border-radius: 3px; }
+
+/* ================= A · Serifada clara (sequencehq.com) ================= */
+.is-a { background: white; color: oklch(0.22 0.012 250); }
+/* O wash pastel das bordas é a assinatura deles. */
+.is-a::before {
+  content: ""; position: absolute; inset: -40% -10% auto -10%; height: 90%;
+  background:
+    radial-gradient(60% 60% at 15% 40%, oklch(0.88 0.06 240 / 0.55), transparent 70%),
+    radial-gradient(50% 60% at 85% 30%, oklch(0.88 0.06 300 / 0.45), transparent 70%);
+  filter: blur(30px); pointer-events: none;
+}
+.is-a .idp-pill { background: white; color: oklch(0.52 0.02 250);
+  box-shadow: 0 0 0 1px oklch(0.22 0.012 250 / 0.1); }
+.is-a h2 { font-family: ui-serif, Georgia, "Times New Roman", serif; font-weight: 400;
+  font-size: clamp(34px, 5vw, 54px); letter-spacing: -0.02em; line-height: 1.1; }
+.is-a .idp-linha2 { display: block; }
+.is-a .idp-sub { color: oklch(0.52 0.02 250); }
+.is-a .idp-cta { border-radius: 999px; background: oklch(0.22 0.012 250); color: white; }
+.is-a .idp-cta-2 { border-radius: 999px; box-shadow: inset 0 0 0 1px oklch(0.22 0.012 250 / 0.2); }
+.is-a .idp-cards > div { border-radius: 14px; background: white;
+  box-shadow: 0 0 0 1px oklch(0.22 0.012 250 / 0.1), 0 1px 2px oklch(0.22 0.012 250 / 0.05); }
+.is-a .idp-cards small, .is-a .idp-cards em { color: oklch(0.52 0.02 250); }
+.is-a .idp-cards .is-lucro { background: oklch(0.96 0.03 160); }
+.is-a .idp-cards .is-lucro strong { color: oklch(0.42 0.13 160); }
+.is-a .idp-canais-titulo { color: oklch(0.52 0.02 250); }
+.is-a .idp-canal { border-radius: 999px; background: white;
+  box-shadow: 0 0 0 1px oklch(0.22 0.012 250 / 0.1); }
+
+/* ================= B · Monocromática (peec.ai) ================= */
+.is-b { background: #ffffff; color: #000000; }
+.is-b .idp-pill { background: #f7f7f7; color: #6d6d6d; }
+/* A assinatura deles: duas tonalidades na mesma frase. */
+.is-b h2 { font-weight: 700; font-size: clamp(36px, 5.4vw, 58px);
+  letter-spacing: -0.03em; line-height: 1.06; }
+.is-b .idp-linha1 { color: #000000; }
+.is-b .idp-linha2 { display: block; color: #9a9a9a; }
+.is-b .idp-sub { color: #6d6d6d; }
+.is-b .idp-cta { border-radius: 8px; background: #000000; color: white; }
+.is-b .idp-cta-2 { border-radius: 8px; color: #000000; box-shadow: inset 0 0 0 1px #e4e4e4; }
+.is-b .idp-cards > div { border-radius: 10px; background: white; box-shadow: 0 0 0 1px #e9e9e9; }
+.is-b .idp-cards small, .is-b .idp-cards em { color: #6d6d6d; }
+/* Cor SÓ onde ela significa alguma coisa — aqui, o resultado. */
+.is-b .idp-cards .is-lucro strong { color: #1a7f4b; }
+.is-b .idp-canais-titulo { color: #6d6d6d; }
+.is-b .idp-canal { border-radius: 8px; background: white; box-shadow: 0 0 0 1px #e9e9e9; }
+
+/* ================= C · Sans com acento (lightdash.com) ================= */
+.is-c { --acento: oklch(0.55 0.2 275); background: #fafafa; color: #0f0f14; }
+/* O motivo em blocos, que é o que dá personalidade e o que custa uma cor. */
+.is-c::before {
+  content: ""; position: absolute; top: 0; right: 0; width: 320px; height: 260px;
+  pointer-events: none; opacity: 0.75;
+  background-image:
+    linear-gradient(var(--acento) 0 0), linear-gradient(var(--acento) 0 0),
+    linear-gradient(color-mix(in oklch, var(--acento) 45%, white) 0 0),
+    linear-gradient(color-mix(in oklch, var(--acento) 25%, white) 0 0),
+    linear-gradient(color-mix(in oklch, var(--acento) 60%, white) 0 0);
+  background-repeat: no-repeat;
+  background-size: 26px 26px, 26px 26px, 26px 26px, 26px 26px, 26px 26px;
+  background-position: 240px 30px, 274px 64px, 206px 64px, 274px 30px, 240px 98px;
+}
+.is-c .idp-pill { border-radius: 6px; background: color-mix(in oklch, var(--acento) 12%, white);
+  color: color-mix(in oklch, var(--acento) 70%, black); }
+.is-c h2 { font-weight: 700; font-size: clamp(36px, 5.4vw, 58px);
+  letter-spacing: -0.03em; line-height: 1.06; }
+.is-c .idp-linha2 { display: block; }
+/* Ícone inline no meio da frase, como eles fazem. */
+.is-c .idp-linha2::before {
+  content: "◆"; display: inline-block; margin-inline-end: 12px;
+  color: var(--acento); font-size: 0.6em; vertical-align: middle;
+}
+.is-c .idp-sub { color: #5b5b66; }
+.is-c .idp-cta { border-radius: 8px; background: #0f0f14; color: white; }
+.is-c .idp-cta-2 { border-radius: 8px; color: #0f0f14; box-shadow: inset 0 0 0 1px #dcdce2; }
+.is-c .idp-cards > div { border-radius: 10px; background: white; box-shadow: 0 0 0 1px #e6e6ec; }
+.is-c .idp-cards small, .is-c .idp-cards em { color: #5b5b66; }
+.is-c .idp-cards .is-lucro { box-shadow: 0 0 0 1px var(--acento); }
+.is-c .idp-cards .is-lucro strong { color: var(--acento); }
+.is-c .idp-canais-titulo { color: #5b5b66; }
+.is-c .idp-canal { border-radius: 8px; background: white; box-shadow: 0 0 0 1px #e6e6ec; }
+
+@media (prefers-reduced-motion: reduce) {
+  .idp-escolha button { transition: none; }
+}

@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { EmptyState } from "../../components/EmptyState";
 import { PageHeader, pageIcons } from "../../components/PageHeader";
 import { TableLoading } from "../../components/LoadingState";
+import { Pagination } from "../../components/Pagination";
+
+const PAGE_SIZE = 30;
 
 interface Product {
   id: string;
@@ -31,6 +34,8 @@ export default function MercadoLivreProdutosPage() {
   const [saveState, setSaveState] = useState<Record<string, "saving" | "saved" | "error">>({});
   const [taxRate, setTaxRate] = useState("");
   const [taxState, setTaxState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [costFilter, setCostFilter] = useState<"all" | "missing" | "complete">("all");
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -115,12 +120,17 @@ export default function MercadoLivreProdutosPage() {
     }
   }
 
-  const visibleProducts = products.filter((product) =>
-    `${product.title} ${product.sku || ""} ${product.id}`.toLocaleLowerCase("pt-BR").includes(query.toLocaleLowerCase("pt-BR"))
-  );
+  const visibleProducts = products.filter((product) => {
+    const matchesQuery = `${product.title} ${product.sku || ""} ${product.id}`.toLocaleLowerCase("pt-BR").includes(query.toLocaleLowerCase("pt-BR"));
+    const hasCost = product.cost != null && product.cost > 0;
+    return matchesQuery && (costFilter === "all" || (costFilter === "complete" ? hasCost : !hasCost));
+  });
   const withCost = products.filter((product) => product.cost != null && product.cost > 0).length;
+  const pageCount = Math.max(1, Math.ceil(visibleProducts.length / PAGE_SIZE));
+  const current = Math.min(page, pageCount);
+  const paged = visibleProducts.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
 
-  return <div className="products-page meli-products-page space-y-8">
+  return <div className="products-page meli-products-page listing-page">
     <PageHeader
       eyebrow="Produtos Mercado Livre"
       title="Produtos"
@@ -128,7 +138,7 @@ export default function MercadoLivreProdutosPage() {
       icon={pageIcons.box}
     />
 
-    <form className="meli-tax-card" onSubmit={saveTaxRate}>
+    <form className="meli-tax-card product-tax-panel" onSubmit={saveTaxRate}>
       <div>
         <p className="section-kicker">Imposto sobre vendas</p>
         <h2>Alíquota da sua empresa</h2>
@@ -142,35 +152,46 @@ export default function MercadoLivreProdutosPage() {
       <small aria-live="polite" className={taxState === "error" ? "is-error" : ""}>{taxState === "saved" ? "Alíquota salva" : taxState === "error" ? "Informe um percentual entre 0 e 100" : ""}</small>
     </form>
 
-    {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
+    {error && <div role="alert" className="listing-error"><div><strong>Não foi possível carregar os produtos.</strong><p>{error}</p></div></div>}
 
-    {!loading && products.length > 0 && <div className="filter-toolbar flex flex-wrap items-center justify-between gap-3">
-      <p className="text-sm text-slate-500">{withCost} de {products.length} produtos com custo cadastrado</p>
-      <label className="w-full sm:w-80"><span className="sr-only">Buscar produto</span><input className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar produto, SKU ou código" /></label>
-    </div>}
+    {!loading && products.length > 0 && <section className="listing-summary-band" aria-label="Cobertura de custos">
+      <div><span>Produtos</span><strong>{products.length.toLocaleString("pt-BR")}</strong><small>publicados no canal</small></div>
+      <div className="is-positive"><span>Com custo</span><strong>{withCost.toLocaleString("pt-BR")}</strong><small>{Math.round((withCost / products.length) * 100)}% da base</small></div>
+      <div className={products.length - withCost > 0 ? "is-warning" : "is-positive"}><span>Sem custo</span><strong>{(products.length - withCost).toLocaleString("pt-BR")}</strong><small>pendentes para lucro real</small></div>
+    </section>}
 
-    <div className="overflow-x-auto rounded-2xl bg-white shadow-sm">
-      <table className="w-full min-w-[720px] text-sm">
+    {!loading && products.length > 0 && <section className="listing-controls cols-3" aria-label="Filtros dos produtos">
+      <label className="listing-search"><span className="sr-only">Buscar produto</span><input value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="Buscar produto, SKU ou código" /></label>
+      <select value={costFilter} onChange={(event) => { setCostFilter(event.target.value as typeof costFilter); setPage(1); }} aria-label="Filtrar cobertura de custo"><option value="all">Todos os custos</option><option value="missing">Sem custo</option><option value="complete">Com custo</option></select>
+      <span className="listing-filter-context">{visibleProducts.length} no recorte</span>
+    </section>}
+
+    <section className="listing-table-shell product-table-shell" aria-labelledby="ml-product-results">
+      <header><div><p className="section-kicker">Base de custos</p><h2 id="ml-product-results">{loading ? "Carregando produtos" : `${visibleProducts.length} ${visibleProducts.length === 1 ? "produto encontrado" : "produtos encontrados"}`}</h2></div><p>{withCost} de {products.length} com custo cadastrado</p></header>
+      <div className="overflow-x-auto">
+      <table className="listing-table product-table">
         <caption className="sr-only">Produtos do Mercado Livre e seus custos</caption>
         <thead><tr><th>Produto</th><th className="text-right">Estoque</th><th className="text-right">Vendidos</th><th className="text-right">Preço</th><th className="text-right">Custo unitário</th></tr></thead>
         <tbody>
           {loading ? <tr><td colSpan={5}><TableLoading label="Carregando produtos do Mercado Livre" /></td></tr>
           : products.length === 0 ? <tr><td colSpan={5}><EmptyState title="Nenhum produto publicado" description="Quando houver anúncios ativos, eles aparecerão aqui para o cadastro de custos." /></td></tr>
           : visibleProducts.length === 0 ? <tr><td colSpan={5}><EmptyState kind="search" title="Nenhum produto encontrado" description="Tente buscar por outro nome, SKU ou código." /></td></tr>
-          : visibleProducts.map((product) => <tr key={product.id}>
-            <td><div className="flex items-center gap-3">{product.thumbnail && <>
+          : paged.map((product) => <tr key={product.id}>
+            <td><div className="listing-product">{product.thumbnail ? <>
               {/* Imagem externa já reduzida pelo catálogo do canal. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={product.thumbnail} alt="" className="h-11 w-11 shrink-0 rounded-lg object-contain" />
-            </>}<div className="min-w-0"><strong className="block max-w-[360px] truncate">{product.title}</strong><small className="block text-slate-400">{product.sku ? `SKU ${product.sku} · ` : ""}{product.id}</small></div></div></td>
-            <td className="text-right tabular-nums">{product.availableQuantity}</td>
-            <td className="text-right tabular-nums">{product.soldQuantity}</td>
-            <td className="text-right tabular-nums">{money(product.price, product.currency)}</td>
-            <td><div className="flex flex-col items-end gap-1"><div className="flex items-center gap-2"><input type="number" min="0" step="0.01" value={draftCosts[product.costId] ?? ""} onChange={(event) => setDraftCosts((current) => ({ ...current, [product.costId]: event.target.value }))} onKeyDown={(event) => { if (event.key !== "Enter") return; event.preventDefault(); commitCost(product, event.currentTarget.value); event.currentTarget.blur(); }} onBlur={(event) => commitCost(product, event.target.value)} placeholder="0,00" aria-label={`Custo de ${product.title}`} className={`product-cost-input ${product.cost ? "has-cost" : "is-missing"}`} /><button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => commitCost(product, draftCosts[product.costId] ?? "")} disabled={!canCommit(product)} title={canCommit(product) ? "Cadastrar custo" : "Digite um custo diferente do atual"} className="min-h-[40px] shrink-0 rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 transition-[background-color,color,border-color] hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-slate-300 disabled:hover:bg-transparent">Cadastrar</button></div><small aria-live="polite">{saveState[product.costId] === "saving" ? "Salvando…" : saveState[product.costId] === "saved" ? "Salvo" : saveState[product.costId] === "error" ? "Falha ao salvar" : ""}</small></div></td>
+              <img src={product.thumbnail} alt="" loading="lazy" />
+            </> : <span className="listing-image-fallback" aria-hidden="true">ML</span>}<div><strong title={product.title}>{product.title}</strong><small>{product.sku ? `SKU ${product.sku} · ` : ""}{product.id}</small></div></div></td>
+            <td className="tabular-nums">{product.availableQuantity}</td>
+            <td className="tabular-nums">{product.soldQuantity}</td>
+            <td className="tabular-nums">{money(product.price, product.currency)}</td>
+            <td><div className="product-cost-editor"><label><span>R$</span><input type="number" min="0" step="0.01" value={draftCosts[product.costId] ?? ""} onChange={(event) => setDraftCosts((current) => ({ ...current, [product.costId]: event.target.value }))} onKeyDown={(event) => { if (event.key !== "Enter") return; event.preventDefault(); commitCost(product, event.currentTarget.value); event.currentTarget.blur(); }} onBlur={(event) => commitCost(product, event.target.value)} placeholder="0,00" aria-label={`Custo de ${product.title}`} className={`product-cost-input ${product.cost ? "has-cost" : "is-missing"}`} /></label><button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => commitCost(product, draftCosts[product.costId] ?? "")} disabled={!canCommit(product)} title={canCommit(product) ? "Salvar custo" : "Digite um custo diferente do atual"}>Salvar</button><small aria-live="polite" className={saveState[product.costId] === "error" ? "is-error" : ""}>{saveState[product.costId] === "saving" ? "Salvando…" : saveState[product.costId] === "saved" ? "Salvo" : saveState[product.costId] === "error" ? "Falha ao salvar" : product.cost ? "" : "Pendente"}</small></div></td>
           </tr>)}
         </tbody>
       </table>
-    </div>
-    <p className="text-xs leading-relaxed text-slate-400">O lucro estimado considera pedidos pagos, comissão de venda, custo dos produtos cadastrados e a alíquota acima. Frete subsidiado, publicidade e ajustes posteriores ainda não entram no resultado.</p>
+      </div>
+      {!loading && pageCount > 1 && <div className="listing-pagination"><Pagination page={current} pageCount={pageCount} total={visibleProducts.length} pageSize={PAGE_SIZE} onPage={setPage} /></div>}
+    </section>
+    <p className="listing-method-note">O lucro estimado considera pedidos pagos, comissão de venda, custos cadastrados e a alíquota acima. Frete subsidiado, publicidade e ajustes posteriores ainda não entram no resultado.</p>
   </div>;
 }

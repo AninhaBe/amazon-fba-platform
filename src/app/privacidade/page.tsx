@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Logo } from "../components/Logo";
+import { NexoWordmark } from "../components/NexoWordmark";
 
 export const metadata: Metadata = {
-  title: "Política de Privacidade — SellerCore",
+  title: "Política de Privacidade — NEXO",
   description:
-    "Como o SellerCore coleta, usa, protege e exclui os dados da sua operação multicanal.",
+    "Como o NEXO coleta, usa, protege e exclui os dados da sua operação multicanal.",
 };
 
 // Página pública (listada em publicPaths no proxy). Versão resumida e pública do
@@ -13,24 +13,39 @@ export const metadata: Metadata = {
 // revise o outro.
 export default function PrivacidadePage() {
   return (
-    <main className="mx-auto w-full max-w-3xl px-6 py-12">
-      <header className="mb-10">
-        <Link href="/login" aria-label="Ir para o SellerCore">
-          <Logo />
+    <main className="privacy-page">
+      <header className="privacy-header">
+        <Link href="/login" aria-label="Ir para o NEXO">
+          <NexoWordmark />
         </Link>
-        <h1 className="mt-6 text-3xl font-bold tracking-tight text-slate-900">
-          Política de Privacidade
-        </h1>
-        <p className="mt-2 text-sm text-slate-500">
-          Versão 1.0 · vigente desde 04/08/2026 · revisada ao menos uma vez por ano
-        </p>
+        <div>
+          <p>Segurança e privacidade</p>
+          <h1>Política de Privacidade</h1>
+          <span>Versão 1.0 · vigente desde 04/08/2026 · revisão anual</span>
+        </div>
+        <Link href="/login" className="privacy-login">Entrar</Link>
       </header>
 
-      <div className="space-y-8 text-[15px] leading-relaxed text-slate-700">
+      <div className="privacy-layout">
+        <aside className="privacy-nav" aria-label="Nesta política">
+          <p>Nesta política</p>
+          <nav>
+            <a href="#quem-somos">Quem somos</a>
+            <a href="#papeis">Nossos papéis</a>
+            <a href="#dados">Dados tratados</a>
+            <a href="#compartilhamento">Compartilhamento</a>
+            <a href="#seguranca">Segurança</a>
+            <a href="#retencao">Retenção e exclusão</a>
+            <a href="#direitos">Seus direitos</a>
+            <a href="#incidentes">Incidentes</a>
+            <a href="#alteracoes">Alterações</a>
+          </nav>
+        </aside>
+        <article className="privacy-content">
         <section aria-labelledby="quem-somos">
           <h2 id="quem-somos" className="mb-2 text-lg font-semibold text-slate-900">1. Quem somos</h2>
           <p>
-            O SellerCore é um serviço de gestão de operações multicanal para vendedores de
+            O NEXO é um serviço de gestão de operações multicanal para vendedores de
             marketplaces, operado por <strong>66.106.202 ANA BEATRIZ DE OLIVEIRA</strong> (CNPJ
             66.106.202/0001-20). Contato de privacidade:{" "}
             <a className="text-blue-600 underline" href="mailto:contato.anabeatrizoliver@gmail.com">
@@ -44,9 +59,9 @@ export default function PrivacidadePage() {
           <h2 id="papeis" className="mb-2 text-lg font-semibold text-slate-900">2. Nossos papéis</h2>
           <p>
             Para os dados vindos dos marketplaces conectados (pedidos, anúncios, repasses), o
-            vendedor define as finalidades e o SellerCore atua como <strong>operador</strong>,
+            vendedor define as finalidades e o NEXO atua como <strong>operador</strong>,
             seguindo suas instruções. Para os dados mínimos de conta necessários ao funcionamento do
-            serviço (e-mail, sessão de acesso), o SellerCore atua como <strong>controlador</strong>.
+            serviço (e-mail, sessão de acesso), o NEXO atua como <strong>controlador</strong>.
           </p>
         </section>
 
@@ -131,10 +146,11 @@ export default function PrivacidadePage() {
             sua data constam no topo.
           </p>
         </section>
+        </article>
       </div>
 
-      <footer className="mt-12 border-t border-slate-200 pt-6 text-sm text-slate-400">
-        SellerCore · 66.106.202 ANA BEATRIZ DE OLIVEIRA · CNPJ 66.106.202/0001-20
+      <footer className="privacy-footer">
+        NEXO · 66.106.202 ANA BEATRIZ DE OLIVEIRA · CNPJ 66.106.202/0001-20
       </footer>
     </main>
   );

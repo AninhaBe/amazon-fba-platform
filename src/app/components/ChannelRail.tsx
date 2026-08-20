@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Plus } from "lucide-react";
-import { workspaceFromPath } from "@/lib/integrations/workspaces";
+import { workspaceFromPath, type WorkspaceId } from "@/lib/integrations/workspaces";
 import { MarketplaceIcon } from "./MarketplaceIcon";
 
 const channels = [
@@ -14,8 +14,12 @@ const channels = [
   { id: "tiktok_shop", href: "/tiktok", label: "TikTok Shop", provider: "tiktok_shop" },
 ] as const;
 
-export function ChannelRail() {
-  const workspace = workspaceFromPath(usePathname());
+/** `workspace` só é passado pela bancada `/lab/rail`; no app vem da URL. */
+export function ChannelRail({ workspace: workspaceForcado }: { workspace?: WorkspaceId } = {}) {
+  // O hook fica fora do `??`: dentro dele só rodaria quando a prop não viesse,
+  // e hook chamado condicionalmente quebra a ordem entre renders.
+  const pathname = usePathname();
+  const workspace = workspaceForcado ?? workspaceFromPath(pathname);
   return (
     <div className="channel-rail">
       <div className="channel-rail-tabs" role="navigation" aria-label="Alternar canal de venda">
