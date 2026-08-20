@@ -51,6 +51,7 @@ O que ganhamos, o que abrimos mão, o que passa a ser obrigatório respeitar.
 | [ADR-014](./ADR-014-cache-fora-do-processo-e-ingestao-em-fluxo.md) | Cache fora do processo e leituras com teto de memória (escala além de ~50 contas) | Proposto |
 | [ADR-015](./ADR-015-compute-em-sao-paulo-com-banco-gerenciado.md) | Compute em São Paulo com banco gerenciado — divide o ADR-006 em fases | Proposto |
 | [ADR-016](./ADR-016-ciclo-de-vida-do-dado.md) | Ciclo de vida do dado: toda tabela responde "quando isso morre" | Aceito |
+| [ADR-017](./ADR-017-orcamento-de-1s-e-leitura-agregada.md) | Orçamento de 1s: uma tela, uma chamada, banco só — SP-API fora do caminho interativo | Aceito |
 
 **Índice completo em 16/08/2026** — 14 ADRs, todos listados. Ao criar um ADR novo,
 adicione a linha aqui na mesma hora; este índice já ficou 8 ADRs atrás uma vez.
