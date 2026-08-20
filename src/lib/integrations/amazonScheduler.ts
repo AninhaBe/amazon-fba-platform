@@ -39,6 +39,20 @@ export async function runScheduledAmazonSync(
           OR (sync.status = 'error' AND sync.updated_at < now() - interval '30 minutes')
           OR (sync.status = 'complete'
             AND COALESCE(sync.last_success_at, sync.updated_at) < now() - interval '6 hours')
+          -- Pedido `pending` VELHO é suspeito: a Amazon muda o status em horas,
+          -- então pendente com 6h+ significa transição perdida (Pending → Shipped
+          -- que ninguém releu). Sem esta cláusula, uma conexão "complete" com só
+          -- pedidos pendentes não é candidata a nada e o buraco vira permanente —
+          -- foi o caso dos 16 de 17 pedidos eternamente pendentes (20/08/2026).
+          -- É esta candidatura que leva o passo de sync até reverifyUpdatedOrders.
+          OR (sync.status = 'complete' AND EXISTS (
+            SELECT 1 FROM workspace_channel_orders stuck
+             WHERE stuck.workspace_id = sync.workspace_id AND stuck.provider = sync.provider
+               AND stuck.connection_id = sync.connection_id
+               AND stuck.status = 'pending'
+               AND stuck.occurred_at >= now() - interval '30 days'
+               AND stuck.occurred_at < now() - interval '6 hours'
+          ))
           -- Completo mas com itens ou fees pendentes: continua refinando.
           OR (sync.status = 'complete' AND EXISTS (
             SELECT 1 FROM workspace_channel_orders orders
