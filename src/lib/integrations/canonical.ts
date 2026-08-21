@@ -53,7 +53,12 @@ export interface CanonicalOrder {
   closedAt: string | null;
   currency: string;
   /** Soma dos itens (unit_price × qty), sem frete do comprador. */
-  gross: number;
+  /**
+   * Receita bruta do pedido. `null` = **desconhecido**, não zero (AGENTS.md).
+   * A Amazon omite `OrderTotal` enquanto o pedido está `Pending`; gravar 0 ali
+   * afirmaria que a venda não teve receita.
+   */
+  gross: number | null;
   /**
    * Frete pago pelo comprador. null = ainda desconhecido (ex.: custos do
    * shipment não sincronizados) — diferente de 0 (grátis/sem frete).

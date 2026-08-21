@@ -433,6 +433,10 @@ export async function applyCanonicalShipmentCosts(
       .map((id) => byId.get(id))
       .filter((row): row is NonNullable<typeof row> => !!row);
     if (!known.length) continue;
+    // ⚠️ `gross` nulo (desconhecido) pesaria 0 aqui e jogaria o frete inteiro nos
+    // outros pedidos do envio. Hoje inalcançável — só a Amazon grava nulo, e ela
+    // não usa este caminho. Ao estender a nulabilidade a outro canal, decidir antes
+    // se o certo é pular o rateio ou usar peso igual.
     const weights = known.map((row) => Number(row.gross));
     const sellerShares = allocateByWeight(application.sellerShipping, weights);
     const buyerShares = allocateByWeight(application.buyerShipping, weights);

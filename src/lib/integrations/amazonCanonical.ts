@@ -29,6 +29,25 @@ function moneyOf(value?: { Amount?: string }): number {
   return Number.isFinite(amount) ? amount : 0;
 }
 
+/**
+ * Igual a `moneyOf`, mas devolve `null` quando o campo **não veio** — em vez de
+ * fingir zero.
+ *
+ * A distinção não é purismo: a Amazon **omite `OrderTotal` enquanto o pedido está
+ * `Pending`** (docs/api-amazon-sp-api.md, medido em 08/08/2026), e `Pending` no FBA
+ * não quer dizer "não pagou" — o pedido sai de `Pending` na expedição. Gravar zero
+ * aí afirma "esta venda não teve receita" sobre uma venda real cujo valor a Amazon
+ * ainda não expôs. Foi o que fez 64 pedidos entrarem no banco valendo 0,00.
+ *
+ * Ausência → `null`. Valor presente porém ilegível → `null` também: número
+ * quebrado é desconhecido, não zero.
+ */
+function moneyOrUnknown(value?: { Amount?: string }): number | null {
+  if (value?.Amount === undefined || value.Amount === null) return null;
+  const amount = Number(value.Amount);
+  return Number.isFinite(amount) ? amount : null;
+}
+
 export function normalizeAmazonOrderHeader(order: OrderSummary): CanonicalOrder {
   return {
     externalOrderId: order.amazonOrderId,
@@ -37,7 +56,7 @@ export function normalizeAmazonOrderHeader(order: OrderSummary): CanonicalOrder 
     occurredAt: order.purchaseDate,
     closedAt: null,
     currency: order.orderTotal?.CurrencyCode ?? "BRL",
-    gross: round2(moneyOf(order.orderTotal)),
+    gross: (() => { const v = moneyOrUnknown(order.orderTotal); return v === null ? null : round2(v); })(),
     buyerShipping: null,
     fulfillment: order.fulfillmentChannel === "AFN" ? "platform" : order.fulfillmentChannel === "MFN" ? "seller" : null,
     packId: null,

@@ -79,7 +79,13 @@ export interface AmazonCanonicalOverview {
     amazonOrderId: string;
     purchaseDate: string;
     orderStatus: string;
-    orderTotal: { CurrencyCode: string; Amount: string };
+    /**
+     * Ausente = valor ainda desconhecido. É a mesma forma que a SP-API usa: ela
+     * omite `OrderTotal` enquanto o pedido está `Pending`. A tela deve dizer
+     * "aguardando valor", nunca R$ 0,00 — zero seria afirmar que a venda não teve
+     * receita (AGENTS.md: `null` ≠ `0`).
+     */
+    orderTotal?: { CurrencyCode: string; Amount: string };
   }>;
 }
 
@@ -133,7 +139,8 @@ interface RecentRow {
   external_order_id: string;
   provider_status: string;
   occurred_at: Date | string;
-  gross: string;
+  /** `null` = valor ainda desconhecido (pedido `Pending`), nunca zero. */
+  gross: string | null;
   currency: string;
 }
 
@@ -432,7 +439,12 @@ export async function getAmazonOverviewFromCanonical(period: Period): Promise<Am
       amazonOrderId: row.external_order_id,
       purchaseDate: new Date(row.occurred_at).toISOString(),
       orderStatus: row.provider_status,
-      orderTotal: { CurrencyCode: row.currency, Amount: String(row.gross) },
+      // `gross` nulo = valor ainda desconhecido (pedido `Pending`, a Amazon omite
+      // `OrderTotal`). Devolver o campo AUSENTE reproduz exatamente o sinal que a
+      // própria API manda nesse caso, então quem já sabe lidar com pendente sem
+      // total continua funcionando. `String(null)` viraria `"null"` e, adiante,
+      // `NaN` na tela.
+      orderTotal: row.gross === null ? undefined : { CurrencyCode: row.currency, Amount: String(row.gross) },
     })),
   };
 }
