@@ -206,6 +206,43 @@ a primeira gravação, ou tratar a mudança explicitamente (apagar e reinserir).
 risco de **duplicação silenciosa de faturamento** — a pior classe de defeito deste
 produto.
 
+#### Medição de 21/08/2026 — zero divergência em 71.887 pedidos
+
+Comparado o `occurred_at` canônico contra a data que veio na origem, pedido a pedido:
+
+| Canal | Comparados | Divergentes | Mudariam de mês |
+|---|---:|---:|---:|
+| Mercado Livre (`payload.date_created`) | 37.968 | **0** | 0 |
+| Amazon (`raw.purchaseDate`) | 21.718 | **0** | 0 |
+| TikTok (`raw.create_time`) | 12.201 | **0** | 0 |
+| **Total** | **71.887** — 99,3% da base | **0** | **0** |
+
+Fora da checagem ficaram só os 214 pedidos de demonstração da Shopee, cujo `raw` é
+semente e não tem data de origem.
+
+⚠️ **O que isto prova e o que não prova.** Prova que não há deriva de transformação:
+nenhum erro de fuso, nenhum truncamento — o canônico espelha a origem exatamente.
+**Não prova** que o marketplace jamais altera a data: se ele alterasse e o sync
+regravasse os dois, ambos continuariam concordando. Esse resíduo não é observável a
+partir do dado que temos.
+
+**Raio de explosão, se acontecesse:** 689 dos 72.423 pedidos (0,95%) estão a menos de
+3 horas de uma virada de mês. Só esses poderiam trocar de partição num ajuste típico
+de fuso.
+
+#### Salvaguarda proposta: não atualizar `occurred_at`
+
+Como a data comprovadamente nunca diverge da origem, **tirar `occurred_at` do
+`DO UPDATE SET`** custa zero hoje e elimina o risco por construção: a linha mantém a
+data da primeira gravação, então nunca precisa mudar de partição.
+
+E o modo de falha inverte para o lado seguro. Se um canal um dia alterar a data, o
+resultado passa a ser "o pedido mantém a data original" — visível, auditável e
+corrigível — em vez de "o pedido existe duas vezes em partições diferentes", que
+duplica faturamento em silêncio.
+
+Não implementado: mexe na semântica de escrita e depende de aprovação.
+
 ### Sobre "sem nenhum risco"
 
 A revisão classifica a Frente 1 como "ganho massivo sem nenhum risco de downtime".
