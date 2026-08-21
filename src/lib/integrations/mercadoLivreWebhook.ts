@@ -135,7 +135,12 @@ async function saveOrder(workspaceId: string, connectionId: string, order: Merca
      VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,now())
      ON CONFLICT (workspace_id, provider, connection_id, external_order_id) DO UPDATE SET
        status = EXCLUDED.status, occurred_at = EXCLUDED.occurred_at,
-       payload = EXCLUDED.payload, synced_at = now()`,
+       payload = EXCLUDED.payload, synced_at = now()
+     -- Mesma regra do sync (ADR-022): webhook reentregue com payload idêntico não
+     -- gera escrita. O ML reenvia a mesma notificação várias vezes por pedido.
+     WHERE (workspace_marketplace_orders.status, workspace_marketplace_orders.occurred_at,
+            workspace_marketplace_orders.payload)
+       IS DISTINCT FROM (EXCLUDED.status, EXCLUDED.occurred_at, EXCLUDED.payload)`,
     [workspaceId, PROVIDER, connectionId, String(order.id), order.status,
      order.date_created, JSON.stringify(order)]
   );
@@ -152,7 +157,8 @@ async function saveShipment(
        (workspace_id, provider, connection_id, external_shipment_id, payload, synced_at)
      VALUES ($1,$2,$3,$4,$5::jsonb,now())
      ON CONFLICT (workspace_id, provider, connection_id, external_shipment_id) DO UPDATE SET
-       payload = EXCLUDED.payload, synced_at = now()`,
+       payload = EXCLUDED.payload, synced_at = now()
+     WHERE workspace_marketplace_shipments.payload IS DISTINCT FROM EXCLUDED.payload`,
     [workspaceId, PROVIDER, connectionId, shipmentId, JSON.stringify(payload)]
   );
 }
@@ -163,7 +169,9 @@ async function saveProduct(workspaceId: string, connectionId: string, product: M
        (workspace_id, provider, connection_id, external_product_id, status, payload, synced_at)
      VALUES ($1,$2,$3,$4,$5,$6::jsonb,now())
      ON CONFLICT (workspace_id, provider, connection_id, external_product_id) DO UPDATE SET
-       status = EXCLUDED.status, payload = EXCLUDED.payload, synced_at = now()`,
+       status = EXCLUDED.status, payload = EXCLUDED.payload, synced_at = now()
+     WHERE (workspace_marketplace_products.status, workspace_marketplace_products.payload)
+       IS DISTINCT FROM (EXCLUDED.status, EXCLUDED.payload)`,
     [workspaceId, PROVIDER, connectionId, product.id, product.status, JSON.stringify(product)]
   );
   await dbQuery(

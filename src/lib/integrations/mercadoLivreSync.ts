@@ -160,7 +160,16 @@ async function saveOrders(connection: IntegrationConnection, orders: MercadoLivr
        )
      ON CONFLICT (workspace_id, provider, connection_id, external_order_id) DO UPDATE SET
        status = EXCLUDED.status, occurred_at = EXCLUDED.occurred_at,
-       payload = EXCLUDED.payload, synced_at = now()`,
+       payload = EXCLUDED.payload, synced_at = now()
+     -- Só grava se algo mudou (ADR-022). Esta é a tabela mais castigada do banco:
+     -- 38 mil linhas para 1,13 milhão de updates, com 0,0% deles HOT — porque há
+     -- índice de expressão sobre payload e parcial sobre status, e update que
+     -- toca coluna indexada reescreve TODA entrada de índice da linha.
+     -- A comparação de jsonb é semântica: ordem de chave diferente não conta como
+     -- mudança, que é exatamente o que se quer de um payload reentregue igual.
+     WHERE (workspace_marketplace_orders.status, workspace_marketplace_orders.occurred_at,
+            workspace_marketplace_orders.payload)
+       IS DISTINCT FROM (EXCLUDED.status, EXCLUDED.occurred_at, EXCLUDED.payload)`,
     [currentWorkspaceId(), PROVIDER, connectionId, JSON.stringify(records)]
   );
   // Gravação dupla durante a migração (docs/canonical-schema.md), best-effort:
@@ -189,7 +198,9 @@ async function syncProducts(connection: IntegrationConnection): Promise<void> {
            external_product_id text, status text, payload jsonb
          )
        ON CONFLICT (workspace_id, provider, connection_id, external_product_id) DO UPDATE SET
-         status = EXCLUDED.status, payload = EXCLUDED.payload, synced_at = now()`,
+         status = EXCLUDED.status, payload = EXCLUDED.payload, synced_at = now()
+       WHERE (workspace_marketplace_products.status, workspace_marketplace_products.payload)
+         IS DISTINCT FROM (EXCLUDED.status, EXCLUDED.payload)`,
       [currentWorkspaceId(), PROVIDER, connection.id, JSON.stringify(records)]
     );
     await canonicalBestEffort("sync:products", () => saveCanonicalProducts(
@@ -246,7 +257,8 @@ async function syncMissingShipmentCosts(connection: IntegrationConnection): Prom
        SELECT $1, $2, $3, item.external_shipment_id, item.payload, now()
          FROM jsonb_to_recordset($4::jsonb) AS item(external_shipment_id text, payload jsonb)
        ON CONFLICT (workspace_id, provider, connection_id, external_shipment_id) DO UPDATE SET
-         payload = EXCLUDED.payload, synced_at = now()`,
+         payload = EXCLUDED.payload, synced_at = now()
+       WHERE workspace_marketplace_shipments.payload IS DISTINCT FROM EXCLUDED.payload`,
       [currentWorkspaceId(), PROVIDER, connection.id, JSON.stringify(records)]
     );
     await canonicalBestEffort("sync:shipments", () => applyCanonicalShipmentCosts(

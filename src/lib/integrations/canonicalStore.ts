@@ -12,6 +12,51 @@ import { stripReservedCanonicalMetadata } from "./canonicalMetadata";
 // Fees apenas acumulam/atualizam, porque chegam em momentos diferentes
 // (comissão junto com o pedido, frete quando o shipment sincroniza).
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Não reescrever linha que não mudou (ADR-022, Frente 1.1).
+//
+// O sync roda de 5 em 5 minutos por canal e regravava a linha inteira toda vez.
+// Medido em 21/08/2026: 84.158 inserções contra 2.225.919 updates em
+// `workspace_channel_orders` — 26 updates por linha, quase todos sem mudar nada.
+// Cada update grava linha morta, gera WAL e, quando não é HOT, reescreve TODA
+// entrada de índice da linha. Era a origem principal do inchaço do banco.
+//
+// A solução é um `WHERE` no `DO UPDATE`: só grava se o valor final for diferente
+// do que já está lá.
+//
+// ⚠️ O valor final de `raw` e `buyer_shipping` não é `EXCLUDED.<col>`, é uma
+// expressão. Ela precisa aparecer IGUAL no SET e na comparação — por isso mora
+// aqui, numa constante só, interpolada nos dois lugares. Duplicar o texto seria
+// abrir a porta para a pior falha desta mudança: alguém edita um lado, os dois
+// deixam de casar, e o sync passa a **ignorar atualização legítima em silêncio**
+// — o que não aparece como erro, aparece como dado velho na tela.
+//
+// Consequência aceita: `synced_at` passa a significar "última vez que esta linha
+// mudou", não "última vez que foi vista". Nada lê essa coluna para lógica
+// (conferido); o frescor do sync vem de `workspace_marketplace_syncs`.
+
+/** Merge do raw preservando o bloco reservado `_sellercore` já gravado. */
+const rawMerge = (tabela: string) => `CASE
+         WHEN ${tabela}.raw ? '_sellercore'
+         THEN (COALESCE(EXCLUDED.raw, '{}'::jsonb) - '_sellercore')
+           || jsonb_build_object('_sellercore', ${tabela}.raw -> '_sellercore')
+         ELSE COALESCE(EXCLUDED.raw, ${tabela}.raw)
+       END`;
+const RAW_MERGE = rawMerge("workspace_channel_orders");
+const RAW_MERGE_PRODUTOS = rawMerge("workspace_channel_products");
+
+/** Frete do comprador só avança; nunca volta a nulo por header incompleto. */
+const BUYER_SHIPPING_KEEP = "COALESCE(EXCLUDED.buyer_shipping, workspace_channel_orders.buyer_shipping)";
+
+/** Gross refinado pelas linhas não é sobrescrito pela aproximação do header. */
+const GROSS_KEEP_WHEN_ITEMS = `CASE WHEN EXISTS (
+                 SELECT 1 FROM workspace_channel_order_items i
+                  WHERE i.workspace_id = workspace_channel_orders.workspace_id
+                    AND i.provider = workspace_channel_orders.provider
+                    AND i.connection_id = workspace_channel_orders.connection_id
+                    AND i.external_order_id = workspace_channel_orders.external_order_id
+               ) THEN workspace_channel_orders.gross ELSE EXCLUDED.gross END`;
+
 export interface CanonicalScope {
   provider: IntegrationProvider;
   connectionId: string;
@@ -95,15 +140,21 @@ export async function saveCanonicalOrders(
          status = EXCLUDED.status, provider_status = EXCLUDED.provider_status,
          occurred_at = EXCLUDED.occurred_at, closed_at = EXCLUDED.closed_at,
          currency = EXCLUDED.currency, gross = EXCLUDED.gross,
-         buyer_shipping = COALESCE(EXCLUDED.buyer_shipping, workspace_channel_orders.buyer_shipping),
+         buyer_shipping = ${BUYER_SHIPPING_KEEP},
          fulfillment = EXCLUDED.fulfillment, pack_id = EXCLUDED.pack_id,
-         raw = CASE
-           WHEN workspace_channel_orders.raw ? '_sellercore'
-           THEN (COALESCE(EXCLUDED.raw, '{}'::jsonb) - '_sellercore')
-             || jsonb_build_object('_sellercore', workspace_channel_orders.raw -> '_sellercore')
-           ELSE COALESCE(EXCLUDED.raw, workspace_channel_orders.raw)
-         END,
+         raw = ${RAW_MERGE},
          synced_at = now()
+       WHERE (workspace_channel_orders.status, workspace_channel_orders.provider_status,
+              workspace_channel_orders.occurred_at, workspace_channel_orders.closed_at,
+              workspace_channel_orders.currency, workspace_channel_orders.gross,
+              workspace_channel_orders.buyer_shipping, workspace_channel_orders.fulfillment,
+              workspace_channel_orders.pack_id, workspace_channel_orders.raw)
+         IS DISTINCT FROM
+             (EXCLUDED.status, EXCLUDED.provider_status,
+              EXCLUDED.occurred_at, EXCLUDED.closed_at,
+              EXCLUDED.currency, EXCLUDED.gross,
+              ${BUYER_SHIPPING_KEEP}, EXCLUDED.fulfillment,
+              EXCLUDED.pack_id, ${RAW_MERGE})
      ),
      items_payload AS (
        SELECT * FROM jsonb_to_recordset($5::jsonb) AS item(
@@ -121,6 +172,12 @@ export async function saveCanonicalOrders(
        ON CONFLICT (workspace_id, provider, connection_id, external_order_id, line_no) DO UPDATE SET
          external_product_id = EXCLUDED.external_product_id, sku = EXCLUDED.sku,
          title = EXCLUDED.title, qty = EXCLUDED.qty, unit_price = EXCLUDED.unit_price
+       WHERE (workspace_channel_order_items.external_product_id, workspace_channel_order_items.sku,
+              workspace_channel_order_items.title, workspace_channel_order_items.qty,
+              workspace_channel_order_items.unit_price)
+         IS DISTINCT FROM
+             (EXCLUDED.external_product_id, EXCLUDED.sku,
+              EXCLUDED.title, EXCLUDED.qty, EXCLUDED.unit_price)
      ),
      stale_items AS (
        DELETE FROM workspace_channel_order_items items
@@ -145,7 +202,10 @@ export async function saveCanonicalOrders(
        FROM fees_payload p
      ON CONFLICT (workspace_id, provider, connection_id, external_order_id, fee_type, provider_fee_code)
        DO UPDATE SET amount = EXCLUDED.amount, currency = EXCLUDED.currency,
-                     external_ref = EXCLUDED.external_ref`,
+                     external_ref = EXCLUDED.external_ref
+       WHERE (workspace_channel_order_fees.amount, workspace_channel_order_fees.currency,
+              workspace_channel_order_fees.external_ref)
+         IS DISTINCT FROM (EXCLUDED.amount, EXCLUDED.currency, EXCLUDED.external_ref)`,
     [
       workspaceId,
       scope.provider,
@@ -194,22 +254,22 @@ export async function saveCanonicalOrderHeaders(scope: CanonicalScope, orders: C
        status = EXCLUDED.status, provider_status = EXCLUDED.provider_status,
        occurred_at = EXCLUDED.occurred_at, closed_at = EXCLUDED.closed_at,
        currency = EXCLUDED.currency,
-       gross = CASE WHEN EXISTS (
-                 SELECT 1 FROM workspace_channel_order_items i
-                  WHERE i.workspace_id = workspace_channel_orders.workspace_id
-                    AND i.provider = workspace_channel_orders.provider
-                    AND i.connection_id = workspace_channel_orders.connection_id
-                    AND i.external_order_id = workspace_channel_orders.external_order_id
-               ) THEN workspace_channel_orders.gross ELSE EXCLUDED.gross END,
+       gross = ${GROSS_KEEP_WHEN_ITEMS},
        buyer_shipping = COALESCE(workspace_channel_orders.buyer_shipping, EXCLUDED.buyer_shipping),
        fulfillment = EXCLUDED.fulfillment, pack_id = EXCLUDED.pack_id,
-       raw = CASE
-         WHEN workspace_channel_orders.raw ? '_sellercore'
-         THEN (COALESCE(EXCLUDED.raw, '{}'::jsonb) - '_sellercore')
-           || jsonb_build_object('_sellercore', workspace_channel_orders.raw -> '_sellercore')
-         ELSE COALESCE(EXCLUDED.raw, workspace_channel_orders.raw)
-       END,
-       synced_at = now()`,
+       raw = ${RAW_MERGE},
+       synced_at = now()
+     WHERE (workspace_channel_orders.status, workspace_channel_orders.provider_status,
+            workspace_channel_orders.occurred_at, workspace_channel_orders.closed_at,
+            workspace_channel_orders.currency, workspace_channel_orders.gross,
+            workspace_channel_orders.buyer_shipping, workspace_channel_orders.fulfillment,
+            workspace_channel_orders.pack_id, workspace_channel_orders.raw)
+       IS DISTINCT FROM
+           (EXCLUDED.status, EXCLUDED.provider_status,
+            EXCLUDED.occurred_at, EXCLUDED.closed_at,
+            EXCLUDED.currency, ${GROSS_KEEP_WHEN_ITEMS},
+            COALESCE(workspace_channel_orders.buyer_shipping, EXCLUDED.buyer_shipping), EXCLUDED.fulfillment,
+            EXCLUDED.pack_id, ${RAW_MERGE})`,
     [currentWorkspaceId(), scope.provider, scope.connectionId, JSON.stringify(records)]
   );
 }
@@ -261,6 +321,12 @@ export async function applyCanonicalOrderItems(
        ON CONFLICT (workspace_id, provider, connection_id, external_order_id, line_no) DO UPDATE SET
          external_product_id = EXCLUDED.external_product_id, sku = EXCLUDED.sku,
          title = EXCLUDED.title, qty = EXCLUDED.qty, unit_price = EXCLUDED.unit_price
+       WHERE (workspace_channel_order_items.external_product_id, workspace_channel_order_items.sku,
+              workspace_channel_order_items.title, workspace_channel_order_items.qty,
+              workspace_channel_order_items.unit_price)
+         IS DISTINCT FROM
+             (EXCLUDED.external_product_id, EXCLUDED.sku,
+              EXCLUDED.title, EXCLUDED.qty, EXCLUDED.unit_price)
      ),
      stale_items AS (
        DELETE FROM workspace_channel_order_items items
@@ -312,7 +378,9 @@ export async function upsertCanonicalOrderFees(
          external_order_id text, fee_type text, provider_fee_code text, amount numeric, currency text
        )
      ON CONFLICT (workspace_id, provider, connection_id, external_order_id, fee_type, provider_fee_code)
-       DO UPDATE SET amount = EXCLUDED.amount, currency = EXCLUDED.currency`,
+       DO UPDATE SET amount = EXCLUDED.amount, currency = EXCLUDED.currency
+       WHERE (workspace_channel_order_fees.amount, workspace_channel_order_fees.currency)
+         IS DISTINCT FROM (EXCLUDED.amount, EXCLUDED.currency)`,
     [currentWorkspaceId(), scope.provider, scope.connectionId, JSON.stringify(records)]
   );
 }
@@ -396,12 +464,16 @@ export async function applyCanonicalShipmentCosts(
        ON CONFLICT (workspace_id, provider, connection_id, external_order_id, fee_type, provider_fee_code)
          DO UPDATE SET amount = EXCLUDED.amount, currency = EXCLUDED.currency,
                        external_ref = EXCLUDED.external_ref
+         WHERE (workspace_channel_order_fees.amount, workspace_channel_order_fees.currency,
+                workspace_channel_order_fees.external_ref)
+           IS DISTINCT FROM (EXCLUDED.amount, EXCLUDED.currency, EXCLUDED.external_ref)
      )
      UPDATE workspace_channel_orders orders
         SET buyer_shipping = b.buyer_shipping, synced_at = now()
        FROM jsonb_to_recordset($5::jsonb) AS b(external_order_id text, buyer_shipping numeric)
       WHERE orders.workspace_id = $1 AND orders.provider = $2 AND orders.connection_id = $3
-        AND orders.external_order_id = b.external_order_id`,
+        AND orders.external_order_id = b.external_order_id
+        AND orders.buyer_shipping IS DISTINCT FROM b.buyer_shipping`,
     [workspaceId, scope.provider, scope.connectionId, JSON.stringify(feeRecords), JSON.stringify(buyerRecords)]
   );
 }
@@ -442,13 +514,21 @@ export async function saveCanonicalProducts(
        currency = EXCLUDED.currency, available_qty = EXCLUDED.available_qty,
        fulfillment = EXCLUDED.fulfillment, thumbnail = EXCLUDED.thumbnail,
        permalink = EXCLUDED.permalink,
-       raw = CASE
-         WHEN workspace_channel_products.raw ? '_sellercore'
-         THEN (COALESCE(EXCLUDED.raw, '{}'::jsonb) - '_sellercore')
-           || jsonb_build_object('_sellercore', workspace_channel_products.raw -> '_sellercore')
-         ELSE COALESCE(EXCLUDED.raw, workspace_channel_products.raw)
-       END,
-       synced_at = now()`,
+       raw = ${RAW_MERGE_PRODUTOS},
+       synced_at = now()
+     WHERE (workspace_channel_products.sku, workspace_channel_products.title,
+            workspace_channel_products.status, workspace_channel_products.provider_status,
+            workspace_channel_products.price, workspace_channel_products.currency,
+            workspace_channel_products.available_qty, workspace_channel_products.fulfillment,
+            workspace_channel_products.thumbnail, workspace_channel_products.permalink,
+            workspace_channel_products.raw)
+       IS DISTINCT FROM
+           (EXCLUDED.sku, EXCLUDED.title,
+            EXCLUDED.status, EXCLUDED.provider_status,
+            EXCLUDED.price, EXCLUDED.currency,
+            EXCLUDED.available_qty, EXCLUDED.fulfillment,
+            EXCLUDED.thumbnail, EXCLUDED.permalink,
+            ${RAW_MERGE_PRODUTOS})`,
     [currentWorkspaceId(), scope.provider, scope.connectionId, JSON.stringify(records)]
   );
   await recordOfferSnapshot(scope, products, query);
@@ -485,7 +565,14 @@ export async function recordOfferSnapshot(
        )
      ON CONFLICT (workspace_id, provider, connection_id, external_product_id, captured_on)
      DO UPDATE SET sku = EXCLUDED.sku, status = EXCLUDED.status, price = EXCLUDED.price,
-       currency = EXCLUDED.currency, available_qty = EXCLUDED.available_qty, updated_at = now()`,
+       currency = EXCLUDED.currency, available_qty = EXCLUDED.available_qty, updated_at = now()
+     WHERE (workspace_channel_offer_history.sku, workspace_channel_offer_history.status,
+            workspace_channel_offer_history.price, workspace_channel_offer_history.currency,
+            workspace_channel_offer_history.available_qty)
+       IS DISTINCT FROM
+           (EXCLUDED.sku, EXCLUDED.status,
+            EXCLUDED.price, EXCLUDED.currency,
+            EXCLUDED.available_qty)`,
     [currentWorkspaceId(), scope.provider, scope.connectionId, JSON.stringify(records)]
   );
 }
