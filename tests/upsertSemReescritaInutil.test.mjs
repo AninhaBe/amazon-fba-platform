@@ -74,13 +74,18 @@ test("UPDATE direto em tabela canônica não regrava linha igual", () => {
   const semGuard = [];
   for (const arquivo of [...ARQUIVOS, "src/lib/integrations/tiktokSync.ts", "src/lib/integrations/shopeeSync.ts"]) {
     const fonte = readFileSync(new URL(`../${arquivo}`, import.meta.url), "utf8");
-    let i = fonte.indexOf("UPDATE workspace_channel_orders");
-    while (i !== -1) {
-      const bloco = fonte.slice(i, i + 1200);
-      const guardado = bloco.includes("IS DISTINCT FROM") || /AND\s+raw#>>[^\n]*IS NULL/.test(bloco)
-        || UPDATE_DIRETO_PERMITIDO.some((marcador) => bloco.includes(marcador));
-      if (!guardado) semGuard.push(`${arquivo}: ${bloco.slice(0, 100).replace(/\s+/g, " ")}…`);
-      i = fonte.indexOf("UPDATE workspace_channel_orders", i + 30);
+    for (const tabela of ["UPDATE workspace_channel_orders", "UPDATE workspace_channel_products"]) {
+      let i = fonte.indexOf(tabela);
+      while (i !== -1) {
+        const bloco = fonte.slice(i, i + 1200);
+        const guardado = bloco.includes("IS DISTINCT FROM") || /AND\s+raw#>>[^\n]*IS NULL/.test(bloco)
+          // A varredura da Shopee se limita sozinha: só toca linhas cujo synced_at
+          // é anterior ao início da passada, e a própria escrita avança o campo.
+          || bloco.includes("synced_at < $4::timestamptz")
+          || UPDATE_DIRETO_PERMITIDO.some((marcador) => bloco.includes(marcador));
+        if (!guardado) semGuard.push(`${arquivo}: ${bloco.slice(0, 100).replace(/\s+/g, " ")}…`);
+        i = fonte.indexOf(tabela, i + 30);
+      }
     }
   }
   assert.deepEqual(semGuard, [], `UPDATE direto sem guard:\n${semGuard.join("\n")}`);

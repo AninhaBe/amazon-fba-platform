@@ -330,11 +330,18 @@ async function syncProducts(
   await withLeaseFence(connectionId, ownershipToken, async (query) => {
     await saveCanonicalProducts({ provider: PROVIDER, connectionId }, ofertas, query);
     await query(
+      // Só remarca quem ainda não está fechado (ADR-022). Sem a última linha, todo
+      // produto já encerrado era reescrito a cada ciclo — era o resíduo de churn
+      // que sobrou em workspace_channel_products depois das duas primeiras rodadas.
+      // (O equivalente na Shopee se limita sozinho: lá o filtro é
+      //  `synced_at < sweepStartedAt`, que deixa de casar após a primeira passada.)
       `UPDATE workspace_channel_products
           SET status='closed', provider_status='NOT_PRESENT_IN_COMPLETE_SNAPSHOT',
               available_qty=0, synced_at=now()
         WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3
-          AND NOT (external_product_id = ANY($4::text[]))`,
+          AND NOT (external_product_id = ANY($4::text[]))
+          AND (status, provider_status, available_qty)
+                IS DISTINCT FROM ('closed', 'NOT_PRESENT_IN_COMPLETE_SNAPSHOT', 0)`,
       [currentWorkspaceId(), PROVIDER, connectionId, ids]
     );
 
