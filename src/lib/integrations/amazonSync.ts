@@ -97,10 +97,24 @@ async function ensureSyncRow(connectionId: string): Promise<SyncRow> {
   return created;
 }
 
-async function requestAmazonSync(connectionId: string): Promise<SyncRow> {
+/**
+ * Abre janela nova quando a atual já ficou velha.
+ *
+ * `forcar` existe para a busca sob demanda da tela (ADR-017 / rota do dashboard):
+ * sem ele, `FRESH_FOR_MS` de 6 HORAS recusa abrir janela e o sync só reconcilia
+ * itens — ou seja, **nunca traz pedido novo**. Foi o que fez o painel do sócio
+ * ficar preso às 16:05 com vendas até as 20:38 (medido em 21/08/2026), e o que
+ * fez a primeira tentativa de conserto não mudar nada: eu havia contornado só a
+ * trava do agendador, e esta aqui continuava barrando um nível abaixo.
+ *
+ * Quem chama com `forcar` é responsável por limitar a frequência — a rota do
+ * dashboard usa piso de 5 minutos, para abrir a tela dez vezes não virar dez
+ * varreduras na SP-API.
+ */
+async function requestAmazonSync(connectionId: string, forcar = false): Promise<SyncRow> {
   const row = await ensureSyncRow(connectionId);
   const lastSuccess = row.last_success_at ? new Date(row.last_success_at).getTime() : 0;
-  if (row.status === "complete" && Date.now() - lastSuccess > FRESH_FOR_MS) {
+  if (row.status === "complete" && (forcar || Date.now() - lastSuccess > FRESH_FOR_MS)) {
     const now = syncHorizon();
     const coveredTo = row.covered_to ? new Date(row.covered_to) : new Date(row.target_to);
     await dbQuery(
@@ -291,10 +305,10 @@ async function reverifyUpdatedOrders(connectionId: string): Promise<void> {
   }
 }
 
-export async function runAmazonSyncStep(account: AccountCtx): Promise<void> {
+export async function runAmazonSyncStep(account: AccountCtx, forcarJanela = false): Promise<void> {
   if (!hasDb()) return;
   const connectionId = amazonConnectionId(account.sellerId);
-  await requestAmazonSync(connectionId);
+  await requestAmazonSync(connectionId, forcarJanela);
   const leased = await dbQuery<SyncRow>(
     `UPDATE workspace_marketplace_syncs
         SET lease_until = now() + interval '5 minutes', status = 'syncing', updated_at = now()
@@ -381,13 +395,17 @@ export async function runAmazonSyncStep(account: AccountCtx): Promise<void> {
   }
 }
 
-export async function runAmazonSyncBatch(account: AccountCtx, maxSteps = 4): Promise<void> {
+export async function runAmazonSyncBatch(account: AccountCtx, maxSteps = 4, forcarJanela = false): Promise<void> {
   if (!hasDb()) return;
   for (let step = 0; step < maxSteps; step += 1) {
     const row = await getSyncRow(amazonConnectionId(account.sellerId));
     if (row && (row.status === "complete" || row.status === "error")) {
-      if (step === 0) await runAmazonSyncStep(account); // ainda concilia itens
-      break;
+      // Com `forcarJanela`, o primeiro passo ABRE janela nova em vez de apenas
+      // conciliar itens — é o que traz pedido recente. Sem isso, uma conexão
+      // `complete` fica 6h sem enxergar venda nova (ver requestAmazonSync).
+      if (step === 0) await runAmazonSyncStep(account, forcarJanela);
+      if (!forcarJanela) break;
+      continue;
     }
     await runAmazonSyncStep(account);
   }

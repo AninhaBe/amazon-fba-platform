@@ -173,7 +173,12 @@ export async function GET(req: NextRequest) {
               try {
                 // 3 passos, não os 6 do cron: aqui o objetivo é alcançar o que
                 // chegou nas últimas horas, não varrer histórico.
-                await runAmazonSyncBatch(conta, 3);
+                //
+                // O terceiro argumento (forçar janela) é o que faz isto funcionar:
+                // sem ele o sync vê `status = complete`, recusa abrir janela nova
+                // por causa do FRESH_FOR_MS de 6h, e só reconcilia itens — a tela
+                // continuava presa em dado de horas atrás (21/08/2026).
+                await runAmazonSyncBatch(conta, 3, true);
               } catch (error) {
                 // Falha aqui não pode afetar a tela — ela já respondeu.
                 console.error("[dashboard/amazon] sync sob demanda falhou", error);
