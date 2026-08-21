@@ -1616,3 +1616,61 @@ grupos têm lance próprio — mas segmentação nova nasceria nele).
   55%→37% de ACOS em 7h de maturação. **Decisão segue marcada para 22/08.**
 - Protetores com preço novo (−R$ 3, ~20h de 19/08): nenhuma venda ainda; reolhar 21/08
   (o combinado é 2 dias).
+
+## Leitura de 21/08/2026, ~10h — dia 20 FECHADO
+
+```
+Período lido: 20 de ago de 2026 (picker confirmado)
+Recarreguei: sim, campanha a campanha (a LISTA segue quebrada em esqueleto desde 19/08)
+Volume: atribuição do dia 20 ABERTA (~6 dias restantes)
+```
+
+| Campanha | Custo | Compras | Vendas | ROAS |
+|---|---|---|---|---|
+| **Manual - Clips (Frase)** | R$ 14,21 | **1** | **R$ 88,44** | **6,22** |
+| Auto - Protetor 8 | R$ 10,90 | — | — | |
+| Manual - Martelo (Frase) | R$ 4,80 | — | — | |
+| Auto - Clips | R$ 3,55 | — | — | |
+| Auto - Protetor 32 | R$ 1,75 | — | — | |
+| Auto - Martelo | R$ 0 | — | — | morta de novo |
+| Manual - Protetor 8 | R$ 0 | — | — | sem entrega |
+| **Total** | **R$ 35,21** | 1 | R$ 88,44 | |
+
+### 🔴 O achado do dia: a venda parou
+
+```
+17/08  5 unidades
+18/08  2
+19/08  2 martelos
+20/08  1 pedido às 09h01 — ainda `Pending` 27h depois
+21/08  zero até 10h
+```
+
+Quatro dias vendendo martelo todo dia, e parou. **O Ads atribuiu 1 compra de R$ 88,44 ao
+clips no dia 20**, mas o banco não tem venda de clips no dia 20 — é atribuição por data do
+CLIQUE (venda de dia anterior creditada) ou halo. Não contar como venda de ontem.
+
+### ⚠️ Protetores: a queda de preço NÃO trouxe venda
+
+Preço caiu 19/08 ~20h (−R$ 3 em cada kit). Desde então: **zero venda de protetor**, com
+R$ 12,65 gastos em anúncio nas duas campanhas deles no dia 20.
+
+Última venda de protetor: **17/08**. Já são 4 dias.
+
+📌 Isso enfraquece a hipótese "o preço matou a venda" — baixar não trouxe de volta. E
+reforça o que a régua de viabilidade apontou em 20/08: **existe concorrente vendendo kit
+de 8 a R$ 9,90**, abaixo do custo dela (R$ 9,57 + tarifa futura). Ver ASIN `B0GKQ6ZFLH`.
+
+### Auto - Martelo morreu de novo
+
+R$ 0 no dia 20, depois de ter voltado no dia 19 com R$ 0,79. O lance de R$ 0,90 nos 3
+grupos ativos não sustenta entrega. ⚠️ O lance padrão do grupo segue **R$ 3,00** (a
+sugestão da Amazon subiu para R$ 0,94 — faixa 0,20–1,96).
+
+### Conclusões
+
+- **Investigar** (não é campanha): a venda parou em TODOS os produtos, incluindo o martelo,
+  que vinha vendendo com ROAS 10+. Campanha não explica queda simultânea — olhar oferta,
+  buy box, estoque e ranking.
+- **Esperar** no clips: decisão de corte marcada para 22/08 segue de pé.
+- Protetores: não mexer em preço de novo antes de entender o concorrente de R$ 9,90.
