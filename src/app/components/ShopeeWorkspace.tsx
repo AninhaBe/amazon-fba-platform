@@ -11,7 +11,7 @@ import { RevenueChart, type DailyPoint } from "./RevenueChart";
 import { DashboardPeriodFilter, useDashboardPeriod } from "./DashboardPeriodFilter";
 import { OrderProfitabilityTable } from "./OrderProfitabilityTable";
 import { TopProductsRanking } from "./TopProductsRanking";
-import { OperationPending } from "./OperationPending";
+import { BriefingLead } from "./BriefingLead";
 import { ConnectionBroken } from "./ConnectionBroken";
 import { Flow, FlowExpandable, Metric, getRevenueTrend } from "./Metric";
 import { brDate, brTime } from "@/lib/datetime";
@@ -343,7 +343,17 @@ export function ShopeeWorkspace() {
       />
       <DashboardPeriodFilter {...period.filterProps} />
       {status.demo && <ShopeeDemoNotice connectHref={status.configured ? status.connectHref : undefined} />}
-      <Dashboard overview={overview} updatedAt={updatedAt} sync={sync} onPage={(offset)=>{const next=new URLSearchParams(searchParams.toString());next.set("offset",String(offset));router.push(`/shopee?${next}`,{scroll:false})}} />
+      <Dashboard
+        overview={overview}
+        updatedAt={updatedAt}
+        sync={sync}
+        periodoLabel={period.label}
+        onPage={(offset) => {
+          const next = new URLSearchParams(searchParams.toString());
+          next.set("offset", String(offset));
+          router.push(`/shopee?${next}`, { scroll: false });
+        }}
+      />
     </div>
   );
 }
@@ -367,7 +377,7 @@ function ShopeeDemoNotice({ connectHref }: { connectHref?: string }) {
   );
 }
 
-function Dashboard({ overview, updatedAt, sync, onPage }: { overview: Overview; updatedAt: Date | null; sync: ShopeeSyncStatus | null; onPage: (offset: number) => void }) {
+function Dashboard({ overview, updatedAt, sync, onPage, periodoLabel }: { overview: Overview; updatedAt: Date | null; sync: ShopeeSyncStatus | null; onPage: (offset: number) => void; periodoLabel: string }) {
   const [costsOpen, setCostsOpen] = useState(false);
   const profitCoverage = overview.profit.coverage;
   // Bases já coincidem (receita e contagem usam o mesmo filtro de status).
@@ -402,7 +412,24 @@ function Dashboard({ overview, updatedAt, sync, onPage }: { overview: Overview; 
         </div>
       )}
 
-      <OperationPending items={overview.metrics.productsWithoutCost > 0 ? [{ label: `Cadastrar custo de ${overview.metrics.productsWithoutCost} produto(s)`, href: "/shopee/produtos" }] : []} />
+      {/* Mesma abertura dos outros três canais. A Shopee ainda não tem loja
+          real conectada, e é justamente por isso que ela precisa nascer com a
+          composição igual: no dia em que o Go Live sair, a tela já está pronta
+          em vez de virar uma quarta variação. */}
+      <BriefingLead
+        periodo={periodoLabel}
+        faturamento={overview.metrics.revenue30d}
+        pedidos={overview.metrics.paidOrders}
+        // Cobertura parcial é motivo suficiente para não afirmar lucro: com
+        // pedidos faltando na captura, o número existiria mas estaria errado.
+        lucro={overview.metrics.revenueCoverage.complete ? overview.profit.estimatedProfit : null}
+        format={(v) => money(v, overview.metrics.currency)}
+        acoes={
+          overview.metrics.productsWithoutCost > 0
+            ? [{ label: `Cadastrar custo de ${overview.metrics.productsWithoutCost} produto(s)`, href: "/shopee/produtos", tone: "pendencia" as const }]
+            : []
+        }
+      />
 
       <section className="metric-grid listing-summary-band is-4 shopee-dashboard-metrics" aria-label="Indicadores Shopee">
         <Metric

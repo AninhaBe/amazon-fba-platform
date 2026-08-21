@@ -61,8 +61,18 @@ export function useDashboardPeriod(initialQuery = "", onQueryChange?: (query: st
     onQueryChange?.(nextQuery);
   }
 
+  // Rótulo do período em prosa, para entrar em FRASE — "3 vendas hoje", "12
+  // vendas nos últimos 7 dias". O filtro já sabia o período ativo, mas só como
+  // valor ("7"); sem isto, cada canal remontaria o texto por conta e os quatro
+  // escreveriam diferente.
+  const label =
+    selected === "today" ? "hoje"
+      : selected === "custom" ? "no período selecionado"
+        : `nos últimos ${selected} dias`;
+
   return {
     query,
+    label,
     filterProps: { selected, from, to, error, onPreset: selectPreset, onCustom: selectCustom, onFrom: setFrom, onTo: setTo, onApply: applyCustom },
   };
 }

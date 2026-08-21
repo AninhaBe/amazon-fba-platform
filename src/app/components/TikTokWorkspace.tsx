@@ -10,6 +10,7 @@ import { Metric } from "./Metric";
 import { PageHeader } from "./PageHeader";
 import { RevenueChart } from "./RevenueChart";
 import { TopProductsRanking } from "./TopProductsRanking";
+import { BriefingLead } from "./BriefingLead";
 import { ConnectionBroken } from "./ConnectionBroken";
 import { brDate } from "@/lib/datetime";
 import {
@@ -164,6 +165,23 @@ export function TikTokWorkspace() {
       <PageHeader eyebrow="TikTok Shop" title={data.connection.name} subtitle={`${data.connection.region} · ${phase === "ready" ? "Dados sincronizados" : "Sincronização parcial"}`} action={selector} />
       <DashboardPeriodFilter {...period.filterProps} />
       <div className="dashboard-sections tiktok-dashboard-body">
+        {/* Mesma abertura dos outros três canais. O TikTok é o caso mais
+            extremo dessa peça: o ledger financeiro pode estar bloqueado neste
+            ambiente, e a frase precisa dizer isso em vez de exibir lucro
+            zerado. `lucro={null}` fora do estado "pronto" é a tradução direta
+            de `null ≠ 0` para dentro do texto. */}
+        <BriefingLead
+          periodo={period.label}
+          faturamento={data.overview?.revenue ?? null}
+          pedidos={data.orders ?? 0}
+          lucro={phase === "ready" && !financialBlocked ? (data.overview?.profit ?? null) : null}
+          format={(v) => new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(v)}
+          acoes={
+            data.overview?.taxRate == null
+              ? [{ label: "Configurar a alíquota de imposto", href: "/tiktok", tone: "pendencia" as const }]
+              : []
+          }
+        />
         {financialBlocked
           ? <StatusNotice title="Financeiro indisponível neste ambiente">A estrutura do ledger financeiro ainda não está disponível. Vendas e catálogo continuam visíveis, mas taxas e resultado permanecem desconhecidos; nenhum valor foi convertido em zero.</StatusNotice>
           : phase === "partial" && <StatusNotice title="Sincronização em andamento">Os números aparecem somente quando cada componente está completo. Nenhum valor parcial é apresentado como definitivo.</StatusNotice>}

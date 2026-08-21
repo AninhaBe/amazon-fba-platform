@@ -31,15 +31,35 @@ const icons: Record<EmptyStateKind, ReactNode> = {
   ),
 };
 
+/**
+ * Estado vazio.
+ *
+ * `description` diz o que **está faltando**. `payoff` diz o que a pessoa
+ * **ganha** ao resolver — e é essa segunda metade que decide se ela resolve
+ * ou fecha a aba.
+ *
+ * A separação existe porque, sem ela, quase toda chamada escrevia só a
+ * primeira: "nenhum produto com custo cadastrado". Verdadeiro e inútil. O que
+ * move é "cadastre o custo e o lucro por SKU aparece aqui e na curva ABC" — a
+ * pessoa passa a saber o que está comprando com aquele trabalho.
+ *
+ * É a segunda metade da regra que o produto já tem: "tela sem dado mostra o
+ * estado real". Mostrar o estado real é o mínimo; dizer o que muda quando ele
+ * deixar de ser esse é o que faltava.
+ */
 export function EmptyState({
   title,
   description,
+  payoff,
   action,
   kind = "data",
   compact = false,
 }: {
   title: string;
+  /** O que está faltando hoje. */
   description?: ReactNode;
+  /** O que aparece aqui depois que a pendência for resolvida. */
+  payoff?: ReactNode;
   action?: ReactNode;
   kind?: EmptyStateKind;
   compact?: boolean;
@@ -50,6 +70,7 @@ export function EmptyState({
       <div className="empty-state-copy">
         <p className="empty-state-title">{title}</p>
         {description && <p className="empty-state-description">{description}</p>}
+        {payoff && <p className="empty-state-payoff">{payoff}</p>}
       </div>
       {action && <div className="empty-state-action">{action}</div>}
     </div>

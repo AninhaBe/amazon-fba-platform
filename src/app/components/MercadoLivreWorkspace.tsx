@@ -10,7 +10,6 @@ import { RevenueChart, type DailyPoint } from "./RevenueChart";
 import { DashboardPeriodFilter, useDashboardPeriod } from "./DashboardPeriodFilter";
 import { OrderProfitabilityTable } from "./OrderProfitabilityTable";
 import { ConnectionBroken, isBrokenConnection } from "./ConnectionBroken";
-import { OperationPending } from "./OperationPending";
 import { CustomizableMetricGrid } from "./CustomizableMetricGrid";
 import { Flow, FlowExpandable, Metric, getRevenueTrend } from "./Metric";
 import { brDate, brTime } from "@/lib/datetime";
@@ -19,6 +18,7 @@ import type { ProfitabilityLine } from "@/lib/profitability";
 import { MercadoLivreSaldo } from "./MercadoLivreSaldo";
 import { Pagination } from "./Pagination";
 import { TopProductsRanking } from "./TopProductsRanking";
+import { BriefingLead } from "./BriefingLead";
 
 interface Overview {
   account: { id: string; nickname: string; siteId: string; };
@@ -210,12 +210,12 @@ export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
         </div>
       ) : !overview ? (
         <EmptyState title="Conecte sua conta do Mercado Livre" description="Autorize o NEXO para começar a importar anúncios e pedidos." action={<Link href="/integracoes" className="meli-primary-action">Gerenciar integração <span aria-hidden="true">→</span></Link>} />
-      ) : view === "dashboard" ? <Dashboard overview={overview} updatedAt={updatedAt} /> : view === "estoque" ? <Inventory overview={overview} /> : <Monitor overview={overview} />}
+      ) : view === "dashboard" ? <Dashboard overview={overview} updatedAt={updatedAt} periodoLabel={period.label} /> : view === "estoque" ? <Inventory overview={overview} /> : <Monitor overview={overview} />}
     </div>
   );
 }
 
-function Dashboard({ overview, updatedAt }: { overview: Overview; updatedAt: Date | null }) {
+function Dashboard({ overview, updatedAt, periodoLabel }: { overview: Overview; updatedAt: Date | null; periodoLabel: string }) {
   const [costsOpen, setCostsOpen] = useState(false);
   const profitCoverage = overview.profit.coverage;
   const units = overview.dailySales.reduce((total, point) => total + point.units, 0);
@@ -225,7 +225,27 @@ function Dashboard({ overview, updatedAt }: { overview: Overview; updatedAt: Dat
   return <div className="dashboard-sections ml-dashboard-body">
     {updatedAt && <p className="-mt-5 text-xs text-[var(--ink-muted)]">Atualizado às {brTime(updatedAt)}{overview.metrics.lastSaleAt ? ` · última venda contabilizada às ${brTime(overview.metrics.lastSaleAt, true)}` : ""}. Compare no mesmo horário com o painel do Mercado Livre.</p>}
 
-    <OperationPending items={overview.metrics.productsWithoutCost > 0 ? [{ label: `Cadastrar custo de ${overview.metrics.productsWithoutCost} produto(s)`, href: "/mercado-livre/produtos" }] : []} />
+    {/* Mesma abertura dos outros três canais: a frase vem do dado e as
+        pendências ficam com ela. Ver `BriefingLead.tsx` — a peça é
+        compartilhada de propósito, para os quatro painéis não divergirem. */}
+    <BriefingLead
+      periodo={periodoLabel}
+      faturamento={overview.metrics.revenue30d}
+      pedidos={overview.metrics.paidOrders}
+      // `resultIncomplete` é a resposta honesta: enquanto falta custo, tarifa
+      // ou imposto, o lucro é DESCONHECIDO — passar o parcial como se fosse o
+      // resultado é a confusão que `null ≠ 0` existe para evitar.
+      lucro={resultIncomplete ? null : overview.profit.estimatedProfit}
+      format={(v) => money(v, overview.metrics.currency)}
+      acoes={[
+        ...(overview.metrics.productsWithoutCost > 0
+          ? [{ label: `Cadastrar custo de ${overview.metrics.productsWithoutCost} produto(s)`, href: "/mercado-livre/produtos", tone: "pendencia" as const }]
+          : []),
+        ...(overview.metrics.cancelledOrders > 0
+          ? [{ label: `${overview.metrics.cancelledOrders} pedido(s) cancelado(s) no período`, href: "/mercado-livre/monitor", tone: "alerta" as const }]
+          : []),
+      ]}
+    />
 
     <section className="metric-grid ml-dashboard-metric-grid" aria-label="Resumo financeiro Mercado Livre">
       <Metric label="Vendas brutas" value={<AnimatedNumber id="ml-dash-revenue" value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={`${overview.metrics.paidOrders} aprovadas + ${overview.metrics.cancelledOrders} canceladas`} trend={getRevenueTrend(overview.dailySales)} />

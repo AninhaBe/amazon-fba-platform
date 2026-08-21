@@ -1034,17 +1034,27 @@ button[class*="bg-blue-"]:hover, a[class*="bg-blue-"]:hover { background: var(--
   padding: 24px;
   text-align: center;
 }
+/* Icone discreto, nao um emblema. Era um quadrado de 42px com fundo proprio,
+   o que fazia dele o elemento mais pesado de uma tela que nao tem nada — o
+   vazio anunciava a si mesmo. Vira um glifo de 20px em tinta terciaria: quem
+   fala e o texto e a acao. */
 .empty-state-icon {
   display: inline-flex;
-  width: 42px;
-  height: 42px;
+  width: 20px;
+  height: 20px;
   align-items: center;
   justify-content: center;
-  border-radius: 13px;
-  background: var(--brand-soft);
-  color: var(--brand);
+  border-radius: 0;
+  background: none;
+  color: var(--ink-muted);
 }
-.empty-state-icon svg { width: 21px; height: 21px; }
+.empty-state-icon svg { width: 20px; height: 20px; }
+.empty-state-copy { display: flex; flex-direction: column; gap: 4px; max-width: 46ch; }
+.empty-state-title { font-size: 16px; font-weight: var(--weight-semibold); line-height: 22px; letter-spacing: var(--track-l); }
+.empty-state-description { color: var(--ink-muted); font-weight: 400; }
+/* O ganho fica em tinta cheia: e a frase que a pessoa precisa ler, e vir mais
+   apagada que a descricao inverteria a ordem de leitura. */
+.empty-state-payoff { margin-block-start: 2px; color: var(--ink-soft); font-weight: var(--weight-body); }
 .empty-state-title { color: var(--ink); font-size: 15px; font-weight: 700; line-height: 1.3; }
 .empty-state-description { max-width: 52ch; margin-block-start: 4px; color: var(--ink-muted); font-size: 13px; line-height: 1.55; text-wrap: pretty; }
 .empty-state-permission .empty-state-icon { background: var(--core-soft); color: var(--warning); }
@@ -4414,4 +4424,92 @@ summary:hover { background: var(--paper-soft); }
 @media (max-width: 600px) {
   .lp-footer { grid-template-columns: 1fr auto; }
   .lp-footer > span:not(.lp-footer-marca) { display: none; }
+}
+
+/* ---- Donut de composicao ----
+   Custos em degraus da mesma tinta, so o que sobra em cor. Ver a nota de
+   cabecalho em `CompositionDonut.tsx` — a escolha de cor e o ponto do
+   componente, nao um detalhe. */
+.composition-donut { display: flex; flex-wrap: wrap; align-items: center; gap: 24px; }
+.composition-donut-ring { position: relative; width: 140px; height: 140px; flex: none; }
+.composition-donut-ring svg { width: 140px; height: 140px; display: block; }
+
+.composition-arc {
+  cursor: pointer;
+  transition: opacity var(--duration) var(--ease), stroke-width var(--duration) var(--ease);
+}
+.composition-arc.is-remainder { stroke: var(--positive); }
+.composition-arc.is-dimmed { opacity: .28; }
+
+.composition-donut-centro {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  pointer-events: none; text-align: center; padding-inline: 18px;
+}
+.composition-donut-centro strong {
+  font-size: 16px; font-weight: var(--weight-semibold); line-height: 20px;
+  letter-spacing: var(--track-l); font-variant-numeric: tabular-nums;
+}
+.composition-donut-centro span {
+  color: var(--ink-muted); font-size: 12px; line-height: 15px;
+  overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.composition-donut-centro small { color: var(--ink-faint); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+.composition-legenda { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 1px; list-style: none; margin: 0; padding: 0; }
+.composition-legenda li {
+  display: grid; grid-template-columns: 10px 1fr auto; align-items: center; gap: 8px;
+  min-height: var(--nav-item-h); padding-inline: 8px; border-radius: var(--radius-sm);
+  cursor: default; transition: background-color var(--duration) var(--ease), opacity var(--duration) var(--ease);
+}
+.composition-legenda li:hover { background: var(--ink-03); }
+.composition-legenda li.is-dimmed { opacity: .4; }
+.composition-ponto { width: 10px; height: 10px; border-radius: 3px; }
+.composition-ponto.is-remainder { background: var(--positive); }
+.composition-legenda-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.composition-legenda-valor { color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+
+@media (max-width: 560px) { .composition-donut { gap: 16px; } }
+
+/* ---- Abertura do painel de canal (BriefingLead) ----
+   A unica frase da tela em 20px. Ver a nota de cabecalho em `BriefingLead.tsx`:
+   ela e calculada do dado, nao um subtitulo fixo, e por isso pode ocupar o
+   posto de "coisa mais pesada da tela" sem competir com os numeros. */
+.briefing-lead {
+  display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between;
+  gap: 16px 32px; padding-block: 4px 20px;
+}
+.briefing-lead-texto { display: flex; min-width: 0; flex: 1 1 380px; flex-direction: column; gap: 4px; }
+.briefing-lead-texto h2 {
+  font-size: 20px; font-weight: var(--weight-semibold); line-height: 28px;
+  letter-spacing: var(--track-h1); text-wrap: balance;
+}
+.briefing-lead-texto p { max-width: 64ch; color: var(--ink-soft); font-weight: 400; }
+
+/* Lista de acoes: uma pergunta ("o que precisa de mim?"), uma resposta, um
+   lugar. Antes era um bloco no topo mais "Estoque critico" 1.200px abaixo. */
+.briefing-acoes { display: flex; flex-direction: column; gap: 2px; min-width: 260px; list-style: none; margin: 0; padding: 0; }
+.briefing-acao {
+  display: flex; align-items: center; gap: 8px;
+  min-height: var(--control-h-lg); padding-inline: 10px;
+  border-radius: var(--radius-sm); background: var(--paper);
+  color: var(--ink); text-decoration: none;
+  box-shadow: var(--shadow-xs);
+  transition: background-color var(--duration) var(--ease), box-shadow var(--duration) var(--ease);
+}
+.briefing-acao:hover { background: var(--ink-03); box-shadow: var(--shadow-surface); }
+.briefing-acao-marca { width: 6px; height: 6px; flex: none; border-radius: 999px; background: var(--warning); }
+.briefing-acao.is-alerta .briefing-acao-marca { background: var(--danger); }
+.briefing-acao-label { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.briefing-acao-seta { width: 14px; height: 14px; flex: none; color: var(--ink-faint); }
+.briefing-acao:hover .briefing-acao-seta { color: var(--ink-muted); }
+
+.briefing-lead.is-loading { flex-direction: column; gap: 8px; }
+.briefing-lead-skeleton {
+  display: block; height: 24px; border-radius: var(--radius-sm);
+  background: var(--ink-05);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .briefing-lead-skeleton { animation: briefing-shimmer 1.4s var(--ease) infinite; }
+  @keyframes briefing-shimmer { 50% { opacity: .55; } }
 }

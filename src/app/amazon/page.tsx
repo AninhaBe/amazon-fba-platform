@@ -7,13 +7,15 @@ import { PageHeader, pageIcons } from "../components/PageHeader";
 import { InlineLoading } from "../components/LoadingState";
 import { EmptyState } from "../components/EmptyState";
 import { DashboardPeriodFilter, useDashboardPeriod } from "../components/DashboardPeriodFilter";
-import { OperationPending, type OperationPendingItem } from "../components/OperationPending";
+import type { OperationPendingItem } from "../components/OperationPending";
 import { Metric as Kpi, getRevenueTrend } from "../components/Metric";
 import { amazonFinancialCards } from "./amazonFinancialCards";
 import { AnimatedNumber } from "../components/AnimatedNumber";
 import { OrderProfitabilityTable } from "../components/OrderProfitabilityTable";
 import { ConnectionBroken, isBrokenConnection } from "../components/ConnectionBroken";
 import { TopProductsRanking } from "../components/TopProductsRanking";
+import { CompositionDonut } from "../components/CompositionDonut";
+import { BriefingLead } from "../components/BriefingLead";
 
 /**
  * Cobertura do cálculo de rentabilidade, como a API devolve. É objeto, não
@@ -295,6 +297,7 @@ export default function Dashboard() {
   const currency = profit?.finance.currency || orders?.metrics.currency || "BRL";
   const critical = radar.filter((r) => r.status === "critical" || r.status === "out");
   const noCost = products.filter((p) => p.cost == null || p.cost === 0).length;
+  const pendencias = useAmazonPendencias({ products: products.length, productsLoading, missingCosts: noCost });
   // Faturamento/vendas/unidades pela Sales API (data do pedido) = Seller Central.
   const revenue = sales?.totalRevenue ?? orders?.metrics.totalRevenue ?? 0;
   const salesCount = sales?.totalOrders ?? orders?.metrics.totalOrders ?? 0;
@@ -339,13 +342,30 @@ export default function Dashboard() {
         meta={updatedAt ? <>Atualizado às {brTime(updatedAt)}</> : undefined}
       />
 
-      <AmazonPending products={products.length} productsLoading={productsLoading} missingCosts={noCost} />
-
+      {/* O subtítulo fixo ("O que entrou, saiu e ainda depende de conciliação")
+          era o mesmo texto num dia de recorde e num dia de prejuízo — descrevia
+          a tela, não o período. A frase agora vem do dado. */}
       <PageHeader
         eyebrow="Operação Amazon"
         title="Resumo financeiro"
-        subtitle="O que entrou, saiu e ainda depende de conciliação no período selecionado."
         icon={pageIcons.dashboard}
+      />
+
+      <BriefingLead
+        periodo={period.label}
+        faturamento={faturamento?.revenue ?? null}
+        pedidos={faturamento?.orders ?? 0}
+        lucro={profit?.estimatedProfit ?? null}
+        loading={loading}
+        format={(v) => money(v, currency)}
+        // Uma pergunta, um lugar. As pendências de conta e de sincronização
+        // vêm do hook; estoque crítico vem do radar já carregado nesta tela.
+        acoes={[
+          ...pendencias.map((p) => ({ ...p, tone: "pendencia" as const })),
+          ...(critical.length > 0
+            ? [{ label: `${critical.length} produto(s) com estoque crítico`, href: "/amazon/estoque", tone: "alerta" as const }]
+            : []),
+        ]}
       />
 
       <div className="dashboard-sections">
@@ -498,6 +518,32 @@ export default function Dashboard() {
             </p>
           ) : (
             <div className="financial-lines">
+              {/* O donut ABRE a cascata em vez de repeti-la. A cascata diz
+                  QUANTO foi cada custo; ele diz QUAL está comendo a operação —
+                  proporção que, numa coluna de números, a pessoa só descobre
+                  dividindo de cabeça. Só aparece com repasse conciliado; sem
+                  isso desenharia um anel de suposição. */}
+              {!loading && faturamentoConciliado > 0 && (
+                <CompositionDonut
+                  total={faturamentoConciliado}
+                  totalLabel="Faturamento conciliado"
+                  format={(v) => money(v, currency)}
+                  slices={[
+                    ...(profit?.finance.feeBreakdown ?? []).map((t) => ({
+                      id: t.type,
+                      label: nomeDaTarifa(t.type),
+                      value: Math.abs(t.amount),
+                    })),
+                    { id: "cogs", label: "Custo dos produtos", value: profit?.cogs ?? 0 },
+                    {
+                      id: "lucro",
+                      label: (profit?.estimatedProfit ?? 0) >= 0 ? "Lucro estimado" : "Prejuízo",
+                      value: Math.abs(profit?.estimatedProfit ?? 0),
+                      isRemainder: true,
+                    },
+                  ]}
+                />
+              )}
               {/* O cupom é dedução de verdade — sai do bolso dela e merece o "−",
                   como qualquer custo. Mas `revenue` já vem líquido dele, então
                   descontá-lo do líquido contaria duas vezes. A cascata parte do
@@ -843,7 +889,20 @@ function QuickLink({ href, label, desc }: { href: string; label: string; desc: s
   );
 }
 
-function AmazonPending({ products, productsLoading, missingCosts }: { products: number; productsLoading: boolean; missingCosts: number }) {
+/**
+ * Pendências da Amazon como HOOK, não como bloco.
+ *
+ * Era um componente que renderizava a própria faixa "Pendências da operação".
+ * Quando o `BriefingLead` passou a listar o que exige ação, as duas coisas
+ * apareceram na tela dizendo "cadastre o custo de 1 produto" com 60px de
+ * distância — a mesma pendência, duas vezes.
+ *
+ * Devolver a LISTA em vez de renderizar resolve na origem: existe um só lugar
+ * que responde "o que precisa de mim?", e quem decide como mostrar é a
+ * abertura do painel. O componente `OperationPending` continua no repo e em
+ * uso nas telas que ainda não têm abertura própria.
+ */
+function useAmazonPendencias({ products, productsLoading, missingCosts }: { products: number; productsLoading: boolean; missingCosts: number }): OperationPendingItem[] {
   const [connection, setConnection] = useState<"loading" | "connected" | "missing">("loading");
 
   useEffect(() => {
@@ -856,12 +915,12 @@ function AmazonPending({ products, productsLoading, missingCosts }: { products: 
     return () => window.clearTimeout(timer);
   }, []);
 
-  if (connection === "loading") return null;
+  if (connection === "loading") return [];
 
   const items: OperationPendingItem[] = [];
   if (connection === "missing") items.push({ label: "Conectar a conta Amazon", href: "/integracoes" });
   if (connection === "connected" && !productsLoading && products === 0) items.push({ label: "Sincronizar os produtos da Amazon", href: "/amazon/produtos" });
   if (products > 0 && missingCosts > 0) items.push({ label: `Cadastrar custo de ${missingCosts} produto(s)`, href: "/amazon/produtos" });
 
-  return <OperationPending items={items} />;
+  return items;
 }
