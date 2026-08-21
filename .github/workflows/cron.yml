@@ -33,10 +33,23 @@ name: Sync agendado (SellerCore)
 # Repetir resolve o transitorio SEM esconder problema: se persistir depois das
 # tentativas, o job falha e o e-mail chega, que e quando importa.
 
+# 🔴 AGENDAMENTO DESLIGADO EM 21/08/2026 — ver ADR-019.
+#
+# O agendador interno (src/instrumentation.ts, INTERNAL_SCHEDULER=1) assumiu o
+# sync a cada 5 min dentro do próprio processo no Fly. Este workflow ficaria como
+# rede de segurança, mas a cota de 2.000 min/mês do Actions ACABOU no mesmo dia e
+# ele passou a falhar em 3-5s com:
+#   "The job was not started because recent account payments have failed or your
+#    spending limit needs to be increased"
+#
+# O fallback morrer foi o melhor teste possível do ADR-019: o sync não parou —
+# quem estava trabalhando já era o agendador interno (último sucesso daqui:
+# 21/08 08h59; a conversão de 29 pedidos às 14h foi do interno).
+#
+# Fica só o gatilho MANUAL, para emergência (ex.: máquina do Fly fora do ar).
+# Rodar por: aba Actions -> este workflow -> "Run workflow".
 on:
-  schedule:
-    - cron: "*/15 * * * *"
-  workflow_dispatch: {} # permite rodar manualmente pela aba Actions (para testar)
+  workflow_dispatch: {}
 
 concurrency:
   group: sellercore-sync

@@ -1,7 +1,14 @@
 # ADR-003: Cron via GitHub Actions
 
-- **Status:** Aceito
+- **Status:** Substituído por [ADR-019](./ADR-019-agendador-interno.md) em 21/08/2026
 - **Data:** 2026-07 (retroativo)
+
+> 🔴 **Substituído.** A premissa deste ADR — *"o Render ignora os crons do vercel.json"* —
+> morreu com a migração para o Fly (ADR-015), onde a máquina fica de pé 24/7 e o processo
+> se agenda sozinho. Em 21/08/2026 a cota de 2.000 min/mês do Actions se esgotou e o
+> workflow passou a falhar em segundos; o sync **não parou**, porque o agendador interno
+> já era quem trabalhava. Os workflows continuam no repo com gatilho **manual**, para
+> emergência.
 
 ## Contexto
 

@@ -9,9 +9,9 @@ name: Retenção de dados efêmeros (NEXO)
 # Requisitos (os mesmos do cron de sync, já configurados):
 #   APP_BASE_URL e CRON_SECRET nos secrets do repositório.
 
+# 🔴 AGENDAMENTO DESLIGADO EM 21/08/2026 — ver ADR-019. A retenção diária passou
+# para o agendador interno (src/instrumentation.ts). Fica o gatilho manual.
 on:
-  schedule:
-    - cron: "20 6 * * *" # 06:20 UTC = 03:20 em Brasília, fora do horário de pico
   workflow_dispatch:
     inputs:
       dias:

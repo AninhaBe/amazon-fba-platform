@@ -39,6 +39,39 @@ os leases tornam a coexistência inofensiva, e ele cobre restart/travamento da m
 Quando o agendador interno se provar (uma semana), o workflow passa a `workflow_dispatch`
 apenas (gatilho manual de emergência).
 
+## Desfecho (21/08/2026 — um dia depois, não uma semana)
+
+O plano era manter o Actions como fallback por uma semana. **A cota acabou no dia
+seguinte** e o workflow passou a falhar em 3–5 segundos:
+
+```
+The job was not started because recent account payments have failed
+or your spending limit needs to be increased
+```
+
+**E o sync não parou.** Último sucesso do Actions: 21/08 08h59. A conversão de 29 pedidos
+`Pending` medida às 14h foi trabalho do agendador interno. O fallback morrer foi o teste
+mais honesto possível desta decisão — e ela passou.
+
+Em 21/08 os dois workflows (`cron.yml` e `retencao.yml`) passaram a **`workflow_dispatch`
+apenas**: continuam no repo como gatilho manual de emergência, sem agendamento. O
+[ADR-003](./ADR-003-cron-github-actions.md) foi marcado como **Substituído**.
+
+📌 **Decisão da dona:** *"assim fica tudo centralizado em um lugar só, no Fly."* Além da
+centralização, some o risco de dois agendadores concorrendo — a classe de bug mais difícil
+de diagnosticar depois.
+
+### O que agora depende só da máquina do Fly
+
+| | Mitigação |
+|---|---|
+| Máquina cai → sync para | Fly reinicia sozinho; health check em `/api/health` |
+| Agendador não arma (falta `CRON_SECRET`) | loga `INTERNAL_SCHEDULER=1 mas CRON_SECRET ausente` na subida |
+| Ninguém percebe que parou | ⚠️ **lacuna real** — não há alerta. Ver "Próximo" |
+
+**Próximo (não feito):** um sinal de "o sync está vivo?" — a data do último sucesso já está
+em `workspace_marketplace_syncs`; falta alguém olhar. Candidato natural ao briefing diário.
+
 ## Alternativas consideradas
 
 - **Máquina agendada do Fly** (`--schedule`): rejeitada — só aceita `hourly/daily/weekly/
