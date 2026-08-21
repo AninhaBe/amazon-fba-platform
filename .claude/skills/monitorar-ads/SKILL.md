@@ -185,6 +185,35 @@ grep -o "bad-scope\|unknown scope\|invalid-parameter" /tmp/ads-scope.html | sort
 | **16/08/2026 22h45** | **pendente** — `ADS_REFRESH_TOKEN` e `ADS_PROFILE_ID` seguem vazios no `.env.local` |
 | **17/08/2026 23h05** | **pendente** — 4 dias após o pedido; o prazo indicado era 14/08 (sexta). 🔴 **Vencido: abrir caso no suporte de desenvolvedores.** |
 | **21/08/2026 ~16h** | **pendente** — `bad-scope` · `unknown scope` · `invalid-parameter`; tokens ainda vazios. 🔴 **Descoberto o provável motivo — ver abaixo.** |
+| **21/08/2026 ~20h** | **pendente** — minutos após a 3ª submissão; esperado, a análise é humana. |
+
+### 3ª solicitação enviada em 21/08/2026
+
+Duas correções em relação às de 13/08 e 17/08:
+
+| Campo | Antes | Agora |
+|---|---|---|
+| Site da empresa | `https://sellercore.onrender.com` (**503**) | **`https://nexoaihub.com.br`** (200) |
+| Relacionamento | *Vendedor da Amazon… em meus negócios* | ***Desenvolvedor ou fornecedor de soluções… para criar e licenciar soluções de software para outros*** |
+
+⚠️ **A troca de relacionamento foi decisão dela, e é a declaração honesta:** a API vai
+alimentar o NEXO para outros vendedores, não só a conta própria. Declarar "vendedor" e
+depois atender clientes é o que faz a Amazon **revogar acesso já construído** — e a
+própria página avisa que há **um ID de cliente por empresa** e que "qualquer terceiro
+deverá obter suas próprias credenciais".
+
+Custo aceito: é a via de análise pesada, a mesma classe da candidatura de Solution
+Provider que segue parada. Em troca, é a única que permite gerenciar conta de terceiro.
+
+**O que ajudou a sustentar a candidatura nova:** `nexoaihub.com.br` no ar (200),
+política de privacidade publicada em `/privacidade` e tela de login — não é candidatura
+de quem tem só uma ideia.
+
+📌 **Onde o rastro fica:** o formulário abre **sempre em branco** e não mostra status
+nem permite editar envio anterior. Quem tem estado é `developer.amazon.com` →
+Security Profiles, onde existe o perfil **"SellerCore Ads"**. Ou seja: o cliente LWA
+está criado; o que falta é a **autorização do escopo** `advertising::campaign_management`.
+Por isso o teste de escopo é o único termômetro confiável.
 
 ### 🔴 O site declarado na candidatura está fora do ar (achado em 21/08/2026)
 
