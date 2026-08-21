@@ -99,6 +99,31 @@ Junto, dois ajustes baratos:
 - Índices passam a ser por partição — cada um pequeno o bastante para caber em memória.
 - Consultas por janela de data varrem só as partições relevantes.
 
+#### Como particionar sem duplicar a tabela — `ATTACH` em vez de `COPY`
+
+A leitura inicial desta ADR assumiu o caminho óbvio: criar a tabela particionada,
+copiar tudo, trocar. Medido em 21/08, esse caminho está fora de alcance —
+`workspace_channel_orders` tem 123 MB e a folga do Free é 58 MB.
+
+**Existe caminho que não copia linha nenhuma.** O PostgreSQL aceita anexar uma
+tabela existente como partição de um pai novo:
+
+1. renomear a tabela atual para `..._ate_<data>`;
+2. criar o pai particionado com o nome original, `PARTITION BY RANGE (occurred_at)`;
+3. adicionar `CHECK` na tabela antiga casando com os limites da partição;
+4. `ATTACH PARTITION` — operação de catálogo, sem reescrever dados;
+5. criar as partições mensais daí para frente.
+
+O único custo real de espaço é **um índice único novo**, contendo `occurred_at`,
+exigido para virar a PK do pai. O índice equivalente hoje ocupa 17 MB; com mais uma
+coluna de 8 bytes fica na casa dos 20 MB — **cabe nos 58 MB de folga**, contra os
+123 MB da cópia.
+
+Contrapartida honesta: a história inteira fica numa única partição gigante, então
+`DROP PARTITION` só passa a valer para os meses criados depois. O ganho é imediato
+para o dado novo e gradual para o antigo — o que é aceitável, e é o que torna a
+Frente 3 possível antes da Frente 2 caso seja necessário inverter a ordem.
+
 ⚠️ A chave primária de uma tabela particionada **precisa conter a coluna de partição**.
 As chaves atuais não incluem `occurred_at`; incluí-la muda a forma da chave e, por
 tabela filha, a unicidade passa a ser garantida por partição. Isso precisa ser
