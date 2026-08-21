@@ -16,6 +16,25 @@ interface SyncRow { provider: string; frescor: string | null; com_erro: string; 
 interface PendenteRow { provider: string; pendentes: string; atrasados: string }
 interface FilaRow { status: string; total: string }
 
+/**
+ * Escreve uma família de métricas inteira: HELP, TYPE e TODAS as amostras juntas.
+ *
+ * O formato Prometheus exige que as amostras de uma métrica sejam consecutivas.
+ * Emitir intercalado é o tipo de erro que não quebra nada visivelmente — o
+ * coletor simplesmente entrega dado errado, e foi assim que o rótulo `provider`
+ * desapareceu na primeira versão desta rota.
+ */
+function familia(
+  saida: string[],
+  nome: string,
+  ajuda: string,
+  amostras: Array<[Record<string, string>, number | string]>
+) {
+  saida.push(`# HELP ${nome} ${ajuda}`);
+  saida.push(`# TYPE ${nome} gauge`);
+  for (const [rotulos, valor] of amostras) saida.push(linha(nome, rotulos, valor));
+}
+
 function linha(nome: string, rotulos: Record<string, string>, valor: number | string) {
   const r = Object.entries(rotulos)
     .map(([k, v]) => `${k}="${String(v).replace(/"/g, "")}"`)
@@ -48,17 +67,17 @@ export async function coletarMetricas(): Promise<string> {
         WHERE connection_id NOT LIKE '%demo%'
         GROUP BY provider`
     );
-    saida.push("# HELP nexo_sync_idade_segundos Tempo desde o sync mais recente do provedor.");
-    saida.push("# TYPE nexo_sync_idade_segundos gauge");
-    saida.push("# HELP nexo_sync_conexoes_com_erro Conexoes do provedor em estado de erro.");
-    saida.push("# TYPE nexo_sync_conexoes_com_erro gauge");
-    saida.push("# HELP nexo_sync_conexoes Conexoes configuradas por provedor.");
-    saida.push("# TYPE nexo_sync_conexoes gauge");
-    for (const s of syncs) {
-      saida.push(linha("nexo_sync_idade_segundos", { provider: s.provider }, Math.round(Number(s.frescor ?? 0))));
-      saida.push(linha("nexo_sync_conexoes_com_erro", { provider: s.provider }, s.com_erro));
-      saida.push(linha("nexo_sync_conexoes", { provider: s.provider }, s.conexoes));
-    }
+    // ⚠️ Uma família por vez, com TODAS as amostras juntas logo após o TYPE.
+    // Intercalar famílias (as 3 métricas do amazon, depois as 3 do tiktok...) é
+    // formato inválido: o coletor do Fly engoliu isso e devolveu UMA série SEM
+    // rótulo nenhum — o `provider` sumiu (medido 21/08). O helper `familia`
+    // abaixo existe para essa regra não depender de disciplina.
+    familia(saida, "nexo_sync_idade_segundos", "Tempo desde o sync mais recente do provedor.",
+      syncs.map((s) => [{ provider: s.provider }, Math.round(Number(s.frescor ?? 0))]));
+    familia(saida, "nexo_sync_conexoes_com_erro", "Conexoes do provedor em estado de erro.",
+      syncs.map((s) => [{ provider: s.provider }, s.com_erro]));
+    familia(saida, "nexo_sync_conexoes", "Conexoes configuradas por provedor.",
+      syncs.map((s) => [{ provider: s.provider }, s.conexoes]));
 
     // 2. Pedidos presos em `pending`. Dezenas parados por horas foi exatamente o
     //    defeito de 21/08 (55 de 62 travados) que fez o dashboard parecer queda
@@ -72,22 +91,17 @@ export async function coletarMetricas(): Promise<string> {
           AND connection_id NOT LIKE '%demo%'
         GROUP BY provider`
     );
-    saida.push("# HELP nexo_pedidos_pendentes Pedidos aguardando confirmacao do canal.");
-    saida.push("# TYPE nexo_pedidos_pendentes gauge");
-    saida.push("# HELP nexo_pedidos_pendentes_atrasados Pendentes ha mais de 12h - suspeita de lag de ingestao.");
-    saida.push("# TYPE nexo_pedidos_pendentes_atrasados gauge");
-    for (const p of pendentes) {
-      saida.push(linha("nexo_pedidos_pendentes", { provider: p.provider }, p.pendentes));
-      saida.push(linha("nexo_pedidos_pendentes_atrasados", { provider: p.provider }, p.atrasados));
-    }
+    familia(saida, "nexo_pedidos_pendentes", "Pedidos aguardando confirmacao do canal.",
+      pendentes.map((p) => [{ provider: p.provider }, p.pendentes]));
+    familia(saida, "nexo_pedidos_pendentes_atrasados", "Pendentes ha mais de 12h - suspeita de lag de ingestao.",
+      pendentes.map((p) => [{ provider: p.provider }, p.atrasados]));
 
     // 3. Fila de webhooks — a tabela que estourou o banco em 19/08 (ADR-016).
     const fila = await dbQuery<FilaRow>(
       `SELECT status, COUNT(*)::text AS total FROM workspace_marketplace_events GROUP BY status`
     );
-    saida.push("# HELP nexo_fila_eventos Eventos na caixa de entrada de webhooks.");
-    saida.push("# TYPE nexo_fila_eventos gauge");
-    for (const f of fila) saida.push(linha("nexo_fila_eventos", { status: f.status }, f.total));
+    familia(saida, "nexo_fila_eventos", "Eventos na caixa de entrada de webhooks.",
+      fila.map((f) => [{ status: f.status }, f.total]));
 
     // 4. Tamanho do banco — o limite do plano é 500 MB e já foi estourado.
     const [tam] = await dbQuery<{ bytes: string }>(`SELECT pg_database_size(current_database())::text AS bytes`);
