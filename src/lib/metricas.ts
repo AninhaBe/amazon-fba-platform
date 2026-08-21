@@ -24,6 +24,10 @@ interface FilaRow { status: string; total: string }
  * coletor simplesmente entrega dado errado, e foi assim que o rótulo `provider`
  * desapareceu na primeira versão desta rota.
  */
+// ⚠️ O rótulo NÃO pode se chamar `provider`: o coletor do Fly descarta esse nome
+// (medido 21/08 — a série chegava no Prometheus sem rótulo nenhum, enquanto
+// `status` passava normalmente). Usamos `canal`, que também é a palavra do
+// produto. Ao criar métrica nova, conferir no Grafana se o rótulo sobreviveu.
 function familia(
   saida: string[],
   nome: string,
@@ -73,11 +77,11 @@ export async function coletarMetricas(): Promise<string> {
     // rótulo nenhum — o `provider` sumiu (medido 21/08). O helper `familia`
     // abaixo existe para essa regra não depender de disciplina.
     familia(saida, "nexo_sync_idade_segundos", "Tempo desde o sync mais recente do provedor.",
-      syncs.map((s) => [{ provider: s.provider }, Math.round(Number(s.frescor ?? 0))]));
+      syncs.map((s) => [{ canal: s.provider }, Math.round(Number(s.frescor ?? 0))]));
     familia(saida, "nexo_sync_conexoes_com_erro", "Conexoes do provedor em estado de erro.",
-      syncs.map((s) => [{ provider: s.provider }, s.com_erro]));
+      syncs.map((s) => [{ canal: s.provider }, s.com_erro]));
     familia(saida, "nexo_sync_conexoes", "Conexoes configuradas por provedor.",
-      syncs.map((s) => [{ provider: s.provider }, s.conexoes]));
+      syncs.map((s) => [{ canal: s.provider }, s.conexoes]));
 
     // 2. Pedidos presos em `pending`. Dezenas parados por horas foi exatamente o
     //    defeito de 21/08 (55 de 62 travados) que fez o dashboard parecer queda
@@ -92,9 +96,9 @@ export async function coletarMetricas(): Promise<string> {
         GROUP BY provider`
     );
     familia(saida, "nexo_pedidos_pendentes", "Pedidos aguardando confirmacao do canal.",
-      pendentes.map((p) => [{ provider: p.provider }, p.pendentes]));
+      pendentes.map((p) => [{ canal: p.provider }, p.pendentes]));
     familia(saida, "nexo_pedidos_pendentes_atrasados", "Pendentes ha mais de 12h - suspeita de lag de ingestao.",
-      pendentes.map((p) => [{ provider: p.provider }, p.atrasados]));
+      pendentes.map((p) => [{ canal: p.provider }, p.atrasados]));
 
     // 3. Fila de webhooks — a tabela que estourou o banco em 19/08 (ADR-016).
     const fila = await dbQuery<FilaRow>(
