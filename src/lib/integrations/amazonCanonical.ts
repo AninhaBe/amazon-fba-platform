@@ -142,7 +142,16 @@ export function normalizeAmazonOrderItems(orderItems: AmazonOrderItem[]): Normal
     const revenue = Math.max(0, moneyOf(item.ItemPrice) - moneyOf(item.PromotionDiscount));
     currency = currency ?? item.ItemPrice?.CurrencyCode ?? null;
     gross += revenue;
-    buyerShipping += moneyOf(item.ShippingPrice);
+    // O frete também tem desconto, e ele precisa ser subtraído — exatamente como
+    // `PromotionDiscount` é subtraído do produto, uma linha acima.
+    //
+    // Em frete grátis a Amazon manda `ShippingPrice` = `ShippingDiscount`, então
+    // o comprador pagou ZERO de frete. Somar só o `ShippingPrice` fazia o painel
+    // inventar receita: no pedido 702-2192919-5915420 (08/08/2026) a Amazon mostra
+    // "Total do envio 8,90 · Promoção −8,90 · Total do produto 19,90", e nós
+    // exibíamos R$ 28,80. Quem conferiu à mão contra o Seller Central não fechava,
+    // e o erro inflava margem — frete que não entrou contado como se tivesse.
+    buyerShipping += Math.max(0, moneyOf(item.ShippingPrice) - moneyOf(item.ShippingDiscount));
     items.push({
       externalProductId: item.ASIN || item.SellerSKU || item.OrderItemId || "desconhecido",
       sku: item.SellerSKU ?? null,

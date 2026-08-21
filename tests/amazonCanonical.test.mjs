@@ -136,3 +136,45 @@ test("estorno vira fee refund e devolve a comissão como crédito", () => {
   assert.equal(byCode.RefundPrincipal.amount, 49.9); // débito do vendedor
   assert.equal(byCode.Commission.amount, -6); // comissão devolvida = crédito
 });
+
+// Frete grátis: a Amazon cobra o envio e desconta o mesmo valor. O comprador
+// pagou ZERO de frete, e somar só o `ShippingPrice` inventava receita.
+// Caso real: pedido 702-2192919-5915420 (08/08/2026) — a Amazon mostrava
+// "Total do envio 8,90 · Promoção −8,90 · Total do produto 19,90" e o painel
+// exibia R$ 28,80. Frete que não entrou, contado como se tivesse, inflando margem.
+test("frete integralmente descontado não vira receita", () => {
+  const { gross, buyerShipping } = normalizeAmazonOrderItems([
+    {
+      QuantityOrdered: 1,
+      SellerSKU: "kit-clips-320",
+      ItemPrice: { CurrencyCode: "BRL", Amount: "19.90" },
+      ShippingPrice: { CurrencyCode: "BRL", Amount: "8.90" },
+      ShippingDiscount: { CurrencyCode: "BRL", Amount: "8.90" },
+    },
+  ]);
+  assert.equal(gross, 19.9);
+  assert.equal(buyerShipping, 0);
+});
+
+test("frete parcialmente descontado conta só o que o comprador pagou", () => {
+  const { buyerShipping } = normalizeAmazonOrderItems([
+    {
+      QuantityOrdered: 1,
+      ItemPrice: { CurrencyCode: "BRL", Amount: "50.00" },
+      ShippingPrice: { CurrencyCode: "BRL", Amount: "10.00" },
+      ShippingDiscount: { CurrencyCode: "BRL", Amount: "4.00" },
+    },
+  ]);
+  assert.equal(buyerShipping, 6);
+});
+
+test("frete sem desconto continua contando inteiro", () => {
+  const { buyerShipping } = normalizeAmazonOrderItems([
+    {
+      QuantityOrdered: 1,
+      ItemPrice: { CurrencyCode: "BRL", Amount: "50.00" },
+      ShippingPrice: { CurrencyCode: "BRL", Amount: "12.34" },
+    },
+  ]);
+  assert.equal(buyerShipping, 12.34);
+});
