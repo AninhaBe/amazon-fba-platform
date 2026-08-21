@@ -95,6 +95,34 @@ pode existir aqui) e inserindo em `schema_migrations(name, migration_hash)` e
 da 0005. A próxima migration esbarra nos mesmos muros. Consertar o runner é
 trabalho próprio, ainda não feito.
 
+## Desvio autorizado: 0006 aplicada fora do runner (21/08/2026)
+
+`0006_remove_tabelas_pre_workspace.sql` derruba as quatro tabelas anteriores ao
+modelo multiusuário — `accounts` (2 linhas), `integrations` (0), `tiktok_shops` (0)
+e `product_costs` (7). Autorizada explicitamente pela responsável.
+
+Aplicada fora do runner **pelos mesmos motivos da 0005, mais um novo**: além da
+runtime role impossível (ADR-012) e da autorização Ed25519 sem emissor, o runner
+insere em `schema_migrations(name, migration_hash)` e **`migration_hash` não existe
+neste banco** — `public.schema_migrations` é `(name, applied_at)`. A primeira
+tentativa morreu exatamente aí, com `ROLLBACK` limpo e nenhuma tabela removida.
+Isso é evidência direta do que a seção acima já previa: o muro é real e derruba a
+próxima migration, não só a 0005.
+
+Procedimento usado, o mesmo da 0005: transação única, `ROLLBACK` em qualquer erro,
+`schema_migrations` gravada dentro dela. Duas travas a mais, porque DROP não tem volta:
+
+1. **FK e views reverificadas dentro da transação**, não na sessão que planejou —
+   entre a checagem e o DROP alguém poderia ter criado uma dependência.
+2. **Ausência confirmada antes do COMMIT** — se alguma tabela sobrevivesse ao DDL,
+   a transação abortava em vez de registrar a migration como aplicada.
+
+Conteúdo das quatro exportado para JSON antes de rodar. `sha256` do arquivo:
+`f59558e91e2574d217dd2471a56f5cd340328c487f6eecf1389e870ac3e7139f` — registrado
+aqui porque a tabela não tem coluna para guardá-lo.
+
+Resultado: 31 → 27 tabelas em `public`, banco em 441 MB, `/api/health` em 200.
+
 ## Incidente 0003/0004
 
 As migrations `0003_oauth_refresh_leases.sql` e `0004_tiktok_shop_tax_rate.sql` ficam **ratificadas quanto à permanência**: este incidente não autoriza rollback nem remoção de seus objetos. O processo histórico que as aplicou **não foi validado** e não deve ser tratado como evidência de execução segura. A ratificação é de estado desejado, não do procedimento anterior.
