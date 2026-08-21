@@ -381,13 +381,17 @@ async function saveOrderWindow(
         pedidos.map((pedido) => normalizeTiktokOrder(pedido)), query
       );
       await query(
+        // Só grava quem ainda NÃO tem a marca (ADR-022). Sem este filtro, o
+        // COALESCE regravava o mesmo valor em cada pedido do lote a cada ciclo —
+        // e com 12 mil pedidos do TikTok isso sozinho respondia pela maior parte
+        // do churn que sobrou em workspace_channel_orders depois da Frente 1.1.
         `UPDATE workspace_channel_orders
             SET raw=COALESCE(raw,'{}'::jsonb) || jsonb_build_object('_sellercore',
               COALESCE(raw->'_sellercore','{}'::jsonb)
-              || jsonb_build_object('statementSettled',
-                COALESCE((raw#>>'{_sellercore,statementSettled}')::boolean,false)))
+              || jsonb_build_object('statementSettled',false))
           WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3
-            AND external_order_id=ANY($4::text[])`,
+            AND external_order_id=ANY($4::text[])
+            AND raw#>>'{_sellercore,statementSettled}' IS NULL`,
         [currentWorkspaceId(), PROVIDER, connectionId, pedidos.map((pedido) => String(pedido.id))]
       );
     });

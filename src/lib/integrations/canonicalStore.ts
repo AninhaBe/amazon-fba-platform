@@ -341,7 +341,9 @@ export async function applyCanonicalOrderItems(
         SET gross = refined.gross, buyer_shipping = refined.buyer_shipping, synced_at = now()
        FROM jsonb_to_recordset($6::jsonb) AS refined(external_order_id text, gross numeric, buyer_shipping numeric)
       WHERE orders.workspace_id = $1 AND orders.provider = $2 AND orders.connection_id = $3
-        AND orders.external_order_id = refined.external_order_id`,
+        AND orders.external_order_id = refined.external_order_id
+        AND (orders.gross, orders.buyer_shipping)
+              IS DISTINCT FROM (refined.gross, refined.buyer_shipping)`,
     [
       workspaceId,
       scope.provider,
