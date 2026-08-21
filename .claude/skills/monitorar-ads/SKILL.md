@@ -184,6 +184,30 @@ grep -o "bad-scope\|unknown scope\|invalid-parameter" /tmp/ads-scope.html | sort
 | 16/08/2026 ~11h50 | pendente |
 | **16/08/2026 22h45** | **pendente** — `ADS_REFRESH_TOKEN` e `ADS_PROFILE_ID` seguem vazios no `.env.local` |
 | **17/08/2026 23h05** | **pendente** — 4 dias após o pedido; o prazo indicado era 14/08 (sexta). 🔴 **Vencido: abrir caso no suporte de desenvolvedores.** |
+| **21/08/2026 ~16h** | **pendente** — `bad-scope` · `unknown scope` · `invalid-parameter`; tokens ainda vazios. 🔴 **Descoberto o provável motivo — ver abaixo.** |
+
+### 🔴 O site declarado na candidatura está fora do ar (achado em 21/08/2026)
+
+As duas candidaturas informaram **`https://sellercore.onrender.com`** como site da
+empresa. Medido em 21/08: esse endereço responde **HTTP 503** — o Render foi
+desativado na migração para o Fly (ADR-015). O endereço vivo é
+**`https://nexoaihub.com.br`**, que responde 200.
+
+Um revisor da Amazon abre o site declarado. Candidatura de *Direct Advertiser*
+apontando para URL morta é motivo fácil de travar. **Não está provado** que foi essa
+a causa — está provado que o dado está errado, e é a única variável sob nosso
+controle.
+
+⚠️ **Não enviar uma 3ª candidatura.** Seria a terceira com o mesmo defeito dentro, e
+duas pendentes já podem parecer duplicata. O caminho é **corrigir o endereço**, via
+caso no suporte de desenvolvedores (foi caso de suporte que moveu o Solution
+Provider), e editar a candidatura de 17/08 se o formulário permitir.
+
+📌 **Lição além deste caso:** trocar de hospedagem invalida silenciosamente todo
+cadastro externo que aponta para a URL antiga. O `AGENTS.md` já alerta que
+`sellercore.onrender.com` está na allowlist de OAuth da Shopee e do TikTok — a
+candidatura da Ads API era um terceiro lugar, e ninguém tinha listado. Ao mudar
+endereço, varrer **todos** os cadastros externos, não só os de OAuth.
 
 ### 2ª solicitação enviada em 17/08/2026, ~23h30
 
