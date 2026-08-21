@@ -853,6 +853,57 @@ gastar R$ 1.059 rende só R$ 265). O crédito aparece em até 2 semanas e **expi
 30 dias**. Acompanhar o gasto acumulado e avisar se o ritmo não chega lá dentro da
 janela de 90 dias.
 
+## 🎯 Participação orgânica — o indicador que autoriza cortar Ads
+
+Pedido dela em 20/08: *"não vejo a hora de ranquear bem os produtos pra eu pisar no freio
+do Ads."*
+
+**TACOS não responde isso.** Ele diz quanto o anúncio custa, não se o produto anda
+sozinho. Quem responde é:
+
+```
+vendas reais (banco)  −  vendas atribuídas ao Ads  =  vendas orgânicas
+```
+
+```bash
+node --env-file=.env.local .claude/skills/monitorar-ads/scripts/organico.mjs   --de=2026-08-08 --ate=2026-08-16 --ads="martelo-borracha=5,kit-clips-320=3"
+```
+
+As vendas reais saem do canônico; as atribuídas **entram por parâmetro**, lidas do console
+na leitura diária (a Ads API segue sem aprovação). Limiar padrão: **60%** de orgânico.
+
+### O que o script protege
+
+- **Janela madura por padrão:** termina 3 dias atrás. Janela recente infla o orgânico,
+  porque a atribuição do Ads ainda não fechou — o erro que já custou caro três vezes aqui.
+  Se a janela terminar há menos de 3 dias, ele avisa.
+- **Atribuído > real** aparece como *"halo de outro SKU"*, não como orgânico negativo: o
+  Ads credita venda de OUTRO produto da conta na campanha que recebeu o clique.
+- **Produto sem `--ads`** fica com `—`, nunca com 0% — ausência não vira conclusão.
+
+### ⚠️ Corte não é liga/desliga
+
+Mesmo produto ranqueado costuma manter Ads, por dois motivos que não somem:
+
+1. **Concorrente anuncia na sua página** (segmentação por produto) — sem defesa, entrega-se
+   a visita.
+2. **O topo da busca é comprado.**
+
+O que muda com o ranqueamento não é ligar/desligar: é o **TACOS cair sozinho** com o mesmo
+gasto, porque o orgânico cresce por baixo. E **um período acima do limiar não decide** —
+duas ou três janelas seguidas, sim.
+
+### Primeira leitura (20/08, período 08–19/08)
+
+| Produto | Reais | Ads | Orgânico |
+|---|---|---|---|
+| kit-clips-320 | 7 | 3 | **57%** — perto do limiar |
+| martelo-borracha | 4 | 5 | halo (atribuído > real) |
+| **Conta** | **15** | **8** | **47%** |
+
+Nenhum produto libera corte ainda, mas o clips está a três pontos do limiar. Reolhar com
+janela fechada.
+
 ## Não fazer
 
 - Não mexer em lance, orçamento ou palavra-chave **sem confirmar com a pessoa**.
