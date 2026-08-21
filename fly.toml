@@ -41,11 +41,14 @@ primary_region = "gru"          # Sao Paulo — a razao de existir desta migraca
 # "o sync parou" — o e-mail de falha do Actions. Estas séries devolvem o sinal, e
 # com histórico em vez de um e-mail solto.
 #
-# A porta é a mesma do app (3000): o coletor do Fly acessa pela rede interna, e a
-# rota só expõe contador operacional — nada financeiro, nenhum id.
+# ⚠️ Porta 9091, NÃO a 3000 do app: ela fica fora do [http_service], então não é
+# publicada na internet — o coletor do Fly chega pela rede privada. Servir isto
+# pela porta pública exigiria abrir a rota no proxy de sessão, e colocaria
+# contagem de pedidos e tamanho de banco em endereço aberto.
+# O servidor vive em src/instrumentation.ts, junto do agendador.
 [metrics]
-  port = 3000
-  path = "/api/metrics"
+  port = 9091
+  path = "/metrics"
 
 # Disco persistente: o app grava custos e contas OAuth em DATA_DIR.
 # Sem isto, cada deploy apaga esses dados.

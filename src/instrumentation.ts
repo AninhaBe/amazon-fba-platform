@@ -66,4 +66,34 @@ export async function register() {
   }, 120_000);
 
   console.log(`[scheduler] armado: syncs a cada ${SYNC_INTERVAL_MS / 60_000} min, retenção diária.`);
+
+  // ---------------------------------------------------------------- métricas
+  // Servidor HTTP mínimo numa porta INTERNA, só para o coletor do Fly (ADR-019).
+  //
+  // Por que não uma rota do app: a porta pública passa pelo proxy de sessão, e
+  // liberar `/api/metrics` no `publicPaths` colocaria contagem de pedidos e
+  // tamanho de banco na internet aberta. O coletor do Fly alcança a máquina pela
+  // rede privada (6PN), então a porta 9091 nunca é publicada — está fora do
+  // `[http_service]` do fly.toml de propósito.
+  const METRICS_PORT = Number(process.env.METRICS_PORT || 9091);
+  try {
+    const { createServer } = await import("node:http");
+    const { coletarMetricas } = await import("./lib/metricas");
+    createServer(async (req, res) => {
+      if (req.url?.split("?")[0] !== "/metrics") {
+        res.writeHead(404).end();
+        return;
+      }
+      try {
+        const corpo = await coletarMetricas();
+        res.writeHead(200, { "content-type": "text/plain; version=0.0.4" }).end(corpo);
+      } catch {
+        res.writeHead(200, { "content-type": "text/plain; version=0.0.4" }).end("nexo_metricas_ok 0" + String.fromCharCode(10));
+      }
+    }).listen(METRICS_PORT, "::", () => {
+      console.log(`[metricas] servindo /metrics na porta interna ${METRICS_PORT}`);
+    });
+  } catch (error) {
+    console.error("[metricas] nao subiu:", error instanceof Error ? error.message : error);
+  }
 }
