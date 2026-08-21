@@ -67,7 +67,7 @@ export default function LabRail() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {["Faturamento", "Taxas", "Lucro", "Estoque"].map((t) => (
               <div key={t} className="rounded-xl border border-[var(--line-strong)] bg-white p-4">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--ink-muted)]">{t}</p>
+                <p className="text-[12px] font-bold uppercase tracking-wider text-[var(--ink-muted)]">{t}</p>
                 <div className="mt-3 h-4 rounded bg-[var(--ink-05)]" />
                 <div className="mt-2 h-2.5 w-1/2 rounded bg-[var(--ink-03)]" />
               </div>

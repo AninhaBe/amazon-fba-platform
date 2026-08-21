@@ -182,7 +182,7 @@ function Results({ data, quad, setQuad, costsHref }: { data: Abc; quad: Quadrant
                 <span className={`h-2.5 w-2.5 rounded ${q.dot}`} />
                 {q.label}
               </div>
-              <div className="mt-0.5 text-[11px] text-[var(--ink-muted)]">{q.sub}</div>
+              <div className="mt-0.5 text-[12px] text-[var(--ink-muted)]">{q.sub}</div>
               <div className="mt-2 text-[26px] font-extrabold tabular-nums tracking-tight text-[var(--ink)]">
                 {g.count}
                 <small className="ml-1 text-[13px] font-semibold text-[var(--ink-muted)]">SKUs</small>
@@ -220,7 +220,7 @@ function Results({ data, quad, setQuad, costsHref }: { data: Abc; quad: Quadrant
           <div className="overflow-x-auto">
             <table className="listing-table abc-table">
               <thead>
-                <tr className="[&_th]:border-b [&_th]:border-[var(--line-strong)] [&_th]:bg-[var(--ink-03)] [&_th]:px-3 [&_th]:py-2.5 [&_th]:text-[11px] [&_th]:font-bold [&_th]:uppercase [&_th]:tracking-wide [&_th]:text-[var(--ink-muted)]">
+                <tr className="[&_th]:border-b [&_th]:border-[var(--line-strong)] [&_th]:bg-[var(--ink-03)] [&_th]:px-3 [&_th]:py-2.5 [&_th]:text-[12px] [&_th]:font-bold [&_th]:uppercase [&_th]:tracking-wide [&_th]:text-[var(--ink-muted)]">
                   <th className="text-left">Produto</th>
                   <th className="text-right">Un.</th>
                   <th className="text-right">Faturamento</th>
@@ -240,7 +240,7 @@ function Results({ data, quad, setQuad, costsHref }: { data: Abc; quad: Quadrant
                       <td className="!text-left">
                         <div className="flex max-w-[240px] flex-col">
                           <strong className="truncate text-[13px] font-semibold" title={p.title}>{p.title}</strong>
-                          <small className="font-mono text-[11px] text-[var(--ink-muted)]">{p.sku || p.productId}{!p.costMissing && !p.complete && " · parcial"}</small>
+                          <small className="font-mono text-[12px] text-[var(--ink-muted)]">{p.sku || p.productId}{!p.costMissing && !p.complete && " · parcial"}</small>
                         </div>
                       </td>
                       <td className="text-right">{p.units}</td>
@@ -254,11 +254,11 @@ function Results({ data, quad, setQuad, costsHref }: { data: Abc; quad: Quadrant
                       </td>
                       <td className="!text-left">
                         {q ? (
-                          <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold ${q.tag}`}>
+                          <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[12px] font-bold ${q.tag}`}>
                             <span className={`h-1.5 w-1.5 rounded-sm ${q.dot}`} />{q.label}
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-bold text-amber-700">Sem custo</span>
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-[12px] font-bold text-amber-700">Sem custo</span>
                         )}
                       </td>
                     </tr>

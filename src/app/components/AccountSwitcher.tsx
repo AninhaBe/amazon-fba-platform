@@ -170,7 +170,7 @@ export function AccountSwitcher({ compact = false }: { compact?: boolean }) {
           </svg>
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink-muted)]">
+          <p className="text-[12px] font-semibold uppercase tracking-wider text-[var(--ink-muted)]">
             Conta Amazon ativa
           </p>
           {editing && activeAccount ? (
@@ -219,7 +219,7 @@ export function AccountSwitcher({ compact = false }: { compact?: boolean }) {
             </div>
           )}
           {activeAccount && !editing && (
-            <p className="truncate font-mono text-[10px] text-[var(--ink-muted)]" title={activeAccount.sellerId}>
+            <p className="truncate font-mono text-[12px] text-[var(--ink-muted)]" title={activeAccount.sellerId}>
               {activeAccount.sellerId}
             </p>
           )}

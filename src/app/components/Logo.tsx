@@ -17,7 +17,7 @@ export function Logo({ compact = false }: { compact?: boolean }) {
           <span className="brand-word text-base font-bold tracking-[-0.035em]">
             SELLER<span>CORE</span>
           </span>
-          <span className="brand-sub mt-1 block text-[10px] font-semibold uppercase tracking-[0.13em]">
+          <span className="brand-sub mt-1 block text-[12px] font-semibold uppercase tracking-[0.13em]">
             Controle de operação
           </span>
         </div>

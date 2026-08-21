@@ -184,11 +184,11 @@ export default function AuditoriaPage() {
                     <tr key={p.orderId}>
                       <td className="px-3 py-2.5">
                         <span className="block truncate font-mono text-xs">{p.orderId}</span>
-                        {p.shipmentId && <span className="block truncate text-[11px] text-[var(--ink-muted)]">envio {p.shipmentId}</span>}
+                        {p.shipmentId && <span className="block truncate text-[12px] text-[var(--ink-muted)]">envio {p.shipmentId}</span>}
                       </td>
                       <td className="px-3 py-2.5 text-right tabular-nums text-[var(--ink-soft)]">
                         {money(p.esperado, dados.currency)}
-                        <span className="block text-[11px] text-[var(--ink-muted)]">
+                        <span className="block text-[12px] text-[var(--ink-muted)]">
                           você {money(p.esperadoVendedor, dados.currency)} + comprador {money(p.esperadoComprador, dados.currency)}
                         </span>
                       </td>

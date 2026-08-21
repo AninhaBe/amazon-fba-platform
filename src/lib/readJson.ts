@@ -9,10 +9,18 @@ export async function readJson(response: Response) {
   try {
     return JSON.parse(text);
   } catch {
+    // Não afirmar timeout sem evidência de timeout. A versão anterior dizia
+    // "O serviço demorou para responder" para QUALQUER 5xx com corpo não-JSON,
+    // e isso mandou procurar lentidão numa falha que respondeu em 189ms — o
+    // servidor quebrou na hora, não demorou.
+    //
+    // A regra que o produto já aplica a dado incerto vale para erro também:
+    // dizer o que aconteceu, não inventar a causa. "Tente em instantes" faz a
+    // pessoa repetir um clique que vai falhar de novo.
     throw new Error(
       response.status >= 500
-        ? "O serviço demorou para responder. Tente novamente em instantes."
-        : "A resposta do servidor foi interrompida. Atualize a página e tente novamente."
+        ? `O servidor respondeu com erro ${response.status}. Isso é falha nossa, não da sua conexão — repetir agora não resolve.`
+        : "A resposta do servidor veio incompleta. Atualize a página e tente novamente."
     );
   }
 }

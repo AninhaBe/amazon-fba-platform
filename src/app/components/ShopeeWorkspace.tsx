@@ -412,13 +412,13 @@ function Dashboard({ overview, updatedAt, sync, onPage }: { overview: Overview; 
           trend={getRevenueTrend(overview.dailySales)}
         />
         <div className="metric-cell metric-primary relative overflow-hidden p-5">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">{profitPresentation.label}</p>
+          <p className="text-[12px] font-semibold uppercase tracking-wider text-emerald-700">{profitPresentation.label}</p>
           <p className="mt-2 text-[27px] font-bold leading-none tabular-nums text-emerald-800">
             {overview.profit.estimatedProfit == null ? "—" : <AnimatedNumber id="shopee-dash-profit" value={overview.profit.estimatedProfit} format={(amount) => money(amount, overview.metrics.currency)} />}
           </p>
           {costsIncomplete
             ? <p className="mt-1.5 text-xs font-medium text-amber-700">cadastre custos para o lucro real</p>
-            : <p className="mt-2 flex items-baseline gap-1.5"><span className="text-[17px] font-extrabold tabular-nums text-emerald-600">{overview.profit.marginPct == null ? "—" : percent(overview.profit.marginPct)}</span><span className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700/70">{profitPresentation.marginLabel}</span></p>}
+            : <p className="mt-2 flex items-baseline gap-1.5"><span className="text-[17px] font-extrabold tabular-nums text-emerald-600">{overview.profit.marginPct == null ? "—" : percent(overview.profit.marginPct)}</span><span className="text-[12px] font-semibold uppercase tracking-wide text-emerald-700/70">{profitPresentation.marginLabel}</span></p>}
         </div>
         <Metric label="Estoque crítico" value={critical.length.toLocaleString("pt-BR")} sub={critical.length ? "repor com urgência" : "tudo sob controle"} tone={critical.length ? "danger" : "ok"} icon={<Boxes className="h-5 w-5" strokeWidth={1.7} aria-hidden />} />
         <Metric label="Produtos sem custo" value={overview.metrics.productsWithoutCost.toLocaleString("pt-BR")} sub={overview.metrics.productsWithoutCost ? "cadastre para ver o lucro" : "todos cadastrados"} tone={overview.metrics.productsWithoutCost ? "warn" : "ok"} icon={<PackageOpen className="h-5 w-5" strokeWidth={1.7} aria-hidden />} />

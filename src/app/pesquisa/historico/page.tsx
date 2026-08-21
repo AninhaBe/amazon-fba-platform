@@ -609,7 +609,7 @@ export default function HistoricoPage() {
                           #{p.currentRank.toLocaleString("pt-BR")}
                         </strong>
                         {p.category && (
-                          <span className="max-w-full truncate text-[11px] text-[var(--ink-muted)]" title={p.category}>
+                          <span className="max-w-full truncate text-[12px] text-[var(--ink-muted)]" title={p.category}>
                             em {p.category}
                           </span>
                         )}

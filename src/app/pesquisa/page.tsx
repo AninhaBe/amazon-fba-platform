@@ -391,7 +391,7 @@ export default function PesquisaPage() {
                             {p.title || p.asin}
                             {p.isVariation && (
                               <span
-                                className="ml-2 rounded bg-violet-100 px-1.5 py-0.5 align-middle text-[10px] font-semibold text-violet-700"
+                                className="ml-2 rounded bg-violet-100 px-1.5 py-0.5 align-middle text-[12px] font-semibold text-violet-700"
                                 title="Variação (cor/tamanho). A idade mostrada é a da linha do produto (produto-pai)."
                               >
                                 variação
@@ -411,7 +411,7 @@ export default function PesquisaPage() {
                           <span className="font-semibold text-blue-700">{money(p.fbaPrice, p.currency)}</span>
                           {p.fbaPrice != null && p.fbaPrice === pisoFba && (
                             <span
-                              className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700"
+                              className="rounded bg-blue-100 px-1.5 py-0.5 text-[12px] font-semibold text-blue-700"
                               title="Menor preço FBA entre os resultados carregados"
                             >
                               piso
@@ -444,7 +444,7 @@ export default function PesquisaPage() {
                         ) : (
                           <span className="text-[var(--ink-muted)]">—</span>
                         )}
-                        <span className="whitespace-nowrap text-[11px] text-[var(--ink-muted)]">
+                        <span className="whitespace-nowrap text-[12px] text-[var(--ink-muted)]">
                           criado {fmtDate(p.launchDate)}
                         </span>
                       </div>
@@ -455,7 +455,7 @@ export default function PesquisaPage() {
                           <span className="inline-flex items-baseline gap-1.5">
                             {p.rankDelta != null && (
                               <span
-                                className={`inline-flex items-center gap-0.5 text-[11px] font-bold tabular-nums ${
+                                className={`inline-flex items-center gap-0.5 text-[12px] font-bold tabular-nums ${
                                   p.rankDelta > 0 ? "text-emerald-600" : p.rankDelta < 0 ? "text-red-500" : "text-amber-500"
                                 }`}
                                 title={
@@ -478,12 +478,12 @@ export default function PesquisaPage() {
                             <strong className="font-semibold text-[var(--ink-soft)]">#{p.salesRank.toLocaleString("pt-BR")}</strong>
                           </span>
                           {p.salesRankCategory && (
-                            <span className="max-w-[24ch] truncate text-[11px] text-[var(--ink-muted)]" title={p.salesRankCategory}>
+                            <span className="max-w-[24ch] truncate text-[12px] text-[var(--ink-muted)]" title={p.salesRankCategory}>
                               em {p.salesRankCategory}
                             </span>
                           )}
                           {p.subRank && p.subRankCategory !== p.salesRankCategory && (
-                            <span className="max-w-[24ch] truncate text-[11px] font-medium text-emerald-600" title={`Subcategoria: ${p.subRankCategory}`}>
+                            <span className="max-w-[24ch] truncate text-[12px] font-medium text-emerald-600" title={`Subcategoria: ${p.subRankCategory}`}>
                               #{p.subRank.toLocaleString("pt-BR")} em {p.subRankCategory}
                             </span>
                           )}
