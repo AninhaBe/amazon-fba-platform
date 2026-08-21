@@ -69,8 +69,42 @@ de diagnosticar depois.
 | Agendador não arma (falta `CRON_SECRET`) | loga `INTERNAL_SCHEDULER=1 mas CRON_SECRET ausente` na subida |
 | Ninguém percebe que parou | ⚠️ **lacuna real** — não há alerta. Ver "Próximo" |
 
-**Próximo (não feito):** um sinal de "o sync está vivo?" — a data do último sucesso já está
-em `workspace_marketplace_syncs`; falta alguém olhar. Candidato natural ao briefing diário.
+### ✅ Lacuna fechada em 21/08 — métricas e Grafana
+
+O Fly oferece **Grafana gerenciado de graça** em `fly-metrics.net`, com Prometheus,
+coleta a cada 15s e ~15 dias de histórico. Métricas de máquina (CPU, memória, disco,
+rede, HTTP, OOM) vêm sem configuração.
+
+Nossas séries de negócio saem de `src/lib/metricas.ts`:
+
+| Métrica | Responde |
+|---|---|
+| `nexo_sync_idade_segundos{canal}` | **substitui o e-mail de falha do Actions** — parou de cair, parou de sincronizar |
+| `nexo_sync_conexoes_com_erro{canal}` | conexão quebrada isolada |
+| `nexo_pedidos_pendentes_atrasados{canal}` | pendente há 12h+ — o defeito de 21/08 viraria alarme |
+| `nexo_fila_eventos{status}` | a fila que estourou o banco (ADR-016) |
+| `nexo_banco_bytes` | o limite de 500 MB do plano |
+
+#### ⚠️ Porta interna, não rota do app
+
+Servidas por um HTTP mínimo na **porta 9091** (`src/instrumentation.ts`), que fica **fora
+do `[http_service]`** — o coletor chega pela rede privada do Fly e ninguém de fora
+alcança. A primeira versão era `/api/metrics` na porta pública; o proxy de sessão barrou,
+e ao ir liberar ficou claro que colocaria **contagem de pedidos e tamanho de banco na
+internet aberta**. O bloqueio do proxy fez o papel dele.
+
+#### 🔴 Duas pegadinhas do formato Prometheus, ambas pagas em 21/08
+
+1. **Famílias intercaladas quebram o parser.** Emitir as 3 métricas do amazon, depois as
+   3 do tiktok, é inválido: todas as amostras de uma métrica precisam vir **juntas**,
+   logo após o `# TYPE`. O coletor não reclama — só entrega série **sem rótulo nenhum**.
+   O helper `familia()` existe para essa regra não depender de disciplina.
+2. **O coletor do Fly DESCARTA o rótulo `provider`.** Medido: `status` passava, `provider`
+   sumia. Renomeado para **`canal`**. 📌 Ao criar métrica nova, conferir no Grafana se o
+   rótulo sobreviveu — o sintoma é silencioso.
+
+**Próximo (não feito):** criar o alerta no Grafana sobre `nexo_sync_idade_segundos` (ex.:
+disparar acima de 1800s por canal) e um painel com os quatro sinais.
 
 ## Alternativas consideradas
 
