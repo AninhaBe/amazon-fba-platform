@@ -107,6 +107,22 @@ export function getOrderItems(amazonOrderId: string): Promise<AmazonOrderItem[]>
   });
 }
 
+/**
+ * Um pedido pelo ID — `getOrder` da SP-API.
+ *
+ * Existe para a reverificação PONTUAL: pedido que entrou como `Pending` e
+ * precisa ser reconferido. Varrer por `LastUpdatedAfter` funciona, mas numa
+ * conta de 60 pedidos/dia o teto de páginas se esgota em pedidos antigos e
+ * nunca alcança os recentes — foi o que deixou 55 dos 62 pedidos de 20/08
+ * presos em `Pending` (medido 21/08/2026). Buscar por ID é cirúrgico.
+ */
+export async function getOrder(amazonOrderId: string): Promise<OrderSummary | null> {
+  const data = await spapiFetch<{ payload?: AmazonOrderResponse }>(
+    `/orders/v0/orders/${encodeURIComponent(amazonOrderId)}`
+  );
+  return data.payload ? normalizeAmazonOrder(data.payload) : null;
+}
+
 export interface SalesVelocity {
   unitsBySku: Record<string, number>; // unidades vendidas por SKU no período
   sales: { sku: string; units: number; purchasedAt: string; revenue?: number }[];

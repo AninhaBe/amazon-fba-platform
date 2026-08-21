@@ -1,7 +1,7 @@
 import { dbQuery, hasDb } from "../db";
 import { currentWorkspaceId } from "../workspaceScope";
 import { runWithAccount, type AccountCtx } from "../accountContext";
-import { getOrders, getOrderItems } from "../orders";
+import { getOrder, getOrders, getOrderItems } from "../orders";
 import { getOrderFinancialsFromTransactions } from "../transactions";
 import { periodFromRange } from "../period";
 import {
@@ -203,6 +203,10 @@ async function syncMissingOrderFees(connectionId: string): Promise<void> {
 // conta pequena sobra, na grande o cron de 15 min alcança o ritmo sem estourar
 // o rate limit da Orders API.
 const REVERIFY_PAGES = 2;
+// Reverificação PONTUAL: quantos pedidos pendentes reconferir por ID a cada
+// passada. O rate limit do getOrder é 0,5 req/s com burst 30 — 40 por passada,
+// com o cron a cada 5 min, dá ~480/hora e alcança conta de 60 pedidos/dia.
+const PENDING_BY_ID_BATCH = 40;
 
 /**
  * Revisita pedidos que MUDARAM na Amazon depois de ingeridos — o buraco que
@@ -218,6 +222,44 @@ const REVERIFY_PAGES = 2;
  * antigo (limitado a 30 dias), ou 48h quando não há pendência — assim ela se
  * auto-corrige depois de qualquer buraco de cron, sem precisar de coluna nova.
  */
+/**
+ * Reconfere por ID os pedidos `pending` MAIS RECENTES.
+ *
+ * A varredura por `LastUpdatedAfter` (abaixo) é boa para descobrir mudança que
+ * não sabíamos existir, mas ela devolve as páginas do mais antigo para o mais
+ * novo: numa conta de 60 pedidos/dia o teto de 2 páginas se esgota em pedido
+ * velho e os de hoje nunca chegam. Em 21/08/2026 isso deixou **55 dos 62
+ * pedidos do dia anterior presos em `Pending`**, e o dashboard mostrou "2
+ * vendas" num dia de 62 — parecendo queda de vendas quando era lag de ingestão.
+ *
+ * Aqui a ordem é invertida de propósito: os mais NOVOS primeiro, um a um.
+ */
+async function reverifyPendingById(connectionId: string): Promise<void> {
+  const rows = await dbQuery<{ external_order_id: string }>(
+    `SELECT external_order_id FROM workspace_channel_orders
+      WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
+        AND status = 'pending'
+        AND occurred_at >= now() - interval '30 days'
+      ORDER BY occurred_at DESC
+      LIMIT $4`,
+    [currentWorkspaceId(), PROVIDER, connectionId, PENDING_BY_ID_BATCH]
+  );
+  const atualizados = [];
+  for (const row of rows) {
+    try {
+      const pedido = await getOrder(row.external_order_id);
+      if (pedido) atualizados.push(normalizeAmazonOrderHeader(pedido));
+    } catch {
+      // Rate limit ou pedido indisponível: para o lote e tenta na próxima
+      // passada. Insistir aqui só queima cota.
+      break;
+    }
+  }
+  if (atualizados.length) {
+    await saveCanonicalOrderHeaders({ provider: PROVIDER, connectionId, storeRaw: true }, atualizados);
+  }
+}
+
 async function reverifyUpdatedOrders(connectionId: string): Promise<void> {
   const [row] = await dbQuery<{ oldest_pending: Date | string | null }>(
     `SELECT MIN(occurred_at) AS oldest_pending
@@ -268,6 +310,8 @@ export async function runAmazonSyncStep(account: AccountCtx): Promise<void> {
     await runWithAccount(account, async () => {
       // Reverificação antes dos itens: o pedido precisa sair de `pending` para o
       // backfill de itens enxergá-lo. Best-effort — rate limit fica para a próxima.
+      // Pontual primeiro (alcança os recentes), varredura depois (descobre o resto).
+      await reverifyPendingById(connectionId).catch(() => {});
       await reverifyUpdatedOrders(connectionId).catch(() => {});
       await syncMissingOrderItems(connectionId);
       await syncMissingOrderFees(connectionId);
@@ -321,6 +365,8 @@ export async function runAmazonSyncStep(account: AccountCtx): Promise<void> {
       );
     }
     await runWithAccount(account, async () => {
+      // Pontual primeiro (alcança os recentes), varredura depois (descobre o resto).
+      await reverifyPendingById(connectionId).catch(() => {});
       await reverifyUpdatedOrders(connectionId).catch(() => {});
       await syncMissingOrderItems(connectionId);
       await syncMissingOrderFees(connectionId);
