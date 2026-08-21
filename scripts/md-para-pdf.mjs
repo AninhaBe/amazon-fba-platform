@@ -99,8 +99,14 @@ while (i < linhas.length) {
   if (li || oli) {
     const tipo = li ? "ul" : "ol";
     if (lista !== tipo) { fechaLista(); out.push(`<${tipo}>`); lista = tipo; }
-    out.push(`<li>${inline((li ?? oli)[1])}</li>`);
+    // Linhas seguintes sem marcador pertencem AO MESMO item. Sem isto elas caíam
+    // no ramo de parágrafo, que chama `fechaLista()` — e o item seguinte abria uma
+    // lista nova, reiniciando a contagem: uma lista de três passos saía "1. 1. 1."
+    // e as continuações vazavam para a margem. Visto no resumo de 21/08/2026.
+    const texto = [(li ?? oli)[1]];
     i++;
+    while (i < linhas.length && linhas[i].trim() && !/^(#|\||>|```|-{3,}|\s*[-*]\s|\s*\d+\.\s)/.test(linhas[i])) texto.push(linhas[i++].trim());
+    out.push(`<li>${inline(texto.join(" "))}</li>`);
     continue;
   }
 
