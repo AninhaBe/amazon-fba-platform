@@ -68,8 +68,11 @@ Portanto: **liberar espaço vem antes de particionar. Não é preferência de se
 1. `ON CONFLICT ... DO UPDATE ... WHERE` comparando o registro novo com o existente,
    para que linha idêntica **não gere update**. Elimina a maior parte dos 3,3 milhões
    de updates.
-2. `fillfactor` entre 85 e 90 nas tabelas de alto churn, para o HOT voltar a funcionar
-   onde o update é real.
+2. `fillfactor` entre 85 e 90 **apenas em `workspace_channel_orders`**, para o HOT
+   voltar a funcionar onde o update é real. **Não aplicar em
+   `workspace_marketplace_orders`** — ver R2 abaixo: lá o HOT é impossível por causa de
+   um índice de expressão sobre `payload`, e reduzir o fillfactor só aceleraria o
+   consumo dos 59 MB de folga.
 
 Ganho: menos linhas mortas, menos inchaço de índice, menos WAL, menos autovacuum.
 **Custo de espaço: zero. Risco: contido à ingestão.** É a única frente que pode
@@ -100,6 +103,91 @@ Junto, dois ajustes baratos:
 As chaves atuais não incluem `occurred_at`; incluí-la muda a forma da chave e, por
 tabela filha, a unicidade passa a ser garantida por partição. Isso precisa ser
 resolvido no desenho antes de qualquer DDL — é o ponto de maior risco desta ADR.
+
+## Refinamentos após revisão cruzada (21/08/2026)
+
+Três pontos levantados em revisão externa. Todos foram conferidos contra o banco;
+dois se confirmam e um muda de forma.
+
+### R1. Chaves estrangeiras — o alvo estava errado, mas existe um problema real
+
+A revisão alertou que `items` e `fees` teriam de carregar `occurred_at` para manter FK
+válida contra uma pai particionada.
+
+**Verificado: não existe FK entre `orders`, `items` e `fees`.** A integridade é
+garantida pela escrita atômica em CTE única — e funciona: medição de 21/08 encontrou
+**zero itens órfãos e zero taxas órfãs**. Logo, `occurred_at` nas filhas não é exigido
+por FK.
+
+**Mas `occurred_at` é exigido de qualquer forma**, porque é a coluna de partição: quem
+particiona precisa da coluna. Confirmado que **nenhuma das duas tem a coluna hoje**. A
+denormalização acontece — só não pelo motivo apontado, e o custo é o mesmo: mais bytes
+por linha em duas tabelas de ~70 e ~99 mil linhas, e a coluna passa a integrar a PK.
+
+**E existe uma FK que a revisão não viu, e que quebra:**
+
+```
+financial_transactions_order_fk
+  workspace_financial_transactions (workspace_id, provider, connection_id, order_id)
+  → workspace_channel_orders (workspace_id, provider, connection_id, external_order_id)
+  DEFERRABLE INITIALLY DEFERRED · NOT VALID
+```
+
+Ao particionar `workspace_channel_orders`, a PK passa a incluir `occurred_at` e **as
+colunas referenciadas deixam de formar uma chave única** — a FK se torna inválida.
+Decidir antes da DDL: derrubar a FK (ela é `NOT VALID`, logo já não valida o passado)
+ou propagar `occurred_at` também para o ledger financeiro. A tabela está vazia hoje, o
+que torna esta a hora barata de resolver.
+
+### R2. `fillfactor` — a ressalva procede, e o motivo real é mais forte
+
+A revisão observa que baixar o `fillfactor` reserva 10–15% por página nova, elevando a
+taxa de crescimento até a Frente 2 liberar espaço. Correto, e relevante com 59 MB de
+folga.
+
+**Mas o motivo para não aplicar em `workspace_marketplace_orders` é outro, e é
+definitivo.** Os índices dessa tabela são:
+
+```
+(workspace_id, provider, connection_id, external_order_id)
+(workspace_id, provider, connection_id, occurred_at DESC)
+(workspace_id, provider, connection_id, (payload #>> '{shipping,id}'))
+   WHERE status = 'paid' AND (payload #>> '{shipping,id}') IS NOT NULL
+```
+
+O terceiro é **índice de expressão sobre `payload`, parcial sobre `status`** — as duas
+colunas que o sync reescreve. **Update que toca coluna indexada não pode ser HOT,
+haja o espaço em página que houver.** É a explicação exata dos 0,015% de HOT, e
+significa que baixar `fillfactor` ali seria **puro custo, com ganho zero**.
+
+Decisão: `fillfactor` **só** em `workspace_channel_orders` (hoje em 61% de HOT, onde há
+folga real para melhorar), e **não** em `workspace_marketplace_orders`. Para esta, o
+único conserto é a Frente 1.1 — parar de reescrever linha que não mudou.
+
+### R3. Upsert sem a data — procede, e há um risco pior embutido
+
+Com `occurred_at` na PK, o alvo do `ON CONFLICT` passa a incluí-la; qualquer busca sem
+a data varre todas as partições. A revisão pede confirmação de que a ingestão sempre
+tem a data em mãos. Procede e entra como pré-requisito de projeto.
+
+**O risco que não foi apontado é maior:** o PostgreSQL **não move linha entre partições
+via `ON CONFLICT`**. Se o `occurred_at` de um pedido já gravado mudar — correção de
+fuso, data provisória substituída pela definitiva, retificação do canal — o upsert
+**não atualiza: insere uma segunda linha em outra partição**, e o pedido passa a existir
+duas vezes. Sem FK e sem unicidade cruzando partições, nada barra isso.
+
+Antes da Frente 3 é obrigatório provar que `occurred_at` é **imutável por pedido** após
+a primeira gravação, ou tratar a mudança explicitamente (apagar e reinserir). Isto é
+risco de **duplicação silenciosa de faturamento** — a pior classe de defeito deste
+produto.
+
+### Sobre "sem nenhum risco"
+
+A revisão classifica a Frente 1 como "ganho massivo sem nenhum risco de downtime".
+Downtime, de fato, não há. Mas a mudança é no caminho de escrita da ingestão: um erro
+na comparação de "linha idêntica" faz o sync **parar de aplicar atualização legítima**,
+e isso não aparece como erro — aparece como dado velho na tela. Vale teste com pedido
+que muda de status antes de subir.
 
 ## Alternativas consideradas
 
