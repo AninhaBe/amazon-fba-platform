@@ -85,7 +85,11 @@ export function buildPlan({ environment, target, identity, migrations, applied, 
   }));
   const body = {
     version: 1, createdAt: new Date().toISOString(), environment,
-    target: { fingerprint: target.fingerprint, database: identity.database, schema: identity.schema, role: identity.role }, runtimeRole,
+    // `?? null` obrigatório: sem role, `runtimeRole` seria `undefined`, e
+    // `JSON.stringify` DESCARTA chave undefined ao gravar o manifesto. O plano
+    // relido do disco viria sem o campo e o `verifyPlan` acusaria "manifesto
+    // alterado" num plano intacto — falha silenciosa que só aparece no apply.
+    target: { fingerprint: target.fingerprint, database: identity.database, schema: identity.schema, role: identity.role }, runtimeRole: runtimeRole ?? null,
     git, migrations: entries,
   };
   return { ...body, planHash: `sha256:${sha256(stable(body))}` };
@@ -102,7 +106,12 @@ export function validateApply({ args, environment, target, identity, plan, autho
   if (!args["expected-target"] || args["expected-target"] !== target.fingerprint) throw new Error("BLOCKED: identidade esperada do banco ausente ou divergente.");
   if (!plan || plan.environment !== environment || plan.target?.fingerprint !== target.fingerprint) throw new Error("BLOCKED: plano prévio não corresponde ao ambiente/target.");
   verifyPlan(plan);
-  if (!args["runtime-role"] || plan.runtimeRole !== args["runtime-role"]) throw new Error("BLOCKED: runtime role diverge do manifesto autorizado.");
+  // A role é opcional desde a ADR-021 (motivo na ADR-012), mas o que ela protege
+  // continua: o apply recusa role diferente da que foi assinada no manifesto.
+  // Comparação normalizada nos dois lados — "nenhuma role" só casa com "nenhuma
+  // role", então um apply não pode introduzir uma role que a assinatura não cobre,
+  // nem omitir a que ela cobre.
+  if ((plan.runtimeRole ?? null) !== (args["runtime-role"] ?? null)) throw new Error("BLOCKED: runtime role diverge do manifesto autorizado.");
   if (plan.target.database !== identity.database || plan.target.schema !== identity.schema || plan.target.role !== identity.role) throw new Error("BLOCKED: identidade database/schema/role divergiu desde o plano.");
   if (plan.migrations.some((m) => m.drift)) throw new Error("BLOCKED: hashes de migrations aplicadas divergem.");
   if (environment !== "local" && (git.dirty || git.commit === "untracked")) throw new Error("BLOCKED: remoto/produção exige commit rastreado e worktree limpo.");

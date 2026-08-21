@@ -13,6 +13,7 @@
     "migrate:plan": "node --env-file-if-exists=.env.local scripts/migrate-cli.mjs plan",
     "migrate:local": "node --env-file-if-exists=.env.local scripts/migrate-cli.mjs local",
     "migrate:apply": "node --env-file-if-exists=.env.local scripts/migrate-cli.mjs apply",
+    "migrate:authorize": "node scripts/migration-authorize.mjs",
     "backfill:canonical": "node --experimental-strip-types --import ./scripts/ts-resolver.mjs --env-file=.env.local scripts/backfill-canonical.mjs"
   },
   "dependencies": {

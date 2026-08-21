@@ -87,13 +87,54 @@ Também observado: `service_role` recebe privilégios em toda tabela nova do sch
 `public` via `ALTER DEFAULT PRIVILEGES` do Supabase, incluindo o de esvaziar a
 tabela. A 0005 passou a revogá-lo junto de `anon` e `authenticated`.
 
-### O runner continua inutilizável
+### O runner continua inutilizável ~~— até 21/08/2026~~
 
-**Nada disso consertou o runner.** Ele segue exigindo `--runtime-role` (que não
-pode existir aqui) e inserindo em `schema_migrations(name, migration_hash)` e
-`migration_contract_versions(..., contract_hash)` — colunas que não existiam antes
-da 0005. A próxima migration esbarra nos mesmos muros. Consertar o runner é
-trabalho próprio, ainda não feito.
+**Nada disso consertou o runner.** Ele seguia exigindo `--runtime-role` (que não
+pode existir aqui) e inserindo em `schema_migrations(name, migration_hash)` —
+coluna que nunca existiu nesta base. A próxima migration esbarrou nos mesmos muros:
+foi exatamente assim que a `0006` morreu na primeira tentativa.
+
+✅ **Destravado em 21/08/2026 — ver [ADR-021](./adr/ADR-021-runner-de-migrations-destravado.md).**
+Dos três muros, dois eram defeito (a runtime role que a ADR-012 já aposentara e
+esqueceu de tirar do CLI; a coluna ausente) e um era decisão (o emissor Ed25519,
+que agora existe em `scripts/migration-authorize.mjs`, com a chave privada fora do
+repositório). O passo a passo de uso está abaixo.
+
+## Como aplicar uma migration hoje (fluxo real)
+
+Pré-requisito de uma vez só: par de chaves gerado fora do repo e
+`MIGRATION_AUTH_PUBLIC_KEY` no `.env.local` de quem aplica.
+
+```bash
+npm run migrate:authorize -- --generate --out-dir <pasta FORA do repo>
+```
+
+A cada migration — três comandos, e o plano tem validade de 10 minutos:
+
+```bash
+# 1. Plano (somente leitura). Confira a lista de pendentes e a classificação:
+#    DESTRUCTIVE aparece aqui, ANTES de qualquer coisa rodar.
+npm run migrate:plan -- --environment production --out G:/sc-temp/plano.json
+
+# 2. Autorização assinada, vinculada ao hash daquele plano exato.
+npm run migrate:authorize -- --plan G:/sc-temp/plano.json \
+  --key <pasta fora do repo>/migration-auth-private.pem \
+  --actor "Ana" --reference "por que esta migration" --out G:/sc-temp/auth.json
+
+# 3. Apply. O --expected-target é o fingerprint impresso no passo 1.
+npm run migrate:apply -- --environment production --apply \
+  --expected-target <fingerprint> --plan G:/sc-temp/plano.json --authorization G:/sc-temp/auth.json
+```
+
+⚠️ **`--out` e `--out-dir` recusam sobrescrever arquivo existente.** Plano e
+autorização são de uso único: reaproveitar um arquivo antigo é o caminho para
+aplicar um plano que já não descreve o banco. Apague antes de refazer.
+
+⚠️ **Isto não é dupla custódia.** Numa operação de uma pessoa, quem autoriza e quem
+aplica são a mesma pessoa, com as duas chaves. O que o fluxo garante é que apply
+não acontece por acidente, que operação destrutiva aparece classificada antes, e
+que migration editada depois de aplicada acusa drift. A [ADR-021](./adr/ADR-021-runner-de-migrations-destravado.md)
+é explícita sobre essa diferença.
 
 ## Desvio autorizado: 0006 aplicada fora do runner (21/08/2026)
 

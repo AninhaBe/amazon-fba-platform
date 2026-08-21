@@ -12,7 +12,17 @@ if(mode==="guard"){console.error("BLOCKED: npm run migrate e somente uma trava. 
 if(!["plan","local","apply"].includes(mode))throw new Error("Modo invalido.");
 if(!environment||!["local","staging","production"].includes(environment))throw new Error("BLOCKED: environment explicito invalido.");
 if(!databaseUrl)throw new Error("BLOCKED: DATABASE_URL ausente.");
-if(!args["runtime-role"])throw new Error("BLOCKED: --runtime-role e obrigatorio no plano e no apply.");
+// `--runtime-role` deixou de ser obrigatoria em 21/08/2026 — ver ADR-012 e ADR-021.
+// A ADR-012 removeu a exigencia de runtime role dedicada do contrato da 0005 ao
+// constatar que NENHUMA role deste deployment satisfaz o predicado (no Supabase
+// conectamos como `postgres`, que e dono do banco e tem BYPASSRLS) e que as
+// policies que ela habilitava eram `USING (true)` — nao protegiam nada. A ADR
+// mudou a migration e o contrato, mas esqueceu o runner: ele seguiu exigindo aqui
+// a premissa que o repo ja declarara falsa, e isso sozinho travava todo apply.
+//
+// Quando a role FOR informada, a validacao continua inteira (abaixo) e o apply
+// segue recusando role diferente da assinada no manifesto — o dia em que existir
+// `sellercore_runtime` (o "em aberto" da ADR-012) nada precisa ser reescrito.
 const target=safeTarget(databaseUrl); assertLocalTarget(environment,target);
 if(mode==="local"&&environment!=="local")throw new Error("BLOCKED: migrate:local exige --environment local.");
 const git=gitState(), migrations=await loadMigrations(path.resolve("migrations"));
@@ -22,19 +32,22 @@ const pool=new pg.Pool({connectionString:databaseUrl,ssl:LOCAL_HOSTS.has(target.
 try{
   const {identity,applied}=await inspectTarget((sql)=>pool.query(sql));
   const fm=migrations.find((m)=>m.name===FINANCIAL_LEDGER_MIGRATION); if(!fm)throw new Error("BLOCKED: migration 0005 ausente.");
-  const rr=await pool.query("SELECT r.rolname,r.rolsuper,r.rolbypassrls,r.oid=(SELECT datdba FROM pg_database WHERE datname=current_database()) AS database_owner,r.oid=(SELECT nspowner FROM pg_namespace WHERE nspname=current_schema()) AS schema_owner,r.rolname=current_user AS current_role FROM pg_roles r WHERE r.rolname=$1",[args["runtime-role"]]);
-  if(rr.rowCount!==1||rr.rows[0].rolsuper||rr.rows[0].rolbypassrls||rr.rows[0].database_owner||rr.rows[0].schema_owner||rr.rows[0].current_role||["public","anon","authenticated"].includes(rr.rows[0].rolname))throw new Error("BLOCKED: runtime role inexistente, owner, current_user ou com bypass.");
-  await pool.query("SELECT set_config('sellercore.runtime_role',$1,false)",[rr.rows[0].rolname]);
+  const runtimeRole=args["runtime-role"]??null;
+  if(runtimeRole){
+    const rr=await pool.query("SELECT r.rolname,r.rolsuper,r.rolbypassrls,r.oid=(SELECT datdba FROM pg_database WHERE datname=current_database()) AS database_owner,r.oid=(SELECT nspowner FROM pg_namespace WHERE nspname=current_schema()) AS schema_owner,r.rolname=current_user AS current_role FROM pg_roles r WHERE r.rolname=$1",[runtimeRole]);
+    if(rr.rowCount!==1||rr.rows[0].rolsuper||rr.rows[0].rolbypassrls||rr.rows[0].database_owner||rr.rows[0].schema_owner||rr.rows[0].current_role||["public","anon","authenticated"].includes(rr.rows[0].rolname))throw new Error("BLOCKED: runtime role inexistente, owner, current_user ou com bypass.");
+    await pool.query("SELECT set_config('sellercore.runtime_role',$1,false)",[runtimeRole]);
+  }
   const contractHash=financialLedgerContractHash(fm.sql);
   const contract=await inspectFinancialLedgerContract((sql)=>pool.query(sql),FINANCIAL_LEDGER_CONTRACT_SQL);
   if(applied.some(({name})=>name===FINANCIAL_LEDGER_MIGRATION))assertFinancialLedgerContract(contract,contractHash); else assertFinancialLedgerPrecheck(contract);
-  const plan=buildPlan({environment,target,identity,migrations,applied,git,runtimeRole:rr.rows[0].rolname});
+  const plan=buildPlan({environment,target,identity,migrations,applied,git,runtimeRole});
   const summary={targetFingerprint:target.fingerprint,database:identity.database,schema:identity.schema,role:identity.role,commit:git.commit,dirty:git.dirty,planHash:plan.planHash,migrations:plan.migrations,contract0005:contract};
   console.log(JSON.stringify({preflight:summary},null,2));
   if(mode==="plan"){
     if(!args.out)throw new Error("BLOCKED: migrate:plan exige --out."); await savePlan(args.out,plan); audit("PLANNED",summary);
   }else{
-    if(!args.plan||!args.authorization||!args["runtime-role"])throw new Error("BLOCKED: --plan, --authorization e --runtime-role sao obrigatorios.");
+    if(!args.plan||!args.authorization)throw new Error("BLOCKED: --plan e --authorization sao obrigatorios.");
     const diskPlan=JSON.parse(await readFile(args.plan,"utf8")), authorization=JSON.parse(await readFile(args.authorization,"utf8")); authorizationReference=authorization.reference;
     validateApply({args,environment,target,identity,plan:diskPlan,authorization,git,publicKey:process.env.MIGRATION_AUTH_PUBLIC_KEY});
     if(JSON.stringify(diskPlan.migrations)!==JSON.stringify(plan.migrations))throw new Error("BLOCKED: hashes/pendencias mudaram desde o preflight.");
@@ -43,7 +56,8 @@ try{
       try{
         let sql=migration.sql;
         if(migration.name===FINANCIAL_LEDGER_MIGRATION){
-          await pool.query("SELECT set_config('sellercore.runtime_role',$1,true)",[rr.rows[0].rolname]); sql=materializeFinancialLedgerMigration(sql,contractHash);
+          if(runtimeRole){await pool.query("SELECT set_config('sellercore.runtime_role',$1,true)",[runtimeRole]);}
+          sql=materializeFinancialLedgerMigration(sql,contractHash);
         }
         await pool.query(sql);
         if(migration.name===FINANCIAL_LEDGER_MIGRATION){

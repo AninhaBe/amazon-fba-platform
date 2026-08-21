@@ -50,6 +50,24 @@ test("metadata legado bloqueia e nao tenta autorreparo", async () => {
   await assert.rejects(() => inspectTarget(async (sql) => { queries.push(sql); return responses.shift(); }), /metadata de contratos/);
   assert.ok(queries.every((sql) => /^SELECT\b/i.test(sql.trim())));
 });
+// ── ADR-021: runner destravado. A role virou opcional; o que ela protegia, não.
+const semRole = buildPlan({ environment: "production", target, identity, migrations: [migration], applied: [], git });
+function authDe(plano, overrides = {}) {
+  const value = { nonce: "n2", reference: "ADR-021", actor: "release-owner", environment: "production", targetFingerprint: target.fingerprint, planHash: plano.planHash, expiresAt: new Date(Date.now() + 60_000).toISOString(), ...overrides };
+  const payload = [value.nonce, value.reference, value.actor, value.environment, value.targetFingerprint, value.planHash, value.expiresAt].join("\n");
+  return { ...value, signature: sign(null, Buffer.from(payload), privateKey).toString("base64") };
+}
+const semRoleBase = () => ({ args: { apply: true, "expected-target": target.fingerprint }, environment: "production", target, identity, plan: semRole, authorization: authDe(semRole), git, publicKey: key });
+
+test("plano sem runtime role grava null, nao undefined (senao JSON.stringify some com a chave e o verifyPlan acusa manifesto intacto)", () => {
+  assert.equal(semRole.runtimeRole, null);
+  assert.doesNotThrow(() => verifyPlan(JSON.parse(JSON.stringify(semRole))));
+});
+test("apply sem runtime role passa quando o manifesto tambem nao tem", () => assert.doesNotThrow(() => validateApply(semRoleBase())));
+test("apply recusa role que a assinatura nao cobre", () => assert.throws(() => validateApply({ ...semRoleBase(), args: { ...semRoleBase().args, "runtime-role": "sellercore_runtime" } }), /runtime role/));
+test("apply recusa omitir a role que a assinatura cobre", () => assert.throws(() => validateApply({ ...base(), args: { apply: true, "expected-target": target.fingerprint } }), /runtime role/));
+test("classify marca DROP de tabela como destrutivo antes de rodar", () => assert.ok(classify("DROP TABLE IF EXISTS accounts;").includes("DESTRUCTIVE")));
+
 test("comando migrate legado aborta sem importar executor de banco", () => {
   const result = spawnSync(process.execPath, ["scripts/migrate.mjs"], {
     cwd: new URL("..", import.meta.url), encoding: "utf8",
