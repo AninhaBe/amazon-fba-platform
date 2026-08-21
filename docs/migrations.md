@@ -4,13 +4,16 @@ O incidente revelou que o runner anterior podia aplicar DDL ao executar `npm run
 
 ## Fluxo
 
-O `--runtime-role <role>` e obrigatorio tanto no `migrate:plan` quanto no apply.
-A role entra no manifesto e, portanto, no `planHash` coberto pela autorizacao
-Ed25519. O apply recusa uma role diferente da planejada. A role tambem nao pode
-ser `current_user`, owner do database/schema, superuser ou `BYPASSRLS`.
+O `--runtime-role <role>` é **opcional** desde 21/08/2026
+([ADR-021](./adr/ADR-021-runner-de-migrations-destravado.md), pelo motivo da
+[ADR-012](./adr/ADR-012-contrato-0005-sem-runtime-role.md): nenhuma role deste
+deployment satisfaz o predicado). Quando informada, entra no manifesto e portanto
+no `planHash` coberto pela autorização Ed25519, e o apply recusa role diferente da
+planejada — inclusive omiti-la. A role também não pode ser `current_user`, owner do
+database/schema, superuser ou `BYPASSRLS`.
 
 1. `npm run migrate:plan -- --environment <local|staging|production> --out <arquivo>` faz somente introspecção SQL de leitura, imprime preflight sanitizado e cria um manifesto imutável com fingerprint do target, database/schema/role, commit/dirty, pendências, hashes e classificação das operações.
-2. Um responsável externo emite uma autorização Ed25519 curta vinculada ao nonce, referência, ator, ambiente, fingerprint, hash do plano e expiração (máximo 15 minutos). O repositório deliberadamente não contém emissor nem autorização real.
+2. `npm run migrate:authorize` emite uma autorização Ed25519 curta vinculada ao nonce, referência, ator, ambiente, fingerprint, hash do plano e expiração (máximo 15 minutos). O emissor passou a existir em 21/08/2026 (ADR-021); a **chave privada continua fora do repositório**, que é o que faz a assinatura significar alguma coisa. O repositório não contém autorização real.
 3. Local: `npm run migrate:local -- --environment local --apply --expected-target <fp> --plan <arquivo> --authorization <arquivo>`. Só `localhost`, `127.0.0.1` e `::1` são aceitos; `.env.local` remoto aborta.
 4. Remoto: `npm run migrate:apply -- --environment production --apply --expected-target <fp> --plan <arquivo> --authorization <arquivo>`. Exige `MIGRATION_AUTH_PUBLIC_KEY`, commit rastreado, worktree limpo, identidade e hashes invariantes.
 
@@ -28,12 +31,15 @@ O `contract_hash` é SHA-256 dos bytes UTF-8 exatos de
 `__CALCULATED_0005_CONTRACT_HASH__`. O runner calcula e substitui o marcador
 apenas na cópia executada; assim não há constante solta nem auto-hash impossível.
 
-O apply exige `--runtime-role <role>` existente. A role não pode ser `PUBLIC`,
-`anon`, `authenticated`, superuser ou `BYPASSRLS`; recebe somente DML nas três
-tabelas e execução nas duas funções, com policies privadas correspondentes.
-Clientes Supabase públicos não recebem policy nem privilégio. O owner do schema
-continua com o bypass nativo de owner do PostgreSQL e deve ficar restrito ao
-runner operacional, nunca às credenciais do runtime.
+⚠️ **Parágrafo histórico.** A 0005 foi escrita exigindo `--runtime-role`, com grants
+de DML/EXECUTE e três policies para essa role. A
+[ADR-012](./adr/ADR-012-contrato-0005-sem-runtime-role.md) **removeu tudo isso** em
+13/08/2026, ao constatar que as policies eram `USING (true)` e não protegiam nada.
+O que ficou de pé é o que de fato protege: `REVOKE` de `PUBLIC`, `anon`,
+`authenticated` e `service_role`, e RLS habilitada sem policy — que deixa qualquer
+role futura sem `BYPASSRLS` fail-closed por padrão. Clientes Supabase públicos não
+recebem policy nem privilégio. O owner do schema continua com o bypass nativo do
+PostgreSQL e deve ficar restrito ao runner operacional, nunca ao runtime.
 
 O ledger também fecha contradições de proveniência sem enumerar tipos econômicos
 de cada provider: linhas `unsettled` são estimadas e têm rank abaixo de 100;
@@ -129,6 +135,16 @@ npm run migrate:apply -- --environment production --apply \
 ⚠️ **`--out` e `--out-dir` recusam sobrescrever arquivo existente.** Plano e
 autorização são de uso único: reaproveitar um arquivo antigo é o caminho para
 aplicar um plano que já não descreve o banco. Apague antes de refazer.
+
+### Registro de auditoria
+
+O apply imprime um JSON com `result: "APPLIED"`, o commit, o fingerprint do banco,
+a lista de migrations e a referência/ator da autorização. O `planHash` desse
+registro é o do **plano assinado**; o recalculado no preflight vai ao lado como
+`planHashPreflight`. Os dois divergem sempre — `buildPlan` carimba `createdAt`, e
+por isso o hash muda a cada execução. Guardar o recalculado no lugar do assinado
+fazia o log parecer prova de adulteração de um apply legítimo (corrigido em
+21/08/2026, no primeiro apply real do runner).
 
 ⚠️ **Isto não é dupla custódia.** Numa operação de uma pessoa, quem autoriza e quem
 aplica são a mesma pessoa, com as duas chaves. O que o fluxo garante é que apply

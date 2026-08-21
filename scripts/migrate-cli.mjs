@@ -70,6 +70,11 @@ try{
         await pool.query("INSERT INTO schema_migrations(name,migration_hash) VALUES($1,$2)",[migration.name,migration.hash]); await pool.query("COMMIT");
       }catch(error){await pool.query("ROLLBACK");throw error;}
     }
-    audit("APPLIED",{...summary,authorizationReference:authorization.reference,authorizationActor:authorization.actor});
+    // `planHash` do registro tem que ser o do plano ASSINADO, nao o recalculado
+    // agora: `buildPlan` inclui `createdAt`, entao o hash muda a cada execucao e o
+    // preflight do apply nunca bate com a autorizacao. Gravar o recalculado fazia
+    // o proprio log de auditoria parecer prova de adulteracao (visto em 21/08, no
+    // primeiro apply real). O do preflight fica ao lado, com nome proprio.
+    audit("APPLIED",{...summary,planHash:diskPlan.planHash,planHashPreflight:plan.planHash,authorizationReference:authorization.reference,authorizationActor:authorization.actor});
   }
 }catch(error){audit("BLOCKED_OR_FAILED",{...auditBase,authorizationReference,message:error instanceof Error?error.message:String(error)});throw error;}finally{await pool.end();}
