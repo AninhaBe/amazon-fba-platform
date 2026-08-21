@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse } from "@/lib/apiError";
 import { resolvePeriod } from "@/lib/period";
@@ -5,7 +6,22 @@ import { withAccountContext } from "@/lib/withAccount";
 import { getAmazonOverviewCanonicalCached } from "@/lib/integrations/amazonOverviewCanonical";
 import { getStockRadar } from "@/lib/radar";
 import { dbQuery } from "@/lib/db";
-import { currentWorkspaceId } from "@/lib/workspaceScope";
+import { currentWorkspaceId, runWithWorkspace } from "@/lib/workspaceScope";
+import { currentAccount, runWithAccount } from "@/lib/accountContext";
+import { runAmazonSyncBatch } from "@/lib/integrations/amazonSync";
+
+// Frescor aceitável antes de buscar de novo ao abrir a tela.
+//
+// O agendador de fundo só reconsidera uma conexão `complete` a cada 6 HORAS
+// (amazonScheduler.ts). Como abrir /amazon não disparava nada, o painel podia
+// mostrar dado de horas atrás sem qualquer aviso — medido em 21/08/2026 na conta
+// do sócio: último pedido ingerido às 16:05, tela aberta às 20:24, R$ 204 de
+// vendas simplesmente ausentes. O Mercado Livre já dispara sync ao abrir a
+// visão; a Amazon não, e era essa a origem de "os números não batem".
+//
+// Cinco minutos é o piso: abrir a tela dez vezes seguidas não vira dez varreduras
+// na SP-API, que é rate-limited de verdade.
+const FRESCOR_MAXIMO_MINUTOS = 5;
 
 // Rota agregadora do dashboard Amazon — ver ADR-017.
 //
@@ -60,7 +76,7 @@ export async function GET(req: NextRequest) {
       // Tarifas por tipo e frete do comprador, em paralelo com o radar. Os nomes
       // canônicos (commission, fulfillment, refund) casam com os padrões que os
       // cartões financeiros usam para categorizar (amazonFinancialCards.ts).
-      const [feeRows, billingRows, radar] = await Promise.all([
+      const [feeRows, billingRows, radar, frescorRows] = await Promise.all([
         dbQuery<FeeRow>(
           `SELECT f.fee_type, SUM(f.amount)::text AS total
              FROM workspace_channel_order_fees f
@@ -109,6 +125,14 @@ export async function GET(req: NextRequest) {
           radarMs = Math.round(performance.now() - t);
           return r;
         })(),
+        // Frescor do sync desta conexão. Vai no mesmo Promise.all das outras
+        // consultas para não somar ida ao banco no caminho da tela.
+        dbQuery<{ velho: boolean }>(
+          `SELECT COALESCE(last_success_at, updated_at) < now() - ($3 || ' minutes')::interval AS velho
+             FROM workspace_marketplace_syncs
+            WHERE workspace_id = $1 AND provider = 'amazon' AND connection_id = $2`,
+          [workspaceId, canonical.connectionId, String(FRESCOR_MAXIMO_MINUTOS)]
+        ),
       ]);
 
       const feeBreakdown = feeRows
@@ -135,6 +159,30 @@ export async function GET(req: NextRequest) {
       console.log(
         `[dashboard/amazon] ${durationMs}ms (radar ${radarMs}ms, ${canonical.metrics.totalOrders} pedidos no período)${acima}`
       );
+
+      // Busca sob demanda, DEPOIS de responder — `after` não entra no orçamento
+      // de 1s do ADR-017. A tela sai com o dado que já existe; a próxima abertura
+      // pega o que esta varredura trouxer.
+      // Sem linha de sync ainda = conexão nova, então buscar é o certo.
+      const sincronizacaoVelha = frescorRows[0]?.velho ?? true;
+      const conta = currentAccount();
+      if (conta?.refreshToken && sincronizacaoVelha) {
+        after(() =>
+          runWithWorkspace(workspaceId, () =>
+            runWithAccount(conta, async () => {
+              try {
+                // 3 passos, não os 6 do cron: aqui o objetivo é alcançar o que
+                // chegou nas últimas horas, não varrer histórico.
+                await runAmazonSyncBatch(conta, 3);
+              } catch (error) {
+                // Falha aqui não pode afetar a tela — ela já respondeu.
+                console.error("[dashboard/amazon] sync sob demanda falhou", error);
+              }
+            })
+          )
+        );
+      }
+
       return NextResponse.json({
         source: "canonical" as const,
         covered: canonical.covered,
