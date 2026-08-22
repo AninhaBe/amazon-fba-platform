@@ -12,6 +12,7 @@ import { RevenueChart } from "./RevenueChart";
 import { TopProductsRanking } from "./TopProductsRanking";
 import { BriefingLead } from "./BriefingLead";
 import { ConnectionBroken } from "./ConnectionBroken";
+import { ChannelConnectionEmpty } from "./ChannelConnectionEmpty";
 import { brDate } from "@/lib/datetime";
 import {
   coverageDescription,
@@ -138,10 +139,9 @@ export function TikTokWorkspace() {
   }
 
   if (provider.connections.length === 0) {
-    return <WorkspaceFrame subtitle="Conecte uma loja para começar a sincronizar vendas e extratos."><EmptyState
-      title="Nenhuma loja TikTok Shop conectada"
+    return <WorkspaceFrame subtitle="Conecte uma loja para começar a sincronizar vendas e extratos."><ChannelConnectionEmpty
+      channel="TikTok Shop"
       description={provider.configured ? "Autorize sua loja para iniciar a primeira sincronização." : "A conexão ainda não está disponível neste ambiente."}
-      kind={provider.configured ? "data" : "permission"}
       action={provider.configured && <Link className="meli-primary-action" href={provider.connectHref || MANAGE_CONNECTIONS}>Conectar loja <span aria-hidden="true">→</span></Link>}
     /></WorkspaceFrame>;
   }
@@ -197,7 +197,7 @@ export function TikTokWorkspace() {
           <div className="performance-chart">
             <div className="mb-2 flex flex-wrap items-baseline justify-between gap-3"><div><p className="section-kicker">Desempenho diário</p><h2 id="tiktok-performance-title" className="mt-1 text-lg font-semibold text-[var(--ink)]">Evolução do faturamento operacional</h2></div><span className="text-xs text-[var(--ink-muted)]">Valores de pedidos do período; não substituem o ledger financeiro.</span></div>
             <div className="chart-inline-stats" aria-label="Indicadores operacionais do período"><span><small>Pedidos</small><strong>{(data.orders ?? 0).toLocaleString("pt-BR")}</strong></span><span><small>Unidades</small><strong>{(data.units ?? 0).toLocaleString("pt-BR")}</strong></span><span><small>Ticket médio</small><strong>{data.ticket == null ? "—" : new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(data.ticket)}</strong></span></div>
-            <RevenueChart points={data.dailySeries ?? []} />
+            <RevenueChart points={data.dailySeries ?? []} currency={currency} explorable />
           </div>
           <aside className="financial-composition" aria-labelledby="tiktok-status-title"><div><p className="section-kicker">Pedidos do período</p><h2 id="tiktok-status-title" className="mt-1 text-lg font-semibold text-[var(--ink)]">Distribuição por status</h2><p className="mt-1 text-xs leading-relaxed text-[var(--ink-muted)]">Contagem canônica dos pedidos já sincronizados.</p></div>{!data.statusBreakdown?.length?<p className="py-6 text-sm text-[var(--ink-muted)]">Nenhum pedido no período.</p>:<dl className="financial-lines">{data.statusBreakdown.map((item)=><div key={item.status} className="flex items-center justify-between gap-3 py-2 text-sm"><dt className="text-[var(--ink-soft)]">{tiktokOrderStatusLabel(item.status)}</dt><dd className="font-semibold tabular-nums text-[var(--ink)]">{item.orders.toLocaleString("pt-BR")}</dd></div>)}</dl>}</aside>
         </section>

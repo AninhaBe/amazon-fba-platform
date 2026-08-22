@@ -222,8 +222,12 @@ detalhe de Prompt mostrou um sistema único, não seis tratamentos isolados:
   tracejada mantêm alta densidade sem pesar;
 - tabs de métrica e D/W/M ficam no cabeçalho do próprio gráfico, em alvos de
   28px, e cada métrica recalcula sua escala;
+- hover no plot acende somente o ponto consultado e uma referência vertical
+  tracejada; o tooltip flutua dentro do painel, sem deslocar o gráfico;
 - tooltip consolida todas as medidas daquela data, com marcadores de série,
-  números tabulares e notas de cobertura/evento quando existem;
+  números tabulares e uma segunda camada para cobertura/evento quando existem;
+- a métrica ativa mantém ícone + rótulo; as alternativas ficam em alvos de 28px
+  somente com ícone, reduzindo ruído sem esconder a capacidade;
 - séries numerosas usam legenda compacta abaixo do plot, com rótulo truncado;
 - período sem amostra suficiente não inventa linha, tendência ou zero; preserva
   a estrutura e deixa o canvas vazio;
@@ -404,7 +408,7 @@ outra conta/projeto. A lacuna não foi preenchida por suposição.
 |---|---|---|
 | Shell global | grupos da navegação, recolhimento 240→48, seletor de projeto, busca, perfil, foco e `Esc` | coberto; só havia um projeto disponível, portanto sem variação real entre projetos |
 | Overview `/` | filtros globais, KPIs, gráfico, rankings, fontes, chats, carregamento estável | coberto |
-| Insights `/insights` | indicadores editoriais, tabs, D/W/M, gráfico e matriz | coberto |
+| Insights `/insights` | indicadores editoriais, tabs de métrica, D/W/M, escala por métrica, crosshair e tooltip contextual | coberto; Visibility/Sentiment e D/W foram alternados sem mutação |
 | Perception `/brand-perception` | formulário, mercado, mapa e expansão em drawer/tela cheia | parcial: resultado pós-execução não foi aberto para não iniciar análise |
 | Prompts `/prompts` | lista, tópicos recolhíveis, tabs, filtros e paginação | coberto |
 | Prompt `/prompts/:id` | resumo factual, gráfico, ranking, Domains/URLs, movers, fanouts e chats | coberto; configurações do prompt não foram alteradas |
@@ -461,8 +465,8 @@ como aliases, não como telas independentes fictícias.
 | `/mercado-livre/calculadora` | lookup por URL/ID, custos, tarifa, imposto, publicidade, frete, preço e margem | coberto; consulta não executada |
 | `/mercado-livre/auditoria` | período, cobertura parcial, totais e divergências de frete | coberto com dados e linguagem de incerteza preservada |
 | `/mercado-livre/vendas` | redirect permanente para `/mercado-livre/monitor` | coberto |
-| `/shopee` + módulos | conexão, dashboard, monitor, catálogo, estoque, custos e ABC | parcial ao vivo: sem loja conectada; estados preenchidos, filtros, tabelas e salvamento mapeados no código |
-| `/tiktok` + módulos | conexão, dashboard, monitor, financeiro, catálogo, estoque, custos e ABC | parcial ao vivo: sem loja conectada; estados preenchidos, filtros, tabelas, paginação e salvamento mapeados no código |
+| `/shopee` + módulos | conexão, dashboard, monitor, catálogo, estoque, custos e ABC | estado sem conexão validado em todas as rotas com orientação compartilhada; preenchidos permanecem mapeados no código |
+| `/tiktok` + módulos | conexão, dashboard, monitor, financeiro, catálogo, estoque, custos e ABC | dashboard preenchido validado com a loja Crystal Fancy; módulos preenchidos, filtros, tabelas, paginação e salvamento confirmados no código e seguem na passagem visual por rota |
 | `/integracoes` | estado por provedor, conexões, OAuth, reconexão e desconexão | coberto em leitura; nenhuma conexão foi criada ou removida |
 | Estados globais | loading estrutural, vazios de dado/busca/permissão/sucesso, erro/retry e trial | coberto no código e em ocorrências reais; sucesso de escrita não foi provocado |
 
@@ -500,16 +504,16 @@ cada ciclo; herdar o shell não significa que o corpo de uma rota foi adaptado.
 | Rota | Família | Funcionalidades preservadas | Padrão aplicado | Status | Pendências reais |
 |---|---|---|---|---|---|
 | Todas as rotas autenticadas | Shell | troca de canal/conta, navegação agrupada, busca, integrações, briefing e logout | sidebar única 240→48 com reflow persistido, topbar de 48px, canvas fluido, alvo de nav de 28px e caret sólido 14px à esquerda | validada no navegador | geometria, sanfona, estado ativo e reflow validados no Chrome; falta repetir a captura em mobile real |
-| `/` | Dashboard multicanal | receita, lucro parcial, pedidos, cobertura, série diária e status por canal | faixa consolidada → gráfico diário → comparação tabular por canal com barras proporcionais, cobertura explícita e ação contextual | validada no navegador | quatro KPIs, série diária, Amazon/ML preenchidos, Shopee/TikTok desconectados, barras, links e semântica de valores ausentes validados no Chrome |
-| `/amazon` | Dashboard de canal | período, pendências, resumo financeiro, conciliação, vendas, estoque, rentabilidade e produtos | filtros globais → aviso contextual → resumo primário → faixa secundária → análises; gráfico com métricas e escala próprias, tooltip consolidado e cor semântica; top produtos em ranking proporcional com tabs por faturamento/unidades | implementada | ranking 8→10, tabs, escalas, teclado, tooltip e estados semânticos validados no Chrome atual; faltam 1440×900 e mobile reais para elevar o status |
-| `/mercado-livre` | Dashboard de canal | faturamento, cancelamentos, lucro/cobertura, pedidos, estoque, custos, série diária, saldo, pedidos recentes e top produtos | filtro global → pendência → faixa financeira de cinco KPIs → faixa operacional → gráfico/composição → registros e ranking proporcional compartilhado | validada no navegador | valores reais, canceladas em vermelho, crescimento em verde, resultado parcial neutro, margem desconhecida, gráfico e oito produtos do ranking validados no Chrome |
-| `/shopee` | Dashboard de canal | conexão, sincronização, faturamento/pedidos e estados reais de ausência de dados | shell compartilhado | pendente | adaptar ao padrão aprovado preservando limites de sincronização |
-| `/tiktok` | Dashboard de canal | conexão, período, visão financeira e estados reais de ausência de dados | shell compartilhado | pendente | adaptar ao padrão aprovado preservando semântica de `null` |
+| `/` | Dashboard multicanal | receita, lucro parcial, pedidos, cobertura, série diária e status por canal | faixa consolidada → gráfico diário explorável → comparação tabular por canal com barras proporcionais, cobertura explícita e ação contextual | validada no navegador | quatro KPIs, série diária, seletor Faturamento/Pedidos/Unidades, barras, links e semântica de valores ausentes validados no Chrome |
+| `/amazon` | Dashboard de canal | período, pendências, resumo financeiro, conciliação, vendas, estoque, rentabilidade e produtos | filtros globais → aviso contextual → resumo primário → faixa secundária → análises; gráfico com métrica ativa compacta, escala própria, entrada da série, crosshair, tooltip consolidado e variação diária semântica; top produtos em ranking proporcional | validada no navegador | troca para Pedidos, transição, área sutil, crosshair, tooltip verde e donut com realce/foco validados no Chrome; falta mobile real |
+| `/mercado-livre` | Dashboard de canal | faturamento, cancelamentos, lucro/cobertura, pedidos, estoque, custos, série diária, saldo, pedidos recentes e top produtos | filtro global → pendência → faixa financeira → gráfico explorável/composição → registros e ranking proporcional compartilhado | validada no navegador | dados reais e novo seletor Faturamento/Pedidos/Unidades renderizados sem overflow ou erro no Chrome |
+| `/shopee` | Dashboard de canal | conexão, sincronização, faturamento/pedidos e estados reais de ausência de dados | estado inicial compartilhado: fato atual → próxima ação → sequência autorização/sync/decisão → áreas que serão liberadas | validada no navegador | ausência de conexão, ação OAuth preservada e superfície responsiva em largura desktop validadas; estado preenchido segue como lacuna real |
+| `/tiktok` | Dashboard de canal | conexão, período, visão financeira, backlog e estados reais de ausência de dados | briefing operacional → cobertura de sincronização → configuração → métricas → gráfico explorável → status e top produtos | validada no navegador | loja Crystal Fancy, parcialidade, período, backlog, seletor do gráfico e ausência de overflow/erros validados; interações mutáveis não acionadas |
 | `/briefing`, `/amazon/briefing` | Análise acionável | alertas priorizados, evidência, impacto, estado “sob controle”, analisar novamente, adiar, dispensar, resolver e próximo passo | resumo contínuo → contagens por severidade → tabs locais → tabela de duas camadas inspirada na densidade do Chats → evidência e impacto em colunas → detalhe inline com ações; disclosure progressivo 12 por vez | validada no navegador | 12 linhas a 68px, truncamento, filtro, cabeçalho e expansão inline a 88px validados no Chrome sem executar mutações; mobile coberto por CSS e ainda requer captura real |
 | `/monitor`, `/amazon/monitor` | Análise financeira | período/customizado, pedidos, resumo financeiro personalizável, composição, taxas expansíveis, transações e rentabilidade por pedido | filtro global → faixa financeira contínua → tabs Composição/Transações/Rentabilidade → detalhe contextual; resultado parcial permanece neutro | validada no navegador | cinco KPIs, margem desconhecida, drill-down de 9 taxas, quatro resumos, 12 transações e 30 vendas confirmados; console local sem erros/avisos e mobile ainda requer captura real |
 | `/mercado-livre/monitor` | Análise financeira | monitor de vendas, conciliação, cobertura, fretes, impostos e rentabilidade por pedido | filtro global → faixa financeira contínua → tabs Composição/Rentabilidade → cascata explicável ou registros por venda; resultado incompleto permanece neutro | validada no navegador | cinco KPIs, canceladas em vermelho, margem desconhecida, composição e 1.000 vendas com 791 cálculos completos validados no Chrome |
-| `/shopee/monitor` | Análise financeira | pedidos, valores e cobertura sincronizada da Shopee | shell compartilhado | pendente | adaptar via `ShopeeModulePage` |
-| `/tiktok/monitor`, `/tiktok/financeiro` | Análise financeira | pedidos, monitor e composição financeira do TikTok Shop | shell compartilhado | pendente | compartilhar estrutura via `TikTokModulePage` |
+| `/shopee/monitor` | Análise financeira | pedidos, valores e cobertura sincronizada da Shopee | estado de conexão compartilhado com contexto próprio da rota | validada no navegador | ausência de conexão e retorno para integrações validados; preenchido depende de loja real |
+| `/tiktok/monitor`, `/tiktok/financeiro` | Análise financeira | pedidos, monitor e composição financeira do TikTok Shop | estrutura compartilhada por módulo, com filtros e cobertura próprios | implementada | concluir passagem visual preenchida após cada requisição assentar; nenhum valor parcial vira zero |
 | `/desempenho`, `/amazon/desempenho` | Análise de desempenho | visualizações, conversão, Buy Box, busca, ordenação e permissões ausentes | resumo contínuo → ranking proporcional com tabs Sessões/Conversão/Receita/Buy Box → filtros locais → tabela densa; indisponibilidade usa `—`, nunca zeros fictícios | implementada | estado real de permissão ausente, retry, reconexão, KPIs desconhecidos e tabela vazia validados no Chrome; ranking preenchido aguarda permissão Brand Analytics para validação visual com dados |
 | `/amazon/abc`, `/mercado-livre/abc` | Análise ABC | classes A/B/C, contribuição, giro, custos ausentes, quadrantes, Pareto e tabela | faixa de período → tese editorial → cobertura → quadrantes contínuos filtráveis → Pareto → tabela explicativa | validada no navegador | Amazon validada com 43 produtos, 40 sem custo, quatro quadrantes e filtro Baixa margem (2 linhas); ML usa o mesmo componente e contrato |
 | `/shopee/abc`, `/tiktok/abc` | Análise ABC | classes A/B/C, contribuição, giro, custos ausentes e cruzamentos | `AbcView` compartilhado já redesenhado | implementada | validar estado preenchido quando houver loja conectada; estados reais de conexão ausente permanecem preservados |
@@ -518,11 +522,11 @@ cada ciclo; herdar o shell não significa que o corpo de uma rota foi adaptado.
 | `/mercado-livre/anuncios` | Listagem de anúncios | busca, status, tipo, logística, ordenação, paginação e estoque | mesma anatomia de catálogo, preservando modalidade, vendidos, cobertura do lote e logística próprias do ML | validada no navegador | 387 anúncios, quatro filtros, 30 linhas por página, estado e hierarquia validados no Chrome |
 | `/produtos`, `/amazon/produtos` | Listagem editável | busca, filtro de custo, ordenação, paginação, cadastro/remoção e salvamento de custo | cobertura contínua → cadastro por ASIN em disclosure → filtros → tabela densa com editor de custo inline e feedback local | validada no navegador | 108 produtos, filtro Sem custo (105), foco no cadastro, 30 linhas e estados de custo validados sem salvar nem remover |
 | `/mercado-livre/produtos` | Listagem editável | busca, cobertura de custo, alíquota e edição inline | configuração fiscal compacta → cobertura contínua → busca/filtro → tabela editável paginada | validada no navegador | 387 produtos, cobertura 18/369, alíquota, 30 linhas e custos pendentes validados sem executar gravações |
-| `/shopee/produtos`, `/tiktok/produtos` | Listagem editável | custos por produto, cobertura e estados de sincronização | shell + módulos por canal | pendente | adaptar componentes compartilhados do canal |
+| `/shopee/produtos`, `/tiktok/produtos` | Listagem editável | custos por produto, cobertura e estados de sincronização | módulo compartilhado por canal + estado inicial orientado | implementada | Shopee sem conexão validada; validar tabela preenchida do TikTok sem salvar custos |
 | `/estoque`, `/amazon/estoque` | Listagem operacional | busca, status, velocidade, dias restantes, alertas e estados vazios | período → faixa semântica de risco → filtros locais → tabela operacional paginada → método | implementada | loading estrutural validado; a requisição autenticada permaneceu em preparação nesta passagem, então o estado preenchido ainda precisa de validação no Chrome |
 | `/mercado-livre/estoque` | Listagem operacional | estoque, giro, ruptura e estados de cobertura do ML | período → faixa semântica → método compacto → filtros → tabela por urgência paginada | validada no navegador | 372 produtos, 301 ações imediatas, filtros, 30 linhas e paginação validados no Chrome |
-| `/shopee/estoque`, `/tiktok/estoque` | Listagem operacional | estoque, giro, ruptura e estados de cobertura por canal | shell + módulos por canal | analisada | compartilhar padrão sem uniformizar regras distintas |
-| `/shopee/catalogo`, `/tiktok/catalogo` | Listagem de anúncios | catálogo, busca/filtros e estados de sincronização do canal | shell + módulos por canal | pendente | aplicar padrão de listagem após Amazon/ML |
+| `/shopee/estoque`, `/tiktok/estoque` | Listagem operacional | estoque, giro, ruptura e estados de cobertura por canal | módulo compartilhado por canal + estado inicial orientado | implementada | Shopee sem conexão validada; validar tabela preenchida do TikTok |
+| `/shopee/catalogo`, `/tiktok/catalogo` | Listagem de anúncios | catálogo, busca/filtros e estados de sincronização do canal | módulo compartilhado por canal + estado inicial orientado | implementada | Shopee sem conexão validada; validar catálogo preenchido do TikTok |
 | `/pesquisa`, `/amazon/pesquisa` | Pesquisa e decisão | consulta, filtro FBA, ordenação, paginação, métricas competitivas e estados vazios | pergunta compacta → explicação em disclosure → filtros contextuais → tabela densa com estado vazio honesto e paginação progressiva | validada no navegador | estado inicial, entrada, ação, disclosure, cabeçalho e vazio orientado foram validados no Chrome; consulta externa não foi disparada nesta passagem |
 | `/pesquisa/historico`, `/amazon/pesquisa/historico` | Histórico e drill-down | snapshots, variação de ranking, curvas, filtros, seleção, fixar/remover e explicações | termos recentes → busca e ordenação local → tabela temporal densa com variação semântica, minicurvas, ação contextual e paginação | validada no navegador | 357 anúncios, três ordenações, tendências verde/vermelha, minicurvas, truncamento e paginação validados no Chrome; ações mutáveis não foram executadas |
 | `/amazon/anuncios` | Fluxo assistido | anúncio existente/novo, categoria, oferta, conteúdo, variações, prontidão, preview, validação e publicação | escolha compacta do fluxo → stepper persistente → formulário progressivo → prontidão lateral → pré-validação → publicação condicionada | validada no navegador | dois modos, stepper de três/quatro etapas, erro local ao avançar sem confirmação, troca de modo e prontidão validados no Chrome; nenhuma consulta, validação remota ou publicação foi executada |
@@ -546,13 +550,11 @@ ser reabertos sem uma dúvida concreta.
 - [ ] Validar no Chrome a correção recém-aplicada na faixa de período: altura
   mínima de 52px, botões de 32px e sombra/raio sem recorte em `/amazon`,
   `/mercado-livre`, `/amazon/monitor` e `/mercado-livre/monitor`.
-- [ ] Concluir a família compartilhada Shopee/TikTok nos componentes
-  `ShopeeModulePage` e `TikTokModulePage`: resumo contextual, filtros compactos,
-  avisos de cobertura, tabelas densas, paginação, custos editáveis e estados de
-  conexão para dashboard, monitor, financeiro, catálogo, produtos e estoque.
-- [ ] Validar no Chrome todas as rotas Shopee/TikTok. Sem loja conectada, validar
-  integralmente os estados reais de conexão ausente/atenção; manter como lacuna
-  explícita qualquer estado preenchido que dependa de uma loja real.
+- [x] Concluir a estrutura compartilhada Shopee/TikTok e o estado inicial
+  orientado para dashboard, monitor, financeiro, catálogo, produtos e estoque.
+- [ ] Concluir a validação preenchida dos módulos TikTok no Chrome. A loja
+  Crystal Fancy permite validar essas rotas; Shopee preenchida permanece lacuna
+  explícita porque não há loja conectada.
 - [ ] Revisar e redesenhar `/landing`, `/login` e `/privacidade`, preservando
   autenticação, redirects, segurança e conteúdo legal.
 - [ ] Revalidar os estados preenchidos hoje bloqueados por dependência externa:

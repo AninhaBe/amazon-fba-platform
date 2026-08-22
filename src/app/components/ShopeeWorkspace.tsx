@@ -13,6 +13,7 @@ import { OrderProfitabilityTable } from "./OrderProfitabilityTable";
 import { TopProductsRanking } from "./TopProductsRanking";
 import { BriefingLead } from "./BriefingLead";
 import { ConnectionBroken } from "./ConnectionBroken";
+import { ChannelConnectionEmpty } from "./ChannelConnectionEmpty";
 import { Flow, FlowExpandable, Metric, getRevenueTrend } from "./Metric";
 import { brDate, brTime } from "@/lib/datetime";
 import { Boxes, FlaskConical, PackageOpen } from "lucide-react";
@@ -286,9 +287,9 @@ export function ShopeeWorkspace() {
     return (
       <>
         <PageHeader eyebrow="Shopee" title="Visão do canal" subtitle="Conecte uma loja para começar a sincronizar pedidos e taxas." />
-        <EmptyState
-          title="Nenhuma loja Shopee conectada"
-            description="Ao autorizar, o NEXO passa a ler pedidos, produtos e as taxas reais de cada venda (escrow)."
+        <ChannelConnectionEmpty
+          channel="Shopee"
+          description="Ao autorizar, o NEXO passa a ler pedidos, produtos e as taxas reais de cada venda (escrow)."
           action={
             <Link className="meli-primary-action" href={status.connectHref || "/integracoes"}>
               Conectar loja Shopee <span aria-hidden="true">→</span>
@@ -468,7 +469,7 @@ function Dashboard({ overview, updatedAt, sync, onPage, periodoLabel }: { overvi
             <span><small>Ticket médio</small><strong>{ticket == null ? "—" : money(ticket, overview.metrics.currency)}</strong></span>
             <span><small>ROI</small><strong>{roi == null ? "—" : `${roi.toFixed(1)}%`}</strong></span>
           </div>
-          <RevenueChart points={overview.dailySales} />
+          <RevenueChart points={overview.dailySales} currency={overview.metrics.currency} explorable />
         </div>
         <aside className="financial-composition" aria-label="Resumo do resultado financeiro">
           <div>

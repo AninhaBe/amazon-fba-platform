@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
+import { Banknote, PackageCheck, ShoppingBag, type LucideIcon } from "lucide-react";
 
 export interface DailyPoint {
   date: string;
@@ -16,10 +17,10 @@ const PAD = { top: 20, right: 16, bottom: 28, left: 72 };
 
 type ChartMetric = "revenue" | "orders" | "units";
 
-const METRICS: Array<{ key: ChartMetric; label: string }> = [
-  { key: "revenue", label: "Faturamento" },
-  { key: "orders", label: "Pedidos" },
-  { key: "units", label: "Unidades" },
+const METRICS: Array<{ key: ChartMetric; label: string; icon: LucideIcon }> = [
+  { key: "revenue", label: "Faturamento", icon: Banknote },
+  { key: "orders", label: "Pedidos", icon: ShoppingBag },
+  { key: "units", label: "Unidades", icon: PackageCheck },
 ];
 
 function money(v: number, currency: string) {
@@ -59,6 +60,7 @@ export function RevenueChart({
   explorable?: boolean;
   currency?: string;
 }) {
+  const gradientId = `revenue-fill-${useId().replaceAll(":", "")}`;
   const ref = useRef<SVGSVGElement>(null);
   const [hover, setHover] = useState<number | null>(null);
   const [metric, setMetric] = useState<ChartMetric>("revenue");
@@ -110,38 +112,57 @@ export function RevenueChart({
   }
 
   const hp = hover != null ? points[hover] : null;
+  const previousPoint = hover != null && hover > 0 ? points[hover - 1] : null;
+  const delta = hp && previousPoint ? hp[activeMetric] - previousPoint[activeMetric] : null;
+  const deltaPct = hp && previousPoint && previousPoint[activeMetric] !== 0
+    ? (delta! / previousPoint[activeMetric]) * 100
+    : null;
+  const deltaTone = delta == null || delta === 0 ? "is-neutral" : delta > 0 ? "is-positive" : "is-negative";
+  const deltaText = delta == null
+    ? "Primeiro dia do período"
+    : delta === 0
+      ? "Sem variação contra o dia anterior"
+      : deltaPct == null
+        ? `${delta > 0 ? "Acima" : "Abaixo"} do dia anterior`
+        : `${Math.abs(deltaPct).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% ${delta > 0 ? "acima" : "abaixo"} do dia anterior`;
   const hoverLeftPct = hover != null ? (x(hover) / W) * 100 : 0;
 
   return (
     <div className={`revenue-chart${explorable ? " is-explorable is-chart-v2" : ""}`}>
       {explorable && (
         <div className="revenue-chart-toolbar" role="tablist" aria-label="Métrica do gráfico">
-          {METRICS.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              role="tab"
-              aria-selected={activeMetric === item.key}
-              tabIndex={activeMetric === item.key ? 0 : -1}
-              onClick={() => {
-                setMetric(item.key);
-                setHover(null);
-              }}
-              onKeyDown={(event) => {
-                if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-                event.preventDefault();
-                const index = METRICS.findIndex((candidate) => candidate.key === item.key);
-                const offset = event.key === "ArrowRight" ? 1 : -1;
-                const nextIndex = (index + offset + METRICS.length) % METRICS.length;
-                setMetric(METRICS[nextIndex].key);
-                setHover(null);
-                const buttons = event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>("[role='tab']");
-                buttons?.[nextIndex]?.focus();
-              }}
-            >
-              {item.label}
-            </button>
-          ))}
+          {METRICS.map((item) => {
+            const MetricIcon = item.icon;
+            return (
+              <button
+                key={item.key}
+                type="button"
+                role="tab"
+                aria-label={item.label}
+                title={item.label}
+                aria-selected={activeMetric === item.key}
+                tabIndex={activeMetric === item.key ? 0 : -1}
+                onClick={() => {
+                  setMetric(item.key);
+                  setHover(null);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+                  event.preventDefault();
+                  const index = METRICS.findIndex((candidate) => candidate.key === item.key);
+                  const offset = event.key === "ArrowRight" ? 1 : -1;
+                  const nextIndex = (index + offset + METRICS.length) % METRICS.length;
+                  setMetric(METRICS[nextIndex].key);
+                  setHover(null);
+                  const buttons = event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>("[role='tab']");
+                  buttons?.[nextIndex]?.focus();
+                }}
+              >
+                <MetricIcon aria-hidden="true" />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
         </div>
       )}
       <svg
@@ -166,8 +187,8 @@ export function RevenueChart({
           : "Sem vendas no período selecionado."}
       >
         <defs>
-          <linearGradient id="revFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--rev)" stopOpacity="0.2" />
+          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--rev)" stopOpacity={explorable ? "0.11" : "0.2"} />
             <stop offset="100%" stopColor="var(--rev)" stopOpacity="0.02" />
           </linearGradient>
         </defs>
@@ -222,27 +243,31 @@ export function RevenueChart({
 
         {hasPoints && (
           <>
-            {!explorable && <path d={areaPath} fill="url(#revFill)" />}
             <path
+              key={`area-${activeMetric}`}
+              className="revenue-series-area"
+              d={areaPath}
+              fill={`url(#${gradientId})`}
+            />
+            <path
+              key={`line-${activeMetric}`}
+              className="revenue-series-line"
               d={linePath}
               fill="none"
               stroke="var(--rev)"
               strokeWidth={explorable ? 1.5 : 2}
+              pathLength={1}
               strokeLinejoin="round"
               strokeLinecap="round"
               vectorEffect="non-scaling-stroke"
             />
-            {explorable ? points.map((point, index) => (
-              <circle
-                key={point.date}
-                cx={x(index)}
-                cy={y(point[activeMetric])}
-                r={2.5}
-                fill="var(--rev)"
-              />
-            )) : (
-              <circle cx={x(points.length - 1)} cy={y(points[points.length - 1].revenue)} r={4} fill="var(--rev)" />
-            )}
+            <circle
+              className="revenue-endpoint"
+              cx={x(points.length - 1)}
+              cy={y(points[points.length - 1][activeMetric])}
+              r={3}
+              fill="var(--rev)"
+            />
           </>
         )}
 
@@ -305,6 +330,7 @@ export function RevenueChart({
               <dt><i aria-hidden />Unidades</dt><dd>{hp.units.toLocaleString("pt-BR")}</dd>
             </div>
           </dl>
+          <p className={`revenue-tooltip-delta ${deltaTone}`}>{deltaText}</p>
         </div>
       )}
     </div>

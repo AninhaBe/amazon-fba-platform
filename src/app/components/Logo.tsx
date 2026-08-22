@@ -1,24 +1,21 @@
+import { NexoSymbol } from "./NexoSymbol";
+
 export function LogoMark({ className = "h-9 w-9" }: { className?: string }) {
-  return (
-    <span className={`inline-flex items-center justify-center ${className}`}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/brands/sellercore-logo.png" alt="" aria-hidden="true" className="h-full w-full object-contain" />
-    </span>
-  );
+  return <NexoSymbol className={className} />;
 }
 
-/** Marca completa: símbolo + tipografia "Seller" (escuro) + "Core" (laranja). */
+/** Marca completa: símbolo oficial + assinatura NEXO. */
 export function Logo({ compact = false }: { compact?: boolean }) {
   return (
-    <div className="seller-logo flex items-center gap-3">
+    <div className="seller-logo flex items-center gap-2">
       <LogoMark className="h-8 w-8" />
       {!compact && (
         <div className="leading-none">
           <span className="brand-word text-base font-bold tracking-[-0.035em]">
-            SELLER<span>CORE</span>
+            NEXO
           </span>
           <span className="brand-sub mt-1 block text-[12px] font-semibold uppercase tracking-[0.13em]">
-            Controle de operação
+            Operação conectada
           </span>
         </div>
       )}

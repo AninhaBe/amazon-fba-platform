@@ -273,7 +273,7 @@ function Dashboard({ overview, updatedAt, periodoLabel }: { overview: Overview; 
           <span><small>Unidades</small><strong>{units.toLocaleString("pt-BR")}</strong></span>
           <span><small>Pedidos</small><strong>{overview.metrics.paidOrders.toLocaleString("pt-BR")}</strong></span>
         </div>
-        <RevenueChart points={overview.dailySales} />
+        <RevenueChart points={overview.dailySales} currency={overview.metrics.currency} explorable />
       </div>
       <aside className="financial-composition" aria-label="Resumo do resultado financeiro">
         <div><p className="section-kicker">Resultado do período</p><h2 className="mt-1 text-lg font-semibold text-[var(--ink)]">Do faturamento ao lucro</h2><p className="mt-1 text-xs leading-relaxed text-[var(--ink-muted)]">{profitCoverage.complete ? "Valores efetivamente identificados no período." : `Detalhamento processado em ${profitCoverage.processedOrders} de ${profitCoverage.paidOrders} vendas.`}</p></div>

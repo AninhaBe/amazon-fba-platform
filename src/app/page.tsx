@@ -291,7 +291,7 @@ export default function OverviewDashboard() {
               <div><p className="section-kicker">Todos os canais</p><h2 id="central-revenue-title" className="mt-1 text-lg font-semibold text-[var(--ink)]">Faturamento consolidado por dia</h2></div>
               <span className="text-sm font-semibold tabular-nums text-[var(--ink)]">{money(totals.revenue)} <span className="font-normal text-[var(--ink-muted)]">nos últimos 30 dias</span></span>
             </div>
-            <RevenueChart points={series} />
+            <RevenueChart points={series} explorable />
           </section>
         )}
 

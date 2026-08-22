@@ -1,5 +1,7 @@
 "use client";
 
+import { NexoSymbol } from "./NexoSymbol";
+
 /**
  * Assinatura NEXO — letras físicas que assentam na parede.
  *
@@ -27,6 +29,7 @@ export function NexoWordmark({
   const letras = [...label];
   return (
     <Tag className={`nexo-wordmark ${className}`.trim()} aria-label={label} role="img">
+      <NexoSymbol className="nexo-wordmark-symbol" />
       <span className="nexo-wall" aria-hidden="true">
         {letras.map((letra, indice) => (
           <span

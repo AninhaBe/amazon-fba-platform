@@ -110,7 +110,7 @@ export function CompositionDonut({
               cy="70"
               r={RAIO}
               fill="none"
-              className={`composition-arc${a.isRemainder ? " is-remainder" : ""}${ativo && ativo !== a.id ? " is-dimmed" : ""}`}
+              className={`composition-arc${a.isRemainder ? " is-remainder" : ""}${ativo === a.id ? " is-active" : ""}${ativo && ativo !== a.id ? " is-dimmed" : ""}`}
               stroke={a.tom ?? undefined}
               strokeWidth={ESPESSURA}
               strokeDasharray={`${a.fracao * CIRC} ${CIRC}`}
@@ -137,9 +137,13 @@ export function CompositionDonut({
         {arcos.map((a) => (
           <li
             key={a.id}
-            className={ativo && ativo !== a.id ? "is-dimmed" : undefined}
+            className={`${ativo === a.id ? "is-active" : ""}${ativo && ativo !== a.id ? " is-dimmed" : ""}`.trim() || undefined}
+            tabIndex={0}
+            aria-label={`${a.label}: ${format(a.value)}, ${(a.fracao * 100).toFixed(1).replace(".", ",")}%`}
             onMouseEnter={() => setAtivo(a.id)}
             onMouseLeave={() => setAtivo(null)}
+            onFocus={() => setAtivo(a.id)}
+            onBlur={() => setAtivo(null)}
           >
             <span
               className={`composition-ponto${a.isRemainder ? " is-remainder" : ""}`}
