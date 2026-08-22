@@ -1896,8 +1896,9 @@ summary:hover { background: var(--paper-soft); }
   .meli-profit-warning { align-items: flex-start; flex-wrap: wrap; }
   .meli-profit-warning p { min-width: calc(100% - 40px); }
   .meli-profit-warning a { margin-inline-start: 36px; }
-  .mobile-console > div:first-child { min-width: 0; }
-  .channel-switcher.is-compact { max-width: calc(100vw - 82px); overflow-x: auto; padding: 2px; scrollbar-width: none; }
+  .mobile-console > div:first-child { min-width: 0; gap: 8px; }
+  .mobile-console > div:first-child > div:last-child { min-width: 0; flex: 1; justify-content: flex-end; }
+  .channel-switcher.is-compact { min-width: 0; max-width: calc(100% - 50px); overflow-x: auto; padding: 2px; scrollbar-width: none; }
   .channel-switcher.is-compact::-webkit-scrollbar { display: none; }
   .channel-switcher.is-compact .channel-tab { flex: 0 0 42px; }
   .profitability-filters { align-items: stretch; flex-direction: column; }

@@ -59,7 +59,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <SidebarNexo workspace={workspace} collapsed={sidebarCollapsed} />
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="mobile-console sticky top-0 z-20 px-4 pt-3 lg:hidden">
-          <div className="mb-2 flex items-center justify-between gap-4"><Logo compact /><div className="flex items-center gap-2"><ChannelSwitcher compact /><LogoutButton compact /></div></div>
+          <div className="mb-2 flex min-w-0 items-center justify-between gap-2"><Logo compact /><div className="flex min-w-0 flex-1 items-center justify-end gap-2"><ChannelSwitcher compact /><LogoutButton compact /></div></div>
           <NavLinks variant="top" />
         </header>
         <ShellTopbar

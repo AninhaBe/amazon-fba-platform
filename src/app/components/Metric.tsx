@@ -149,7 +149,7 @@ export function FlowExpandable({ label, value, items, open, onToggle }: {
             <path d="m4 6 4 4 4-4" />
           </svg>
         </span>
-        <span className="text-sm font-bold tabular-nums text-red-600">{value}</span>
+        <span className={`text-sm font-bold tabular-nums ${value === "—" ? "text-[var(--ink)]" : "text-red-600"}`}>{value}</span>
       </button>
       {open && (
         <div className="financial-sublines">
