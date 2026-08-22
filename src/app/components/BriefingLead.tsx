@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import { NexoSymbol } from "./NexoSymbol";
 
 /**
  * A abertura do painel de canal — a frase que diz o que aconteceu, e o que
@@ -179,10 +180,15 @@ export function BriefingLead(props: BriefingLeadProps) {
         {/* Quando o NEXO fala, ele TOMA O LUGAR da frase calculada — não fica
             abaixo dela. A frase calculada é o fallback (sem chave/resposta). */}
         {narracao ? (
+          // Uma mensagem do NEXO — avatar da marca + a fala. Parece gente
+          // falando, não um cartão com etiqueta, e fica em tom neutro como a página.
           <div className="briefing-lead-nexo">
-            <span className="briefing-lead-nexo-marca">NEXO</span>
-            <p>{narracao}</p>
-            <Link href={props.briefingHref ?? "/briefing"} className="briefing-lead-nexo-cta">Ver briefing <ArrowRight className="briefing-acao-seta" aria-hidden /></Link>
+            <span className="briefing-lead-nexo-avatar" aria-hidden="true"><NexoSymbol size={22} /></span>
+            <div className="briefing-lead-nexo-fala">
+              <span className="briefing-lead-nexo-nome">NEXO</span>
+              <p>{narracao}</p>
+              <Link href={props.briefingHref ?? "/briefing"} className="briefing-lead-nexo-cta">Ver briefing <ArrowRight className="briefing-acao-seta" aria-hidden /></Link>
+            </div>
           </div>
         ) : (
           <>
