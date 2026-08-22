@@ -517,8 +517,8 @@ export default function Dashboard() {
           value={
             canceladas
               ? canceladas.revenue === null
-                ? `${canceladas.orders} · valor não informado`
-                : `${money(canceladas.revenue, currency)} · ${canceladas.orders}`
+                ? "—"
+                : money(canceladas.revenue, currency)
               : "—"
           }
           tone={canceladas && canceladas.orders > 0 ? "danger" : "default"}

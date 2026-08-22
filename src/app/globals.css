@@ -4891,9 +4891,9 @@ summary:hover { background: var(--paper-soft); }
 }
 .integration-dashboard .compact-metric {
   align-content: flex-start;
-  min-height: 66px;
+  min-height: 48px;
   row-gap: 2px;
-  padding: 6px 16px 9px;
+  padding: 7px 16px;
 }
 .integration-dashboard .compact-metric p { font-size: 13px; font-weight: var(--weight-body); letter-spacing: var(--track-s); text-transform: none; }
 .integration-dashboard .compact-metric strong { font-size: 14px; font-weight: var(--weight-body); }
