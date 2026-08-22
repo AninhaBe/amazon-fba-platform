@@ -1,0 +1,176 @@
+.list {
+  gap: 0;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--paper);
+  box-shadow: var(--shadow-surface);
+}
+
+.sale {
+  border: 0;
+  border-block-end: 1px solid var(--divider);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.sale:last-child {
+  border-block-end: 0;
+}
+
+.sale:hover,
+.sale.expanded {
+  background: var(--ink-03);
+  box-shadow: none;
+}
+
+.saleMain {
+  min-height: 80px;
+  grid-template-columns: minmax(280px, 1fr) minmax(150px, 190px) minmax(380px, 500px) 40px;
+  gap: 16px;
+  padding: 12px 14px;
+}
+
+.product strong {
+  max-width: 58ch;
+  font-weight: var(--weight-semibold);
+  text-wrap: pretty;
+}
+
+.saleMeta {
+  gap: 3px;
+  border-inline-start: 0;
+  padding-inline-start: 0;
+}
+
+.equation {
+  grid-template-columns: minmax(88px, 1fr) 14px minmax(98px, 1fr) 14px minmax(122px, 1.15fr);
+  gap: 6px;
+  border-radius: var(--radius);
+  background: var(--paper-soft);
+  padding: 9px 11px;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.equation > div > strong,
+.result strong,
+.result span {
+  font-variant-numeric: tabular-nums;
+}
+
+.equation .pending {
+  max-width: 150px;
+  background: transparent;
+  padding: 0;
+}
+
+.expand {
+  border: 0;
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+
+.expand:hover {
+  background: var(--ink-05);
+  color: var(--ink);
+}
+
+.expand svg {
+  width: 16px;
+  height: 16px;
+  transform: rotate(0);
+  transition: transform var(--duration) var(--ease);
+}
+
+.expand[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+.details {
+  border-block-start: 1px solid var(--divider);
+  background: var(--paper-soft);
+  padding: 12px 14px 14px;
+}
+
+.breakdown .total.pending {
+  background: color-mix(in oklch, var(--warning) 10%, var(--paper));
+  color: color-mix(in oklch, var(--warning) 78%, var(--ink));
+}
+
+.breakdown .total.pending strong {
+  color: color-mix(in oklch, var(--warning) 78%, var(--ink));
+}
+
+.breakdown .total.warning {
+  background: color-mix(in oklch, var(--warning) 11%, var(--paper));
+  color: var(--warning);
+}
+
+.breakdown .total.warning strong {
+  color: var(--warning);
+}
+
+.breakdown .total.negative {
+  background: color-mix(in oklch, var(--danger) 8%, var(--paper));
+  color: var(--danger);
+}
+
+.breakdown .total.negative strong {
+  color: var(--danger);
+}
+
+@media (max-width: 1120px) {
+  .saleMain {
+    grid-template-columns: minmax(220px, 1fr) minmax(160px, 200px) 40px;
+  }
+
+  .equation {
+    grid-column: 1 / 3;
+    grid-row: 2;
+  }
+
+  .expand {
+    grid-column: 3;
+    grid-row: 1 / 3;
+  }
+}
+
+@media (max-width: 767px) {
+  .saleMain {
+    grid-template-columns: minmax(0, 1fr) 40px;
+    gap: 12px;
+    padding: 13px;
+  }
+
+  .product {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .expand {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .saleMeta {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .equation {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    padding: 7px;
+  }
+
+  .equation > div {
+    background: var(--paper);
+  }
+
+  .equation .pending {
+    align-items: flex-start;
+    text-align: start;
+  }
+}

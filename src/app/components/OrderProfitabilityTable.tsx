@@ -1,11 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { ChevronDown } from "lucide-react";
 import type { ProfitabilityLine } from "@/lib/profitability";
 import { brDate } from "@/lib/datetime";
 import { EmptyState } from "./EmptyState";
 import { TableLoading } from "./LoadingState";
 import { Pagination } from "./Pagination";
+import styles from "./OrderProfitabilityTable.module.css";
 
 // Contas movimentadas trazem até 1000 vendas por período. Renderizar todos os
 // cards de uma vez travava a thread (o /monitor "congelava"). Paginamos em
@@ -44,18 +46,24 @@ function motivoPendente(line: ProfitabilityLine): { titulo: string; ajuda: strin
 function Margin({ line }: { line: ProfitabilityLine }) {
   if (line.contribution == null || line.marginPct == null) {
     const motivo = motivoPendente(line);
-    return <div className={`profit-pending${motivo.deNos ? " is-acao" : ""}`}>
+    return <div className={`profit-pending ${styles.pending}${motivo.deNos ? " is-acao" : ""}`}>
       <strong>{motivo.titulo}</strong>
       <span>{motivo.ajuda}</span>
     </div>;
   }
   // Mesma faixa da curva ABC: ≥18% verde, 12–18% âmbar, abaixo vermelho.
-  const tone = line.marginPct >= 18 ? "positive" : line.marginPct >= 12 ? "warning" : "negative";
-  return <div className={`profit-result is-${tone}`}><strong>{money(line.contribution, line.currency)}</strong><span>{percent(line.marginPct)}</span></div>;
+  const tone = marginTone(line);
+  return <div className={`profit-result ${styles.result} is-${tone}`}><strong>{money(line.contribution, line.currency)}</strong><span>{percent(line.marginPct)}</span></div>;
+}
+
+function marginTone(line: ProfitabilityLine): "positive" | "warning" | "negative" | "pending" {
+  if (line.contribution == null || line.marginPct == null) return "pending";
+  return line.marginPct >= 18 ? "positive" : line.marginPct >= 12 ? "warning" : "negative";
 }
 
 function Breakdown({ line }: { line: ProfitabilityLine }) {
-  return <div className="profit-breakdown">
+  const tone = marginTone(line);
+  return <div className={`profit-breakdown ${styles.breakdown}`}>
     {line.listPrice != null && line.promotions != null && line.promotions > 0 && <>
       <div className="is-muted"><span>Preço de tabela</span><strong>{money(line.listPrice, line.currency)}</strong></div>
       <div className="is-muted"><span>Cupom aplicado</span><strong>− {money(line.promotions, line.currency)}</strong></div>
@@ -67,7 +75,7 @@ function Breakdown({ line }: { line: ProfitabilityLine }) {
     {line.sellerShipping != null && <div><span>Frete assumido pelo vendedor</span><strong>− {money(line.sellerShipping, line.currency)}</strong></div>}
     {line.netReceived != null && <div className="is-subtotal"><span>Líquido repassado antes do produto</span><strong>{money(line.netReceived, line.currency)}</strong></div>}
     {line.tax != null && <div><span>Impostos</span><strong>− {money(line.tax, line.currency)}</strong></div>}
-    <div className="is-total"><span>Margem de contribuição</span><strong>{line.contribution == null ? motivoPendente(line).titulo : money(line.contribution, line.currency)}</strong></div>
+    <div className={`is-total ${styles.total} ${styles[tone]}`}><span>Margem de contribuição</span><strong>{line.contribution == null ? motivoPendente(line).titulo : money(line.contribution, line.currency)}</strong></div>
   </div>;
 }
 
@@ -110,7 +118,7 @@ export function OrderProfitabilityTable({
   const current = Math.min(page, pageCount);
   const paged = visible.slice((current - 1) * pageSize, current * pageSize);
 
-  return <section className="profitability-view" aria-labelledby="profitability-title">
+  return <section className={`profitability-view ${styles.view}`} aria-labelledby="profitability-title">
     <header className="profitability-heading">
       <div><p className="section-kicker">Resultado por venda</p><h2 id="profitability-title">Rentabilidade dos pedidos</h2><p>{scopeNote || "Veja o que entrou, os custos identificados e quanto sobrou em cada produto vendido."}</p></div>
       {!loading && lines.length > 0 && <span>{complete} de {lines.length} vendas com cálculo completo</span>}
@@ -122,7 +130,7 @@ export function OrderProfitabilityTable({
       {expanded.size > 0 && <button type="button" className="profit-collapse-all" onClick={() => setExpanded(new Set())}>Recolher {expanded.size} {expanded.size === 1 ? "aberto" : "abertos"}</button>}
     </div>
 
-    {error ? <div role="alert" className="profitability-error">{error}</div> : loading ? <TableLoading label="Calculando rentabilidade das vendas" /> : lines.length === 0 ? <EmptyState title="Nenhuma venda no período" description="Amplie o período para consultar vendas anteriores." /> : visible.length === 0 ? <EmptyState kind="search" title="Nenhuma venda encontrada" description="Ajuste a busca ou altere o filtro de resultado." /> : <><div className="profitability-list">{paged.map((line) => <ProfitabilitySale key={line.id} line={line} expanded={expanded.has(line.id)} onToggle={() => toggleExpanded(line.id)} />)}</div><Pagination page={current} pageCount={pageCount} total={visible.length} pageSize={pageSize} onPage={(nextPage) => setPagination({ lines, page: nextPage })} /></>}
+    {error ? <div role="alert" className="profitability-error">{error}</div> : loading ? <TableLoading label="Calculando rentabilidade das vendas" /> : lines.length === 0 ? <EmptyState title="Nenhuma venda no período" description="Amplie o período para consultar vendas anteriores." /> : visible.length === 0 ? <EmptyState kind="search" title="Nenhuma venda encontrada" description="Ajuste a busca ou altere o filtro de resultado." /> : <><div className={`profitability-list ${styles.list}`}>{paged.map((line) => <ProfitabilitySale key={line.id} line={line} expanded={expanded.has(line.id)} onToggle={() => toggleExpanded(line.id)} />)}</div><Pagination page={current} pageCount={pageCount} total={visible.length} pageSize={pageSize} onPage={(nextPage) => setPagination({ lines, page: nextPage })} /></>}
   </section>;
 }
 
@@ -141,14 +149,14 @@ export function ProfitabilitySale({ line, expanded, onToggle }: { line: Profitab
     : line.productCost != null
     ? `${money(line.productCost, line.currency)} + tarifas`
     : "Não cadastrado";
-  return <article className={`profit-sale${expanded ? " is-expanded" : ""}`}>
-    <div className="profit-sale-main">
-      <div className="profit-sale-product">
+  return <article className={`profit-sale ${styles.sale}${expanded ? ` is-expanded ${styles.expanded}` : ""}`}>
+    <div className={`profit-sale-main ${styles.saleMain}`}>
+      <div className={`profit-sale-product ${styles.product}`}>
         <strong title={line.product}>{line.product}</strong>
         <span className="profit-sale-sku">{line.sku || "Sem SKU"}</span>
         <small>Pedido #{line.orderId}</small>
       </div>
-      <div className="profit-sale-meta" aria-label="Informações da venda">
+      <div className={`profit-sale-meta ${styles.saleMeta}`} aria-label="Informações da venda">
         <span>{brDate(line.date)}</span>
         {/* Logística e status são fatos distintos. Mostrar só um escondia que o
             pedido está pendente — a Amazon exibe os dois lado a lado. */}
@@ -156,15 +164,15 @@ export function ProfitabilitySale({ line, expanded, onToggle }: { line: Profitab
         <span className={line.revenueKnown === false ? "is-pendente" : undefined}>{statusLabel(line.status)}</span>
         <span>{line.quantity} {line.quantity === 1 ? "unidade" : "unidades"}{line.revenueKnown === false ? "" : ` × ${money(line.unitPrice, line.currency)}`}</span>
       </div>
-      <div className="profit-equation" aria-label="Resumo financeiro da venda">
+      <div className={`profit-equation ${styles.equation}`} aria-label="Resumo financeiro da venda">
         <div><span>Venda</span><strong>{vendaConhecida ? money(line.revenue, line.currency) : "—"}</strong></div>
         <i aria-hidden="true">−</i>
         <div className="is-cost"><span>Custos</span><strong>{custoRotulo}</strong></div>
         <i aria-hidden="true">=</i>
         <div className="is-margin"><span>Margem</span><Margin line={line} /></div>
       </div>
-      <button type="button" className="profit-expand" aria-label={`${expanded ? "Ocultar" : "Mostrar"} composição da venda`} aria-expanded={expanded} onClick={onToggle}><span aria-hidden="true">⌄</span></button>
+      <button type="button" className={`profit-expand ${styles.expand}`} aria-label={`${expanded ? "Ocultar" : "Mostrar"} composição da venda`} aria-expanded={expanded} onClick={onToggle}><ChevronDown aria-hidden="true" /></button>
     </div>
-    {expanded && <div className="profit-sale-details"><Breakdown line={line} /></div>}
+    {expanded && <div className={`profit-sale-details ${styles.details}`}><Breakdown line={line} /></div>}
   </article>;
 }
