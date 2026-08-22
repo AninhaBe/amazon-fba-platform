@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { BarChart3, LayoutDashboard, PackageSearch } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { BarChart3, LayoutDashboard, MousePointer2, PackageSearch } from "lucide-react";
 import { AnimatedNumber } from "../components/AnimatedNumber";
 import { CompositionDonut } from "../components/CompositionDonut";
 import { MarketplaceIcon } from "../components/MarketplaceIcon";
 import { Metric } from "../components/Metric";
 import { NexoSymbol } from "../components/NexoSymbol";
-import { RevenueChart, type DailyPoint } from "../components/RevenueChart";
+import { RevenueChart, type ChartMetric, type DailyPoint } from "../components/RevenueChart";
 
 type Periodo = 15 | 30;
 
@@ -44,20 +44,102 @@ const money = (value: number) => new Intl.NumberFormat("pt-BR", {
  */
 export function PainelCanal() {
   const [periodo, setPeriodo] = useState<Periodo>(30);
+  const [chartMetric, setChartMetric] = useState<ChartMetric>("revenue");
+  const [cursorTarget, setCursorTarget] = useState("period-15");
+  const [cursorClicking, setCursorClicking] = useState(false);
+  const [cursorPosition, setCursorPosition] = useState({ x: 0, y: 0, ready: false });
+  const demoRef = useRef<HTMLDivElement>(null);
+  const pauseUntilRef = useRef(0);
   const resumo = RESUMOS[periodo];
   const points = periodo === 15 ? POINTS.slice(-15) : POINTS;
+
+  const chartTotal = chartMetric === "revenue"
+    ? resumo.revenue
+    : chartMetric === "orders"
+      ? resumo.orders
+      : Math.round(resumo.orders * 1.18);
+  const chartHeading = chartMetric === "revenue"
+    ? "Evolução das vendas"
+    : chartMetric === "orders"
+      ? "Evolução dos pedidos"
+      : "Evolução das unidades";
+  const chartTotalText = chartMetric === "revenue"
+    ? money(chartTotal)
+    : `${chartTotal.toLocaleString("pt-BR")} ${chartMetric === "orders" ? "pedidos" : "unidades"}`;
+
+  function pauseDemo() {
+    pauseUntilRef.current = Date.now() + 8_000;
+    setCursorClicking(false);
+    setCursorPosition((current) => ({ ...current, ready: false }));
+  }
 
   useEffect(() => {
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduceMotion) return;
-    const interval = window.setInterval(() => {
-      setPeriodo((current) => current === 30 ? 15 : 30);
-    }, 7200);
-    return () => window.clearInterval(interval);
+    const steps: Array<{ target: string; apply: () => void }> = [
+      { target: "period-15", apply: () => setPeriodo(15) },
+      { target: "metric-orders", apply: () => setChartMetric("orders") },
+      { target: "period-30", apply: () => setPeriodo(30) },
+      { target: "metric-units", apply: () => setChartMetric("units") },
+      { target: "metric-revenue", apply: () => setChartMetric("revenue") },
+    ];
+    let stepIndex = 0;
+    let moveTimer = 0;
+    let clickTimer = 0;
+    let releaseTimer = 0;
+
+    const runStep = () => {
+      if (Date.now() < pauseUntilRef.current) {
+        moveTimer = window.setTimeout(runStep, 1_000);
+        return;
+      }
+      const step = steps[stepIndex % steps.length];
+      setCursorTarget(step.target);
+      setCursorClicking(false);
+      clickTimer = window.setTimeout(() => {
+        if (Date.now() < pauseUntilRef.current) return;
+        step.apply();
+        setCursorClicking(true);
+        releaseTimer = window.setTimeout(() => setCursorClicking(false), 240);
+      }, 850);
+      stepIndex += 1;
+      moveTimer = window.setTimeout(runStep, 2_350);
+    };
+
+    moveTimer = window.setTimeout(runStep, 900);
+    return () => {
+      window.clearTimeout(moveTimer);
+      window.clearTimeout(clickTimer);
+      window.clearTimeout(releaseTimer);
+    };
   }, []);
 
+  useEffect(() => {
+    if (Date.now() < pauseUntilRef.current) return;
+    const frame = window.requestAnimationFrame(() => {
+      const demo = demoRef.current;
+      const target = demo?.querySelector<HTMLElement>(`[data-demo-target="${cursorTarget}"]`);
+      if (!demo || !target) return;
+      const demoRect = demo.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      setCursorPosition({
+        x: targetRect.left - demoRect.left + targetRect.width * 0.62,
+        y: targetRect.top - demoRect.top + targetRect.height * 0.66,
+        ready: true,
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [cursorTarget, periodo, chartMetric]);
+
   return (
-    <div className="lp-product-demo" data-channel="amazon">
+    <div ref={demoRef} className="lp-product-demo" data-channel="amazon">
+      <span
+        className={`lp-demo-cursor${cursorClicking ? " is-clicking" : ""}${cursorPosition.ready ? " is-ready" : ""}`}
+        style={{ left: cursorPosition.x, top: cursorPosition.y }}
+        aria-hidden="true"
+      >
+        <MousePointer2 />
+      </span>
       <aside className="lp-product-sidebar" aria-label="Navegação da demonstração">
         <div className="lp-product-brand"><NexoSymbol size={22} /><strong>NEXO</strong></div>
         <span className="lp-product-nav-label">Painéis</span>
@@ -82,7 +164,11 @@ export function PainelCanal() {
                 role="tab"
                 aria-selected={periodo === days}
                 className={periodo === days ? "is-active" : ""}
-                onClick={() => setPeriodo(days)}
+                data-demo-target={`period-${days}`}
+                onClick={() => {
+                  pauseDemo();
+                  setPeriodo(days);
+                }}
               >
                 {days} dias
               </button>
@@ -129,10 +215,23 @@ export function PainelCanal() {
           <section className="performance-panel lp-product-performance">
             <div className="performance-chart">
               <div className="lp-product-chart-title">
-                <div><p className="section-kicker">Desempenho diário</p><h3>Evolução das vendas</h3></div>
-                <strong><AnimatedNumber id="landing-chart-total" value={resumo.revenue} format={money} /></strong>
+                <div><p className="section-kicker">Desempenho diário</p><h3>{chartHeading}</h3></div>
+                <strong>{chartMetric === "revenue"
+                  ? <AnimatedNumber id="landing-chart-total" value={chartTotal} format={money} />
+                  : chartTotalText}
+                </strong>
               </div>
-              <RevenueChart key={periodo} points={points} currency="BRL" explorable />
+              <RevenueChart
+                points={points}
+                currency="BRL"
+                explorable
+                metric={chartMetric}
+                demoTargetPrefix="metric"
+                onMetricChange={(metric) => {
+                  pauseDemo();
+                  setChartMetric(metric);
+                }}
+              />
             </div>
 
             <aside className="financial-composition" aria-label="Composição financeira demonstrativa">

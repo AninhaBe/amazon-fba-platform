@@ -2624,7 +2624,9 @@ summary:hover { background: var(--paper-soft); }
   --channel-accent: var(--amazon, oklch(0.73 0.16 71));
   --channel-accent-dark: oklch(0.5 0.12 71);
   --channel-accent-soft: oklch(0.97 0.025 71);
+  position: relative;
   display: grid;
+  overflow: hidden;
   min-width: 0;
   min-height: 610px;
   grid-template-columns: 142px minmax(0, 1fr);
@@ -2694,6 +2696,24 @@ summary:hover { background: var(--paper-soft); }
 .lp-product-performance .section-kicker { font-size: 10px; }
 .lp-product-performance .revenue-chart-toolbar { min-height: 27px; margin-block-end: 0; }
 .lp-product-performance .revenue-chart-toolbar button { min-height: 25px; width: 25px; min-width: 25px; }
+.lp-product-performance .revenue-chart-toolbar button[aria-selected="true"] {
+  width: auto; min-width: max-content; flex-basis: auto; overflow: visible; padding-inline: 7px;
+}
+.lp-demo-cursor {
+  position: absolute; z-index: 20; width: 26px; height: 26px; pointer-events: none; opacity: 0;
+  color: var(--ink); transform: translate(-5px, -4px) scale(1); transform-origin: 3px 3px;
+  filter: drop-shadow(0 1px 0 white) drop-shadow(1px 0 0 white) drop-shadow(-1px 0 0 white) drop-shadow(0 -1px 0 white) drop-shadow(0 3px 5px oklch(0 0 0 / .2));
+  transition: left 720ms cubic-bezier(.22, 1, .36, 1), top 720ms cubic-bezier(.22, 1, .36, 1), opacity 180ms ease, transform 120ms ease;
+}
+.lp-demo-cursor.is-ready { opacity: 1; }
+.lp-demo-cursor.is-clicking { transform: translate(-5px, -4px) scale(.82); }
+.lp-demo-cursor::after {
+  content: ""; position: absolute; inset: -5px; border: 2px solid var(--channel-accent-dark); border-radius: 50%;
+  opacity: 0; transform: scale(.35);
+}
+.lp-demo-cursor.is-clicking::after { animation: lp-demo-click 360ms ease-out both; }
+.lp-demo-cursor svg { display: block; width: 24px; height: 24px; fill: var(--ink); stroke: white; stroke-width: 1.6; }
+@keyframes lp-demo-click { 35% { opacity: .65; } 100% { opacity: 0; transform: scale(1.35); } }
 .lp-product-performance .financial-composition { gap: 11px; padding: 14px 16px; }
 .lp-product-performance .composition-donut { flex-wrap: nowrap; gap: 12px; }
 .lp-product-performance .composition-donut-ring,
@@ -2732,6 +2752,7 @@ summary:hover { background: var(--paper-soft); }
 }
 @media (prefers-reduced-motion: reduce) {
   .lp-product-filters button { transition: none; }
+  .lp-demo-cursor { display: none; }
 }
 
 /* Entrada das telas de Saldo e Auditoria (`Mostruario.tsx`), no mesmo padrão dos
