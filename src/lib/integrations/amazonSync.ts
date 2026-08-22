@@ -49,11 +49,11 @@ const FEES_WINDOW_DAYS = 45;
 // exatamente o que aconteceu em 21/08/2026: último pedido ingerido às 16:05 com a
 // tela aberta às 22:15.
 //
-// 10 minutos cabe no limite da SP-API com folga: `getOrders` permite ~1 req/min
-// por conta (burst 20), e três conexões abrindo janela a cada 10 min gastam ~18
-// aberturas/hora no total. O piso de 5 min da rota do dashboard continua valendo
+// 2 minutos cabe no limite da SP-API: `getOrders` permite ~1 req/min
+// por conta (burst 20), e cada conexao abre janela ~30x/hora — dentro do teto,
+// mas ESTIMADO, nao medido: o sinal de excesso e 429 no log do sync. O piso de 5 min da rota do dashboard continua valendo
 // para o caminho sob demanda — quem abre a tela dez vezes não gera dez varreduras.
-const FRESH_FOR_MS = 10 * 60_000;
+const FRESH_FOR_MS = 2 * 60_000;
 // A SP-API exige CreatedBefore com pelo menos 2 minutos de idade; 3 dá folga.
 const CREATED_BEFORE_LAG_MS = 3 * 60_000;
 

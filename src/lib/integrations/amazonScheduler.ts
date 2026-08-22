@@ -41,13 +41,13 @@ export async function runScheduledAmazonSync(
           -- Erros transientes (rate limit, 5xx) voltam sozinhos após a pausa.
           OR (sync.status = 'error' AND sync.updated_at < now() - interval '30 minutes')
           OR (sync.status = 'complete'
-          -- 6h -> 10min em 21/08/2026. Com 6 horas, uma conexao completa so
+          -- 6h -> 2min em 21/08/2026 (ADR-023, sem AWS: push nao e opcao). Com 6 horas, uma conexao completa so
           -- virava candidata duas vezes por dia, e o painel mostrava dado velho
           -- sem avisar (medido: ultimo pedido 16:05, tela aberta 22:15). Este
           -- valor precisa casar com FRESH_FOR_MS em amazonSync.ts: aqui decide
           -- SE a conexao entra no lote, la decide SE a janela abre. Divergir
           -- entre os dois faz o sync rodar e nao trazer nada.
-            AND COALESCE(sync.last_success_at, sync.updated_at) < now() - interval '10 minutes')
+            AND COALESCE(sync.last_success_at, sync.updated_at) < now() - interval '2 minutes')
           -- Pedido 'pending' VELHO é suspeito: a Amazon muda o status em horas,
           -- então pendente com 6h+ significa transição perdida (Pending → Shipped
           -- que ninguém releu). Sem esta cláusula, uma conexão "complete" com só

@@ -25,7 +25,14 @@ export async function register() {
     return;
   }
 
-  const SYNC_INTERVAL_MS = Number(process.env.SCHEDULER_SYNC_INTERVAL_MS || 5 * 60_000);
+  // 5 → 2 minutos em 21/08/2026 (ADR-023). Sem push da Amazon — ela só entrega em
+  // SQS/EventBridge, e a conta AWS foi recusada —, o intervalo do agendador VIRA o
+  // teto do frescor. Com 5 minutos, baixar a janela do sync para 2 não adiantava
+  // nada: as duas travas são em série, e a maior manda.
+  //
+  // Fica registrado que isto é polling, não tempo real. O desenho de push está em
+  // ADR-023, pronto para o dia em que o atraso incomodar mais que a infra nova.
+  const SYNC_INTERVAL_MS = Number(process.env.SCHEDULER_SYNC_INTERVAL_MS || 2 * 60_000);
   const SYNCS = ["amazon-sync", "mercado-livre-sync", "shopee-sync", "tiktok-sync"];
   // Retenção é diária (ADR-016); rodar no intervalo de sync seria 288 expurgos/dia à toa.
   const RETENTION_INTERVAL_MS = 24 * 60 * 60_000;

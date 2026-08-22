@@ -6,7 +6,6 @@ import { Vitrine } from "./Vitrine";
 import { Contadores } from "./Contadores";
 import { Manifesto } from "./Manifesto";
 import { GraficoMetricas } from "./GraficoMetricas";
-import { HeroGrafico } from "./HeroGrafico";
 
 export const metadata = {
   title: "NEXO — o funcionário que confere cada venda",
@@ -101,11 +100,15 @@ export default function LandingPage() {
     <main className="lp">
       <header className="lp-nav">
         <NexoWordmark as="span" className="lp-marca" />
+        <nav className="lp-nav-links" aria-label="Navegação principal">
+          <Link href="#produto">Produto</Link>
+          <Link href="#como-funciona">Como funciona</Link>
+          <Link href="#resultados">Resultados</Link>
+        </nav>
         <Link href="/login" className="lp-cta-mini">Entrar</Link>
       </header>
 
       <section className="lp-hero">
-        <HeroGrafico />
         <p className="lp-pill">Amazon · Mercado Livre · Shopee · TikTok Shop</p>
         {/* As duas metades são elementos separados de propósito: a segunda recua
             para preto 42% (`.lp-hero h1 span`). É a assinatura do peec.ai — dá
@@ -129,13 +132,13 @@ export default function LandingPage() {
           Conversion Analytics / Affiliate Programs). Lá são abas que trocam o
           mock; aqui são âncoras de verdade para as três seções profundas —
           mesmo elemento visual, sem fingir interação que não existe. */}
-      <section className="lp-vitrine-secao">
+      <section id="produto" className="lp-vitrine-secao">
         <Vitrine />
       </section>
 
       {/* Padrão real do midday (`time-savings-section.tsx`): problema + custo em
           horas, em cartões quadrados. Serve melhor que manifesto solto. */}
-      <section className="lp-custos">
+      <section id="como-funciona" className="lp-custos">
         <div className="lp-custos-topo">
           <h2>O trabalho que ele tira das suas mãos.</h2>
           <p>Três tarefas que hoje comem o seu dia — e que ele refaz a cada venda que entra.</p>
@@ -179,7 +182,9 @@ export default function LandingPage() {
 
       <GraficoMetricas />
 
-      <Contadores itens={CONTADORES} />
+      <div id="resultados">
+        <Contadores itens={CONTADORES} />
+      </div>
 
       <section className="lp-fim">
         <h2>Ele começa a conferir hoje.</h2>
