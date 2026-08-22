@@ -123,34 +123,28 @@ function montarFrase(p: BriefingLeadProps): { titulo: string; detalhe: string | 
 }
 
 /**
- * A narração do NEXO para o resumo do canal. Self-contained: monta o snapshot do
- * próprio canal, pede o texto (modo resumo) e o exibe com o atalho pro briefing.
- * Só narra os números que recebeu — não inventa. Cache diário no servidor.
+ * A narração do NEXO para o resumo do canal. Monta o snapshot do próprio canal,
+ * pede o texto (modo resumo) e devolve a prosa — que SUBSTITUI a frase calculada
+ * quando existe. Só narra os números que recebeu; sem chave/resposta volta null
+ * e a frase calculada fica como fallback. Cache diário no servidor.
  */
-function NexoResumo({ escopo, canalNome, faturamento, lucro, pedidos, moeda, briefingHref }: {
-  escopo: string;
-  canalNome: string;
-  faturamento: number | null;
-  lucro: number | null;
-  pedidos: number;
-  moeda: string;
-  briefingHref: string;
-}) {
+function useNexoResumo(props: BriefingLeadProps): string | null {
   const [texto, setTexto] = useState<string | null>(null);
+  const { escopo, canalNome, faturamento, lucro, pedidos, moeda } = props;
 
   useEffect(() => {
-    if (faturamento == null || pedidos === 0) return;
+    if (!escopo || faturamento == null || pedidos === 0) return;
     const margemPct = lucro != null && faturamento > 0 ? Math.round((lucro / faturamento) * 1000) / 10 : null;
     const payload = {
       modo: "resumo",
       escopo,
       data: "",
-      moeda,
+      moeda: moeda ?? "BRL",
       faturamento30d: faturamento,
       lucro30d: lucro,
       margemPct,
       variacaoSemanaPct: null,
-      canais: [{ nome: canalNome, faturamento, lucro, margemPct, variacaoSemanaPct: null, semLeitura: false, unidadesSemCusto: 0 }],
+      canais: [{ nome: canalNome ?? "seu canal", faturamento, lucro, margemPct, variacaoSemanaPct: null, semLeitura: false, unidadesSemCusto: 0 }],
     };
     let cancelado = false;
     fetch("/api/central/briefing", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) })
@@ -160,18 +154,13 @@ function NexoResumo({ escopo, canalNome, faturamento, lucro, pedidos, moeda, bri
     return () => { cancelado = true; };
   }, [escopo, canalNome, faturamento, lucro, pedidos, moeda]);
 
-  if (!texto) return null;
-  return (
-    <div className="briefing-lead-nexo">
-      <span className="briefing-lead-nexo-marca">NEXO</span>
-      <p>{texto}</p>
-      <Link href={briefingHref} className="briefing-lead-nexo-cta">Ver briefing <ArrowRight className="briefing-acao-seta" aria-hidden /></Link>
-    </div>
-  );
+  return texto;
 }
 
 export function BriefingLead(props: BriefingLeadProps) {
   const { acoes = [], loading } = props;
+  // Chamado sempre (regra dos hooks), antes de qualquer return.
+  const narracao = useNexoResumo(props);
 
   if (loading) {
     return (
@@ -187,18 +176,19 @@ export function BriefingLead(props: BriefingLeadProps) {
   return (
     <div className="briefing-lead">
       <div className="briefing-lead-texto">
-        <h2>{titulo}</h2>
-        {detalhe && <p>{detalhe}</p>}
-        {props.escopo && (
-          <NexoResumo
-            escopo={props.escopo}
-            canalNome={props.canalNome ?? "seu canal"}
-            faturamento={props.faturamento}
-            lucro={props.lucro}
-            pedidos={props.pedidos}
-            moeda={props.moeda ?? "BRL"}
-            briefingHref={props.briefingHref ?? "/briefing"}
-          />
+        {/* Quando o NEXO fala, ele TOMA O LUGAR da frase calculada — não fica
+            abaixo dela. A frase calculada é o fallback (sem chave/resposta). */}
+        {narracao ? (
+          <div className="briefing-lead-nexo">
+            <span className="briefing-lead-nexo-marca">NEXO</span>
+            <p>{narracao}</p>
+            <Link href={props.briefingHref ?? "/briefing"} className="briefing-lead-nexo-cta">Ver briefing <ArrowRight className="briefing-acao-seta" aria-hidden /></Link>
+          </div>
+        ) : (
+          <>
+            <h2>{titulo}</h2>
+            {detalhe && <p>{detalhe}</p>}
+          </>
         )}
       </div>
 
