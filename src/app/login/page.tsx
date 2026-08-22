@@ -67,12 +67,12 @@ export default function LoginPage() {
         <h1 id="auth-title">Entre no lugar onde tudo começa a fazer sentido.</h1>
         <div className="auth-intro-copy">
           <p>Amazon, Mercado Livre, Shopee e TikTok Shop deixam de ser quatro histórias separadas.</p>
-          <p>No NEXO, vendas, margem, estoque e cobranças fazem parte da mesma operação.</p>
+          <p>No <strong>NEXO</strong>, vendas, margem, estoque e cobranças fazem parte da mesma operação.</p>
         </div>
         <dl className="auth-assurance-list">
           <div><dt>Todos os canais</dt><dd>Uma visão única do que está acontecendo.</dd></div>
           <div><dt>Números com contexto</dt><dd>Não apenas quanto mudou. O que existe por trás.</dd></div>
-          <div><dt>Sem falso zero</dt><dd>Quando um dado não existe, o NEXO não inventa uma resposta.</dd></div>
+          <div><dt>Decisão mais rápida</dt><dd>Saiba onde agir sem perder tempo interpretando painel.</dd></div>
         </dl>
         <AuthChannelFlow />
       </section>
