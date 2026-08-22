@@ -68,9 +68,48 @@ test("normaliza itens descontando promoção e separando frete do comprador", ()
     sku: "SKU-A",
     title: "Produto A",
     qty: 2,
-    unitPrice: 45, // 90 ÷ 2
+    unitPrice: 45, // 90 ÷ 2 — LÍQUIDO, é dele que sai a margem
+    listPrice: 50, // 100 ÷ 2 — preço cheio, antes do cupom
+    promotionDiscount: 5, // 10 ÷ 2 — quanto o cupom custou por unidade
+    promotionIds: null, // este item não veio com campanha
   });
   assert.equal(normalized.items[1].sku, null);
+});
+
+// Guardar as parcelas é o que permite responder "usaram cupom?" sem abrir pedido
+// a pedido no Seller Central. Sem isso só sobrava o líquido, e "vendeu barato por
+// cupom" ficava indistinguível de "vendeu barato porque o preço era outro".
+test("separa preço cheio, desconto e campanha — e distingue ausência de zero", () => {
+  const { items } = normalizeAmazonOrderItems([
+    {
+      QuantityOrdered: 1,
+      SellerSKU: "com-cupom",
+      ItemPrice: { CurrencyCode: "BRL", Amount: "22.11" },
+      PromotionDiscount: { CurrencyCode: "BRL", Amount: "2.21" },
+      PromotionIds: ["PLM-2f6aebf5"],
+    },
+    {
+      QuantityOrdered: 1,
+      SellerSKU: "sem-cupom",
+      ItemPrice: { CurrencyCode: "BRL", Amount: "19.90" },
+      PromotionDiscount: { CurrencyCode: "BRL", Amount: "0.00" },
+    },
+    {
+      QuantityOrdered: 1,
+      SellerSKU: "campo-ausente",
+      ItemPrice: { CurrencyCode: "BRL", Amount: "30.00" },
+    },
+  ]);
+  assert.deepEqual(
+    items.map((i) => [i.sku, i.listPrice, i.promotionDiscount, i.promotionIds]),
+    [
+      ["com-cupom", 22.11, 2.21, "PLM-2f6aebf5"],
+      // 0 é FATO ("houve promoção e valeu zero"), não ausência.
+      ["sem-cupom", 19.9, 0, null],
+      // Campo ausente é DESCONHECIDO — nunca zero (AGENTS.md).
+      ["campo-ausente", 30, null, null],
+    ]
+  );
 });
 
 test("normaliza fees da Finances API para a taxonomia canônica", () => {

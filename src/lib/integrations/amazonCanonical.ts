@@ -158,6 +158,13 @@ export function normalizeAmazonOrderItems(orderItems: AmazonOrderItem[]): Normal
       title: item.Title ?? item.SellerSKU ?? item.ASIN ?? "Item Amazon",
       qty,
       unitPrice: round2(revenue / qty),
+      // Parcelas guardadas por unidade, para casar com `unitPrice`.
+      // `moneyOrUnknown` distingue "a Amazon não mandou o campo" de "mandou zero"
+      // — sem cupom ela manda `PromotionDiscount: 0,00`, que é fato, não ausência.
+      listPrice: item.ItemPrice?.Amount === undefined ? null : round2(moneyOf(item.ItemPrice) / qty),
+      promotionDiscount:
+        item.PromotionDiscount?.Amount === undefined ? null : round2(moneyOf(item.PromotionDiscount) / qty),
+      promotionIds: item.PromotionIds?.length ? item.PromotionIds.join(",") : null,
     });
   }
   return { items, gross: round2(gross), buyerShipping: round2(buyerShipping), currency };

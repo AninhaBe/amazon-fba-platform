@@ -1,7 +1,7 @@
 import { dbQuery, type DbQuery } from "../db";
 import { currentWorkspaceId } from "../workspaceScope";
 import { allocateByWeight } from "../profitability";
-import type { CanonicalFee, CanonicalOrder, CanonicalProduct } from "./canonical";
+import type { CanonicalFee, CanonicalOrder, CanonicalOrderItem, CanonicalProduct } from "./canonical";
 import type { IntegrationProvider } from "./types";
 import { stripReservedCanonicalMetadata } from "./canonicalMetadata";
 
@@ -108,6 +108,11 @@ export async function saveCanonicalOrders(
     title: item.title,
     qty: item.qty,
     unit_price: item.unitPrice,
+    // Parcelas do preço (ADR-001 / migration 0009). `?? null` explícito: canal que
+    // não informa grava desconhecido, nunca zero.
+    list_price: item.listPrice ?? null,
+    promotion_discount: item.promotionDiscount ?? null,
+    promotion_ids: item.promotionIds ?? null,
   })));
   const feeRecords = orders.flatMap((order) => order.fees.map((fee) => ({
     external_order_id: order.externalOrderId,
@@ -159,25 +164,32 @@ export async function saveCanonicalOrders(
      items_payload AS (
        SELECT * FROM jsonb_to_recordset($5::jsonb) AS item(
          external_order_id text, line_no smallint, external_product_id text,
-         sku text, title text, qty integer, unit_price numeric
+         sku text, title text, qty integer, unit_price numeric,
+         list_price numeric, promotion_discount numeric, promotion_ids text
        )
      ),
      upsert_items AS (
        INSERT INTO workspace_channel_order_items
          (workspace_id, provider, connection_id, external_order_id, line_no,
-          external_product_id, sku, title, qty, unit_price)
+          external_product_id, sku, title, qty, unit_price,
+          list_price, promotion_discount, promotion_ids)
        SELECT $1, $2, $3, p.external_order_id, p.line_no,
-              p.external_product_id, p.sku, p.title, p.qty, p.unit_price
+              p.external_product_id, p.sku, p.title, p.qty, p.unit_price,
+              p.list_price, p.promotion_discount, p.promotion_ids
          FROM items_payload p
        ON CONFLICT (workspace_id, provider, connection_id, external_order_id, line_no) DO UPDATE SET
          external_product_id = EXCLUDED.external_product_id, sku = EXCLUDED.sku,
-         title = EXCLUDED.title, qty = EXCLUDED.qty, unit_price = EXCLUDED.unit_price
+         title = EXCLUDED.title, qty = EXCLUDED.qty, unit_price = EXCLUDED.unit_price,
+         list_price = EXCLUDED.list_price, promotion_discount = EXCLUDED.promotion_discount,
+         promotion_ids = EXCLUDED.promotion_ids
        WHERE (workspace_channel_order_items.external_product_id, workspace_channel_order_items.sku,
               workspace_channel_order_items.title, workspace_channel_order_items.qty,
-              workspace_channel_order_items.unit_price)
+              workspace_channel_order_items.unit_price, workspace_channel_order_items.list_price,
+              workspace_channel_order_items.promotion_discount, workspace_channel_order_items.promotion_ids)
          IS DISTINCT FROM
              (EXCLUDED.external_product_id, EXCLUDED.sku,
-              EXCLUDED.title, EXCLUDED.qty, EXCLUDED.unit_price)
+              EXCLUDED.title, EXCLUDED.qty, EXCLUDED.unit_price, EXCLUDED.list_price,
+              EXCLUDED.promotion_discount, EXCLUDED.promotion_ids)
      ),
      stale_items AS (
        DELETE FROM workspace_channel_order_items items
@@ -276,7 +288,10 @@ export async function saveCanonicalOrderHeaders(scope: CanonicalScope, orders: C
 
 export interface OrderItemsApplication {
   externalOrderId: string;
-  items: Array<{ externalProductId: string; sku: string | null; title: string; qty: number; unitPrice: number }>;
+  // Reusa o tipo canônico em vez de redeclarar a forma: a duplicata era o que
+  // fazia campo novo (list_price, promotion_discount) ser aceito num caminho e
+  // rejeitado no outro.
+  items: CanonicalOrderItem[];
   /** Receita dos produtos calculada das linhas; substitui a aproximação do header. */
   gross: number;
   buyerShipping: number;
@@ -298,6 +313,11 @@ export async function applyCanonicalOrderItems(
     title: item.title,
     qty: item.qty,
     unit_price: item.unitPrice,
+    // Parcelas do preço (ADR-001 / migration 0009). `?? null` explícito: canal que
+    // não informa grava desconhecido, nunca zero.
+    list_price: item.listPrice ?? null,
+    promotion_discount: item.promotionDiscount ?? null,
+    promotion_ids: item.promotionIds ?? null,
   })));
   const orderRecords = pending.map((application) => ({
     external_order_id: application.externalOrderId,
@@ -308,25 +328,32 @@ export async function applyCanonicalOrderItems(
     `WITH items_payload AS (
        SELECT * FROM jsonb_to_recordset($4::jsonb) AS item(
          external_order_id text, line_no smallint, external_product_id text,
-         sku text, title text, qty integer, unit_price numeric
+         sku text, title text, qty integer, unit_price numeric,
+         list_price numeric, promotion_discount numeric, promotion_ids text
        )
      ),
      upsert_items AS (
        INSERT INTO workspace_channel_order_items
          (workspace_id, provider, connection_id, external_order_id, line_no,
-          external_product_id, sku, title, qty, unit_price)
+          external_product_id, sku, title, qty, unit_price,
+          list_price, promotion_discount, promotion_ids)
        SELECT $1, $2, $3, p.external_order_id, p.line_no,
-              p.external_product_id, p.sku, p.title, p.qty, p.unit_price
+              p.external_product_id, p.sku, p.title, p.qty, p.unit_price,
+              p.list_price, p.promotion_discount, p.promotion_ids
          FROM items_payload p
        ON CONFLICT (workspace_id, provider, connection_id, external_order_id, line_no) DO UPDATE SET
          external_product_id = EXCLUDED.external_product_id, sku = EXCLUDED.sku,
-         title = EXCLUDED.title, qty = EXCLUDED.qty, unit_price = EXCLUDED.unit_price
+         title = EXCLUDED.title, qty = EXCLUDED.qty, unit_price = EXCLUDED.unit_price,
+         list_price = EXCLUDED.list_price, promotion_discount = EXCLUDED.promotion_discount,
+         promotion_ids = EXCLUDED.promotion_ids
        WHERE (workspace_channel_order_items.external_product_id, workspace_channel_order_items.sku,
               workspace_channel_order_items.title, workspace_channel_order_items.qty,
-              workspace_channel_order_items.unit_price)
+              workspace_channel_order_items.unit_price, workspace_channel_order_items.list_price,
+              workspace_channel_order_items.promotion_discount, workspace_channel_order_items.promotion_ids)
          IS DISTINCT FROM
              (EXCLUDED.external_product_id, EXCLUDED.sku,
-              EXCLUDED.title, EXCLUDED.qty, EXCLUDED.unit_price)
+              EXCLUDED.title, EXCLUDED.qty, EXCLUDED.unit_price, EXCLUDED.list_price,
+              EXCLUDED.promotion_discount, EXCLUDED.promotion_ids)
      ),
      stale_items AS (
        DELETE FROM workspace_channel_order_items items

@@ -42,7 +42,18 @@ export interface CanonicalOrderItem {
   sku: string | null;
   title: string;
   qty: number;
+  /** Líquido de desconto — é dele que saem margem e lucro. */
   unitPrice: number;
+  /**
+   * Preço de tabela por unidade, antes de promoção. `null` = canal não informa.
+   * Guardar as parcelas (e não só o líquido) é o que permite responder "usaram
+   * cupom?" sem abrir pedido a pedido no painel do marketplace.
+   */
+  listPrice?: number | null;
+  /** Desconto por unidade. `null` = desconhecido; `0` = houve e foi zero. */
+  promotionDiscount?: number | null;
+  /** Identificador da campanha, quando o canal informa. */
+  promotionIds?: string | null;
 }
 
 export interface CanonicalOrder {

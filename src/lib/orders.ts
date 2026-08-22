@@ -92,6 +92,8 @@ export interface AmazonOrderItem {
   /** Parte do frete bancada pela vendedora. Em frete grátis vem igual a `ShippingPrice`. */
   ShippingDiscount?: { CurrencyCode?: string; Amount?: string };
   PromotionDiscount?: { CurrencyCode?: string; Amount?: string };
+  /** Campanhas aplicadas ao item (ex.: cupom). Ausente quando não houve nenhuma. */
+  PromotionIds?: string[];
 }
 
 export function getOrderItems(amazonOrderId: string): Promise<AmazonOrderItem[]> {
