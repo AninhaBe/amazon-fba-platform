@@ -10,6 +10,7 @@ import { NavLinks } from "./Nav";
 import { LogoutButton } from "./LogoutButton";
 import { AccountSwitcher } from "./AccountSwitcher";
 import { NexoSymbol } from "./NexoSymbol";
+import accountStyles from "./ShellAccountLinks.module.css";
 
 /**
  * SIDEBAR ÚNICA — a estrutura de navegação do NEXO na anatomia medida em
@@ -151,12 +152,12 @@ export function SidebarNexo({ workspace, collapsed = false }: { workspace: Works
             <span>{workspace === "mercado_livre" ? "Gerenciar integração" : "Ver integrações"}</span>
           </Link>
         )}
-        <div className="nexo-sidebar-utility-links" aria-label="Conta e configurações">
-          <Link href="/configuracoes" className="nexo-sidebar-utility" aria-current={pathname === "/configuracoes" ? "page" : undefined}>
+        <div className={accountStyles.utilityLinks} aria-label="Conta e configurações">
+          <Link href="/configuracoes" className={`${accountStyles.utility}${collapsed ? ` ${accountStyles.utilityCollapsed}` : ""}`} aria-current={pathname === "/configuracoes" ? "page" : undefined}>
             <Settings aria-hidden />
             <span>Configurações</span>
           </Link>
-          <Link href="/perfil" className="nexo-sidebar-utility" aria-current={pathname === "/perfil" ? "page" : undefined}>
+          <Link href="/perfil" className={`${accountStyles.utility}${collapsed ? ` ${accountStyles.utilityCollapsed}` : ""}`} aria-current={pathname === "/perfil" ? "page" : undefined}>
             <UserRound aria-hidden />
             <span>Perfil</span>
           </Link>

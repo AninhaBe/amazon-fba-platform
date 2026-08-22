@@ -1,0 +1,64 @@
+.utilityLinks {
+  display: grid;
+  gap: 2px;
+}
+
+.utility {
+  display: flex;
+  min-width: 0;
+  min-height: var(--nav-item-h);
+  align-items: center;
+  gap: 8px;
+  border-radius: var(--radius-sm);
+  padding-inline: 8px;
+  color: var(--ink-muted);
+  font-size: 14px;
+  letter-spacing: var(--track-m);
+  text-decoration: none;
+  transition: background-color var(--duration) var(--ease), color var(--duration) var(--ease);
+}
+
+.utility:hover,
+.utility[aria-current="page"] {
+  background: var(--ink-05);
+  color: var(--ink);
+}
+
+.utility svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.utilityCollapsed {
+  width: 28px;
+  min-width: 28px;
+  justify-content: center;
+  padding-inline: 6px;
+}
+
+.utilityCollapsed span {
+  display: none;
+}
+
+.mobileAction {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  color: var(--ink-muted);
+  text-decoration: none;
+  transition: background-color var(--duration) var(--ease), color var(--duration) var(--ease);
+}
+
+.mobileAction:hover {
+  background: var(--ink-05);
+  color: var(--ink);
+}
+
+.mobileAction svg {
+  width: 16px;
+  height: 16px;
+}
