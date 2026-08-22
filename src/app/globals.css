@@ -2538,7 +2538,7 @@ summary:hover { background: var(--paper-soft); }
   padding: 13px 10px;
 }
 .lp-product-brand { display: flex; align-items: center; gap: 8px; min-height: 31px; margin-block-end: 15px; padding-inline: 7px; }
-.lp-product-brand strong { font-size: 13px; font-weight: var(--weight-semibold); letter-spacing: var(--track-l); }
+.lp-product-brand strong { color: var(--ink-soft); font-size: 10.5px; font-weight: var(--weight-medium); letter-spacing: .055em; }
 .lp-product-sidebar > span {
   display: flex; min-height: 29px; align-items: center; gap: 8px; border-radius: var(--radius-sm);
   padding-inline: 8px; color: var(--ink-soft); font-size: 12px; white-space: nowrap;

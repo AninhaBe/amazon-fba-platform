@@ -14,8 +14,9 @@ import { MostraSaldo, MostraAuditoria } from "./Mostruario";
  *
  * As três telas são as três seções profundas da página. A aba é atalho e
  * demonstração ao mesmo tempo: quem clica vê a tela, quem rola encontra a
- * explicação. Nenhuma é mock inventado — todas são a UI real com os números de
- * 16/08/2026 (ver `Mostruario.tsx`).
+ * explicação. Financeiro monta os componentes reais do dashboard com uma
+ * amostra local explicitamente identificada; Saldo e Auditoria reproduzem os
+ * estados medidos em 16/08/2026 (ver `Mostruario.tsx`).
  */
 
 const ABAS = [
