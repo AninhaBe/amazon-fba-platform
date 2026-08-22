@@ -1670,6 +1670,58 @@ grupos têm lance próprio — mas segmentação nova nasceria nele).
 - Protetores com preço novo (−R$ 3, ~20h de 19/08): nenhuma venda ainda; reolhar 21/08
   (o combinado é 2 dias).
 
+## 📌 PLANO DA PRÓXIMA LEITURA (23/08 em diante) — ler antes de agir
+
+### ⛔ Substitutos: revi a proposta e NÃO é para pausar as duas
+
+Eu havia proposto pausar Substitutos na Auto-Clips E na Auto-Protetor 8. Ela
+perguntou se era mesmo uma boa. Revendo o dado, **são casos diferentes**:
+
+| Campanha | Substitutos | Decisão | Por quê |
+|---|---|---|---|
+| **Auto - Clips** | 406 impr · **R$ 0,00** | ❌ **NÃO pausar** | **Não gasta nada** — não há sangria para estancar. E 406 impressões está **abaixo do limiar de 500**: não dá para concluir nada sobre CTR. Pausar seria churn sem ganho. |
+| **Auto - Protetor 8** | 847 impr · **R$ 2,56** (74% do gasto) | ⏳ **Esperar 2–3 dias** | Vale pausar, **mas não antes de saber de onde veio a venda de hoje**. |
+
+### Por que ESPERAR no protetor — a armadilha é a mesma de 16/08
+
+🔴 **O `kitprote-8` VENDEU em 22/08 às 17:32** (pedido `701-0816834-0793058`,
+R$ 21,90, `Pending`) — a primeira venda de protetor desde 17/08. **A atribuição está
+ABERTA.** Não se sabe se a venda veio de Substitutos, da busca, ou se foi orgânica.
+
+Pausar Substitutos agora é repetir **exatamente** o erro de 16/08, quando cortei a
+Auto-Protetor por "21 cliques e zero venda" e ela era a melhor campanha da conta
+(ROAS 15,11) — a atribuição só não tinha fechado.
+
+**Custo de esperar:** ~R$ 2,56/dia × 3 = ~R$ 7.
+**Custo de errar:** matar a fonte da única venda de protetor em 5 dias.
+
+### O que fazer na próxima leitura, em ordem
+
+1. **Descobrir a origem da venda de 22/08 17:32.** Abrir `Auto - Protetor Kit 8` →
+   nível de segmentação, com o período em 22/08, e ver qual grupo recebeu a compra.
+   - Veio de **Substitutos** → **não pausar**; ele funciona neste produto.
+   - Veio da **busca** (aproximada/vaga) ou nenhum grupo → **pausar Substitutos**,
+     liberando R$ 2,56/dia para o tráfego que converte.
+2. **Auto - Protetor 32** — única campanha ainda não auditada. Achar pelo Chrome
+   (a lista agregada está quebrada desde 19/08 e o ID nunca foi documentado).
+   ⚠️ **Não** usar a API interna do console: a Ads API não está aprovada.
+3. **Medir o efeito dos lances de 22/08** (só depois de 24h de veiculação):
+   - `martelo borracha` R$ 1,50 → 2,50 e `martelo de borracha` R$ 1,20 → 2,00
+   - `clips` e `clipe` (Exata) R$ 1,20 → 2,00
+   Pergunta única: **as impressões subiram?** Se `martelo de borracha` seguir em zero
+   mesmo a R$ 2,00, o piso daquela variação é mais alto que o do termo curto.
+4. **Só então** `protetor de pés de cadeiras` R$ 0,82 → R$ 1,20 (pendente desde
+   18/08). Uma mudança por vez: não misturar com o efeito do Substitutos.
+
+### Contexto que não pode ser esquecido na próxima leitura
+
+- ⚠️ **O "concorrente de R$ 9,90" foi RETRATADO** — produto diferente, não comparável.
+  Nenhuma decisão de preço do protetor pode se apoiar nele.
+- ⚠️ **Substitutos segue pausado na Auto-Martelo** e assim deve ficar: o guia (cap. 10)
+  é explícito para produto sem avaliação e sem marca, e o martelo continua sem as duas.
+- 📌 **Gasto zero ≠ campanha morta.** A Auto-Martelo faz 370 impressões com R$ 0.
+  Sempre abrir a segmentação antes de concluir.
+
 ## Auditoria por SEGMENTAÇÃO — 22/08/2026, ~19h — 🔑 SUBSTITUTOS ESTÁ DE VOLTA
 
 ```
