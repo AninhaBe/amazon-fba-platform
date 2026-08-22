@@ -14,7 +14,7 @@ import { LogoutButton } from "./LogoutButton";
 import { TrialNotice } from "./TrialNotice";
 import { ShellTopbar } from "./ShellTopbar";
 import Link from "next/link";
-import { Settings, UserRound } from "lucide-react";
+import { Settings } from "lucide-react";
 import {
   SIDEBAR_COLLAPSED_KEY,
   SIDEBAR_PREFERENCE_EVENT,
@@ -74,7 +74,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <SidebarNexo workspace={workspace} collapsed={sidebarCollapsed} />
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="mobile-console sticky top-0 z-20 px-4 pt-3 lg:hidden">
-          <div className="mb-2 flex min-w-0 items-center justify-between gap-2"><Logo compact /><div className="flex min-w-0 flex-1 items-center justify-end gap-1.5"><ChannelSwitcher compact /><Link href="/configuracoes" className={accountStyles.mobileAction} aria-label="Configurações"><Settings aria-hidden /></Link><Link href="/perfil" className={accountStyles.mobileAction} aria-label="Perfil"><UserRound aria-hidden /></Link><LogoutButton compact /></div></div>
+          <div className="mb-2 flex min-w-0 items-center justify-between gap-2"><Logo compact /><div className="flex min-w-0 flex-1 items-center justify-end gap-1.5"><ChannelSwitcher compact /><Link href="/configuracoes" className={accountStyles.mobileAction} aria-label="Configurações e perfil"><Settings aria-hidden /></Link><LogoutButton compact /></div></div>
           <NavLinks variant="top" />
         </header>
         <ShellTopbar

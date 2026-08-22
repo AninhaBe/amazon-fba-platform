@@ -70,6 +70,7 @@
 
 .section {
   min-width: 0;
+  scroll-margin-block-start: 64px;
 }
 
 .section + .section {
@@ -330,6 +331,7 @@
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
   padding: 14px 16px;
+  border-block-end: 1px solid var(--ink-08);
 }
 
 .profileForm label {
@@ -369,6 +371,73 @@
 }
 
 .formMessage[data-tone="error"] {
+  color: var(--danger);
+}
+
+.planSummary {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  min-height: 82px;
+  align-items: center;
+  gap: 13px;
+  padding: 14px 16px;
+  border-block-end: 1px solid var(--ink-08);
+  background: color-mix(in oklch, var(--positive) 3%, var(--paper));
+}
+
+.planIcon {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: color-mix(in oklch, var(--positive) 10%, var(--paper));
+  color: var(--positive);
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--positive) 18%, var(--paper));
+}
+
+.planIcon svg {
+  width: 19px;
+  height: 19px;
+}
+
+.planText {
+  min-width: 0;
+}
+
+.planText strong {
+  display: block;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: var(--weight-semibold);
+  line-height: 19px;
+}
+
+.planText span {
+  display: block;
+  margin-block-start: 3px;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.planStatus {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  border-radius: 999px;
+  padding-inline: 8px;
+  font-size: 11px;
+  font-weight: var(--weight-semibold);
+}
+
+.planStatus[data-tone="positive"] {
+  background: color-mix(in oklch, var(--positive) 9%, var(--paper));
+  color: var(--positive);
+}
+
+.planStatus[data-tone="danger"] {
+  background: color-mix(in oklch, var(--danger) 8%, var(--paper));
   color: var(--danger);
 }
 
@@ -450,6 +519,20 @@
 
   .profileSummary {
     grid-template-columns: 44px minmax(0, 1fr);
+  }
+
+  .planSummary {
+    grid-template-columns: 40px minmax(0, 1fr);
+  }
+
+  .planIcon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .planStatus {
+    grid-column: 2;
+    justify-self: start;
   }
 
   .avatar {

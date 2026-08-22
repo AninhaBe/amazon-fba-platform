@@ -1,27 +1,32 @@
 import Link from "next/link";
-import { Cable, LockKeyhole, Settings, UserRound } from "lucide-react";
+import { Cable, CreditCard, LockKeyhole, PanelLeft, SlidersHorizontal, UserRound } from "lucide-react";
 import styles from "./SettingsPages.module.css";
-
-type SettingsSection = "general" | "profile" | "integrations" | "privacy";
 
 const groups = [
   {
     label: "Conta",
     links: [
-      { id: "general" as const, href: "/configuracoes", label: "Geral", icon: Settings },
-      { id: "profile" as const, href: "/perfil", label: "Perfil", icon: UserRound },
+      { href: "#perfil", label: "Perfil", icon: UserRound },
+      { href: "#plano", label: "Plano e pagamento", icon: CreditCard },
+    ],
+  },
+  {
+    label: "Produto",
+    links: [
+      { href: "#preferencias", label: "Navegação", icon: PanelLeft },
+      { href: "#operacao", label: "Canais e custos", icon: SlidersHorizontal },
     ],
   },
   {
     label: "Dados",
     links: [
-      { id: "integrations" as const, href: "/integracoes", label: "Integrações", icon: Cable },
-      { id: "privacy" as const, href: "/privacidade", label: "Privacidade", icon: LockKeyhole },
+      { href: "/integracoes", label: "Integrações", icon: Cable },
+      { href: "/privacidade", label: "Privacidade", icon: LockKeyhole },
     ],
   },
 ];
 
-export function SettingsNavigation({ current }: { current: SettingsSection }) {
+export function SettingsNavigation() {
   return (
     <aside className={styles.navigation} aria-label="Configurações do NEXO">
       {groups.map((group) => (
@@ -31,10 +36,9 @@ export function SettingsNavigation({ current }: { current: SettingsSection }) {
             const Icon = link.icon;
             return (
               <Link
-                key={link.id}
+                key={link.href}
                 href={link.href}
                 className={styles.navigationLink}
-                aria-current={current === link.id ? "page" : undefined}
               >
                 <Icon aria-hidden />
                 <span>{link.label}</span>

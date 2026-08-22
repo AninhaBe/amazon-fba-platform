@@ -41,6 +41,6 @@ export async function updateProfile(
     return { tone: "error", message: "Não foi possível salvar o perfil. Tente novamente." };
   }
 
-  revalidatePath("/perfil");
+  revalidatePath("/configuracoes");
   return { tone: "success", message: "Nome atualizado no seu perfil." };
 }
