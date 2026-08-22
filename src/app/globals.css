@@ -3595,6 +3595,11 @@ summary:hover { background: var(--paper-soft); }
 /* Briefing v2: uma fila de decisões, não uma parede de cartões. A composição usa
    resumo contínuo, tabs locais e linhas densas com evidência antes da ação. */
 .briefing-page { display: flex; min-width: 0; flex-direction: column; gap: 20px; }
+/* Abertura do briefing pelo NEXO (Gemini): prosa que prioriza os sinais. */
+.briefing-narracao { display: grid; gap: 10px; padding: 18px 20px; border-radius: var(--radius-lg); background: color-mix(in srgb, var(--core) 5%, var(--paper)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--core) 20%, transparent); }
+.briefing-narracao-marca { justify-self: start; padding: 2px 8px; border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 10px; font-weight: var(--weight-bold); letter-spacing: 0.08em; }
+.briefing-narracao-texto { display: grid; gap: 8px; }
+.briefing-narracao-texto p { color: var(--ink); font-size: 14px; line-height: 1.6; }
 .briefing-page > .page-heading { margin: 0; padding-block-end: 0; }
 .briefing-page .page-heading h1 { font-size: 16px; line-height: 1.35; }
 .briefing-page .page-subtitle { max-width: 68ch; font-size: 13px; line-height: 1.5; text-wrap: pretty; }
@@ -4697,15 +4702,70 @@ summary:hover { background: var(--paper-soft); }
 .auth-intro { max-width: 600px; }
 .auth-intro .nexo-wordmark { margin-block-end: 42px; }
 .auth-intro .nexo-letter { font-size: 18px; }
-.auth-intro .nexo-wordmark-symbol { width: 26px; height: 26px; }
+.auth-intro .nexo-wordmark-symbol { width: 26px; height: 26px; transform-origin: center; animation: auth-symbol-arrive 720ms cubic-bezier(.16,.84,.28,1) 120ms both; }
 .auth-kicker { margin-block-end: 9px; color: var(--ink-muted); font-size: 12px; font-weight: var(--weight-semibold); letter-spacing: .08em; }
 .auth-intro h1 { max-width: 18ch; font-size: clamp(34px, 4.6vw, 56px); font-weight: var(--weight-semibold); letter-spacing: -.045em; line-height: 1; }
 .auth-intro > p:not(.auth-kicker) { max-width: 54ch; margin-block-start: 18px; color: var(--ink-muted); font-size: 14px; line-height: 1.65; }
 .auth-assurance-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-block-start: 28px; overflow: hidden; border-radius: var(--radius-lg); background: var(--paper); box-shadow: var(--shadow-surface); }
-.auth-assurance-list > div { min-width: 0; padding: 11px 12px; border-inline-end: 1px solid var(--ink-08); }
+.auth-assurance-list > div { position: relative; min-width: 0; padding: 11px 12px; border-inline-end: 1px solid var(--ink-08); transition-property: background-color; transition-duration: var(--duration); transition-timing-function: var(--ease); }
 .auth-assurance-list > div:last-child { border-inline-end: 0; }
+.auth-assurance-list > div::after { position: absolute; inset: 8px 8px auto auto; width: 15px; height: 15px; background: url("/nexo-symbol.svg") center / contain no-repeat; content: ""; opacity: 0; filter: blur(4px); scale: .25; transition-property: opacity, filter, scale; transition-duration: 300ms; transition-timing-function: cubic-bezier(.2,0,0,1); }
+.auth-assurance-list > div:hover { background: var(--ink-03); }
+.auth-assurance-list > div:hover::after { opacity: 1; filter: blur(0); scale: 1; }
 .auth-assurance-list dt { color: var(--ink); font-size: 12px; font-weight: var(--weight-semibold); }
 .auth-assurance-list dd { margin-block-start: 3px; color: var(--ink-muted); font-size: 12px; line-height: 14px; }
+
+/* A seta deixa de ser apenas assinatura e passa a explicar visualmente o
+   produto: vários canais convergem no NEXO e saem como uma decisão contextual. */
+.auth-channel-flow {
+  --auth-flow-travel: clamp(78px, 10vw, 142px);
+  position: relative;
+  height: 190px;
+  overflow: hidden;
+  margin-block-start: 22px;
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(circle, var(--ink-08) 1px, transparent 1.2px) 0 0 / 18px 18px,
+    color-mix(in oklch, var(--paper) 96%, var(--ink));
+  box-shadow: var(--shadow-surface);
+}
+.auth-flow-caption { position: absolute; inset: 12px 14px auto; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 16px; color: var(--ink-muted); font-size: 10px; font-weight: var(--weight-semibold); letter-spacing: .08em; text-transform: uppercase; }
+.auth-flow-lines { position: absolute; inset: 24px 0 0; width: 100%; height: calc(100% - 24px); }
+.auth-flow-lines path { fill: none; stroke: var(--ink-12); stroke-width: 1.25; stroke-dasharray: 4 7; vector-effect: non-scaling-stroke; animation: auth-flow-dash 6s linear infinite; }
+.auth-flow-lines .auth-flow-output-line { stroke: var(--ink-soft); stroke-dasharray: 2 6; animation-duration: 3.6s; }
+.auth-flow-sources { position: absolute; inset: 48px auto auto 14px; z-index: 2; display: grid; gap: 7px; }
+.auth-flow-sources span { display: flex; min-height: 24px; align-items: center; gap: 7px; color: var(--ink-muted); font-size: 11px; font-weight: var(--weight-medium); }
+.auth-flow-sources i { width: 7px; height: 7px; flex: none; border-radius: 999px; background: var(--ink-muted); box-shadow: 0 0 0 4px var(--paper); }
+.auth-flow-sources .is-amazon i { background: var(--amazon); }
+.auth-flow-sources .is-meli i { background: var(--meli-dark); }
+.auth-flow-sources .is-shopee i { background: var(--shopee); }
+.auth-flow-sources .is-tiktok i { background: var(--tiktok); }
+.auth-flow-core { position: absolute; inset: 50% auto auto 54%; z-index: 3; display: grid; width: 68px; height: 68px; place-items: center; translate: -50% -38%; border-radius: 999px; background: var(--paper); box-shadow: var(--shadow-modal); }
+.auth-flow-core-ring { position: absolute; inset: -1px; border: 1px solid var(--ink-12); border-radius: inherit; animation: auth-flow-pulse 3.2s cubic-bezier(.2,0,0,1) infinite; }
+.auth-flow-core-mark { display: grid; place-items: center; transition-property: transform; transition-duration: 300ms; transition-timing-function: cubic-bezier(.2,0,0,1); }
+.auth-flow-core-mark .nexo-symbol { width: 42px; height: 42px; }
+.auth-channel-flow:hover .auth-flow-core-mark { transform: translate(4px, -3px) rotate(7deg); }
+.auth-flow-runner { position: absolute; inset: 50% auto auto calc(54% + 38px); z-index: 4; opacity: 0; filter: blur(4px); transform: translate3d(0,-38%,0) scale(.25); animation: auth-flow-runner 5.6s cubic-bezier(.2,0,0,1) infinite; }
+.auth-flow-runner .nexo-symbol { width: 18px; height: 18px; }
+.auth-flow-outcome { position: absolute; inset: 50% 14px auto auto; z-index: 2; display: grid; min-width: 92px; gap: 1px; translate: 0 -38%; border-radius: var(--radius-md); background: var(--paper); padding: 9px 10px; box-shadow: var(--shadow-xs); }
+.auth-flow-outcome span { color: var(--ink-muted); font-size: 10px; }
+.auth-flow-outcome strong { color: var(--ink); font-size: 11px; font-weight: var(--weight-semibold); }
+
+@keyframes auth-symbol-arrive {
+  from { opacity: 0; filter: blur(4px); transform: translate(54px, 34px) rotate(14deg) scale(.25); }
+  to { opacity: 1; filter: blur(0); transform: translate(0, 0) rotate(0) scale(1); }
+}
+@keyframes auth-flow-dash { to { stroke-dashoffset: -44; } }
+@keyframes auth-flow-pulse {
+  0%, 30% { opacity: .55; transform: scale(1); }
+  74%, 100% { opacity: 0; transform: scale(1.38); }
+}
+@keyframes auth-flow-runner {
+  0%, 18% { opacity: 0; filter: blur(4px); transform: translate3d(0,-38%,0) scale(.25); }
+  30% { opacity: 1; filter: blur(0); transform: translate3d(0,-38%,0) scale(1); }
+  70% { opacity: 1; filter: blur(0); transform: translate3d(var(--auth-flow-travel),-38%,0) scale(1); }
+  84%, 100% { opacity: 0; filter: blur(4px); transform: translate3d(var(--auth-flow-travel),-38%,0) scale(.25); }
+}
 .auth-card { overflow: hidden; border-radius: var(--radius-lg); padding: 0; box-shadow: var(--shadow-modal); }
 .auth-card-heading { padding: 18px 20px 15px; border-block-end: 1px solid var(--ink-08); }
 .auth-card-heading > span { color: var(--ink-muted); font-size: 12px; font-weight: var(--weight-semibold); letter-spacing: .06em; text-transform: uppercase; }
@@ -4740,6 +4800,25 @@ summary:hover { background: var(--paper-soft); }
   .auth-tabs button,
   .auth-form input,
   .auth-submit { min-height: 44px; }
+  .auth-channel-flow { --auth-flow-travel: 72px; height: 168px; }
+  .auth-flow-caption { font-size: 9px; }
+  .auth-flow-sources { inset-block-start: 44px; gap: 4px; }
+  .auth-flow-sources span { min-height: 22px; font-size: 10px; }
+  .auth-flow-core { width: 56px; height: 56px; }
+  .auth-flow-core-mark .nexo-symbol { width: 34px; height: 34px; }
+  .auth-flow-outcome { inset-inline-end: 8px; min-width: 76px; padding: 7px 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-intro .nexo-wordmark-symbol,
+  .auth-flow-lines path,
+  .auth-flow-core-ring,
+  .auth-flow-runner { animation: none; }
+  .auth-intro .nexo-wordmark-symbol { opacity: 1; filter: none; transform: none; }
+  .auth-flow-core-ring { opacity: .45; }
+  .auth-flow-runner { display: none; }
+  .auth-flow-core-mark,
+  .auth-assurance-list > div::after { transition: none; }
 }
 
 .lp-footer { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; min-height: 76px; align-items: center; gap: 20px; margin-block-start: clamp(44px, 8vw, 80px); border-block-start: 1px solid var(--lp-linha); color: var(--lp-suave); font-size: 12px; }
