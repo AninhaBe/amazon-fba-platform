@@ -17,12 +17,15 @@ export function NexoMensagem({
   texto,
   ctaHref,
   ctaLabel = "Ver briefing",
+  carregando = false,
 }: {
-  texto: string;
+  texto?: string;
   ctaHref?: string;
   ctaLabel?: string;
+  /** Mostra "NEXO analisando…" com shimmer enquanto o modelo escreve. */
+  carregando?: boolean;
 }) {
-  const paragrafos = texto.split(/\n+/).map((p) => p.trim()).filter(Boolean);
+  const paragrafos = (texto ?? "").split(/\n+/).map((p) => p.trim()).filter(Boolean);
   return (
     <div className="nexo-mensagem">
       {/* Seta da marca inline, preenchida em branco puro (currentColor herda a
@@ -38,10 +41,16 @@ export function NexoMensagem({
       </span>
       <div className="nexo-mensagem-fala">
         <span className="nexo-mensagem-nome">NEXO</span>
-        {paragrafos.map((p, i) => (
-          <p key={i}>{p}</p>
-        ))}
-        {ctaHref && (
+        {carregando && !paragrafos.length ? (
+          <div className="nexo-mensagem-carregando" aria-live="polite">
+            <span className="nexo-mensagem-shimmer" style={{ width: "88%" }} />
+            <span className="nexo-mensagem-shimmer" style={{ width: "70%" }} />
+            <span className="sr-only">NEXO está lendo a operação…</span>
+          </div>
+        ) : (
+          paragrafos.map((p, i) => <p key={i}>{p}</p>)
+        )}
+        {ctaHref && !carregando && (
           <Link href={ctaHref} className="nexo-mensagem-cta">
             {ctaLabel} <ArrowRight className="briefing-acao-seta" aria-hidden />
           </Link>

@@ -72,6 +72,9 @@ export default function BriefingPage() {
   // Narração do NEXO (Gemini) que sintetiza os insights numa conversa. Null sem
   // chave/resposta; aí a tela mostra só os cartões, como antes.
   const [narracao, setNarracao] = useState<string | null>(null);
+  // Começa true: sempre vamos tentar narrar, então mostramos o "analisando…"
+  // desde o início em vez de deixar o espaço em branco durante a coleta.
+  const [narracaoCarregando, setNarracaoCarregando] = useState(true);
   // Financeiro cross-channel — a MESMA fonte da Visão geral. Alimenta o NEXO
   // para o briefing raciocinar sobre a história do dinheiro (quem concentra a
   // venda, quem parou, margem), não só sobre ruptura de estoque.
@@ -145,7 +148,8 @@ export default function BriefingPage() {
     fetch("/api/central/briefing", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (!cancelado && d?.texto) setNarracao(d.texto as string); })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => { if (!cancelado) setNarracaoCarregando(false); });
     return () => { cancelado = true; };
   }, [insights, canais]);
 
@@ -186,7 +190,7 @@ export default function BriefingPage() {
 
       {/* O NEXO abre o briefing em prosa: lê os sinais detectados e diz, do jeito
           de um colega, o que priorizar. Os cartões abaixo são a evidência. */}
-      {narracao && <NexoMensagem texto={narracao} />}
+      {narracao ? <NexoMensagem texto={narracao} /> : narracaoCarregando ? <NexoMensagem carregando /> : null}
 
       {error && (
         <div role="alert" className="briefing-error">

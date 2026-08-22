@@ -5042,6 +5042,10 @@ summary:hover { background: var(--paper-soft); }
 .nexo-mensagem-fala p { color: var(--ink-soft); font-size: 14px; line-height: 1.55; }
 .nexo-mensagem-cta { justify-self: start; display: inline-flex; align-items: center; gap: 4px; margin-top: 2px; color: var(--ink); font-size: 13px; font-weight: var(--weight-semibold); text-decoration: none; }
 .nexo-mensagem-cta:hover { color: var(--ink-muted); }
+.nexo-mensagem-carregando { display: grid; gap: 8px; padding-top: 4px; }
+.nexo-mensagem-shimmer { height: 12px; border-radius: 6px; background: linear-gradient(90deg, var(--ink-08) 25%, var(--ink-05) 37%, var(--ink-08) 63%); background-size: 400% 100%; animation: nexo-shimmer 1.4s ease infinite; }
+@keyframes nexo-shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+@media (prefers-reduced-motion: reduce) { .nexo-mensagem-shimmer { animation: none; } }
 .briefing-lead-texto { display: flex; min-width: 0; flex: 1 1 380px; flex-direction: column; gap: 4px; }
 .briefing-lead-texto h2 {
   font-size: 20px; font-weight: var(--weight-semibold); line-height: 28px;
