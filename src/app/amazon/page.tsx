@@ -388,7 +388,16 @@ export default function Dashboard() {
   // que não está em lugar nenhum da tela. O ticket real é 39,80/2 = R$ 19,90.
   const vendasConciliadas = profit?.finance.orderCount ?? 0;
   const faturamentoConciliado = profit?.finance.revenue ?? 0;
-  const ticketMedio = vendasConciliadas > 0 ? faturamentoConciliado / vendasConciliadas : null;
+  // Decisão dela (22/08): sem base, o cartão mostra R$ 0,00 em vez de "—".
+  // Antes disso, porém, tenta o número REAL: quando ainda não há venda conciliada
+  // mas o período tem faturamento (pendente com valor de tabela), o ticket existe
+  // e é faturamento ÷ vendas — mostrar zero ali seria esconder um número que temos.
+  const ticketMedio =
+    vendasConciliadas > 0
+      ? faturamentoConciliado / vendasConciliadas
+      : (faturamento?.revenue ?? 0) > 0 && salesCount > 0
+        ? (faturamento?.revenue ?? 0) / salesCount
+        : 0;
   // Quanto dos pedidos recebidos a Amazon ainda não confirmou. As duas bases só
   // podem ser subtraídas no MESMO critério: `revenue` (orderMetrics) é preço de
   // tabela, então o conciliado precisa voltar ao bruto somando o cupom.
@@ -527,10 +536,10 @@ export default function Dashboard() {
         />
         <CompactMetric label="Vendas" value={String(salesCount)} loading={loading} />
         <CompactMetric label="Unidades" value={String(unitsCount)} loading={loading} />
-        <CompactMetric label="Ticket médio" value={ticketMedio == null ? "—" : money(ticketMedio, currency)} loading={loading} />
+        <CompactMetric label="Ticket médio" value={money(ticketMedio, currency)} loading={loading} />
         <CompactMetric
           label="ROI"
-          value={cogs > 0 ? `${roiPct.toFixed(1)}%` : "—"}
+          value={`${roiPct.toFixed(1)}%`}
           tone={cogs > 0 ? (roiPct > 0 ? "positive" : roiPct < 0 ? "danger" : "default") : "default"}
           loading={loading}
         />
@@ -544,12 +553,17 @@ export default function Dashboard() {
           // Daí os três estados, e o do meio é o que quase virou bug: com 160
           // cancelados e 1 com valor, exibir só a soma afirmaria que os 160
           // custaram R$ 89,70. Cobertura parcial tem que aparecer como parcial.
+          // SEM cancelamento no período, R$ 0,00 é FATO — "não houve" — e é o que
+          // ela pediu ver (22/08). O "—" ali sugeria "não sei", que é pior.
+          // Só continua desconhecido quando EXISTE cancelado e a Amazon não
+          // informou o valor de nenhum deles: aí zero seria afirmar que cancelar
+          // não custou nada, e isso a legenda abaixo explica.
           value={
-            canceladas
-              ? canceladas.revenue === null
+            !canceladas || canceladas.orders === 0
+              ? money(0, currency)
+              : canceladas.revenue === null
                 ? "—"
                 : money(canceladas.revenue, currency)
-              : "—"
           }
           tone={canceladas && canceladas.orders > 0 ? "danger" : "default"}
           loading={loading}
