@@ -41,7 +41,19 @@ const FEES_BATCH_SIZE = 500;
 // Fees só ficam disponíveis após a liquidação; a janela cobre o que os painéis
 // mostram (≤30 dias) com folga. Histórico mais antigo não é reconciliado.
 const FEES_WINDOW_DAYS = 45;
-const FRESH_FOR_MS = 6 * 60 * 60_000;
+// Quanto tempo uma conexão `complete` fica sem abrir janela nova.
+//
+// Era 6 HORAS. Com o agendador interno rodando a cada 5 minutos, isso significava
+// que 71 de cada 72 execuções não buscavam pedido nenhum — só reconciliavam itens.
+// Na prática o painel podia mostrar dado de horas atrás sem qualquer aviso, e foi
+// exatamente o que aconteceu em 21/08/2026: último pedido ingerido às 16:05 com a
+// tela aberta às 22:15.
+//
+// 10 minutos cabe no limite da SP-API com folga: `getOrders` permite ~1 req/min
+// por conta (burst 20), e três conexões abrindo janela a cada 10 min gastam ~18
+// aberturas/hora no total. O piso de 5 min da rota do dashboard continua valendo
+// para o caminho sob demanda — quem abre a tela dez vezes não gera dez varreduras.
+const FRESH_FOR_MS = 10 * 60_000;
 // A SP-API exige CreatedBefore com pelo menos 2 minutos de idade; 3 dá folga.
 const CREATED_BEFORE_LAG_MS = 3 * 60_000;
 
