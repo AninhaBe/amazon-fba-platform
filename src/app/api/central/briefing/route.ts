@@ -20,6 +20,15 @@ function diaEmBrasilia(): string {
   return new Date(Date.now() - 3 * 60 * 60_000).toISOString().slice(0, 10);
 }
 
+// A saudação é computada no servidor porque o modelo erra a hora (mandou "bom
+// dia" às 14h). Brasília não tem horário de verão desde 2019: offset fixo -3h.
+function saudacaoDeBrasilia(): string {
+  const hora = new Date(Date.now() - 3 * 60 * 60_000).getUTCHours();
+  if (hora < 12) return "Bom dia";
+  if (hora < 18) return "Boa tarde";
+  return "Boa noite";
+}
+
 export async function POST(req: NextRequest) {
   return withAuthenticatedWorkspace(async () => {
     let snapshot: SnapshotCentral;
@@ -38,16 +47,19 @@ export async function POST(req: NextRequest) {
     // servir o mesmo texto que "amazon" (dashboard do canal). Só letras/dígitos.
     const escopoBruto = (snapshot as { escopo?: string }).escopo ?? "geral";
     const escopo = /^[a-z0-9_]{1,24}$/.test(escopoBruto) ? escopoBruto : "geral";
-    // A data vem do servidor, não do cliente: o cache é por dia de Brasília.
+    // A data e a saudação vêm do servidor. A saudação entra na chave: como muda
+    // de manhã/tarde/noite, o cache diário regenera no máximo 3 vezes ao dia — se
+    // não, às 15h a pessoa veria o "Bom dia" cacheado de manhã.
     const dia = diaEmBrasilia();
-    const chave = `central-briefing:${modo}:${escopo}:${currentWorkspaceId()}:${dia}`;
+    const saudacao = saudacaoDeBrasilia();
+    const chave = `central-briefing:${modo}:${escopo}:${saudacao}:${currentWorkspaceId()}:${dia}`;
     // Só o texto real é cacheado. Resultado vazio (sem chave, erro transitório)
     // vira throw DENTRO do cache — o helper descacheia em erro, então a próxima
     // carga tenta de novo em vez de servir vazio o dia todo.
     let texto: string | null = null;
     try {
       texto = await cached(chave, 24 * 60 * 60_000, async () => {
-        const t = await narrarBriefing({ ...snapshot, data: dia }, modo);
+        const t = await narrarBriefing({ ...snapshot, data: dia, saudacao }, modo);
         if (t == null) throw new Error("narração indisponível");
         return t;
       });

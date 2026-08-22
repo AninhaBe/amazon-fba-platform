@@ -399,6 +399,7 @@ export default function Dashboard() {
         escopo="amazon"
         canalNome="Amazon"
         moeda={currency}
+        briefingHref="/amazon/briefing"
         // Uma pergunta, um lugar. As pendências de conta e de sincronização
         // vêm do hook; estoque crítico vem do radar já carregado nesta tela.
         acoes={[

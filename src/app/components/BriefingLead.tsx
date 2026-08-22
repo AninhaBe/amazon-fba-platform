@@ -70,6 +70,8 @@ export interface BriefingLeadProps {
   canalNome?: string;
   /** Moeda dos valores, para o modelo formatar certo. */
   moeda?: string;
+  /** Destino do "Ver briefing" — o briefing DO CANAL ("/amazon/briefing"), não o genérico. */
+  briefingHref?: string;
 }
 
 function variacao(atual: number, anterior: number) {
@@ -125,13 +127,14 @@ function montarFrase(p: BriefingLeadProps): { titulo: string; detalhe: string | 
  * próprio canal, pede o texto (modo resumo) e o exibe com o atalho pro briefing.
  * Só narra os números que recebeu — não inventa. Cache diário no servidor.
  */
-function NexoResumo({ escopo, canalNome, faturamento, lucro, pedidos, moeda }: {
+function NexoResumo({ escopo, canalNome, faturamento, lucro, pedidos, moeda, briefingHref }: {
   escopo: string;
   canalNome: string;
   faturamento: number | null;
   lucro: number | null;
   pedidos: number;
   moeda: string;
+  briefingHref: string;
 }) {
   const [texto, setTexto] = useState<string | null>(null);
 
@@ -162,7 +165,7 @@ function NexoResumo({ escopo, canalNome, faturamento, lucro, pedidos, moeda }: {
     <div className="briefing-lead-nexo">
       <span className="briefing-lead-nexo-marca">NEXO</span>
       <p>{texto}</p>
-      <Link href="/briefing" className="briefing-lead-nexo-cta">Ver briefing <ArrowRight className="briefing-acao-seta" aria-hidden /></Link>
+      <Link href={briefingHref} className="briefing-lead-nexo-cta">Ver briefing <ArrowRight className="briefing-acao-seta" aria-hidden /></Link>
     </div>
   );
 }
@@ -194,6 +197,7 @@ export function BriefingLead(props: BriefingLeadProps) {
             lucro={props.lucro}
             pedidos={props.pedidos}
             moeda={props.moeda ?? "BRL"}
+            briefingHref={props.briefingHref ?? "/briefing"}
           />
         )}
       </div>

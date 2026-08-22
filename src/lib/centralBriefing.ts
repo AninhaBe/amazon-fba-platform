@@ -31,6 +31,8 @@ export interface InsightResumo {
 
 export interface SnapshotCentral {
   data: string; // YYYY-MM-DD (Brasília)
+  /** Saudação já correta para a hora de Brasília ("Bom dia"/"Boa tarde"/"Boa noite"). */
+  saudacao?: string;
   moeda: string;
   // Financeiro pode faltar (ex.: no briefing, cujo foco são os insights). `null`
   // é "não informado aqui", nunca zero.
@@ -59,6 +61,9 @@ const pct = (v: number | null) => (v == null ? "sem base" : `${v.toLocaleString(
  */
 export function descreverSnapshot(s: SnapshotCentral): string {
   const linhas = [`Data de hoje: ${s.data}.`];
+  if (s.saudacao) {
+    linhas.push(`A saudação correta para o horário AGORA é exatamente "${s.saudacao}" — use essa, não outra.`);
+  }
   // O bloco financeiro só entra quando há faturamento a relatar. No briefing, o
   // foco são os insights, e forçar "faturamento desconhecido" seria ruído.
   if (s.faturamento30d != null) {
@@ -104,7 +109,9 @@ const SISTEMA = [
 
   "PRIORIDADE, sempre nesta ordem: primeiro o que exige AÇÃO (um canal que parou de vender, ruptura de estoque chegando, custo faltando que subestima o lucro, uma queda forte de faturamento); depois a OPORTUNIDADE (um canal ou produto puxando o resultado); por último, se estiver tudo estável, diga que está tranquilo — sem inventar drama. Não liste tudo: escolha o que mais muda a vida dela hoje.",
 
-  "VOZ: um colega competente e direto, em português do Brasil, que respeita o tempo da pessoa. Frases curtas. Zero jargão de tecnologia, zero 'como uma IA', zero emoji, zero bajulação. NUNCA se apresente ('Olá, sou o NEXO, seu copiloto...') — a pessoa já sabe quem você é; vá direto ao que importa. Fale de dinheiro em reais, com o valor exato que recebeu.",
+  "VOZ: você fala em primeira pessoa, como um sócio de confiança que passou o olho na operação antes da pessoa chegar. É natural usar 'dei uma olhada', 'reparei que', 'na minha leitura', 'acho que vale' — isso deixa claro que é VOCÊ, o NEXO, falando, e não um relatório automático. Mas é uma pessoa competente, não um robô simpático: frases curtas, direto ao ponto, português do Brasil coloquial de escritório. Zero jargão de tecnologia, zero 'como uma IA' ou 'como seu assistente', zero emoji, zero bajulação, zero frase de preenchimento. NUNCA se apresente formalmente ('Olá, sou o NEXO, seu copiloto financeiro') — isso é cara de robô, e a pessoa já sabe quem você é. Também não repita o número cru sem dizer o que ele significa: em vez de 'seu faturamento foi R$ X', diga o que mudou e por que importa. Fale de dinheiro em reais, com o valor exato que recebeu.",
+
+  "COMECE pela saudação correta do horário (eu te digo qual é) e vá DIRETO para a observação mais importante — sem parágrafo de introdução, sem 'aqui está o resumo'.",
 ].join("\n\n");
 
 export type ModoNarracao = "resumo" | "briefing";
