@@ -11,15 +11,6 @@ import type { ProfitabilityLine } from "@/lib/profitability";
 import { readJson } from "@/lib/readJson";
 import { brDate } from "@/lib/datetime";
 
-interface Metrics {
-  totalOrders: number;
-  totalRevenue: number;
-  currency: string;
-  fbaOrders: number;
-  pendingItems: number;
-  recentOrderCount: number;
-}
-
 interface FinanceSummary {
   currency: string;
   revenue: number;
@@ -81,7 +72,6 @@ function percent(v: number) {
 }
 
 interface MonitorSnapshot {
-  metrics: Metrics | null;
   finance: FinanceSummary | null;
   profit: ProfitSummary | null;
   transactions: TransactionSummary | null;
@@ -99,8 +89,6 @@ const monitorCache = new Map<string, MonitorSnapshot>();
 export default function MonitorPage() {
   const period = useDashboardPeriod();
   const [initialCached] = useState(() => monitorCache.get(period.query));
-  const [error, setError] = useState<string | null>(null);
-  const [metrics, setMetrics] = useState<Metrics | null>(initialCached?.metrics ?? null);
   const [finance, setFinance] = useState<FinanceSummary | null>(initialCached?.finance ?? null);
   const [profit, setProfit] = useState<ProfitSummary | null>(initialCached?.profit ?? null);
   const [financeError, setFinanceError] = useState<string | null>(null);
@@ -117,7 +105,6 @@ export default function MonitorPage() {
     const cached = monitorCache.get(periodQuery);
     if (cached) {
       // Pinta o que já foi visto na hora; a revalidação continua em fundo.
-      setMetrics(cached.metrics);
       setFinance(cached.finance);
       setProfit(cached.profit);
       setTransactions(cached.transactions);
@@ -129,24 +116,14 @@ export default function MonitorPage() {
     }
     // Write-through: cada fetch que completa atualiza o snapshot do período.
     const snap: MonitorSnapshot = cached ? { ...cached } : {
-      metrics: null, finance: null, profit: null, transactions: null, profitabilityLines: [],
+      finance: null, profit: null, transactions: null, profitabilityLines: [],
     };
     const store = () => monitorCache.set(periodQuery, { ...snap });
-    setError(null);
     setFinanceError(null);
     setTransactionsError(null);
     setProfitabilityError(null);
-    // Pedidos e lucro (financeiro + custos) em paralelo; um não derruba o outro.
-    const ordersReq = fetch(`/api/orders?${periodQuery}`)
-      .then((r) => readJson(r).then((data) => ({ ok: r.ok, data })))
-      .then(({ ok, data }) => {
-        if (!ok) throw new Error(data.error || "Erro ao carregar pedidos.");
-        setMetrics(data.metrics);
-        snap.metrics = data.metrics;
-        store();
-      })
-      .catch((err) => setError(err instanceof Error ? err.message : "Erro desconhecido."));
-
+    // Financeiro (repasse + custos), transações e rentabilidade por venda em
+    // paralelo; um não derruba o outro. Cada um tem o seu próprio estado de erro.
     const profitReq = fetch(`/api/profit?${periodQuery}`)
       .then((r) => readJson(r).then((data) => ({ ok: r.ok, data })))
       .then(({ ok, data }) => {
@@ -187,7 +164,7 @@ export default function MonitorPage() {
       .catch((err) => setProfitabilityError(err instanceof Error ? err.message : "Erro desconhecido."))
       .finally(() => setProfitabilityLoading(false));
 
-    await Promise.all([ordersReq, profitReq, transactionsReq, profitabilityReq]);
+    await Promise.all([profitReq, transactionsReq, profitabilityReq]);
   }
 
   useEffect(() => {
@@ -213,15 +190,6 @@ export default function MonitorPage() {
         icon={pageIcons.chart}
       />
 
-      {error && (
-        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          <p>{error}</p>
-          <button type="button" onClick={() => void load(period.query)} className="mt-3 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white">
-            Tentar novamente
-          </button>
-        </div>
-      )}
-
       {financeError ? (
         <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
           {financeError}
@@ -241,7 +209,11 @@ export default function MonitorPage() {
               {
                 id: "receita-conciliada",
                 label: "Receita conciliada",
-                node: <Metric label="Receita conciliada" value={money(finance.revenue, finance.currency)} sub={metrics ? `${metrics.totalOrders} pedido(s) no período` : "repasses da Amazon"} />,
+                // A contagem TEM que ser a do repasse (finance.orderCount), não a de
+                // pedidos criados (metrics.totalOrders): a receita aqui é por data de
+                // LANÇAMENTO, e colar as duas fazia "R$ 50,01 · 1 pedido" quando o valor
+                // vinha de 2 pedidos repassados hoje, vendidos em dias diferentes.
+                node: <Metric label="Receita conciliada" value={money(finance.revenue, finance.currency)} sub={`${finance.orderCount} pedido(s) com repasse no período`} />,
               },
               {
                 id: "reembolsos",
