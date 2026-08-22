@@ -115,8 +115,12 @@ interface DashboardPayload {
   currency: string;
   /** Faturamento bruto do período — espelha o painel do canal (ADR-020). */
   billing: { revenue: number; orders: number };
-  /** Canceladas: somadas no bruto, exibidas à parte — mesmo padrão do ML. */
-  cancelled: { revenue: number; orders: number };
+  /**
+   * Canceladas: somadas no bruto, exibidas à parte — mesmo padrão do ML.
+   * `revenue` nulo = valor desconhecido (a Amazon omite `OrderTotal` no que
+   * cancela ainda em `Pending`), nunca zero.
+   */
+  cancelled: { revenue: number | null; orders: number };
   metrics: { totalOrders: number; paidOrders: number; fbaOrders: number; revenue: number };
   dailySales: Array<{ date: string; revenue: number; orders: number; units: number }>;
   topProducts: Array<{ sku: string; title: string; units: number; revenue: number; marginPct: number | null }>;
@@ -166,7 +170,7 @@ export default function Dashboard() {
   const [faturamento, setFaturamento] = useState<{ revenue: number; orders: number } | null>(null);
   // Canceladas entram no bruto (ADR-020); mostrar à parte é o que impede o número
   // de parecer inflado sem explicação — o ML já fazia, a Amazon não tinha.
-  const [canceladas, setCanceladas] = useState<{ revenue: number; orders: number } | null>(null);
+  const [canceladas, setCanceladas] = useState<{ revenue: number | null; orders: number } | null>(null);
   const [profitabilityScope, setProfitabilityScope] = useState<ProfitabilityScope | undefined>(initialDash?.profitabilityScope);
   const [saldo, setSaldo] = useState<SaldoData | null>(null);
   const [profitabilityLoading, setProfitabilityLoading] = useState(!initialDash);
@@ -445,7 +449,17 @@ export default function Dashboard() {
         />
         <CompactMetric
           label="Canceladas"
-          value={canceladas ? `${money(canceladas.revenue, currency)} · ${canceladas.orders}` : "—"}
+          // Valor nulo = a Amazon nunca expôs quanto valia (ela cancela a maioria
+          // ainda em `Pending`, e aí omite o `OrderTotal`). Mostrar "R$ 0,00 · 2"
+          // afirmava que dois cancelamentos não custaram nada; o certo é dizer o
+          // número de pedidos e admitir que o valor é desconhecido.
+          value={
+            canceladas
+              ? canceladas.revenue === null
+                ? `${canceladas.orders} · valor não informado`
+                : `${money(canceladas.revenue, currency)} · ${canceladas.orders}`
+              : "—"
+          }
           tone={canceladas && canceladas.orders > 0 ? "danger" : "default"}
           loading={loading}
         />

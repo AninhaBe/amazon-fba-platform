@@ -56,7 +56,13 @@ export interface AmazonCanonicalOverview {
     fbaOrders: number;
     cancelledOrders: number;
     revenue: number; // gross canônico (referência; headline segue no Sales API)
-    cancelledRevenue: number;
+    /**
+     * `null` = houve cancelamento mas o valor é DESCONHECIDO, não zero.
+     * A Amazon cancela a maioria dos pedidos ainda em `Pending`, e em `Pending`
+     * ela não expõe `OrderTotal` — 2.078 das 2.085 canceladas não têm valor.
+     * Exibir R$ 0,00 aí afirma "cancelar não custou nada" (AGENTS.md: null ≠ 0).
+     */
+    cancelledRevenue: number | null;
     lastSaleAt: string | null;
   };
   /** Unidades vendidas por SKU no período — insumo da velocidade do radar. */
@@ -411,7 +417,9 @@ export async function getAmazonOverviewFromCanonical(period: Period): Promise<Am
       fbaOrders: totals.fba_orders,
       cancelledOrders: totals.cancelled_orders,
       revenue: Number(totals.paid_revenue ?? 0),
-      cancelledRevenue: Number(totals.cancelled_revenue ?? 0),
+      // `?? 0` aqui era a violação: SUM() sobre valores nulos devolve NULL, e o
+      // zero resultante virava "cancelaram e não custou nada" na tela.
+      cancelledRevenue: totals.cancelled_revenue === null ? null : Number(totals.cancelled_revenue),
       lastSaleAt: totals.last_sale_at ? new Date(totals.last_sale_at).toISOString() : null,
     },
     velocityBySku,
