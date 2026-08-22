@@ -127,7 +127,7 @@ export default function OverviewDashboard() {
             resposta), cai no alerta por regra. Os dois respondem "o que mudou e
             onde olhar" — um em prosa, o outro em uma linha. */}
         {narracao ? (
-          <NexoMensagem texto={narracao} ctaHref="/amazon/briefing" />
+          <NexoMensagem texto={narracao} ctaHref="/briefing" />
         ) : alerta ? (
           <Link href={alerta.href ?? "#"} className={`central-alerta is-${alerta.tom}`} aria-label={alerta.texto}>
             <span aria-hidden="true" className="central-alerta-ponto" />

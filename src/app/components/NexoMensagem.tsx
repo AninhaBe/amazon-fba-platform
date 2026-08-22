@@ -28,15 +28,18 @@ export function NexoMensagem({
   const paragrafos = (texto ?? "").split(/\n+/).map((p) => p.trim()).filter(Boolean);
   return (
     <div className="nexo-mensagem">
-      {/* Seta da marca inline, preenchida em branco puro (currentColor herda a
-          cor do avatar). Sem contorno — é o contorno + invert que criava aquele
-          quadrado quando o símbolo padrão ia para o círculo escuro. */}
+      {/* Robôzinho do NEXO (G3): cabeça com antena, um olho é a seta da marca e o
+          outro é um ponto. currentColor herda a cor do avatar (branco no círculo
+          escuro). A antena pisca de leve e o robô flutua devagar — ver globals.css. */}
       <span className="nexo-mensagem-avatar" aria-hidden="true">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-          <path
-            d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"
-            fill="currentColor"
-          />
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" className="nexo-bot">
+          <rect x="4" y="6.5" width="16" height="13" rx="4.5" fill="none" stroke="currentColor" strokeWidth="1.6" />
+          <path d="M12 3.6v2.9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          <circle className="nexo-bot-antena" cx="12" cy="2.9" r="1.1" fill="currentColor" />
+          <g transform="translate(6 9.4) scale(0.34)">
+            <path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z" fill="currentColor" />
+          </g>
+          <circle cx="15.2" cy="12.4" r="1.3" fill="currentColor" />
         </svg>
       </span>
       <div className="nexo-mensagem-fala">

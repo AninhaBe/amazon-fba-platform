@@ -161,10 +161,11 @@ export async function narrarBriefing(
           // de 713 tokens foram pensamento). Teto alto deixa espaço para a
           // resposta; o custo por chamada continua fração de centavo, e é uma
           // por dia por workspace.
-          // O "pensamento" do gemini-3.x consome ~900 tokens ANTES do texto. O
-          // resumo em 1200 cortava a 2ª frase no meio (medido 22/08/2026). Teto
-          // alto deixa a resposta inteira caber; segue fração de centavo por dia.
-          generationConfig: { maxOutputTokens: modo === "briefing" ? 2500 : 2000, temperature: 0.6 },
+          // O "pensamento" do gemini-3.x consome tokens ANTES do texto, e é
+          // VARIÁVEL — medido em 22/08/2026, às vezes passa de 1.500. Com teto
+          // apertado o texto sai truncado no meio. Folga generosa garante a
+          // resposta inteira; é uma chamada por dia, custo continua ínfimo.
+          generationConfig: { maxOutputTokens: modo === "briefing" ? 4000 : 2500, temperature: 0.6 },
         }),
         signal: AbortSignal.timeout(15_000),
       }
