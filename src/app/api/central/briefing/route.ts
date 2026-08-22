@@ -6,6 +6,7 @@ import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
 import { currentWorkspaceId } from "@/lib/workspaceScope";
 import { cached } from "@/lib/cache";
 import { narrarBriefing, type SnapshotCentral, type ModoNarracao } from "@/lib/centralBriefing";
+import { coletarSinaisDeCausa } from "@/lib/centralDiagnostico";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -80,7 +81,11 @@ export async function POST(req: NextRequest) {
     let texto: string | null = null;
     try {
       texto = await cached(chave, 24 * 60 * 60_000, async () => {
-        const t = await narrarBriefing({ ...snapshot, data: dia, saudacao }, modo);
+        // Candidatos a causa lidos AQUI, no servidor — o cliente não manda (e não
+        // deveria): são fatos do banco que explicam os números, e é o que permite
+        // o NEXO dizer POR QUE caiu em vez de só que caiu.
+        const sinais = await coletarSinaisDeCausa().catch(() => []);
+        const t = await narrarBriefing({ ...snapshot, data: dia, saudacao, sinais }, modo);
         if (t == null) throw new Error("narração indisponível");
         return t;
       });

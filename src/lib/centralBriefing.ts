@@ -43,6 +43,12 @@ export interface SnapshotCentral {
   canais: CanalNoSnapshot[];
   /** Insights detectados (só no modo briefing) — o modelo os narra, não os inventa. */
   insights?: InsightResumo[];
+  /**
+   * CANDIDATOS A CAUSA — fatos do banco que explicam a variação dos números
+   * (anúncio inativo, produto que parou, estoque zerado). Ver centralDiagnostico.ts.
+   * É o que separa "o ML caiu 100%" de "o ML caiu porque não há anúncio ativo".
+   */
+  sinais?: { canal: string; fato: string }[];
 }
 
 // Flash é o mais barato/rápido do Gemini — suficiente para uma frase por dia.
@@ -87,6 +93,13 @@ export function descreverSnapshot(s: SnapshotCentral): string {
       return `- ${c.nome}: ${partes.join(", ")}.`;
     }));
   }
+  if (s.sinais?.length) {
+    linhas.push(
+      "",
+      "POSSÍVEIS CAUSAS (fatos apurados no banco — use-os para EXPLICAR os números acima):"
+    );
+    for (const sinal of s.sinais) linhas.push(`- ${sinal.fato}`);
+  }
   if (s.insights?.length) {
     linhas.push("", "Sinais já detectados na operação (fatos apurados, para você priorizar e explicar):");
     for (const i of s.insights) {
@@ -108,6 +121,8 @@ const SISTEMA = [
   "REGRA INEGOCIÁVEL — nunca invente número. Use SOMENTE os valores que eu te der nesta mensagem. Não estime, não projete, não 'arredonde para um número redondo'. Se um dado vier como 'desconhecido', 'sem leitura' ou faltando, diga isso com naturalidade — 'ainda não sei', 'o canal não reportou' — em vez de chutar. Zero e desconhecido são coisas diferentes: nunca troque um pelo outro. É melhor dizer menos e certo do que mais e errado; o vendedor toma decisão de dinheiro com o que você fala.",
 
   "NÃO GENERALIZE. Fale de cada produto/SKU exatamente como ele veio na lista. É proibido agrupar ('a linha de protetores', 'os kits de 8, 16, 24 e 32') ou estender uma constatação de um item para outros que não estão na lista. Se só um kit está sem estoque, fale só desse kit — não invente que os outros também estão. Cada afirmação sua tem que corresponder a uma linha que eu te dei.",
+
+  "EXPLIQUE, não apenas relate. Quando eu te der uma seção de POSSÍVEIS CAUSAS, use-a para dizer POR QUE o número mudou — é isso que separa você de um relatório. 'O Mercado Livre caiu 100%' não ajuda ninguém; 'o Mercado Livre parou porque não há nenhum anúncio ativo' é acionável. Só use as causas que eu te dei; se nenhuma explicar o número, diga honestamente que a queda existe e a causa ainda não está identificada — nunca invente um motivo plausível.",
 
   "PRIORIDADE, sempre nesta ordem: primeiro o que exige AÇÃO (um canal que parou de vender, ruptura de estoque chegando, custo faltando que subestima o lucro, uma queda forte de faturamento); depois a OPORTUNIDADE (um canal ou produto puxando o resultado); por último, se estiver tudo estável, diga que está tranquilo — sem inventar drama. Não liste tudo: escolha o que mais muda a vida dela hoje.",
 
