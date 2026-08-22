@@ -8,6 +8,7 @@ import { DashboardSkeleton } from "./components/LoadingState";
 import { MarketplaceIcon } from "./components/MarketplaceIcon";
 import { RevenueChart, type DailyPoint } from "./components/RevenueChart";
 import { brTime } from "@/lib/datetime";
+import { tendenciaSemanal, detectarAlerta, margemDoCanal, percent } from "@/lib/centralOverview";
 import {
   aggregateShopeeStores,
   centralProviderReadState,
@@ -33,6 +34,9 @@ interface TiktokOverviewResponse {
   dailySeries?: DailyPoint[];
   coverage?: { requestedPeriod?: { revenue?: { status: "complete" | "partial" | "pending" } } } | null;
 }
+
+interface SaldoAmazonResponse { currency: string; disponivel: number | null; retido: number; }
+interface SaldoMLResponse { currency: string; retido: number; liberadoNaJanela: number; }
 
 // A central responde "quanto a operação inteira faturou" — venda a venda é
 // assunto de cada canal, onde existe busca, filtro e paginação.
@@ -78,6 +82,21 @@ interface ChannelSnapshot {
   currency: string;
   note: string;
   error?: string;
+  /** Série diária do próprio canal, retida para o seletor do gráfico e o motor de tendência. */
+  series?: DailyPoint[];
+  /** Unidades vendidas sem custo cadastrado — alimenta o alerta de lucro subestimado. */
+  unitsWithoutCost?: number;
+}
+
+/** Repasse consolidado: o que já caiu e o que ainda está retido, por canal. */
+interface SettlementSnapshot {
+  id: ChannelSnapshot["id"];
+  name: string;
+  /** Já liberado. `null` = o canal não informou (≠ zero). */
+  liberado: number | null;
+  /** Ainda retido, a receber. `null` = não informado. */
+  aReceber: number | null;
+  currency: string;
 }
 
 function money(value: number | null, currency = "BRL") {
@@ -110,11 +129,33 @@ async function json<T>(url: string): Promise<T> {
 
 // Escopo de módulo: ao navegar para um canal e voltar, a central renderiza o
 // consolidado já conhecido no primeiro paint e revalida em segundo plano.
-let centralCache: { channels: ChannelSnapshot[]; series: DailyPoint[]; updatedAt: Date } | null = null;
+let centralCache: { channels: ChannelSnapshot[]; series: DailyPoint[]; settlement: SettlementSnapshot[]; updatedAt: Date } | null = null;
+
+/**
+ * Repasse consolidado a partir dos saldos de cada canal. Amazon e Mercado Livre
+ * expõem retido e liberado; Shopee e TikTok ainda não, e entram como `null`
+ * (não informado) — nunca como zero, que diria "não há nada a receber".
+ */
+async function carregarRepasse(temAmazon: boolean, temMl: boolean): Promise<SettlementSnapshot[]> {
+  const [amazon, ml] = await Promise.allSettled([
+    temAmazon ? json<SaldoAmazonResponse>("/api/amazon/balance") : Promise.reject(new Error("sem amazon")),
+    temMl ? json<SaldoMLResponse>("/api/integrations/mercado-livre/balance") : Promise.reject(new Error("sem ml")),
+  ]);
+  const linhas: SettlementSnapshot[] = [];
+  if (amazon.status === "fulfilled") {
+    linhas.push({ id: "amazon", name: "Amazon", liberado: amazon.value.disponivel, aReceber: amazon.value.retido, currency: amazon.value.currency || "BRL" });
+  }
+  if (ml.status === "fulfilled") {
+    linhas.push({ id: "mercado_livre", name: "Mercado Livre", liberado: ml.value.liberadoNaJanela, aReceber: ml.value.retido, currency: ml.value.currency || "BRL" });
+  }
+  return linhas;
+}
 
 export default function OverviewDashboard() {
   const [channels, setChannels] = useState<ChannelSnapshot[]>(centralCache?.channels ?? []);
   const [series, setSeries] = useState<DailyPoint[]>(centralCache?.series ?? []);
+  const [settlement, setSettlement] = useState<SettlementSnapshot[]>(centralCache?.settlement ?? []);
+  const [chartChannel, setChartChannel] = useState<"todos" | ChannelSnapshot["id"]>("todos");
   const [loading, setLoading] = useState(!centralCache);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(centralCache?.updatedAt ?? null);
 
@@ -154,6 +195,7 @@ export default function OverviewDashboard() {
           if (salesResult.status === "fulfilled") {
             const sales = salesResult.value;
             channelSeries.push(sales.series.points);
+            amazon.series = sales.series.points;
             amazon.revenue = sales.series.totalRevenue; // data do pedido = Seller Central
             amazon.orders = sales.series.totalOrders;
             amazon.currency = sales.series.currency || amazon.currency;
@@ -167,6 +209,7 @@ export default function OverviewDashboard() {
             // Reflete os custos já cadastrados (não some enquanto faltam alguns).
             amazon.profit = summary.estimatedProfit;
             amazon.profitPartial = summary.unitsWithoutCost > 0;
+            amazon.unitsWithoutCost = summary.unitsWithoutCost;
             amazon.currency = amazon.currency || summary.finance.currency;
           }
 
@@ -183,10 +226,12 @@ export default function OverviewDashboard() {
         })());
         if (mercadoLivre.connected) tasks.push(json<{ overview: MercadoLivreOverview }>("/api/integrations/mercado-livre/overview?view=monitor").then(({ overview }) => {
           channelSeries.push(overview.dailySales);
+          mercadoLivre.series = overview.dailySales;
           mercadoLivre.revenue = overview.metrics.revenue30d;
           mercadoLivre.cancelled = overview.metrics.cancelledRevenue;
           mercadoLivre.profit = overview.profit.estimatedProfit;
           mercadoLivre.profitPartial = !overview.profit.coverage.complete || overview.profit.unitsWithoutCost > 0;
+          mercadoLivre.unitsWithoutCost = overview.profit.unitsWithoutCost;
           mercadoLivre.orders = overview.metrics.orders30d;
           mercadoLivre.currency = overview.metrics.currency;
           mercadoLivre.note = overview.metrics.revenueCoverage.complete
@@ -213,7 +258,7 @@ export default function OverviewDashboard() {
           shopee.currency = aggregate.currency;
           shopee.note = aggregate.note;
           shopee.error = aggregate.error;
-          if (aggregate.dailySales.length) channelSeries.push(aggregate.dailySales);
+          if (aggregate.dailySales.length) { channelSeries.push(aggregate.dailySales); shopee.series = aggregate.dailySales; }
         })());
         if (tiktok.connected) tasks.push((async () => {
           const results = await Promise.allSettled((tiktokProvider?.connections ?? []).map((connection) =>
@@ -236,7 +281,9 @@ export default function OverviewDashboard() {
             ? available.reduce((total, item) => total + item.orders!, 0)
             : null;
           tiktok.currency = available[0].overview!.currency || "BRL";
-          channelSeries.push(...available.map((item) => item.dailySeries));
+          const tiktokSeries = available.map((item) => item.dailySeries);
+          channelSeries.push(...tiktokSeries);
+          tiktok.series = mergeDailySeries(tiktokSeries);
           const partialRevenue = available.some((item) => item.coverage?.requestedPeriod?.revenue?.status !== "complete");
           tiktok.note = failed > 0
             ? `${available.length} de ${results.length} loja(s) com leitura; demais indisponíveis`
@@ -246,12 +293,17 @@ export default function OverviewDashboard() {
                 ? "Faturamento e pedidos disponíveis; lucro ainda incompleto"
                 : "Faturamento, pedidos e lucro estimado";
         })());
+        // O repasse depende de saber quem está conectado, então roda ao lado das
+        // tarefas de faturamento, não antes. Falha aqui não derruba a central: o
+        // card de repasse some, o resto fica.
+        const repasse = await carregarRepasse(amazon.connected, mercadoLivre.connected).catch(() => [] as SettlementSnapshot[]);
         await Promise.all(tasks);
         const refreshedAt = new Date();
         const merged = mergeDailySeries(channelSeries);
-        centralCache = { channels: [amazon, mercadoLivre, shopee, tiktok], series: merged, updatedAt: refreshedAt };
+        centralCache = { channels: [amazon, mercadoLivre, shopee, tiktok], series: merged, settlement: repasse, updatedAt: refreshedAt };
         setChannels([amazon, mercadoLivre, shopee, tiktok]);
         setSeries(merged);
+        setSettlement(repasse);
         setUpdatedAt(refreshedAt);
       } catch {
         // Uma falha de revalidação não apaga o consolidado já exibido.
@@ -272,39 +324,119 @@ export default function OverviewDashboard() {
   }, { revenue: 0, profit: 0, profitSources: 0, orders: 0, connected: 0 }), [channels]);
   const maxRevenue = Math.max(...channels.map((channel) => channel.revenue ?? 0), 1);
 
+  // Feature 1: variação do consolidado na semana, da própria série já carregada.
+  const tendenciaTotal = useMemo(() => tendenciaSemanal(series), [series]);
+  // Feature 2: a única frase de alerta, priorizada.
+  const alerta = useMemo(() => detectarAlerta(channels), [channels]);
+  // Feature 3: margem consolidada, só sobre canais com lucro E faturamento conhecidos.
+  const margemTotal = useMemo(() => {
+    let revenue = 0;
+    let profit = 0;
+    let algum = false;
+    for (const channel of channels) {
+      if (channel.profit != null && channel.revenue != null && channel.revenue > 0) {
+        revenue += channel.revenue;
+        profit += channel.profit;
+        algum = true;
+      }
+    }
+    return algum && revenue > 0 ? Math.round((profit / revenue) * 1000) / 10 : null;
+  }, [channels]);
+  // Feature 4: qual série o gráfico mostra — todos (soma) ou um canal.
+  const serieExibida = useMemo(() => {
+    if (chartChannel === "todos") return series;
+    return channels.find((channel) => channel.id === chartChannel)?.series ?? [];
+  }, [chartChannel, channels, series]);
+  const canaisComSerie = useMemo(() => channels.filter((channel) => channel.series?.length), [channels]);
+  // Feature 5: totais de repasse, tratando null como "não informado", nunca zero.
+  const repasseTotais = useMemo(() => {
+    let liberado = 0;
+    let aReceber = 0;
+    let temLiberado = false;
+    let temAReceber = false;
+    for (const linha of settlement) {
+      if (linha.liberado != null) { liberado += linha.liberado; temLiberado = true; }
+      if (linha.aReceber != null) { aReceber += linha.aReceber; temAReceber = true; }
+    }
+    return { liberado: temLiberado ? liberado : null, aReceber: temAReceber ? aReceber : null };
+  }, [settlement]);
+
   return (
     <div className="overview-page channel-dashboard">
       <PageHeader eyebrow="Central multicanal" title="Visão geral" subtitle="Acompanhe sua operação inteira e entre em cada canal quando precisar dos detalhes próprios da plataforma." icon={pageIcons.dashboard} action={updatedAt && <span className="data-freshness">Atualizado às {brTime(updatedAt)}</span>} />
       {loading ? <DashboardSkeleton label="Consolidando seus canais" chart={false} rows={2} /> : channels.length === 0 ? (
         <section className="central-empty"><span>SC</span><div><p className="section-kicker">Primeira conexão</p><h2>Monte sua central de vendas</h2><p>Conecte Amazon, Mercado Livre, Shopee ou TikTok Shop para começar a consolidar faturamento e pedidos.</p></div><Link href="/integracoes">Conectar um canal <b aria-hidden="true">→</b></Link></section>
       ) : <div className="dashboard-sections channel-dashboard-sections">
+        {alerta && (
+          <Link href={alerta.href ?? "#"} className={`central-alerta is-${alerta.tom}`} aria-label={alerta.texto}>
+            <span aria-hidden="true" className="central-alerta-ponto" />
+            <span className="central-alerta-texto">{alerta.texto}</span>
+            {alerta.href && <span aria-hidden="true" className="central-alerta-seta">→</span>}
+          </Link>
+        )}
         <section className="central-kpis" aria-label="Indicadores consolidados">
-          <article><p>Faturamento conhecido</p><strong><AnimatedNumber id="central-revenue" value={totals.revenue} format={(amount) => money(amount)} /></strong><small>Soma dos canais com dados disponíveis</small></article>
+          <article>
+            <p>Faturamento conhecido</p>
+            <strong><AnimatedNumber id="central-revenue" value={totals.revenue} format={(amount) => money(amount)} /></strong>
+            {/* Feature 1: a variação transforma o total num sinal, não só num número. */}
+            {tendenciaTotal.deltaPct != null ? (
+              <small className={tendenciaTotal.deltaPct >= 0 ? "is-positive" : "is-negative"}>
+                {tendenciaTotal.deltaPct >= 0 ? "▲" : "▼"} {percent(tendenciaTotal.deltaPct)} vs. semana anterior
+              </small>
+            ) : <small>Soma dos canais com dados disponíveis</small>}
+          </article>
           <article><p>Lucro conhecido</p><strong>{totals.profitSources ? <AnimatedNumber id="central-profit" value={totals.profit} format={(amount) => money(amount)} /> : "Indisponível"}</strong><small>{totals.profitSources} de {totals.connected} canais com cálculo de lucro</small></article>
+          {/* Feature 3: margem consolidada — a pergunta "vendi mais e ganhei menos?". */}
+          <article><p>Margem consolidada</p><strong>{margemTotal == null ? "Indisponível" : percent(margemTotal)}</strong><small>{margemTotal == null ? "aguardando lucro dos canais" : "lucro sobre faturamento conhecido"}</small></article>
           <article><p>Pedidos</p><strong>{totals.orders.toLocaleString("pt-BR")}</strong><small>Últimos 30 dias</small></article>
           <article><p>Canais conectados</p><strong>{totals.connected}</strong><small>de {channels.length} disponíveis nesta fase</small></article>
         </section>
 
+        {/* Feature 5: repasse consolidado — o que já caiu e o que ainda está retido. */}
+        {(repasseTotais.liberado != null || repasseTotais.aReceber != null) && (
+          <section className="central-repasse" aria-label="Repasse consolidado">
+            <div className="central-repasse-par">
+              <article><p>Já liberado</p><strong>{money(repasseTotais.liberado)}</strong><small>disponível para saque</small></article>
+              <article><p>A receber</p><strong>{money(repasseTotais.aReceber)}</strong><small>retido, com data de liberação por canal</small></article>
+            </div>
+            <p className="central-repasse-nota">
+              {settlement.map((s) => s.name).join(" e ")} informam repasse.
+              {settlement.length < totals.connected ? " Shopee e TikTok ainda não expõem saldo — não entram como zero." : ""}
+            </p>
+          </section>
+        )}
+
         {series.length > 0 && (
           <section className="central-revenue-panel" aria-labelledby="central-revenue-title">
             <div className="mb-2 flex items-baseline justify-between gap-4">
-              <div><p className="section-kicker">Todos os canais</p><h2 id="central-revenue-title" className="mt-1 text-lg font-semibold text-[var(--ink)]">Faturamento consolidado por dia</h2></div>
-              <span className="text-sm font-semibold tabular-nums text-[var(--ink)]">{money(totals.revenue)} <span className="font-normal text-[var(--ink-muted)]">nos últimos 30 dias</span></span>
+              <div><p className="section-kicker">{chartChannel === "todos" ? "Todos os canais" : canaisComSerie.find((c) => c.id === chartChannel)?.name}</p><h2 id="central-revenue-title" className="mt-1 text-lg font-semibold text-[var(--ink)]">Faturamento {chartChannel === "todos" ? "consolidado" : "do canal"} por dia</h2></div>
+              <span className="text-sm font-semibold tabular-nums text-[var(--ink)]">{money(serieExibida.reduce((soma, p) => soma + p.revenue, 0))} <span className="font-normal text-[var(--ink-muted)]">nos últimos 30 dias</span></span>
             </div>
-            <RevenueChart points={series} explorable />
+            {/* Feature 4: abrir a linha consolidada por canal — ver ONDE aconteceu. */}
+            {canaisComSerie.length > 1 && (
+              <div className="central-chart-tabs" role="tablist" aria-label="Ver faturamento por canal">
+                <button type="button" role="tab" aria-selected={chartChannel === "todos"} className={chartChannel === "todos" ? "is-active" : ""} onClick={() => setChartChannel("todos")}>Todos</button>
+                {canaisComSerie.map((channel) => (
+                  <button key={channel.id} type="button" role="tab" aria-selected={chartChannel === channel.id} className={chartChannel === channel.id ? "is-active" : ""} onClick={() => setChartChannel(channel.id)}>{channel.name}</button>
+                ))}
+              </div>
+            )}
+            <RevenueChart key={chartChannel} points={serieExibida} explorable />
           </section>
         )}
 
         <section aria-labelledby="channel-comparison-title">
           <div className="central-section-heading"><div><p className="section-kicker">Comparação por canal</p><h2 id="channel-comparison-title">Onde sua operação acontece</h2></div><p>Valores indisponíveis permanecem explícitos e nunca entram como zero no consolidado.</p></div>
           <div className="channel-comparison-table" role="table" aria-label="Comparação de canais">
-            <div className="channel-comparison-head" role="row"><span role="columnheader">Canal</span><span role="columnheader">Faturamento conhecido</span><span role="columnheader">Pedidos</span><span role="columnheader">Resultado</span><span role="columnheader"><span className="sr-only">Ação</span></span></div>
+            <div className="channel-comparison-head" role="row"><span role="columnheader">Canal</span><span role="columnheader">Faturamento conhecido</span><span role="columnheader">Pedidos</span><span role="columnheader">Resultado</span><span role="columnheader">Margem</span><span role="columnheader"><span className="sr-only">Ação</span></span></div>
             {channels.map((channel) => (
               <div key={channel.id} className={`channel-comparison-row is-${channel.id}`} role="row">
                 <div className="channel-comparison-identity" role="cell"><span aria-hidden="true"><MarketplaceIcon provider={channel.id} size={28} app /></span><div><strong>{channel.name}</strong><small>{channel.attention ? "Canal temporariamente indisponível" : !channel.connected ? "Aguardando conexão" : channel.error ? "Conectado, sem leitura" : channel.error || channel.note}</small></div><em className={`channel-health${channel.connected && !channel.error ? " is-connected" : ""}`}>{channel.attention ? "Atenção" : !channel.connected ? "Conectar" : channel.error ? "Atenção" : "Ativo"}</em></div>
                 <div className="channel-comparison-revenue" role="cell"><strong>{channel.connected && !channel.error ? money(channel.revenue, channel.currency) : "—"}</strong><span aria-label={`Participação relativa de ${channel.name}`}><i style={{ width: `${channel.connected ? ((channel.revenue ?? 0) / maxRevenue) * 100 : 0}%` }} /></span></div>
                 <div className="channel-comparison-number" role="cell"><strong>{channel.orders?.toLocaleString("pt-BR") ?? "—"}</strong><small>últimos 30 dias</small></div>
                 <div className="channel-comparison-number" role="cell"><strong className={channel.profit == null ? undefined : channel.profit < 0 ? "is-negative" : "is-positive"}>{channel.connected ? money(channel.profit, channel.currency) : "—"}</strong><small>{channel.profitPartial ? "lucro parcial" : "lucro conhecido"}{channel.cancelled != null && channel.cancelled > 0 ? ` · ${money(channel.cancelled, channel.currency)} canceladas` : ""}</small></div>
+                {/* Feature 3: margem por canal — quem fatura mais nem sempre é quem lucra mais. */}
+                <div className="channel-comparison-number" role="cell">{(() => { const m = margemDoCanal(channel); return <><strong className={m == null ? undefined : m < 0 ? "is-negative" : "is-positive"}>{channel.connected && m != null ? percent(m) : "—"}</strong><small>{channel.profitPartial ? "parcial" : "sobre faturamento"}</small></>; })()}</div>
                 <div className="channel-comparison-action" role="cell"><Link href={channel.connected && !channel.attention ? channel.href : "/integracoes"} aria-label={channel.attention ? `Revisar integração ${channel.name}` : channel.connected ? `Abrir ${channel.name}` : `Conectar ${channel.name}`} title={channel.attention ? "Revisar integração" : channel.connected ? `Abrir ${channel.name}` : `Conectar ${channel.name}`}>→</Link></div>
               </div>
             ))}
