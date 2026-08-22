@@ -609,3 +609,39 @@ export async function recordOfferSnapshot(
     [currentWorkspaceId(), scope.provider, scope.connectionId, JSON.stringify(records)]
   );
 }
+
+/**
+ * Grava o valor de tabela do pedido (ver migrations/0010).
+ *
+ * ⚠️ A regra que faz isto funcionar é `COALESCE(EXCLUDED, existente)`: valor já
+ * conhecido **nunca** é apagado por uma leitura sem valor. É disso que depende o
+ * caso inteiro — a Amazon zera o pedido ao cancelar, e sem essa guarda a própria
+ * ingestão seguinte apagaria o número que ela tinha acabado de salvar.
+ *
+ * Só faz UPDATE: pedido que ainda não existe no canônico é ignorado, porque
+ * criar cabeçalho a partir do relatório produziria linha sem status nem origem.
+ * A passada seguinte do sync o pega.
+ */
+export async function saveOrderedGross(
+  scope: CanonicalScope,
+  entries: { externalOrderId: string; orderedGross: number }[]
+): Promise<number> {
+  const validas = entries.filter((e) => Number.isFinite(e.orderedGross) && e.orderedGross > 0);
+  if (!validas.length) return 0;
+  const registros = validas.map((e) => ({
+    external_order_id: e.externalOrderId,
+    ordered_gross: e.orderedGross,
+  }));
+  const atualizadas = await dbQuery<{ external_order_id: string }>(
+    `UPDATE workspace_channel_orders o
+        SET ordered_gross = COALESCE(p.ordered_gross, o.ordered_gross),
+            synced_at = now()
+       FROM jsonb_to_recordset($4::jsonb) AS p(external_order_id text, ordered_gross numeric)
+      WHERE o.workspace_id = $1 AND o.provider = $2 AND o.connection_id = $3
+        AND o.external_order_id = p.external_order_id
+        AND o.ordered_gross IS DISTINCT FROM COALESCE(p.ordered_gross, o.ordered_gross)
+      RETURNING o.external_order_id`,
+    [currentWorkspaceId(), scope.provider, scope.connectionId, JSON.stringify(registros)]
+  );
+  return atualizadas.length;
+}

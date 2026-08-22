@@ -189,7 +189,10 @@ export async function getAmazonOverviewFromCanonical(period: Period): Promise<Am
               COUNT(*) FILTER (WHERE status = ANY($6::text[]))::int AS paid_orders,
               COUNT(*) FILTER (WHERE status = ANY($6::text[]) AND fulfillment = 'platform')::int AS fba_orders,
               SUM(gross) FILTER (WHERE status = ANY($6::text[])) AS paid_revenue,
-              SUM(gross) FILTER (WHERE status = 'cancelled') AS cancelled_revenue,
+              -- COALESCE com ordered_gross: pedido cancelado nunca tem gross,
+              -- porque a Amazon zera o OrderTotal ao cancelar. O valor de tabela
+              -- capturado antes do cancelamento (migrations/0010) é a única fonte.
+              SUM(COALESCE(gross, ordered_gross)) FILTER (WHERE status = 'cancelled') AS cancelled_revenue,
               COUNT(*) FILTER (WHERE status = 'cancelled')::int AS cancelled_orders,
               MAX(occurred_at) FILTER (WHERE status = ANY($6::text[])) AS last_sale_at,
               MAX(currency) AS currency

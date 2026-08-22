@@ -9,6 +9,7 @@ import {
   normalizeAmazonOrderItems,
 } from "./amazonCanonical";
 import type { CanonicalFee } from "./canonical";
+import { ingerirRelatorioDePedidos } from "./amazonOrdersReport";
 import {
   applyCanonicalOrderItems,
   saveCanonicalOrderHeaders,
@@ -341,6 +342,12 @@ export async function runAmazonSyncStep(account: AccountCtx, forcarJanela = fals
       await reverifyUpdatedOrders(connectionId).catch(() => {});
       await syncMissingOrderItems(connectionId);
       await syncMissingOrderFees(connectionId);
+      // Captura o valor de tabela enquanto o pedido ainda tem um: a Amazon zera
+      // o cancelado em toda API de pedido, então depois não há de onde tirar.
+      // Ele mesmo se espaça (3h) — chamar todo ciclo não gera relatório todo ciclo.
+      await ingerirRelatorioDePedidos(connectionId).catch((erro) => {
+        console.error("[amazon] relatório de pedidos falhou", erro);
+      });
     });
     return;
   }

@@ -185,6 +185,7 @@ async function createSchema(): Promise<void> {
       products_total     INTEGER NOT NULL DEFAULT 0,
       active_products    INTEGER NOT NULL DEFAULT 0,
       products_complete  BOOLEAN NOT NULL DEFAULT false,
+      orders_report_at   TIMESTAMPTZ,
       lease_until        TIMESTAMPTZ,
       last_error         TEXT,
       last_success_at    TIMESTAMPTZ,
