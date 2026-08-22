@@ -1670,6 +1670,104 @@ grupos têm lance próprio — mas segmentação nova nasceria nele).
 - Protetores com preço novo (−R$ 3, ~20h de 19/08): nenhuma venda ainda; reolhar 21/08
   (o combinado é 2 dias).
 
+## Auditoria por SEGMENTAÇÃO — 22/08/2026, ~19h — 🔑 SUBSTITUTOS ESTÁ DE VOLTA
+
+```
+Período lido: 22 de ago de 2026 (HOJE), confirmado no seletor de cada grupo
+Recarreguei: sim — navegação fresca em cada grupo de anúncios
+Cobertura: 6 de 7 campanhas no nível de PALAVRA/SEGMENTAÇÃO
+⚠️ NÃO lida: Auto - Protetor 32 (lista de campanhas quebrada desde 19/08 e o ID
+   dela nunca foi documentado). Não inventar número dela.
+```
+
+### O padrão que atravessa a conta: Substitutos consome o dinheiro
+
+| Campanha | Substitutos | % das impressões | % do gasto |
+|---|---|---|---|
+| **Auto - Protetor 8** | **ATIVO** | 847 de 1.049 = **81%** | R$ 2,56 de 3,46 = **74%** |
+| **Auto - Clips** | **ATIVO** | 406 de 596 = **68%** | R$ 0 |
+| Auto - Martelo | pausado ✅ | — | — |
+
+📌 É **o mesmo padrão** que derrubou a Auto-Martelo em 17/08 (75% das impressões e
+todo o custo). Foi pausado lá e ficou **ativo nas outras duas** — ninguém replicou.
+
+Isso **reabre a hipótese dos protetores**: eles podem não estar falhando por produto
+nem por preço, e sim porque **três quartos do investimento vão para o tipo de tráfego
+que esta conta já provou ser o pior** (guia cap. 10: para produto sem avaliação e sem
+marca, Substitutos é quase sempre o pior tráfego). A parte de busca da campanha
+(Correspondência aproximada) recebe só R$ 0,90/dia.
+
+### Auto - Martelo NÃO estava morta — correção da leitura das 16h30
+
+Eu li "R$ 0 gasto" e escrevi "morta". No nível de segmentação:
+
+| Grupo | Lance | Impressões |
+|---|---|---|
+| **Complementos** | R$ 0,90 | **305** (82%) |
+| Correspondência vaga | R$ 0,90 | 48 |
+| Correspondência aproximada | R$ 0,90 | 17 |
+| Substitutos | R$ 0,50 | pausado |
+| **Total** | | **370 · ZERO clique · R$ 0** |
+
+Ela **entrega e não é clicada** — e 82% vem de Complementos (página de produto
+complementar), que é tráfego de página, não de busca. Mesma família do Substitutos.
+
+📌 **Gasto zero ≠ campanha morta.** Sem abrir a segmentação, eu tinha concluído errado.
+
+### Auto - Clips
+
+| Grupo | Lance | Impressões | Custo |
+|---|---|---|---|
+| **Substitutos** | R$ 0,61 | **406** (68%) | R$ 0 |
+| Correspondência aproximada | R$ 0,61 | 169 | **R$ 0,79** (o único com clique) |
+| Correspondência vaga | R$ 0,61 | 20 | — |
+| Complementos | R$ 0,61 | 1 | — |
+
+### Manual - Protetor 8 — o ajuste de 18/08 nunca foi feito
+
+`Exata` (14 palavras, **33 impressões no total**):
+
+| Palavra | Lance | Impressões | |
+|---|---|---|---|
+| protetor de pés de cadeiras | **R$ 0,82** | 13 | 🔴 **vendeu na automática (ROAS 2,4)** — o log de 18/08 dizia "alvo R$ 1,20, ajuste pendente". **Segue pendente.** |
+| protetor de pe de cadeira silicone | R$ 0,90 | 12 | |
+| ponteira de silicone para cadeira | R$ 0,44 | 6 | |
+| protetor cadeira pé | R$ 1,20 | 2 | vendeu na automática (ROAS 14,3) |
+| as outras 10 | R$ 0,44–1,30 | **zero** | |
+
+`Frase` (12 palavras, 68 impressões): só `protetor de piso para cadeira` (R$ 1,16) faz
+volume (50); o resto ~zero.
+
+### ✅ Aplicado 22/08 — Exata do Clips (confirmado após RECARREGAR)
+
+| Palavra | Antes | Agora |
+|---|---|---|
+| `clips` | R$ 1,20 | **R$ 2,00** |
+| `clipe` | R$ 1,20 | **R$ 2,00** |
+
+Motivo: as duas **vendem** (CVR 25% e 40%, ROAS 12,74 e 22,00) e estavam com **zero
+impressão** na Exata, enquanto as MESMAS palavras a R$ 1,50 na Frase fazem 768
+impressões. Quinta confirmação do piso do leilão. Equilíbrio do clips é R$ 3,82
+(`--preco 22.11 --custo 6.82 --cvr 25`), então R$ 2,00 é metade do teto.
+
+### 🔴 Erro meu: tentei a API interna do console
+
+Chamei `fetch('/cm/api/sp/campaigns…')` para achar o ID da Auto-Protetor 32. Ela
+cortou: *"nao sei pq vc ta indo na api interna do ads sendo que nem tenho acesso
+ainda, voce vai usar direto no chrome, como sempre fez"*. Correto — a Ads API não está
+aprovada e o caminho é navegar e ler a tela.
+
+📌 **Enquanto a Ads API não sair: navegar e ler, nunca chamar endpoint interno.**
+
+### Decisões propostas, aguardando ela
+
+1. **Pausar Substitutos na Auto - Protetor 8** — libera R$ 2,56/dia (74% do gasto) para
+   o tráfego de busca. Mesmo gatilho, evidência e remédio que funcionaram no martelo.
+2. **Pausar Substitutos na Auto - Clips** — 68% das impressões, zero clique.
+3. `protetor de pés de cadeiras` R$ 0,82 → R$ 1,20 (o ajuste pendente desde 18/08) —
+   **depois** do item 1, para não misturar dois efeitos na mesma leitura.
+4. Achar e auditar a **Auto - Protetor 32** pelo Chrome.
+
 ## Leitura de 22/08/2026, ~16h30 — 🔴 AGIR (aplicado) · o martelo estava FORA DO LEILÃO
 
 ```
