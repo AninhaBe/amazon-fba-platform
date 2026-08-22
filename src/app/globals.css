@@ -4153,25 +4153,13 @@ summary:hover { background: var(--paper-soft); }
 .central-alerta-texto { flex: 1; color: var(--ink); font-size: 13px; font-weight: var(--weight-medium); line-height: 1.4; }
 .central-alerta-seta { flex: none; color: var(--ink-muted); font-size: 15px; }
 
-/* O faturamento é o herói: número grande, lucro ao lado um degrau abaixo. */
-.central-hero { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: clamp(16px, 4vw, 40px); align-items: end; padding: 20px 22px; border-radius: var(--radius-lg); background: var(--paper); box-shadow: var(--shadow-surface); }
-.central-hero-principal { display: grid; gap: 8px; min-width: 0; }
-.central-hero-valor { color: var(--ink); font-size: clamp(34px, 6vw, 56px); font-weight: var(--weight-bold); line-height: 1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
-.central-hero-delta { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: var(--weight-medium); }
-.central-hero-delta.is-positive { color: var(--positive); }
-.central-hero-delta.is-negative { color: var(--danger); }
-.central-hero-delta.is-muted { color: var(--ink-muted); font-weight: var(--weight-regular); }
-.central-hero-lucro { display: grid; gap: 4px; min-width: 0; padding-bottom: 4px; }
-.central-hero-lucro p { color: var(--ink-muted); font-size: 12px; }
-.central-hero-lucro strong { color: var(--ink); font-size: clamp(22px, 3.5vw, 30px); font-weight: var(--weight-semibold); line-height: 1.05; font-variant-numeric: tabular-nums; }
-.central-hero-lucro small { color: var(--ink-muted); font-size: 12px; }
-@media (max-width: 640px) { .central-hero { grid-template-columns: 1fr; align-items: start; } }
-
-.central-kpis-apoio { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.central-kpis-apoio article { display: grid; gap: 3px; padding: 12px 16px; border-radius: var(--radius-lg); background: var(--paper); box-shadow: var(--shadow-surface); }
-.central-kpis-apoio article p { color: var(--ink-muted); font-size: 12px; }
-.central-kpis-apoio article strong { color: var(--ink); font-size: 20px; font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; }
-.central-kpis-apoio article small { color: var(--ink-muted); font-size: 12px; }
+/* Resumo multicanal: uma faixa comparável, sem um número gigante nem cards
+   soltos competindo antes da tabela que mostra onde agir. */
+.central-summary-band { border-block: 1px solid var(--ink-08); }
+.central-summary-band .metric-cell { min-width: 170px; padding-inline: 16px !important; }
+.central-summary-band .central-summary-revenue { min-width: 230px; }
+.central-summary-revenue.is-positive .metric-sub { color: var(--positive); }
+.central-summary-revenue.is-negative .metric-sub { color: var(--danger); }
 
 .central-chart-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
 .central-chart-tabs button { padding: 5px 12px; border-radius: 999px; background: var(--paper-soft); color: var(--ink-muted); font-size: 12px; font-weight: var(--weight-medium); box-shadow: inset 0 0 0 1px var(--ink-08); transition: color var(--duration) var(--ease), background-color var(--duration) var(--ease); }
@@ -4186,6 +4174,10 @@ summary:hover { background: var(--paper-soft); }
 .channel-comparison-row { min-height: 70px; border-block-end: 1px solid var(--ink-08); transition: background-color var(--duration) var(--ease); }
 .channel-comparison-row:last-child { border-block-end: 0; }
 .channel-comparison-row:hover { background: var(--ink-03); }
+.channel-comparison-row.is-amazon { --channel-color: var(--amazon); }
+.channel-comparison-row.is-mercado_livre { --channel-color: var(--meli-dark); }
+.channel-comparison-row.is-shopee { --channel-color: var(--shopee); }
+.channel-comparison-row.is-tiktok_shop { --channel-color: var(--tiktok); }
 .channel-comparison-identity { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center; gap: 9px; min-width: 0; padding: 9px 12px; }
 .channel-comparison-identity > span { display: grid; width: 28px; height: 28px; place-items: center; }
 .channel-comparison-identity > div { min-width: 0; }
@@ -4197,7 +4189,7 @@ summary:hover { background: var(--paper-soft); }
 .channel-comparison-revenue { display: grid; gap: 6px; padding-inline: 12px; }
 .channel-comparison-revenue > strong { color: var(--ink); font-size: 13px; font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; }
 .channel-comparison-revenue > span { display: block; overflow: hidden; width: 100%; height: 5px; border-radius: 999px; background: var(--ink-05); }
-.channel-comparison-revenue > span > i { display: block; height: 100%; border-radius: inherit; background: var(--core); }
+.channel-comparison-revenue > span > i { display: block; height: 100%; border-radius: inherit; background: var(--channel-color, var(--core)); }
 .channel-comparison-number { display: grid; gap: 1px; min-width: 0; padding-inline: 12px; }
 .channel-comparison-number strong { color: var(--ink-soft); font-size: 12px; font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; }
 .channel-comparison-number strong.is-negative { color: var(--danger); }
@@ -4208,15 +4200,43 @@ summary:hover { background: var(--paper-soft); }
 .channel-comparison-action a:hover { background: var(--ink-03); }
 
 @media (max-width: 1100px) {
-  .channel-comparison-table { overflow-x: auto; }
-  .channel-comparison-head,
-  .channel-comparison-row { min-width: 1150px; }
+  .central-summary-band .metric-cell { min-width: 190px; }
+}
+
+@media (max-width: 900px) {
+  .channel-comparison-table { display: grid; gap: 8px; overflow: visible; background: transparent; box-shadow: none; }
+  .channel-comparison-head { display: none; }
+  .channel-comparison-row {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) 36px;
+    grid-template-areas:
+      "identity identity identity identity action"
+      "revenue revenue orders result margin";
+    min-width: 0;
+    border: 0;
+    border-radius: var(--radius-lg);
+    background: var(--paper);
+    box-shadow: inset 3px 0 var(--channel-color, var(--core)), var(--shadow-surface);
+  }
+  .channel-comparison-identity { grid-area: identity; border-block-end: 1px solid var(--ink-08); }
+  .channel-comparison-revenue { grid-area: revenue; padding-block: 10px 12px; }
+  .channel-comparison-number.is-orders { grid-area: orders; }
+  .channel-comparison-number.is-result { grid-area: result; }
+  .channel-comparison-number.is-margin { grid-area: margin; }
+  .channel-comparison-action { grid-area: action; align-self: center; }
 }
 
 @media (max-width: 600px) {
   .channel-dashboard { gap: 16px; }
-  .channel-dashboard .central-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .channel-dashboard .central-section-heading { align-items: flex-start; flex-direction: column; gap: 4px; }
+  .channel-comparison-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) 36px;
+    grid-template-areas:
+      "identity identity action"
+      "revenue revenue revenue"
+      "orders result margin";
+  }
+  .channel-comparison-identity small { overflow: visible; white-space: normal; }
+  .channel-comparison-number { padding-block: 10px 12px; }
 }
 
 /* Integrações: navegação por assunto e uma lista operacional contínua substituem
