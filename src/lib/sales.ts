@@ -43,9 +43,26 @@ export function getDailySales(
   period: Period,
   marketplaceId = defaultMarketplaceId()
 ): Promise<SalesSeries> {
-  return swr(`sales:${cacheScope()}:${period.key}:${marketplaceId}`, 10 * 60_000, () => fetchDailySales(period, marketplaceId), {
-    awaitIfEmpty: true,
-  });
+  // Este é o número que precisa BATER com o Seller Central — inclusive a venda
+  // que acabou de entrar. Enquanto a janela alcança hoje, o dado muda o tempo
+  // todo, então cache longo (10 min) e entrega de valor velho enganam: medido em
+  // 22/08/2026, uma venda das 17:32 não apareceu porque a tela recebeu o cache
+  // das 17:00 e a atualização foi para segundo plano.
+  //
+  // Período fechado no passado não muda: mantém o cache longo e barato.
+  const hoje = new Date(Date.now() - 3 * 3600_000).toISOString().slice(0, 10);
+  const alcancaHoje = period.key.endsWith(hoje);
+  return swr(
+    `sales:${cacheScope()}:${period.key}:${marketplaceId}`,
+    alcancaHoje ? 60_000 : 10 * 60_000,
+    () => fetchDailySales(period, marketplaceId),
+    {
+      awaitIfEmpty: true,
+      // Vencido e alcançando hoje: espera o número novo (teto de 1,8s para não
+      // furar o orçamento de resposta do ADR-017 se a SP-API estiver lenta).
+      awaitIfStaleMs: alcancaHoje ? 1800 : 0,
+    }
+  );
 }
 
 async function fetchDailySales(period: Period, marketplaceId: string): Promise<SalesSeries> {
