@@ -9,7 +9,8 @@ export interface Period {
   custom: boolean;
 }
 
-const TZ = "-03:00"; // Brasil
+const TZ = "-03:00"; // Brasil (sem horário de verão desde 2019: offset fixo)
+const TZ_OFFSET_MS = 3 * 60 * 60_000;
 // A Orders/Finances API exige que 'before' seja pelo menos 2 min atrás; usamos 3 de margem.
 const SAFETY_MS = 3 * 60_000;
 
@@ -17,10 +18,33 @@ function ymd(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** Data de hoje no fuso de Brasília (YYYY-MM-DD), independente do fuso do servidor. */
+function hojeEmBrasilia(agora = Date.now()): string {
+  // Desloca o instante para que os métodos UTC devolvam o relógio de parede BRT.
+  return new Date(agora - TZ_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+/**
+ * Preset "últimos N dias" alinhado ao DIA-CALENDÁRIO de Brasília — não a uma
+ * janela móvel de 24h.
+ *
+ * O bug que isto corrige (medido em 22/08/2026): "Hoje" era `agora − 24h`, então
+ * uma venda feita 21/08 às 21:12 caía dentro da janela às 12:39 do dia 22 e
+ * aparecia como venda de hoje. O Seller Central conta em horário de Brasília e
+ * mostrava a mesma venda no dia 21 — os dois discordavam do dia.
+ *
+ * `N=1` (Hoje) vira de hoje 00:00 BRT até agora. `N` vira dos N dias-calendário
+ * terminando hoje. O fim nunca passa de ~3 min atrás (limite da SP-API).
+ */
 export function periodFromDays(days: number): Period {
   const d = Math.max(1, Math.min(365, Math.round(days) || 30));
-  const end = new Date(Date.now() - SAFETY_MS);
-  const start = new Date(Date.now() - d * 86_400_000);
+  const hoje = hojeEmBrasilia();
+  const inicioHoje = new Date(`${hoje}T00:00:00${TZ}`);
+  const start = new Date(inicioHoje.getTime() - (d - 1) * 86_400_000);
+  const maxEnd = new Date(Date.now() - SAFETY_MS);
+  // Antes do primeiro instante de hoje (madrugada), o teto do dia ainda não
+  // passou: `end` fica no próprio `maxEnd`, nunca antes de `start`.
+  const end = maxEnd.getTime() > start.getTime() ? maxEnd : new Date(start.getTime() + 1000);
   return {
     startISO: start.toISOString(),
     endISO: end.toISOString(),
