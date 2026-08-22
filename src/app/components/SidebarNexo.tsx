@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Search } from "lucide-react";
+import { Search, Settings, UserRound } from "lucide-react";
 import type { WorkspaceId } from "@/lib/integrations/workspaces";
 import { MarketplaceIcon } from "./MarketplaceIcon";
 import { NavLinks } from "./Nav";
@@ -54,6 +55,7 @@ const CANAIS: Array<{ id: WorkspaceId; href: string }> = [
 ];
 
 export function SidebarNexo({ workspace, collapsed = false }: { workspace: WorkspaceId; collapsed?: boolean }) {
+  const pathname = usePathname();
   const [aberto, setAberto] = useState(false);
   const switcherRef = useRef<HTMLButtonElement>(null);
 
@@ -149,6 +151,16 @@ export function SidebarNexo({ workspace, collapsed = false }: { workspace: Works
             <span>{workspace === "mercado_livre" ? "Gerenciar integração" : "Ver integrações"}</span>
           </Link>
         )}
+        <div className="nexo-sidebar-utility-links" aria-label="Conta e configurações">
+          <Link href="/configuracoes" className="nexo-sidebar-utility" aria-current={pathname === "/configuracoes" ? "page" : undefined}>
+            <Settings aria-hidden />
+            <span>Configurações</span>
+          </Link>
+          <Link href="/perfil" className="nexo-sidebar-utility" aria-current={pathname === "/perfil" ? "page" : undefined}>
+            <UserRound aria-hidden />
+            <span>Perfil</span>
+          </Link>
+        </div>
         <LogoutButton />
       </div>
     </aside>

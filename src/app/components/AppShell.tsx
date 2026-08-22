@@ -13,8 +13,13 @@ import { workspaceFromPath } from "@/lib/integrations/workspaces";
 import { LogoutButton } from "./LogoutButton";
 import { TrialNotice } from "./TrialNotice";
 import { ShellTopbar } from "./ShellTopbar";
-
-const SIDEBAR_COLLAPSED_KEY = "nexo:sidebar-collapsed";
+import Link from "next/link";
+import { Settings, UserRound } from "lucide-react";
+import {
+  SIDEBAR_COLLAPSED_KEY,
+  SIDEBAR_PREFERENCE_EVENT,
+  type SidebarPreferenceDetail,
+} from "@/lib/navigationPreferences";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -44,6 +49,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       // A preferência é um aprimoramento; a navegação não depende do storage.
     }
   }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    const syncPreference = (event: Event) => {
+      const detail = (event as CustomEvent<SidebarPreferenceDetail>).detail;
+      if (typeof detail?.collapsed === "boolean") setSidebarCollapsed(detail.collapsed);
+    };
+    window.addEventListener(SIDEBAR_PREFERENCE_EVENT, syncPreference);
+    return () => window.removeEventListener(SIDEBAR_PREFERENCE_EVENT, syncPreference);
+  }, []);
   // As rotas públicas não usam a casca autenticada. Manter esta lista coerente
   // com `publicPaths` do proxy evita, por exemplo, uma política pública com a
   // sidebar e o seletor da conta de quem já estiver logado. `/lab` desenha a
@@ -59,7 +73,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <SidebarNexo workspace={workspace} collapsed={sidebarCollapsed} />
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="mobile-console sticky top-0 z-20 px-4 pt-3 lg:hidden">
-          <div className="mb-2 flex min-w-0 items-center justify-between gap-2"><Logo compact /><div className="flex min-w-0 flex-1 items-center justify-end gap-2"><ChannelSwitcher compact /><LogoutButton compact /></div></div>
+          <div className="mb-2 flex min-w-0 items-center justify-between gap-2"><Logo compact /><div className="flex min-w-0 flex-1 items-center justify-end gap-1.5"><ChannelSwitcher compact /><Link href="/configuracoes" className="mobile-account-action" aria-label="Configurações"><Settings aria-hidden /></Link><Link href="/perfil" className="mobile-account-action" aria-label="Perfil"><UserRound aria-hidden /></Link><LogoutButton compact /></div></div>
           <NavLinks variant="top" />
         </header>
         <ShellTopbar

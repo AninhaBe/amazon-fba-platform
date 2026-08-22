@@ -26,6 +26,8 @@ const NOMES_SEGMENTO: Record<string, string> = {
   financeiro: "Financeiro",
   historico: "Histórico",
   integracoes: "Integrações",
+  configuracoes: "Configurações",
+  perfil: "Perfil",
   monitor: "Monitor da conta",
   pesquisa: "Pesquisa",
   produtos: "Produtos",

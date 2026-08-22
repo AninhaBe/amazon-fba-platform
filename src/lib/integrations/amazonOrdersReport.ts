@@ -110,10 +110,7 @@ export interface ResultadoRelatorio {
  *
  * SKU sem histórico de preço não vira zero: fica de fora e o pedido segue nulo.
  */
-async function estimarPorPrecoDoSku(
-  connectionId: string,
-  pedidos: PedidoSemValor[]
-): Promise<OrderedGrossEntry[]> {
+async function estimarPorPrecoDoSku(pedidos: PedidoSemValor[]): Promise<OrderedGrossEntry[]> {
   if (!pedidos.length) return [];
   const chaves = pedidos.flatMap((pedido) =>
     pedido.skus.map((sku) => ({
@@ -127,7 +124,7 @@ async function estimarPorPrecoDoSku(
   // pedido, e não uma média que não existiu em dia nenhum.
   const linhas = await dbQuery<{ external_order_id: string; valor: string }>(
     `SELECT k.external_order_id, SUM(preco.valor) AS valor
-       FROM jsonb_to_recordset($3::jsonb) AS k(external_order_id text, sku text, purchase_date timestamptz)
+       FROM jsonb_to_recordset($2::jsonb) AS k(external_order_id text, sku text, purchase_date timestamptz)
        CROSS JOIN LATERAL (
          SELECT COALESCE(i.list_price, i.unit_price) AS valor
            FROM workspace_channel_order_items i
@@ -140,7 +137,7 @@ async function estimarPorPrecoDoSku(
        ) AS preco
       WHERE k.sku IS NOT NULL
       GROUP BY k.external_order_id`,
-    [currentWorkspaceId(), connectionId, JSON.stringify(chaves)]
+    [currentWorkspaceId(), JSON.stringify(chaves)]
   );
   return linhas
     .map((linha) => ({
@@ -213,7 +210,7 @@ export async function ingerirRelatorioDePedidos(
   const atualizados = await saveOrderedGross(escopo, entradas, "relatorio");
 
   // Segunda passada: o que a origem zerou, mas cujo SKU sobreviveu.
-  const estimativas = await estimarPorPrecoDoSku(connectionId, pedidosSemValor(tsv));
+  const estimativas = await estimarPorPrecoDoSku(pedidosSemValor(tsv));
   const estimados = await saveOrderedGross(escopo, estimativas, "estimado");
 
   await marcarIngestao(connectionId);

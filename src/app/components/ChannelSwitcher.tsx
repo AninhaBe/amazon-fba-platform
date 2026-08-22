@@ -20,7 +20,7 @@ export function ChannelSwitcher({ compact = false }: { compact?: boolean }) {
       className={`channel-switcher${compact ? " is-compact" : ""}`}
       role="navigation"
       aria-label="Alternar canal de venda"
-      style={compact ? { flex: "1 1 auto", minWidth: 0, maxWidth: "calc(100% - 50px)", overflowX: "auto" } : undefined}
+      style={compact ? { flex: "1 1 auto", minWidth: 0, maxWidth: "calc(100% - 112px)", overflowX: "auto" } : undefined}
     >
       {channels.map((channel) => (
         <Link key={channel.id} href={channel.href} title={channel.label} aria-label={channel.label} aria-current={workspace === channel.id ? "page" : undefined} className={`channel-tab channel-${channel.id}${workspace === channel.id ? " is-active" : ""}`}>
