@@ -11,9 +11,9 @@ import { DashboardPeriodFilter, useDashboardPeriod } from "./DashboardPeriodFilt
 import { OrderProfitabilityTable } from "./OrderProfitabilityTable";
 import { ConnectionBroken, isBrokenConnection } from "./ConnectionBroken";
 import { CustomizableMetricGrid } from "./CustomizableMetricGrid";
-import { Flow, FlowExpandable, Metric, getRevenueTrend } from "./Metric";
+import { CompactMetric, Flow, FlowExpandable, Metric, getRevenueTrend } from "./Metric";
+import { CompositionDonut } from "./CompositionDonut";
 import { brDate, brTime } from "@/lib/datetime";
-import { Boxes, PackageOpen } from "lucide-react";
 import type { ProfitabilityLine } from "@/lib/profitability";
 import { MercadoLivreSaldo } from "./MercadoLivreSaldo";
 import { Pagination } from "./Pagination";
@@ -222,6 +222,9 @@ function Dashboard({ overview, syncStatus, periodoLabel }: { overview: Overview;
   const critical = overview.stockRadar.filter((product) => product.status === "critical" || product.status === "out");
   const resultIncomplete = !profitCoverage.complete || overview.profit.unitsWithoutCost > 0 || !overview.profit.shippingCostsComplete || overview.profit.taxes == null;
   const netReceived = overview.profit.revenueProcessed - overview.profit.fees - overview.profit.sellerShipping;
+  const ticket = overview.metrics.paidOrders > 0 ? overview.metrics.approvedRevenue / overview.metrics.paidOrders : null;
+  const roi = overview.profit.cogs > 0 && !resultIncomplete ? (overview.profit.estimatedProfit / overview.profit.cogs) * 100 : null;
+  const knownCosts = overview.profit.fees + overview.profit.sellerShipping + overview.profit.cogs + (overview.profit.taxes ?? 0);
   return <div className="dashboard-sections integration-dashboard-sections ml-dashboard-body">
     {/* Mesma abertura dos outros três canais: a frase vem do dado e as
         pendências ficam com ela. Ver `BriefingLead.tsx` — a peça é
@@ -242,6 +245,9 @@ function Dashboard({ overview, syncStatus, periodoLabel }: { overview: Overview;
         ...(overview.metrics.cancelledOrders > 0
           ? [{ label: `${overview.metrics.cancelledOrders} pedido(s) cancelado(s) no período`, href: "/mercado-livre/monitor", tone: "alerta" as const }]
           : []),
+        ...(critical.length > 0
+          ? [{ label: `${critical.length} produto(s) em estoque crítico`, href: "/mercado-livre/estoque", tone: "alerta" as const }]
+          : []),
       ]}
     />
 
@@ -253,17 +259,20 @@ function Dashboard({ overview, syncStatus, periodoLabel }: { overview: Overview;
     )}
 
     <section className="metric-grid ml-dashboard-metric-grid" aria-label="Resumo financeiro Mercado Livre">
-      <Metric label="Vendas brutas" value={<AnimatedNumber id="ml-dash-revenue" value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={`${overview.metrics.paidOrders} aprovadas + ${overview.metrics.cancelledOrders} canceladas`} trend={getRevenueTrend(overview.dailySales)} />
-      <Metric label="Canceladas" value={money(overview.metrics.cancelledRevenue, overview.metrics.currency)} sub={`${overview.metrics.cancelledOrders} pedido(s)`} tone={overview.metrics.cancelledRevenue > 0 ? "danger" : "ok"} />
-      <Metric label="Total recebido" value={money(netReceived, overview.metrics.currency)} sub="após tarifa e frete" />
+      <Metric label="Faturamento" value={<AnimatedNumber id="ml-dash-revenue" value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={`${overview.metrics.paidOrders} aprovadas + ${overview.metrics.cancelledOrders} canceladas`} trend={getRevenueTrend(overview.dailySales)} />
+      <Metric label="Taxas" value={money(overview.profit.fees, overview.metrics.currency)} sub={`${profitCoverage.processedOrders} venda(s) processada(s)`} />
+      <Metric label="Custo dos produtos" value={money(overview.profit.cogs, overview.metrics.currency)} sub={overview.profit.unitsWithoutCost > 0 ? `${overview.profit.unitsWithoutCost} unidade(s) sem custo` : "custos cadastrados"} tone={overview.profit.unitsWithoutCost > 0 ? "warn" : "default"} />
       <Metric label={resultIncomplete ? "Resultado processado" : "Lucro estimado"} value={<AnimatedNumber id="ml-dash-profit" value={overview.profit.estimatedProfit} format={(amount) => money(amount, overview.metrics.currency)} />} sub={resultIncomplete ? `${profitCoverage.processedOrders} de ${profitCoverage.paidOrders} vendas` : "após todos os custos"} tone={resultIncomplete ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
       <Metric label="Margem" value={resultIncomplete ? "—" : percent(overview.profit.marginPct)} sub={resultIncomplete ? "aguardando conciliação completa" : "sobre o faturamento"} tone={resultIncomplete ? "default" : overview.profit.marginPct > 0 ? "positive" : overview.profit.marginPct < 0 ? "danger" : "default"} />
     </section>
 
-    {/* Operacionais fora da grade financeira: são de estoque, não de dinheiro. */}
-    <section className="metric-grid grid grid-cols-1 gap-0 sm:grid-cols-2" aria-label="Indicadores operacionais Mercado Livre">
-      <Metric label="Estoque crítico" value={critical.length.toLocaleString("pt-BR")} sub={critical.length ? "repor com urgência — ver radar" : "tudo sob controle — ver radar"} tone={critical.length ? "danger" : "ok"} icon={dashboardKpiIcons.stock} href="/mercado-livre/estoque" />
-      <Metric label="Produtos sem custo" value={overview.metrics.productsWithoutCost.toLocaleString("pt-BR")} sub={overview.metrics.productsWithoutCost ? "cadastre para ver o lucro" : "todos cadastrados"} tone={overview.metrics.productsWithoutCost ? "warn" : "ok"} icon={dashboardKpiIcons.box} />
+    <section className="secondary-metrics" aria-label="Indicadores operacionais Mercado Livre">
+      <CompactMetric label="Vendas" value={overview.metrics.paidOrders.toLocaleString("pt-BR")} />
+      <CompactMetric label="Unidades" value={units.toLocaleString("pt-BR")} />
+      <CompactMetric label="Ticket médio" value={ticket == null ? "—" : money(ticket, overview.metrics.currency)} />
+      <CompactMetric label="ROI" value={roi == null ? "—" : `${roi.toFixed(1)}%`} tone={roi == null ? "default" : roi > 0 ? "positive" : roi < 0 ? "danger" : "default"} />
+      <CompactMetric label="Canceladas" value={`${money(overview.metrics.cancelledRevenue, overview.metrics.currency)} · ${overview.metrics.cancelledOrders}`} tone={overview.metrics.cancelledOrders > 0 ? "danger" : "default"} />
+      <CompactMetric label="Total recebido" value={money(netReceived, overview.metrics.currency)} />
     </section>
 
     <section className="performance-panel">
@@ -272,21 +281,29 @@ function Dashboard({ overview, syncStatus, periodoLabel }: { overview: Overview;
           <div><p className="section-kicker">Desempenho diário</p><h2 className="mt-1 text-lg font-semibold text-[var(--ink)]">Evolução do faturamento</h2></div>
           <span className="text-sm font-semibold tabular-nums text-[var(--ink)]">{money(overview.metrics.revenue30d, overview.metrics.currency)} <span className="font-normal text-[var(--ink-muted)]">no período</span></span>
         </div>
-        <div className="chart-inline-stats" aria-label="Indicadores complementares">
-          {/* Aprovadas, Canceladas, Ticket e ROI viraram cards na grade acima —
-              repetir aqui só duplicaria o mesmo número em duas leituras. */}
-          <span><small>Unidades</small><strong>{units.toLocaleString("pt-BR")}</strong></span>
-          <span><small>Pedidos</small><strong>{overview.metrics.paidOrders.toLocaleString("pt-BR")}</strong></span>
-        </div>
         <RevenueChart points={overview.dailySales} currency={overview.metrics.currency} explorable />
       </div>
       <aside className="financial-composition" aria-label="Resumo do resultado financeiro">
         <div><p className="section-kicker">Resultado do período</p><h2 className="mt-1 text-lg font-semibold text-[var(--ink)]">Do faturamento ao lucro</h2><p className="mt-1 text-xs leading-relaxed text-[var(--ink-muted)]">{profitCoverage.complete ? "Valores efetivamente identificados no período." : `Detalhamento processado em ${profitCoverage.processedOrders} de ${profitCoverage.paidOrders} vendas.`}</p></div>
         <div className="financial-lines">
+          {!resultIncomplete && overview.profit.revenueProcessed > 0 ? (
+            <CompositionDonut
+              total={overview.profit.revenueProcessed}
+              totalLabel="Receita processada"
+              format={(value) => money(value, overview.metrics.currency)}
+              slices={[
+                { id: "fees", label: "Taxas do canal", value: overview.profit.fees },
+                { id: "shipping", label: "Frete do vendedor", value: overview.profit.sellerShipping },
+                { id: "cogs", label: "Custo dos produtos", value: overview.profit.cogs },
+                { id: "taxes", label: "Impostos", value: overview.profit.taxes ?? 0 },
+                { id: "profit", label: overview.profit.estimatedProfit >= 0 ? "Lucro estimado" : "Prejuízo", value: Math.abs(overview.profit.estimatedProfit), isRemainder: true },
+              ]}
+            />
+          ) : null}
           <Flow label={profitCoverage.complete ? "Receita paga" : "Receita processada"} value={money(overview.profit.revenueProcessed, overview.metrics.currency)} />
           <FlowExpandable
             label="Custos do canal e do produto"
-            value={money(overview.profit.fees + overview.profit.sellerShipping + overview.profit.cogs + (overview.profit.taxes ?? 0), overview.metrics.currency)}
+            value={resultIncomplete ? "—" : money(knownCosts, overview.metrics.currency)}
             open={costsOpen}
             onToggle={() => setCostsOpen((open) => !open)}
             items={[
@@ -296,7 +313,7 @@ function Dashboard({ overview, syncStatus, periodoLabel }: { overview: Overview;
               rotuloImposto(overview.profit.taxRate, overview.profit.taxes, overview.metrics.currency),
             ]}
           />
-          <Flow label={profitCoverage.complete ? "Lucro estimado" : "Lucro processado"} value={money(overview.profit.estimatedProfit, overview.metrics.currency)} sign="=" accent />
+          <Flow label={resultIncomplete ? "Lucro indisponível" : "Lucro estimado"} value={resultIncomplete ? "—" : money(overview.profit.estimatedProfit, overview.metrics.currency)} sign="=" accent tone={resultIncomplete ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
         </div>
         <Link href="/mercado-livre/monitor" className="meli-financial-link">Ver composição completa no monitor <span aria-hidden="true">→</span></Link>
         <Link href="/mercado-livre/produtos" className="meli-financial-link">Configurar custos e imposto <span aria-hidden="true">→</span></Link>
@@ -333,11 +350,6 @@ function Dashboard({ overview, syncStatus, periodoLabel }: { overview: Overview;
   </div>;
 }
 
-const kpiIconProps = { className: "h-5 w-5", strokeWidth: 1.7, "aria-hidden": true } as const;
-const dashboardKpiIcons = {
-  stock: <Boxes {...kpiIconProps} />,
-  box: <PackageOpen {...kpiIconProps} />,
-};
 
 function Panel({ title, href, linkLabel, children }: { title: string; href: string; linkLabel: string; children: React.ReactNode }) {
   return <div className="work-panel border-t border-[var(--line-strong)] py-5"><div className="mb-3 flex items-center justify-between border-b border-[var(--line)] pb-3"><h2 className="text-[13px] font-semibold text-[var(--ink-soft)]">{title}</h2><Link href={href} className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:gap-1.5 hover:text-blue-700">{linkLabel}<span aria-hidden="true">→</span></Link></div>{children}</div>;

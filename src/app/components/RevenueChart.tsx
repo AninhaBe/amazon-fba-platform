@@ -93,9 +93,14 @@ export function RevenueChart({
   // Linhas de grade / rótulos do eixo Y
   const gridLines = [0, 0.25, 0.5, 0.75, 1].map((t) => ({ t, v: niceMax * t, yy: y(niceMax * t) }));
 
-  // Rótulos do eixo X (no máximo ~7)
-  const step = Math.max(1, Math.ceil(points.length / 7));
-  const xLabels = points.filter((_, i) => i % step === 0 || i === points.length - 1);
+  // Rótulos do eixo X distribuídos entre as duas extremidades. O antigo
+  // `i % step || último` podia colocar o penúltimo tick imediatamente antes do
+  // último (por exemplo, 21/08 e 22/08), fazendo as datas se sobreporem.
+  const labelCount = Math.min(7, points.length);
+  const xLabelIndices = labelCount <= 1
+    ? (points.length ? [0] : [])
+    : Array.from({ length: labelCount }, (_, index) => Math.round((index * (points.length - 1)) / (labelCount - 1)));
+  const xLabels = [...new Set(xLabelIndices)].map((index) => ({ point: points[index], index }));
 
   function onMove(e: React.MouseEvent) {
     const svg = ref.current;
@@ -223,8 +228,7 @@ export function RevenueChart({
         ))}
 
         {/* Rótulos X */}
-        {xLabels.map((p) => {
-          const i = points.indexOf(p);
+        {xLabels.map(({ point: p, index: i }) => {
           const anchor = i === 0 ? "start" : i === points.length - 1 ? "end" : "middle";
           return (
             <text

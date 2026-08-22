@@ -4916,6 +4916,8 @@ summary:hover { background: var(--paper-soft); }
   .integration-dashboard-sections > .metric-grid > .metric-cell { min-width: 0; border-block-end: 1px solid var(--ink-08) !important; }
   .integration-dashboard-sections > .metric-grid > .metric-cell:nth-child(2n) { border-inline-end: 0 !important; }
   .integration-dashboard-sections > .metric-grid > .metric-cell:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .integration-dashboard .metric-head:has(.revenue-trend) { align-items: flex-start; flex-direction: column; gap: 5px; }
+  .integration-dashboard .metric-head:has(.revenue-trend) .metric-label { width: 100%; overflow: visible; white-space: normal; text-overflow: clip; }
   .integration-dashboard .secondary-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: hidden; }
   .integration-dashboard .compact-metric:nth-child(3n) { border-inline-end: 1px solid var(--line); }
   .integration-dashboard .compact-metric:nth-child(2n) { border-inline-end: 0; }

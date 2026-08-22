@@ -7,12 +7,13 @@ import { ChevronDown } from "lucide-react";
 import { DashboardPeriodFilter, useDashboardPeriod } from "./DashboardPeriodFilter";
 import { EmptyState } from "./EmptyState";
 import { DashboardSkeleton } from "./LoadingState";
-import { Metric } from "./Metric";
+import { CompactMetric, Flow, FlowExpandable, Metric } from "./Metric";
 import { PageHeader } from "./PageHeader";
 import { RevenueChart } from "./RevenueChart";
 import { TopProductsRanking } from "./TopProductsRanking";
 import { BriefingLead } from "./BriefingLead";
 import { IntegrationDashboardFrame } from "./IntegrationDashboardFrame";
+import { CompositionDonut } from "./CompositionDonut";
 import { ConnectionBroken } from "./ConnectionBroken";
 import { ChannelConnectionEmpty } from "./ChannelConnectionEmpty";
 import { brDate } from "@/lib/datetime";
@@ -63,6 +64,7 @@ export function TikTokWorkspace() {
   const [overviewState, setOverviewState] = useState<{ connectionId: string; data: TiktokOverviewResponse } | null>(null);
   const [errorState, setErrorState] = useState<{ connectionId: string | null; message: string } | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [costsOpen, setCostsOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -164,6 +166,11 @@ export function TikTokWorkspace() {
   const cards = financialCards(data.overview, data.coverage);
   const primaryCards = cards.filter((card) => TIKTOK_PRIMARY_FINANCIAL_KEYS.has(card.key));
   const componentCards = cards.filter((card) => !TIKTOK_PRIMARY_FINANCIAL_KEYS.has(card.key));
+  const costCards = cards.filter((card) => !["revenue", "buyerShipping", "profit", "marginPct", "roiPct"].includes(card.key));
+  const resultReady = phase === "ready" && !financialBlocked && data.overview.profit != null;
+  const knownCosts = resultReady && costCards.every((card) => card.raw != null && card.value !== "—")
+    ? costCards.reduce((total, card) => total + Math.abs(card.raw ?? 0), 0)
+    : null;
   const historicalBacklog = historicalBacklogDescription(data.coverage);
   const currency = data.overview.currency;
   return (
@@ -202,13 +209,57 @@ export function TikTokWorkspace() {
             {componentCards.map((card) => <div key={card.key}><dt>{card.label}</dt><dd className="tabular-nums">{card.value}</dd><small>{card.context}</small></div>)}
           </dl>
         </details>
+        <section className="secondary-metrics" aria-label="Indicadores operacionais TikTok Shop">
+          <CompactMetric label="Pedidos" value={(data.orders ?? 0).toLocaleString("pt-BR")} />
+          <CompactMetric label="Unidades" value={(data.units ?? 0).toLocaleString("pt-BR")} />
+          <CompactMetric label="Ticket médio" value={data.ticket == null ? "—" : new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(data.ticket)} />
+          {(data.statusBreakdown ?? []).map((item) => (
+            <CompactMetric key={item.status} label={tiktokOrderStatusLabel(item.status)} value={item.orders.toLocaleString("pt-BR")} tone={item.status === "cancelled" ? "danger" : "default"} />
+          ))}
+        </section>
         <section className="performance-panel tiktok-performance-panel" aria-labelledby="tiktok-performance-title">
           <div className="performance-chart">
             <div className="mb-2 flex flex-wrap items-baseline justify-between gap-3"><div><p className="section-kicker">Desempenho diário</p><h2 id="tiktok-performance-title" className="mt-1 text-lg font-semibold text-[var(--ink)]">Evolução do faturamento operacional</h2></div><span className="text-xs text-[var(--ink-muted)]">Valores de pedidos do período; não substituem o ledger financeiro.</span></div>
-            <div className="chart-inline-stats" aria-label="Indicadores operacionais do período"><span><small>Pedidos</small><strong>{(data.orders ?? 0).toLocaleString("pt-BR")}</strong></span><span><small>Unidades</small><strong>{(data.units ?? 0).toLocaleString("pt-BR")}</strong></span><span><small>Ticket médio</small><strong>{data.ticket == null ? "—" : new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(data.ticket)}</strong></span></div>
             <RevenueChart points={data.dailySeries ?? []} currency={currency} explorable />
           </div>
-          <aside className="financial-composition" aria-labelledby="tiktok-status-title"><div><p className="section-kicker">Pedidos do período</p><h2 id="tiktok-status-title" className="mt-1 text-lg font-semibold text-[var(--ink)]">Distribuição por status</h2><p className="mt-1 text-xs leading-relaxed text-[var(--ink-muted)]">Contagem canônica dos pedidos já sincronizados.</p></div>{!data.statusBreakdown?.length?<p className="py-6 text-sm text-[var(--ink-muted)]">Nenhum pedido no período.</p>:<dl className="financial-lines">{data.statusBreakdown.map((item)=><div key={item.status} className="flex items-center justify-between gap-3 py-2 text-sm"><dt className="text-[var(--ink-soft)]">{tiktokOrderStatusLabel(item.status)}</dt><dd className="font-semibold tabular-nums text-[var(--ink)]">{item.orders.toLocaleString("pt-BR")}</dd></div>)}</dl>}</aside>
+          <aside className="financial-composition" aria-labelledby="tiktok-result-title">
+            <div>
+              <p className="section-kicker">Resultado do período</p>
+              <h2 id="tiktok-result-title" className="mt-1 text-lg font-semibold text-[var(--ink)]">Do faturamento ao lucro</h2>
+              <p className="mt-1 text-xs leading-relaxed text-[var(--ink-muted)]">{resultReady ? "Valores oficiais da janela selecionada." : "A composição permanece aberta até o ledger financeiro cobrir todos os componentes."}</p>
+            </div>
+            <div className="financial-lines">
+              {resultReady && data.overview.revenue != null && data.overview.revenue > 0 ? (
+                <CompositionDonut
+                  total={data.overview.revenue}
+                  totalLabel="Faturamento"
+                  format={(value) => new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(value)}
+                  slices={[
+                    { id: "fees", label: "Taxas do canal", value: data.overview.fees ?? 0 },
+                    { id: "shipping", label: "Frete do vendedor", value: data.overview.sellerShipping ?? 0 },
+                    { id: "ads", label: "Anúncios", value: data.overview.ads ?? 0 },
+                    { id: "withheld", label: "Impostos retidos", value: data.overview.taxesWithheld ?? 0 },
+                    { id: "refunds", label: "Estornos", value: data.overview.refunds ?? 0 },
+                    { id: "tax", label: "Impostos", value: data.overview.tax ?? 0 },
+                    { id: "cogs", label: "Custo dos produtos", value: data.overview.cogs ?? 0 },
+                    { id: "profit", label: data.overview.profit! >= 0 ? "Lucro" : "Prejuízo", value: Math.abs(data.overview.profit!), isRemainder: true },
+                  ]}
+                />
+              ) : null}
+              <Flow label="Faturamento" value={primaryCards.find((card) => card.key === "revenue")?.value ?? "—"} />
+              <FlowExpandable
+                label="Custos do canal e do produto"
+                value={knownCosts == null ? "—" : new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(knownCosts)}
+                open={costsOpen}
+                onToggle={() => setCostsOpen((open) => !open)}
+                items={costCards.map((card) => ({ label: card.label, value: card.value }))}
+              />
+              <Flow label={resultReady ? "Lucro" : "Lucro indisponível"} value={resultReady ? primaryCards.find((card) => card.key === "profit")?.value ?? "—" : "—"} sign="=" accent tone={!resultReady ? "default" : data.overview.profit! > 0 ? "positive" : data.overview.profit! < 0 ? "danger" : "default"} />
+            </div>
+            <Link href={`/tiktok/financeiro?${new URLSearchParams({ connection_id: selectedConnectionId })}`} className="meli-financial-link">Ver composição completa no financeiro <span aria-hidden="true">→</span></Link>
+            <Link href={tiktokProductsHref(selectedConnectionId)} className="meli-financial-link">Configurar custos e imposto <span aria-hidden="true">→</span></Link>
+            {!resultReady ? <p className="text-xs leading-relaxed text-amber-700">O NEXO não estima os componentes ausentes: taxas, fretes, impostos ou custos pendentes continuam como “—”.</p> : null}
+          </aside>
         </section>
         <TopProductsRanking
           products={(data.topProducts ?? []).map((product) => ({ sku: product.sku || product.productId, title: product.title, units: product.units, revenue: product.revenue, marginPct: null }))}
