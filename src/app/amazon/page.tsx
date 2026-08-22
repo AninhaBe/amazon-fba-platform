@@ -166,42 +166,6 @@ interface DashSnapshot {
 const dashCache = new Map<string, DashSnapshot>();
 let productsCache: ProductRow[] | null = null;
 
-/**
- * A frase de rodapé do cartão de canceladas.
- *
- * Três coisas precisam caber sem virar parágrafo: se há valor, de quantos ele é,
- * e se é medido ou estimado. A Amazon zera o pedido cancelado (valor E
- * quantidade), então:
- *
- * — **medido** só existe se o NEXO capturou antes do cancelamento;
- * — **estimado** é o preço de tabela do SKU na data, presumindo 1 unidade —
- *   erra para baixo de propósito, porque 1 é o mínimo de um pedido que existiu;
- * — **nada** é o estado honesto de quem cancelou antes de qualquer captura.
- */
-function dizerSobreCanceladas(c: {
-  revenue: number | null;
-  orders: number;
-  ordersWithValue?: number;
-  ordersEstimated?: number;
-}): string | undefined {
-  if (c.orders === 0) return undefined;
-  if (c.revenue === null) {
-    return "A Amazon não informa o valor de pedido cancelado. O NEXO passa a capturar antes do cancelamento.";
-  }
-  const partes: string[] = [];
-  if (c.ordersWithValue !== undefined && c.ordersWithValue < c.orders) {
-    partes.push(`Valor de ${c.ordersWithValue} dos ${c.orders}`);
-  }
-  if (c.ordersEstimated) {
-    partes.push(
-      c.ordersEstimated === c.ordersWithValue
-        ? "estimado pelo preço do produto na data (1 unidade por pedido)"
-        : `${c.ordersEstimated} estimado(s) pelo preço do produto na data`
-    );
-  }
-  return partes.length ? `${partes.join(" · ")}.` : undefined;
-}
-
 export default function Dashboard() {
   const period = useDashboardPeriod();
   const [initialDash] = useState(() => dashCache.get(period.query));
@@ -529,7 +493,6 @@ export default function Dashboard() {
               ? `${money(pedidosFeitos.revenue, currency)} · ${pedidosFeitos.orders}`
               : "—"
           }
-          hint="Inclui pendentes, a preço de tabela. Cancelados ficam de fora — a Amazon não informa o valor deles."
           loading={loading}
         />
         <CompactMetric label="Vendas" value={String(salesCount)} loading={loading} />
@@ -558,7 +521,6 @@ export default function Dashboard() {
                 : `${money(canceladas.revenue, currency)} · ${canceladas.orders}`
               : "—"
           }
-          hint={canceladas ? dizerSobreCanceladas(canceladas) : undefined}
           tone={canceladas && canceladas.orders > 0 ? "danger" : "default"}
           loading={loading}
         />
