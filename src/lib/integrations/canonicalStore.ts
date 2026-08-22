@@ -624,22 +624,36 @@ export async function recordOfferSnapshot(
  */
 export async function saveOrderedGross(
   scope: CanonicalScope,
-  entries: { externalOrderId: string; orderedGross: number }[]
+  entries: { externalOrderId: string; orderedGross: number }[],
+  /** Procedência gravada junto (migrations/0011). Estimado tem que ser distinguível de medido. */
+  fonte: "relatorio" | "estimado" = "relatorio"
 ): Promise<number> {
   const validas = entries.filter((e) => Number.isFinite(e.orderedGross) && e.orderedGross > 0);
   if (!validas.length) return 0;
   const registros = validas.map((e) => ({
     external_order_id: e.externalOrderId,
     ordered_gross: e.orderedGross,
+    ordered_gross_source: fonte,
   }));
   const atualizadas = await dbQuery<{ external_order_id: string }>(
     `UPDATE workspace_channel_orders o
         SET ordered_gross = COALESCE(p.ordered_gross, o.ordered_gross),
+            ordered_gross_source = CASE
+              WHEN p.ordered_gross IS NULL THEN o.ordered_gross_source
+              -- Medido nunca é rebaixado para estimado: o relatório é a verdade,
+              -- e uma estimativa chegando depois não pode apagar o valor real.
+              WHEN o.ordered_gross_source = 'relatorio' AND p.ordered_gross_source = 'estimado'
+                THEN o.ordered_gross_source
+              ELSE p.ordered_gross_source
+            END,
             synced_at = now()
-       FROM jsonb_to_recordset($4::jsonb) AS p(external_order_id text, ordered_gross numeric)
+       FROM jsonb_to_recordset($4::jsonb) AS p(
+         external_order_id text, ordered_gross numeric, ordered_gross_source text
+       )
       WHERE o.workspace_id = $1 AND o.provider = $2 AND o.connection_id = $3
         AND o.external_order_id = p.external_order_id
-        AND o.ordered_gross IS DISTINCT FROM COALESCE(p.ordered_gross, o.ordered_gross)
+        AND (o.ordered_gross IS DISTINCT FROM COALESCE(p.ordered_gross, o.ordered_gross)
+             OR (p.ordered_gross IS NOT NULL AND o.ordered_gross_source IS NULL))
       RETURNING o.external_order_id`,
     [currentWorkspaceId(), scope.provider, scope.connectionId, JSON.stringify(registros)]
   );

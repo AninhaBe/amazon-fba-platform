@@ -65,6 +65,8 @@ export interface AmazonCanonicalOverview {
     cancelledRevenue: number | null;
     /** Quantos dos cancelados tem valor conhecido. Menor que cancelledOrders = soma parcial. */
     cancelledOrdersWithValue: number;
+    /** Quantos desses valores sao estimados pelo preco do SKU, nao medidos. */
+    cancelledOrdersEstimated: number;
     lastSaleAt: string | null;
   };
   /** Unidades vendidas por SKU no período — insumo da velocidade do radar. */
@@ -128,6 +130,7 @@ interface TotalsRow {
   cancelled_revenue: string | null;
   cancelled_orders: number;
   cancelled_with_value: number;
+  cancelled_estimated: number;
   currency: string | null;
   last_sale_at: Date | string | null;
 }
@@ -203,6 +206,10 @@ export async function getAmazonOverviewFromCanonical(period: Period): Promise<Am
               -- de R$ 89,70 seria lida como o valor dos 160. AGENTS.md: mostrar o
               -- que foi capturado E dizer que esta parcial.
               COUNT(COALESCE(gross, ordered_gross)) FILTER (WHERE status = 'cancelled')::int AS cancelled_with_value,
+              -- Quantos desses valores sao ESTIMADOS (migrations/0011). A tela
+              -- precisa dizer: soma com estimativa dentro nao pode se passar por
+              -- medicao, e a estimativa erra para baixo (presume 1 unidade).
+              COUNT(*) FILTER (WHERE status = 'cancelled' AND ordered_gross_source = 'estimado')::int AS cancelled_estimated,
               MAX(occurred_at) FILTER (WHERE status = ANY($6::text[])) AS last_sale_at,
               MAX(currency) AS currency
          FROM workspace_channel_orders
@@ -429,6 +436,7 @@ export async function getAmazonOverviewFromCanonical(period: Period): Promise<Am
       fbaOrders: totals.fba_orders,
       cancelledOrders: totals.cancelled_orders,
       cancelledOrdersWithValue: totals.cancelled_with_value,
+      cancelledOrdersEstimated: totals.cancelled_estimated,
       revenue: Number(totals.paid_revenue ?? 0),
       // `?? 0` aqui era a violação: SUM() sobre valores nulos devolve NULL, e o
       // zero resultante virava "cancelaram e não custou nada" na tela.

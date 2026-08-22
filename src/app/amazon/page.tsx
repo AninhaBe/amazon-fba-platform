@@ -166,6 +166,42 @@ interface DashSnapshot {
 const dashCache = new Map<string, DashSnapshot>();
 let productsCache: ProductRow[] | null = null;
 
+/**
+ * A frase de rodapé do cartão de canceladas.
+ *
+ * Três coisas precisam caber sem virar parágrafo: se há valor, de quantos ele é,
+ * e se é medido ou estimado. A Amazon zera o pedido cancelado (valor E
+ * quantidade), então:
+ *
+ * — **medido** só existe se o NEXO capturou antes do cancelamento;
+ * — **estimado** é o preço de tabela do SKU na data, presumindo 1 unidade —
+ *   erra para baixo de propósito, porque 1 é o mínimo de um pedido que existiu;
+ * — **nada** é o estado honesto de quem cancelou antes de qualquer captura.
+ */
+function dizerSobreCanceladas(c: {
+  revenue: number | null;
+  orders: number;
+  ordersWithValue?: number;
+  ordersEstimated?: number;
+}): string | undefined {
+  if (c.orders === 0) return undefined;
+  if (c.revenue === null) {
+    return "A Amazon não informa o valor de pedido cancelado. O NEXO passa a capturar antes do cancelamento.";
+  }
+  const partes: string[] = [];
+  if (c.ordersWithValue !== undefined && c.ordersWithValue < c.orders) {
+    partes.push(`Valor de ${c.ordersWithValue} dos ${c.orders}`);
+  }
+  if (c.ordersEstimated) {
+    partes.push(
+      c.ordersEstimated === c.ordersWithValue
+        ? "estimado pelo preço do produto na data (1 unidade por pedido)"
+        : `${c.ordersEstimated} estimado(s) pelo preço do produto na data`
+    );
+  }
+  return partes.length ? `${partes.join(" · ")}.` : undefined;
+}
+
 export default function Dashboard() {
   const period = useDashboardPeriod();
   const [initialDash] = useState(() => dashCache.get(period.query));
@@ -190,7 +226,7 @@ export default function Dashboard() {
   const [pedidosFeitos, setPedidosFeitos] = useState<{ revenue: number; orders: number; units: number; points: DailyPoint[] } | null>(null);
   // Canceladas entram no bruto (ADR-020); mostrar à parte é o que impede o número
   // de parecer inflado sem explicação — o ML já fazia, a Amazon não tinha.
-  const [canceladas, setCanceladas] = useState<{ revenue: number | null; orders: number; ordersWithValue?: number } | null>(null);
+  const [canceladas, setCanceladas] = useState<{ revenue: number | null; orders: number; ordersWithValue?: number; ordersEstimated?: number } | null>(null);
   const [profitabilityScope, setProfitabilityScope] = useState<ProfitabilityScope | undefined>(initialDash?.profitabilityScope);
   const [saldo, setSaldo] = useState<SaldoData | null>(null);
   const [profitabilityLoading, setProfitabilityLoading] = useState(!initialDash);
@@ -522,16 +558,7 @@ export default function Dashboard() {
                 : `${money(canceladas.revenue, currency)} · ${canceladas.orders}`
               : "—"
           }
-          hint={
-            canceladas && canceladas.orders > 0
-              ? canceladas.revenue === null
-                ? "A Amazon não informa o valor de pedido cancelado; o NEXO passa a capturar antes do cancelamento."
-                : canceladas.ordersWithValue !== undefined &&
-                    canceladas.ordersWithValue < canceladas.orders
-                  ? `Valor conhecido de ${canceladas.ordersWithValue} dos ${canceladas.orders} — o resto foi cancelado antes de o NEXO capturar.`
-                  : undefined
-              : undefined
-          }
+          hint={canceladas ? dizerSobreCanceladas(canceladas) : undefined}
           tone={canceladas && canceladas.orders > 0 ? "danger" : "default"}
           loading={loading}
         />

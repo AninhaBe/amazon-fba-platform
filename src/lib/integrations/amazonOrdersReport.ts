@@ -4,9 +4,14 @@ import { dbQuery } from "../db";
 import { currentWorkspaceId } from "../workspaceScope";
 import { spapiFetch, defaultMarketplaceId } from "../spapi";
 import { saveOrderedGross } from "./canonicalStore";
-import { somarValorPorPedido } from "./amazonOrdersReportParse";
+import {
+  somarValorPorPedido,
+  pedidosSemValor,
+  type PedidoSemValor,
+  type OrderedGrossEntry,
+} from "./amazonOrdersReportParse";
 
-export { somarValorPorPedido };
+export { somarValorPorPedido, pedidosSemValor };
 
 /**
  * Captura o valor de tabela dos pedidos pelo relatório ALL_ORDERS.
@@ -85,7 +90,64 @@ export interface ResultadoRelatorio {
   executou: boolean;
   pedidosLidos: number;
   pedidosAtualizados: number;
+  /** Pedidos zerados pela origem que ganharam valor estimado pelo preço do SKU. */
+  pedidosEstimados: number;
   motivo?: string;
+}
+
+/**
+ * Estima o valor dos pedidos que a origem zerou, pelo preço de tabela que o SKU
+ * praticava na data da compra — tirado dos nossos próprios pedidos reais.
+ *
+ * ⚠️ É estimativa e vai marcada como tal (migrations/0011). Duas escolhas
+ * conservadoras, ambas errando para BAIXO de propósito:
+ *
+ * — **Quantidade presumida 1.** A Amazon zera a quantidade junto com o preço.
+ *   Um pedido que existiu tem no mínimo 1 unidade, então 1 é piso, não chute.
+ * — **Preço de tabela, não o pago.** Cupom só desconta quando resgatado, e num
+ *   pedido cancelado não há como saber se foi. O de tabela é o que a Amazon
+ *   também usa para compor o número do Seller Central.
+ *
+ * SKU sem histórico de preço não vira zero: fica de fora e o pedido segue nulo.
+ */
+async function estimarPorPrecoDoSku(
+  connectionId: string,
+  pedidos: PedidoSemValor[]
+): Promise<OrderedGrossEntry[]> {
+  if (!pedidos.length) return [];
+  const chaves = pedidos.flatMap((pedido) =>
+    pedido.skus.map((sku) => ({
+      external_order_id: pedido.externalOrderId,
+      sku,
+      purchase_date: pedido.purchaseDate,
+    }))
+  );
+  // O preço vale por dia: o mesmo SKU custou 19,90 em 08/08 e 22,11 em 21/08.
+  // LATERAL com ORDER BY na distância da data pega o preço mais próximo do
+  // pedido, e não uma média que não existiu em dia nenhum.
+  const linhas = await dbQuery<{ external_order_id: string; valor: string }>(
+    `SELECT k.external_order_id, SUM(preco.valor) AS valor
+       FROM jsonb_to_recordset($3::jsonb) AS k(external_order_id text, sku text, purchase_date timestamptz)
+       CROSS JOIN LATERAL (
+         SELECT COALESCE(i.list_price, i.unit_price) AS valor
+           FROM workspace_channel_order_items i
+           JOIN workspace_channel_orders o
+             USING (workspace_id, provider, connection_id, external_order_id)
+          WHERE i.workspace_id = $1 AND i.provider = 'amazon' AND i.sku = k.sku
+            AND COALESCE(i.list_price, i.unit_price) > 0
+          ORDER BY abs(EXTRACT(EPOCH FROM (o.occurred_at - COALESCE(k.purchase_date, now()))))
+          LIMIT 1
+       ) AS preco
+      WHERE k.sku IS NOT NULL
+      GROUP BY k.external_order_id`,
+    [currentWorkspaceId(), connectionId, JSON.stringify(chaves)]
+  );
+  return linhas
+    .map((linha) => ({
+      externalOrderId: linha.external_order_id,
+      orderedGross: Math.round(Number(linha.valor) * 100) / 100,
+    }))
+    .filter((entrada) => Number.isFinite(entrada.orderedGross) && entrada.orderedGross > 0);
 }
 
 /**
@@ -100,7 +162,13 @@ export async function ingerirRelatorioDePedidos(
   forcar = false
 ): Promise<ResultadoRelatorio> {
   if (!(await estaNaHora(connectionId, forcar))) {
-    return { executou: false, pedidosLidos: 0, pedidosAtualizados: 0, motivo: "ainda no intervalo" };
+    return {
+      executou: false,
+      pedidosLidos: 0,
+      pedidosAtualizados: 0,
+      pedidosEstimados: 0,
+      motivo: "ainda no intervalo",
+    };
   }
 
   const fim = new Date();
@@ -133,12 +201,26 @@ export async function ingerirRelatorioDePedidos(
       executou: false,
       pedidosLidos: 0,
       pedidosAtualizados: 0,
+      pedidosEstimados: 0,
       motivo: `relatório terminou em ${ultimoStatus || "sem resposta"}`,
     };
   }
 
-  const entradas = somarValorPorPedido(await baixarDocumento(documentId));
-  const atualizados = await saveOrderedGross({ provider: "amazon", connectionId }, entradas);
+  const tsv = await baixarDocumento(documentId);
+  const escopo = { provider: "amazon" as const, connectionId };
+
+  const entradas = somarValorPorPedido(tsv);
+  const atualizados = await saveOrderedGross(escopo, entradas, "relatorio");
+
+  // Segunda passada: o que a origem zerou, mas cujo SKU sobreviveu.
+  const estimativas = await estimarPorPrecoDoSku(connectionId, pedidosSemValor(tsv));
+  const estimados = await saveOrderedGross(escopo, estimativas, "estimado");
+
   await marcarIngestao(connectionId);
-  return { executou: true, pedidosLidos: entradas.length, pedidosAtualizados: atualizados };
+  return {
+    executou: true,
+    pedidosLidos: entradas.length,
+    pedidosAtualizados: atualizados,
+    pedidosEstimados: estimados,
+  };
 }

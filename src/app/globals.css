@@ -2407,6 +2407,45 @@ summary:hover { background: var(--paper-soft); }
    (`Contadores.tsx`) e herdaria estes 14px no lugar do corpo grande. */
 .lp-contadores > div > span { color: var(--lp-suave); font-size: 14px; }
 
+/* Seção de prova (`Provas.tsx`): pares de números medidos.
+
+   O confronto é o argumento, então ele NÃO pode ser estilizado para persuadir:
+   os dois valores usam a mesma família, o mesmo peso e o mesmo tamanho. A única
+   diferença é a cor do lado do marketplace, que recua para o cinza suave — é
+   hierarquia de leitura, não juízo. Tabular-nums porque números empilhados que
+   não alinham parecem estimativa. */
+.lp-provas { padding: clamp(60px, 10vw, 110px) 0 0; border-block-start: 1px solid var(--lp-linha); }
+.lp-provas-topo { display: grid; gap: 16px; max-width: 62ch; }
+.lp-provas-topo h2 { margin-top: 6px; font-size: clamp(26px, 3.8vw, 40px); font-weight: 700;
+  letter-spacing: -0.03em; line-height: 1.12; text-wrap: balance; }
+/* Mesma assinatura do hero: a segunda metade da frase recua. */
+.lp-provas-topo h2 span { color: oklch(0 0 0 / 0.42); }
+.lp-provas-topo > p { color: var(--lp-suave); font-size: 16px; line-height: 1.6; }
+
+.lp-provas-lista { display: grid; gap: 0; margin-top: clamp(36px, 5vw, 56px); padding: 0; list-style: none; }
+.lp-prova { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  gap: clamp(24px, 5vw, 64px); align-items: start;
+  padding: clamp(28px, 4vw, 44px) 0; border-block-start: 1px solid var(--lp-linha); }
+.lp-prova:last-child { border-block-end: 1px solid var(--lp-linha); }
+.lp-prova-texto h3 { margin-top: 10px; font-size: clamp(19px, 2.2vw, 24px); font-weight: 700;
+  letter-spacing: -0.02em; line-height: 1.25; text-wrap: balance; }
+.lp-prova-texto p { margin-top: 14px; max-width: 52ch; color: var(--lp-suave); font-size: 15px; line-height: 1.6; }
+
+.lp-prova-confronto { display: grid; gap: 18px; padding: 22px 24px; border-radius: 8px;
+  box-shadow: inset 0 0 0 1px var(--lp-linha); }
+.lp-prova-lado { display: grid; gap: 4px; }
+.lp-prova-lado span { color: var(--lp-suave); font-size: 12px; font-weight: 600;
+  letter-spacing: 0.04em; text-transform: uppercase; }
+.lp-prova-lado strong { font-size: clamp(24px, 3vw, 32px); font-weight: 800; letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums; line-height: 1; }
+.lp-prova-lado strong.is-deles { color: var(--lp-suave); }
+.lp-prova-fonte { padding-top: 4px; border-block-start: 1px solid var(--lp-linha);
+  color: var(--lp-suave); font-size: 12px; line-height: 1.45; }
+
+@media (max-width: 760px) {
+  .lp-prova { grid-template-columns: 1fr; }
+}
+
 .lp-fim { display: grid; justify-items: start; gap: 26px; padding: clamp(56px, 9vw, 96px) 0 0;
   border-block-start: 1px solid oklch(0 0 0 / 0.1); }
 .lp-fim h2 { font-size: clamp(24px, 3.4vw, 34px); font-weight: 700; letter-spacing: -0.03em; text-wrap: balance; }

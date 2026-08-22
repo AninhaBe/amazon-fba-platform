@@ -19,8 +19,8 @@ export const metadata: Metadata = {
   title: "NEXO — o funcionário que confere cada venda",
   description: "Lucro, pedidos, estoque e desempenho dos seus canais de venda em um só lugar",
   icons: {
-    icon: [{ url: "/favicon.ico?v=nexo-20260822", type: "image/x-icon", sizes: "any" }],
-    shortcut: "/favicon.ico?v=nexo-20260822",
+    icon: [{ url: "/nexo-symbol.svg?v=20260822-2", type: "image/svg+xml" }],
+    shortcut: "/nexo-symbol.svg?v=20260822-2",
   },
 };
 

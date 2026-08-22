@@ -6,6 +6,7 @@ import { Vitrine } from "./Vitrine";
 import { Contadores } from "./Contadores";
 import { Manifesto } from "./Manifesto";
 import { GraficoMetricas } from "./GraficoMetricas";
+import { Provas } from "./Provas";
 
 export const metadata = {
   title: "NEXO — o funcionário que confere cada venda",
@@ -103,6 +104,7 @@ export default function LandingPage() {
         <nav className="lp-nav-links" aria-label="Navegação principal">
           <Link href="#produto">Produto</Link>
           <Link href="#como-funciona">Como funciona</Link>
+          <Link href="#provas">Prova</Link>
           <Link href="#resultados">Resultados</Link>
         </nav>
         <Link href="/login" className="lp-cta-mini">Entrar</Link>
@@ -179,6 +181,12 @@ export default function LandingPage() {
           </div>
         </section>
       ))}
+
+      {/* A prova entra DEPOIS dos pilares e ANTES dos contadores: os pilares
+          dizem o que ele faz, a prova mostra a conta, e só então o número
+          grande fecha. Antes dos pilares ela viraria abertura numérica sem
+          contexto — a pessoa ainda não sabe o que está comparando. */}
+      <Provas />
 
       <GraficoMetricas />
 

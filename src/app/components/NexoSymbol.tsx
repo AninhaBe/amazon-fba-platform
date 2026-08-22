@@ -6,11 +6,11 @@ export function NexoSymbol({
   className?: string;
 }) {
   return (
-    // O favicon existente foi escolhido como símbolo oficial do NEXO. Usar o
-    // próprio arquivo mantém a assinatura idêntica no navegador e no produto.
+    // A assinatura e o favicon usam o mesmo arquivo para a marca exibida no
+    // produto nunca divergir da marca mostrada na aba.
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src="/favicon.ico"
+      src="/nexo-symbol.svg"
       width={size}
       height={size}
       alt=""

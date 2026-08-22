@@ -239,6 +239,7 @@ export async function GET(req: NextRequest) {
           // que foi capturado ANTES (migrations/0010). Sem este número a tela
           // apresenta soma parcial como se fosse total.
           ordersWithValue: canonical.metrics.cancelledOrdersWithValue,
+          ordersEstimated: canonical.metrics.cancelledOrdersEstimated,
         },
         metrics: canonical.metrics,
         dailySales: canonical.dailySales,
