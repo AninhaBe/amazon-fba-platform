@@ -51,9 +51,80 @@ function ModuleContent({kind,body,sp,update,retry}:{kind:Kind;body:Payload;sp:UR
     <ChannelModuleSummary kind={kind} rows={rows} total={body.page?.total}/>
     <Filters kind={kind} sp={sp} update={update}/>
     {kind==="abc"&&<aside className="channel-module-notice is-warning"><strong>Lucro indisponível por SKU</strong><p>{body.profitSubset?.reason||"O contrato atual não permite atribuir lucro por produto com segurança."}</p></aside>}
+    {kind==="abc"&&rows.length>0&&<TikTokAbcInsights rows={rows}/>}
     {kind==="finance"&&body.coverage&&<FinanceCoveragePanel coverage={body.coverage}/>} 
     {!rows.length?<EmptyState compact title="Nenhum resultado" description={kind==="finance"?"Não há transações finais para esta loja e período.":"Não há dados para os filtros e o período selecionados."}/>:<DataTable kind={kind} rows={rows} retry={retry} connectionId={sp.get("connection_id")??""}/>} 
     {body.page&&<nav aria-label="Paginação" className="listing-pagination channel-module-pagination"><p>{body.page.total==null?`${rows.length} transação(ões) nesta página`:`${body.page.total} resultado(s)`}</p><div><button disabled={body.page.offset===0} onClick={()=>update({offset:String(Math.max(0,body.page!.offset-body.page!.limit))})}>Anterior</button><button disabled={!body.page.hasMore} onClick={()=>update({offset:String(body.page!.offset+body.page!.limit)})}>Próxima</button></div></nav>}
+  </section>
+}
+
+function TikTokAbcInsights({rows}:{rows:Record<string,unknown>[]}) {
+  const ranked=useMemo(()=>rows
+    .map((row)=>({
+      id:String(row.productId??row.sku??row.title),
+      title:text(row.title),
+      sku:text(row.sku),
+      abc:String(row.class??"C").toUpperCase(),
+      revenue:Number(row.revenue??0),
+      share:Number(row.revenueShare??0),
+      currency:String(row.currency??"BRL"),
+    }))
+    .sort((a,b)=>b.revenue-a.revenue),[rows]);
+  const maximum=Math.max(...ranked.map((row)=>row.revenue),1);
+  const top=ranked.slice(0,8);
+  const topThreeShare=ranked.slice(0,3).reduce((sum,row)=>sum+row.share,0);
+  const classes=["A","B","C"].map((abc)=>{
+    const members=ranked.filter((row)=>row.abc===abc);
+    return {
+      abc,
+      count:members.length,
+      revenue:members.reduce((sum,row)=>sum+row.revenue,0),
+      share:members.reduce((sum,row)=>sum+row.share,0),
+    };
+  });
+  const currency=ranked[0]?.currency??"BRL";
+
+  return <section className="tiktok-abc-insights" aria-labelledby="tiktok-abc-insights-title">
+    <header>
+      <div>
+        <p className="section-kicker">Concentração da receita</p>
+        <h2 id="tiktok-abc-insights-title">Onde as vendas se concentram</h2>
+      </div>
+      <p><strong>{topThreeShare.toLocaleString("pt-BR",{maximumFractionDigits:1})}%</strong> da receita está nos 3 primeiros produtos.</p>
+    </header>
+    <div className="tiktok-abc-insights-grid">
+      <article aria-labelledby="tiktok-abc-top-title">
+        <div className="tiktok-abc-panel-heading">
+          <h3 id="tiktok-abc-top-title">Top produtos</h3>
+          <span>Receita</span>
+        </div>
+        <ol className="tiktok-abc-ranking">
+          {top.map((row,index)=><li key={row.id}>
+            <span className="tiktok-abc-position">{index+1}</span>
+            <div className="tiktok-abc-product">
+              <div className="tiktok-abc-bar" aria-hidden="true"><i style={{width:`${Math.max(3,(row.revenue/maximum)*100)}%`}}/></div>
+              <strong title={row.title}>{row.title}</strong>
+              <small>{row.sku}</small>
+            </div>
+            <span className="tiktok-abc-value"><strong>{moduleMoney(row.revenue,row.currency)}</strong><small>{row.share.toLocaleString("pt-BR",{maximumFractionDigits:1})}%</small></span>
+          </li>)}
+        </ol>
+      </article>
+      <article aria-labelledby="tiktok-abc-classes-title">
+        <div className="tiktok-abc-panel-heading">
+          <h3 id="tiktok-abc-classes-title">Classes ABC</h3>
+          <span>Nesta página</span>
+        </div>
+        <dl className="tiktok-abc-classes">
+          {classes.map((group)=><div key={group.abc} className={`is-${group.abc.toLowerCase()}`}>
+            <dt><span>Classe {group.abc}</span><small>{group.count} produto{group.count===1?"":"s"}</small></dt>
+            <dd><strong>{group.share.toLocaleString("pt-BR",{maximumFractionDigits:1})}%</strong><small>{moduleMoney(group.revenue,currency)}</small></dd>
+            <span className="tiktok-abc-class-bar" aria-hidden="true"><i style={{width:`${Math.min(100,Math.max(group.share>0?3:0,group.share))}%`}}/></span>
+          </div>)}
+        </dl>
+        <p className="tiktok-abc-method">A participação vem do período completo. As contagens e receitas acima descrevem apenas os produtos carregados nesta página.</p>
+      </article>
+    </div>
   </section>
 }
 function FinanceCoveragePanel({coverage}:{coverage:FinanceCoverage}) { const complete=coverage.status==="complete"; const source=coverage.source==="statement_ledger"?"Extratos oficiais":coverage.source==="per_order_fallback"?"Extratos ainda incompletos":"Estrutura indisponível"; const date=(value?:string)=>value?new Intl.DateTimeFormat("pt-BR").format(new Date(value)):"—"; return <aside className={`channel-finance-coverage ${complete?"is-complete":"is-partial"}`} role="status"><div><div><strong>{complete?"Cobertura financeira completa":"Cobertura financeira parcial"}</strong><p>{complete?"A janela foi concluída pelo ledger de extratos.":"A lista contém somente transações finais já capturadas; totais ausentes não foram estimados nem convertidos em zero."}</p></div><span>{source}</span></div><dl><div><dt>Janela</dt><dd>{date(coverage.from)} a {date(coverage.to)}</dd></div><div><dt>Terminal</dt><dd>{coverage.terminal?"Sim":"Não"}</dd></div><div><dt>Registros rejeitados</dt><dd className="tabular-nums">{coverage.rejected??0}</dd></div></dl></aside> }

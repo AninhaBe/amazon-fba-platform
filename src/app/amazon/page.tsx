@@ -117,6 +117,11 @@ interface DashboardPayload {
   /** Faturamento bruto do período — espelha o painel do canal (ADR-020). */
   billing: { revenue: number; orders: number };
   /**
+   * Pedidos feitos, do jeito que o Seller Central conta: inclui pendentes e
+   * cancelados. `null` = a Sales API não respondeu; omitir é melhor que zerar.
+   */
+  ordered: { revenue: number; orders: number; units: number } | null;
+  /**
    * Canceladas: somadas no bruto, exibidas à parte — mesmo padrão do ML.
    * `revenue` nulo = valor desconhecido (a Amazon omite `OrderTotal` no que
    * cancela ainda em `Pending`), nunca zero.
@@ -169,6 +174,9 @@ export default function Dashboard() {
   // exibia a receita conciliada (subconjunto), e por isso três telas do produto
   // mostravam três valores diferentes de "faturamento" (20/08/2026).
   const [faturamento, setFaturamento] = useState<{ revenue: number; orders: number } | null>(null);
+  // O número que ela confere contra o Seller Central. Sem ele na tela, a conta
+  // era feita à mão — e foi assim que apareceram os defeitos de 21/08.
+  const [pedidosFeitos, setPedidosFeitos] = useState<{ revenue: number; orders: number; units: number } | null>(null);
   // Canceladas entram no bruto (ADR-020); mostrar à parte é o que impede o número
   // de parecer inflado sem explicação — o ML já fazia, a Amazon não tinha.
   const [canceladas, setCanceladas] = useState<{ revenue: number | null; orders: number } | null>(null);
@@ -273,6 +281,7 @@ export default function Dashboard() {
       next.profitability = payload.profitabilityLines; setProfitability(payload.profitabilityLines);
       setConciliacao(payload.profit.coverage ?? null);
       setFaturamento(payload.billing ?? null);
+      setPedidosFeitos(payload.ordered ?? null);
       setCanceladas(payload.cancelled ?? null);
       next.profitabilityScope = payload.profitabilityScope; setProfitabilityScope(payload.profitabilityScope);
     }, (d) => d as DashboardPayload, "dashboard").then(() => {
@@ -446,6 +455,23 @@ export default function Dashboard() {
 
       {/* Indicadores de contexto: uma faixa, não uma segunda parede de cartões. */}
       <div className="secondary-metrics" aria-label="Indicadores complementares">
+        {/*
+          Os dois números lado a lado, cada um com nome próprio.
+          "Confirmado" é o que já virou venda aprovada; "Pedidos feitos" é o que a
+          Amazon conta no Seller Central, com pendentes e cancelados dentro.
+          Antes a tela mostrava só o primeiro, sem dizer que era só o primeiro — e
+          conferir a diferença exigia somar pedido a pedido no painel da Amazon.
+        */}
+        <CompactMetric
+          label="Pedidos feitos"
+          value={
+            pedidosFeitos
+              ? `${money(pedidosFeitos.revenue, currency)} · ${pedidosFeitos.orders}`
+              : "—"
+          }
+          hint="Como no Seller Central: inclui pendentes e cancelados"
+          loading={loading}
+        />
         <CompactMetric label="Vendas" value={String(salesCount)} loading={loading} />
         <CompactMetric label="Unidades" value={String(unitsCount)} loading={loading} />
         <CompactMetric label="Ticket médio" value={ticketMedio == null ? "—" : money(ticketMedio, currency)} loading={loading} />
@@ -702,16 +728,25 @@ function CompactMetric({
   value,
   loading,
   tone = "default",
+  hint,
 }: {
   label: string;
   value: string;
   loading?: boolean;
   tone?: "default" | "positive" | "danger" | "warn";
+  /**
+   * Explica o que o número mede quando o rótulo sozinho não basta.
+   * Existe porque "Faturamento" e "Pedidos feitos" respondem perguntas
+   * diferentes (ADR-020), e uma tela que mostra os dois sem dizer qual é qual
+   * obriga a conferir à mão no painel do marketplace.
+   */
+  hint?: string;
 }) {
   return (
-    <div className={`compact-metric compact-metric-${tone}`}>
+    <div className={`compact-metric compact-metric-${tone}`} title={hint}>
       <p>{label}</p>
       <strong>{loading ? "···" : value}</strong>
+      {hint ? <span className="compact-metric-hint">{hint}</span> : null}
     </div>
   );
 }

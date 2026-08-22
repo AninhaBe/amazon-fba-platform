@@ -9,6 +9,8 @@ import { dbQuery } from "@/lib/db";
 import { currentWorkspaceId, runWithWorkspace } from "@/lib/workspaceScope";
 import { currentAccount, runWithAccount } from "@/lib/accountContext";
 import { runAmazonSyncBatch } from "@/lib/integrations/amazonSync";
+import { getDailySales } from "@/lib/sales";
+import { defaultMarketplaceId } from "@/lib/spapi";
 
 // Frescor aceitável antes de buscar de novo ao abrir a tela.
 //
@@ -76,7 +78,7 @@ export async function GET(req: NextRequest) {
       // Tarifas por tipo e frete do comprador, em paralelo com o radar. Os nomes
       // canônicos (commission, fulfillment, refund) casam com os padrões que os
       // cartões financeiros usam para categorizar (amazonFinancialCards.ts).
-      const [feeRows, billingRows, radar, frescorRows] = await Promise.all([
+      const [feeRows, billingRows, radar, pedidosFeitos, frescorRows] = await Promise.all([
         dbQuery<FeeRow>(
           `SELECT f.fee_type, SUM(f.amount)::text AS total
              FROM workspace_channel_order_fees f
@@ -125,6 +127,23 @@ export async function GET(req: NextRequest) {
           radarMs = Math.round(performance.now() - t);
           return r;
         })(),
+        // PEDIDOS FEITOS — o número do Seller Central ("Vendas de produtos
+        // solicitadas"), que INCLUI pendentes e cancelados.
+        //
+        // Vem da Sales API porque o canônico não consegue produzir este número: a
+        // Amazon omite `OrderTotal` enquanto o pedido está `Pending`, então os
+        // pendentes existem no banco sem valor. Medido em 21/08/2026 na conta dela:
+        // R$ 360,99 conciliado contra R$ 516,27 no Seller Central — a diferença
+        // eram 4 pedidos sem valor, e ela passou a noite conferindo à mão porque a
+        // tela mostrava um número só, sem dizer qual era.
+        //
+        // Não fura o orçamento de 1s (ADR-017): `getDailySales` já tem SWR de 10
+        // min, então o caminho quente lê do cache. Falha aqui devolve `null` e a
+        // tela mostra só o conciliado — degradação limpa, nunca zero.
+        getDailySales(period, defaultMarketplaceId()).catch((error) => {
+          console.error("[dashboard/amazon] orderMetrics indisponivel", error);
+          return null;
+        }),
         // Frescor do sync desta conexão. Vai no mesmo Promise.all das outras
         // consultas para não somar ida ao banco no caminho da tela.
         dbQuery<{ velho: boolean }>(
@@ -194,6 +213,14 @@ export async function GET(req: NextRequest) {
         currency: canonical.currency,
         // Faturamento do período — a MESMA definição em toda tela do produto.
         billing: { revenue: faturamento, orders: pedidosFaturados },
+        // PEDIDOS FEITOS — o mesmo número do Seller Central, com pendentes e
+        // cancelados dentro. Fica ao lado do conciliado, nunca no lugar dele:
+        // são perguntas diferentes (ADR-020) e a tela precisa dizer qual é qual.
+        // `null` quando a Sales API não respondeu — a tela omite o card em vez de
+        // inventar zero.
+        ordered: pedidosFeitos
+          ? { revenue: pedidosFeitos.totalRevenue, orders: pedidosFeitos.totalOrders, units: pedidosFeitos.totalUnits }
+          : null,
         // Canceladas: somadas no bruto (ADR-020) e exibidas à parte, como no ML.
         cancelled: {
           revenue: canonical.metrics.cancelledRevenue,

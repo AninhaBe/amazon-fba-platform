@@ -820,8 +820,22 @@ button[class*="bg-blue-"]:hover, a[class*="bg-blue-"]:hover { background: var(--
   gap: 12px;
   padding: 14px 18px;
   border-inline-end: 1px solid var(--line);
+  /* Só tem efeito quando existe um terceiro filho (o hint); cards sem
+     explicação continuam numa linha só, exatamente como antes. */
+  flex-wrap: wrap;
 }
 .compact-metric:last-child { border-inline-end: 0; }
+/* Explica o que o número mede, quando o rótulo sozinho engana — caso de
+   "Faturamento" × "Pedidos feitos", que respondem perguntas diferentes. */
+.compact-metric-hint {
+  flex-basis: 100%;
+  margin-block-start: 2px;
+  color: var(--ink-muted);
+  font-size: 11px;
+  line-height: 1.35;
+  text-transform: none;
+  letter-spacing: 0;
+}
 .compact-metric p { color: var(--ink-muted); font-size: 12px; font-weight: 650; letter-spacing: .055em; text-transform: uppercase; }
 .compact-metric strong { color: var(--ink); font-size: 16px; font-weight: 720; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .compact-metric-positive strong { color: var(--positive); }
@@ -4310,6 +4324,50 @@ summary:hover { background: var(--paper-soft); }
 .channel-module-notice.is-warning { border-inline-start-color: var(--warning); background: color-mix(in oklch, var(--warning) 6%, var(--paper)); }
 .channel-module-notice strong { color: var(--ink); font-weight: var(--weight-semibold); }
 .channel-module-notice p { margin-block-start: 2px; color: var(--ink-muted); }
+.tiktok-abc-insights { overflow: hidden; border-radius: var(--radius-lg); background: var(--paper); box-shadow: var(--shadow-surface); }
+.tiktok-abc-insights > header { display: flex; min-height: 62px; align-items: center; justify-content: space-between; gap: 20px; padding: 10px 16px; border-block-end: 1px solid var(--ink-08); }
+.tiktok-abc-insights > header h2 { margin-block-start: 2px; color: var(--ink); font-size: 16px; font-weight: var(--weight-semibold); }
+.tiktok-abc-insights > header > p { color: var(--ink-muted); font-size: 12px; }
+.tiktok-abc-insights > header > p strong { color: var(--ink); font-size: 14px; font-weight: var(--weight-semibold); }
+.tiktok-abc-insights-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(280px, .8fr); }
+.tiktok-abc-insights-grid > article { min-width: 0; padding: 12px 16px 14px; }
+.tiktok-abc-insights-grid > article + article { border-inline-start: 1px solid var(--ink-08); }
+.tiktok-abc-panel-heading { display: flex; min-height: 28px; align-items: center; justify-content: space-between; gap: 12px; }
+.tiktok-abc-panel-heading h3 { color: var(--ink); font-size: 13px; font-weight: var(--weight-semibold); }
+.tiktok-abc-panel-heading span { color: var(--ink-muted); font-size: 11px; }
+.tiktok-abc-ranking { display: grid; gap: 2px; margin-block-start: 7px; }
+.tiktok-abc-ranking li { position: relative; display: grid; min-height: 42px; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 8px; overflow: hidden; border-radius: var(--radius-sm); padding: 4px 8px 4px 4px; }
+.tiktok-abc-ranking li:hover { background: var(--ink-03); }
+.tiktok-abc-position { position: relative; z-index: 1; color: var(--ink-muted); font-size: 11px; text-align: center; }
+.tiktok-abc-product { position: relative; min-width: 0; padding: 4px 7px; }
+.tiktok-abc-bar { position: absolute; z-index: 0; inset: 0; overflow: hidden; border-radius: var(--radius-sm); }
+.tiktok-abc-bar i { display: block; height: 100%; border-radius: inherit; background: color-mix(in oklch, var(--core) 9%, var(--paper)); transition: width 420ms var(--ease), background-color var(--duration) var(--ease); }
+.tiktok-abc-ranking li:hover .tiktok-abc-bar i { background: color-mix(in oklch, var(--core) 14%, var(--paper)); }
+.tiktok-abc-product strong,
+.tiktok-abc-product small { position: relative; z-index: 1; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tiktok-abc-product strong { color: var(--ink); font-size: 12px; font-weight: var(--weight-medium); }
+.tiktok-abc-product small { margin-block-start: 1px; color: var(--ink-muted); font-size: 10px; }
+.tiktok-abc-value { position: relative; z-index: 1; min-width: 84px; text-align: end; }
+.tiktok-abc-value strong,
+.tiktok-abc-value small { display: block; }
+.tiktok-abc-value strong { color: var(--ink); font-size: 11px; font-weight: var(--weight-semibold); }
+.tiktok-abc-value small { margin-block-start: 1px; color: var(--ink-muted); font-size: 10px; }
+.tiktok-abc-classes { display: grid; gap: 10px; margin-block-start: 10px; }
+.tiktok-abc-classes > div { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding-block-end: 10px; }
+.tiktok-abc-classes dt span,
+.tiktok-abc-classes dt small,
+.tiktok-abc-classes dd strong,
+.tiktok-abc-classes dd small { display: block; }
+.tiktok-abc-classes dt span { color: var(--ink); font-size: 12px; font-weight: var(--weight-medium); }
+.tiktok-abc-classes dt small,
+.tiktok-abc-classes dd small { margin-block-start: 2px; color: var(--ink-muted); font-size: 10px; }
+.tiktok-abc-classes dd { text-align: end; }
+.tiktok-abc-classes dd strong { color: var(--ink); font-size: 13px; font-weight: var(--weight-semibold); }
+.tiktok-abc-class-bar { position: absolute; inset-inline: 0; inset-block-end: 0; height: 4px; overflow: hidden; border-radius: 999px; background: var(--ink-05); }
+.tiktok-abc-class-bar i { display: block; height: 100%; border-radius: inherit; background: var(--ink-32); }
+.tiktok-abc-classes .is-a .tiktok-abc-class-bar i { background: var(--positive); }
+.tiktok-abc-classes .is-b .tiktok-abc-class-bar i { background: var(--warning); }
+.tiktok-abc-method { margin-block-start: 14px; padding-block-start: 11px; border-block-start: 1px solid var(--ink-08); color: var(--ink-muted); font-size: 11px; line-height: 15px; }
 .channel-module-filters { grid-template-columns: minmax(260px, 1fr) minmax(145px, auto) auto; align-items: end; }
 .channel-module-filters.is-costs { grid-template-columns: minmax(260px, 1fr) auto; }
 .channel-module-filters.is-monitor { grid-template-columns: repeat(2, minmax(180px, 1fr)) minmax(145px, auto) auto; }
@@ -4355,6 +4413,8 @@ summary:hover { background: var(--paper-soft); }
   .channel-module-page > .dashboard-period-filter { margin-inline: -16px; padding-inline: 16px; }
   .channel-module-filters.is-monitor { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .channel-module-filters.is-monitor .listing-refresh { grid-column: 1 / -1; }
+  .tiktok-abc-insights-grid { grid-template-columns: 1fr; }
+  .tiktok-abc-insights-grid > article + article { border-block-start: 1px solid var(--ink-08); border-inline-start: 0; }
 }
 
 @media (max-width: 600px) {
@@ -4365,6 +4425,9 @@ summary:hover { background: var(--paper-soft); }
   .channel-module-filters.is-costs,
   .channel-module-filters.is-monitor { grid-template-columns: 1fr; }
   .channel-module-filters.is-monitor .listing-refresh { grid-column: auto; }
+  .tiktok-abc-insights > header { align-items: flex-start; flex-direction: column; gap: 4px; }
+  .tiktok-abc-ranking li { grid-template-columns: 18px minmax(0, 1fr); }
+  .tiktok-abc-value { grid-column: 2; display: flex; justify-content: space-between; min-width: 0; text-align: start; }
   .channel-module-filters input,
   .channel-module-filters select,
   .channel-module-filters .listing-refresh,
@@ -4839,3 +4902,7 @@ summary:hover { background: var(--paper-soft); }
     align-content: start;
   }
 }
+
+/* Keep the TikTok ABC visualization in the final compiled layer as well. This
+   marker also prevents an old development CSS chunk from winning after HMR. */
+.tiktok-abc-insights { --tiktok-abc-visualization: 1; }
