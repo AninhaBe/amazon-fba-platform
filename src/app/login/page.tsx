@@ -18,6 +18,24 @@ function AuthChannelFlow() {
         <path d="M82 104 C192 104 220 85 280 85" />
         <path d="M82 142 C190 142 212 85 280 85" />
         <path className="auth-flow-output-line" d="M328 85 C398 85 423 85 486 85" />
+        <g className="auth-flow-packets">
+          <circle className="auth-flow-packet is-amazon" r="3.5">
+            <animateMotion dur="5.6s" begin="0s" repeatCount="indefinite" path="M82 28 C190 28 212 85 280 85" />
+            <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.12;.82;1" dur="5.6s" begin="0s" repeatCount="indefinite" />
+          </circle>
+          <circle className="auth-flow-packet is-meli" r="3.5">
+            <animateMotion dur="5.6s" begin=".7s" repeatCount="indefinite" path="M82 66 C192 66 220 85 280 85" />
+            <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.12;.82;1" dur="5.6s" begin=".7s" repeatCount="indefinite" />
+          </circle>
+          <circle className="auth-flow-packet is-shopee" r="3.5">
+            <animateMotion dur="5.6s" begin="1.4s" repeatCount="indefinite" path="M82 104 C192 104 220 85 280 85" />
+            <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.12;.82;1" dur="5.6s" begin="1.4s" repeatCount="indefinite" />
+          </circle>
+          <circle className="auth-flow-packet is-tiktok" r="3.5">
+            <animateMotion dur="5.6s" begin="2.1s" repeatCount="indefinite" path="M82 142 C190 142 212 85 280 85" />
+            <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.12;.82;1" dur="5.6s" begin="2.1s" repeatCount="indefinite" />
+          </circle>
+        </g>
       </svg>
 
       <div className="auth-flow-sources">
@@ -29,6 +47,7 @@ function AuthChannelFlow() {
 
       <div className="auth-flow-core">
         <span className="auth-flow-core-ring" />
+        <span className="auth-flow-core-ring is-delayed" />
         <span className="auth-flow-core-mark"><NexoSymbol size={42} /></span>
       </div>
 
