@@ -1670,6 +1670,116 @@ grupos têm lance próprio — mas segmentação nova nasceria nele).
 - Protetores com preço novo (−R$ 3, ~20h de 19/08): nenhuma venda ainda; reolhar 21/08
   (o combinado é 2 dias).
 
+## Leitura de 22/08/2026, ~16h30 — 🔴 AGIR (aplicado) · o martelo estava FORA DO LEILÃO
+
+```
+Período lido: 22 de ago de 2026 (HOJE) — confirmado no seletor de cada campanha
+Recarreguei: sim — naveguei fresco em cada campanha (a LISTA agregada segue quebrada desde 19/08)
+Volume: 32 impressões no grupo Frase-Martelo · atribuição de hoje ABERTA
+⚠️ Impressões/cliques por CAMPANHA não lidos (coluna ausente na visão de grupos) — só no nível de segmentação
+```
+
+| Campanha | Status | Gasto hoje | Vendas |
+|---|---|---|---|
+| Manual - Clips 320 | veiculando | R$ 7,09 | — |
+| Auto - Protetor Kit 8 | veiculando | R$ 3,46 | — |
+| Manual - Martelo | veiculando | R$ 1,00 | — |
+| Auto - Clips 320 | veiculando | R$ 0,79 | — |
+| Auto - Martelo | veiculando | **R$ 0 — morta** | — |
+| Manual - Protetor 8 | veiculando | R$ 0 — sem entrega | — |
+
+**A máquina NÃO parou** — 4 campanhas gastando normal, ninguém em "Orçamento excedido".
+Então a queda de vendas não se explica por campanha travada.
+
+### 🎯 O ranking mudou a leitura da conta inteira (SP-API, catalog/salesRanks)
+
+| Produto | BSR na subcategoria | Gasto hoje |
+|---|---|---|
+| **martelo-borracha** | **#12** Marretas de Borracha | R$ 1,00 (8%) |
+| kit-clips-320 | #53 Fixadores de Papel | R$ 7,88 (64%) |
+| protetores (4 kits) | **#485** Complementos p/ Móveis | R$ 3,46 (28%) |
+
+📌 **O produto que MAIS ranqueia recebia o MENOR investimento.** O Ads funcionou onde
+havia produto competitivo e não funcionou nos protetores.
+
+### 🔑 Quarta confirmação do piso do leilão — e a mais limpa de todas
+
+Nível de segmentação do grupo `Frase - Martelo Borracha`, dia 22/08:
+
+| Palavra | Lance | Impressões |
+|---|---|---|
+| **martelo borracha** | **R$ 1,50** | **29** |
+| martelo de borracha | R$ 1,20 | **ZERO** |
+| martelo emborrachado | R$ 0,98 | 2 |
+| martelinho de borracha | R$ 0,79 | 1 |
+| as outras 6 | R$ 0,33-0,60 | **ZERO** |
+
+⚠️ **`martelo de borracha` — a palavra mais óbvia do produto — estava no lance SUGERIDO
+pela Amazon (R$ 1,20) e não comprava uma única impressão.** Nove das dez palavras fora
+do leilão, com orçamento de R$ 10/dia e gasto de R$ 1,00.
+
+Diagnóstico pela árvore (cap. 23): parou na **Etapa 2 — não está entrando no leilão**.
+Não é oferta, não é página, não é orçamento. É lance abaixo do piso.
+
+### ✅ Aplicado 22/08 ~16h40 — confirmado após RECARREGAR
+
+| Palavra | Antes | Agora |
+|---|---|---|
+| `martelo borracha` | R$ 1,50 | **R$ 2,50** |
+| `martelo de borracha` | R$ 1,20 | **R$ 2,00** |
+
+Embasamento (`scripts/lance.mjs --preco 28.90 --custo 5.84 --cvr 33`):
+
+```
+Margem unitária       R$ 23,06
+ACOS de equilíbrio    79,8%
+CPC de equilíbrio     R$ 7,61   ← teto real
+CPC p/ ACOS 50%       R$ 4,77   ← faixa de lançamento
+Pagava                R$ 1,50
+```
+
+Mesmo a R$ 2,50 seguimos em **1/3 do CPC de equilíbrio**. Impressões subiram de 32 → 35
+durante a própria edição.
+
+**O que observar:** impressões devem subir bastante nas duas. Se o CVR se mantiver, ainda
+há folga até R$ 4,77. Se `martelo de borracha` continuar em zero mesmo a R$ 2,00, o piso
+dessa palavra é mais alto que o do termo curto.
+
+### 🔴 Erro meu nesta sessão: propus religar Substitutos
+
+Propus reativar `Substitutos` na Auto - Martelo argumentando que "o contexto mudou" (preço
+R$ 43,22 → 28,90 e agora ranqueia #12). **Ela cobrou, com razão**, que a decisão de pausar
+estava documentada — e o guia (cap. 10) é explícito:
+
+> "para produto **sem avaliação e sem marca**, é quase sempre o pior tráfego da conta"
+
+**As duas condições que tornam Substitutos ruim não mudaram** — o martelo segue sem
+avaliação e sem marca (Genérico). Preço e ranking não são as variáveis que decidem isso.
+Proposta retirada.
+
+📌 **Regra:** antes de propor REVERTER qualquer decisão, ler POR QUE ela foi tomada. Está
+em `docs/amazon-ads-do-zero-ao-especialista.md` (1.184 linhas) além desta skill — eu tinha
+lido a skill e não o guia.
+
+### Protetores: a árvore manda parar de mexer em lance
+
+~R$ 40 gastos em 5 dias, **zero venda desde 17/08**, BSR #485. Etapa 4 da árvore: "10+
+cliques com 0 venda → o problema é a PÁGINA. Pare de mexer em lance." A causa já está
+registrada: concorrente vendendo kit de 8 a **R$ 9,90, abaixo do custo dela (R$ 9,57)**.
+Decisão de oferta, não de campanha — em aberto com ela.
+
+### Estado da oferta (SP-API, 22/08)
+
+- Todos os anúncios principais **BUYABLE**, ela é a **única vendedora** (buy box é dela).
+- **`kitprote-24`: estoque 0 e não BUYABLE** — não vende porque não dá para comprar.
+  ⚠️ Não existe campanha para o kit 24; é só reposição de estoque.
+- `X4-9CGP-446J`: anúncio sem oferta (morto).
+
+### Ads API: 4º teste — ainda pendente
+
+`bad-scope` · `unknown scope` · `invalid-parameter`; `ADS_REFRESH_TOKEN` e
+`ADS_PROFILE_ID` seguem vazios. 3ª candidatura foi 21/08.
+
 ## Leitura de 21/08/2026, ~10h — dia 20 FECHADO
 
 ```
