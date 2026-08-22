@@ -911,17 +911,19 @@ button[class*="bg-blue-"]:hover, a[class*="bg-blue-"]:hover { background: var(--
 .revenue-chart { position: relative; min-width: 0; }
 .revenue-chart > svg { display: block; }
 .revenue-chart-toolbar {
-  display: flex; min-height: 34px; align-items: center; gap: 2px; margin-block: 2px 4px;
+  display: flex; min-height: 34px; align-items: center; gap: 3px; margin-block: 2px 4px;
+  overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
 }
+.revenue-chart-toolbar::-webkit-scrollbar { display: none; }
 .revenue-chart-toolbar button {
-  display: inline-flex; width: 28px; min-width: 28px; min-height: 28px; align-items: center; justify-content: center; gap: 5px; padding-inline: 0; border: 0; border-radius: var(--radius-sm);
-  background: transparent; color: var(--ink-muted); font-size: 12px; font-weight: var(--weight-body);
+  display: inline-flex; width: 28px; min-width: 28px; min-height: 28px; flex: 0 0 28px; align-items: center; justify-content: center; gap: 4px; overflow: hidden; padding-inline: 0; border: 0; border-radius: var(--radius-sm);
+  background: transparent; color: var(--ink-muted); font-size: 11px; font-weight: var(--weight-body);
   cursor: pointer; transition: width 220ms var(--ease), background-color var(--duration) var(--ease), color var(--duration) var(--ease), box-shadow var(--duration) var(--ease);
 }
 .revenue-chart-toolbar button svg { width: 14px; height: 14px; flex: none; }
 .revenue-chart-toolbar button span { display: none; white-space: nowrap; }
 .revenue-chart-toolbar button:hover { background: var(--ink-03); color: var(--ink); }
-.revenue-chart-toolbar button[aria-selected="true"] { width: auto; padding-inline: 8px; background: var(--paper); color: var(--ink); box-shadow: var(--shadow-xs); }
+.revenue-chart-toolbar button[aria-selected="true"] { width: auto; min-width: max-content; flex-basis: auto; padding-inline: 6px; background: var(--paper); color: var(--ink); box-shadow: var(--shadow-xs); }
 .revenue-chart-toolbar button[aria-selected="true"] span { display: inline; }
 .revenue-chart-toolbar button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 .revenue-series-area { animation: revenue-area-in 360ms var(--ease) both; }
@@ -3512,17 +3514,18 @@ summary:hover { background: var(--paper-soft); }
 /* Overrides de validação do gráfico do dashboard. A classe versionada faz o
    Turbopack descartar regras antigas durante HMR; num build limpo apenas reforça
    a especificidade necessária contra os alvos globais de 44px. */
-.amazon-dashboard .revenue-chart.is-chart-v2 .revenue-chart-toolbar {
-  display: flex; min-height: 34px; align-items: center; gap: 2px; margin-block: 2px 4px;
+.amazon-dashboard .revenue-chart.is-chart-v3 .revenue-chart-toolbar {
+  display: flex; min-height: 34px; align-items: center; gap: 3px; margin-block: 2px 4px;
+  overflow-x: auto; overflow-y: hidden;
 }
-.amazon-dashboard .revenue-chart.is-chart-v2 .revenue-chart-toolbar button {
-  width: 28px; min-width: 28px; height: 28px; min-height: 28px; padding: 0;
+.amazon-dashboard .revenue-chart.is-chart-v3 .revenue-chart-toolbar button {
+  width: 26px; min-width: 26px; height: 26px; min-height: 26px; flex: 0 0 26px; padding: 0;
   border: 0; border-radius: var(--radius-sm); background: transparent;
-  color: var(--ink-muted); font-size: 12px; font-weight: var(--weight-body);
+  color: var(--ink-muted); font-size: 11px; font-weight: var(--weight-body);
 }
-.amazon-dashboard .revenue-chart.is-chart-v2 .revenue-chart-toolbar button:hover { background: var(--ink-03); color: var(--ink); }
-.amazon-dashboard .revenue-chart.is-chart-v2 .revenue-chart-toolbar button[aria-selected="true"] { width: auto; padding-inline: 8px; background: var(--paper); color: var(--ink); box-shadow: var(--shadow-xs); }
-.amazon-dashboard .revenue-chart.is-chart-v2 .revenue-chart-tooltip.is-structured {
+.amazon-dashboard .revenue-chart.is-chart-v3 .revenue-chart-toolbar button:hover { background: var(--ink-03); color: var(--ink); }
+.amazon-dashboard .revenue-chart.is-chart-v3 .revenue-chart-toolbar button[aria-selected="true"] { width: auto; min-width: max-content; flex-basis: auto; padding-inline: 6px; background: var(--paper); color: var(--ink); box-shadow: var(--shadow-xs); }
+.amazon-dashboard .revenue-chart.is-chart-v3 .revenue-chart-tooltip.is-structured {
   position: absolute; z-index: 10; inset-block-start: 38px; width: 244px; pointer-events: none;
   border-radius: var(--radius); background: var(--paper-modal); padding: 10px 12px;
   color: var(--ink); box-shadow: var(--shadow-lg); font-size: 12px;

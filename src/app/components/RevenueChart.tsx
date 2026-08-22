@@ -128,7 +128,7 @@ export function RevenueChart({
   const hoverLeftPct = hover != null ? (x(hover) / W) * 100 : 0;
 
   return (
-    <div className={`revenue-chart${explorable ? " is-explorable is-chart-v2" : ""}`}>
+    <div className={`revenue-chart${explorable ? " is-explorable is-chart-v3" : ""}`}>
       {explorable && (
         <div className="revenue-chart-toolbar" role="tablist" aria-label="Métrica do gráfico">
           {METRICS.map((item) => {
