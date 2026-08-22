@@ -183,6 +183,37 @@ Amazon*. Se o papel for concedido, o caminho é `transportationOptions` da 2024-
 
 ## Changelog observado (mais recente primeiro)
 
+- **2026-08-22** — **Pedido cancelado não tem valor recuperável em NENHUMA API.**
+  Testados os quatro caminhos, todos na mesma janela de 30 dias:
+
+  | Fonte | O que devolve para cancelado |
+  |---|---|
+  | `getOrders` | sem `OrderTotal` |
+  | `getOrderItems` | `QuantityOrdered: 0`, sem `ItemPrice` |
+  | `sales/v1/orderMetrics` | a linha do dia nem existe |
+  | relatório `GET_FLAT_FILE_ALL_ORDERS_DATA_BY_ORDER_DATE_GENERAL` | `quantity 0`, `item-price` vazio |
+
+  A Amazon **zera** o pedido cancelado, não o omite parcialmente. O Seller
+  Central sabe o valor e mostra; a API não entrega.
+  - Consequência: **paridade com o cartão do Seller Central é impossível.**
+    Medido: Seller Central R$ 516,27 × API R$ 449,94 — os R$ 66,33 são os 2
+    pedidos cancelados. Não adianta procurar outro endpoint.
+  - Na tela isso vira "cancelados: N pedidos, valor não informado" — a regra
+    `null` ≠ `0` do AGENTS.md aplicada literalmente.
+
+- **2026-08-22** — **`orderMetrics` e o relatório All Orders valorizam a preço de
+  tabela, antes do cupom resgatado.** Os dois devolveram exatamente R$ 449,94 na
+  mesma janela, e a diferença contra o `OrderTotal` dos 14 pedidos enviados foi
+  de **R$ 16,83** — o mesmo total de cupom que o `PromotionDiscount` do
+  `getOrderItems` tinha apontado por outro caminho. Confirmação cruzada.
+  - Decomposição do R$ 449,94: `360,99` pago + `16,83` cupom + `72,12` de 3
+    pendentes (também a preço de tabela).
+  - Consequência: **"pedidos feitos" e "faturamento" não diferem só por status,
+    diferem por preço.** Um é tabela, o outro é caixa. Somar ou comparar os dois
+    sem dizer isso produz número que não bate com nada.
+  - Isto é a mesma pegadinha de 2026-08-12 (Pricing API) aparecendo num segundo
+    lugar: **no lado do pedido, só o `OrderTotal` é o preço praticado.**
+
 - **2026-08-12** — **Cupom não aparece na Product Pricing API.** O
   `kit-clips-320` (`B0HBGLBL6Y`) estava com cupom de 10% off, e
   `GET /products/pricing/v0/items/{asin}/offers` devolveu `ListingPrice`,
