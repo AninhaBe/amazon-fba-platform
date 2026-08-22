@@ -16,6 +16,7 @@ import { ConnectionBroken, isBrokenConnection } from "../components/ConnectionBr
 import { TopProductsRanking } from "../components/TopProductsRanking";
 import { CompositionDonut } from "../components/CompositionDonut";
 import { BriefingLead } from "../components/BriefingLead";
+import { IntegrationDashboardFrame } from "../components/IntegrationDashboardFrame";
 
 /**
  * Cobertura do cálculo de rentabilidade, como a API devolve. É objeto, não
@@ -340,21 +341,21 @@ export default function Dashboard() {
   const revenueTrend = getRevenueTrend(sales?.points ?? []);
 
   return (
-    <div className="dashboard-page amazon-dashboard">
-      <DashboardPeriodFilter
+    <IntegrationDashboardFrame
+      className="dashboard-page amazon-dashboard"
+      period={<DashboardPeriodFilter
         {...period.filterProps}
         meta={updatedAt ? <>Atualizado às {brTime(updatedAt)}</> : undefined}
-      />
-
-      {/* O subtítulo fixo ("O que entrou, saiu e ainda depende de conciliação")
-          era o mesmo texto num dia de recorde e num dia de prejuízo — descrevia
-          a tela, não o período. A frase agora vem do dado. */}
-      <PageHeader
+      />}
+      header={<PageHeader
         eyebrow="Operação Amazon"
         title="Resumo financeiro"
+        subtitle="Faturamento, pedidos e resultado do período selecionado."
         icon={pageIcons.dashboard}
-      />
-
+      />}
+    >
+      <div className="dashboard-sections integration-dashboard-sections">
+      {/* A leitura executiva abre todos os canais antes das métricas. */}
       <BriefingLead
         periodo={period.label}
         faturamento={faturamento?.revenue ?? null}
@@ -372,7 +373,14 @@ export default function Dashboard() {
         ]}
       />
 
-      <div className="dashboard-sections">
+      {brokenConnection && <ConnectionBroken channel="amazon" message={brokenConnection} />}
+
+      {errors.length > 0 && (
+        <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+          Não foi possível carregar: {errors.join(", ")}.
+        </div>
+      )}
+
       {/* A primeira faixa contém somente os indicadores que resumem o resultado.
           O detalhamento continua abaixo, na composição financeira, sem perder
           nenhuma distinção entre zero e dado ainda desconhecido. */}
@@ -464,14 +472,6 @@ export default function Dashboard() {
           loading={loading}
         />
       </div>
-
-      {brokenConnection && <ConnectionBroken channel="amazon" message={brokenConnection} />}
-
-      {errors.length > 0 && (
-        <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
-          Não foi possível carregar: {errors.join(", ")}.
-        </div>
-      )}
 
       {/* Uma única superfície explica desempenho e composição financeira. */}
       <section className="performance-panel">
@@ -609,6 +609,18 @@ export default function Dashboard() {
         </aside>
       </section>
 
+      {/* O ranking ocupa a mesma posição em todos os canais: depois da leitura
+          temporal e antes dos módulos operacionais de detalhe. */}
+      {productsLoading ? (
+        <div className="top-products-loading">
+          <InlineLoading label="Carregando produtos com melhor desempenho" />
+        </div>
+      ) : top.length === 0 ? (
+        <div className="top-products-loading"><Empty>Sem vendas no período para ranquear.</Empty></div>
+      ) : (
+        <TopProductsRanking products={top} currency={currency} productsHref="/amazon/produtos" />
+      )}
+
       {/* Logo abaixo da cascata: é a mesma conversa sobre dinheiro, e responde a
           pergunta que o lucro sozinho deixa no ar — "então cadê?". */}
       {saldo && <SaldoNaAmazon saldo={saldo} />}
@@ -671,18 +683,6 @@ export default function Dashboard() {
         pageSize={6}
       />
 
-      {/* Barras proporcionais favorecem comparação; os valores e a incerteza da
-          margem continuam explícitos, sem reduzir o dado a decoração. */}
-      {productsLoading ? (
-        <div className="top-products-loading">
-          <InlineLoading label="Carregando produtos com melhor desempenho" />
-        </div>
-      ) : top.length === 0 ? (
-        <div className="top-products-loading"><Empty>Sem vendas no período para ranquear.</Empty></div>
-      ) : (
-        <TopProductsRanking products={top} currency={currency} productsHref="/amazon/produtos" />
-      )}
-
       {/* Atalhos: no desktop a sidebar já cobre; no mobile os cartões ajudam. */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:hidden">
         <QuickLink href="/amazon/calculadora" label="Calculadora" desc="Lucro por ASIN" />
@@ -691,7 +691,7 @@ export default function Dashboard() {
         <QuickLink href="/amazon/produtos" label="Produtos" desc="Custos por SKU" />
       </div>
       </div>
-    </div>
+    </IntegrationDashboardFrame>
   );
 }
 

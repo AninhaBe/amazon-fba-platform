@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { ChevronDown } from "lucide-react";
 import { DashboardPeriodFilter, useDashboardPeriod } from "./DashboardPeriodFilter";
 import { EmptyState } from "./EmptyState";
 import { DashboardSkeleton } from "./LoadingState";
@@ -11,6 +12,7 @@ import { PageHeader } from "./PageHeader";
 import { RevenueChart } from "./RevenueChart";
 import { TopProductsRanking } from "./TopProductsRanking";
 import { BriefingLead } from "./BriefingLead";
+import { IntegrationDashboardFrame } from "./IntegrationDashboardFrame";
 import { ConnectionBroken } from "./ConnectionBroken";
 import { ChannelConnectionEmpty } from "./ChannelConnectionEmpty";
 import { brDate } from "@/lib/datetime";
@@ -42,6 +44,8 @@ interface ProviderStatus {
   connections: TiktokConnectionOption[];
   issue?: { status: "attention"; code: "OWNERSHIP_CONFLICT" | "PROVIDER_READ_FAILED"; message: string };
 }
+
+const TIKTOK_PRIMARY_FINANCIAL_KEYS = new Set(["revenue", "fees", "cogs", "profit", "marginPct"]);
 
 const MANAGE_CONNECTIONS = "/integracoes";
 
@@ -158,13 +162,17 @@ export function TikTokWorkspace() {
   const phase = effectiveTiktokDashboardPhase(syncPhase, data.financialAvailability, data.financialCoverage?.status);
   const financialBlocked = data.financialAvailability === "BLOCKED" || data.financialCoverage?.status === "blocked";
   const cards = financialCards(data.overview, data.coverage);
+  const primaryCards = cards.filter((card) => TIKTOK_PRIMARY_FINANCIAL_KEYS.has(card.key));
+  const componentCards = cards.filter((card) => !TIKTOK_PRIMARY_FINANCIAL_KEYS.has(card.key));
   const historicalBacklog = historicalBacklogDescription(data.coverage);
   const currency = data.overview.currency;
   return (
-    <div className="channel-dashboard tiktok-dashboard-page">
-      <PageHeader eyebrow="TikTok Shop" title={data.connection.name} subtitle={`${data.connection.region} · ${phase === "ready" ? "Dados sincronizados" : "Sincronização parcial"}`} action={selector} />
-      <DashboardPeriodFilter {...period.filterProps} />
-      <div className="dashboard-sections tiktok-dashboard-body">
+    <IntegrationDashboardFrame
+      className="channel-dashboard tiktok-dashboard-page"
+      period={<DashboardPeriodFilter {...period.filterProps} />}
+      header={<PageHeader eyebrow="TikTok Shop" title={data.connection.name} subtitle={`${data.connection.region} · ${phase === "ready" ? "Dados sincronizados" : "Sincronização parcial"}`} action={selector} />}
+    >
+      <div className="dashboard-sections integration-dashboard-sections tiktok-dashboard-body">
         {/* Mesma abertura dos outros três canais. O TikTok é o caso mais
             extremo dessa peça: o ledger financeiro pode estar bloqueado neste
             ambiente, e a frase precisa dizer isso em vez de exibir lucro
@@ -185,14 +193,15 @@ export function TikTokWorkspace() {
         {financialBlocked
           ? <StatusNotice title="Financeiro indisponível neste ambiente">A estrutura do ledger financeiro ainda não está disponível. Vendas e catálogo continuam visíveis, mas taxas e resultado permanecem desconhecidos; nenhum valor foi convertido em zero.</StatusNotice>
           : phase === "partial" && <StatusNotice title="Sincronização em andamento">Os números aparecem somente quando cada componente está completo. Nenhum valor parcial é apresentado como definitivo.</StatusNotice>}
-        <section className="tiktok-sync-panel" aria-labelledby="tiktok-sync-coverage-title">
-          <div className="mb-4"><p className="section-kicker">Sincronização geral</p><h2 id="tiktok-sync-coverage-title" className="mt-1 text-lg font-semibold text-[var(--ink)]">Importação e backlog histórico</h2><p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--ink-muted)]">O backlog financeiro inclui pedidos históricos, inclusive fora da janela selecionada. Ele não é comparado com os denominadores do período abaixo.</p></div>
-          <dl className="tiktok-sync-grid">{syncBacklogDescription(data.sync).filter((item) => item.key !== "financial").map((item) => <div key={item.key}><dt>{item.label}</dt><dd><span>{item.status}</span> · {item.detail}</dd></div>)}<div className="is-warning"><dt>{historicalBacklog.label}</dt><dd><span>{historicalBacklog.status}</span> · <span className="tabular-nums">{historicalBacklog.detail}</span><small>{historicalBacklog.context}</small></dd></div></dl>
+        <section className="metric-grid tiktok-dashboard-metrics" aria-label="Resumo financeiro da TikTok Shop">
+          {primaryCards.map((card) => <Metric key={card.key} label={card.label} value={card.value} sub={card.context} tone={(card.key === "profit" || card.key === "marginPct") && card.raw != null ? card.raw > 0 ? "positive" : card.raw < 0 ? "danger" : "default" : "default"} />)}
         </section>
-        <TikTokFinancialSettings key={selectedConnectionId} connectionId={selectedConnectionId} currentTaxRate={data.overview.taxRate} onSaved={retry} />
-        <section className="metric-grid listing-summary-band is-4 tiktok-dashboard-metrics" aria-label="Indicadores financeiros da TikTok Shop">
-          {cards.map((card) => <Metric key={card.key} label={card.label} value={card.value} sub={card.context} tone={card.key === "profit" && card.raw != null ? "positive" : "default"} />)}
-        </section>
+        <details className="tiktok-financial-components">
+          <summary><span>Componentes financeiros do período</span><small>{componentCards.length} valores preservados no detalhamento</small><ChevronDown aria-hidden="true" /></summary>
+          <dl>
+            {componentCards.map((card) => <div key={card.key}><dt>{card.label}</dt><dd className="tabular-nums">{card.value}</dd><small>{card.context}</small></div>)}
+          </dl>
+        </details>
         <section className="performance-panel tiktok-performance-panel" aria-labelledby="tiktok-performance-title">
           <div className="performance-chart">
             <div className="mb-2 flex flex-wrap items-baseline justify-between gap-3"><div><p className="section-kicker">Desempenho diário</p><h2 id="tiktok-performance-title" className="mt-1 text-lg font-semibold text-[var(--ink)]">Evolução do faturamento operacional</h2></div><span className="text-xs text-[var(--ink-muted)]">Valores de pedidos do período; não substituem o ledger financeiro.</span></div>
@@ -206,6 +215,11 @@ export function TikTokWorkspace() {
           currency={currency}
           productsHref={`/tiktok/catalogo?${new URLSearchParams({ connection_id: selectedConnectionId })}`}
         />
+        <section className="tiktok-sync-panel" aria-labelledby="tiktok-sync-coverage-title">
+          <div className="mb-4"><p className="section-kicker">Sincronização geral</p><h2 id="tiktok-sync-coverage-title" className="mt-1 text-lg font-semibold text-[var(--ink)]">Importação e backlog histórico</h2><p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--ink-muted)]">O backlog financeiro inclui pedidos históricos, inclusive fora da janela selecionada. Ele não é comparado com os denominadores do período abaixo.</p></div>
+          <dl className="tiktok-sync-grid">{syncBacklogDescription(data.sync).filter((item) => item.key !== "financial").map((item) => <div key={item.key}><dt>{item.label}</dt><dd><span>{item.status}</span> · {item.detail}</dd></div>)}<div className="is-warning"><dt>{historicalBacklog.label}</dt><dd><span>{historicalBacklog.status}</span> · <span className="tabular-nums">{historicalBacklog.detail}</span><small>{historicalBacklog.context}</small></dd></div></dl>
+        </section>
+        <TikTokFinancialSettings key={selectedConnectionId} connectionId={selectedConnectionId} currentTaxRate={data.overview.taxRate} onSaved={retry} />
         <section className="tiktok-coverage-panel" aria-labelledby="tiktok-coverage-title">
           <div className="mb-4">
             <p className="section-kicker">Período selecionado</p>
@@ -234,7 +248,7 @@ export function TikTokWorkspace() {
           </section>
         </div>
       </div>
-    </div>
+    </IntegrationDashboardFrame>
   );
 }
 
@@ -258,7 +272,7 @@ function TikTokFinancialSettings({ connectionId, currentTaxRate, onSaved }: { co
 }
 
 function WorkspaceFrame({ children, subtitle, action }: { children: React.ReactNode; subtitle?: string; action?: React.ReactNode }) {
-  return <div className="channel-dashboard tiktok-dashboard-page"><PageHeader eyebrow="TikTok Shop" title="Visão do canal" subtitle={subtitle} action={action} />{children}</div>;
+  return <IntegrationDashboardFrame className="channel-dashboard tiktok-dashboard-page" header={<PageHeader eyebrow="TikTok Shop" title="Visão do canal" subtitle={subtitle} action={action} />}>{children}</IntegrationDashboardFrame>;
 }
 
 function StoreSelector({ connections, selectedId, onChange }: { connections: TiktokConnectionOption[]; selectedId: string; onChange: (id: string) => void }) {

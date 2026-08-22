@@ -19,6 +19,7 @@ import { MercadoLivreSaldo } from "./MercadoLivreSaldo";
 import { Pagination } from "./Pagination";
 import { TopProductsRanking } from "./TopProductsRanking";
 import { BriefingLead } from "./BriefingLead";
+import { IntegrationDashboardFrame } from "./IntegrationDashboardFrame";
 
 interface Overview {
   account: { id: string; nickname: string; siteId: string; };
@@ -186,17 +187,16 @@ export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
   }, [period.query, retryKey, view]);
 
   return (
-    <div className={`dashboard-page meli-workspace ${view === "estoque" ? "listing-page" : view === "monitor" ? "monitor-page" : "ml-dashboard-page"}`}>
-      {(view === "dashboard" || view === "monitor" || view === "estoque") && (
-        <DashboardPeriodFilter {...period.filterProps} />
-      )}
-      <PageHeader eyebrow={page.eyebrow} title={page.title} subtitle={page.subtitle} icon={page.icon} action={overview && <span className="meli-account-chip"><i aria-hidden="true" />{overview.account.nickname}<small>{overview.account.siteId}</small></span>} />
-      {overview && syncStatus && syncStatus.status !== "complete" && syncStatus.status !== "unavailable" && (
-        <div className="sync-chip -mt-5" role="status">
-          <span className="sync-chip-track" aria-hidden="true"><i style={{ width: `${syncStatus.progress}%` }} /></span>
-          <p>Histórico: {syncStatus.progress}% importado — os dados abaixo já estão disponíveis.</p>
-        </div>
-      )}
+    <IntegrationDashboardFrame
+      className={`dashboard-page meli-workspace ${view === "estoque" ? "listing-page" : view === "monitor" ? "monitor-page" : "ml-dashboard-page"}`}
+      period={(view === "dashboard" || view === "monitor" || view === "estoque") ? (
+        <DashboardPeriodFilter
+          {...period.filterProps}
+          meta={view === "dashboard" && updatedAt ? <>Atualizado às {brTime(updatedAt)}{overview?.metrics.lastSaleAt ? ` · última venda às ${brTime(overview.metrics.lastSaleAt, true)}` : ""}</> : undefined}
+        />
+      ) : undefined}
+      header={<PageHeader eyebrow={page.eyebrow} title={page.title} subtitle={page.subtitle} icon={page.icon} action={overview && <span className="meli-account-chip"><i aria-hidden="true" />{overview.account.nickname}<small>{overview.account.siteId}</small></span>} />}
+    >
       {brokenConnection && <ConnectionBroken channel="mercado_livre" message={brokenConnection} />}
       {loading ? <DashboardSkeleton label="Carregando dados do Mercado Livre" chart={view === "dashboard"} rows={view === "dashboard" ? 4 : 6} /> : brokenConnection ? null : error ? (
         <EmptyState title="Não foi possível atualizar o Mercado Livre" description={error} action={<button type="button" onClick={() => setRetryKey((key) => key + 1)} className="meli-primary-action">Tentar novamente <span aria-hidden="true">↻</span></button>} />
@@ -210,21 +210,19 @@ export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
         </div>
       ) : !overview ? (
         <EmptyState title="Conecte sua conta do Mercado Livre" description="Autorize o NEXO para começar a importar anúncios e pedidos." action={<Link href="/integracoes" className="meli-primary-action">Gerenciar integração <span aria-hidden="true">→</span></Link>} />
-      ) : view === "dashboard" ? <Dashboard overview={overview} updatedAt={updatedAt} periodoLabel={period.label} /> : view === "estoque" ? <Inventory overview={overview} /> : <Monitor overview={overview} />}
-    </div>
+      ) : view === "dashboard" ? <Dashboard overview={overview} syncStatus={syncStatus} periodoLabel={period.label} /> : view === "estoque" ? <Inventory overview={overview} /> : <Monitor overview={overview} />}
+    </IntegrationDashboardFrame>
   );
 }
 
-function Dashboard({ overview, updatedAt, periodoLabel }: { overview: Overview; updatedAt: Date | null; periodoLabel: string }) {
+function Dashboard({ overview, syncStatus, periodoLabel }: { overview: Overview; syncStatus: SyncStatus | null; periodoLabel: string }) {
   const [costsOpen, setCostsOpen] = useState(false);
   const profitCoverage = overview.profit.coverage;
   const units = overview.dailySales.reduce((total, point) => total + point.units, 0);
   const critical = overview.stockRadar.filter((product) => product.status === "critical" || product.status === "out");
   const resultIncomplete = !profitCoverage.complete || overview.profit.unitsWithoutCost > 0 || !overview.profit.shippingCostsComplete || overview.profit.taxes == null;
   const netReceived = overview.profit.revenueProcessed - overview.profit.fees - overview.profit.sellerShipping;
-  return <div className="dashboard-sections ml-dashboard-body">
-    {updatedAt && <p className="-mt-5 text-xs text-[var(--ink-muted)]">Atualizado às {brTime(updatedAt)}{overview.metrics.lastSaleAt ? ` · última venda contabilizada às ${brTime(overview.metrics.lastSaleAt, true)}` : ""}. Compare no mesmo horário com o painel do Mercado Livre.</p>}
-
+  return <div className="dashboard-sections integration-dashboard-sections ml-dashboard-body">
     {/* Mesma abertura dos outros três canais: a frase vem do dado e as
         pendências ficam com ela. Ver `BriefingLead.tsx` — a peça é
         compartilhada de propósito, para os quatro painéis não divergirem. */}
@@ -246,6 +244,13 @@ function Dashboard({ overview, updatedAt, periodoLabel }: { overview: Overview; 
           : []),
       ]}
     />
+
+    {syncStatus && syncStatus.status !== "complete" && syncStatus.status !== "unavailable" && (
+      <div className="sync-chip" role="status">
+        <span className="sync-chip-track" aria-hidden="true"><i style={{ width: `${syncStatus.progress}%` }} /></span>
+        <p>Histórico: {syncStatus.progress}% importado — os dados abaixo já estão disponíveis.</p>
+      </div>
+    )}
 
     <section className="metric-grid ml-dashboard-metric-grid" aria-label="Resumo financeiro Mercado Livre">
       <Metric label="Vendas brutas" value={<AnimatedNumber id="ml-dash-revenue" value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={`${overview.metrics.paidOrders} aprovadas + ${overview.metrics.cancelledOrders} canceladas`} trend={getRevenueTrend(overview.dailySales)} />
@@ -300,6 +305,8 @@ function Dashboard({ overview, updatedAt, periodoLabel }: { overview: Overview; 
       </aside>
     </section>
 
+    {overview.topProducts.length === 0 ? <Empty>Sem vendas no período para ranquear.</Empty> : <TopProductsRanking products={overview.topProducts.map((product) => ({ sku: product.sku || product.id, title: product.title, units: product.units, revenue: product.revenue, marginPct: product.marginPct }))} currency={overview.metrics.currency} productsHref="/mercado-livre/produtos" />}
+
     <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
       <Panel title="Estoque crítico" href="/mercado-livre/estoque" linkLabel="Ver radar">
         {critical.length === 0 ? <Empty>Nenhum produto em ruptura iminente.</Empty> : <ul className="divide-y divide-[var(--line)]">{critical.slice(0, 6).map((product) => <li key={product.id} className="flex items-center justify-between py-2.5 text-sm"><span className="min-w-0 truncate pr-3">{product.title || product.sku || product.id}</span><span className="shrink-0 font-semibold text-red-600">{product.status === "out" ? "esgotado" : `${product.daysRemaining} dias`}</span></li>)}</ul>}
@@ -314,8 +321,6 @@ function Dashboard({ overview, updatedAt, periodoLabel }: { overview: Overview; 
     <MercadoLivreSaldo />
 
     <OrderProfitabilityTable lines={overview.profitabilityLines} />
-
-    {overview.topProducts.length === 0 ? <Empty>Sem vendas no período para ranquear.</Empty> : <TopProductsRanking products={overview.topProducts.map((product) => ({ sku: product.sku || product.id, title: product.title, units: product.units, revenue: product.revenue, marginPct: product.marginPct }))} currency={overview.metrics.currency} productsHref="/mercado-livre/produtos" />}
 
     {/* No desktop a sidebar já cobre estes atalhos; no mobile a nav é scroll
         horizontal e os cartões ajudam. */}

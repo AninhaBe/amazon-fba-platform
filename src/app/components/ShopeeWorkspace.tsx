@@ -12,6 +12,7 @@ import { DashboardPeriodFilter, useDashboardPeriod } from "./DashboardPeriodFilt
 import { OrderProfitabilityTable } from "./OrderProfitabilityTable";
 import { TopProductsRanking } from "./TopProductsRanking";
 import { BriefingLead } from "./BriefingLead";
+import { IntegrationDashboardFrame } from "./IntegrationDashboardFrame";
 import { ConnectionBroken } from "./ConnectionBroken";
 import { ChannelConnectionEmpty } from "./ChannelConnectionEmpty";
 import { Flow, FlowExpandable, Metric, getRevenueTrend } from "./Metric";
@@ -211,58 +212,53 @@ export function ShopeeWorkspace() {
 
   if (error) {
     return (
-      <>
-        <PageHeader eyebrow="Shopee" title="Visão do canal" />
+      <ShopeeFrame>
         <EmptyState
           title="Não foi possível carregar"
           description={error}
           kind="permission"
           action={<button type="button" className="meli-primary-action" onClick={retry}>Tentar novamente</button>}
         />
-      </>
+      </ShopeeFrame>
     );
   }
 
   if (!status) {
     return (
-      <>
-        <PageHeader eyebrow="Shopee" title="Visão do canal" />
+      <ShopeeFrame>
         <DashboardSkeleton />
-      </>
+      </ShopeeFrame>
     );
   }
 
   const providerIssue = shopeeProviderIssueContent(status.issue);
   if (providerIssue) {
     return (
-      <>
-        <PageHeader eyebrow="Shopee" title="Visão do canal" subtitle="O canal requer atenção antes de continuar." />
+      <ShopeeFrame subtitle="O canal requer atenção antes de continuar.">
         <EmptyState
           kind="permission"
           title={providerIssue.title}
           description={providerIssue.description}
           action={<Link className="meli-primary-action" href="/integracoes">{providerIssue.actionLabel}</Link>}
         />
-      </>
+      </ShopeeFrame>
     );
   }
 
   if (status.demo && status.connectionStatus !== "connected") {
     return (
-      <>
-        <PageHeader eyebrow="Shopee" title="Visão do canal" subtitle="Ambiente de demonstração — sem loja real autorizada." />
+      <ShopeeFrame subtitle="Ambiente de demonstração — sem loja real autorizada.">
         <ShopeeDemoNotice connectHref={status.configured ? status.connectHref : undefined} />
         <EmptyState title="Demonstração indisponível" description="Os dados sintéticos não estão ativos. Conecte uma loja real quando a autorização da Shopee estiver disponível." />
-      </>
+      </ShopeeFrame>
     );
   }
 
   if (status.connectionStatus === "attention" || status.connectionStatus === "disconnected") {
     return (
-      <>
-        <PageHeader eyebrow="Shopee" title="Visão do canal" subtitle="A loja precisa ser reconectada para retomar a sincronização." />
+      <ShopeeFrame subtitle="A loja precisa ser reconectada para retomar a sincronização.">
         <ConnectionBroken channel="shopee" />
-      </>
+      </ShopeeFrame>
     );
   }
 
@@ -274,19 +270,17 @@ export function ShopeeWorkspace() {
   if (!status.connected) {
     if (!status.configured) {
       return (
-        <>
-          <PageHeader eyebrow="Shopee" title="Visão do canal" subtitle="Canal ainda não configurado no servidor." />
+        <ShopeeFrame subtitle="Canal ainda não configurado no servidor.">
           <EmptyState
             kind="permission"
             title="Credenciais da Shopee ausentes"
             description="Defina SHOPEE_PARTNER_ID e SHOPEE_PARTNER_KEY no ambiente para habilitar a conexão."
           />
-        </>
+        </ShopeeFrame>
       );
     }
     return (
-      <>
-        <PageHeader eyebrow="Shopee" title="Visão do canal" subtitle="Conecte uma loja para começar a sincronizar pedidos e taxas." />
+      <ShopeeFrame subtitle="Conecte uma loja para começar a sincronizar pedidos e taxas.">
         <ChannelConnectionEmpty
           channel="Shopee"
           description="Ao autorizar, o NEXO passa a ler pedidos, produtos e as taxas reais de cada venda (escrow)."
@@ -296,7 +290,7 @@ export function ShopeeWorkspace() {
             </Link>
           }
         />
-      </>
+      </ShopeeFrame>
     );
   }
 
@@ -309,44 +303,46 @@ export function ShopeeWorkspace() {
         ? <Link className="meli-primary-action" href={status.connectHref || "/api/integrations/shopee/connect"}>Reconectar loja <span aria-hidden="true">→</span></Link>
         : state.action === "manage" ? <Link className="meli-primary-action" href="/integracoes">Gerenciar conexão <span aria-hidden="true">→</span></Link> : undefined;
     return (
-      <>
-        <PageHeader eyebrow="Shopee" title="Visão do canal" subtitle={status.demo ? `Demonstração · ${sync.progress}% concluído` : `Loja conectada · ${sync.progress}% concluído`} />
+      <ShopeeFrame subtitle={status.demo ? `Demonstração · ${sync.progress}% concluído` : `Loja conectada · ${sync.progress}% concluído`}>
         {status.demo && <ShopeeDemoNotice connectHref={status.configured ? status.connectHref : undefined} />}
         <section aria-live="polite" aria-labelledby="shopee-sync-title">
           <EmptyState title={state.title} description={detail} kind={sync.phase === "idle" ? "data" : "permission"} action={action} />
           <p className="sr-only" id="shopee-sync-title">Progresso da sincronização: {sync.progress}%. {sync.processedOrders} pedidos processados.</p>
         </section>
-      </>
+      </ShopeeFrame>
     );
   }
 
   if (pending || !overview) {
     return (
-      <>
-        <PageHeader eyebrow="Shopee" title="Visão do canal" subtitle={status.demo ? "Ambiente de demonstração — dados sintéticos." : "Loja conectada — primeira sincronização pendente."} />
+      <ShopeeFrame subtitle={status.demo ? "Ambiente de demonstração — dados sintéticos." : "Loja conectada — primeira sincronização pendente."}>
         {status.demo && <ShopeeDemoNotice connectHref={status.configured ? status.connectHref : undefined} />}
         <EmptyState
           title="Ainda sem dados sincronizados"
           description="A loja está autorizada. Assim que a primeira sincronização rodar, os indicadores, o gráfico e a rentabilidade por pedido aparecem aqui."
           action={<Link className="meli-primary-action" href="/integracoes">Gerenciar conexão <span aria-hidden="true">→</span></Link>}
         />
-      </>
+      </ShopeeFrame>
     );
   }
 
   return (
-    <div className="channel-dashboard shopee-dashboard-page">
-      <PageHeader
+    <IntegrationDashboardFrame
+      className="channel-dashboard shopee-dashboard-page"
+      period={<DashboardPeriodFilter
+        {...period.filterProps}
+        meta={updatedAt ? <>Atualizado às {brTime(updatedAt)}{overview.metrics.lastSaleAt ? ` · última venda às ${brTime(overview.metrics.lastSaleAt, true)}` : ""}</> : undefined}
+      />}
+      header={<PageHeader
         eyebrow="Shopee"
         title={status.demo ? "Visão de demonstração" : overview.account.name}
         subtitle={status.demo ? `Dados sintéticos · ${overview.period.label}` : `Loja ${overview.account.id} · ${overview.account.region} · ${overview.period.label}`}
         action={status.connections.length > 1 && <label className="channel-store-selector">Loja<select aria-label="Loja Shopee" value={status.connections.find((item)=>item.id===searchParams.get("connection_id"))?.id??status.connections[0]?.id} onChange={(event)=>{const next=new URLSearchParams(searchParams.toString());next.set("connection_id",event.target.value);next.set("offset","0");router.push(`/shopee?${next}`,{scroll:false})}}>{status.connections.map((item)=><option key={item.id} value={item.id}>{item.displayName||item.externalAccountId||item.id}</option>)}</select></label>}
-      />
-      <DashboardPeriodFilter {...period.filterProps} />
+      />}
+    >
       {status.demo && <ShopeeDemoNotice connectHref={status.configured ? status.connectHref : undefined} />}
       <Dashboard
         overview={overview}
-        updatedAt={updatedAt}
         sync={sync}
         periodoLabel={period.label}
         onPage={(offset) => {
@@ -355,7 +351,7 @@ export function ShopeeWorkspace() {
           router.push(`/shopee?${next}`, { scroll: false });
         }}
       />
-    </div>
+    </IntegrationDashboardFrame>
   );
 }
 
@@ -378,7 +374,7 @@ function ShopeeDemoNotice({ connectHref }: { connectHref?: string }) {
   );
 }
 
-function Dashboard({ overview, updatedAt, sync, onPage, periodoLabel }: { overview: Overview; updatedAt: Date | null; sync: ShopeeSyncStatus | null; onPage: (offset: number) => void; periodoLabel: string }) {
+function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overview; sync: ShopeeSyncStatus | null; onPage: (offset: number) => void; periodoLabel: string }) {
   const [costsOpen, setCostsOpen] = useState(false);
   const profitCoverage = overview.profit.coverage;
   // Bases já coincidem (receita e contagem usam o mesmo filtro de status).
@@ -391,28 +387,7 @@ function Dashboard({ overview, updatedAt, sync, onPage, periodoLabel }: { overvi
   const profitPresentation = shopeeProfitPresentation({ coverageComplete: profitCoverage.complete, feesComplete: overview.profit.feesComplete, costsComplete: !costsIncomplete });
 
   return (
-    <div className="dashboard-sections shopee-dashboard-body">
-      {updatedAt && (
-        <p className="-mt-5 text-xs text-[var(--ink-muted)]">
-          Atualizado às {brTime(updatedAt)}
-          {overview.metrics.lastSaleAt ? ` · última venda contabilizada às ${brTime(overview.metrics.lastSaleAt, true)}` : ""}.
-        </p>
-      )}
-
-      {!overview.metrics.revenueCoverage.complete && (
-        <div role="status" className="integration-message is-error">
-          Sincronização parcial: {overview.metrics.revenueCoverage.capturedOrders} de {overview.metrics.revenueCoverage.totalOrders} pedido(s) do período foram capturados. Os valores exibidos não representam cobertura completa.
-        </div>
-      )}
-
-      {sync?.phase === "syncing" && <div role="status" className="integration-message">Sincronização em andamento: {sync.progress}% · {sync.processedOrders} pedido(s) processados. Os dados abaixo podem estar parciais.</div>}
-
-      {!SHOPEE_CATALOG_CAPABILITIES.models && (
-        <div role="status" className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
-          Estoque com cobertura parcial: as quantidades atuais são agregadas por anúncio. O detalhamento por variação ainda não está disponível nesta integração.
-        </div>
-      )}
-
+    <div className="dashboard-sections integration-dashboard-sections shopee-dashboard-body">
       {/* Mesma abertura dos outros três canais. A Shopee ainda não tem loja
           real conectada, e é justamente por isso que ela precisa nascer com a
           composição igual: no dia em que o Go Live sair, a tela já está pronta
@@ -431,6 +406,20 @@ function Dashboard({ overview, updatedAt, sync, onPage, periodoLabel }: { overvi
             : []
         }
       />
+
+      {!overview.metrics.revenueCoverage.complete && (
+        <div role="status" className="integration-message is-error">
+          Sincronização parcial: {overview.metrics.revenueCoverage.capturedOrders} de {overview.metrics.revenueCoverage.totalOrders} pedido(s) do período foram capturados. Os valores exibidos não representam cobertura completa.
+        </div>
+      )}
+
+      {sync?.phase === "syncing" && <div role="status" className="integration-message">Sincronização em andamento: {sync.progress}% · {sync.processedOrders} pedido(s) processados. Os dados abaixo podem estar parciais.</div>}
+
+      {!SHOPEE_CATALOG_CAPABILITIES.models && (
+        <div role="status" className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
+          Estoque com cobertura parcial: as quantidades atuais são agregadas por anúncio. O detalhamento por variação ainda não está disponível nesta integração.
+        </div>
+      )}
 
       <section className="metric-grid listing-summary-band is-4 shopee-dashboard-metrics" aria-label="Indicadores Shopee">
         <Metric
@@ -509,6 +498,12 @@ function Dashboard({ overview, updatedAt, sync, onPage, periodoLabel }: { overvi
         </aside>
       </section>
 
+      <TopProductsRanking
+        products={overview.topProducts.map((product) => ({ sku: product.sku || product.id, title: product.title, units: product.units, revenue: product.revenue, marginPct: product.marginPct }))}
+        currency={overview.metrics.currency}
+        productsHref="/shopee/produtos"
+      />
+
       <div className="shopee-detail-grid">
         <Panel title="Estoque crítico">
           {critical.length === 0 ? <Empty>Nenhum produto em ruptura iminente.</Empty> : (
@@ -545,11 +540,6 @@ function Dashboard({ overview, updatedAt, sync, onPage, periodoLabel }: { overvi
         <nav aria-label="Paginação da rentabilidade" className="mt-3 flex justify-end gap-2"><button type="button" className="min-h-11 rounded-lg px-4 shadow-[inset_0_0_0_1px_rgb(203_213_225)] active:scale-[0.96] transition-transform disabled:opacity-40" disabled={overview.profitabilityPage.offset===0} onClick={()=>onPage(Math.max(0,overview.profitabilityPage.offset-overview.profitabilityPage.limit))}>Anterior</button><button type="button" className="min-h-11 rounded-lg px-4 shadow-[inset_0_0_0_1px_rgb(203_213_225)] active:scale-[0.96] transition-transform disabled:opacity-40" disabled={!overview.profitabilityPage.hasMore} onClick={()=>onPage(overview.profitabilityPage.offset+overview.profitabilityPage.limit)}>Próxima</button></nav>
       </section>
 
-      <TopProductsRanking
-        products={overview.topProducts.map((product) => ({ sku: product.sku || product.id, title: product.title, units: product.units, revenue: product.revenue, marginPct: product.marginPct }))}
-        currency={overview.metrics.currency}
-        productsHref="/shopee/produtos"
-      />
     </div>
   );
 }
@@ -567,4 +557,15 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 
 function Empty({ children }: { children: React.ReactNode }) {
   return <EmptyState compact title={String(children)} />;
+}
+
+function ShopeeFrame({ children, subtitle }: { children: React.ReactNode; subtitle?: string }) {
+  return (
+    <IntegrationDashboardFrame
+      className="channel-dashboard shopee-dashboard-page"
+      header={<PageHeader eyebrow="Shopee" title="Visão do canal" subtitle={subtitle} />}
+    >
+      {children}
+    </IntegrationDashboardFrame>
+  );
 }

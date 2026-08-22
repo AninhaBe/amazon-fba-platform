@@ -4575,3 +4575,114 @@ summary:hover { background: var(--paper-soft); }
   .briefing-lead-skeleton { animation: briefing-shimmer 1.4s var(--ease) infinite; }
   @keyframes briefing-shimmer { 50% { opacity: .55; } }
 }
+
+/* ---- Anatomia compartilhada dos dashboards de integração ----
+   Canal muda dados, regras e acento; a sequência espacial permanece estável:
+   período → conta → leitura executiva → estado → métricas → tendência → ranking. */
+.integration-dashboard {
+  isolation: isolate;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 20px;
+}
+.integration-dashboard > .dashboard-period-filter {
+  width: calc(100% + 40px);
+  min-height: 52px;
+  margin-inline: -20px;
+  padding: 10px 20px;
+  overflow: visible;
+  border-block-start: 0;
+  border-block-end: 1px solid var(--ink-08);
+  background: var(--paper);
+}
+.integration-dashboard > .page-heading {
+  margin: 0;
+  padding-block-end: 0;
+}
+/* Seletor versionado: força a invalidação do chunk CSS no Fast Refresh. */
+.integration-dashboard.integration-dashboard > .page-heading > .page-crumb { display: none; }
+.integration-dashboard.ml-dashboard-page > .page-heading { margin-block-start: 20px; }
+.integration-dashboard .page-heading h1 { font-size: 16px; line-height: 1.35; }
+.integration-dashboard .page-subtitle { max-width: 80ch; font-size: 13px; line-height: 1.5; }
+.integration-dashboard > .integration-dashboard-sections {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 24px !important;
+  padding-block-start: 0;
+}
+.integration-dashboard-sections > .metric-grid {
+  overflow: visible;
+  border-block: 1px solid var(--ink-08);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.integration-dashboard-sections > .metric-grid > .metric-cell {
+  min-height: 88px;
+  border-radius: 0;
+  box-shadow: none;
+}
+.integration-dashboard-sections > .metric-grid > .metric-cell:hover { transform: none; }
+.tiktok-financial-components {
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--paper);
+  box-shadow: var(--shadow-xs);
+}
+.tiktok-financial-components summary {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-inline: 14px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+  list-style: none;
+}
+.tiktok-financial-components summary::-webkit-details-marker { display: none; }
+.tiktok-financial-components summary svg { width: 14px; height: 14px; flex: none; color: var(--ink-muted); transition: transform var(--duration) var(--ease); }
+.tiktok-financial-components[open] summary svg { transform: rotate(180deg); }
+.tiktok-financial-components summary small { margin-inline-start: auto; color: var(--ink-muted); font-size: 12px; font-weight: var(--weight-body); }
+.tiktok-financial-components dl {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  border-block-start: 1px solid var(--ink-08);
+}
+.tiktok-financial-components dl > div { min-width: 0; padding: 10px 12px; border-inline-end: 1px solid var(--ink-08); }
+.tiktok-financial-components dl > div:last-child { border-inline-end: 0; }
+.tiktok-financial-components dt { color: var(--ink-muted); font-size: 12px; }
+.tiktok-financial-components dd { margin-block-start: 3px; color: var(--ink); font-size: 14px; font-weight: var(--weight-medium); }
+.tiktok-financial-components dl small { display: block; margin-block-start: 2px; color: var(--ink-muted); font-size: 12px; line-height: 16px; }
+
+@media (max-width: 1023px) {
+  .integration-dashboard > .dashboard-period-filter {
+    width: calc(100% + 32px);
+    margin-inline: -16px;
+    padding-inline: 16px;
+  }
+}
+
+@media (max-width: 600px) {
+  .integration-dashboard { gap: 16px; }
+  .integration-dashboard > .integration-dashboard-sections { gap: 18px !important; }
+  .integration-dashboard-sections > .metric-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: hidden;
+  }
+  .integration-dashboard-sections > .metric-grid > .metric-cell { min-width: 0; border-block-end: 1px solid var(--ink-08) !important; }
+  .integration-dashboard-sections > .metric-grid > .metric-cell:nth-child(2n) { border-inline-end: 0 !important; }
+  .integration-dashboard-sections > .metric-grid > .metric-cell:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .tiktok-financial-components summary { align-items: flex-start; flex-direction: column; justify-content: center; gap: 1px; padding-block: 8px; }
+  .tiktok-financial-components summary small { margin-inline-start: 0; }
+  .tiktok-financial-components summary { position: relative; padding-inline-end: 38px; }
+  .tiktok-financial-components summary svg { position: absolute; inset-inline-end: 14px; }
+  .tiktok-financial-components dl { grid-template-columns: 1fr; }
+  .tiktok-financial-components dl > div { border-block-end: 1px solid var(--ink-08); border-inline-end: 0; }
+}
