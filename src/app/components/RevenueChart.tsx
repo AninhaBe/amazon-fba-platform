@@ -2,6 +2,7 @@
 
 import { useId, useRef, useState } from "react";
 import { Banknote, PackageCheck, ShoppingBag, type LucideIcon } from "lucide-react";
+import { monotoneCurvePath } from "@/lib/chartPath";
 
 export interface DailyPoint {
   date: string;
@@ -87,7 +88,9 @@ export function RevenueChart({
     PAD.left + (points.length === 1 ? plotW / 2 : (i / (points.length - 1)) * plotW);
   const y = (v: number) => PAD.top + plotH - (v / niceMax) * plotH;
 
-  const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"} ${x(i)} ${y(p[activeMetric])}`).join(" ");
+  const linePath = monotoneCurvePath(
+    points.map((point, index) => ({ x: x(index), y: y(point[activeMetric]) })),
+  );
   const areaPath = hasPoints ? `${linePath} L ${x(points.length - 1)} ${y(0)} L ${x(0)} ${y(0)} Z` : "";
 
   // Linhas de grade / rótulos do eixo Y
