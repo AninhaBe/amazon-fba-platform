@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { PageHeader, pageIcons } from "../components/PageHeader";
+import { NexoMensagem } from "../components/NexoMensagem";
 import { PanelLoading } from "../components/LoadingState";
 import { EmptyState } from "../components/EmptyState";
 import { readJson } from "../../lib/readJson";
@@ -155,14 +156,7 @@ export default function BriefingPage() {
 
       {/* O NEXO abre o briefing em prosa: lê os sinais detectados e diz, do jeito
           de um colega, o que priorizar. Os cartões abaixo são a evidência. */}
-      {narracao && (
-        <section className="briefing-narracao" aria-label="Leitura do dia pelo NEXO">
-          <span className="briefing-narracao-marca">NEXO</span>
-          <div className="briefing-narracao-texto">
-            {narracao.split(/\n+/).filter(Boolean).map((par, i) => <p key={i}>{par}</p>)}
-          </div>
-        </section>
-      )}
+      {narracao && <NexoMensagem texto={narracao} />}
 
       {error && (
         <div role="alert" className="briefing-error">

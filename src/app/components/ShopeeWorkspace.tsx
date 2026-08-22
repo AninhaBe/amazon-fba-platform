@@ -401,6 +401,11 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
         // pedidos faltando na captura, o número existiria mas estaria errado.
         lucro={overview.metrics.revenueCoverage.complete ? overview.profit.estimatedProfit : null}
         format={(v) => money(v, overview.metrics.currency)}
+        escopo="shopee"
+        canalNome="Shopee"
+        moeda={overview.metrics.currency}
+        briefingHref="/shopee/monitor"
+        briefingLabel="Ver detalhes"
         acoes={[
           ...(overview.metrics.productsWithoutCost > 0
             ? [{ label: `Cadastrar custo de ${overview.metrics.productsWithoutCost} produto(s)`, href: "/shopee/produtos", tone: "pendencia" as const }]

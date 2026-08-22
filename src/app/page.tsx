@@ -10,6 +10,7 @@ import { Metric } from "./components/Metric";
 import { RevenueChart, type DailyPoint } from "./components/RevenueChart";
 import { brTime } from "@/lib/datetime";
 import { tendenciaSemanal, detectarAlerta, margemDoCanal, percent } from "@/lib/centralOverview";
+import { NexoMensagem } from "./components/NexoMensagem";
 import {
   aggregateShopeeStores,
   centralProviderReadState,
@@ -355,11 +356,7 @@ export default function OverviewDashboard() {
             resposta), cai no alerta por regra. Os dois respondem "o que mudou e
             onde olhar" — um em prosa, o outro em uma linha. */}
         {narracao ? (
-          <section className="central-narracao" aria-label="Resumo do dia pelo NEXO">
-            <span className="central-narracao-marca">NEXO</span>
-            <p>{narracao}</p>
-            <Link href="/amazon/briefing" className="central-narracao-cta">Ver briefing <span aria-hidden="true">→</span></Link>
-          </section>
+          <NexoMensagem texto={narracao} ctaHref="/amazon/briefing" />
         ) : alerta ? (
           <Link href={alerta.href ?? "#"} className={`central-alerta is-${alerta.tom}`} aria-label={alerta.texto}>
             <span aria-hidden="true" className="central-alerta-ponto" />

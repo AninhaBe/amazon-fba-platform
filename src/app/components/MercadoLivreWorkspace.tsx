@@ -238,6 +238,11 @@ function Dashboard({ overview, syncStatus, periodoLabel }: { overview: Overview;
       // resultado é a confusão que `null ≠ 0` existe para evitar.
       lucro={resultIncomplete ? null : overview.profit.estimatedProfit}
       format={(v) => money(v, overview.metrics.currency)}
+      escopo="mercado_livre"
+      canalNome="Mercado Livre"
+      moeda={overview.metrics.currency}
+      briefingHref="/mercado-livre/monitor"
+      briefingLabel="Ver detalhes"
       acoes={[
         ...(overview.metrics.productsWithoutCost > 0
           ? [{ label: `Cadastrar custo de ${overview.metrics.productsWithoutCost} produto(s)`, href: "/mercado-livre/produtos", tone: "pendencia" as const }]
