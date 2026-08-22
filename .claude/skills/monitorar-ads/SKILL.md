@@ -1764,9 +1764,25 @@ lido a skill e não o guia.
 ### Protetores: a árvore manda parar de mexer em lance
 
 ~R$ 40 gastos em 5 dias, **zero venda desde 17/08**, BSR #485. Etapa 4 da árvore: "10+
-cliques com 0 venda → o problema é a PÁGINA. Pare de mexer em lance." A causa já está
-registrada: concorrente vendendo kit de 8 a **R$ 9,90, abaixo do custo dela (R$ 9,57)**.
-Decisão de oferta, não de campanha — em aberto com ela.
+cliques com 0 venda → o problema é a PÁGINA. Pare de mexer em lance."
+
+🔴 **RETRATAÇÃO (22/08): o "concorrente de R$ 9,90" NÃO é concorrente.** Ela corrigiu:
+*"ele não é meu concorrente pq vende um produto diferente do meu, por isso esse preço"*.
+
+Eu citei esse preço duas vezes hoje como fato estabelecido e construí em cima dele a
+conclusão "não dá para competir, é decisão de negócio". **Essa conclusão cai.**
+
+📌 É a **segunda vez** que cometo exatamente este erro — o primeiro foi com o martelo
+("são tamanhos diferentes, meu nobre"), e a regra que ficou registrada nesta mesma skill
+é: **comparação de preço só vale entre produtos equivalentes**. Comparar por palavra-chave
+mistura tamanhos, materiais e quantidades.
+
+**Antes de qualquer conclusão de preço, verificar equivalência** — nº de peças, material,
+dimensão — via `catalog/2022-04-01` com `includedData=attributes,dimensions` no NOSSO
+produto e, no mínimo, pelo título do outro. Sem isso, não citar o preço alheio.
+
+**Causa dos protetores não venderem: EM ABERTO.** Lembrar que a `Auto - Protetor 8` já
+foi a melhor campanha da conta (ROAS 15,11) — não é um produto natimorto.
 
 ### Estado da oferta (SP-API, 22/08)
 
@@ -1824,6 +1840,10 @@ R$ 12,65 gastos em anúncio nas duas campanhas deles no dia 20.
 reforça o que a régua de viabilidade apontou em 20/08: **existe concorrente vendendo kit
 de 8 a R$ 9,90**, abaixo do custo dela (R$ 9,57 + tarifa futura). Ver ASIN `B0GKQ6ZFLH`.
 
+> 🔴 **RETRATADO em 22/08/2026.** Ela verificou: esse ASIN **vende produto diferente** —
+> por isso o preço. **Não é comparável e não é concorrente.** Nenhuma decisão deve se
+> apoiar neste parágrafo. Ver a retratação completa na leitura de 22/08.
+
 ### Auto - Martelo morreu de novo
 
 R$ 0 no dia 20, depois de ter voltado no dia 19 com R$ 0,79. O lance de R$ 0,90 nos 3
@@ -1836,4 +1856,4 @@ sugestão da Amazon subiu para R$ 0,94 — faixa 0,20–1,96).
   que vinha vendendo com ROAS 10+. Campanha não explica queda simultânea — olhar oferta,
   buy box, estoque e ranking.
 - **Esperar** no clips: decisão de corte marcada para 22/08 segue de pé.
-- Protetores: não mexer em preço de novo antes de entender o concorrente de R$ 9,90.
+- Protetores: não mexer em preço de novo. ⚠️ O "concorrente de R$ 9,90" foi **retratado em 22/08** — produto diferente, não comparável.
