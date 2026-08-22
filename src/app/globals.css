@@ -2281,6 +2281,10 @@ summary:hover { background: var(--paper-soft); }
 .lp-nav-links a { color: var(--lp-suave); font-size: 13px; font-weight: 500; transition: color 160ms ease; }
 .lp-nav-links a:hover { color: var(--lp-tinta); }
 .lp-nav .lp-cta-mini { justify-self: end; }
+@media (max-width: 700px) {
+  .lp-nav { grid-template-columns: 1fr auto; }
+  .lp-nav-links { display: none; }
+}
 .lp-cta-mini { border-radius: 8px; padding: 9px 18px; font-size: 13px; font-weight: 650;
   color: var(--lp-tinta); box-shadow: inset 0 0 0 1px oklch(0 0 0 / 0.18);
   transition: box-shadow 0.18s, background-color 0.18s; }
@@ -2288,6 +2292,7 @@ summary:hover { background: var(--paper-soft); }
 
 .lp-hero {
   position: relative; display: grid; justify-items: center; overflow: hidden;
+  width: 100%; min-width: 0; grid-template-columns: minmax(0, 1fr);
   padding: clamp(72px, 9vw, 104px) 0 clamp(58px, 7vw, 76px); text-align: center;
 }
 .lp-hero::before {
@@ -2321,6 +2326,15 @@ summary:hover { background: var(--paper-soft); }
   color: var(--lp-tinta); box-shadow: inset 0 0 0 1px oklch(0 0 0 / 0.2);
   transition: box-shadow 0.18s, background-color 0.18s; }
 .lp-cta-secundaria:hover { background: oklch(0 0 0 / 0.04); box-shadow: inset 0 0 0 1px oklch(0 0 0 / 0.34); }
+@media (max-width: 560px) {
+  .lp { width: 100%; max-width: 100%; overflow-x: clip; padding-inline: 16px; }
+  .lp-nav { padding-block-start: 16px; }
+  .lp-hero { padding-block: 62px 52px; }
+  .lp-pill { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  .lp-hero h1, .lp-sub { width: 100%; min-width: 0; }
+  .lp-acoes { width: 100%; }
+  .lp-acoes a { flex: 1 1 160px; text-align: center; }
+}
 
 .lp-manifesto { position: relative; padding: clamp(60px, 10vw, 110px) 0; border-block-start: 1px solid var(--lp-linha); }
 /* Textura de pontos atrás do manifesto — o `pattern` do dub. Sem cor e sem
@@ -2362,6 +2376,7 @@ summary:hover { background: var(--paper-soft); }
 .lp-itens strong { font-size: 15px; font-weight: 700; }
 .lp-itens span { color: var(--lp-suave); font-size: 14px; line-height: 1.5; }
 
+.lp #resultados { scroll-margin-top: 24px; }
 .lp-contadores { display: grid; gap: 28px; padding: clamp(48px, 8vw, 84px) 0;
   border-block-start: 1px solid oklch(0 0 0 / 0.1); grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
 .lp-contadores div { display: grid; gap: 6px; }
@@ -2425,7 +2440,8 @@ summary:hover { background: var(--paper-soft); }
 .lp-liberacoes strong { color: oklch(0.45 0.12 160); text-align: end; font-variant-numeric: tabular-nums; }
 .lp-liberacoes small { color: var(--lp-suave); font-size: 12px; }
 
-.lp-tabela { width: 100%; border-collapse: collapse; font-size: 13px; }
+.lp-tabela-scroll { max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; }
+.lp-tabela { width: 100%; min-width: 419px; border-collapse: collapse; font-size: 13px; }
 .lp-tabela th { border-block-end: 1px solid oklch(0 0 0 / 0.1); padding: 11px 14px;
   color: var(--lp-suave); font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-align: left; text-transform: uppercase; }
 .lp-tabela th:not(:first-child), .lp-tabela td:not(:first-child) { text-align: right; }
@@ -2437,9 +2453,8 @@ summary:hover { background: var(--paper-soft); }
 .lp-tabela-nota { padding: 12px 14px 15px; color: var(--lp-suave); font-size: 12px; }
 
 /* ---------- Vitrine: a tela do NEXO dentro da landing ----------
-   Formato do dub.co: janela do app inteira + legenda escura por cima. Com
-   movimento — barras crescendo, cards entrando escalonados — porque estático
-   parece print e print não vende. */
+   Formato do dub.co: janela do app inteira + legenda escura por cima. O
+   movimento vem dos componentes reais do produto, não de um mock paralelo. */
 .lp-vitrine { position: relative; margin: 0; border-radius: 18px; overflow: hidden;
   box-shadow: 0 2px 4px oklch(0 0 0 / 0.06), 0 24px 60px oklch(0 0 0 / 0.14), 0 0 0 1px oklch(0 0 0 / 0.08); }
 .lp-app { display: grid; grid-template-columns: 128px minmax(0, 1fr); background: oklch(0.985 0 0); min-height: 420px; }
@@ -2500,7 +2515,19 @@ summary:hover { background: var(--paper-soft); }
 @media (prefers-reduced-motion: reduce) {
   .lp-app-cards > div, .lp-barras span { animation: none; opacity: 1; transform: none; }
 }
-.lp-vitrine-secao { padding-block-end: clamp(20px, 4vw, 40px); }
+.lp-vitrine-secao {
+  position: relative; isolation: isolate; scroll-margin-top: 24px;
+  padding-block-end: clamp(20px, 4vw, 40px);
+}
+.lp-vitrine-secao::before {
+  content: ""; position: absolute; z-index: -1; inset: -70px -48px -24px; pointer-events: none;
+  background:
+    radial-gradient(circle at 14% 45%, oklch(0.92 0.05 250 / .62), transparent 35%),
+    radial-gradient(circle at 52% 66%, oklch(0.94 0.045 160 / .54), transparent 38%),
+    radial-gradient(circle at 88% 35%, oklch(0.94 0.05 72 / .5), transparent 34%);
+  mask-image: linear-gradient(to bottom, transparent, black 20%, black 88%, transparent);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, black 20%, black 88%, transparent);
+}
 
 /* Abas flutuantes sobre a vitrine — o elemento de assinatura do hero do dub.
    Pill branca, ponto colorido, sombra rasa. Aqui elas são âncoras reais para as
@@ -2590,6 +2617,7 @@ summary:hover { background: var(--paper-soft); }
 .lp-product-filters > span { color: var(--ink-muted); font-size: 11px; }
 .lp-product-content { display: grid; min-width: 0; gap: 12px; padding: 15px 17px 96px; }
 .lp-product-heading { display: flex; min-width: 0; align-items: flex-end; justify-content: space-between; gap: 18px; }
+.lp-product-heading > div { min-width: 0; }
 .lp-product-heading p { color: var(--ink-muted); font-size: 11px; }
 .lp-product-heading h2 { margin-block-start: 2px; font-size: 17px; font-weight: var(--weight-semibold); letter-spacing: var(--track-h2); }
 .lp-product-heading > span { flex: none; color: var(--ink-soft); font-size: 11px; font-variant-numeric: tabular-nums; }
@@ -2627,13 +2655,20 @@ summary:hover { background: var(--paper-soft); }
 }
 @media (max-width: 560px) {
   .lp-product-demo { min-height: 780px; }
-  .lp-product-filters > span, .lp-product-heading > span { display: none; }
+  .lp-product-topbar em, .lp-product-filters > span, .lp-product-heading > span { display: none; }
   .lp-product-content { padding: 13px 12px 104px; }
+  .lp-product-heading h2 { font-size: 15px; text-wrap: balance; }
   .lp-product-metrics { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .lp-product-metrics .metric-cell { border-block-end: 1px solid var(--ink-08) !important; }
   .lp-product-metrics .metric-cell:nth-child(odd) { border-inline-start: 0 !important; }
   .lp-product-chart-title > strong { display: none; }
   .lp-product-performance .performance-chart { padding-inline: 12px; }
+  .lp-vitrine-abas { gap: 6px; }
+  .lp-vitrine-abas button { padding-inline: 12px; font-size: 12px; }
+  .lp-legenda { inset-inline: 8px; bottom: 8px; gap: 10px; padding: 11px 12px; }
+  .lp-legenda-icone { width: 28px; height: 28px; }
+  .lp-legenda strong { font-size: 12px; }
+  .lp-legenda em { font-size: 11px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .lp-product-filters button { transition: none; }
@@ -2656,7 +2691,7 @@ summary:hover { background: var(--paper-soft); }
 /* Seção de custo em horas — padrão de `time-savings-section.tsx` do midday:
    título serifado pequeno e centralizado, cartões QUADRADOS com hover discreto.
    Nada de canto arredondado nem sombra: a borda de 1px é o recurso. */
-.lp-custos { padding: clamp(56px, 9vw, 96px) 0; border-block-start: 1px solid oklch(0 0 0 / 0.1); }
+.lp-custos { scroll-margin-top: 24px; padding: clamp(56px, 9vw, 96px) 0; border-block-start: 1px solid oklch(0 0 0 / 0.1); }
 .lp-custos-topo { margin-bottom: 44px; text-align: center; }
 .lp-custos-topo h2 { font-size: clamp(22px, 2.8vw, 28px); font-weight: 700; letter-spacing: -0.03em; }
 .lp-custos-topo p { margin-top: 12px; color: var(--lp-suave); font-size: 15px; }
@@ -2855,32 +2890,8 @@ summary:hover { background: var(--paper-soft); }
 
 .lp-metricas-nota { margin-top: 16px; color: var(--lp-suave); font-size: 12px; line-height: 1.55; }
 
-/* ---------- Arte do hero: o gráfico como ilustração ----------
-   Padrão de dub.co/analytics (`HeroGrafico.tsx`). Sangra até a borda da janela
-   pela direita e desbota à esquerda, para não brigar com o texto. */
 .lp-hero { position: relative; }
 .lp-hero > * { position: relative; z-index: 1; }
-.lp-hero-arte { position: absolute; z-index: 0; top: 50%; translate: 0 -50%;
-  right: calc(50% - 50vw); width: min(62vw, 780px); pointer-events: none;
-  mask-image: linear-gradient(90deg, transparent, black 42%);
-  -webkit-mask-image: linear-gradient(90deg, transparent, black 42%); }
-.lp-hero-arte svg { display: block; width: 100%; height: clamp(280px, 34vw, 420px); }
-.lp-hero-linha { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke;
-  stroke-linecap: round; stroke-linejoin: round; }
-.lp-hero-area { stroke: none; opacity: 0.1; }
-.lp-hero-linha.is-azul { stroke: oklch(0.6 0.16 250); }
-.lp-hero-area.is-azul { fill: oklch(0.6 0.16 250); }
-.lp-hero-linha.is-roxo { stroke: oklch(0.62 0.15 305); }
-.lp-hero-area.is-roxo { fill: oklch(0.62 0.15 305); }
-.lp-hero-linha.is-verde { stroke: oklch(0.62 0.13 168); }
-.lp-hero-area.is-verde { fill: oklch(0.62 0.13 168); }
-
-@media (prefers-reduced-motion: no-preference) {
-  .lp-hero-serie { animation: lp-hero-sobe 1.1s cubic-bezier(0.22, 1, 0.36, 1) both; }
-  @keyframes lp-hero-sobe { from { opacity: 0; transform: translateY(14px); } }
-}
-/* Abaixo de 900px o texto ocupa a largura toda: a arte vira ruído atrás dele. */
-@media (max-width: 900px) { .lp-hero-arte { display: none; } }
 
 /* ---------- Menu que encolhe (opção B, escolhida em 19/08/2026) ----------
    Mecânica medida em `2.datadive.tools`: a `<aside>` tem largura FIXA e nunca

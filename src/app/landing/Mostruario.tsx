@@ -84,21 +84,23 @@ export function MostraAuditoria() {
   return (
     <div className="lp-ui" aria-hidden="true">
       <div className="lp-ui-topo"><span /><span /><span /><em>Pedidos a revisar</em></div>
-      <table className="lp-tabela">
-        <thead>
-          <tr><th>Pedido</th><th>Previsto</th><th>Cobrado</th><th>Diferença</th></tr>
-        </thead>
-        <tbody>
-          {AUDITADOS.map((linha, i) => (
-            <tr key={linha.pedido} className={i < visiveis ? "is-visivel" : ""}>
-              <td>{linha.pedido}<small>{linha.origem}</small></td>
-              <td>{linha.previsto}</td>
-              <td>{linha.cobrado}</td>
-              <td className={linha.bate ? "is-ok" : "is-alerta"}>{linha.diferenca}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div className="lp-tabela-scroll">
+        <table className="lp-tabela">
+          <thead>
+            <tr><th>Pedido</th><th>Previsto</th><th>Cobrado</th><th>Diferença</th></tr>
+          </thead>
+          <tbody>
+            {AUDITADOS.map((linha, i) => (
+              <tr key={linha.pedido} className={i < visiveis ? "is-visivel" : ""}>
+                <td>{linha.pedido}<small>{linha.origem}</small></td>
+                <td>{linha.previsto}</td>
+                <td>{linha.cobrado}</td>
+                <td className={linha.bate ? "is-ok" : "is-alerta"}>{linha.diferenca}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       <p className="lp-tabela-nota">Só entra na lista quando as duas pontas não fecham.</p>
     </div>
   );
