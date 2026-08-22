@@ -97,7 +97,8 @@ export function detectarAlerta(channels: CanalParaAlerta[]): AlertaCentral | nul
     .filter((x) => x.t.deltaPct != null);
   const queda = comTendencia.filter((x) => (x.t.deltaPct ?? 0) <= -15).sort((a, b) => (a.t.deltaPct ?? 0) - (b.t.deltaPct ?? 0))[0];
   if (queda) {
-    return { tom: "atencao", texto: `${queda.canal.name}: faturamento caiu ${percent(queda.t.deltaPct)} na semana (${money(queda.t.anteriores7, queda.canal.currency)} → ${money(queda.t.ultimos7, queda.canal.currency)}).`, href: queda.canal.href };
+    // "caiu" já é o sinal de negativo; percent() do valor absoluto evita o "−100%".
+    return { tom: "atencao", texto: `${queda.canal.name}: faturamento caiu ${percent(Math.abs(queda.t.deltaPct ?? 0))} na semana (${money(queda.t.anteriores7, queda.canal.currency)} → ${money(queda.t.ultimos7, queda.canal.currency)}).`, href: queda.canal.href };
   }
   const alta = comTendencia.filter((x) => (x.t.deltaPct ?? 0) >= 15).sort((a, b) => (b.t.deltaPct ?? 0) - (a.t.deltaPct ?? 0))[0];
   if (alta) {

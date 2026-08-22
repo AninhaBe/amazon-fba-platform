@@ -4211,13 +4211,7 @@ summary:hover { background: var(--paper-soft); }
    o grid de cartões; estado, conta, cobertura e ação passam a ser comparáveis. */
 .integrations-page { gap: 20px; }
 .integration-summary-band > div { min-height: 82px; }
-.integration-settings-layout { display: grid; grid-template-columns: 176px minmax(0, 1fr); overflow: hidden; border-radius: var(--radius-lg); background: var(--paper); box-shadow: var(--shadow-surface); }
-.integration-settings-nav { padding: 14px 12px; border-inline-end: 1px solid var(--ink-08); background: var(--paper-soft); }
-.integration-settings-nav p { margin: 0 0 5px; color: var(--ink-muted); font-size: 12px; font-weight: var(--weight-semibold); letter-spacing: .04em; text-transform: uppercase; }
-.integration-settings-nav p:not(:first-child) { margin-block-start: 18px; }
-.integration-settings-nav span { display: flex; min-height: 30px; align-items: center; border-radius: var(--radius-sm); padding-inline: 8px; color: var(--ink-soft); font-size: 12px; font-weight: var(--weight-medium); }
-.integration-settings-nav span[aria-current="page"] { background: var(--ink-05); color: var(--ink); box-shadow: inset 2px 0 var(--core); }
-.integration-settings-nav small { display: block; padding: 5px 8px 0; color: var(--ink-muted); font-size: 12px; line-height: 15px; }
+.integration-settings-layout { overflow: hidden; border-radius: var(--radius-lg); background: var(--paper); box-shadow: var(--shadow-surface); }
 .integration-provider-workspace { min-width: 0; }
 .integration-provider-workspace > .integration-section-heading { min-height: 68px; align-items: center; margin: 0; padding: 10px 14px; border-block-end: 1px solid var(--ink-08); }
 .integration-provider-workspace > .integration-section-heading h2 { margin-block-start: 1px; font-size: 16px; font-weight: var(--weight-semibold); line-height: 22px; }
@@ -4263,8 +4257,6 @@ summary:hover { background: var(--paper-soft); }
 }
 
 @media (max-width: 760px) {
-  .integration-settings-layout { grid-template-columns: 1fr; }
-  .integration-settings-nav { display: none; }
   .integration-provider-workspace > .integration-section-heading { align-items: flex-start; flex-direction: column; }
   .integration-provider-workspace > .integration-section-heading > p { text-align: start; }
   .integration-provider-list .integration-card { grid-template-columns: 1fr; }
@@ -4762,7 +4754,7 @@ summary:hover { background: var(--paper-soft); }
    Custos em degraus da mesma tinta, so o que sobra em cor. Ver a nota de
    cabecalho em `CompositionDonut.tsx` — a escolha de cor e o ponto do
    componente, nao um detalhe. */
-.composition-donut { display: flex; flex-wrap: wrap; align-items: center; gap: 24px; }
+.composition-donut { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
 .composition-donut-ring { position: relative; width: 140px; height: 140px; flex: none; }
 .composition-donut-ring svg { width: 140px; height: 140px; display: block; }
 
@@ -4790,10 +4782,10 @@ summary:hover { background: var(--paper-soft); }
 }
 .composition-donut-centro small { color: var(--ink-faint); font-size: 12px; font-variant-numeric: tabular-nums; }
 
-.composition-legenda { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 1px; list-style: none; margin: 0; padding: 0; }
+.composition-legenda { display: flex; min-width: 220px; flex: 1 1 220px; flex-direction: column; gap: 1px; list-style: none; margin: 0; padding: 0; }
 .composition-legenda li {
-  display: grid; grid-template-columns: 10px 1fr auto; align-items: center; gap: 8px;
-  min-height: var(--nav-item-h); padding-inline: 8px; border-radius: var(--radius-sm);
+  display: grid; grid-template-columns: 10px minmax(0, 1fr) max-content; align-items: center; gap: 8px;
+  min-height: var(--nav-item-h); padding: 5px 8px; border-radius: var(--radius-sm);
   cursor: default; transition: background-color var(--duration) var(--ease), opacity var(--duration) var(--ease);
 }
 .composition-legenda li:hover { background: var(--ink-03); }
@@ -4803,8 +4795,8 @@ summary:hover { background: var(--paper-soft); }
 .composition-ponto { width: 10px; height: 10px; border-radius: 3px; }
 .composition-ponto.is-remainder { background: var(--positive); }
 .composition-ponto.is-remainder.is-loss { background: var(--danger); }
-.composition-legenda-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.composition-legenda-valor { color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.composition-legenda-label { min-width: 0; line-height: 16px; overflow-wrap: break-word; }
+.composition-legenda-valor { color: var(--ink-soft); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 @media (max-width: 560px) { .composition-donut { gap: 16px; } }
 

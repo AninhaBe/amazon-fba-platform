@@ -134,15 +134,6 @@ export default function IntegracoesPage() {
       </section>
 
       <section className="integration-settings-layout" aria-labelledby="channels-title">
-        <aside className="integration-settings-nav" aria-label="Seções de integração">
-          <p>Configurações</p>
-          <span aria-current="page">Canais de venda</span>
-          <small>Conecte, acompanhe e corrija o acesso de cada marketplace.</small>
-          <p>Como funciona</p>
-          <span>Modelo comum</span>
-          <small>Os dados permanecem separados por conta e comparáveis no consolidado.</small>
-        </aside>
-
         <div className="integration-provider-workspace">
           <header className="integration-section-heading">
             <div>
