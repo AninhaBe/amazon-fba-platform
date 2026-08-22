@@ -4336,6 +4336,7 @@ summary:hover { background: var(--paper-soft); }
 .privacy-page { width: min(1120px, 100%); margin-inline: auto; padding: 24px clamp(18px, 4vw, 44px) 40px; color: var(--ink); }
 .privacy-header { display: grid; grid-template-columns: 180px minmax(0, 1fr) auto; min-height: 122px; align-items: center; gap: 28px; border-block-end: 1px solid var(--ink-08); }
 .privacy-header > a:first-child { justify-self: start; color: inherit; text-decoration: none; }
+.privacy-header .nexo-letter { font-size: 30px; text-shadow: 0 1px 0 oklch(1 0 0 / .9), 0 1px 2px oklch(0.24 0 0 / .18); }
 .privacy-header > div > p { color: var(--ink-muted); font-size: 12px; font-weight: var(--weight-semibold); letter-spacing: .06em; text-transform: uppercase; }
 .privacy-header h1 { margin-block-start: 3px; font-size: clamp(24px, 3vw, 34px); font-weight: var(--weight-semibold); letter-spacing: var(--track-xl); line-height: 1.1; }
 .privacy-header > div > span { display: block; margin-block-start: 7px; color: var(--ink-muted); font-size: 12px; }
