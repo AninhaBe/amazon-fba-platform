@@ -44,11 +44,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       // A preferência é um aprimoramento; a navegação não depende do storage.
     }
   }, [sidebarCollapsed]);
-  // Login e landing não usam a casca do app: a landing é a porta de entrada e
-  // não pode aparecer com o menu lateral de quem já está logado. `/lab` é o
-  // laboratório de protótipos — ele desenha o próprio menu, e a casca por fora
-  // deixaria dois menus laterais na tela.
-  if (pathname.startsWith("/login") || pathname.startsWith("/landing") || pathname.startsWith("/lab")) return <>{children}</>;
+  // As rotas públicas não usam a casca autenticada. Manter esta lista coerente
+  // com `publicPaths` do proxy evita, por exemplo, uma política pública com a
+  // sidebar e o seletor da conta de quem já estiver logado. `/lab` desenha a
+  // própria navegação em desenvolvimento.
+  if (
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/landing") ||
+    pathname.startsWith("/privacidade") ||
+    pathname.startsWith("/lab")
+  ) return <>{children}</>;
   return (
     <div className="app-shell flex min-h-screen" data-channel={workspace}>
       <SidebarNexo workspace={workspace} collapsed={sidebarCollapsed} />

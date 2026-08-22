@@ -534,8 +534,8 @@ cada ciclo; herdar o shell não significa que o corpo de uma rota foi adaptado.
 | `/mercado-livre/calculadora` | Ferramenta de decisão | consulta de anúncio, tarifas, frete, imposto, ads, outros custos, margem-alvo e comparação Clássico/Premium | painel de entradas à esquerda → resultado/recomendação à direita → breakdown progressivo | validada no navegador | dez entradas, imposto configurado, placeholder explicativo e responsividade estrutural validados no Chrome sem disparar consulta externa |
 | `/integracoes` | Configurações | conectar/reconectar/desconectar canais, status, contas, capacidades e explicação do modelo multicanal | navegação por assunto → resumo contínuo → lista comparável de provedores com estado/conta/cobertura/ação → explicação compacta do modelo comum | validada no navegador | duas contas e quatro provedores validados no Chrome; estados conectado/disponível e ações OAuth preservados, sem conectar ou desconectar contas |
 | `/landing` | Entrada pública | proposta de valor, canais, benefícios, demonstração financeira e entradas para autenticação | hero/grid/navegação e primeira dobra inspirados na Dub + vitrine composta por `Metric`, `AnimatedNumber`, `RevenueChart`, `CompositionDonut`, ícones e estados reais do sistema NEXO | validada no navegador | amostra local identificada, troca automática/manual 15/30 dias, três abas, métricas animadas, gráfico explorável e donut validados no Chrome; comparação desktop lado a lado com Dub e viewport móvel 390×844 sem overflow de documento concluídos |
-| `/login` | Autenticação | login, erro, retorno e acesso à política de privacidade | ainda não consolidado com o sistema NEXO | analisada | redesenhar sem alterar auth, redirects, validação ou mensagens de segurança |
-| `/privacidade` | Conteúdo legal | política e navegação de retorno | ainda não consolidado com o sistema NEXO | analisada | melhorar leitura e responsividade sem alterar o conteúdo jurídico |
+| `/login` | Autenticação | login, criação de conta, validação, erro, retorno e acesso à política de privacidade | contexto de segurança → garantias do workspace → formulário compacto com tabs locais; símbolo oficial lidera a assinatura e o nome fica secundário | validada no navegador | desktop e mobile 390×844 sem overflow ou sobreposição; troca Entrar/Criar conta confirmada sem enviar credenciais |
+| `/privacidade` | Conteúdo legal | política, âncoras por assunto e navegação de retorno | rota pública autônoma → cabeçalho compacto → índice lateral/sticky que vira trilho horizontal no mobile → texto legal de medida curta | validada no navegador | shell autenticado removido; conteúdo jurídico preservado e desktop/mobile validados sem erro de página |
 | `/mercado-livre/vendas` | Compatibilidade | redirecionamento permanente para o monitor | redirecionamento preservado | implementada | validar o redirecionamento no Chrome; não criar tela duplicada |
 
 As rotas de entrada e legais agora fazem parte do redesign completo. `/lab/*`
@@ -555,7 +555,7 @@ ser reabertos sem uma dúvida concreta.
 - [ ] Concluir a validação preenchida dos módulos TikTok no Chrome. A loja
   Crystal Fancy permite validar essas rotas; Shopee preenchida permanece lacuna
   explícita porque não há loja conectada.
-- [ ] Revisar e redesenhar `/landing`, `/login` e `/privacidade`, preservando
+- [x] Revisar e redesenhar `/landing`, `/login` e `/privacidade`, preservando
   autenticação, redirects, segurança e conteúdo legal.
 - [ ] Revalidar os estados preenchidos hoje bloqueados por dependência externa:
   estoque Amazon (`/api/radar`), Brand Analytics em `/desempenho` e resultado da

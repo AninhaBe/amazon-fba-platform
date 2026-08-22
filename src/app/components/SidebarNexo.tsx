@@ -8,6 +8,7 @@ import { MarketplaceIcon } from "./MarketplaceIcon";
 import { NavLinks } from "./Nav";
 import { LogoutButton } from "./LogoutButton";
 import { AccountSwitcher } from "./AccountSwitcher";
+import { NexoSymbol } from "./NexoSymbol";
 
 /**
  * SIDEBAR ÚNICA — a estrutura de navegação do NEXO na anatomia medida em
@@ -79,12 +80,11 @@ export function SidebarNexo({ workspace, collapsed = false }: { workspace: Works
             aria-haspopup="menu"
             onClick={() => setAberto((v) => !v)}
           >
-            <strong>NEXO</strong>
-            <MarketplaceIcon
-              provider={workspace === "overview" ? "sellercore" : workspace}
-              size={15}
-              app
-            />
+            <NexoSymbol size={18} className="nexo-switcher-brand-symbol" />
+            <strong className="nexo-switcher-brand-name">NEXO</strong>
+            {workspace !== "overview" && (
+              <MarketplaceIcon provider={workspace} size={15} app />
+            )}
             <span className="nexo-switcher-channel">{NOME_CANAL[workspace]}</span>
             <svg className="nexo-switcher-chevron" viewBox="0 0 14 14" fill="none" aria-hidden>
               <path
