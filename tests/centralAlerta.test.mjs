@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { tendenciaSemanal, detectarAlerta } from "../src/lib/centralOverview.ts";
+import { tendenciaSemanal, detectarAlerta, leituraRapidaDosCanais } from "../src/lib/centralOverview.ts";
 
 const pts = (arr) => arr.map(([date, revenue]) => ({ date, revenue, orders: 0, units: 0 }));
 
@@ -54,4 +54,38 @@ test("queda de faturamento na semana vira alerta de atenção", () => {
 
 test("sem sinal nenhum, não inventa alerta", () => {
   assert.equal(detectarAlerta([canal({ unitsWithoutCost: 0 })]), null);
+});
+
+test("leitura rápida escolhe faturamento, alta e queda entre canais legíveis", () => {
+  const serie = (anterior, atual) => pts([
+    ...Array.from({ length: 7 }, (_, index) => [`2026-08-${String(index + 1).padStart(2, "0")}`, anterior]),
+    ...Array.from({ length: 7 }, (_, index) => [`2026-08-${String(index + 8).padStart(2, "0")}`, atual]),
+  ]);
+  const resumo = leituraRapidaDosCanais([
+    canal({ id: "amazon", name: "Amazon", revenue: 300, series: serie(10, 14) }),
+    canal({ id: "mercado_livre", name: "Mercado Livre", revenue: 500, series: serie(10, 8) }),
+    canal({ id: "shopee", name: "Shopee", revenue: 900, error: "sem leitura", series: serie(10, 30) }),
+    canal({ id: "tiktok_shop", name: "TikTok Shop", revenue: null, series: serie(10, 16) }),
+  ]);
+
+  assert.equal(resumo.maiorFaturamento?.name, "Mercado Livre");
+  assert.equal(resumo.maiorAlta?.canal.name, "TikTok Shop");
+  assert.equal(resumo.maiorAlta?.variacaoPct, 60);
+  assert.equal(resumo.maiorQueda?.canal.name, "Mercado Livre");
+  assert.equal(resumo.maiorQueda?.variacaoPct, -20);
+  assert.equal(resumo.canaisComFaturamento, 2);
+  assert.equal(resumo.canaisComTendencia, 3);
+});
+
+test("leitura rápida preserva zero conhecido e não inventa ritmo sem base", () => {
+  const resumo = leituraRapidaDosCanais([
+    canal({ revenue: 0, series: pts([["2026-08-14", 0]]) }),
+    canal({ id: "shopee", name: "Shopee", connected: false, revenue: 999 }),
+  ]);
+
+  assert.equal(resumo.maiorFaturamento?.revenue, 0);
+  assert.equal(resumo.canaisComFaturamento, 1);
+  assert.equal(resumo.canaisComTendencia, 0);
+  assert.equal(resumo.maiorAlta, null);
+  assert.equal(resumo.maiorQueda, null);
 });

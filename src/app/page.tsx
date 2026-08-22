@@ -9,13 +9,44 @@ import { MarketplaceIcon } from "./components/MarketplaceIcon";
 import { Metric } from "./components/Metric";
 import { RevenueChart, type DailyPoint } from "./components/RevenueChart";
 import { brTime } from "@/lib/datetime";
-import { tendenciaSemanal, detectarAlerta, margemDoCanal, percent } from "@/lib/centralOverview";
+import { tendenciaSemanal, detectarAlerta, leituraRapidaDosCanais, margemDoCanal, percent } from "@/lib/centralOverview";
 import { NexoMensagem } from "./components/NexoMensagem";
 import { gatherCentralChannels, type ChannelSnapshot } from "./centralChannels";
 
 function money(value: number | null, currency = "BRL") {
   if (value == null) return "Indisponível";
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(value);
+}
+
+function QuickReadItem({
+  label,
+  channel,
+  detail,
+  tone = "default",
+  emptyLabel,
+}: {
+  label: string;
+  channel: ChannelSnapshot | null;
+  detail?: string;
+  tone?: "default" | "positive" | "negative";
+  emptyLabel: string;
+}) {
+  return (
+    <div className={`central-quick-read-item is-${tone}`}>
+      <dt>{label}</dt>
+      <dd>
+        {channel ? (
+          <Link href={channel.href} aria-label={`${label}: ${channel.name}. Abrir canal`}>
+            <MarketplaceIcon provider={channel.id} size={18} />
+            <span><strong>{channel.name}</strong>{detail ? <small>{detail}</small> : null}</span>
+            <b aria-hidden="true">→</b>
+          </Link>
+        ) : (
+          <span className="central-quick-read-empty"><i aria-hidden="true">—</i><strong>{emptyLabel}</strong></span>
+        )}
+      </dd>
+    </div>
+  );
 }
 
 // Escopo de módulo: ao navegar para um canal e voltar, a central renderiza o
@@ -84,6 +115,7 @@ export default function OverviewDashboard() {
     return channels.find((channel) => channel.id === chartChannel)?.series ?? [];
   }, [chartChannel, channels, series]);
   const canaisComSerie = useMemo(() => channels.filter((channel) => channel.series?.length), [channels]);
+  const leituraRapida = useMemo(() => leituraRapidaDosCanais(channels), [channels]);
 
   // Monta o snapshot do que a central já calculou e pede a narração do dia. O
   // modelo só recebe números prontos — não consulta nada. Servidor cacheia por
@@ -164,18 +196,47 @@ export default function OverviewDashboard() {
 
         <section className="central-channel-section" aria-labelledby="channel-comparison-title">
           <div className="central-section-heading"><div><p className="section-kicker">Comparação por canal</p><h2 id="channel-comparison-title">Onde sua operação acontece</h2></div><p>Valores indisponíveis permanecem explícitos e nunca entram como zero no consolidado.</p></div>
-          <div className="channel-comparison-table" role="table" aria-label="Comparação de canais">
-            <div className="channel-comparison-head" role="row"><span role="columnheader">Canal</span><span role="columnheader">Faturamento conhecido</span><span role="columnheader">Pedidos</span><span role="columnheader">Resultado</span><span role="columnheader">Margem</span><span role="columnheader"><span className="sr-only">Ação</span></span></div>
-            {channels.map((channel) => (
-              <div key={channel.id} className={`channel-comparison-row is-${channel.id}`} role="row">
-                <div className="channel-comparison-identity" role="cell"><span aria-hidden="true"><MarketplaceIcon provider={channel.id} size={28} app /></span><div><strong>{channel.name}</strong><small>{channel.attention ? "Canal temporariamente indisponível" : !channel.connected ? "Aguardando conexão" : channel.error ? "Conectado, sem leitura" : channel.error || channel.note}</small></div><em className={`channel-health${channel.connected && !channel.error ? " is-connected" : ""}`}>{channel.attention ? "Atenção" : !channel.connected ? "Conectar" : channel.error ? "Atenção" : "Ativo"}</em></div>
-                <div className="channel-comparison-revenue" role="cell"><strong>{channel.connected && !channel.error ? money(channel.revenue, channel.currency) : "—"}</strong><span aria-label={`Participação relativa de ${channel.name}`}><i style={{ width: `${channel.connected ? ((channel.revenue ?? 0) / maxRevenue) * 100 : 0}%` }} /></span></div>
-                <div className="channel-comparison-number is-orders" role="cell"><strong>{channel.orders?.toLocaleString("pt-BR") ?? "—"}</strong><small>últimos 30 dias</small></div>
-                <div className="channel-comparison-number is-result" role="cell"><strong className={channel.profit == null ? undefined : channel.profit < 0 ? "is-negative" : "is-positive"}>{channel.connected ? money(channel.profit, channel.currency) : "—"}</strong><small>{channel.profitPartial ? "lucro parcial" : "lucro conhecido"}{channel.cancelled != null && channel.cancelled > 0 ? ` · ${money(channel.cancelled, channel.currency)} canceladas` : ""}</small></div>
-                <div className="channel-comparison-number is-margin" role="cell">{(() => { const m = margemDoCanal(channel); return <><strong className={m == null ? undefined : m < 0 ? "is-negative" : "is-positive"}>{channel.connected && m != null ? percent(m) : "—"}</strong><small>{channel.profitPartial ? "parcial" : "sobre faturamento"}</small></>; })()}</div>
-                <div className="channel-comparison-action" role="cell"><Link href={channel.connected && !channel.attention ? channel.href : "/integracoes"} aria-label={channel.attention ? `Revisar integração ${channel.name}` : channel.connected ? `Abrir ${channel.name}` : `Conectar ${channel.name}`} title={channel.attention ? "Revisar integração" : channel.connected ? `Abrir ${channel.name}` : `Conectar ${channel.name}`}>→</Link></div>
-              </div>
-            ))}
+          <div className="central-channel-layout">
+            <div className="channel-comparison-table" role="table" aria-label="Comparação de canais">
+              <div className="channel-comparison-head" role="row"><span role="columnheader">Canal</span><span role="columnheader">Faturamento conhecido</span><span role="columnheader">Pedidos</span><span role="columnheader">Resultado</span><span role="columnheader">Margem</span><span role="columnheader"><span className="sr-only">Ação</span></span></div>
+              {channels.map((channel) => (
+                <div key={channel.id} className={`channel-comparison-row is-${channel.id}`} role="row">
+                  <div className="channel-comparison-identity" role="cell"><span aria-hidden="true"><MarketplaceIcon provider={channel.id} size={28} app /></span><div><strong>{channel.name}</strong><small>{channel.attention ? "Canal temporariamente indisponível" : !channel.connected ? "Aguardando conexão" : channel.error ? "Conectado, sem leitura" : channel.error || channel.note}</small></div><em className={`channel-health${channel.connected && !channel.error ? " is-connected" : ""}`}>{channel.attention ? "Atenção" : !channel.connected ? "Conectar" : channel.error ? "Atenção" : "Ativo"}</em></div>
+                  <div className="channel-comparison-revenue" role="cell"><strong>{channel.connected && !channel.error ? money(channel.revenue, channel.currency) : "—"}</strong><span aria-label={`Participação relativa de ${channel.name}`}><i style={{ width: `${channel.connected ? ((channel.revenue ?? 0) / maxRevenue) * 100 : 0}%` }} /></span></div>
+                  <div className="channel-comparison-number is-orders" role="cell"><strong>{channel.orders?.toLocaleString("pt-BR") ?? "—"}</strong><small>últimos 30 dias</small></div>
+                  <div className="channel-comparison-number is-result" role="cell"><strong className={channel.profit == null ? undefined : channel.profit < 0 ? "is-negative" : "is-positive"}>{channel.connected ? money(channel.profit, channel.currency) : "—"}</strong><small>{channel.profitPartial ? "lucro parcial" : "lucro conhecido"}{channel.cancelled != null && channel.cancelled > 0 ? ` · ${money(channel.cancelled, channel.currency)} canceladas` : ""}</small></div>
+                  <div className="channel-comparison-number is-margin" role="cell">{(() => { const m = margemDoCanal(channel); return <><strong className={m == null ? undefined : m < 0 ? "is-negative" : "is-positive"}>{channel.connected && m != null ? percent(m) : "—"}</strong><small>{channel.profitPartial ? "parcial" : "sobre faturamento"}</small></>; })()}</div>
+                  <div className="channel-comparison-action" role="cell"><Link href={channel.connected && !channel.attention ? channel.href : "/integracoes"} aria-label={channel.attention ? `Revisar integração ${channel.name}` : channel.connected ? `Abrir ${channel.name}` : `Conectar ${channel.name}`} title={channel.attention ? "Revisar integração" : channel.connected ? `Abrir ${channel.name}` : `Conectar ${channel.name}`}>→</Link></div>
+                </div>
+              ))}
+            </div>
+
+            <aside className="central-quick-read" aria-labelledby="central-quick-read-title">
+              <header><p className="section-kicker">Leitura rápida</p><h3 id="central-quick-read-title">O que pede atenção</h3></header>
+              <dl>
+                <QuickReadItem
+                  label="Maior faturamento"
+                  channel={leituraRapida.maiorFaturamento}
+                  detail={leituraRapida.maiorFaturamento ? money(leituraRapida.maiorFaturamento.revenue, leituraRapida.maiorFaturamento.currency) : undefined}
+                  emptyLabel="Faturamento ainda desconhecido"
+                />
+                <QuickReadItem
+                  label="Maior ritmo"
+                  channel={leituraRapida.maiorAlta?.canal ?? null}
+                  detail={leituraRapida.maiorAlta ? `+${percent(leituraRapida.maiorAlta.variacaoPct)} na semana` : undefined}
+                  tone="positive"
+                  emptyLabel={leituraRapida.canaisComTendencia ? "Nenhuma alta medida" : "Sem duas semanas de base"}
+                />
+                <QuickReadItem
+                  label="Queda no período"
+                  channel={leituraRapida.maiorQueda?.canal ?? null}
+                  detail={leituraRapida.maiorQueda ? `${percent(leituraRapida.maiorQueda.variacaoPct)} na semana` : undefined}
+                  tone={leituraRapida.maiorQueda ? "negative" : "default"}
+                  emptyLabel={leituraRapida.canaisComTendencia ? "Nenhuma queda medida" : "Sem duas semanas de base"}
+                />
+              </dl>
+              <p>{totals.orders.toLocaleString("pt-BR")} pedidos conhecidos vistos como uma única operação.</p>
+            </aside>
           </div>
         </section>
 

@@ -115,7 +115,16 @@ interface DashboardPayload {
   covered: boolean;
   currency: string;
   /** Faturamento bruto do período — espelha o painel do canal (ADR-020). */
-  billing: { revenue: number; orders: number; ordersWithValue?: number };
+  billing: {
+    revenue: number;
+    orders: number;
+    ordersWithValue?: number;
+    /**
+     * Cupom resgatado no período — o que explica "Pedidos feitos" ser MAIOR que
+     * "Faturamento". `null` = período sem pedido conciliado, e a linha some.
+     */
+    coupon?: number | null;
+  };
   /**
    * Pedidos feitos, pela Sales API: inclui pendentes, EXCLUI cancelados, e
    * valoriza a preço de tabela (antes do cupom resgatado).
@@ -208,7 +217,7 @@ export default function Dashboard() {
   // Faturamento do período — o MESMO número que a central mostra. Antes o card
   // exibia a receita conciliada (subconjunto), e por isso três telas do produto
   // mostravam três valores diferentes de "faturamento" (20/08/2026).
-  const [faturamento, setFaturamento] = useState<{ revenue: number; orders: number; ordersWithValue?: number } | null>(null);
+  const [faturamento, setFaturamento] = useState<DashboardPayload["billing"] | null>(null);
   // O número que ela confere contra o Seller Central. Sem ele na tela, a conta
   // era feita à mão — e foi assim que apareceram os defeitos de 21/08.
   const [pedidosFeitos, setPedidosFeitos] = useState<{ revenue: number; orders: number; units: number; points: DailyPoint[] } | null>(null);
@@ -534,6 +543,21 @@ export default function Dashboard() {
           }
           loading={loading}
         />
+        {/*
+          CUPOM — a ponte entre os dois números acima. "Pedidos feitos" vem a
+          preço de tabela e "Faturamento" é o que o comprador pagou; sem esta
+          linha a diferença ficava sem nome na tela e ela conferia à mão contra o
+          Seller Central (22/08: R$ 449,94 lá contra R$ 455,01 aqui, em 15 dias).
+          Só aparece quando houve cupom — período sem resgate não ganha um card
+          de R$ 0,00 ocupando a faixa.
+        */}
+        {(faturamento?.coupon ?? 0) > 0 && (
+          <CompactMetric
+            label="Cupom resgatado"
+            value={`− ${money(faturamento?.coupon ?? 0, currency)}`}
+            loading={loading}
+          />
+        )}
         <CompactMetric label="Vendas" value={String(salesCount)} loading={loading} />
         <CompactMetric label="Unidades" value={String(unitsCount)} loading={loading} />
         <CompactMetric label="Ticket médio" value={money(ticketMedio, currency)} loading={loading} />
