@@ -235,6 +235,10 @@ export async function GET(req: NextRequest) {
         cancelled: {
           revenue: canonical.metrics.cancelledRevenue,
           orders: canonical.metrics.cancelledOrders,
+          // Cobertura: a Amazon zera o pedido ao cancelar, então só tem valor o
+          // que foi capturado ANTES (migrations/0010). Sem este número a tela
+          // apresenta soma parcial como se fosse total.
+          ordersWithValue: canonical.metrics.cancelledOrdersWithValue,
         },
         metrics: canonical.metrics,
         dailySales: canonical.dailySales,

@@ -63,6 +63,8 @@ export interface AmazonCanonicalOverview {
      * Exibir R$ 0,00 aí afirma "cancelar não custou nada" (AGENTS.md: null ≠ 0).
      */
     cancelledRevenue: number | null;
+    /** Quantos dos cancelados tem valor conhecido. Menor que cancelledOrders = soma parcial. */
+    cancelledOrdersWithValue: number;
     lastSaleAt: string | null;
   };
   /** Unidades vendidas por SKU no período — insumo da velocidade do radar. */
@@ -125,6 +127,7 @@ interface TotalsRow {
   paid_revenue: string | null;
   cancelled_revenue: string | null;
   cancelled_orders: number;
+  cancelled_with_value: number;
   currency: string | null;
   last_sale_at: Date | string | null;
 }
@@ -194,6 +197,12 @@ export async function getAmazonOverviewFromCanonical(period: Period): Promise<Am
               -- capturado antes do cancelamento (migrations/0010) é a única fonte.
               SUM(COALESCE(gross, ordered_gross)) FILTER (WHERE status = 'cancelled') AS cancelled_revenue,
               COUNT(*) FILTER (WHERE status = 'cancelled')::int AS cancelled_orders,
+              -- Quantos cancelados tem valor conhecido. Sem esta contagem a tela
+              -- soma o que capturou e apresenta como se fosse o total: medido em
+              -- 22/08/2026, uma conta tinha 160 cancelados e 1 com valor, e a soma
+              -- de R$ 89,70 seria lida como o valor dos 160. AGENTS.md: mostrar o
+              -- que foi capturado E dizer que esta parcial.
+              COUNT(COALESCE(gross, ordered_gross)) FILTER (WHERE status = 'cancelled')::int AS cancelled_with_value,
               MAX(occurred_at) FILTER (WHERE status = ANY($6::text[])) AS last_sale_at,
               MAX(currency) AS currency
          FROM workspace_channel_orders
@@ -419,6 +428,7 @@ export async function getAmazonOverviewFromCanonical(period: Period): Promise<Am
       paidOrders: totals.paid_orders,
       fbaOrders: totals.fba_orders,
       cancelledOrders: totals.cancelled_orders,
+      cancelledOrdersWithValue: totals.cancelled_with_value,
       revenue: Number(totals.paid_revenue ?? 0),
       // `?? 0` aqui era a violação: SUM() sobre valores nulos devolve NULL, e o
       // zero resultante virava "cancelaram e não custou nada" na tela.

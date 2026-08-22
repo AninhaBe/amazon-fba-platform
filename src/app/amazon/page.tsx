@@ -190,7 +190,7 @@ export default function Dashboard() {
   const [pedidosFeitos, setPedidosFeitos] = useState<{ revenue: number; orders: number; units: number; points: DailyPoint[] } | null>(null);
   // Canceladas entram no bruto (ADR-020); mostrar à parte é o que impede o número
   // de parecer inflado sem explicação — o ML já fazia, a Amazon não tinha.
-  const [canceladas, setCanceladas] = useState<{ revenue: number | null; orders: number } | null>(null);
+  const [canceladas, setCanceladas] = useState<{ revenue: number | null; orders: number; ordersWithValue?: number } | null>(null);
   const [profitabilityScope, setProfitabilityScope] = useState<ProfitabilityScope | undefined>(initialDash?.profitabilityScope);
   const [saldo, setSaldo] = useState<SaldoData | null>(null);
   const [profitabilityLoading, setProfitabilityLoading] = useState(!initialDash);
@@ -507,16 +507,30 @@ export default function Dashboard() {
         />
         <CompactMetric
           label="Canceladas"
-          // Valor nulo = a Amazon nunca expôs quanto valia (ela cancela a maioria
-          // ainda em `Pending`, e aí omite o `OrderTotal`). Mostrar "R$ 0,00 · 2"
-          // afirmava que dois cancelamentos não custaram nada; o certo é dizer o
-          // número de pedidos e admitir que o valor é desconhecido.
+          // A Amazon ZERA o pedido ao cancelar — some o OrderTotal, some a
+          // quantidade, some do orderMetrics. Testado nas quatro fontes em
+          // 22/08/2026. O valor só existe se foi capturado antes (migrations/0010,
+          // relatório ALL_ORDERS, que é a única fonte que precifica pendente).
+          //
+          // Daí os três estados, e o do meio é o que quase virou bug: com 160
+          // cancelados e 1 com valor, exibir só a soma afirmaria que os 160
+          // custaram R$ 89,70. Cobertura parcial tem que aparecer como parcial.
           value={
             canceladas
               ? canceladas.revenue === null
                 ? `${canceladas.orders} · valor não informado`
                 : `${money(canceladas.revenue, currency)} · ${canceladas.orders}`
               : "—"
+          }
+          hint={
+            canceladas && canceladas.orders > 0
+              ? canceladas.revenue === null
+                ? "A Amazon não informa o valor de pedido cancelado; o NEXO passa a capturar antes do cancelamento."
+                : canceladas.ordersWithValue !== undefined &&
+                    canceladas.ordersWithValue < canceladas.orders
+                  ? `Valor conhecido de ${canceladas.ordersWithValue} dos ${canceladas.orders} — o resto foi cancelado antes de o NEXO capturar.`
+                  : undefined
+              : undefined
           }
           tone={canceladas && canceladas.orders > 0 ? "danger" : "default"}
           loading={loading}
