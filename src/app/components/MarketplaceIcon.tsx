@@ -26,5 +26,5 @@ export function MarketplaceIcon({ provider, size = 24, className = "", app = fal
   if (app) {
     return <Image src={appSources[provider]} width={size} height={size} style={{ width: size, height: size }} alt="" aria-hidden="true" className={`marketplace-icon marketplace-app marketplace-app-${provider} ${className}`} />;
   }
-  return <Image src={sources[provider]} width={size} height={size} alt="" aria-hidden="true" className={`marketplace-icon marketplace-icon-${provider} ${className}`} />;
+  return <Image src={sources[provider]} width={size} height={size} style={{ width: size, height: size }} alt="" aria-hidden="true" className={`marketplace-icon marketplace-icon-${provider} ${className}`} />;
 }
