@@ -9,8 +9,8 @@ function AuthChannelFlow() {
   return (
     <div className="auth-channel-flow" aria-hidden="true">
       <div className="auth-flow-caption">
-        <span>Seus canais</span>
-        <span>Uma leitura operacional</span>
+        <span>Seus marketplaces</span>
+        <span>Uma operação</span>
       </div>
       <svg className="auth-flow-lines" viewBox="0 0 560 170" preserveAspectRatio="none">
         <path d="M82 28 C190 28 212 85 280 85" />
@@ -33,7 +33,7 @@ function AuthChannelFlow() {
       </div>
 
       <span className="auth-flow-runner"><NexoSymbol size={18} /></span>
-      <div className="auth-flow-outcome"><span>Decisão</span><strong>com contexto</strong></div>
+      <div className="auth-flow-outcome"><span>NEXO</span><strong>Conectando os pontos.</strong></div>
     </div>
   );
 }
@@ -44,13 +44,16 @@ export default function LoginPage() {
       <section className="auth-intro" aria-labelledby="auth-title">
         {/* Assinatura da marca. Trocar de volta é uma linha: <Logo />. */}
         <NexoWordmark className="mb-6" />
-        <p className="auth-kicker">Operação multicanal, acesso individual</p>
-        <h1 id="auth-title">Seus canais pertencem ao seu workspace.</h1>
-        <p>Amazon, Mercado Livre e os próximos canais ficam isolados por conta. Você só vê as integrações autorizadas por você.</p>
+        <p className="auth-kicker">Sua operação, conectada</p>
+        <h1 id="auth-title">Entre no lugar onde tudo começa a fazer sentido.</h1>
+        <div className="auth-intro-copy">
+          <p>Amazon, Mercado Livre, Shopee e TikTok Shop deixam de ser quatro histórias separadas.</p>
+          <p>No NEXO, vendas, margem, estoque e cobranças fazem parte da mesma operação.</p>
+        </div>
         <dl className="auth-assurance-list">
-          <div><dt>Isolamento</dt><dd>Dados separados por usuário e workspace</dd></div>
-          <div><dt>Autorização</dt><dd>Somente as lojas conectadas por você</dd></div>
-          <div><dt>Transparência</dt><dd>Dado ausente nunca aparece como zero</dd></div>
+          <div><dt>Todos os canais</dt><dd>Uma visão única do que está acontecendo.</dd></div>
+          <div><dt>Números com contexto</dt><dd>Não apenas quanto mudou. O que existe por trás.</dd></div>
+          <div><dt>Sem falso zero</dt><dd>Quando um dado não existe, o NEXO não inventa uma resposta.</dd></div>
         </dl>
         <AuthChannelFlow />
       </section>

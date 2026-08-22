@@ -42,8 +42,10 @@ export async function signIn(_state: AuthActionState, formData: FormData): Promi
 export async function signUp(_state: AuthActionState, formData: FormData): Promise<AuthActionState> {
   if (!supabaseConfigured()) return { message: "Configure as credenciais do Supabase no servidor." };
   const { email, password } = credentials(formData);
+  const passwordConfirmation = String(formData.get("password_confirmation") ?? "");
   const validation = validate(email, password);
   if (validation) return { message: validation };
+  if (password !== passwordConfirmation) return { message: "As senhas não coincidem." };
 
   const baseUrl = process.env.APP_BASE_URL || "http://localhost:3000";
   const supabase = await createClient();
