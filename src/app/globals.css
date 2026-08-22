@@ -4754,9 +4754,12 @@ summary:hover { background: var(--paper-soft); }
    Custos em degraus da mesma tinta, so o que sobra em cor. Ver a nota de
    cabecalho em `CompositionDonut.tsx` — a escolha de cor e o ponto do
    componente, nao um detalhe. */
-.composition-donut { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
-.composition-donut-ring { position: relative; width: 140px; height: 140px; flex: none; }
+.composition-donut { display: flex; flex-direction: column; align-items: stretch; gap: 16px; }
+.composition-donut-ring { position: relative; width: 140px; height: 140px; flex: none; align-self: center; }
 .composition-donut-ring svg { width: 140px; height: 140px; display: block; }
+.composition-donut.is-detailed .composition-donut-ring,
+.composition-donut.is-detailed .composition-donut-ring svg { width: 120px; height: 120px; }
+.composition-donut.is-detailed .composition-donut-centro { padding-inline: 13px; }
 
 .composition-arc {
   cursor: pointer;
@@ -4776,13 +4779,19 @@ summary:hover { background: var(--paper-soft); }
   font-size: 16px; font-weight: var(--weight-semibold); line-height: 20px;
   letter-spacing: var(--track-l); font-variant-numeric: tabular-nums;
 }
+.composition-donut-centro.is-cost strong,
+.composition-donut-centro.is-cost small { color: var(--danger); }
+.composition-donut-centro.is-positive strong,
+.composition-donut-centro.is-positive small { color: var(--positive); }
+.composition-donut-centro.is-pending strong,
+.composition-donut-centro.is-pending small { color: var(--warning); }
 .composition-donut-centro span {
   color: var(--ink-muted); font-size: 12px; line-height: 15px;
   overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
 }
-.composition-donut-centro small { color: var(--ink-faint); font-size: 12px; font-variant-numeric: tabular-nums; }
+.composition-donut-centro small { color: var(--ink); font-size: 12px; font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; }
 
-.composition-legenda { display: flex; min-width: 220px; flex: 1 1 220px; flex-direction: column; gap: 1px; list-style: none; margin: 0; padding: 0; }
+.composition-legenda { display: flex; width: 100%; min-width: 0; flex-direction: column; gap: 1px; list-style: none; margin: 0; padding: 0; }
 .composition-legenda li {
   display: grid; grid-template-columns: 10px minmax(0, 1fr) max-content; align-items: center; gap: 8px;
   min-height: var(--nav-item-h); padding: 5px 8px; border-radius: var(--radius-sm);
@@ -4790,13 +4799,16 @@ summary:hover { background: var(--paper-soft); }
 }
 .composition-legenda li:hover { background: var(--ink-03); }
 .composition-legenda li.is-active { background: var(--ink-05); }
-.composition-legenda li.is-dimmed { opacity: .4; }
+.composition-legenda li.is-dimmed { opacity: 1; }
 .composition-legenda li:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 .composition-ponto { width: 10px; height: 10px; border-radius: 3px; }
 .composition-ponto.is-remainder { background: var(--positive); }
 .composition-ponto.is-remainder.is-loss { background: var(--danger); }
 .composition-legenda-label { min-width: 0; line-height: 16px; overflow-wrap: break-word; }
-.composition-legenda-valor { color: var(--ink-soft); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.composition-legenda-valor { color: var(--ink); font-weight: var(--weight-medium); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.composition-legenda li.is-cost .composition-legenda-valor { color: var(--danger); }
+.composition-legenda li.is-remainder .composition-legenda-valor { color: var(--positive); }
+.composition-legenda li.is-pending .composition-legenda-valor { color: var(--warning); }
 
 @media (max-width: 560px) { .composition-donut { gap: 16px; } }
 

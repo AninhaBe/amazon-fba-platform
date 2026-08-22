@@ -49,12 +49,12 @@ const CIRC = 2 * Math.PI * RAIO;
 
 /** Degraus de tinta para os custos: do mais pesado ao mais leve. */
 const TONS_CUSTO = [
-  "var(--ink)",
-  "color-mix(in oklch, var(--ink) 74%, var(--paper))",
-  "color-mix(in oklch, var(--ink) 54%, var(--paper))",
-  "color-mix(in oklch, var(--ink) 38%, var(--paper))",
-  "color-mix(in oklch, var(--ink) 26%, var(--paper))",
-  "color-mix(in oklch, var(--ink) 16%, var(--paper))",
+  "color-mix(in oklch, var(--danger) 82%, var(--ink))",
+  "color-mix(in oklch, var(--danger) 72%, var(--paper))",
+  "color-mix(in oklch, var(--danger) 58%, var(--paper))",
+  "color-mix(in oklch, var(--danger) 46%, var(--paper))",
+  "color-mix(in oklch, var(--danger) 34%, var(--paper))",
+  "color-mix(in oklch, var(--danger) 24%, var(--paper))",
 ];
 
 export function CompositionDonut({
@@ -117,7 +117,7 @@ export function CompositionDonut({
   const centroTamanho = centroTexto.length > 14 ? styles.centerTight : centroTexto.length > 11 ? styles.centerCompact : "";
 
   return (
-    <div className="composition-donut">
+    <div className={`composition-donut${arcos.length > 2 ? " is-detailed" : ""}`}>
       <div className="composition-donut-ring">
         <svg viewBox="0 0 140 140" role="img" aria-label={`${totalLabel}: ${format(total)}`}>
           <circle cx="70" cy="70" r={RAIO} fill="none" stroke="var(--ink-05)" strokeWidth={ESPESSURA} />
@@ -144,7 +144,18 @@ export function CompositionDonut({
         {/* O centro é o que muda no hover — é ele que transforma o donut de
             enfeite em leitura: você passa o mouse e lê o número daquela fatia
             sem tirar o olho do anel. */}
-        <div className="composition-donut-centro" aria-live="polite">
+        <div
+          className={`composition-donut-centro${
+            destacado
+              ? destacado.isPending
+                ? " is-pending"
+                : destacado.isRemainder && !destacado.isLoss
+                  ? " is-positive"
+                  : " is-cost"
+              : ""
+          }`}
+          aria-live="polite"
+        >
           <strong className={`${styles.centerValue}${centroTamanho ? ` ${centroTamanho}` : ""}`}>{centroTexto}</strong>
           <span>{centroRotulo}</span>
           {centroPct && <small>{format(centroValor)}</small>}
@@ -155,7 +166,11 @@ export function CompositionDonut({
         {arcos.map((a) => (
           <li
             key={a.id}
-            className={`${ativo === a.id ? "is-active" : ""}${ativo && ativo !== a.id ? " is-dimmed" : ""}`.trim() || undefined}
+            className={[
+              ativo === a.id ? "is-active" : "",
+              ativo && ativo !== a.id ? "is-dimmed" : "",
+              a.isPending ? "is-pending" : a.isRemainder && !a.isLoss ? "is-remainder" : "is-cost",
+            ].filter(Boolean).join(" ")}
             tabIndex={0}
             aria-label={`${a.label}: ${format(a.value)}, ${(a.fracao * 100).toFixed(1).replace(".", ",")}%`}
             onMouseEnter={() => setAtivo(a.id)}
