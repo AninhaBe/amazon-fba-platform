@@ -4985,6 +4985,12 @@ summary:hover { background: var(--paper-soft); }
   display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between;
   gap: 16px 32px; padding-block: 4px 20px;
 }
+/* Narração do NEXO logo abaixo da frase calculada do resumo do canal. */
+.briefing-lead-nexo { display: grid; gap: 8px; margin-top: 14px; padding: 14px 16px; border-radius: var(--radius-lg); background: color-mix(in srgb, var(--core) 5%, var(--paper)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--core) 20%, transparent); }
+.briefing-lead-nexo-marca { justify-self: start; padding: 2px 8px; border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 10px; font-weight: var(--weight-bold); letter-spacing: 0.08em; }
+.briefing-lead-nexo p { color: var(--ink); font-size: 14px; line-height: 1.55; }
+.briefing-lead-nexo-cta { justify-self: start; display: inline-flex; align-items: center; gap: 4px; color: var(--core); font-size: 13px; font-weight: var(--weight-semibold); text-decoration: none; }
+.briefing-lead-nexo-cta:hover { text-decoration: underline; }
 .briefing-lead-texto { display: flex; min-width: 0; flex: 1 1 380px; flex-direction: column; gap: 4px; }
 .briefing-lead-texto h2 {
   font-size: 20px; font-weight: var(--weight-semibold); line-height: 28px;

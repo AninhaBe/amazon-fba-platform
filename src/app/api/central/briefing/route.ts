@@ -34,12 +34,26 @@ export async function POST(req: NextRequest) {
     // "briefing" = a matéria cheia (aba de briefing); "resumo" = a manchete curta
     // (Visão geral). Modos diferentes têm cache diário separado.
     const modo: ModoNarracao = (snapshot as { modo?: ModoNarracao }).modo === "briefing" ? "briefing" : "resumo";
+    // Escopo separa o cache: "geral" (Visão geral, cross-channel) não pode
+    // servir o mesmo texto que "amazon" (dashboard do canal). Só letras/dígitos.
+    const escopoBruto = (snapshot as { escopo?: string }).escopo ?? "geral";
+    const escopo = /^[a-z0-9_]{1,24}$/.test(escopoBruto) ? escopoBruto : "geral";
     // A data vem do servidor, não do cliente: o cache é por dia de Brasília.
     const dia = diaEmBrasilia();
-    const chave = `central-briefing:${modo}:${currentWorkspaceId()}:${dia}`;
-    const texto = await cached(chave, 24 * 60 * 60_000, () =>
-      narrarBriefing({ ...snapshot, data: dia }, modo)
-    );
-    return NextResponse.json({ texto: texto ?? null, gerado: texto != null });
+    const chave = `central-briefing:${modo}:${escopo}:${currentWorkspaceId()}:${dia}`;
+    // Só o texto real é cacheado. Resultado vazio (sem chave, erro transitório)
+    // vira throw DENTRO do cache — o helper descacheia em erro, então a próxima
+    // carga tenta de novo em vez de servir vazio o dia todo.
+    let texto: string | null = null;
+    try {
+      texto = await cached(chave, 24 * 60 * 60_000, async () => {
+        const t = await narrarBriefing({ ...snapshot, data: dia }, modo);
+        if (t == null) throw new Error("narração indisponível");
+        return t;
+      });
+    } catch {
+      texto = null;
+    }
+    return NextResponse.json({ texto, gerado: texto != null });
   });
 }

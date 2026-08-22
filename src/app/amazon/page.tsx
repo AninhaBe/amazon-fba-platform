@@ -396,6 +396,9 @@ export default function Dashboard() {
         lucro={profit?.estimatedProfit ?? null}
         loading={loading}
         format={(v) => money(v, currency)}
+        escopo="amazon"
+        canalNome="Amazon"
+        moeda={currency}
         // Uma pergunta, um lugar. As pendências de conta e de sincronização
         // vêm do hook; estoque crítico vem do radar já carregado nesta tela.
         acoes={[
