@@ -14,7 +14,7 @@ import { AnimatedNumber } from "../components/AnimatedNumber";
 import { OrderProfitabilityTable } from "../components/OrderProfitabilityTable";
 import { ConnectionBroken, isBrokenConnection } from "../components/ConnectionBroken";
 import { TopProductsRanking } from "../components/TopProductsRanking";
-import { CompositionDonut } from "../components/CompositionDonut";
+import { buildFinancialComposition, FinancialSummaryPanel } from "../components/FinancialSummaryPanel";
 import { BriefingLead } from "../components/BriefingLead";
 import { IntegrationDashboardFrame } from "../components/IntegrationDashboardFrame";
 
@@ -117,8 +117,19 @@ interface DashboardPayload {
   /** Faturamento bruto do período — espelha o painel do canal (ADR-020). */
   billing: { revenue: number; orders: number };
   /**
-   * Pedidos feitos, do jeito que o Seller Central conta: inclui pendentes e
-   * cancelados. `null` = a Sales API não respondeu; omitir é melhor que zerar.
+   * Pedidos feitos, pela Sales API: inclui pendentes, EXCLUI cancelados, e
+   * valoriza a preço de tabela (antes do cupom resgatado).
+   *
+   * Medido em 22/08/2026, janela de 30 dias — `orderMetrics` e o relatório
+   * All Orders devolvem o mesmo R$ 449,94, decomposto assim:
+   *   360,99 pago pelos 14 enviados + 16,83 de cupom + 72,12 dos 3 pendentes.
+   * O Seller Central mostra R$ 516,27 porque soma também os 2 cancelados
+   * (R$ 66,33) — e esse valor a Amazon NÃO devolve em nenhuma API: pedido
+   * cancelado vem com `quantity 0` e preço vazio no relatório e no
+   * `getOrderItems`. Por isso a paridade com o Seller Central é impossível,
+   * não é defeito nosso. Ver docs/api-amazon-sp-api.md.
+   *
+   * `null` = a Sales API não respondeu; omitir é melhor que zerar.
    */
   ordered: { revenue: number; orders: number; units: number; points: DailyPoint[] } | null;
   /**
@@ -470,8 +481,8 @@ export default function Dashboard() {
       <div className="secondary-metrics" aria-label="Indicadores complementares">
         {/*
           Os dois números lado a lado, cada um com nome próprio.
-          "Confirmado" é o que já virou venda aprovada; "Pedidos feitos" é o que a
-          Amazon conta no Seller Central, com pendentes e cancelados dentro.
+          "Confirmado" é o que o comprador já pagou; "Pedidos feitos" é o que a
+          Sales API conta — pendente entra, cancelado não, e a preço de tabela.
           Antes a tela mostrava só o primeiro, sem dizer que era só o primeiro — e
           conferir a diferença exigia somar pedido a pedido no painel da Amazon.
         */}
@@ -482,7 +493,7 @@ export default function Dashboard() {
               ? `${money(pedidosFeitos.revenue, currency)} · ${pedidosFeitos.orders}`
               : "—"
           }
-          hint="Como no Seller Central: inclui pendentes e cancelados"
+          hint="Inclui pendentes, a preço de tabela. Cancelados ficam de fora — a Amazon não informa o valor deles."
           loading={loading}
         />
         <CompactMetric label="Vendas" value={String(salesCount)} loading={loading} />
@@ -548,57 +559,39 @@ export default function Dashboard() {
           )}
         </div>
 
-        <aside className="financial-composition" aria-label="Financeiro conciliado do período">
-          <div>
-            <p className="section-kicker">Financeiro conciliado</p>
-            <h2 className="mt-1 text-lg font-semibold text-[var(--ink)]">Repasses, taxas e {costsIncomplete ? "resultado" : "lucro"}</h2>
-            <p className="mt-1 text-xs leading-relaxed text-[var(--ink-muted)]">Base dos repasses da Amazon (data de postagem) — difere do faturamento acima, que segue a data do pedido como o Seller Central.</p>
-            {conciliacao && !conciliacao.complete && (
-              // Regra do AGENTS.md: dado parcial DIZ que é parcial. Sem esta faixa,
-              // esta seção mostrava R$ 10 mil ao lado de um faturamento de R$ 35 mil
-              // sem nenhuma pista de que a conciliação ainda estava correndo.
-              <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
-                Conciliação parcial: {conciliacao.processedOrders} de {conciliacao.paidOrders} pedidos
-                pagos já conciliados. Os valores desta seção ainda sobem — compare com o
-                faturamento só quando a conciliação terminar.
-              </p>
-            )}
-          </div>
-          {!loading && !hasFinance ? (
+        <FinancialSummaryPanel
+          complete={!costsIncomplete && conciliacao?.complete !== false}
+          labelledBy="amazon-financial-summary-title"
+          description={(
+            <>
+              <span>Base dos repasses da Amazon (data de postagem) — difere do faturamento acima, que segue a data do pedido como o Seller Central.</span>
+              {conciliacao && !conciliacao.complete ? (
+                <span className="mt-2 block rounded-md bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
+                  Conciliação parcial: {conciliacao.processedOrders} de {conciliacao.paidOrders} pedidos pagos já conciliados. Os valores desta seção ainda sobem — compare com o faturamento só quando a conciliação terminar.
+                </span>
+              ) : null}
+            </>
+          )}
+          total={loading ? 0 : faturamentoConciliado}
+          totalLabel="Faturamento conciliado"
+          format={(value) => money(value, currency)}
+          slices={buildFinancialComposition({
+            total: faturamentoConciliado,
+            costs: [
+              ...(profit?.finance.feeBreakdown ?? []).map((fee) => ({ id: fee.type, label: nomeDaTarifa(fee.type), value: fee.amount })),
+              { id: "cogs", label: "Custo dos produtos", value: costsIncomplete ? null : profit?.cogs },
+            ],
+            result: costsIncomplete ? null : profit?.estimatedProfit,
+          })}
+          empty={!loading && !hasFinance ? (
             // Sem transação postada não há cascata: zerar receita, taxas e lucro
             // faria a tela afirmar que a venda não rendeu nada.
             <p className="text-sm leading-relaxed text-[var(--ink-muted)]">
               A Amazon ainda não postou repasse deste período. As vendas já aparecem no faturamento
               (data do pedido); taxas e lucro entram aqui quando o pedido é postado e liquidado.
             </p>
-          ) : (
-            <div className="financial-lines">
-              {/* O donut ABRE a cascata em vez de repeti-la. A cascata diz
-                  QUANTO foi cada custo; ele diz QUAL está comendo a operação —
-                  proporção que, numa coluna de números, a pessoa só descobre
-                  dividindo de cabeça. Só aparece com repasse conciliado; sem
-                  isso desenharia um anel de suposição. */}
-              {!loading && faturamentoConciliado > 0 && (
-                <CompositionDonut
-                  total={faturamentoConciliado}
-                  totalLabel="Faturamento conciliado"
-                  format={(v) => money(v, currency)}
-                  slices={[
-                    ...(profit?.finance.feeBreakdown ?? []).map((t) => ({
-                      id: t.type,
-                      label: nomeDaTarifa(t.type),
-                      value: Math.abs(t.amount),
-                    })),
-                    { id: "cogs", label: "Custo dos produtos", value: profit?.cogs ?? 0 },
-                    {
-                      id: "lucro",
-                      label: (profit?.estimatedProfit ?? 0) >= 0 ? "Lucro estimado" : "Prejuízo",
-                      value: Math.abs(profit?.estimatedProfit ?? 0),
-                      isRemainder: true,
-                    },
-                  ]}
-                />
-              )}
+          ) : undefined}
+        >
               {/* O cupom é dedução de verdade — sai do bolso dela e merece o "−",
                   como qualquer custo. Mas `revenue` já vem líquido dele, então
                   descontá-lo do líquido contaria duas vezes. A cascata parte do
@@ -645,9 +638,7 @@ export default function Dashboard() {
                         : "default"}
                 />
               )}
-            </div>
-          )}
-        </aside>
+        </FinancialSummaryPanel>
       </section>
 
       {/* O ranking ocupa a mesma posição em todos os canais: depois da leitura

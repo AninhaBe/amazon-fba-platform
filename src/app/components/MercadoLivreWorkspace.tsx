@@ -12,7 +12,7 @@ import { OrderProfitabilityTable } from "./OrderProfitabilityTable";
 import { ConnectionBroken, isBrokenConnection } from "./ConnectionBroken";
 import { CustomizableMetricGrid } from "./CustomizableMetricGrid";
 import { CompactMetric, Flow, FlowExpandable, Metric, getRevenueTrend } from "./Metric";
-import { CompositionDonut } from "./CompositionDonut";
+import { buildFinancialComposition, FinancialSummaryPanel } from "./FinancialSummaryPanel";
 import { brDate, brTime } from "@/lib/datetime";
 import type { ProfitabilityLine } from "@/lib/profitability";
 import { MercadoLivreSaldo } from "./MercadoLivreSaldo";
@@ -283,23 +283,32 @@ function Dashboard({ overview, syncStatus, periodoLabel }: { overview: Overview;
         </div>
         <RevenueChart points={overview.dailySales} currency={overview.metrics.currency} explorable />
       </div>
-      <aside className="financial-composition" aria-label="Resumo do resultado financeiro">
-        <div><p className="section-kicker">Resultado do período</p><h2 className="mt-1 text-lg font-semibold text-[var(--ink)]">Do faturamento ao lucro</h2><p className="mt-1 text-xs leading-relaxed text-[var(--ink-muted)]">{profitCoverage.complete ? "Valores efetivamente identificados no período." : `Detalhamento processado em ${profitCoverage.processedOrders} de ${profitCoverage.paidOrders} vendas.`}</p></div>
-        <div className="financial-lines">
-          {!resultIncomplete && overview.profit.revenueProcessed > 0 ? (
-            <CompositionDonut
-              total={overview.profit.revenueProcessed}
-              totalLabel="Receita processada"
-              format={(value) => money(value, overview.metrics.currency)}
-              slices={[
-                { id: "fees", label: "Taxas do canal", value: overview.profit.fees },
-                { id: "shipping", label: "Frete do vendedor", value: overview.profit.sellerShipping },
-                { id: "cogs", label: "Custo dos produtos", value: overview.profit.cogs },
-                { id: "taxes", label: "Impostos", value: overview.profit.taxes ?? 0 },
-                { id: "profit", label: overview.profit.estimatedProfit >= 0 ? "Lucro estimado" : "Prejuízo", value: Math.abs(overview.profit.estimatedProfit), isRemainder: true },
-              ]}
-            />
-          ) : null}
+      <FinancialSummaryPanel
+        complete={!resultIncomplete}
+        labelledBy="meli-financial-summary-title"
+        description={profitCoverage.complete ? "Valores efetivamente identificados no período." : `Detalhamento processado em ${profitCoverage.processedOrders} de ${profitCoverage.paidOrders} vendas.`}
+        total={overview.profit.revenueProcessed}
+        totalLabel="Receita processada"
+        format={(value) => money(value, overview.metrics.currency)}
+        slices={buildFinancialComposition({
+          total: overview.profit.revenueProcessed,
+          costs: [
+            { id: "fees", label: "Taxas do Mercado Livre", value: overview.profit.fees },
+            { id: "shipping", label: "Frete do vendedor", value: overview.profit.sellerShipping },
+            { id: "cogs", label: "Custo dos produtos", value: overview.profit.cogs },
+            { id: "taxes", label: "Impostos", value: overview.profit.taxes },
+          ],
+          result: resultIncomplete ? null : overview.profit.estimatedProfit,
+        })}
+        footer={(
+          <>
+            <Link href="/mercado-livre/monitor" className="meli-financial-link">Ver composição completa no monitor <span aria-hidden="true">→</span></Link>
+            <Link href="/mercado-livre/produtos" className="meli-financial-link">Configurar custos e imposto <span aria-hidden="true">→</span></Link>
+            {overview.profit.unitsWithoutCost > 0 && <p className="text-xs leading-relaxed text-amber-700">{overview.profit.unitsWithoutCost} unidade(s) vendida(s) ainda estão sem custo cadastrado.</p>}
+            {!profitCoverage.complete && <p className="text-xs leading-relaxed text-amber-700">O NEXO mostra somente os valores já capturados e não extrapola o lucro enquanto o histórico, as tarifas e os fretes não estiverem completos.</p>}
+          </>
+        )}
+      >
           <Flow label={profitCoverage.complete ? "Receita paga" : "Receita processada"} value={money(overview.profit.revenueProcessed, overview.metrics.currency)} />
           <FlowExpandable
             label="Custos do canal e do produto"
@@ -314,12 +323,13 @@ function Dashboard({ overview, syncStatus, periodoLabel }: { overview: Overview;
             ]}
           />
           <Flow label={resultIncomplete ? "Lucro indisponível" : "Lucro estimado"} value={resultIncomplete ? "—" : money(overview.profit.estimatedProfit, overview.metrics.currency)} sign="=" accent tone={resultIncomplete ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
-        </div>
-        <Link href="/mercado-livre/monitor" className="meli-financial-link">Ver composição completa no monitor <span aria-hidden="true">→</span></Link>
-        <Link href="/mercado-livre/produtos" className="meli-financial-link">Configurar custos e imposto <span aria-hidden="true">→</span></Link>
-        {overview.profit.unitsWithoutCost > 0 && <p className="text-xs leading-relaxed text-amber-700">{overview.profit.unitsWithoutCost} unidade(s) vendida(s) ainda estão sem custo cadastrado.</p>}
-        {!profitCoverage.complete && <p className="text-xs leading-relaxed text-amber-700">O NEXO mostra somente os valores já capturados e não extrapola o lucro enquanto o histórico, as tarifas e os fretes não estiverem completos.</p>}
-      </aside>
+          <Flow
+            label="Margem"
+            value={resultIncomplete ? "—" : percent(overview.profit.marginPct)}
+            accent
+            tone={resultIncomplete ? "default" : overview.profit.marginPct > 0 ? "positive" : overview.profit.marginPct < 0 ? "danger" : "default"}
+          />
+      </FinancialSummaryPanel>
     </section>
 
     {overview.topProducts.length === 0 ? <Empty>Sem vendas no período para ranquear.</Empty> : <TopProductsRanking products={overview.topProducts.map((product) => ({ sku: product.sku || product.id, title: product.title, units: product.units, revenue: product.revenue, marginPct: product.marginPct }))} currency={overview.metrics.currency} productsHref="/mercado-livre/produtos" />}

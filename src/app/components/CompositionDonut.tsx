@@ -8,6 +8,10 @@ export interface CompositionSlice {
   value: number;
   /** Verdadeiro só para o que SOBRA. Todo o resto é dinheiro que saiu. */
   isRemainder?: boolean;
+  /** Resultado negativo: usa o acento de perigo, nunca o verde de lucro. */
+  isLoss?: boolean;
+  /** Saldo ainda sem classificação; não é custo confirmado nem lucro. */
+  isPending?: boolean;
 }
 
 /**
@@ -69,7 +73,8 @@ export function CompositionDonut({
     () => slices.filter((s) => s.value > 0).sort((a, b) => {
       // O que sobra vai por último no anel, independente do tamanho: a leitura
       // é "saiu, saiu, saiu, sobrou isto".
-      if (a.isRemainder !== b.isRemainder) return a.isRemainder ? 1 : -1;
+      const rank = (slice: CompositionSlice) => slice.isRemainder ? 2 : slice.isPending ? 1 : 0;
+      if (rank(a) !== rank(b)) return rank(a) - rank(b);
       return b.value - a.value;
     }),
     [slices],
@@ -87,7 +92,16 @@ export function CompositionDonut({
     (acc, s, i) => {
       const fracao = s.value / base;
       const offset = acc.length === 0 ? 0 : acc[acc.length - 1].offset + acc[acc.length - 1].fracao;
-      acc.push({ ...s, fracao, offset, tom: s.isRemainder ? null : TONS_CUSTO[Math.min(i, TONS_CUSTO.length - 1)] });
+      acc.push({
+        ...s,
+        fracao,
+        offset,
+        tom: s.isRemainder
+          ? null
+          : s.isPending
+            ? "var(--ink-12)"
+            : TONS_CUSTO[Math.min(i, TONS_CUSTO.length - 1)],
+      });
       return acc;
     },
     [],
@@ -110,7 +124,7 @@ export function CompositionDonut({
               cy="70"
               r={RAIO}
               fill="none"
-              className={`composition-arc${a.isRemainder ? " is-remainder" : ""}${ativo === a.id ? " is-active" : ""}${ativo && ativo !== a.id ? " is-dimmed" : ""}`}
+              className={`composition-arc${a.isRemainder ? " is-remainder" : ""}${a.isLoss ? " is-loss" : ""}${a.isPending ? " is-pending" : ""}${ativo === a.id ? " is-active" : ""}${ativo && ativo !== a.id ? " is-dimmed" : ""}`}
               stroke={a.tom ?? undefined}
               strokeWidth={ESPESSURA}
               strokeDasharray={`${a.fracao * CIRC} ${CIRC}`}
@@ -146,7 +160,7 @@ export function CompositionDonut({
             onBlur={() => setAtivo(null)}
           >
             <span
-              className={`composition-ponto${a.isRemainder ? " is-remainder" : ""}`}
+              className={`composition-ponto${a.isRemainder ? " is-remainder" : ""}${a.isLoss ? " is-loss" : ""}${a.isPending ? " is-pending" : ""}`}
               style={a.tom ? { background: a.tom } : undefined}
               aria-hidden="true"
             />

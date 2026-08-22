@@ -4707,6 +4707,7 @@ summary:hover { background: var(--paper-soft); }
   transition: opacity var(--duration) var(--ease), stroke-width var(--duration) var(--ease);
 }
 .composition-arc.is-remainder { stroke: var(--positive); }
+.composition-arc.is-remainder.is-loss { stroke: var(--danger); }
 .composition-arc.is-active { stroke-width: 17; }
 .composition-arc.is-dimmed { opacity: .28; }
 
@@ -4737,6 +4738,7 @@ summary:hover { background: var(--paper-soft); }
 .composition-legenda li:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 .composition-ponto { width: 10px; height: 10px; border-radius: 3px; }
 .composition-ponto.is-remainder { background: var(--positive); }
+.composition-ponto.is-remainder.is-loss { background: var(--danger); }
 .composition-legenda-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .composition-legenda-valor { color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 

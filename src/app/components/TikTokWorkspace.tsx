@@ -13,7 +13,7 @@ import { RevenueChart } from "./RevenueChart";
 import { TopProductsRanking } from "./TopProductsRanking";
 import { BriefingLead } from "./BriefingLead";
 import { IntegrationDashboardFrame } from "./IntegrationDashboardFrame";
-import { CompositionDonut } from "./CompositionDonut";
+import { buildFinancialComposition, FinancialSummaryPanel } from "./FinancialSummaryPanel";
 import { ConnectionBroken } from "./ConnectionBroken";
 import { ChannelConnectionEmpty } from "./ChannelConnectionEmpty";
 import { brDate } from "@/lib/datetime";
@@ -173,6 +173,8 @@ export function TikTokWorkspace() {
     : null;
   const historicalBacklog = historicalBacklogDescription(data.coverage);
   const currency = data.overview.currency;
+  const capturedRevenue = data.overview.revenue ?? 0;
+  const formatMoney = (value: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(value);
   return (
     <IntegrationDashboardFrame
       className="channel-dashboard tiktok-dashboard-page"
@@ -222,44 +224,43 @@ export function TikTokWorkspace() {
             <div className="mb-2 flex flex-wrap items-baseline justify-between gap-3"><div><p className="section-kicker">Desempenho diário</p><h2 id="tiktok-performance-title" className="mt-1 text-lg font-semibold text-[var(--ink)]">Evolução do faturamento operacional</h2></div><span className="text-xs text-[var(--ink-muted)]">Valores de pedidos do período; não substituem o ledger financeiro.</span></div>
             <RevenueChart points={data.dailySeries ?? []} currency={currency} explorable />
           </div>
-          <aside className="financial-composition" aria-labelledby="tiktok-result-title">
-            <div>
-              <p className="section-kicker">Resultado do período</p>
-              <h2 id="tiktok-result-title" className="mt-1 text-lg font-semibold text-[var(--ink)]">Do faturamento ao lucro</h2>
-              <p className="mt-1 text-xs leading-relaxed text-[var(--ink-muted)]">{resultReady ? "Valores oficiais da janela selecionada." : "A composição permanece aberta até o ledger financeiro cobrir todos os componentes."}</p>
-            </div>
-            <div className="financial-lines">
-              {resultReady && data.overview.revenue != null && data.overview.revenue > 0 ? (
-                <CompositionDonut
-                  total={data.overview.revenue}
-                  totalLabel="Faturamento"
-                  format={(value) => new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(value)}
-                  slices={[
-                    { id: "fees", label: "Taxas do canal", value: data.overview.fees ?? 0 },
-                    { id: "shipping", label: "Frete do vendedor", value: data.overview.sellerShipping ?? 0 },
-                    { id: "ads", label: "Anúncios", value: data.overview.ads ?? 0 },
-                    { id: "withheld", label: "Impostos retidos", value: data.overview.taxesWithheld ?? 0 },
-                    { id: "refunds", label: "Estornos", value: data.overview.refunds ?? 0 },
-                    { id: "tax", label: "Impostos", value: data.overview.tax ?? 0 },
-                    { id: "cogs", label: "Custo dos produtos", value: data.overview.cogs ?? 0 },
-                    { id: "profit", label: data.overview.profit! >= 0 ? "Lucro" : "Prejuízo", value: Math.abs(data.overview.profit!), isRemainder: true },
-                  ]}
-                />
-              ) : null}
-              <Flow label="Faturamento" value={primaryCards.find((card) => card.key === "revenue")?.value ?? "—"} />
+          <FinancialSummaryPanel
+            complete={resultReady}
+            labelledBy="tiktok-result-title"
+            description={resultReady ? "Valores oficiais da janela selecionada." : "A composição permanece aberta até o ledger financeiro cobrir todos os componentes."}
+            total={capturedRevenue}
+            totalLabel={resultReady ? "Faturamento" : "Faturamento capturado"}
+            format={formatMoney}
+            slices={buildFinancialComposition({
+              total: capturedRevenue,
+              costs: costCards.map((card) => ({ id: card.key, label: card.label, value: card.raw })),
+              result: resultReady ? data.overview.profit : null,
+              resultLabel: "Lucro",
+            })}
+            footer={(
+              <>
+                <Link href={`/tiktok/financeiro?${new URLSearchParams({ connection_id: selectedConnectionId })}`} className="meli-financial-link">Ver composição completa no financeiro <span aria-hidden="true">→</span></Link>
+                <Link href={tiktokProductsHref(selectedConnectionId)} className="meli-financial-link">Configurar custos e imposto <span aria-hidden="true">→</span></Link>
+                {!resultReady ? <p className="text-xs leading-relaxed text-amber-700">O NEXO não estima os componentes ausentes: taxas, fretes, impostos ou custos pendentes continuam como “—”.</p> : null}
+              </>
+            )}
+          >
+              <Flow label={resultReady ? "Faturamento" : "Faturamento capturado"} value={data.overview.revenue == null ? "—" : formatMoney(data.overview.revenue)} />
               <FlowExpandable
                 label="Custos do canal e do produto"
-                value={knownCosts == null ? "—" : new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(knownCosts)}
+                value={knownCosts == null ? "—" : formatMoney(knownCosts)}
                 open={costsOpen}
                 onToggle={() => setCostsOpen((open) => !open)}
                 items={costCards.map((card) => ({ label: card.label, value: card.value }))}
               />
               <Flow label={resultReady ? "Lucro" : "Lucro indisponível"} value={resultReady ? primaryCards.find((card) => card.key === "profit")?.value ?? "—" : "—"} sign="=" accent tone={!resultReady ? "default" : data.overview.profit! > 0 ? "positive" : data.overview.profit! < 0 ? "danger" : "default"} />
-            </div>
-            <Link href={`/tiktok/financeiro?${new URLSearchParams({ connection_id: selectedConnectionId })}`} className="meli-financial-link">Ver composição completa no financeiro <span aria-hidden="true">→</span></Link>
-            <Link href={tiktokProductsHref(selectedConnectionId)} className="meli-financial-link">Configurar custos e imposto <span aria-hidden="true">→</span></Link>
-            {!resultReady ? <p className="text-xs leading-relaxed text-amber-700">O NEXO não estima os componentes ausentes: taxas, fretes, impostos ou custos pendentes continuam como “—”.</p> : null}
-          </aside>
+              <Flow
+                label="Margem"
+                value={resultReady ? primaryCards.find((card) => card.key === "marginPct")?.value ?? "—" : "—"}
+                accent
+                tone={!resultReady ? "default" : (data.overview.marginPct ?? 0) > 0 ? "positive" : (data.overview.marginPct ?? 0) < 0 ? "danger" : "default"}
+              />
+          </FinancialSummaryPanel>
         </section>
         <TopProductsRanking
           products={(data.topProducts ?? []).map((product) => ({ sku: product.sku || product.productId, title: product.title, units: product.units, revenue: product.revenue, marginPct: null }))}

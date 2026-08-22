@@ -16,7 +16,7 @@ import { IntegrationDashboardFrame } from "./IntegrationDashboardFrame";
 import { ConnectionBroken } from "./ConnectionBroken";
 import { ChannelConnectionEmpty } from "./ChannelConnectionEmpty";
 import { CompactMetric, Flow, FlowExpandable, Metric, getRevenueTrend } from "./Metric";
-import { CompositionDonut } from "./CompositionDonut";
+import { buildFinancialComposition, FinancialSummaryPanel } from "./FinancialSummaryPanel";
 import { brDate, brTime } from "@/lib/datetime";
 import { FlaskConical } from "lucide-react";
 import type { ProfitabilityLine } from "@/lib/profitability";
@@ -455,32 +455,41 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
           </div>
           <RevenueChart points={overview.dailySales} currency={overview.metrics.currency} explorable />
         </div>
-        <aside className="financial-composition" aria-label="Resumo do resultado financeiro">
-          <div>
-            <p className="section-kicker">Resultado do período</p>
-            <h2 className="mt-1 text-lg font-semibold text-[var(--ink)]">Do faturamento ao lucro</h2>
-            <p className="mt-1 text-xs leading-relaxed text-[var(--ink-muted)]">
-              {profitCoverage.complete ? "Valores efetivamente identificados no período." : `Detalhamento processado em ${profitCoverage.processedOrders} de ${profitCoverage.paidOrders} vendas.`}
-            </p>
-          </div>
-          <div className="financial-lines">
-            {!resultIncomplete && overview.profit.revenueProcessed > 0 && overview.profit.estimatedProfit != null ? (
-              <CompositionDonut
-                total={overview.profit.revenueProcessed}
-                totalLabel="Receita processada"
-                format={(value) => money(value, overview.metrics.currency)}
-                slices={[
-                  { id: "fees", label: "Taxas da Shopee", value: overview.profit.fees ?? 0 },
-                  { id: "shipping", label: "Frete do vendedor", value: overview.profit.sellerShipping ?? 0 },
-                  { id: "ads", label: "Anúncios", value: overview.profit.ads ?? 0 },
-                  { id: "withheld", label: "Impostos retidos", value: overview.profit.taxesWithheld ?? 0 },
-                  { id: "refunds", label: "Estornos", value: overview.profit.refunds ?? 0 },
-                  { id: "cogs", label: "Custo dos produtos", value: overview.profit.cogs ?? 0 },
-                  { id: "taxes", label: "Impostos", value: overview.profit.taxes ?? 0 },
-                  { id: "profit", label: overview.profit.estimatedProfit >= 0 ? "Lucro estimado" : "Prejuízo", value: Math.abs(overview.profit.estimatedProfit), isRemainder: true },
-                ]}
-              />
-            ) : null}
+        <FinancialSummaryPanel
+          complete={!resultIncomplete}
+          labelledBy="shopee-financial-summary-title"
+          description={profitCoverage.complete ? "Valores efetivamente identificados no período." : `Detalhamento processado em ${profitCoverage.processedOrders} de ${profitCoverage.paidOrders} vendas.`}
+          total={overview.profit.revenueProcessed}
+          totalLabel="Receita processada"
+          format={(value) => money(value, overview.metrics.currency)}
+          slices={buildFinancialComposition({
+            total: overview.profit.revenueProcessed,
+            costs: [
+              { id: "fees", label: "Taxas da Shopee", value: overview.profit.fees },
+              { id: "shipping", label: "Frete do vendedor", value: overview.profit.sellerShipping },
+              { id: "ads", label: "Anúncios", value: overview.profit.ads },
+              { id: "withheld", label: "Impostos retidos", value: overview.profit.taxesWithheld },
+              { id: "refunds", label: "Estornos", value: overview.profit.refunds },
+              { id: "cogs", label: "Custo dos produtos", value: overview.profit.cogs },
+              { id: "taxes", label: "Impostos", value: overview.profit.taxes },
+            ],
+            result: resultIncomplete ? null : overview.profit.estimatedProfit,
+          })}
+          footer={(
+            <>
+              <Link href="/shopee/monitor" className="meli-financial-link">Ver composição completa no monitor <span aria-hidden="true">→</span></Link>
+              <Link href="/shopee/produtos" className="meli-financial-link">Configurar custos e imposto <span aria-hidden="true">→</span></Link>
+              {!overview.profit.feesComplete && (
+                <p className="text-xs leading-relaxed text-amber-700">
+                  As taxas da Shopee só fecham no escrow, depois do pagamento do pedido. Enquanto isso, as vendas mais recentes entram sem tarifa e aparecem como incompletas.
+                </p>
+              )}
+              {overview.profit.unitsWithoutCost > 0 && (
+                <p className="text-xs leading-relaxed text-amber-700">{overview.profit.unitsWithoutCost} unidade(s) vendida(s) ainda estão sem custo cadastrado.</p>
+              )}
+            </>
+          )}
+        >
             <Flow label={profitCoverage.complete ? "Receita paga" : "Receita processada"} value={money(overview.profit.revenueProcessed, overview.metrics.currency)} />
             <FlowExpandable
               label="Custos do canal e do produto"
@@ -498,18 +507,13 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
               ]}
             />
             <Flow label={resultIncomplete ? "Lucro indisponível" : "Lucro estimado"} value={resultIncomplete || overview.profit.estimatedProfit == null ? "—" : money(overview.profit.estimatedProfit, overview.metrics.currency)} sign="=" accent tone={resultIncomplete || overview.profit.estimatedProfit == null ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
-          </div>
-          <Link href="/shopee/monitor" className="meli-financial-link">Ver composição completa no monitor <span aria-hidden="true">→</span></Link>
-          <Link href="/shopee/produtos" className="meli-financial-link">Configurar custos e imposto <span aria-hidden="true">→</span></Link>
-          {!overview.profit.feesComplete && (
-            <p className="text-xs leading-relaxed text-amber-700">
-              As taxas da Shopee só fecham no escrow, depois do pagamento do pedido. Enquanto isso, as vendas mais recentes entram sem tarifa e aparecem como incompletas.
-            </p>
-          )}
-          {overview.profit.unitsWithoutCost > 0 && (
-            <p className="text-xs leading-relaxed text-amber-700">{overview.profit.unitsWithoutCost} unidade(s) vendida(s) ainda estão sem custo cadastrado.</p>
-          )}
-        </aside>
+            <Flow
+              label="Margem"
+              value={resultIncomplete || overview.profit.marginPct == null ? "—" : percent(overview.profit.marginPct)}
+              accent
+              tone={resultIncomplete || overview.profit.marginPct == null ? "default" : overview.profit.marginPct > 0 ? "positive" : overview.profit.marginPct < 0 ? "danger" : "default"}
+            />
+        </FinancialSummaryPanel>
       </section>
 
       <TopProductsRanking
