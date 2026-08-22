@@ -45,10 +45,14 @@ export function NexoMensagem({
       <div className="nexo-mensagem-fala">
         <span className="nexo-mensagem-nome">NEXO</span>
         {carregando && !paragrafos.length ? (
+          // O texto precisa ser VISÍVEL. Antes ele estava em `sr-only` — só o
+          // leitor de tela ouvia "NEXO está lendo", e quem olhava via duas barras
+          // cinzas sem explicação nenhuma (apontado em 22/08/2026).
           <div className="nexo-mensagem-carregando" aria-live="polite">
-            <span className="nexo-mensagem-shimmer" style={{ width: "88%" }} />
-            <span className="nexo-mensagem-shimmer" style={{ width: "70%" }} />
-            <span className="sr-only">NEXO está lendo a operação…</span>
+            <p className="nexo-mensagem-lendo">
+              Lendo sua operação<span className="nexo-mensagem-pontos" aria-hidden="true" />
+            </p>
+            <span className="nexo-mensagem-shimmer" style={{ width: "72%" }} />
           </div>
         ) : (
           paragrafos.map((p, i) => <p key={i}>{p}</p>)

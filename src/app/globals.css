@@ -2634,6 +2634,11 @@ summary:hover { background: var(--paper-soft); }
   color: var(--ink);
   text-align: start;
 }
+.lp-product-demo[data-channel="sellercore"] { --channel-accent: var(--brand); --channel-accent-dark: var(--brand-dark); --channel-accent-soft: var(--brand-soft); }
+.lp-product-demo[data-channel="amazon"] { --channel-accent: var(--amazon); --channel-accent-dark: var(--amazon-dark); --channel-accent-soft: var(--amazon-soft); }
+.lp-product-demo[data-channel="mercado_livre"] { --channel-accent: var(--meli); --channel-accent-dark: var(--meli-dark); --channel-accent-soft: var(--meli-soft); }
+.lp-product-demo[data-channel="shopee"] { --channel-accent: var(--shopee); --channel-accent-dark: var(--shopee-dark); --channel-accent-soft: var(--shopee-soft); }
+.lp-product-demo[data-channel="tiktok_shop"] { --channel-accent: var(--tiktok); --channel-accent-dark: var(--tiktok-dark); --channel-accent-soft: var(--tiktok-soft); }
 .lp-product-sidebar {
   display: flex;
   min-width: 0;
@@ -2660,6 +2665,41 @@ summary:hover { background: var(--paper-soft); }
   border-block-end: 1px solid var(--ink-08); background: var(--paper); padding-inline: 16px;
 }
 .lp-product-topbar > span { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: var(--weight-medium); }
+.lp-product-channel-picker { position: relative; z-index: 30; min-width: 0; }
+.lp-product-channel-trigger {
+  display: inline-flex; min-width: 0; min-height: 31px; align-items: center; gap: 7px; border: 0; border-radius: var(--radius-sm);
+  background: transparent; padding: 3px 6px; color: var(--ink); font: inherit; font-size: 13px; font-weight: var(--weight-medium);
+  cursor: pointer; transition-property: background-color, scale; transition-duration: var(--duration); transition-timing-function: var(--ease);
+}
+.lp-product-channel-trigger:hover, .lp-product-channel-trigger[aria-expanded="true"] { background: var(--ink-05); }
+.lp-product-channel-trigger:active { scale: .96; }
+.lp-product-channel-trigger > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lp-product-channel-trigger > svg:last-child { width: 13px; height: 13px; flex: none; color: var(--ink-muted); transition: rotate 180ms var(--ease); }
+.lp-product-channel-trigger[aria-expanded="true"] > svg:last-child { rotate: 180deg; }
+.lp-product-channel-menu {
+  position: absolute; inset: calc(100% + 5px) auto auto 0; width: 218px; pointer-events: none; visibility: hidden;
+  border-radius: calc(var(--radius-md) + 4px); background: var(--paper-modal); padding: 5px; opacity: 0;
+  box-shadow: var(--shadow-modal); filter: blur(2px); transform: translateY(-5px) scale(.98); transform-origin: top left;
+  transition-property: opacity, filter, transform, visibility; transition-duration: 150ms; transition-timing-function: ease-in;
+}
+.lp-product-channel-menu.is-open {
+  pointer-events: auto; visibility: visible; opacity: 1; filter: blur(0); transform: translateY(0) scale(1);
+  transition-duration: 220ms; transition-timing-function: cubic-bezier(.2, 0, 0, 1);
+}
+.lp-product-channel-menu > p { padding: 5px 8px 4px; color: var(--ink-muted); font-size: 9px; font-weight: var(--weight-semibold); letter-spacing: .06em; text-transform: uppercase; }
+.lp-product-channel-menu > button {
+  display: grid; width: 100%; min-height: 34px; grid-template-columns: 20px minmax(0, 1fr) 16px; align-items: center; gap: 7px;
+  border: 0; border-radius: var(--radius-sm); background: transparent; padding: 4px 7px; color: var(--ink-soft); font: inherit;
+  font-size: 11px; text-align: start; cursor: pointer; transition-property: background-color, color, scale; transition-duration: var(--duration); transition-timing-function: var(--ease);
+}
+.lp-product-channel-menu > button:hover { background: var(--ink-05); color: var(--ink); }
+.lp-product-channel-menu > button:active { scale: .96; }
+.lp-product-channel-menu > button[aria-checked="true"] { background: var(--channel-accent-soft); color: var(--ink); font-weight: var(--weight-medium); }
+.lp-product-channel-menu > button > svg:last-child {
+  width: 13px; height: 13px; color: var(--channel-accent-dark); opacity: 0; filter: blur(4px); scale: .25;
+  transition-property: opacity, filter, scale; transition-duration: 300ms; transition-timing-function: cubic-bezier(.2, 0, 0, 1);
+}
+.lp-product-channel-menu > button[aria-checked="true"] > svg:last-child { opacity: 1; filter: blur(0); scale: 1; }
 .lp-product-topbar em {
   border-radius: var(--radius-badge); background: var(--ink-05); padding: 4px 8px;
   color: var(--ink-muted); font-size: 10px; font-style: normal; letter-spacing: .04em; text-transform: uppercase;
@@ -2700,7 +2740,7 @@ summary:hover { background: var(--paper-soft); }
   width: auto; min-width: max-content; flex-basis: auto; overflow: visible; padding-inline: 7px;
 }
 .lp-demo-cursor {
-  position: absolute; z-index: 20; width: 26px; height: 26px; pointer-events: none; opacity: 0;
+  position: absolute; z-index: 40; width: 26px; height: 26px; pointer-events: none; opacity: 0;
   color: var(--ink); transform: translate(-5px, -4px) scale(1); transform-origin: 3px 3px;
   filter: drop-shadow(0 1px 0 white) drop-shadow(1px 0 0 white) drop-shadow(-1px 0 0 white) drop-shadow(0 -1px 0 white) drop-shadow(0 3px 5px oklch(0 0 0 / .2));
   transition: left 720ms cubic-bezier(.22, 1, .36, 1), top 720ms cubic-bezier(.22, 1, .36, 1), opacity 180ms ease, transform 120ms ease;
@@ -5069,7 +5109,12 @@ summary:hover { background: var(--paper-soft); }
 .nexo-mensagem-fala p { color: var(--ink-soft); font-size: 14px; line-height: 1.55; }
 .nexo-mensagem-cta { justify-self: start; display: inline-flex; align-items: center; gap: 4px; margin-top: 2px; color: var(--ink); font-size: 13px; font-weight: var(--weight-semibold); text-decoration: none; }
 .nexo-mensagem-cta:hover { color: var(--ink-muted); }
-.nexo-mensagem-carregando { display: grid; gap: 8px; padding-top: 4px; }
+.nexo-mensagem-carregando { display: grid; gap: 8px; padding-top: 2px; }
+/* O aviso é texto de verdade — barra cinza sozinha não diz o que está acontecendo. */
+.nexo-mensagem-lendo { color: var(--ink-muted); font-size: 14px; line-height: 1.55; }
+.nexo-mensagem-pontos::after { content: ""; animation: nexo-pontos 1.6s steps(4, end) infinite; }
+@keyframes nexo-pontos { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
+@media (prefers-reduced-motion: reduce) { .nexo-mensagem-pontos::after { content: "…"; animation: none; } }
 .nexo-mensagem-shimmer { height: 12px; border-radius: 6px; background: linear-gradient(90deg, var(--ink-08) 25%, var(--ink-05) 37%, var(--ink-08) 63%); background-size: 400% 100%; animation: nexo-shimmer 1.4s ease infinite; }
 @keyframes nexo-shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
 @media (prefers-reduced-motion: reduce) { .nexo-mensagem-shimmer { animation: none; } }
