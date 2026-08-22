@@ -120,8 +120,13 @@ export async function GET(req: NextRequest) {
                   -- produzia "R$ 0,00 · 1 pedido", que se contradiz na própria
                   -- linha (visto em 22/08/2026, com o único pedido do dia ainda
                   -- pendente). O cartão precisa poder dizer quantos faltam.
-                  COUNT(gross)::text AS pedidos_com_valor,
-                  COALESCE(SUM(gross), 0)::text AS receita,
+                  COUNT(COALESCE(gross, ordered_gross))::text AS pedidos_com_valor,
+                  -- COALESCE com ordered_gross: a Amazon omite OrderTotal enquanto
+                  -- o pedido está Pending, mas o valor de TABELA foi capturado do
+                  -- relatório (migrations/0010). Sem isto, a tela mostrava
+                  -- "R$ 0,00" para uma venda que o Seller Central já exibia com
+                  -- valor — 22/08/2026, venda de R$ 21,90 às 17:32.
+                  COALESCE(SUM(COALESCE(gross, ordered_gross)), 0)::text AS receita,
                   COALESCE(SUM(buyer_shipping), 0)::text AS frete
              FROM workspace_channel_orders
             WHERE workspace_id = $1 AND provider = 'amazon' AND connection_id = $2
