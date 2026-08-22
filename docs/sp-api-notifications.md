@@ -1,5 +1,12 @@
 # Notificações da Amazon SP-API
 
+> ⚠️ **O transporte e o consumo deste documento foram substituídos pelo
+> [ADR-023](adr/ADR-023-notificacoes-da-amazon.md) em 21/08/2026.** A escolha de
+> eventos (`ORDER_CHANGE`, `TRANSACTION_UPDATE`, `FBA_INVENTORY_AVAILABILITY_CHANGES`)
+> e as regras do consumidor seguem valendo. O que mudou: **não haverá worker
+> separado** — o agendador interno (ADR-019) consome a fila no mesmo processo,
+> porque criar peça nova para operar contraria a decisão que acabou de ser tomada.
+
 ## Objetivo
 
 Substituir parte das consultas periódicas por eventos da Amazon, mantendo as consultas atuais como reconciliação e recuperação em caso de atraso.

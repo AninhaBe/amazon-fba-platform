@@ -57,7 +57,7 @@ O que ganhamos, o que abrimos mão, o que passa a ser obrigatório respeitar.
 | [ADR-020](./ADR-020-definicao-unica-de-faturamento.md) | Bruto (espelha o marketplace) × conciliado (só aprovadas): perguntas diferentes, rótulo obrigatório | Aceito |
 | [ADR-021](./ADR-021-runner-de-migrations-destravado.md) | Runner de migrations destravado — e a custódia da chave que o autoriza | Aceito |
 | [ADR-022](./ADR-022-camada-fisica-particionamento-e-escrita.md) | Camada física: particionar por tempo e parar de reescrever o que não mudou | Proposto |
-| [ADR-023](./ADR-023-notificacoes-da-amazon.md) | Notificações da Amazon por EventBridge — **recusado (sem AWS)**; alternativa é polling de 2 min | Recusado |
+| [ADR-023](./ADR-023-notificacoes-da-amazon.md) | Notificações da Amazon por SQS, consumidas pelo agendador que já existe (custo zero no volume atual) | Proposto |
 
 **Índice completo em 16/08/2026** — 14 ADRs, todos listados. Ao criar um ADR novo,
 adicione a linha aqui na mesma hora; este índice já ficou 8 ADRs atrás uma vez.
