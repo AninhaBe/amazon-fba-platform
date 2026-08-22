@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
 import { currentWorkspaceId } from "@/lib/workspaceScope";
 import { cached } from "@/lib/cache";
-import { narrarBriefing, type SnapshotCentral } from "@/lib/centralBriefing";
+import { narrarBriefing, type SnapshotCentral, type ModoNarracao } from "@/lib/centralBriefing";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,11 +31,14 @@ export async function POST(req: NextRequest) {
     if (!snapshot || !Array.isArray(snapshot.canais)) {
       return NextResponse.json({ error: "Snapshot incompleto." }, { status: 400 });
     }
+    // "briefing" = a matéria cheia (aba de briefing); "resumo" = a manchete curta
+    // (Visão geral). Modos diferentes têm cache diário separado.
+    const modo: ModoNarracao = (snapshot as { modo?: ModoNarracao }).modo === "briefing" ? "briefing" : "resumo";
     // A data vem do servidor, não do cliente: o cache é por dia de Brasília.
     const dia = diaEmBrasilia();
-    const chave = `central-briefing:${currentWorkspaceId()}:${dia}`;
+    const chave = `central-briefing:${modo}:${currentWorkspaceId()}:${dia}`;
     const texto = await cached(chave, 24 * 60 * 60_000, () =>
-      narrarBriefing({ ...snapshot, data: dia })
+      narrarBriefing({ ...snapshot, data: dia }, modo)
     );
     return NextResponse.json({ texto: texto ?? null, gerado: texto != null });
   });

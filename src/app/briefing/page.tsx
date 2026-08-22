@@ -66,6 +66,9 @@ export default function BriefingPage() {
   const [filter, setFilter] = useState<BriefingFilter>("all");
   const [visibleLimit, setVisibleLimit] = useState(12);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Narração do NEXO (Gemini) que sintetiza os insights numa conversa. Null sem
+  // chave/resposta; aí a tela mostra só os cartões, como antes.
+  const [narracao, setNarracao] = useState<string | null>(null);
 
   async function load(analyze = false) {
     setError(null);
@@ -85,6 +88,35 @@ export default function BriefingPage() {
     const t = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(t);
   }, []);
+
+  // Quando os insights chegam, o NEXO os sintetiza num briefing conversacional.
+  // Só narra o que foi detectado (fatos) — não inventa. Cache diário no servidor.
+  useEffect(() => {
+    if (!insights || insights.length === 0) return;
+    const payload = {
+      modo: "briefing",
+      data: "",
+      moeda: "BRL",
+      faturamento30d: null,
+      lucro30d: null,
+      margemPct: null,
+      variacaoSemanaPct: null,
+      canais: [],
+      insights: insights.slice(0, 12).map((i) => ({
+        canal: CHANNEL[i.provider] ?? i.provider,
+        tipo: TYPE_LABEL[i.type] ?? i.type,
+        severidade: i.severity,
+        titulo: i.title,
+        recomendacao: i.recommendation,
+      })),
+    };
+    let cancelado = false;
+    fetch("/api/central/briefing", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!cancelado && d?.texto) setNarracao(d.texto as string); })
+      .catch(() => {});
+    return () => { cancelado = true; };
+  }, [insights]);
 
   async function act(id: string, action: "dispensar" | "adiar" | "resolver") {
     setBusy(id);
@@ -120,6 +152,17 @@ export default function BriefingPage() {
         icon={pageIcons.chart}
         subtitle="Evidência, impacto e próximo passo para o que realmente precisa de atenção hoje."
       />
+
+      {/* O NEXO abre o briefing em prosa: lê os sinais detectados e diz, do jeito
+          de um colega, o que priorizar. Os cartões abaixo são a evidência. */}
+      {narracao && (
+        <section className="briefing-narracao" aria-label="Leitura do dia pelo NEXO">
+          <span className="briefing-narracao-marca">NEXO</span>
+          <div className="briefing-narracao-texto">
+            {narracao.split(/\n+/).filter(Boolean).map((par, i) => <p key={i}>{par}</p>)}
+          </div>
+        </section>
+      )}
 
       {error && (
         <div role="alert" className="briefing-error">

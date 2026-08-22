@@ -20,14 +20,27 @@ export interface CanalNoSnapshot {
   unidadesSemCusto: number;
 }
 
+/** Um insight já detectado pelo cron (ruptura, queda, margem). Fato, não palpite. */
+export interface InsightResumo {
+  canal: string;
+  tipo: string;
+  severidade: number;
+  titulo: string;
+  recomendacao?: string;
+}
+
 export interface SnapshotCentral {
   data: string; // YYYY-MM-DD (Brasília)
   moeda: string;
-  faturamento30d: number;
+  // Financeiro pode faltar (ex.: no briefing, cujo foco são os insights). `null`
+  // é "não informado aqui", nunca zero.
+  faturamento30d: number | null;
   lucro30d: number | null;
   margemPct: number | null;
   variacaoSemanaPct: number | null;
   canais: CanalNoSnapshot[];
+  /** Insights detectados (só no modo briefing) — o modelo os narra, não os inventa. */
+  insights?: InsightResumo[];
 }
 
 // Flash é o mais barato/rápido do Gemini — suficiente para uma frase por dia.
@@ -45,16 +58,21 @@ const pct = (v: number | null) => (v == null ? "sem base" : `${v.toLocaleString(
  * propósito: é o que os testes conferem e é a única fonte de números do prompt.
  */
 export function descreverSnapshot(s: SnapshotCentral): string {
-  const linhas = [
-    `Data de hoje: ${s.data}.`,
-    `Faturamento consolidado (30 dias): ${money(s.faturamento30d, s.moeda)}.`,
-    `Lucro consolidado conhecido: ${money(s.lucro30d, s.moeda)}${s.margemPct != null ? ` (margem ${pct(s.margemPct)})` : ""}.`,
-    s.variacaoSemanaPct != null
-      ? `Variação do faturamento na última semana vs. a anterior: ${s.variacaoSemanaPct >= 0 ? "+" : ""}${pct(s.variacaoSemanaPct)}.`
-      : "Ainda não há duas semanas de histórico para comparar tendência.",
-    "",
-    "Por canal:",
-    ...s.canais.map((c) => {
+  const linhas = [`Data de hoje: ${s.data}.`];
+  // O bloco financeiro só entra quando há faturamento a relatar. No briefing, o
+  // foco são os insights, e forçar "faturamento desconhecido" seria ruído.
+  if (s.faturamento30d != null) {
+    linhas.push(
+      `Faturamento consolidado (30 dias): ${money(s.faturamento30d, s.moeda)}.`,
+      `Lucro consolidado conhecido: ${money(s.lucro30d, s.moeda)}${s.margemPct != null ? ` (margem ${pct(s.margemPct)})` : ""}.`,
+      s.variacaoSemanaPct != null
+        ? `Variação do faturamento na última semana vs. a anterior: ${s.variacaoSemanaPct >= 0 ? "+" : ""}${pct(s.variacaoSemanaPct)}.`
+        : "Ainda não há duas semanas de histórico para comparar tendência."
+    );
+  }
+  if (s.canais.length) {
+    linhas.push("", "Por canal:");
+    linhas.push(...s.canais.map((c) => {
       if (c.semLeitura) return `- ${c.nome}: conectado, mas sem leitura no momento.`;
       const partes = [`faturamento ${money(c.faturamento, s.moeda)}`];
       if (c.lucro != null) partes.push(`lucro ${money(c.lucro, s.moeda)}`);
@@ -62,29 +80,59 @@ export function descreverSnapshot(s: SnapshotCentral): string {
       if (c.variacaoSemanaPct != null) partes.push(`${c.variacaoSemanaPct >= 0 ? "+" : ""}${pct(c.variacaoSemanaPct)} na semana`);
       if (c.unidadesSemCusto > 0) partes.push(`${c.unidadesSemCusto} unidade(s) sem custo cadastrado (lucro subestimado)`);
       return `- ${c.nome}: ${partes.join(", ")}.`;
-    }),
-  ];
+    }));
+  }
+  if (s.insights?.length) {
+    linhas.push("", "Sinais já detectados na operação (fatos apurados, para você priorizar e explicar):");
+    for (const i of s.insights) {
+      const sev = i.severidade >= 90 ? "crítico" : i.severidade >= 70 ? "atenção" : "monitorar";
+      linhas.push(`- [${sev}] ${i.canal} · ${i.titulo}${i.recomendacao ? ` — sugestão registrada: ${i.recomendacao}` : ""}`);
+    }
+  }
   return linhas.join("\n");
 }
 
+// O "job description" do NEXO. Define QUEM ele é, o que olhar e como falar — a
+// voz e o rigor. O formato (resumo curto vs. briefing cheio) vem por modo, na
+// mensagem do usuário, para não duplicar a identidade.
 const SISTEMA = [
-  "Você é o NEXO, um copiloto financeiro para quem vende em marketplaces (Amazon, Mercado Livre, Shopee, TikTok Shop).",
-  "Escreva uma saudação curta — no máximo 3 frases — em português do Brasil, tom de um colega competente e direto, sem exagero e sem emoji.",
-  "REGRA ABSOLUTA: use somente os números fornecidos. Nunca invente, arredonde grosseiro ou estime valor que não foi dado. Se um dado for 'desconhecido' ou 'sem leitura', diga isso com naturalidade em vez de chutar.",
-  "Comece com uma saudação (bom dia/boa tarde conforme fizer sentido, mas sem depender de hora exata). Aponte a mudança financeira mais relevante entre os canais — uma queda ou alta forte, um canal que parou, ou custo faltando que subestima o lucro. Se estiver tudo estável, diga que está tranquilo.",
-  "Termine convidando a pessoa a investigar no briefing, com uma pergunta curta do tipo 'vamos ver o que aconteceu?'.",
-  "Não use markdown, listas nem títulos. Só o parágrafo.",
-].join(" ");
+  "Você é o NEXO — o copiloto financeiro de quem vende em vários marketplaces ao mesmo tempo (Amazon, Mercado Livre, Shopee, TikTok Shop). Você não é um chatbot genérico: você acompanha a operação inteira do vendedor, dia após dia, e enxerga vendas, margem, tarifas e estoque dos quatro canais como um negócio só.",
+
+  "SEU TRABALHO: a pessoa não deveria precisar abrir quatro painéis e montar planilha para saber o que mudou no próprio negócio. Você faz isso por ela. Diz, em uma olhada, o que aconteceu, por que importa e onde ela deve olhar. Você conecta os pontos que um número isolado esconde — mais faturamento nem sempre é mais lucro, um produto campeão pode estar corroendo a margem, um canal pode ter parado sem ninguém perceber.",
+
+  "REGRA INEGOCIÁVEL — nunca invente número. Use SOMENTE os valores que eu te der nesta mensagem. Não estime, não projete, não 'arredonde para um número redondo'. Se um dado vier como 'desconhecido', 'sem leitura' ou faltando, diga isso com naturalidade — 'ainda não sei', 'o canal não reportou' — em vez de chutar. Zero e desconhecido são coisas diferentes: nunca troque um pelo outro. É melhor dizer menos e certo do que mais e errado; o vendedor toma decisão de dinheiro com o que você fala.",
+
+  "PRIORIDADE, sempre nesta ordem: primeiro o que exige AÇÃO (um canal que parou de vender, ruptura de estoque chegando, custo faltando que subestima o lucro, uma queda forte de faturamento); depois a OPORTUNIDADE (um canal ou produto puxando o resultado); por último, se estiver tudo estável, diga que está tranquilo — sem inventar drama. Não liste tudo: escolha o que mais muda a vida dela hoje.",
+
+  "VOZ: um colega competente e direto, em português do Brasil, que respeita o tempo da pessoa. Frases curtas. Zero jargão de tecnologia, zero 'como uma IA', zero emoji, zero bajulação. NUNCA se apresente ('Olá, sou o NEXO, seu copiloto...') — a pessoa já sabe quem você é; vá direto ao que importa. Fale de dinheiro em reais, com o valor exato que recebeu.",
+].join("\n\n");
+
+export type ModoNarracao = "resumo" | "briefing";
+
+// A instrução de formato por modo. O sistema define a voz; isto define o tamanho
+// e a forma da saída.
+const FORMATO: Record<ModoNarracao, string> = {
+  // Overview: a manchete que puxa pro briefing.
+  resumo:
+    "FORMATO: escreva no máximo 2 frases, em um parágrafo só, sem markdown. Comece com uma saudação curta (bom dia/boa tarde, sem depender de hora exata). Aponte a ÚNICA coisa mais importante entre os canais hoje. Termine com um convite curto para ver o briefing ('vamos ver?'). Nada de listas.",
+  // Briefing: a matéria cheia.
+  briefing:
+    "FORMATO: escreva o briefing do dia. Uma saudação curta de uma linha, e depois de 2 a 4 pontos priorizados. Cada ponto: o que aconteceu (com o número exato) e o que fazer ou onde olhar. Seja específico e acionável. Pode usar hífens simples para separar os pontos, mas nada de títulos, negrito ou tabelas. Se estiver tudo estável, diga em duas linhas que o dia está tranquilo e o que continuar observando.",
+};
 
 /**
  * Chama o Gemini para narrar o snapshot. Devolve `null` quando não há chave —
  * degradação limpa: a tela usa o alerta por regra. Erros de API também caem para
  * `null`, nunca quebram a central.
  */
-export async function narrarBriefing(snapshot: SnapshotCentral): Promise<string | null> {
+export async function narrarBriefing(
+  snapshot: SnapshotCentral,
+  modo: ModoNarracao = "resumo"
+): Promise<string | null> {
   const chave = process.env.GEMINI_API_KEY;
   if (!chave) return null;
   const modelo = process.env.GEMINI_MODEL || MODELO_PADRAO;
+  const conteudo = `${FORMATO[modo]}\n\n---\n\n${descreverSnapshot(snapshot)}`;
 
   try {
     const resposta = await fetch(
@@ -98,8 +146,13 @@ export async function narrarBriefing(snapshot: SnapshotCentral): Promise<string 
         },
         body: JSON.stringify({
           system_instruction: { parts: [{ text: SISTEMA }] },
-          contents: [{ role: "user", parts: [{ text: descreverSnapshot(snapshot) }] }],
-          generationConfig: { maxOutputTokens: 300, temperature: 0.7 },
+          contents: [{ role: "user", parts: [{ text: conteudo }] }],
+          // O gemini-3.x "pensa" ~600-900 tokens antes de escrever, e isso conta
+          // no teto. Sem folga, o texto sai truncado (medido em 22/08/2026: 629
+          // de 713 tokens foram pensamento). Teto alto deixa espaço para a
+          // resposta; o custo por chamada continua fração de centavo, e é uma
+          // por dia por workspace.
+          generationConfig: { maxOutputTokens: modo === "briefing" ? 2500 : 1200, temperature: 0.6 },
         }),
         signal: AbortSignal.timeout(15_000),
       }
