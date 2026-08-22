@@ -7,6 +7,8 @@ import { NexoMensagem } from "../components/NexoMensagem";
 import { PanelLoading } from "../components/LoadingState";
 import { EmptyState } from "../components/EmptyState";
 import { readJson } from "../../lib/readJson";
+import { gatherCentralChannels, mergeDailySeries, type ChannelSnapshot } from "../centralChannels";
+import { tendenciaSemanal, margemDoCanal } from "@/lib/centralOverview";
 
 interface Insight {
   id: string;
@@ -70,6 +72,10 @@ export default function BriefingPage() {
   // Narração do NEXO (Gemini) que sintetiza os insights numa conversa. Null sem
   // chave/resposta; aí a tela mostra só os cartões, como antes.
   const [narracao, setNarracao] = useState<string | null>(null);
+  // Financeiro cross-channel — a MESMA fonte da Visão geral. Alimenta o NEXO
+  // para o briefing raciocinar sobre a história do dinheiro (quem concentra a
+  // venda, quem parou, margem), não só sobre ruptura de estoque.
+  const [canais, setCanais] = useState<ChannelSnapshot[] | null>(null);
 
   async function load(analyze = false) {
     setError(null);
@@ -91,22 +97,42 @@ export default function BriefingPage() {
     // dias atrás, já reposto, continuava na lista até o cron rodar. O reconcile
     // auto-resolve o que não aparece mais, então a leitura fresca se corrige.
     const t = window.setTimeout(() => void load(true), 0);
+    // Em paralelo, junta o financeiro dos canais (não bloqueia os insights).
+    gatherCentralChannels().then(({ channels }) => setCanais(channels)).catch(() => setCanais([]));
     return () => window.clearTimeout(t);
   }, []);
 
-  // Quando os insights chegam, o NEXO os sintetiza num briefing conversacional.
-  // Só narra o que foi detectado (fatos) — não inventa. Cache diário no servidor.
+  // Quando insights E financeiro chegam, o NEXO sintetiza o briefing. Recebe as
+  // duas coisas — a história do dinheiro (quem concentra a venda, quem parou,
+  // margem) E os sinais operacionais (ruptura). Só narra fato; não inventa.
   useEffect(() => {
-    if (!insights || insights.length === 0) return;
+    if (insights == null || canais == null) return;
+    const conectados = canais.filter((c) => c.connected);
+    let revenue = 0;
+    let profit = 0;
+    let algumLucro = false;
+    for (const c of conectados) {
+      if (c.revenue != null) revenue += c.revenue;
+      if (c.profit != null && c.revenue != null && c.revenue > 0) { profit += c.profit; algumLucro = true; }
+    }
+    const serieTotal = mergeDailySeries(conectados.map((c) => c.series));
     const payload = {
       modo: "briefing",
       data: "",
-      moeda: "BRL",
-      faturamento30d: null,
-      lucro30d: null,
-      margemPct: null,
-      variacaoSemanaPct: null,
-      canais: [],
+      moeda: conectados[0]?.currency ?? "BRL",
+      faturamento30d: conectados.some((c) => c.revenue != null) ? revenue : null,
+      lucro30d: algumLucro ? profit : null,
+      margemPct: algumLucro && revenue > 0 ? Math.round((profit / revenue) * 1000) / 10 : null,
+      variacaoSemanaPct: tendenciaSemanal(serieTotal).deltaPct,
+      canais: conectados.map((c) => ({
+        nome: c.name,
+        faturamento: c.revenue,
+        lucro: c.profit,
+        margemPct: margemDoCanal(c),
+        variacaoSemanaPct: tendenciaSemanal(c.series).deltaPct,
+        semLeitura: !!c.error,
+        unidadesSemCusto: c.unitsWithoutCost ?? 0,
+      })),
       insights: insights.slice(0, 12).map((i) => ({
         canal: CHANNEL[i.provider] ?? i.provider,
         tipo: TYPE_LABEL[i.type] ?? i.type,
@@ -121,7 +147,7 @@ export default function BriefingPage() {
       .then((d) => { if (!cancelado && d?.texto) setNarracao(d.texto as string); })
       .catch(() => {});
     return () => { cancelado = true; };
-  }, [insights]);
+  }, [insights, canais]);
 
   async function act(id: string, action: "dispensar" | "adiar" | "resolver") {
     setBusy(id);

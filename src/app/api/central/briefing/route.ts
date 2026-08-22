@@ -60,7 +60,18 @@ export async function POST(req: NextRequest) {
     // O resumo (financeiro do dia) é estável, então fica no cache diário simples.
     const fatosHash =
       modo === "briefing"
-        ? ":" + createHash("sha1").update(JSON.stringify(snapshot.insights ?? [])).digest("hex").slice(0, 12)
+        ? ":" +
+          createHash("sha1")
+            .update(
+              JSON.stringify({
+                fat: snapshot.faturamento30d,
+                var: snapshot.variacaoSemanaPct,
+                canais: snapshot.canais,
+                insights: snapshot.insights ?? [],
+              })
+            )
+            .digest("hex")
+            .slice(0, 12)
         : "";
     const chave = `central-briefing:${modo}:${escopo}:${saudacao}:${currentWorkspaceId()}:${dia}${fatosHash}`;
     // Só o texto real é cacheado. Resultado vazio (sem chave, erro transitório)
