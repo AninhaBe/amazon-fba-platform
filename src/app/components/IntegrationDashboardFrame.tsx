@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import styles from "./IntegrationDashboardFrame.module.css";
 
 type IntegrationDashboardFrameProps = {
   className?: string;
@@ -21,7 +22,7 @@ export function IntegrationDashboardFrame({
   children,
 }: IntegrationDashboardFrameProps) {
   return (
-    <div className={`integration-dashboard ${className}`.trim()}>
+    <div className={`${styles.root} integration-dashboard ${className}`.trim()}>
       {period}
       {header}
       {children}
