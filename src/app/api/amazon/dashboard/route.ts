@@ -51,6 +51,8 @@ interface FeeRow {
 }
 interface BillingRow {
   pedidos: string;
+  /** Quantos dos `pedidos` já têm valor conhecido. Menor que `pedidos` = há pendente sem valor. */
+  pedidos_com_valor: string;
   receita: string | null;
   frete: string | null;
 }
@@ -113,6 +115,12 @@ export async function GET(req: NextRequest) {
         // "Taxas > Faturamento" na tela (20/08).
         dbQuery<BillingRow>(
           `SELECT COUNT(*)::text AS pedidos,
+                  -- Quantos desses pedidos TÊM valor. COUNT(*) conta todos e
+                  -- SUM(gross) soma só quem tem — emparelhar os dois no cartão
+                  -- produzia "R$ 0,00 · 1 pedido", que se contradiz na própria
+                  -- linha (visto em 22/08/2026, com o único pedido do dia ainda
+                  -- pendente). O cartão precisa poder dizer quantos faltam.
+                  COUNT(gross)::text AS pedidos_com_valor,
                   COALESCE(SUM(gross), 0)::text AS receita,
                   COALESCE(SUM(buyer_shipping), 0)::text AS frete
              FROM workspace_channel_orders
@@ -167,6 +175,7 @@ export async function GET(req: NextRequest) {
       // Bruto inclui o frete do comprador para espelhar o Seller Central (ADR-020).
       const faturamento = +(Number(billingRows[0]?.receita ?? 0) + buyerShipping).toFixed(2);
       const pedidosFaturados = Number(billingRows[0]?.pedidos ?? 0);
+      const pedidosComValor = Number(billingRows[0]?.pedidos_com_valor ?? 0);
 
       const durationMs = Math.round(performance.now() - t0);
       // ADR-017 fixou orçamento de 1s por interação, com < 200ms para a camada de
@@ -212,7 +221,7 @@ export async function GET(req: NextRequest) {
         covered: canonical.covered,
         currency: canonical.currency,
         // Faturamento do período — a MESMA definição em toda tela do produto.
-        billing: { revenue: faturamento, orders: pedidosFaturados },
+        billing: { revenue: faturamento, orders: pedidosFaturados, ordersWithValue: pedidosComValor },
         // PEDIDOS FEITOS — o mesmo número do Seller Central, com pendentes e
         // cancelados dentro. Fica ao lado do conciliado, nunca no lugar dele:
         // são perguntas diferentes (ADR-020) e a tela precisa dizer qual é qual.

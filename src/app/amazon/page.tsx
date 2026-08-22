@@ -115,7 +115,7 @@ interface DashboardPayload {
   covered: boolean;
   currency: string;
   /** Faturamento bruto do período — espelha o painel do canal (ADR-020). */
-  billing: { revenue: number; orders: number };
+  billing: { revenue: number; orders: number; ordersWithValue?: number };
   /**
    * Pedidos feitos, pela Sales API: inclui pendentes, EXCLUI cancelados, e
    * valoriza a preço de tabela (antes do cupom resgatado).
@@ -166,6 +166,30 @@ interface DashSnapshot {
 const dashCache = new Map<string, DashSnapshot>();
 let productsCache: ProductRow[] | null = null;
 
+/**
+ * A legenda do cartão de Faturamento.
+ *
+ * A Amazon não informa o valor de pedido `Pending`, então existe pedido real sem
+ * valor no período. Somar zero e contar um produz "R$ 0,00 · 1 pedido" — a
+ * contradição que a vendedora flagrou em 22/08/2026. Aqui a legenda nomeia o
+ * estado: quantos pedidos ainda não têm valor, em vez de escondê-los na contagem.
+ */
+function legendaFaturamento(
+  f: { revenue: number; orders: number; ordersWithValue?: number } | null,
+  fallback: number
+): string {
+  const pedidos = f?.orders ?? fallback;
+  const comValor = f?.ordersWithValue;
+  const plural = (n: number) => `${n} ${n === 1 ? "pedido" : "pedidos"}`;
+  if (comValor === undefined || comValor === pedidos) return `${plural(pedidos)} no período`;
+  const semValor = pedidos - comValor;
+  // Nenhum tem valor ainda: dizer o motivo, não mostrar zero seco.
+  if (comValor === 0) {
+    return `${plural(pedidos)} — a Amazon ainda não informou o valor`;
+  }
+  return `${plural(pedidos)} · ${semValor} ainda sem valor informado`;
+}
+
 export default function Dashboard() {
   const period = useDashboardPeriod();
   const [initialDash] = useState(() => dashCache.get(period.query));
@@ -184,7 +208,7 @@ export default function Dashboard() {
   // Faturamento do período — o MESMO número que a central mostra. Antes o card
   // exibia a receita conciliada (subconjunto), e por isso três telas do produto
   // mostravam três valores diferentes de "faturamento" (20/08/2026).
-  const [faturamento, setFaturamento] = useState<{ revenue: number; orders: number } | null>(null);
+  const [faturamento, setFaturamento] = useState<{ revenue: number; orders: number; ordersWithValue?: number } | null>(null);
   // O número que ela confere contra o Seller Central. Sem ele na tela, a conta
   // era feita à mão — e foi assim que apareceram os defeitos de 21/08.
   const [pedidosFeitos, setPedidosFeitos] = useState<{ revenue: number; orders: number; units: number; points: DailyPoint[] } | null>(null);
@@ -466,10 +490,12 @@ export default function Dashboard() {
                     : card.value}
                   // O selo de tendência ("novo ritmo") só faz sentido no faturamento.
                   sub={card.key === "revenue"
-                    // O subtítulo acompanha a MESMA base do valor: pedidos não
-                    // cancelados do período. A cobertura da conciliação é assunto
-                    // da seção "Financeiro conciliado", que a declara lá.
-                    ? `${faturamento?.orders ?? salesCount} pedidos no período`
+                    // O subtítulo tem de acompanhar a base do VALOR. O valor soma
+                    // só quem tem `gross`; a contagem inclui pendente sem valor —
+                    // e emparelhar os dois produzia "R$ 0,00 · 1 pedido", que se
+                    // contradiz na própria linha (22/08/2026). Quando há pedido
+                    // sem valor, o subtítulo DIZ isso em vez de fingir coerência.
+                    ? legendaFaturamento(faturamento, salesCount)
                     : card.context}
                   trend={card.key === "revenue" ? revenueTrend : undefined}
                   tone={card.tone}
