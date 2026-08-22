@@ -66,15 +66,32 @@ async function baixarDocumento(documentId: string): Promise<string> {
 /** true se já passou o intervalo desde a última ingestão desta conexão. */
 async function estaNaHora(connectionId: string, forcar: boolean): Promise<boolean> {
   if (forcar) return true;
-  const linhas = await dbQuery<{ vencido: boolean }>(
+  const linhas = await dbQuery<{ vencido: boolean; venda_sem_valor: boolean }>(
     `SELECT (orders_report_at IS NULL
-             OR orders_report_at < now() - ($4 || ' milliseconds')::interval) AS vencido
+             OR orders_report_at < now() - ($4 || ' milliseconds')::interval) AS vencido,
+            -- Venda NOVA ainda sem valor: não esperar o relógio.
+            --
+            -- A Amazon omite OrderTotal enquanto o pedido está Pending, e o valor
+            -- de tabela só vem deste relatório. Com o intervalo fixo de 3h, uma
+            -- venda das 17:32 ficava sem valor na tela até as 18:37 — medido em
+            -- 22/08/2026, e foi exatamente o "cadê o valor" da vendedora.
+            --
+            -- A janela de 20 min impede que um pedido antigo sem valor (cancelado
+            -- antes de qualquer captura, que a Amazon nunca vai informar) dispare
+            -- relatório para sempre.
+            EXISTS (
+              SELECT 1 FROM workspace_channel_orders o
+               WHERE o.workspace_id = $1 AND o.provider = $2 AND o.connection_id = $3
+                 AND o.status <> 'cancelled'
+                 AND o.gross IS NULL AND o.ordered_gross IS NULL
+                 AND o.occurred_at > now() - interval '20 minutes'
+            ) AS venda_sem_valor
        FROM workspace_marketplace_syncs
       WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
     [currentWorkspaceId(), "amazon", connectionId, String(INTERVALO_MS)]
   );
   // Sem linha de sync ainda: deixa o sync normal criar antes de gastar um relatório.
-  return linhas[0]?.vencido === true;
+  return linhas[0]?.vencido === true || linhas[0]?.venda_sem_valor === true;
 }
 
 async function marcarIngestao(connectionId: string): Promise<void> {
