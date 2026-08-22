@@ -3,6 +3,57 @@
 > **Status:** ideia / backlog. Não implementar agora — anotado para quando fizer sentido.
 > Registrado em 2026-07-12.
 
+## Estado em 22/08/2026 — a FASE 1 está no ar
+
+O NEXO já fala na tela (resumo do canal, Visão geral e aba Briefing) usando o
+**Gemini** (`gemini-3.6-flash`, pré-pago via `GEMINI_API_KEY` como secret do Fly).
+Arquivos: `src/lib/centralBriefing.ts` (prompt e modos), `src/lib/centralDiagnostico.ts`
+(candidatos a causa), rota `/api/central/briefing`.
+
+**O que ele faz hoje:** recebe números prontos + **fatos do banco que explicam esses
+números**, e escreve. O servidor é quem consulta; o modelo nunca toca no banco.
+
+O pedido dela que originou isso, em 22/08: *"legal que o faturamento do ML caiu, mas
+ele não sabe dizer mt o pq"*. A resposta estava no banco — a conta de Mercado Livre
+dela tem **14 anúncios e ZERO ativos** — e ninguém entregava esse fato ao modelo.
+
+```
+ANTES   "o Mercado Livre caiu 100% na semana. Vamos ver?"
+AGORA   "o Mercado Livre caiu 100% PORQUE não há nenhum dos 14 anúncios
+         ativos no canal. Isso derrubou o faturamento geral em 27,3%."
+```
+
+Sinais coletados hoje (`coletarSinaisDeCausa`): canal sem anúncio ativo, canal com
+menos de 25% ativos, produto que vendia 3+ vezes e parou há 5+ dias, e produto com
+estoque zero que vendeu no último mês.
+
+### FASE 2 — pendente: o modelo consultando de verdade (tool use)
+
+O que a fase 1 **não** resolve: pergunta aberta. *"E se eu baixar o preço do martelo
+em 10%, ainda tenho margem?"* ou *"qual SKU teve a pior margem e por quê?"* exigem que
+o modelo **decida** o que consultar, itere e responda — não dá para pré-calcular todas
+as perguntas possíveis.
+
+Isso é o harness deste documento, e o Gemini suporta **function calling**. As
+ferramentas seriam as funções que já existem (a lista da seção abaixo).
+
+⚠️ **O que precisa ser resolvido antes de ligar:**
+
+1. **Guarda-corpo de alucinação em consulta.** Na fase 1, todo número vem de SQL nosso.
+   Com tool use, o modelo escolhe os argumentos — e período/filtro errado devolve
+   número verdadeiro respondendo a pergunta errada. O `connection_id` é o caso crítico:
+   o banco tem três contas Amazon e uma delas é do colega (ver
+   `.claude/skills/monitorar-ads/SKILL.md`, "Contaminação de dados").
+2. **Custo e latência.** Cada rodada é uma chamada; uma pergunta pode custar 3–5.
+   A fase 1 é uma por dia, cacheada.
+3. **Escopo de workspace nas tools.** Toda ferramenta tem de herdar o workspace do
+   contexto e nunca aceitá-lo como argumento do modelo.
+4. **Onde a conversa mora.** Hoje não há chat na tela; a fase 2 pede uma superfície nova.
+
+📌 **Regra que vale nas duas fases:** o modelo só afirma o que recebeu. Na fase 1 isso é
+garantido pelo prompt e pelo snapshot; na fase 2 precisa ser garantido pelas tools —
+elas retornam dado estruturado, e o prompt proíbe extrapolar além do retorno.
+
 ## Resumo
 
 Um **AI Agent Harness** é um LLM (Claude) equipado com **ferramentas** + um **loop de
