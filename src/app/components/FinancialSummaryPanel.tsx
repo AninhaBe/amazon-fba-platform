@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { CompositionDonut, type CompositionSlice } from "./CompositionDonut";
+import styles from "./FinancialSummaryPanel.module.css";
 
 interface KnownCost {
   id: string;
@@ -75,9 +76,15 @@ export function FinancialSummaryPanel({
 }) {
   const titleId = labelledBy ?? "financial-summary-title";
   return (
-    <aside className="financial-composition" aria-labelledby={titleId}>
+    <aside className={`financial-composition ${complete ? "is-complete" : "is-partial"}`} aria-labelledby={titleId}>
       <div>
-        <p className="section-kicker">Resumo financeiro</p>
+        <div className={styles.meta}>
+          <p className={`${styles.kicker} section-kicker`}>Resumo financeiro</p>
+          <span className={`${styles.status} ${complete ? styles.complete : styles.partial}`}>
+            <span className={styles.statusDot} aria-hidden="true" />
+            {complete ? "Composição completa" : "Composição parcial"}
+          </span>
+        </div>
         <h2 id={titleId} className="mt-1 text-lg font-semibold text-[var(--ink)]">
           Repasses, taxas e {complete ? "lucro" : "resultado"}
         </h2>

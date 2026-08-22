@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import styles from "./FinancialSummaryPanel.module.css";
 
 export interface CompositionSlice {
   id: string;
@@ -33,10 +34,11 @@ export interface CompositionSlice {
  * anúncios e custo do produto são todos a mesma coisa — dinheiro que saiu. Só
  * uma fatia é diferente em natureza: a que sobrou.
  *
- * Então os custos são degraus da MESMA tinta, do mais pesado ao mais leve, e
- * só o lucro é verde. A leitura fica imediata e verdadeira: a parte escura foi
- * embora, a parte verde é sua. Uma paleta arco-íris diria que anúncio e lucro
- * são coisas do mesmo tipo, e não são.
+ * Então os custos são degraus da MESMA tinta, do mais pesado ao mais leve, o
+ * lucro é verde e uma composição ainda aberta recebe apenas um âmbar discreto.
+ * A leitura fica imediata e verdadeira: a parte escura foi embora, a verde é
+ * sua e a âmbar ainda precisa fechar. Uma paleta arco-íris diria que anúncio e
+ * lucro são coisas do mesmo tipo, e não são.
  *
  * Prejuízo inverte o único acento: sem verde, o que "sobra" é vermelho.
  */
@@ -99,7 +101,7 @@ export function CompositionDonut({
         tom: s.isRemainder
           ? null
           : s.isPending
-            ? "var(--ink-12)"
+            ? "color-mix(in oklch, var(--warning) 52%, var(--paper))"
             : TONS_CUSTO[Math.min(i, TONS_CUSTO.length - 1)],
       });
       return acc;
@@ -111,6 +113,8 @@ export function CompositionDonut({
   const centroValor = destacado ? destacado.value : total;
   const centroRotulo = destacado ? destacado.label : totalLabel;
   const centroPct = destacado ? `${(destacado.fracao * 100).toFixed(1).replace(".", ",")}%` : null;
+  const centroTexto = centroPct ?? format(centroValor);
+  const centroTamanho = centroTexto.length > 14 ? styles.centerTight : centroTexto.length > 11 ? styles.centerCompact : "";
 
   return (
     <div className="composition-donut">
@@ -141,7 +145,7 @@ export function CompositionDonut({
             enfeite em leitura: você passa o mouse e lê o número daquela fatia
             sem tirar o olho do anel. */}
         <div className="composition-donut-centro" aria-live="polite">
-          <strong>{centroPct ?? format(centroValor)}</strong>
+          <strong className={`${styles.centerValue}${centroTamanho ? ` ${centroTamanho}` : ""}`}>{centroTexto}</strong>
           <span>{centroRotulo}</span>
           {centroPct && <small>{format(centroValor)}</small>}
         </div>
