@@ -176,11 +176,14 @@ test("moedas diferentes nunca têm valores monetários somados", () => {
 });
 
 test("central consulta cada loja Shopee pelo connection_id explícito", () => {
+  // A coleta mora em centralChannels.ts (compartilhada com o briefing); o
+  // render dos estados de atenção segue em page.tsx.
+  const coleta = fs.readFileSync(new URL("../src/app/centralChannels.ts", import.meta.url), "utf8");
+  assert.match(coleta, /shopee\/overview\?days=30&connection_id=\$\{encodeURIComponent\(connectionId\)\}/);
+  assert.doesNotMatch(coleta, /shopee\/overview\?days=30["`]/);
+  assert.match(coleta, /const shopeeReadState = centralProviderReadState\(shopeeProvider\)/);
+  assert.match(coleta, /const tiktokReadState = centralProviderReadState\(tiktokProvider\)/);
   const page = fs.readFileSync(new URL("../src/app/page.tsx", import.meta.url), "utf8");
-  assert.match(page, /shopee\/overview\?days=30&connection_id=\$\{encodeURIComponent\(connectionId\)\}/);
-  assert.doesNotMatch(page, /shopee\/overview\?days=30["`]/);
-  assert.match(page, /const shopeeReadState = centralProviderReadState\(shopeeProvider\)/);
-  assert.match(page, /const tiktokReadState = centralProviderReadState\(tiktokProvider\)/);
   assert.match(page, /channel\.attention \? "Atenção"/);
   assert.match(page, /channel\.attention \? "Revisar integração"/);
 });
