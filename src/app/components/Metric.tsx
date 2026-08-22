@@ -95,23 +95,36 @@ export function Metric({ label, value, sub, tone = "default", loading, icon, tre
   return <article className={`metric-cell${className ? ` ${className}` : ""}`}>{body}</article>;
 }
 
-export function CompactMetric({ label, value }: { label: string; value: string }) {
+export function CompactMetric({
+  label,
+  value,
+  hint,
+  loading = false,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  loading?: boolean;
+  tone?: "default" | "positive" | "danger" | "warn";
+}) {
   return (
-    <div className="compact-metric">
+    <div className={`compact-metric compact-metric-${tone}`} aria-busy={loading || undefined}>
       <p>{label}</p>
-      <strong>{value}</strong>
+      {loading ? <span className="compact-metric-skeleton" aria-label={`Carregando ${label}`} /> : <strong>{value}</strong>}
+      {hint ? <small className="compact-metric-hint">{hint}</small> : null}
     </div>
   );
 }
 
-export function Flow({ label, value, sign, accent = false }: { label: string; value: string; sign?: "−" | "="; accent?: boolean }) {
+export function Flow({ label, value, sign, accent = false, tone = "positive" }: { label: string; value: string; sign?: "−" | "="; accent?: boolean; tone?: "positive" | "danger" | "default" }) {
   // Custo (sinal "−") em vermelho; subtotal ("=") e valores de entrada em tinta
-  // cheia; resultado final (accent) em verde. Coerência visual entre os canais.
+  // cheia; o resultado final só ganha cor quando o dado permite afirmar o sinal.
   return (
-    <div className={`financial-line ${accent ? "is-result" : ""}`}>
+    <div className={`financial-line ${accent ? `is-result is-result-${tone}` : ""}`}>
       <span className="financial-sign" aria-hidden="true">{sign}</span>
       <p className="text-xs font-medium text-[var(--ink-muted)]">{label}</p>
-      <p className={`text-sm font-bold tabular-nums ${accent ? "text-emerald-700" : sign === "−" ? "text-red-600" : "text-[var(--ink)]"}`}>{value}</p>
+      <p className={`text-sm font-bold tabular-nums ${accent ? tone === "positive" ? "text-emerald-700" : tone === "danger" ? "text-red-600" : "text-[var(--ink)]" : sign === "−" ? "text-red-600" : "text-[var(--ink)]"}`}>{value}</p>
     </div>
   );
 }

@@ -120,7 +120,7 @@ interface DashboardPayload {
    * Pedidos feitos, do jeito que o Seller Central conta: inclui pendentes e
    * cancelados. `null` = a Sales API não respondeu; omitir é melhor que zerar.
    */
-  ordered: { revenue: number; orders: number; units: number } | null;
+  ordered: { revenue: number; orders: number; units: number; points: DailyPoint[] } | null;
   /**
    * Canceladas: somadas no bruto, exibidas à parte — mesmo padrão do ML.
    * `revenue` nulo = valor desconhecido (a Amazon omite `OrderTotal` no que
@@ -176,7 +176,7 @@ export default function Dashboard() {
   const [faturamento, setFaturamento] = useState<{ revenue: number; orders: number } | null>(null);
   // O número que ela confere contra o Seller Central. Sem ele na tela, a conta
   // era feita à mão — e foi assim que apareceram os defeitos de 21/08.
-  const [pedidosFeitos, setPedidosFeitos] = useState<{ revenue: number; orders: number; units: number } | null>(null);
+  const [pedidosFeitos, setPedidosFeitos] = useState<{ revenue: number; orders: number; units: number; points: DailyPoint[] } | null>(null);
   // Canceladas entram no bruto (ADR-020); mostrar à parte é o que impede o número
   // de parecer inflado sem explicação — o ML já fazia, a Amazon não tinha.
   const [canceladas, setCanceladas] = useState<{ revenue: number | null; orders: number } | null>(null);
@@ -266,13 +266,26 @@ export default function Dashboard() {
         estimatedProfit: payload.profit.estimatedProfit,
         unitsWithoutCost: payload.profit.unitsWithoutCost,
       };
-      const sales: SalesSeries = {
-        currency: payload.currency,
-        points: payload.dailySales,
-        totalRevenue: payload.metrics.revenue,
-        totalOrders: payload.metrics.paidOrders,
-        totalUnits: payload.dailySales.reduce((sum, d) => sum + d.units, 0),
-      };
+      // O gráfico se chama "pedidos recebidos", então tem de contar pedido
+      // recebido — incluindo o que ainda está `pending`. A série canônica só tem
+      // aprovadas, e por isso um pedido feito às 21:12 aparecia como dia zerado.
+      // Quando o orderMetrics responde, é ele que manda; se falhar, cai no
+      // canônico e o rótulo abaixo passa a dizer "confirmado".
+      const sales: SalesSeries = payload.ordered
+        ? {
+            currency: payload.currency,
+            points: payload.ordered.points,
+            totalRevenue: payload.ordered.revenue,
+            totalOrders: payload.ordered.orders,
+            totalUnits: payload.ordered.units,
+          }
+        : {
+            currency: payload.currency,
+            points: payload.dailySales,
+            totalRevenue: payload.metrics.revenue,
+            totalOrders: payload.metrics.paidOrders,
+            totalUnits: payload.dailySales.reduce((sum, d) => sum + d.units, 0),
+          };
       next.orders = orders; setOrders(orders);
       next.profit = profit; setProfit(profit);
       next.sales = sales; setSales(sales);
@@ -513,7 +526,9 @@ export default function Dashboard() {
             </div>
             <span className="text-sm font-semibold tabular-nums text-[var(--ink)]">
               {money(revenue, currency)}{" "}
-              <span className="font-normal text-[var(--ink-muted)]">em pedidos recebidos</span>
+              <span className="font-normal text-[var(--ink-muted)]">
+                {pedidosFeitos ? "em pedidos recebidos" : "confirmado (pedidos recebidos indisponível)"}
+              </span>
             </span>
           </div>
           {/* Onde o dinheiro está, não só quanto foi vendido. A diferença entre os

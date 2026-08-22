@@ -219,7 +219,17 @@ export async function GET(req: NextRequest) {
         // `null` quando a Sales API não respondeu — a tela omite o card em vez de
         // inventar zero.
         ordered: pedidosFeitos
-          ? { revenue: pedidosFeitos.totalRevenue, orders: pedidosFeitos.totalOrders, units: pedidosFeitos.totalUnits }
+          ? {
+              revenue: pedidosFeitos.totalRevenue,
+              orders: pedidosFeitos.totalOrders,
+              units: pedidosFeitos.totalUnits,
+              // A série diária vai junto: o gráfico se chama "pedidos recebidos" e
+              // vinha do canônico, que só conta aprovadas. Resultado — 21/08/2026,
+              // 22:58: a vendedora tinha um pedido feito às 21:12 e o gráfico
+              // marcava ZERO no dia, porque o pedido ainda estava `pending` e
+              // pendente não tem valor no canônico.
+              points: pedidosFeitos.points,
+            }
           : null,
         // Canceladas: somadas no bruto (ADR-020) e exibidas à parte, como no ML.
         cancelled: {

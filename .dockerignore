@@ -12,6 +12,21 @@ node_modules
 .claude
 .vscode
 
+# Artefatos de ferramenta local — ignorados pelo git, mas o .dockerignore é lista
+# SEPARADA e não herda o .gitignore. Sem estas linhas eles iam inteiros para o
+# build: medido em 21/08/2026, o contexto era 964 MB em 6.339 arquivos, sendo
+# 899 MB só de perfis de navegador em .codex-artifacts.
+#
+# Não era só lentidão: o deploy FALHOU porque um arquivo de LOCK do Chrome estava
+# aberto por outro processo e não pôde ser lido. Contexto que inclui diretório
+# vivo de outra ferramenta quebra de forma aparentemente aleatória.
+.codex-artifacts
+.codex
+.tools
+ui-ux-pro-max-skill
+.tmp
+G:/sc-temp
+
 # Documentação e material de estudo — não servem em runtime
 docs
 *.md

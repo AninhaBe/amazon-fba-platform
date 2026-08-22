@@ -960,8 +960,8 @@ button[class*="bg-blue-"]:hover, a[class*="bg-blue-"]:hover { background: var(--
 .financial-composition {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  gap: 24px;
+  justify-content: flex-start;
+  gap: 18px;
   padding: 22px;
   border-inline-start: 1px solid var(--line);
   background: linear-gradient(150deg, var(--paper-warm), var(--paper-soft));
@@ -979,6 +979,10 @@ button[class*="bg-blue-"]:hover, a[class*="bg-blue-"]:hover { background: var(--
 .financial-sign { color: var(--ink-muted); font-size: 16px; font-weight: 500; text-align: center; }
 .financial-line.is-result { margin: 10px -8px 0; padding: 0 8px; border: 1px solid oklch(0.86 0.04 160); border-radius: var(--radius-sm); background: var(--positive-soft); }
 .financial-line.is-result .financial-sign { color: var(--positive); }
+.financial-line.is-result-default { border-color: var(--ink-12); background: var(--paper-soft); }
+.financial-line.is-result-default .financial-sign { color: var(--ink-muted); }
+.financial-line.is-result-danger { border-color: color-mix(in oklch, var(--danger) 24%, var(--paper)); background: color-mix(in oklch, var(--danger) 8%, var(--paper)); }
+.financial-line.is-result-danger .financial-sign { color: var(--danger); }
 /* Subtotal fecha um trecho da cascata (o faturamento líquido, depois do cupom).
    Marcado, mas sem o verde do resultado final — senão disputa a leitura. */
 .financial-line.is-subtotal { margin-inline: -8px; padding-inline: 8px; background: var(--paper-soft); }
@@ -3359,7 +3363,7 @@ summary:hover { background: var(--paper-soft); }
 .amazon-dashboard .metric-grid { overflow: visible; border-block: 1px solid var(--ink-08); }
 .amazon-dashboard .metric-cell { min-width: 0; padding: 12px 20px !important; }
 .amazon-dashboard .secondary-metrics {
-  grid-template-columns: repeat(5, minmax(0, 1fr)); overflow: visible;
+  grid-template-columns: repeat(6, minmax(0, 1fr)); overflow: visible;
   border-block-end: 1px solid var(--ink-08); border-radius: 0; background: transparent; box-shadow: none;
 }
 .amazon-dashboard .compact-metric { padding: 4px 20px 12px; }
@@ -4835,6 +4839,26 @@ summary:hover { background: var(--paper-soft); }
   box-shadow: none;
 }
 .integration-dashboard-sections > .metric-grid > .metric-cell:hover { transform: none; }
+.integration-dashboard .secondary-metrics {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  overflow: visible;
+  border-block-end: 1px solid var(--ink-08);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.integration-dashboard .compact-metric { padding: 4px 16px 12px; }
+.integration-dashboard .compact-metric p { font-size: 13px; font-weight: var(--weight-body); letter-spacing: var(--track-s); text-transform: none; }
+.integration-dashboard .compact-metric strong { font-size: 14px; font-weight: var(--weight-body); }
+.compact-metric-skeleton {
+  display: block;
+  width: min(86px, 60%);
+  height: 14px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--ink-05), var(--ink-08), var(--ink-05));
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
 .tiktok-financial-components {
   overflow: hidden;
   border-radius: var(--radius-lg);
@@ -4876,6 +4900,9 @@ summary:hover { background: var(--paper-soft); }
     margin-inline: -16px;
     padding-inline: 16px;
   }
+  .integration-dashboard .secondary-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .integration-dashboard .compact-metric:nth-child(3n) { border-inline-end: 0; }
+  .integration-dashboard .compact-metric:nth-child(-n+3) { border-block-end: 1px solid var(--line); }
 }
 
 @media (max-width: 600px) {
@@ -4889,6 +4916,10 @@ summary:hover { background: var(--paper-soft); }
   .integration-dashboard-sections > .metric-grid > .metric-cell { min-width: 0; border-block-end: 1px solid var(--ink-08) !important; }
   .integration-dashboard-sections > .metric-grid > .metric-cell:nth-child(2n) { border-inline-end: 0 !important; }
   .integration-dashboard-sections > .metric-grid > .metric-cell:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .integration-dashboard .secondary-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: hidden; }
+  .integration-dashboard .compact-metric:nth-child(3n) { border-inline-end: 1px solid var(--line); }
+  .integration-dashboard .compact-metric:nth-child(2n) { border-inline-end: 0; }
+  .integration-dashboard .compact-metric:nth-child(-n+4) { border-block-end: 1px solid var(--line); }
   .tiktok-financial-components summary { align-items: flex-start; flex-direction: column; justify-content: center; gap: 1px; padding-block: 8px; }
   .tiktok-financial-components summary small { margin-inline-start: 0; }
   .tiktok-financial-components summary { position: relative; padding-inline-end: 38px; }
