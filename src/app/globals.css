@@ -4889,9 +4889,21 @@ summary:hover { background: var(--paper-soft); }
   background: transparent;
   box-shadow: none;
 }
-.integration-dashboard .compact-metric { padding: 4px 16px 12px; }
+.integration-dashboard .compact-metric {
+  align-content: flex-start;
+  min-height: 66px;
+  row-gap: 2px;
+  padding: 6px 16px 9px;
+}
 .integration-dashboard .compact-metric p { font-size: 13px; font-weight: var(--weight-body); letter-spacing: var(--track-s); text-transform: none; }
 .integration-dashboard .compact-metric strong { font-size: 14px; font-weight: var(--weight-body); }
+.integration-dashboard .compact-metric-hint {
+  display: -webkit-box;
+  overflow: hidden;
+  margin-block-start: 0;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
 .compact-metric-skeleton {
   display: block;
   width: min(86px, 60%);
