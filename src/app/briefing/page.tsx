@@ -86,7 +86,11 @@ export default function BriefingPage() {
   }
 
   useEffect(() => {
-    const t = window.setTimeout(() => void load(), 0);
+    // Re-detecta ao abrir (POST), em vez de só ler o que estava gravado. Sem
+    // isso, o briefing mostrava ruptura ANTIGA: um SKU detectado sem estoque
+    // dias atrás, já reposto, continuava na lista até o cron rodar. O reconcile
+    // auto-resolve o que não aparece mais, então a leitura fresca se corrige.
+    const t = window.setTimeout(() => void load(true), 0);
     return () => window.clearTimeout(t);
   }, []);
 

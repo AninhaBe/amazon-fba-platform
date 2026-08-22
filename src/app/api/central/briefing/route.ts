@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { NextRequest, NextResponse } from "next/server";
 
 import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
@@ -52,7 +54,15 @@ export async function POST(req: NextRequest) {
     // não, às 15h a pessoa veria o "Bom dia" cacheado de manhã.
     const dia = diaEmBrasilia();
     const saudacao = saudacaoDeBrasilia();
-    const chave = `central-briefing:${modo}:${escopo}:${saudacao}:${currentWorkspaceId()}:${dia}`;
+    // O briefing fala de estado (ruptura, sinais) que muda; se cacheasse só por
+    // dia, mostraria análise velha depois que o estoque foi reposto. A chave dele
+    // leva um hash dos fatos: mesmos fatos → cacheado; fatos mudaram → regenera.
+    // O resumo (financeiro do dia) é estável, então fica no cache diário simples.
+    const fatosHash =
+      modo === "briefing"
+        ? ":" + createHash("sha1").update(JSON.stringify(snapshot.insights ?? [])).digest("hex").slice(0, 12)
+        : "";
+    const chave = `central-briefing:${modo}:${escopo}:${saudacao}:${currentWorkspaceId()}:${dia}${fatosHash}`;
     // Só o texto real é cacheado. Resultado vazio (sem chave, erro transitório)
     // vira throw DENTRO do cache — o helper descacheia em erro, então a próxima
     // carga tenta de novo em vez de servir vazio o dia todo.
