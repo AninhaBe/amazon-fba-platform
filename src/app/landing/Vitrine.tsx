@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { PainelCanal } from "./VitrineAnimada";
 import { MostraSaldo, MostraAuditoria } from "./Mostruario";
+import styles from "./landing.module.css";
 
 /**
  * A vitrine do hero com abas — o elemento de assinatura do dub.co: três pills
@@ -52,22 +53,32 @@ export function Vitrine() {
 
   return (
     <>
-      <div className="lp-vitrine-abas" role="tablist" aria-label="Telas do NEXO">
-        {ABAS.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            role="tab"
-            id={`aba-${item.id}`}
-            aria-selected={item.id === ativa}
-            aria-controls="vitrine-painel"
-            className={item.id === ativa ? "is-ativa" : ""}
-            onClick={() => setAtiva(item.id)}
-          >
-            <span className={`lp-aba-ponto is-${item.id}`} aria-hidden="true" />
-            {item.rotulo}
-          </button>
-        ))}
+      <div className={styles.shelf}>
+        <svg className={styles.curve} viewBox="0 0 88 64" aria-hidden="true">
+          <path d="M0 0h88v64c-15 0-29-7-37-20L35 19C28 8 15 0 0 0Z" />
+        </svg>
+        <div className={styles.shelfCenter}>
+          <div className={`lp-vitrine-abas ${styles.tabs}`} role="tablist" aria-label="Telas do NEXO">
+            {ABAS.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                role="tab"
+                id={`aba-${item.id}`}
+                aria-selected={item.id === ativa}
+                aria-controls="vitrine-painel"
+                className={item.id === ativa ? "is-ativa" : ""}
+                onClick={() => setAtiva(item.id)}
+              >
+                <span className={`lp-aba-ponto is-${item.id}`} aria-hidden="true" />
+                {item.rotulo}
+              </button>
+            ))}
+          </div>
+        </div>
+        <svg className={`${styles.curve} ${styles.curveRight}`} viewBox="0 0 88 64" aria-hidden="true">
+          <path d="M0 0h88v64c-15 0-29-7-37-20L35 19C28 8 15 0 0 0Z" />
+        </svg>
       </div>
 
       <figure

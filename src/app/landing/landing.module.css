@@ -1,0 +1,86 @@
+.hero {
+  overflow: visible;
+}
+
+.hero::before {
+  display: none;
+}
+
+.heroGrid {
+  position: absolute;
+  z-index: 0;
+  inset: 24px calc(50% - 50vw) 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(oklch(0 0 0 / 0.052) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(0 0 0 / 0.052) 1px, transparent 1px);
+  background-size: 52px 52px;
+  mask-image: linear-gradient(to bottom, transparent, black 18%, black 75%, transparent);
+}
+
+.productSection::before {
+  border-block: 1px solid var(--lp-linha);
+}
+
+.productSection::after {
+  display: none;
+}
+
+.shelf {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: min(700px, calc(100vw - 32px));
+  height: 64px;
+  align-items: stretch;
+  margin: -14px auto 20px;
+  color: white;
+}
+
+.curve {
+  width: 88px;
+  height: 64px;
+  flex: none;
+  overflow: visible;
+  fill: currentColor;
+  translate: 1px 0;
+}
+
+.curveRight {
+  scale: -1 1;
+  translate: -1px 0;
+}
+
+.shelfCenter {
+  min-width: 0;
+  flex: 1;
+  border-block-start: 1px solid currentColor;
+  background: currentColor;
+}
+
+.tabs {
+  height: 100%;
+  align-items: center;
+  margin: 0 !important;
+}
+
+@media (max-width: 560px) {
+  .shelf {
+    width: calc(100vw - 16px);
+  }
+
+  .curve {
+    width: 34px;
+  }
+
+  .tabs {
+    flex-wrap: nowrap;
+    gap: 5px;
+  }
+
+  .tabs button {
+    gap: 5px;
+    padding-inline: 9px;
+    font-size: 12px;
+  }
+}
