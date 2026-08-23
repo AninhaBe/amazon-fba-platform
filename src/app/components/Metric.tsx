@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import type { DailyPoint } from "./RevenueChart";
 
 // Blocos de indicador compartilhados entre os canais (antes duplicados no
 // dashboard da Amazon e no workspace do Mercado Livre). O acento por canal vem
