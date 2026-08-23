@@ -85,7 +85,7 @@ export function MercadoLivreSaldo({ connectionId }: { connectionId?: string }) {
         conta do &quot;Total a receber&quot; do Mercado Pago. O frete que o comprador paga não é descontado,
         porque o Mercado Livre debita o valor cheio e credita essa parte de volta.
         {saldo.parcial
-          ? ` Total parcial: lemos as ${saldo.pagamentosLidos} liberações mais próximas de ${saldo.pagamentosTotais} pendentes, então o retido real é maior que o exibido.`
+          ? ` Lemos as ${saldo.pagamentosLidos} liberações mais próximas de ${saldo.pagamentosTotais} pendentes — o retido real é maior que o exibido.`
           : ""}
       </p>
     </section>

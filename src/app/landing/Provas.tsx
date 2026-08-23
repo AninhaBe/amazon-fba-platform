@@ -72,7 +72,7 @@ const PROVAS: Prova[] = [
     nosso: ["NEXO", "1 de 160"],
     texto:
       "Zero é um fato: significa que não houve. Desconhecido é outra coisa. Todo painel confunde os dois, e é assim que um relatório fecha bonito e errado. O NEXO mostra o que capturou e diz de quantos capturou.",
-    fonte: "Cobertura exibida em toda métrica parcial",
+    fonte: "Aponta o que falta, em vez de arredondar",
   },
 ];
 

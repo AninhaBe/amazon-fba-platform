@@ -82,7 +82,7 @@ export function FinancialSummaryPanel({
           <p className={`${styles.kicker} section-kicker`}>Resumo financeiro</p>
           <span className={`${styles.status} ${complete ? styles.complete : styles.partial}`}>
             <span className={styles.statusDot} aria-hidden="true" />
-            {complete ? "Composição completa" : "Composição parcial"}
+            {complete ? "Composição completa" : "Faltam custos ou repasses"}
           </span>
         </div>
         <h2 id={titleId} className="mt-1 text-lg font-semibold text-[var(--ink)]">

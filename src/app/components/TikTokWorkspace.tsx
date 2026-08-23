@@ -179,7 +179,7 @@ export function TikTokWorkspace() {
     <IntegrationDashboardFrame
       className="channel-dashboard tiktok-dashboard-page"
       period={<DashboardPeriodFilter {...period.filterProps} />}
-      header={<PageHeader eyebrow="TikTok Shop" title={data.connection.name} subtitle={`${data.connection.region} · ${phase === "ready" ? "Dados sincronizados" : "Sincronização parcial"}`} action={selector} />}
+      header={<PageHeader eyebrow="TikTok Shop" title={data.connection.name} subtitle={`${data.connection.region} · ${phase === "ready" ? "Dados sincronizados" : "Sincronizando"}`} action={selector} />}
     >
       <div className="dashboard-sections integration-dashboard-sections tiktok-dashboard-body">
         {/* Mesma abertura dos outros três canais. O TikTok é o caso mais
@@ -206,7 +206,7 @@ export function TikTokWorkspace() {
         />
         {financialBlocked
           ? <StatusNotice title="Financeiro indisponível neste ambiente">A estrutura do ledger financeiro ainda não está disponível. Vendas e catálogo continuam visíveis, mas taxas e resultado permanecem desconhecidos; nenhum valor foi convertido em zero.</StatusNotice>
-          : phase === "partial" && <StatusNotice title="Sincronização em andamento">Os números aparecem somente quando cada componente está completo. Nenhum valor parcial é apresentado como definitivo.</StatusNotice>}
+          : phase === "partial" && <StatusNotice title="Sincronização em andamento">Os números aparecem somente quando cada componente está completo. Nenhum é apresentado como definitivo antes disso.</StatusNotice>}
         <section className="metric-grid tiktok-dashboard-metrics" aria-label="Resumo financeiro da TikTok Shop">
           {primaryCards.map((card) => <Metric key={card.key} label={card.label} value={card.value} sub={card.context} tone={(card.key === "profit" || card.key === "marginPct") && card.raw != null ? card.raw > 0 ? "positive" : card.raw < 0 ? "danger" : "default" : "default"} />)}
         </section>
@@ -281,7 +281,7 @@ export function TikTokWorkspace() {
           <div className="mb-4">
             <p className="section-kicker">Período selecionado</p>
             <h2 id="tiktok-coverage-title" className="mt-1 text-lg font-semibold text-[var(--ink)]">Cobertura financeira da janela</h2>
-            <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--ink-muted)]">Cada razão usa sua unidade real: pedidos, unidades ou o período. Valores capturados são evidência parcial e nunca substituem o total oficial, que permanece “—” até a cobertura ficar completa.</p>
+            <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--ink-muted)]">Cada razão usa sua unidade real: pedidos, unidades ou o período. Valores capturados são evidência e nunca substituem o total oficial, que permanece “—” até a cobertura ficar completa.</p>
           </div>
           <dl className="tiktok-coverage-grid">
             {coverageDescription(data.coverage, currency).map((item) => <div key={item.key}><dt>{item.label}</dt><dd><span>{item.status}</span> · <span className="tabular-nums">{item.detail}</span>{item.captured && <small>{item.captured}</small>}</dd></div>)}
@@ -292,8 +292,8 @@ export function TikTokWorkspace() {
             <h2 id="tiktok-orders-title" className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--ink-muted)]">Pedidos e rentabilidade</h2>
             {!data.orderProfitability?.length ? <EmptyState compact title="Nenhum pedido no período" /> : <ul className="divide-y divide-[var(--line)]">
               {data.orderProfitability.slice(0, 8).map((order) => <li key={order.orderId} className="flex items-center justify-between gap-4 py-3 text-sm">
-                <span className="min-w-0"><strong className="block truncate font-mono text-xs text-[var(--ink-soft)]">#{order.orderId}</strong><small className="text-[var(--ink-muted)]">{brDate(order.occurredAt)} · {order.financialStatus === "complete" ? "conciliado" : order.financialStatus === "partial" ? "resultado parcial" : "aguardando extrato"}</small></span>
-                <span className="shrink-0 text-right"><strong className="block tabular-nums">{new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(order.revenue)}</strong><small className={order.profit == null ? "text-[var(--ink-muted)]" : "text-emerald-700"}>{order.profit == null ? "Lucro —" : `${new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(order.profit)}${order.financialStatus === "complete" ? "" : " (parcial)"}`}</small></span>
+                <span className="min-w-0"><strong className="block truncate font-mono text-xs text-[var(--ink-soft)]">#{order.orderId}</strong><small className="text-[var(--ink-muted)]">{brDate(order.occurredAt)} · {order.financialStatus === "complete" ? "conciliado" : order.financialStatus === "partial" ? "faltam custos" : "aguardando extrato"}</small></span>
+                <span className="shrink-0 text-right"><strong className="block tabular-nums">{new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(order.revenue)}</strong><small className={order.profit == null ? "text-[var(--ink-muted)]" : "text-emerald-700"}>{order.profit == null ? "Lucro —" : `${new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(order.profit)}${order.financialStatus === "complete" ? "" : " (sem repasse)"}`}</small></span>
               </li>)}
             </ul>}
           </section>

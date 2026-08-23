@@ -36,7 +36,7 @@ test("UI usa status canônicos e explica schema financeiro bloqueado",async()=>{
   assert.match(financePage,/kind="finance"/);
   assert.doesNotMatch(financePage,/redirect/);
   assert.match(nav,/href: "\/tiktok\/financeiro"/);
-  assert.match(source,/Cobertura financeira parcial/);
+  assert.match(source,/Extrato ainda incompleto/);
   assert.match(source,/Somente campos sanitizados do ledger/);
   assert.match(source,/Financeiro aguardando estrutura de dados/);
   assert.match(dashboard,/Financeiro indisponível neste ambiente/);

@@ -250,7 +250,7 @@ function MonitorPage({ secaoInicial }: { secaoInicial: MonitorSection }) {
               {
                 id: "lucro",
                 label: costsIncomplete ? "Repasse antes do custo" : "Lucro estimado",
-                node: <Metric label={costsIncomplete ? "Repasse antes do custo" : "Lucro estimado"} value={money(estimatedProfit, finance.currency)} sub={costsIncomplete ? "resultado parcial; faltam custos" : "repasse − custo dos produtos"} tone={costsIncomplete ? "default" : estimatedProfit > 0 ? "positive" : estimatedProfit < 0 ? "danger" : "default"} />,
+                node: <Metric label={costsIncomplete ? "Repasse antes do custo" : "Lucro estimado"} value={money(estimatedProfit, finance.currency)} sub={costsIncomplete ? "faltam custos cadastrados" : "repasse − custo dos produtos"} tone={costsIncomplete ? "default" : estimatedProfit > 0 ? "positive" : estimatedProfit < 0 ? "danger" : "default"} />,
               },
               {
                 id: "margem-pct",
@@ -318,7 +318,7 @@ function MonitorPage({ secaoInicial }: { secaoInicial: MonitorSection }) {
             </div>
             {costsIncomplete && (
               <p className="monitor-coverage-note">
-                <strong>Resultado parcial:</strong> {profit?.unitsWithoutCost} unidade(s) vendida(s) ainda estão sem custo cadastrado. <a href="/amazon/produtos">Cadastrar custos em Produtos</a>
+                <strong>{profit?.unitsWithoutCost} unidade(s)</strong> vendida(s) ainda sem custo cadastrado. <a href="/amazon/produtos">Cadastrar custos em Produtos</a>
               </p>
             )}
           </section>

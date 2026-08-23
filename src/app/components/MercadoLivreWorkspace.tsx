@@ -264,7 +264,7 @@ function avaliarResultado(overview: Overview) {
   const margemSub = semAliquota
     ? "cadastre a alíquota de imposto"
     : resultParcial
-      ? `parcial — falta ${faltas.join(", ")}`
+      ? `falta ${faltas.join(", ")}`
       : "sobre o faturamento";
   return { semAliquota, resultParcial, resultIncomplete, margemSub };
 }

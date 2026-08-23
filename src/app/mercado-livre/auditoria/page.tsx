@@ -137,7 +137,7 @@ export default function AuditoriaPage() {
 
           {dados.parcial && (
             <p className="audit-partial-note">
-              Leitura parcial: o período tem mais pagamentos do que foi possível ler de uma vez. Reduza o
+              O período tem mais pagamentos do que foi possível ler de uma vez. Reduza o
               período para cobrir tudo.
             </p>
           )}

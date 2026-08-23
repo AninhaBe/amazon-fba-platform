@@ -240,7 +240,7 @@ function Results({ data, quad, setQuad, costsHref }: { data: Abc; quad: Quadrant
                       <td className="!text-left">
                         <div className="flex max-w-[240px] flex-col">
                           <strong className="truncate text-[13px] font-semibold" title={p.title}>{p.title}</strong>
-                          <small className="font-mono text-[12px] text-[var(--ink-muted)]">{p.sku || p.productId}{!p.costMissing && !p.complete && " · parcial"}</small>
+                          <small className="font-mono text-[12px] text-[var(--ink-muted)]">{p.sku || p.productId}{!p.costMissing && !p.complete && " · sem repasse postado"}</small>
                         </div>
                       </td>
                       <td className="text-right">{p.units}</td>
@@ -273,7 +273,7 @@ function Results({ data, quad, setQuad, costsHref }: { data: Abc; quad: Quadrant
       {!data.covered && (
         <p className="flex gap-2 px-1 text-xs text-[var(--ink-muted)]">
           <span aria-hidden="true">ℹ️</span>
-          <span>Ainda sincronizando o período — alguns produtos podem aparecer como &quot;parcial&quot; até a conciliação terminar.</span>
+          <span>Ainda sincronizando o período — alguns produtos aparecem sem repasse até o canal postar.</span>
         </p>
       )}
     </div>

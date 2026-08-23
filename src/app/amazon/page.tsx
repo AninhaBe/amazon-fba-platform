@@ -679,7 +679,7 @@ export default function Dashboard() {
               <span>Base dos repasses da Amazon (data de postagem) — difere do faturamento acima, que segue a data do pedido como o Seller Central.</span>
               {conciliacao && !conciliacao.complete ? (
                 <span className="mt-2 block rounded-md bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
-                  Conciliação parcial: {conciliacao.processedOrders} de {conciliacao.paidOrders} pedidos pagos já conciliados. Os valores desta seção ainda sobem — compare com o faturamento só quando a conciliação terminar.
+                  {conciliacao.paidOrders - conciliacao.processedOrders} pedido(s) ainda sem repasse postado pela Amazon. Os valores desta seção sobem conforme ela posta.
                 </span>
               ) : null}
             </>

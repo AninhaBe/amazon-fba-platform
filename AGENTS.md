@@ -88,6 +88,14 @@ Três regras que atravessam o código todo e não são negociáveis sem ADR:
   ("não houve frete"). Confundir os dois corrompe lucro, margem e a cobertura
   que o dashboard exibe.
 - **Não extrapolar.** Enquanto tarifas e fretes não estiverem completos, o painel
-  mostra só o que foi capturado e diz que está parcial — nunca projeta o resto.
+  mostra só o que foi capturado — nunca projeta o resto.
+- **Nunca escrever "parcial" na tela.** A palavra explica ao vendedor uma coisa que
+  ele já sabe (o que ele cadastrou e o que não cadastrou) e não diz o que fazer.
+  Diga **o que falta, com número e link**: "3 unidades sem custo cadastrado →",
+  "2 pedidos sem repasse postado", "falta a alíquota de imposto". Correção dela em
+  23/08/2026: *"não precisa mostrar que é parcial […] o user sabe o que está
+  cadastrado; se tem venda e não tem custo, fica apontado lá que o custo não está
+  cadastrado"*. Vale para "parcial", "incompleto" e qualquer adjetivo que se
+  desculpe em vez de apontar.
 - **Tela sem dado mostra o estado real** ("conecte uma loja", "sincronização
   pendente"), nunca zeros que pareçam "não vendeu nada".

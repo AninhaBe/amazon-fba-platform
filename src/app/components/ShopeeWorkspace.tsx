@@ -418,7 +418,7 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
 
       {!overview.metrics.revenueCoverage.complete && (
         <div role="status" className="integration-message is-error">
-          Sincronização parcial: {overview.metrics.revenueCoverage.capturedOrders} de {overview.metrics.revenueCoverage.totalOrders} pedido(s) do período foram capturados. Os valores exibidos não representam cobertura completa.
+          {overview.metrics.revenueCoverage.totalOrders - overview.metrics.revenueCoverage.capturedOrders} pedido(s) do período ainda não foram capturados pela sincronização.
         </div>
       )}
 
@@ -426,7 +426,7 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
 
       {!SHOPEE_CATALOG_CAPABILITIES.models && (
         <div role="status" className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
-          Estoque com cobertura parcial: as quantidades atuais são agregadas por anúncio. O detalhamento por variação ainda não está disponível nesta integração.
+          As quantidades são agregadas por anúncio — o detalhamento por variação ainda não está disponível nesta integração.
         </div>
       )}
 
@@ -558,7 +558,7 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
       </div>
 
       <section className="shopee-profitability-section">
-        {!overview.profitabilityPage.complete && <div role="status" className="mb-3 integration-message is-error">Detalhamento parcial: exibindo {overview.profitabilityPage.offset + 1}–{overview.profitabilityPage.offset + overview.profitabilityPage.returnedOrders} de {overview.profitabilityPage.totalOrders} pedido(s). Há mais resultados.</div>}
+        {!overview.profitabilityPage.complete && <div role="status" className="mb-3 integration-message is-error">Exibindo {overview.profitabilityPage.offset + 1}–{overview.profitabilityPage.offset + overview.profitabilityPage.returnedOrders} de {overview.profitabilityPage.totalOrders} pedido(s). Há mais resultados.</div>}
         <OrderProfitabilityTable lines={overview.profitabilityLines} />
         <nav aria-label="Paginação da rentabilidade" className="mt-3 flex justify-end gap-2"><button type="button" className="min-h-11 rounded-lg px-4 shadow-[inset_0_0_0_1px_rgb(203_213_225)] active:scale-[0.96] transition-transform disabled:opacity-40" disabled={overview.profitabilityPage.offset===0} onClick={()=>onPage(Math.max(0,overview.profitabilityPage.offset-overview.profitabilityPage.limit))}>Anterior</button><button type="button" className="min-h-11 rounded-lg px-4 shadow-[inset_0_0_0_1px_rgb(203_213_225)] active:scale-[0.96] transition-transform disabled:opacity-40" disabled={!overview.profitabilityPage.hasMore} onClick={()=>onPage(overview.profitabilityPage.offset+overview.profitabilityPage.limit)}>Próxima</button></nav>
       </section>
