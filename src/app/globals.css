@@ -831,6 +831,35 @@ button[class*="bg-blue-"]:hover, a[class*="bg-blue-"]:hover { background: var(--
 .compact-metric:last-child { border-inline-end: 0; }
 /* Explica o que o número mede, quando o rótulo sozinho engana — caso de
    "Faturamento" × "Pedidos feitos", que respondem perguntas diferentes. */
+/* BOLINHA "i" — a explicação da base do número, no hover.
+   As legendas que nomeiam a base ("preço de tabela, antes do cupom") são longas
+   e poluíam o cartão; sem elas, a dúvida "por que os dois valores diferem?"
+   voltava. A dica fica atrás do "i" e o cartão volta ao que era (23/08/2026).
+   Focável de propósito: teclado alcança e leitor de tela lê pelo aria-label. */
+.metric-info {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 13px; height: 13px; margin-inline-start: 5px; border-radius: 50%;
+  border: 1px solid currentColor; opacity: .45; cursor: help;
+  font-size: 9px; font-weight: 700; font-style: italic; line-height: 1;
+  vertical-align: middle; position: relative;
+}
+.metric-info:hover, .metric-info:focus-visible { opacity: .9; outline: none; }
+.metric-info::after {
+  content: attr(data-dica);
+  position: absolute; bottom: calc(100% + 7px); left: 50%; translate: -50% 0;
+  width: max-content; max-width: 260px; z-index: 40;
+  padding: 7px 10px; border-radius: 8px;
+  background: var(--ink, #111827); color: white;
+  font: 400 11.5px/1.45 inherit; font-style: normal; text-align: start;
+  letter-spacing: normal; white-space: normal;
+  opacity: 0; visibility: hidden; transition: opacity .12s ease;
+  box-shadow: 0 6px 18px oklch(0 0 0 / .22);
+}
+.metric-info:hover::after, .metric-info:focus-visible::after { opacity: 1; visibility: visible; }
+/* Perto da borda direita a dica sairia da tela; ancora pela direita. */
+.compact-metric:last-child .metric-info::after,
+.metric-cell:last-child .metric-info::after { left: auto; right: 0; translate: 0 0; }
+
 .compact-metric-hint {
   flex-basis: 100%;
   margin-block-start: 2px;

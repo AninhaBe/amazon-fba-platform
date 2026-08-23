@@ -8,7 +8,7 @@ import { InlineLoading } from "../components/LoadingState";
 import { EmptyState } from "../components/EmptyState";
 import { DashboardPeriodFilter, useDashboardPeriod } from "../components/DashboardPeriodFilter";
 import type { OperationPendingItem } from "../components/OperationPending";
-import { Metric as Kpi, getRevenueTrend } from "../components/Metric";
+import { Metric as Kpi, CompactMetric, getRevenueTrend } from "../components/Metric";
 import { amazonFinancialCards } from "./amazonFinancialCards";
 import { AnimatedNumber } from "../components/AnimatedNumber";
 import { OrderProfitabilityTable } from "../components/OrderProfitabilityTable";
@@ -187,21 +187,13 @@ let productsCache: ProductRow[] | null = null;
  * estado: quantos pedidos ainda não têm valor, em vez de escondê-los na contagem.
  */
 function legendaFaturamento(
-  f: { revenue: number; orders: number; ordersWithValue?: number; coupon?: number | null; couponPartial?: boolean } | null,
-  fallback: number,
-  moeda: string
+  f: { revenue: number; orders: number; ordersWithValue?: number } | null,
+  fallback: number
 ): string {
   const pedidos = f?.orders ?? fallback;
   const comValor = f?.ordersWithValue;
   const plural = (n: number) => `${n} ${n === 1 ? "pedido" : "pedidos"}`;
-  // O CUPOM entra na legenda porque é o que separa este card do "Pedidos feitos"
-  // logo abaixo — e ela perguntou três vezes por que os dois números diferem
-  // (23/08/2026). A resposta tem de estar na tela, não na minha explicação.
-  const cupom = f?.coupon ?? 0;
-  const sufixoCupom = cupom > 0
-    ? ` · já sem ${f?.couponPartial ? "ao menos " : ""}${money(cupom, moeda)} de cupom`
-    : "";
-  if (comValor === undefined || comValor === pedidos) return `${plural(pedidos)} no período${sufixoCupom}`;
+  if (comValor === undefined || comValor === pedidos) return `${plural(pedidos)} no período`;
   const semValor = pedidos - comValor;
   // Nenhum tem valor ainda: dizer o motivo, não mostrar zero seco.
   if (comValor === 0) {
@@ -524,8 +516,15 @@ export default function Dashboard() {
                     // e emparelhar os dois produzia "R$ 0,00 · 1 pedido", que se
                     // contradiz na própria linha (22/08/2026). Quando há pedido
                     // sem valor, o subtítulo DIZ isso em vez de fingir coerência.
-                    ? legendaFaturamento(faturamento, salesCount, currency)
+                    ? legendaFaturamento(faturamento, salesCount)
                     : card.context}
+                  // O "i" do Faturamento explica a BASE — é o que separa este
+                  // número do "Pedidos feitos" logo abaixo.
+                  info={
+                    card.key === "revenue" && (faturamento?.coupon ?? 0) > 0
+                      ? `O que o comprador realmente pagou: já sem ${faturamento?.couponPartial ? "ao menos " : ""}${money(faturamento?.coupon ?? 0, currency)} de cupom resgatado. O card "Pedidos feitos" mostra o preço de tabela, antes do cupom.`
+                      : undefined
+                  }
                   trend={card.key === "revenue" ? revenueTrend : undefined}
                   tone={card.tone}
                   loading={loading}
@@ -552,14 +551,9 @@ export default function Dashboard() {
               ? `${money(pedidosFeitos.revenue, currency)} · ${pedidosFeitos.orders}`
               : "—"
           }
-          // Este é o número que ela compara com o Seller Central todo dia. Dizer
-          // isso na própria legenda encerra a dúvida "por que é diferente do
-          // Faturamento?" sem exigir que ela lembre da regra.
-          hint={
+          info={
             pedidosFeitos
-              ? (faturamento?.coupon ?? 0) > 0
-                ? "preço de tabela, antes do cupom — é o número do Seller Central"
-                : "preço de tabela — é o número do Seller Central"
+              ? 'Preço de tabela, antes do cupom — é este que bate com "Vendas de produtos solicitados" do Seller Central. Inclui pedidos pendentes; exclui cancelados.'
               : undefined
           }
           loading={loading}
@@ -579,13 +573,12 @@ export default function Dashboard() {
             // Fecha a conta na tela: este é EXATAMENTE o valor que separa
             // "Pedidos feitos" de "Faturamento". Sem dizer isso, o número fica
             // solto e a pessoa não liga um card ao outro.
-            // Só afirma a igualdade quando ela SE SUSTENTA. Com pedidos sem
-            // preço de tabela, este número é o que conseguimos apurar — e dizer
-            // que é "a diferença" seria mentira numa conta com cobertura parcial.
-            hint={
+            // Só afirma a igualdade quando ela SE SUSTENTA: numa conta com
+            // pedidos sem preço de tabela, este valor é piso, não a diferença.
+            info={
               faturamento?.couponPartial
-                ? "apurado nos pedidos com preço de tabela — pode haver mais"
-                : "a diferença entre Pedidos feitos e Faturamento"
+                ? "Desconto que os compradores resgataram, apurado só nos pedidos cujo preço de tabela já foi importado — o total real pode ser maior."
+                : 'Desconto que os compradores resgataram. É exatamente a diferença entre "Pedidos feitos" e "Faturamento".'
             }
             loading={loading}
           />
@@ -832,33 +825,6 @@ export default function Dashboard() {
 
 
 
-function CompactMetric({
-  label,
-  value,
-  loading,
-  tone = "default",
-  hint,
-}: {
-  label: string;
-  value: string;
-  loading?: boolean;
-  tone?: "default" | "positive" | "danger" | "warn";
-  /**
-   * Explica o que o número mede quando o rótulo sozinho não basta.
-   * Existe porque "Faturamento" e "Pedidos feitos" respondem perguntas
-   * diferentes (ADR-020), e uma tela que mostra os dois sem dizer qual é qual
-   * obriga a conferir à mão no painel do marketplace.
-   */
-  hint?: string;
-}) {
-  return (
-    <div className={`compact-metric compact-metric-${tone}`} title={hint}>
-      <p>{label}</p>
-      <strong>{loading ? "···" : value}</strong>
-      {hint ? <span className="compact-metric-hint">{hint}</span> : null}
-    </div>
-  );
-}
 
 // A Transactions API nomeia cada tarifa em inglês. "Taxas Amazon" somava tudo num
 // número só e a pergunta "qual taxa é essa?" não tinha resposta na tela.

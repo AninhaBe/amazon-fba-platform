@@ -55,7 +55,26 @@ export interface MetricProps {
 //   • As classes `text-slate-*` saíram. Eram tinta azulada do Tailwind dentro de
 //     uma identidade monocromática, o mesmo defeito que o `<body>` carregava.
 //     Tom agora sai de token, e só existe quando significa algo.
-export function Metric({ label, value, sub, tone = "default", loading, icon, trend, href, className }: MetricProps) {
+/**
+ * Bolinha "i" com a explicação no hover.
+ *
+ * Nasceu porque as legendas que explicam a BASE de cada número ("preço de
+ * tabela, antes do cupom") são longas e poluíam o cartão — mas sem elas a
+ * pergunta "por que os dois valores são diferentes?" voltou três vezes
+ * (23/08/2026). A explicação fica a um hover, e o cartão volta ao que era.
+ *
+ * `tabIndex` e `role="note"` de propósito: quem navega por teclado alcança, e o
+ * leitor de tela lê o texto sem depender de passar o mouse.
+ */
+export function MetricInfo({ texto }: { texto: string }) {
+  return (
+    <span className="metric-info" tabIndex={0} role="note" aria-label={texto} data-dica={texto}>
+      <span aria-hidden="true">i</span>
+    </span>
+  );
+}
+
+export function Metric({ label, value, sub, info, tone = "default", loading, icon, trend, href, className }: MetricProps & { info?: string }) {
   const toneCls =
     tone === "danger" ? " metric-tone-danger"
       : tone === "warn" ? " metric-tone-warn"
@@ -64,7 +83,7 @@ export function Metric({ label, value, sub, tone = "default", loading, icon, tre
   const body = (
     <>
       <div className="metric-head">
-        <p className="metric-label">{label}</p>
+        <p className="metric-label">{label}{info ? <MetricInfo texto={info} /> : null}</p>
         {trend ? <TrendIndicator trend={trend} /> : icon && <span className="metric-icon">{icon}</span>}
       </div>
       <p className={`metric-value${toneCls}`}>
@@ -83,18 +102,21 @@ export function CompactMetric({
   label,
   value,
   hint,
+  info,
   loading = false,
   tone = "default",
 }: {
   label: string;
   value: string;
   hint?: string;
+  /** Explicação da BASE do número, atrás de uma bolinha "i". */
+  info?: string;
   loading?: boolean;
   tone?: "default" | "positive" | "danger" | "warn";
 }) {
   return (
     <div className={`compact-metric compact-metric-${tone}`} aria-busy={loading || undefined}>
-      <p>{label}</p>
+      <p>{label}{info ? <MetricInfo texto={info} /> : null}</p>
       {loading ? <span className="compact-metric-skeleton" aria-label={`Carregando ${label}`} /> : <strong>{value}</strong>}
       {hint ? <small className="compact-metric-hint">{hint}</small> : null}
     </div>
