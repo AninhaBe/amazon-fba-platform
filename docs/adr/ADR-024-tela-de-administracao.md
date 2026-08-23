@@ -51,6 +51,40 @@ lado do faturamento dele. Para suporte, identificar por `workspace_id`.
 - **Fase 2 (depois):** captura de navegação no `src/proxy.ts` numa tabela de
   eventos com retenção. Só então "telas mais acessadas".
 
+## O que subiu na fase 1 (23/08/2026)
+
+| Peça | Arquivo |
+|---|---|
+| Política de quem é admin (pura, testável) | `src/lib/adminAllowlist.ts` |
+| Ligação com a requisição | `src/lib/admin.ts` — `comAdmin()` |
+| Consultas agregadas | `src/lib/integrations/…` → `src/lib/adminMetricas.ts` |
+| Rota de dados | `/api/admin/metricas` |
+| "Sou admin?" para a interface | `/api/admin/eu` |
+| Tela | `/admin` |
+| Link na barra lateral | `src/app/components/useEhAdmin.ts` |
+| Testes do portão | `tests/admin.test.mjs` (6 casos) |
+
+### Duas barreiras independentes, e elas fazem coisas diferentes
+
+| | Para quem NÃO está na allowlist |
+|---|---|
+| **O link** | não aparece — `/api/admin/eu` responde 404 |
+| **Os dados** | `/api/admin/*` responde **404**, mesmo digitando a URL |
+
+⚠️ **Esconder o link não é controle de acesso.** Quem digitar `/admin` chega na
+página; o que ele não recebe é dado, porque a rota recusa. O link existe para não
+oferecer à pessoa uma porta que vai bater na cara dela — a proteção é o servidor.
+Quem adicionar a próxima função de admin precisa fazer **as duas**, e a de dados
+é a obrigatória.
+
+### O erro que quase entrou
+
+A primeira versão contava conexões a partir de `workspace_integrations`. Medido no
+mesmo dia: aquela tabela só tinha Mercado Livre real — a Amazon autentica por LWA
+na conta e não se registra lá. A tela teria mostrado **"Amazon: 0 conexões"** com
+três contas sincronizando. A fonte correta é `workspace_marketplace_syncs`, a
+única onde todo canal aparece.
+
 ## Consequências
 
 **A favor**

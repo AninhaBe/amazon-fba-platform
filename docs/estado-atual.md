@@ -344,6 +344,26 @@ Pendências de catálogo que continuam abertas:
 
 ---
 
+### 9. Tela de administração — **fase 1 no ar desde 23/08**
+
+`/admin`, a **única** rota do produto que lê entre workspaces. Decisões e
+trade-offs em [`ADR-024`](./adr/ADR-024-tela-de-administracao.md).
+
+**Quem entra:** allowlist de e-mail em `ADMIN_EMAILS` (secret do Fly), hoje
+`admin@sellercore.test` e `admin2@sellercore.test` — as contas dela e do Lucas.
+Fora da lista, `/api/admin/*` responde **404**, e o link nem aparece na barra
+lateral. Sem a variável configurada, ninguém é admin (falha fechada).
+
+**O que mostra:** só agregado — workspaces, conexões por canal, volume 30 dias,
+adoção de custo e watchlist. ⚠️ É **proibido** exibir nome ou e-mail de vendedor
+ao lado do faturamento dele; para suporte, identificar por `workspace_id`.
+
+**Fase 2, pendente:** "telas mais acessadas" e "funcionalidades mais usadas".
+Exigem captura de navegação no `src/proxy.ts` numa tabela de eventos **com
+retenção** — não existe registro de uso hoje, e o dado começa do zero. O
+`metricas.ts` que já existe é telemetria operacional (Prometheus, porta 9091),
+não uso de produto.
+
 ## Bloqueado por terceiros
 
 - **Solution Provider Portal (Amazon)** — candidatura travada, caso `21250777631`. Sem
