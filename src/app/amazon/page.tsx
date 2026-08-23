@@ -645,15 +645,25 @@ export default function Dashboard() {
               assunto de CONCILIAÇÃO, e conciliação tem tela própria — a cascata
               do Monitor, que parte do faturamento e desconta o pendente à vista.
               Numa legenda de gráfico, aquilo respondia uma pergunta que ninguém
-              tinha ali (23/08/2026). Cancelado fica porque explica o que NÃO
-              está na linha — e por quantidade, nunca por valor, já que o valor
-              de cancelado é estimativa nossa, não dado da Amazon. */}
-          {!loading && (canceladas?.orders ?? 0) > 0 && (
+              tinha ali (23/08/2026).
+
+              A contagem de PEDIDOS FEITOS aparece sempre — o cabeçalho ao lado dá
+              o valor, e sem a contagem o filtro "Hoje" ficava com a área da
+              legenda em branco. Cancelado entra só quando existe, porque explica
+              o que NÃO está na linha; e por quantidade, nunca por valor, já que
+              o valor de cancelado é estimativa nossa, não dado da Amazon. */}
+          {!loading && (
             <p className="sales-split">
-              <span className="is-cancelada">
-                <strong>{canceladas?.orders}</strong>{" "}
-                {canceladas?.orders === 1 ? "cancelada" : "canceladas"} fora do gráfico
+              <span>
+                <strong>{pedidosFeitos?.orders ?? salesCount}</strong>{" "}
+                {(pedidosFeitos?.orders ?? salesCount) === 1 ? "pedido feito" : "pedidos feitos"}
               </span>
+              {(canceladas?.orders ?? 0) > 0 && (
+                <span className="is-cancelada">
+                  <strong>{canceladas?.orders}</strong>{" "}
+                  {canceladas?.orders === 1 ? "cancelada" : "canceladas"} fora do gráfico
+                </span>
+              )}
             </p>
           )}
           {loading ? (
