@@ -413,6 +413,8 @@ export default function Dashboard() {
   // Quanto dos pedidos recebidos a Amazon ainda não confirmou. As duas bases só
   // podem ser subtraídas no MESMO critério: `revenue` (orderMetrics) é preço de
   // tabela, então o conciliado precisa voltar ao bruto somando o cupom.
+  const pedidosAguardando = Math.max(0, salesCount - vendasConciliadas);
+  const valorAguardando = Math.max(0, revenue - (faturamentoConciliado + promocoes));
   const roiPct = cogs > 0 ? (estProfit / cogs) * 100 : 0;
   const revenueTrend = getRevenueTrend(sales?.points ?? []);
 
@@ -520,7 +522,7 @@ export default function Dashboard() {
                   // número do "Pedidos feitos" logo abaixo.
                   info={
                     card.key === "revenue" && (faturamento?.coupon ?? 0) > 0
-                      ? `O que o comprador realmente pagou: já sem ${faturamento?.couponPartial ? "ao menos " : ""}${money(faturamento?.coupon ?? 0, currency)} de cupom resgatado. O card "Pedidos feitos" mostra o preço de tabela, antes do cupom.`
+                      ? `O que o comprador pagou, já sem ${money(faturamento?.coupon ?? 0, currency)} de cupom.`
                       : undefined
                   }
                   trend={card.key === "revenue" ? revenueTrend : undefined}
@@ -551,7 +553,7 @@ export default function Dashboard() {
           }
           info={
             pedidosFeitos
-              ? 'Preço de tabela, antes do cupom — é este que bate com "Vendas de produtos solicitados" do Seller Central. Inclui pedidos pendentes; exclui cancelados.'
+              ? "Preço de tabela, antes do cupom. É o número do Seller Central."
               : undefined
           }
           loading={loading}
@@ -575,8 +577,8 @@ export default function Dashboard() {
             // pedidos sem preço de tabela, este valor é piso, não a diferença.
             info={
               faturamento?.couponPartial
-                ? "Desconto que os compradores resgataram, apurado só nos pedidos cujo preço de tabela já foi importado — o total real pode ser maior."
-                : 'Desconto que os compradores resgataram. É exatamente a diferença entre "Pedidos feitos" e "Faturamento".'
+                ? "Apurado só nos pedidos com preço de tabela importado — pode haver mais."
+                : "A diferença entre Pedidos feitos e Faturamento."
             }
             loading={loading}
           />
@@ -636,33 +638,29 @@ export default function Dashboard() {
               </span>
             </span>
           </div>
-          {/* LEGENDA DO GRÁFICO — descreve o que está plotado, e ponto.
-              O gráfico é a série de PEDIDOS FEITOS (orderMetrics: data do pedido,
-              preço de tabela), então a legenda conta pedidos feitos.
+          {/* Os pedidos do período: vendidos, aguardando valor e cancelados.
 
-              ⚠️ Aqui já esteve um detalhamento "X confirmados / Y aguardando
-              pagamento". Estava no lugar errado: confirmado vs. pendente é
-              assunto de CONCILIAÇÃO, e conciliação tem tela própria — a cascata
-              do Monitor, que parte do faturamento e desconta o pendente à vista.
-              Numa legenda de gráfico, aquilo respondia uma pergunta que ninguém
-              tinha ali (23/08/2026).
+              ⚠️ A condição é HAVER pedido, não haver pendente. Antes era
+              `pedidosAguardando > 0`, e no filtro "Hoje" — com o único pedido já
+              confirmado — a linha inteira sumia (23/08/2026).
 
-              A contagem de PEDIDOS FEITOS aparece sempre — o cabeçalho ao lado dá
-              o valor, e sem a contagem o filtro "Hoje" ficava com a área da
-              legenda em branco. Cancelado entra só quando existe, porque explica
-              o que NÃO está na linha; e por quantidade, nunca por valor, já que
-              o valor de cancelado é estimativa nossa, não dado da Amazon. */}
-          {!loading && (
+              Cancelado entra por QUANTIDADE, nunca por valor: o valor de
+              cancelado é estimativa nossa (a Amazon não devolve valor de pedido
+              cancelado), e estimativa no meio de fatos confirmados faz duvidar
+              do resto da tela. */}
+          {!loading && (vendasConciliadas > 0 || pedidosAguardando > 0 || (canceladas?.orders ?? 0) > 0) && (
             <p className="sales-split">
-              <span>
-                <strong>{pedidosFeitos?.orders ?? salesCount}</strong>{" "}
-                {(pedidosFeitos?.orders ?? salesCount) === 1 ? "pedido feito" : "pedidos feitos"}
-              </span>
+              {vendasConciliadas > 0 && (
+                <span><strong>{vendasConciliadas}</strong> {vendasConciliadas === 1 ? "confirmado" : "confirmados"} · {money(faturamentoConciliado, currency)}</span>
+              )}
+              {pedidosAguardando > 0 && (
+                <span className="is-pendente"><strong>{pedidosAguardando}</strong> aguardando pagamento · {money(valorAguardando, currency)}</span>
+              )}
               {(canceladas?.orders ?? 0) > 0 && (
-                <span className="is-cancelada">
-                  <strong>{canceladas?.orders}</strong>{" "}
-                  {canceladas?.orders === 1 ? "cancelada" : "canceladas"} fora do gráfico
-                </span>
+                <span className="is-cancelada"><strong>{canceladas?.orders}</strong> {canceladas?.orders === 1 ? "cancelado" : "cancelados"}</span>
+              )}
+              {pedidosAguardando > 0 && (
+                <small>A Amazon confirma o pagamento antes de informar o valor, e só libera o repasse depois da entrega.</small>
               )}
             </p>
           )}

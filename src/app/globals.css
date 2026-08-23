@@ -847,10 +847,10 @@ button[class*="bg-blue-"]:hover, a[class*="bg-blue-"]:hover { background: var(--
 .metric-info::after {
   content: attr(data-dica);
   position: absolute; bottom: calc(100% + 7px); left: 50%; translate: -50% 0;
-  width: max-content; max-width: 260px; z-index: 40;
+  width: max-content; max-width: 210px; z-index: 40;
   padding: 7px 10px; border-radius: 8px;
   background: var(--ink, #111827); color: white;
-  font: 400 11.5px/1.45 inherit; font-style: normal; text-align: start;
+  font: 400 12.5px/1.5 inherit; font-style: normal; text-align: start;
   letter-spacing: normal; white-space: normal;
   opacity: 0; visibility: hidden; transition: opacity .12s ease;
   box-shadow: 0 6px 18px oklch(0 0 0 / .22);
