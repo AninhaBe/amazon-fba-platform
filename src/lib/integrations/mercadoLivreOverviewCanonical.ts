@@ -443,7 +443,9 @@ export async function getMercadoLivreOverviewFromCanonical(
     const perDay = unitsSold / calculationDays;
     const daysRemaining = perDay > 0 ? Math.floor(product.availableQuantity / perDay) : null;
     const status: "out" | "critical" | "ok" = product.availableQuantity <= 0 ? "out" : daysRemaining != null && daysRemaining <= 10 ? "critical" : "ok";
-    return { id: product.id, sku: product.sku, title: product.title, availableQuantity: product.availableQuantity, unitsSold, calculationDays, daysRemaining, status };
+    // A foto já vinha no payload do anúncio e nunca chegava à tela: quem olha
+    // ruptura reconhece o produto pela imagem antes de ler o SKU.
+    return { id: product.id, sku: product.sku, title: product.title, thumbnail: product.thumbnail, availableQuantity: product.availableQuantity, unitsSold, calculationDays, daysRemaining, status };
   }).sort((a, b) => {
     const rank = (status: string) => status === "out" ? 0 : status === "critical" ? 1 : 2;
     return rank(a.status) - rank(b.status) || (a.daysRemaining ?? Infinity) - (b.daysRemaining ?? Infinity);
