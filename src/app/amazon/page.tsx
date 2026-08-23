@@ -413,8 +413,6 @@ export default function Dashboard() {
   // Quanto dos pedidos recebidos a Amazon ainda não confirmou. As duas bases só
   // podem ser subtraídas no MESMO critério: `revenue` (orderMetrics) é preço de
   // tabela, então o conciliado precisa voltar ao bruto somando o cupom.
-  const pedidosAguardando = Math.max(0, salesCount - vendasConciliadas);
-  const valorAguardando = Math.max(0, revenue - (faturamentoConciliado + promocoes));
   const roiPct = cogs > 0 ? (estProfit / cogs) * 100 : 0;
   const revenueTrend = getRevenueTrend(sales?.points ?? []);
 
@@ -638,36 +636,24 @@ export default function Dashboard() {
               </span>
             </span>
           </div>
-          {/* Onde o dinheiro está, não só quanto foi vendido. A diferença entre os
-              dois totais da tela tem uma explicação concreta — pedido que a Amazon
-              ainda não confirmou — e escondê-la só deixava dois números brigando. */}
-          {/* Onde os pedidos do período estão: confirmados, aguardando valor e
-              cancelados.
+          {/* LEGENDA DO GRÁFICO — descreve o que está plotado, e ponto.
+              O gráfico é a série de PEDIDOS FEITOS (orderMetrics: data do pedido,
+              preço de tabela), então a legenda conta pedidos feitos.
 
-              ⚠️ Antes a linha inteira só existia quando havia pendente
-              (`pedidosAguardando > 0`). No filtro "Hoje", com o único pedido já
-              confirmado, ela sumia — e a tela ficava sem dizer nada sobre os
-              pedidos (23/08/2026). A condição agora é HAVER pedido; cada parte
-              aparece só se tiver o que contar.
-
-              Cancelados entram por QUANTIDADE, não por valor: o valor deles é
-              estimado por nós (a Amazon não devolve valor de cancelado), e
-              misturar estimativa numa linha de fatos confirmados é o tipo de
-              coisa que faz a pessoa desconfiar do resto. */}
-          {!loading && (vendasConciliadas > 0 || pedidosAguardando > 0 || (canceladas?.orders ?? 0) > 0) && (
+              ⚠️ Aqui já esteve um detalhamento "X confirmados / Y aguardando
+              pagamento". Estava no lugar errado: confirmado vs. pendente é
+              assunto de CONCILIAÇÃO, e conciliação tem tela própria — a cascata
+              do Monitor, que parte do faturamento e desconta o pendente à vista.
+              Numa legenda de gráfico, aquilo respondia uma pergunta que ninguém
+              tinha ali (23/08/2026). Cancelado fica porque explica o que NÃO
+              está na linha — e por quantidade, nunca por valor, já que o valor
+              de cancelado é estimativa nossa, não dado da Amazon. */}
+          {!loading && (canceladas?.orders ?? 0) > 0 && (
             <p className="sales-split">
-              {vendasConciliadas > 0 && (
-                <span><strong>{vendasConciliadas}</strong> {vendasConciliadas === 1 ? "confirmado" : "confirmados"} · {money(faturamentoConciliado, currency)}</span>
-              )}
-              {pedidosAguardando > 0 && (
-                <span className="is-pendente"><strong>{pedidosAguardando}</strong> aguardando pagamento · {money(valorAguardando, currency)}</span>
-              )}
-              {(canceladas?.orders ?? 0) > 0 && (
-                <span className="is-cancelada"><strong>{canceladas?.orders}</strong> {canceladas?.orders === 1 ? "cancelada" : "canceladas"}</span>
-              )}
-              {pedidosAguardando > 0 && (
-                <small>A Amazon confirma o pagamento antes de informar o valor, e só libera o repasse depois da entrega.</small>
-              )}
+              <span className="is-cancelada">
+                <strong>{canceladas?.orders}</strong>{" "}
+                {canceladas?.orders === 1 ? "cancelada" : "canceladas"} fora do gráfico
+              </span>
             </p>
           )}
           {loading ? (
