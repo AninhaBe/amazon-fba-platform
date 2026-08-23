@@ -21,6 +21,11 @@ interface FinanceSummary {
   refunds: number;
   netProceeds: number;
   orderCount: number;
+  /** Faturamento do período pelo banco canônico — o MESMO que o dashboard exibe. */
+  faturamentoPeriodo?: number | null;
+  /** Parte dele que a Amazon ainda não valorizou. */
+  aguardandoConfirmacao?: number;
+  pedidosAguardando?: number;
   feeBreakdown: { type: string; amount: number }[];
 }
 
@@ -277,7 +282,23 @@ function MonitorPage({ secaoInicial }: { secaoInicial: MonitorSection }) {
               <span>Repasses conciliados da Amazon</span>
             </header>
             <div className="financial-lines">
-              <Flow label="Receita de produtos" value={money(finance.revenue, finance.currency)} />
+              {/* A cascata começa no MESMO número do dashboard e desconta o que a
+                  Amazon ainda não valorizou. Antes ela começava direto na receita
+                  conciliada, que é menor, e as duas telas não se conversavam
+                  ("não bate ainda, tem que vir o mesmo dado", 23/08/2026). */}
+              {finance.faturamentoPeriodo != null && finance.aguardandoConfirmacao ? (
+                <>
+                  <Flow label="Faturamento do período" value={money(finance.faturamentoPeriodo, finance.currency)} />
+                  <Flow
+                    label={`Aguardando valor da Amazon (${finance.pedidosAguardando} pedido${finance.pedidosAguardando === 1 ? "" : "s"})`}
+                    value={money(finance.aguardandoConfirmacao, finance.currency)}
+                    sign="−"
+                  />
+                  <Flow label="Receita conciliada" value={money(finance.revenue, finance.currency)} sign="=" />
+                </>
+              ) : (
+                <Flow label="Receita de produtos" value={money(finance.revenue, finance.currency)} />
+              )}
               {finance.feeBreakdown.length > 0 ? (
                 <FlowExpandable
                   label="Taxas Amazon"
