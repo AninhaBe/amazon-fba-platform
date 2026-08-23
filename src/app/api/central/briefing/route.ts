@@ -32,6 +32,54 @@ function saudacaoDeBrasilia(): string {
   return "Boa noite";
 }
 
+// ÚLTIMA NARRAÇÃO DO DIA, para a tela poder mostrar texto de imediato.
+//
+// A aba de briefing só conseguia PEDIR o texto depois de carregar os 4 canais
+// (`gatherCentralChannels`: /api/integrations e mais ~8 chamadas que batem nos
+// marketplaces), e só então o modelo começava a escrever. Ou seja: mesmo com o
+// texto do dia já pronto no cache, abrir a aba custava a corrente inteira — foi
+// o "demorou pra caramba pra abrir" de 23/08/2026.
+//
+// Aqui fica o ponteiro que o GET lê sem precisar do snapshot. O POST segue igual
+// e corrige o texto se os fatos tiverem mudado.
+//
+// ⚠️ A chave carrega o workspace SEMPRE. Estado de módulo no servidor é
+// compartilhado por todas as requisições, e foi exatamente cache sem escopo que
+// mostrou os números dela na conta do sócio. Sem workspace na chave, isto vira o
+// mesmo vazamento.
+const ultimaNarracao = new Map<string, string>();
+const TETO_NARRACOES = 200;
+
+function chaveDoPonteiro(modo: string, escopo: string, saudacao: string, dia: string): string {
+  return `${currentWorkspaceId()}:${modo}:${escopo}:${saudacao}:${dia}`;
+}
+
+function guardarNarracao(chave: string, texto: string): void {
+  // Descarta a entrada mais antiga em vez de crescer sem limite. Sem TTL de
+  // propósito: a chave já morre sozinha quando o dia (ou a saudação) vira.
+  if (ultimaNarracao.size >= TETO_NARRACOES) {
+    const maisAntiga = ultimaNarracao.keys().next().value;
+    if (maisAntiga !== undefined) ultimaNarracao.delete(maisAntiga);
+  }
+  ultimaNarracao.set(chave, texto);
+}
+
+/**
+ * Caminho rápido: devolve a narração já gerada hoje, sem snapshot e sem modelo.
+ * `texto: null` quando ainda não existe — a tela então espera o POST, que é o
+ * comportamento antigo. Nunca inventa texto.
+ */
+export async function GET(req: NextRequest) {
+  return withAuthenticatedWorkspace(async () => {
+    const p = req.nextUrl.searchParams;
+    const modo: ModoNarracao = p.get("modo") === "briefing" ? "briefing" : "resumo";
+    const escopoBruto = p.get("escopo") ?? "geral";
+    const escopo = /^[a-z0-9_]{1,24}$/.test(escopoBruto) ? escopoBruto : "geral";
+    const texto = ultimaNarracao.get(chaveDoPonteiro(modo, escopo, saudacaoDeBrasilia(), diaEmBrasilia())) ?? null;
+    return NextResponse.json({ texto, gerado: texto != null });
+  });
+}
+
 export async function POST(req: NextRequest) {
   return withAuthenticatedWorkspace(async () => {
     let snapshot: SnapshotCentral;
@@ -92,6 +140,7 @@ export async function POST(req: NextRequest) {
     } catch {
       texto = null;
     }
+    if (texto) guardarNarracao(chaveDoPonteiro(modo, escopo, saudacao, dia), texto);
     return NextResponse.json({ texto, gerado: texto != null });
   });
 }

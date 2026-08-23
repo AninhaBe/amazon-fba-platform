@@ -100,6 +100,18 @@ export default function BriefingPage() {
     // dias atrás, já reposto, continuava na lista até o cron rodar. O reconcile
     // auto-resolve o que não aparece mais, então a leitura fresca se corrige.
     const t = window.setTimeout(() => void load(true), 0);
+    // CAMINHO RÁPIDO: se o NEXO já escreveu o briefing hoje, mostra AGORA. Sem
+    // isto a mensagem só podia ser pedida depois dos 4 canais carregarem, e a aba
+    // abria com esqueleto por vários segundos mesmo com o texto pronto no
+    // servidor (23/08/2026). O POST abaixo continua e corrige se os fatos mudaram.
+    fetch("/api/central/briefing?modo=briefing&escopo=geral")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d?.texto) return;
+        setNarracao(d.texto as string);
+        setNarracaoCarregando(false);
+      })
+      .catch(() => {});
     // Em paralelo, junta o financeiro dos canais (não bloqueia os insights).
     gatherCentralChannels().then(({ channels }) => setCanais(channels)).catch(() => setCanais([]));
     return () => window.clearTimeout(t);

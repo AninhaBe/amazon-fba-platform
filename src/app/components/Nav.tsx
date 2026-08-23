@@ -74,12 +74,31 @@ const icons = {
   briefing: <Lightbulb {...iconProps} />,
 };
 
+// O Briefing é UM só, cross-channel, e a mesma entrada aparece em todo canal.
+//
+// Antes ele existia só na barra da Amazon — e nem era um briefing da Amazon:
+// `src/app/amazon/briefing/page.tsx` é um `export { default }` da página global.
+// Ou seja, a Amazon tinha um atalho duplicado para o briefing de todo mundo, e o
+// Mercado Livre não tinha atalho nenhum. Parecia recurso exclusivo de um canal e
+// era acidente de rota (visto em 23/08/2026).
+//
+// ⚠️ Isto NÃO deixa o canal sem leitura própria: o `BriefingLead` do dashboard de
+// cada canal já traz o NEXO falando daquele canal. A divisão é essa e é estável —
+// Dashboard = o canal; Briefing = a operação inteira.
+const BRIEFING: NavItem = {
+  href: "/briefing",
+  label: "Briefing",
+  desc: "Prioridades de todos os canais",
+  icon: icons.briefing,
+};
+
 const navigation: Record<WorkspaceId, NavGroup[]> = {
   overview: [
     {
       tone: "slate",
       items: [
         { href: "/", label: "Visão geral", desc: "Todos os canais", icon: icons.dashboard, exact: true },
+        BRIEFING,
         { href: "/integracoes", label: "Integrações", desc: "Contas e canais", icon: icons.integrations },
       ],
     },
@@ -90,7 +109,7 @@ const navigation: Record<WorkspaceId, NavGroup[]> = {
       tone: "sky",
       items: [
         { href: "/amazon", label: "Dashboard", desc: "Visão do canal", icon: icons.dashboard, exact: true },
-        { href: "/amazon/briefing", label: "Briefing", desc: "Prioridades do dia", icon: icons.briefing },
+        BRIEFING,
         { href: "/amazon/monitor", label: "Monitor da conta", desc: "Pedidos e financeiro", icon: icons.monitor },
       ],
     },
@@ -128,6 +147,7 @@ const navigation: Record<WorkspaceId, NavGroup[]> = {
       tone: "sky",
       items: [
         { href: "/mercado-livre", label: "Dashboard", desc: "Visão do canal", icon: icons.dashboard, exact: true },
+        BRIEFING,
         { href: "/mercado-livre/monitor", label: "Monitor da conta", desc: "Pedidos e financeiro", icon: icons.monitor },
         { href: "/mercado-livre/auditoria", label: "Pedidos a revisar", desc: "Frete cobrado × declarado", icon: icons.monitor },
       ],
@@ -156,6 +176,7 @@ const navigation: Record<WorkspaceId, NavGroup[]> = {
       tone: "sky",
       items: [
         { href: "/shopee", label: "Dashboard", desc: "Visão do canal", icon: icons.dashboard, exact: true },
+        BRIEFING,
         { href: "/shopee/monitor", label: "Monitor da conta", desc: "Pedidos e financeiro", icon: icons.monitor },
       ],
     },
@@ -176,6 +197,7 @@ const navigation: Record<WorkspaceId, NavGroup[]> = {
       tone: "sky",
       items: [
         { href: "/tiktok", label: "Dashboard", desc: "Visão do canal", icon: icons.dashboard, exact: true },
+        BRIEFING,
         { href: "/tiktok/monitor", label: "Monitor da conta", desc: "Pedidos e conciliação", icon: icons.monitor },
         { href: "/tiktok/financeiro", label: "Financeiro", desc: "Transações e cobertura", icon: icons.performance },
       ],
