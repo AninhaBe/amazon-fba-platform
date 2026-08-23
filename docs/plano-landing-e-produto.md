@@ -1,186 +1,229 @@
 # Plano — a landing É o produto
 
-**23 de agosto de 2026** · Plano para discussão, **antes** de implementar
+**23 de agosto de 2026** · revisão 2 · plano para discussão, **antes** de implementar
 
 ---
 
-## O problema com a analogia do Lovable
+## O que mudou desde a revisão 1
 
-No Lovable você digita um prompt e ele **cria** o artefato. O valor aparece do nada, em
-segundos, sem você trazer nada.
+Duas ideias caíram. As duas por motivo de produto, não de gosto.
 
-O NEXO é o oposto: **todo o valor vem do dado da pessoa.** Sem loja conectada não existe
-faturamento, não existe margem, não existe nada para mostrar. Uma landing que tenta imitar
-o Lovando literalmente esbarra nisso no primeiro segundo.
+### ❌ "Cole seu relatório" — descartado
 
-Então a pergunta certa não é *"como imitar o Lovable"*, e sim:
+A revisão 1 propunha a pessoa soltar o relatório da Amazon na landing e ver o próprio
+lucro em um segundo. Morreu por dois motivos:
 
-> **O que o NEXO consegue mostrar de valioso ANTES de a pessoa conectar uma loja?**
+**O relatório não é um download — é um pedido.** Nosso próprio código prova
+(`src/lib/reports.ts:35`): esperamos até 2 minutos, com o comentário *"relatórios
+analíticos costumam levar mais tempo"*. Não é "dois cliques"; é sair da landing, pedir,
+esperar e voltar.
 
-Existem três respostas, e uma delas é muito melhor que as outras.
+**E o NEXO é multicanal.** Resolver a Amazon abre quatro perguntas na hora: qual relatório
+do ML, da Shopee, do TikTok? Mesmo período? Mesmos campos? Tem custo? O vendedor sabe onde
+achar? A porta de entrada viraria **"importador de planilha da Amazon"** — menor que a
+tese.
+
+### ❌ Caixa de pergunta como herói — descartado
+
+A ideia seguinte foi abrir a home com *"o que você quer entender da sua operação?"*, a
+pessoa pergunta e o NEXO responde sobre uma operação demonstrativa.
+
+**O NEXO não tem essa caixa.** O lead pergunta na landing, gosta, cria conta, conecta os
+marketplaces — e não existe lugar nenhum para perguntar. A landing teria vendido uma
+feature que o produto não entrega, e a quebra acontece **no minuto seguinte à conversão**,
+que é o pior momento possível.
+
+📌 Havia ainda um bloqueio técnico: a narração leva **~18 segundos** em produção
+(`src/lib/centralBriefing.ts:213`, medido em 23/08). Aceitável para um briefing diário,
+fatal num herói. Mas o motivo de descartar é o primeiro, não este.
 
 ---
 
-## A descoberta que decide o plano
+## A tese, corrigida
 
-Fui verificar antes de propor:
+O NEXO de hoje não é *"pergunte e ele responde"*. Ele é melhor que isso, e mais simples:
 
-```
-src/lib/integrations/amazonOrdersReportParse.ts   →  ZERO imports
-src/lib/profitability.ts (calculateContribution)  →  ZERO imports
-```
+> **Ele olha a operação e vem dizer o que importa.**
 
-**As duas peças que fazem o trabalho são funções puras.** Elas não dependem de banco, de
-API, de sessão. Rodam **no navegador**.
+Um funcionário bom não fica esperando *"será que temos algum problema?"*. Ele chega com
+*"olhei a operação, tem três coisas que você precisa saber hoje"*.
 
-Isso significa que a pessoa pode largar o relatório dela na página e ver o próprio lucro
-**sem criar conta, sem OAuth, sem o arquivo sair do computador dela**.
+A landing tem que demonstrar **isso** — que é o produto que existe — e não a conversa, que
+é o produto da Fase 2.
 
 ---
 
-## Caminho 1 — **"Cole seu relatório"** *(a proposta principal)*
+## O desenho
 
-### Como funciona
-
-1. A pessoa chega na landing. O herói não é uma frase bonita: é uma área para soltar
-   arquivo.
-2. Ela baixa o relatório **Todos os pedidos** no Seller Central — dois cliques, e é um
-   arquivo que ela já tem ou consegue em 30 segundos.
-3. Solta na página.
-4. **Em menos de um segundo** aparece: faturamento real, cupom resgatado que ela não sabia
-   que existia, ticket médio, receita por SKU — os números **dela**.
-
-### Por que este é o "momento Lovable" do NEXO
-
-Foi exatamente o que aconteceu hoje, 23/08, nesta conversa. Ela baixou
-`168606709420020688.txt`, e em segundos apareceu:
+A home **é o produto rodando**, numa operação demonstrativa. Sem herói clássico, sem
+mockup, sem print.
 
 ```
-30 dias   item-price 493,74  =  o número do Seller Central
-          cupom       19,02  ←  ela não sabia que era isso
-          líquido    474,72  =  o que entrou de verdade
+┌──────────────────────────────────────────────────────────┐
+│  ◤ NEXO          Operação demonstrativa · 4 canais       │
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│  ◆ NEXO                                                  │
+│                                                          │
+│  Tem três coisas que eu olharia hoje.                    │
+│                                                          │
+│  O Mercado Livre perdeu 62% do faturamento nesta         │
+│  semana. A causa está nos anúncios: 11 dos 14 estão      │
+│  inativos.                                               │
+│                                                          │
+│  Na Amazon as vendas cresceram 9%, mas o produto que     │
+│  responde por 37% da receita fica sem estoque em 6 dias. │
+│                                                          │
+│  A Shopee vendeu mais, e mesmo assim a margem caiu.      │
+│                                                          │
+│                                    Ver prioridades ↓     │
+└──────────────────────────────────────────────────────────┘
 ```
 
-Ela levou **três perguntas** para entender por que dois números na tela diferiam. Com o
-relatório na mão, a resposta apareceu em um segundo. **Esse é o produto.** Não é a
-promessa dele — é ele acontecendo.
+Abaixo, **os cards de prioridade do Briefing** — os de verdade, com evidência, impacto e
+próximo passo. A pessoa expande, troca de canal, mexe no período. Exatamente como faria
+dentro do produto, porque **é** o produto.
 
-### Por que rodar no navegador não é só elegante — é a decisão correta
+A fronteira aparece quando ela tenta atravessar do observar para o usar:
 
-⚠️ O relatório **Todos os pedidos contém CPF, nome e endereço dos compradores.**
-Verificado hoje.
+> **Quer ver isso na sua operação?** → Conectar meus marketplaces
 
-| Se subir para o servidor | Se rodar no navegador |
+### A ordem que isso inverte
+
+| Hoje | Proposto |
 |---|---|
-| Recebemos dado pessoal de terceiro que **não é nosso cliente** | O arquivo nunca sai da máquina dela |
-| Vira responsabilidade de LGPD antes de existir relação comercial | Zero superfície de dado pessoal |
-| Precisa de armazenamento, retenção, exclusão | Nada para guardar |
-| *"Confie em nós com o CPF dos seus clientes"* | *"Seu arquivo não sai do seu computador"* — e é **verdade** |
+| headline → copy → mockup → CTA → cadastro → **produto** | **produto funcionando** → explora → entende → conecta |
 
-A versão no navegador é mais barata **e** mais defensável. Raramente as duas coisas
-coincidem.
-
-### O que aparece depois do resultado
-
-O gancho é a diferença entre o que ela vê e o que ela teria:
-
-> *"Isto é uma foto de um arquivo. Conecte a conta e isso se atualiza sozinho a cada 2
-> minutos, nos quatro canais, com o custo dos seus produtos entrando na conta."*
-
-O que o arquivo **não** consegue mostrar, e vira o argumento de conversão:
-
-- lucro de verdade (o arquivo não tem o custo do produto)
-- os outros três canais
-- estoque, ranking, campanhas
-- o NEXO explicando **por que** mudou
-
-### Esforço
-
-**2 a 3 dias.** O parser existe e é puro; falta a área de soltar arquivo, a apresentação
-do resultado e o texto.
+É o que o Lovable faz de especial, e não tem nada a ver com caixa de texto: ele **elimina
+a distância entre a promessa e a experiência.** Dá para fazer o mesmo sem chat.
 
 ---
 
-## Caminho 2 — **Demonstração ao vivo com dados semeados**
+## A operação demonstrativa
 
-Um botão "ver com dados de exemplo" que entra no produto real, com o workspace de
-demonstração que **já existe** (`scripts/_demo-seed.mjs`, contas `amazon:demo`,
-`mercado_livre:demo`, `shopee:demo`).
+**Neutra, não a real.** Três motivos:
 
-| | |
-|---|---|
-| A favor | quase pronto; mostra o produto inteiro, não uma fatia |
-| Contra | **não é o dado dela.** Demonstração com dado de mentira convence menos que três números verdadeiros |
-| Esforço | ~1 dia |
+1. Expõe informação comercial numa página pública.
+2. A demonstração ficaria refém das peculiaridades de uma conta específica.
+3. É **alvo móvel** — quebraria a cada venda, e alguém teria que consertar a landing por
+   causa de um pedido.
 
-📌 **Papel:** apoio, não protagonista. Serve para quem não quer baixar relatório nenhum e
-só quer olhar.
+**Mas construída sobre padrões que o NEXO detecta de verdade**, senão a história não é
+crível:
+
+| Canal | O caso | Por que é crível |
+|---|---|---|
+| **Mercado Livre** | queda de 62%; 11 de 14 anúncios inativos | é o sinal que `coletarSinaisDeCausa` já busca |
+| **Amazon** | cresce 9%, mas o SKU de 37% da receita rompe em 6 dias | cobertura de estoque já existe no radar |
+| **Shopee** | vende mais e a margem cai por aumento de desconto | a distinção receita × margem é a tese do produto |
+| **TikTok** | cresce rápido, base ainda pequena | mostra o quarto canal sem inventar drama |
+
+O rótulo diz o que é **e por que vale olhar**:
+
+```
+Operação demonstrativa · 4 canais · 38 SKUs · dados de exemplo
+```
+
+⚠️ O número faz o rótulo trabalhar a favor. `Operação demonstrativa` sozinho lê como
+*"isto é fake, ignore"*.
 
 ---
 
-## Caminho 3 — **Calculadora aberta**
+## O que o código já entrega
 
-Preço, custo, canal → margem e ponto de equilíbrio. Sem login. `calculateContribution` já
-é pura, e as regras de tarifa dos quatro canais já estão no código.
+Verificado antes de propor, não deduzido:
 
-| | |
+| Peça | Estado |
 |---|---|
-| A favor | o mais barato de todos; compartilhável; entra em busca do Google |
-| Contra | valor pequeno — existe calculadora de margem em todo lugar |
-| Esforço | ~1 dia |
+| **Workspace de demonstração** | `scripts/_demo-seed.mjs` — **já existe**, e foi feito para ser mostrado a estranho (a análise da Shopee). Workspace isolado, 3 canais, pedidos, custos, registros de sync |
+| **Leitura sem token** | `overview/route.ts:74` — havendo banco, a rota lê das **tabelas canônicas**. A chamada ao marketplace (linha 118) é só o caminho de quando não há banco |
+| **Escopo de workspace** | `withAuthenticatedWorkspace` tira o id do `sub` do JWT e passa para `runWithWorkspace`. **Uma porta, não trinta** |
+| **Narração** | os ~18s deixam de importar: é **um** workspace com dados que não mudam. O texto é gerado uma vez e servido pronto. Não é cache, é conteúdo |
 
-📌 **Papel:** porta de entrada por busca. *"Calculadora de margem Mercado Livre"* é o tipo
-de coisa que vendedor procura, e traz gente que ainda não sabe que precisa do NEXO.
+---
+
+## O que falta construir
+
+| # | O quê | Por quê |
+|---|---|---|
+| 1 | **Invólucro de leitura pública** | um wrapper que só sabe fixar o id da demonstração, escrita impossível por construção |
+| 2 | **Pular o sync no workspace demo** | as conexões do seed têm `metadata: {"demo": true}` e **não têm token**; `requestMercadoLivreSync` falharia |
+| 3 | **Narração pré-gerada** | gerar uma vez, versionar junto com o seed |
+| 4 | **Enriquecer o seed** | o TikTok não está lá, e os quatro casos acima precisam existir nos dados |
+| 5 | **A página** | reaproveitando os componentes reais do Briefing e da Visão geral |
+
+⚠️ **Não dou prazo antes do item 5 estar mapeado tela por tela.** O que decide o tamanho é
+quantos componentes assumem sessão autenticada nas próprias chamadas — e isso se descobre
+lendo, não estimando.
+
+---
+
+## Segurança — o ponto inegociável
+
+> **A demonstração NÃO pode ser uma flag dentro do guard que já existe.**
+
+Escrever `if (demo) pula a autenticação` dentro de `withAuthenticatedWorkspace` cria o
+caminho pelo qual, algum dia, **a requisição escolhe o workspace**. Isso é vazamento de
+todos os clientes, e é a classe de brecha que só aparece depois de ter cliente.
+
+Tem que ser um invólucro **separado**, que:
+
+- só sabe fixar o id da demonstração, **nunca** recebe id da requisição;
+- não abre caminho de escrita;
+- é coberto por teste de arquitetura, como o `providerIsolation.test.mjs`.
+
+É a mesma lógica do ADR-024: privilégio que atravessa clientes não se concede por
+parâmetro.
 
 ---
 
 ## O que NÃO fazer
 
-**Não pedir OAuth na landing.** Conectar a conta do marketplace é o pedido de maior
-confiança que existe, e pedir isso antes de mostrar qualquer valor é a ordem invertida.
-OAuth vem **depois** de ela ver os próprios números.
+**Não pedir OAuth antes de mostrar valor.** Conectar marketplace é o maior pedido de
+confiança que existe. Vem depois de a pessoa ver o produto funcionando.
 
-**Não trocar a landing por um app pesado.** A página precisa continuar carregando rápido e
-sendo indexável. O parser são ~100 linhas; a área de soltar arquivo, pouco mais. Se virar
-um dashboard inteiro no `/landing`, perdemos as duas coisas.
+**Não colocar caixa de pergunta enquanto ela não existir no produto.** Quando a Fase 2 do
+harness existir, a caixa entra na landing e no produto **no mesmo dia** — a promessa e a
+entrega nascem juntas.
 
-**Não usar o benchmark como argumento de venda.** O relatório de mercado de hoje diz que a
-base instalada é de duas contas. Landing não é lugar de comparação com concorrente até
-existir cliente.
+**Não usar o benchmark como argumento de venda.** A base instalada é de duas contas.
+Landing não é lugar de comparar com concorrente até existir cliente.
 
----
-
-## Ordem proposta
-
-| Fase | O quê | Esforço | Por que nesta ordem |
-|---|---|---|---|
-| **1** | **Cole seu relatório** | 2–3 dias | É a ideia. Sem isso, os outros dois não mudam nada. |
-| **2** | Demonstração com dados de exemplo | ~1 dia | Atende quem não quer baixar arquivo |
-| **3** | Calculadora aberta | ~1 dia | Aquisição por busca, depois que o funil existir |
-
-⚠️ **Fazer a fase 1 sozinha e medir antes de seguir.** Se as pessoas não soltarem o
-arquivo, as fases 2 e 3 não salvam — e aí a hipótese está errada, o que também é
-informação.
+**Não deixar a demonstração virar dashboard infinito.** Navegação limitada de propósito:
+Visão geral, Briefing e um canal. O resto é a fronteira de conversão.
 
 ---
 
-## Riscos, honestamente
+## Fases
+
+| Fase | O quê | Por que nesta ordem |
+|---|---|---|
+| **1** | Briefing + Visão geral na operação demonstrativa | é a ideia inteira. Sem isso, o resto não muda nada |
+| **2** | Navegação por canal dentro da demonstração | aprofunda quem se interessou |
+| **3** | Calculadora aberta e "analisar relatório da Amazon" | aquisição por busca, **fora** do funil principal |
+| **4** | A caixa de pergunta | só quando existir no produto |
+
+📌 A fase 3 é onde o relatório sobrevive: como ferramenta gratuita com URL própria, boa
+para busca no Google. Só não pode ser a porta de entrada.
+
+---
+
+## Riscos
 
 | Risco | Leitura |
 |---|---|
-| **A pessoa não vai buscar o relatório** | É o risco principal. Baixar exige sair da landing e voltar. Mitigação: instruções com print, e a demonstração da fase 2 como alternativa para quem não quiser. |
-| **Só funciona para Amazon no começo** | ML, Shopee e TikTok têm formatos diferentes. Começar pela Amazon, que é onde o formato já está resolvido e testado. |
-| **O arquivo pode vir em formato inesperado** | O parser já lida com o relatório real, mas nunca viu arquivo de outra conta. Precisa falhar dizendo o que houve — nunca mostrar número errado. |
-| **Peso da landing** | Medir o bundle antes e depois. Se passar do aceitável, carregar o parser sob demanda, só quando a pessoa soltar o arquivo. |
+| **Rota pública consultando o banco** | tráfego anônimo bate no Postgres. Mitigação: a demonstração é um workspace só, com dados que não mudam — dá para servir do cache de borda |
+| **A demonstração envelhecer** | datas gravadas ficam estranhas com o tempo. Precisa de datas calculadas a partir de hoje, não fixas |
+| **Parecer "conta de exemplo"** | o rótulo com número ajuda; o texto do NEXO precisa soar como operação real, não como tutorial |
+| **Peso da página** | é o produto inteiro carregando na home. Medir antes e depois; se pesar, servir a primeira dobra estática e hidratar o resto |
 
 ---
 
 ## O que eu preciso de vocês antes de codar
 
-1. **A fase 1 sozinha primeiro, ou as três juntas?** Minha recomendação é a 1 sozinha, com
-   medição.
-2. **A landing atual continua?** A proposta é o herói virar a área de soltar arquivo — o
-   resto da página segue abaixo. Ou vocês querem uma página separada?
-3. **Que números mostrar no resultado?** Minha sugestão: faturamento, cupom, ticket médio e
-   os cinco SKUs que mais faturam. Lucro **não**, porque o arquivo não tem custo — e
-   mostrar lucro errado na primeira impressão é o pior começo possível.
+1. **A fase 1 sozinha primeiro?** Recomendo sim, com medição de quanta gente clica em
+   "conectar" depois de explorar.
+2. **A landing atual continua abaixo?** A proposta é a demonstração ocupar a primeira
+   dobra e a página atual virar apoio — não sumir.
+3. **Quantos canais na demonstração de largada?** O seed tem 3; o TikTok precisa entrar.
+   Dá para lançar com 3 e somar o quarto depois.
