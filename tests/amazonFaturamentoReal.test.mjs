@@ -33,16 +33,21 @@ test("duas vendas idênticas têm a mesma margem, com ou sem cupom", () => {
   assert.equal(semCupom.marginPct, 65.73);
 });
 
-test("o cupom não pode ser descontado de novo depois de já estar na receita", () => {
-  // A armadilha: `revenue` já líquido E `promotions` passado ao cálculo.
-  const duplicado = calculateContribution({
+test("o cupom não PODE mais ser descontado de novo, nem por engano", () => {
+  // Antes este teste documentava a armadilha: passar `promotions` junto de uma
+  // receita já líquida devolvia 10,87 em vez de 13,08 — o cupom saía duas vezes.
+  //
+  // Em 23/08/2026 o parâmetro foi REMOVIDO do cálculo, então a armadilha deixou
+  // de existir. O teste passa a garantir isso: mesmo que alguém passe o campo
+  // (JS não impede), o resultado não muda.
+  const comCampoIndevido = calculateContribution({
     revenue: +receita(22.11, 2.21).toFixed(2),
     productCost: CUSTO,
     marketplaceFees: 0,
     promotions: 2.21,
   });
-  assert.equal(duplicado.contribution, 10.87, "é o valor ERRADO que o duplo desconto produz");
-  assert.notEqual(duplicado.contribution, 13.08);
+  assert.equal(comCampoIndevido.contribution, 13.08, "o cupom já está abatido da receita");
+  assert.notEqual(comCampoIndevido.contribution, 10.87, "10,87 é o duplo desconto — não pode voltar");
 });
 
 test("a linha da tela fecha: venda − custos = margem", () => {

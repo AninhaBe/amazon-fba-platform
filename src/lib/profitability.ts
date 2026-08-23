@@ -72,7 +72,16 @@ export function calculateContribution(input: {
   marketplaceFees: number | null;
   sellerShipping?: number | null;
   tax?: number | null;
-  promotions?: number | null;
+  // ⚠️ NÃO existe parâmetro `promotions` aqui, e não é esquecimento.
+  //
+  // `revenue` já é LÍQUIDO de cupom — é o que o comprador pagou. O campo
+  // `promotions` de `ProfitabilityLine` é informativo (`listPrice − revenue`),
+  // serve para a tela mostrar "Cupom aplicado" e nada mais. Subtraí-lo aqui
+  // desconta o cupom DUAS VEZES e corta a margem pela metade.
+  //
+  // O parâmetro existiu e subtraía. Nenhum caller o passava, então o defeito
+  // nunca chegou à tela — mas ficou armado por meses esperando quem lesse o
+  // campo da linha e o ligasse aqui de boa-fé (removido em 23/08/2026).
 }): { contribution: number | null; marginPct: number | null; complete: boolean } {
   if (input.productCost == null || input.marketplaceFees == null) {
     return { contribution: null, marginPct: null, complete: false };
@@ -82,8 +91,7 @@ export function calculateContribution(input: {
     - input.productCost
     - input.marketplaceFees
     - (input.sellerShipping ?? 0)
-    - (input.tax ?? 0)
-    - (input.promotions ?? 0);
+    - (input.tax ?? 0);
   return {
     contribution: +contribution.toFixed(2),
     marginPct: input.revenue > 0 ? +(contribution / input.revenue * 100).toFixed(2) : null,

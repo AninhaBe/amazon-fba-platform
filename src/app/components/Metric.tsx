@@ -7,24 +7,9 @@ import type { DailyPoint } from "./RevenueChart";
 // dashboard da Amazon e no workspace do Mercado Livre). O acento por canal vem
 // do CSS via data-channel; aqui só existe estrutura.
 
-export interface RevenueTrend {
-  direction: "up" | "down" | "flat";
-  percentage: number | null;
-}
+export { getRevenueTrend, type RevenueTrend } from "@/lib/revenueTrend";
+import type { RevenueTrend } from "@/lib/revenueTrend";
 
-/** Compara as duas metades do período: a seta dos KPIs de faturamento. */
-export function getRevenueTrend(points: DailyPoint[]): RevenueTrend | null {
-  if (points.length < 2) return null;
-  const blockSize = Math.floor(points.length / 2);
-  const comparable = points.slice(points.length - blockSize * 2);
-  const previous = comparable.slice(0, blockSize).reduce((total, point) => total + point.revenue, 0);
-  const current = comparable.slice(blockSize).reduce((total, point) => total + point.revenue, 0);
-  if (previous === 0 && current === 0) return { direction: "flat", percentage: 0 };
-  if (previous === 0) return { direction: "up", percentage: null };
-  const percentage = ((current - previous) / previous) * 100;
-  const direction = percentage > 0.5 ? "up" : percentage < -0.5 ? "down" : "flat";
-  return { direction, percentage };
-}
 
 export function TrendIndicator({ trend }: { trend: RevenueTrend }) {
   const isUp = trend.direction === "up";

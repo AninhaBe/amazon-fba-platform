@@ -10,9 +10,8 @@ test("calcula margem por venda com custos, tarifas, imposto e frete", () => {
     marketplaceFees: 15,
     sellerShipping: 8,
     tax: 6,
-    promotions: 1,
   });
-  assert.deepEqual(result, { contribution: 45, marginPct: 45, complete: true });
+  assert.deepEqual(result, { contribution: 46, marginPct: 46, complete: true });
 });
 
 test("não inventa margem quando custo ou tarifa ainda não existem", () => {
