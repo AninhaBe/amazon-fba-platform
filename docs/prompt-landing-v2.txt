@@ -1,0 +1,242 @@
+================================================================================
+PROMPT — CONSTRUIR A LANDING V2 DO NEXO
+Cole isto inteiro num agente trabalhando dentro do repositório amazon-fba-platform.
+================================================================================
+
+
+## REGRA ZERO — não destruir o que existe
+
+A landing atual (`src/app/landing/`, no ar em https://nexoaihub.com.br/landing) NÃO
+deve ser tocada. Nenhum arquivo dela é editado, movido ou renomeado.
+
+A v2 nasce em `src/app/landing-v2/`, na rota `/landing-v2`. As duas coexistem até
+alguém decidir qual fica. Se você sentir vontade de "melhorar de passagem" algo da
+v1, não faça — anote como observação no final.
+
+
+## O QUE É O NEXO
+
+Painel de lucro multicanal para vendedor de marketplace brasileiro. Conecta Amazon,
+Mercado Livre, Shopee e TikTok Shop, junta pedido, tarifa, frete e custo do produto,
+e mostra o que realmente sobra — por canal, por produto, por período.
+
+A personalidade do produto é um funcionário: ele olha a operação e vem te dizer o
+que precisa de atenção. Existe um componente de voz do modelo (`NexoMensagem`) que
+aparece em todas as abas.
+
+
+## A TESE DA V2 — leia com atenção, é o que decide tudo
+
+A landing atual segue o formato clássico: headline → copy → mockup → CTA → cadastro
+→ e só então o produto. A pessoa faz o trabalho primeiro e talvez veja valor depois.
+
+A v2 inverte: **a home É o produto rodando.**
+
+  produto funcionando → a pessoa explora → entende → conecta
+
+Sem herói de frase bonita. Sem print de tela. Sem mockup em moldura de notebook.
+A primeira coisa que a pessoa vê é o NEXO analisando uma operação e dizendo o que
+está errado nela.
+
+A frase que resume a v2:
+
+  "O NEXO não é 'pergunte e ele responde'. Ele olha a operação e vem dizer o que
+   importa."
+
+Um funcionário bom não fica sentado esperando "será que temos algum problema?".
+Ele chega e diz: "olhei a operação, tem três coisas que você precisa saber hoje."
+
+
+## DECISÃO DE ARQUITETURA — a v2 NÃO acessa banco de dados
+
+Os dados da operação demonstrativa são FIXOS e ficam num módulo TypeScript dentro
+de `src/app/landing-v2/`. Nada de fetch, nada de API, nada de `withAuthenticatedWorkspace`.
+
+Motivos, e são todos importantes:
+
+  1. SEGURANÇA. Abrir rota pública que lê o banco exigiria um invólucro de escopo
+     de workspace. Feito errado (uma flag dentro do guard de autenticação), vira o
+     caminho pelo qual a requisição escolhe o workspace — vazamento de todos os
+     clientes. Dado fixo elimina a categoria inteira de risco.
+  2. VELOCIDADE. A página carrega instantaneamente e é indexável.
+  3. ESTABILIDADE. Demonstração ligada a banco quebra quando o dado muda.
+
+Isso NÃO enfraquece a tese: os componentes são os reais, as interações funcionam,
+só a fonte do dado é constante. É o produto rodando com dado de exemplo — e o
+rótulo diz isso na cara.
+
+
+## ESTRUTURA DA PÁGINA
+
+### 1. Barra superior (não é menu de marketing)
+
+Parece a barra do produto, não de uma landing:
+
+  [◤ NEXO]                    Operação demonstrativa · 4 canais · 38 SKUs   [Entrar]
+
+O rótulo da operação demonstrativa é OBRIGATÓRIO e fica visível o tempo todo. Ele
+precisa dos números — "Operação demonstrativa" sozinho lê como "isto é fake,
+ignore"; com "4 canais · 38 SKUs" ele trabalha a favor, dizendo que tem substância
+ali dentro.
+
+### 2. Primeira dobra — a fala do NEXO
+
+Reutilize o componente `NexoMensagem` de `src/app/components/NexoMensagem.tsx`
+(props: `texto`, `ctaHref`, `ctaLabel`, `carregando`, `aoTentarDeNovo`).
+
+Texto exato:
+
+  Tem três coisas que eu olharia hoje.
+
+  O Mercado Livre perdeu 62% do faturamento nesta semana. A causa está nos
+  anúncios: 11 dos 14 estão inativos.
+
+  Na Amazon as vendas cresceram 9%, mas o produto que responde por 37% da receita
+  fica sem estoque em 6 dias.
+
+  A Shopee vendeu mais, e mesmo assim a margem caiu.
+
+Animação: o texto aparece sendo escrito, em 900–1400 ms no total. NÃO simular 18
+segundos de "pensando" — é dado fixo, e espera artificial só irrita. Um "NEXO
+analisando…" de ~400 ms antes de começar a escrever é suficiente para dar a
+sensação de trabalho acontecendo.
+
+Respeitar `prefers-reduced-motion`: com a preferência ligada, o texto aparece
+inteiro de uma vez.
+
+### 3. Os cards de prioridade
+
+Logo abaixo da fala, três cards com a MESMA estrutura do Briefing do produto:
+severidade, título, evidência, impacto, próximo passo.
+
+  ┌─ 1 — CRÍTICO ────────────┐ ┌─ 2 — ATENÇÃO ───────────┐ ┌─ 3 — OBSERVAR ─────────┐
+  │ Mercado Livre caiu 62%   │ │ Ruptura na Amazon       │ │ Margem caindo na Shopee│
+  │                          │ │                         │ │                        │
+  │ EVIDÊNCIA                │ │ EVIDÊNCIA               │ │ EVIDÊNCIA              │
+  │ 11 de 14 anúncios        │ │ 6 dias de cobertura     │ │ desconto médio subiu   │
+  │ inativos                 │ │                         │ │ 7 p.p.                 │
+  │                          │ │                         │ │                        │
+  │ IMPACTO                  │ │ IMPACTO                 │ │ IMPACTO                │
+  │ −R$ 8.420 no período     │ │ 37% da receita do canal │ │ receita sobe, lucro não│
+  │                          │ │                         │ │                        │
+  │ PRÓXIMO PASSO            │ │ PRÓXIMO PASSO           │ │ PRÓXIMO PASSO          │
+  │ Revisar anúncios →       │ │ Enviar reposição →      │ │ Rever campanhas →      │
+  └──────────────────────────┘ └─────────────────────────┘ └────────────────────────┘
+
+Severidade codificada na FORMA além do número: uma faixa de cor no topo do card
+(crítico / atenção / observar). Cor semântica é separada do azul de acento da marca.
+
+Os cards são expansíveis: clicar abre o detalhe da evidência. Em mobile, empilham.
+
+### 4. A exploração
+
+Abaixo dos cards, o resto do produto funcionando com os mesmos dados fixos:
+
+  - seletor de período (7 / 15 / 30 dias) que realmente muda os números
+  - abas de canal (Amazon · Mercado Livre · Shopee · TikTok Shop)
+  - a tabela de produtos com receita, custo, margem
+  - o gráfico de vendas por dia
+
+Tudo client-side sobre os dados fixos. Navegação LIMITADA de propósito — não
+reproduzir o produto inteiro, senão vira dashboard sem fim e a conversão some.
+
+### 5. A fronteira de conversão
+
+Aparece quando a pessoa tenta atravessar do observar para o usar — ao tentar mudar
+algo, exportar, ou ao rolar até o fim:
+
+  Quer ver isso na sua operação?
+  Conecte Amazon, Mercado Livre, Shopee ou TikTok Shop.
+  [ Conectar minha operação → ]
+
+Não é um popup interrompendo. É o próximo bloco natural da página.
+
+### 6. Apoio, abaixo de tudo
+
+O conteúdo da landing atual (manifesto, provas, contadores) continua existindo
+como apoio ABAIXO da experiência. Pode ser reescrito mais enxuto, mas não some.
+
+
+## OS DADOS DA OPERAÇÃO DEMONSTRATIVA
+
+Ficam num único módulo, `src/app/landing-v2/operacaoDemo.ts`, com tipos explícitos.
+
+Regras:
+
+  - NEUTRA. Nomes de loja e produtos fictícios. Nunca dados reais de cliente.
+  - DATAS RELATIVAS A HOJE, calculadas, nunca gravadas. Demonstração com data fixa
+    envelhece e fica constrangedora em três meses.
+  - Os quatro casos abaixo são PADRÕES QUE O NEXO DETECTA DE VERDADE. Não invente
+    outros, senão a demonstração promete capacidade que não existe.
+
+  Mercado Livre  — queda de 62% no faturamento; 11 de 14 anúncios inativos
+  Amazon         — cresce 9%; o SKU que responde por 37% da receita rompe em 6 dias
+  Shopee         — vende mais e a margem cai, por aumento de desconto
+  TikTok Shop    — cresce rápido, base ainda pequena
+
+Os números têm que FECHAR entre si. Se um card diz −R$ 8.420, a soma dos pedidos do
+Mercado Livre no período tem que dar exatamente isso. Alguém vai conferir.
+
+
+## IDENTIDADE VISUAL
+
+Leia `docs/identidade-visual.md` antes de escolher qualquer cor ou fonte. Resumo:
+
+  - tinta principal `--ink` #171717, papel `--paper` #fdfdfd
+  - família neutra em opacidades (`--ink-03` … `--ink-50`), não cinzas soltos
+  - fonte Inter, sem serifada em lugar nenhum
+  - cor via tokens com `color-mix(in oklch, ...)`
+  - símbolo da marca: a seta, apontando para a DIREITA
+  - usar o componente `NexoWordmark` de `src/app/components/NexoWordmark.tsx`
+
+CSS em módulo próprio (`landing-v2.module.css`), no padrão da v1. Não introduzir
+biblioteca de UI nova, não instalar dependência.
+
+
+## O QUE NÃO FAZER
+
+  ✗ NÃO criar caixa de pergunta / chat na landing.
+    O NEXO ainda não tem input de pergunta dentro do produto. Uma caixa na landing
+    venderia uma feature que não existe, e a pessoa descobre isso no minuto
+    seguinte a criar conta. É o erro mais caro possível aqui.
+
+  ✗ NÃO pedir OAuth, e-mail ou cadastro antes de mostrar valor.
+    Conectar marketplace é o maior pedido de confiança que existe. Vem depois.
+
+  ✗ NÃO pedir upload de relatório.
+    O relatório da Amazon é assíncrono (o próprio código do repo espera até 2
+    minutos por ele). Não é download, é pedido — mata a experiência.
+
+  ✗ NÃO comparar com concorrente.
+    A base instalada é pequena. Landing não é lugar disso ainda.
+
+  ✗ NÃO usar a palavra "parcial", nem "incompleto", nem adjetivo que se desculpe.
+    Regra do AGENTS.md. Diga o que falta, com número: "3 unidades sem custo
+    cadastrado", não "dados parciais".
+
+  ✗ NÃO tratar valor desconhecido como zero.
+    `null` ≠ `0`. Custo desconhecido é null; zero é o fato "não houve custo".
+
+  ✗ NÃO acessar banco, API interna ou sessão.
+
+
+## COMO SABER QUE FICOU BOM
+
+  1. `/landing` continua idêntica — abra e confirme.
+  2. `/landing-v2` carrega e a fala do NEXO aparece em menos de 1,5 s.
+  3. Trocar o período muda os números, e eles continuam fechando.
+  4. Em 390 px de largura nada quebra e nada escapa para os lados.
+  5. `prefers-reduced-motion` desliga a animação de digitação.
+  6. Navegação por teclado alcança todos os controles com foco visível.
+  7. `npm test` passa inteiro.
+  8. Nenhum import novo de `@/lib/db`, `workspaceContext` ou rota de API.
+
+
+## ENTREGA
+
+Ao terminar, diga:
+  - quais arquivos criou;
+  - o que decidiu por conta e por quê;
+  - o que achou errado na v1 e NÃO consertou (como observação, não como mudança).
+
+================================================================================
