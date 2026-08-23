@@ -9,6 +9,11 @@
      a crítica dela em 23/08/2026 foi justamente que todos os PDFs saem
      iguais. Identidade vem de docs/identidade-visual.md: Inter, tinta
      #171717, sem serifada, escala fechada.
+
+     Este HTML é a FONTE do documento — não existe .md equivalente. Ela
+     pediu PDF, e manter as duas versões só criaria divergência. Precedente
+     no repo: docs/amazon-ads-especialista.html.
+     Para regerar: node scripts/html-para-pdf.mjs docs/plano-landing-e-produto.html <saida.pdf>
      --------------------------------------------------------------------- */
   @page { size: A4; margin: 17mm 15mm 15mm; }
 
@@ -24,6 +29,7 @@
     --alerta: oklch(0.575 0.126 72);
     --alerta-fraco: oklch(0.972 0.03 82);
     --perigo: oklch(0.545 0.17 27);
+    --perigo-fraco: oklch(0.983 0.012 27);
     --ok: oklch(0.505 0.102 161);
     --ok-fraco: oklch(0.965 0.03 160);
   }
@@ -121,6 +127,20 @@
     line-height: 1.35;
   }
 
+  /* ---------- ideia descartada ---------- */
+  .descartado {
+    border: 1px solid oklch(0.92 0.05 27);
+    background: var(--perigo-fraco);
+    border-radius: 8px; padding: 14px 17px; margin: 16px 0 20px;
+    page-break-inside: avoid;
+  }
+  .descartado .rotulo {
+    font-size: 8.2pt; text-transform: uppercase; letter-spacing: 0.06em;
+    font-weight: 650; color: var(--perigo); margin-bottom: 5px;
+  }
+  .descartado h3 { margin: 0 0 8px; font-size: 12pt; }
+  .descartado p:last-child { margin-bottom: 0; }
+
   /* ---------- caixas ---------- */
   .nota, .alerta {
     padding: 11px 14px; border-radius: 7px; margin: 14px 0;
@@ -162,8 +182,9 @@
   .versus .ruim h4 { color: var(--perigo); }
   .versus .bom h4  { color: var(--ok); }
   .versus ul { margin: 0; padding-left: 15px; }
+  .versus p:last-child { margin-bottom: 0; }
 
-  /* ---------- bloco de código / demonstração ---------- */
+  /* ---------- bloco de código ---------- */
   pre {
     background: var(--tinta); color: #f4f4f4;
     padding: 14px 16px; border-radius: 8px;
@@ -174,6 +195,66 @@
   pre .g { color: oklch(0.78 0.13 160); }
   pre .a { color: oklch(0.8 0.11 82); }
   pre .c { color: #8d8d8d; }
+
+  /* ---------- maquete de tela ---------- */
+  .mockup {
+    background: var(--papel-alt); border: 1px solid var(--linha);
+    border-radius: 8px; padding: 0; margin: 14px 0 18px;
+    page-break-inside: avoid; overflow: hidden;
+  }
+  .mockup-topo {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 9px 14px; border-bottom: 1px solid var(--linha);
+    background: #fff; font-size: 8.6pt;
+  }
+  .mockup-topo .m {
+    display: flex; align-items: center; gap: 6px;
+    font-weight: 700; letter-spacing: -0.03em; font-size: 9.5pt;
+  }
+  .mockup-topo .m svg { width: 12px; height: 12px; }
+  .mockup-topo .rot { color: var(--tinta-fraca); font-variant-numeric: tabular-nums; }
+  .mockup-corpo { padding: 15px 17px; }
+  .mockup .quem {
+    display: flex; align-items: center; gap: 7px;
+    font-size: 8.4pt; font-weight: 650; letter-spacing: 0.04em;
+    text-transform: uppercase; color: var(--tinta-fraca); margin-bottom: 9px;
+  }
+  .mockup .quem .dot {
+    width: 16px; height: 16px; border-radius: 50%; background: var(--tinta);
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .mockup .quem .dot svg { width: 8px; height: 8px; }
+  .mockup .fala { font-size: 10pt; line-height: 1.5; max-width: 54ch; }
+  .mockup .fala p { margin: 0 0 8px; }
+  .mockup .fala p:last-child { margin-bottom: 0; }
+  .mockup .acao {
+    margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--linha);
+    text-align: right; font-size: 9pt; font-weight: 650; color: var(--acento);
+  }
+
+  /* ---------- cards de prioridade ---------- */
+  .prioridades { display: flex; gap: 10px; margin: 6px 0 18px; page-break-inside: avoid; }
+  .card {
+    flex: 1; border: 1px solid var(--linha); border-radius: 8px;
+    padding: 12px 13px; font-size: 9pt; background: #fff;
+  }
+  .card .sev {
+    font-size: 7.6pt; text-transform: uppercase; letter-spacing: 0.06em;
+    font-weight: 700; margin-bottom: 6px;
+  }
+  .card.critico { border-top: 3px solid var(--perigo); }
+  .card.critico .sev { color: var(--perigo); }
+  .card.atencao { border-top: 3px solid var(--alerta); }
+  .card.atencao .sev { color: var(--alerta); }
+  .card.ok { border-top: 3px solid var(--ok); }
+  .card.ok .sev { color: var(--ok); }
+  .card h4 { margin: 0 0 8px; font-size: 9.8pt; font-weight: 650; letter-spacing: -0.015em; }
+  .card dl { margin: 0; }
+  .card dt {
+    font-size: 7.6pt; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--tinta-fraca); font-weight: 650; margin-top: 6px;
+  }
+  .card dd { margin: 1px 0 0; font-size: 8.8pt; }
 
   /* ---------- fases ---------- */
   .fase {
@@ -215,11 +296,11 @@
 </head>
 <body>
 
-<!-- ============ CAPA ============ -->
+<!-- ============================ CAPA ============================ -->
 <div class="capa">
   <div class="marca">
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z" fill="#171717"/>
+      <path d="M21 12 L5 4 L9 12 L5 20 Z" fill="#171717"/>
     </svg>
     NEXO
   </div>
@@ -228,267 +309,516 @@
     <div class="linha-fina"></div>
     <h1>A landing é o produto</h1>
     <p class="sub">
-      Plano para a pessoa ver os próprios números antes de criar conta —
-      sem OAuth, sem upload, sem o arquivo sair do computador dela.
+      A home não fala do NEXO. Ela é o NEXO rodando — olhando uma operação
+      e dizendo o que precisa de atenção hoje.
     </p>
   </div>
 
   <div class="capa-rodape">
     <div>
-      <strong>Plano para discussão</strong> — antes de implementar<br>
+      <strong>Revisão 2</strong> — plano para discussão, antes de implementar<br>
       Ana Beatriz e Lucas
     </div>
     <div>23 de agosto de 2026</div>
   </div>
 </div>
 
-<!-- ============ 1 ============ -->
+<!-- ======================= 01 — O QUE CAIU ======================= -->
 <section>
-  <h2><span class="num">01</span>O problema com a analogia do Lovable</h2>
-  <p class="subtitulo">Por que copiar o modelo literalmente não funciona aqui</p>
+  <h2><span class="num">01</span>Duas ideias que caíram</h2>
+  <p class="subtitulo">As duas por motivo de produto, não de gosto</p>
 
-  <p>No Lovable você digita um prompt e ele <strong>cria</strong> o artefato. O valor aparece
-  do nada, em segundos, sem você trazer nada.</p>
+  <div class="descartado">
+    <div class="rotulo">Descartado</div>
+    <h3>“Cole seu relatório” na landing</h3>
+    <p>
+      A revisão 1 propunha a pessoa soltar o relatório da Amazon na página e ver o próprio
+      lucro em um segundo. Morreu por dois motivos.
+    </p>
+    <p>
+      <strong>O relatório não é um download — é um pedido.</strong> Nosso próprio código
+      prova: em <code>src/lib/reports.ts:35</code> esperamos até 2 minutos, com o comentário
+      <em>“relatórios analíticos costumam levar mais tempo”</em>. Não é “dois cliques”: é
+      sair da landing, pedir, esperar e voltar.
+    </p>
+    <p>
+      <strong>E o NEXO é multicanal.</strong> Resolver a Amazon abre quatro perguntas na
+      hora: qual relatório do Mercado Livre, da Shopee, do TikTok? Mesmo período? Mesmos
+      campos? Tem custo? O vendedor sabe onde achar? A porta de entrada viraria
+      <strong>“importador de planilha da Amazon”</strong> — muito menor que a tese.
+    </p>
+  </div>
 
-  <p>O NEXO é o oposto: <strong>todo o valor vem do dado da pessoa.</strong> Sem loja
-  conectada não existe faturamento, não existe margem, não existe nada para mostrar. Uma
-  landing que tente imitar o Lovable literalmente esbarra nisso no primeiro segundo.</p>
+  <div class="descartado">
+    <div class="rotulo">Descartado</div>
+    <h3>A caixa de pergunta como herói</h3>
+    <p>
+      A ideia seguinte foi abrir a home com <em>“o que você quer entender da sua
+      operação?”</em>: a pessoa pergunta e o NEXO responde sobre uma operação
+      demonstrativa.
+    </p>
+    <p>
+      <strong>O NEXO não tem essa caixa.</strong> O lead pergunta na landing, gosta, cria
+      conta, conecta os marketplaces — e não existe lugar nenhum para perguntar. A landing
+      teria vendido uma feature que o produto não entrega, e a quebra acontece
+      <strong>no minuto seguinte à conversão</strong>, que é o pior momento possível.
+    </p>
+  </div>
+
+  <div class="nota">
+    <p>
+      📌 Havia ainda um bloqueio técnico: a narração leva <strong>~18 segundos</strong> em
+      produção (<code>src/lib/centralBriefing.ts:213</code>, medido em 23/08). Aceitável
+      para um briefing diário, fatal num herói. Mas o motivo de descartar é o primeiro,
+      não este.
+    </p>
+  </div>
+</section>
+
+<!-- ========================= 02 — A TESE ========================= -->
+<section>
+  <h2><span class="num">02</span>A tese, corrigida</h2>
+  <p class="subtitulo">O produto que existe hoje, não o de daqui a dois meses</p>
 
   <div class="abre">
-    <p class="pergunta">A pergunta certa não é “como imitar o Lovable”, e sim:<br>
-    o que o NEXO consegue mostrar de valioso <em>antes</em> de a pessoa conectar uma loja?</p>
+    <p class="pergunta">
+      O NEXO não é “pergunte e ele responde”.<br>
+      Ele olha a operação e vem dizer o que importa.
+    </p>
   </div>
 
-  <p>Existem três respostas — e uma delas é muito melhor que as outras.</p>
+  <p>
+    Um funcionário bom não fica sentado esperando <em>“será que temos algum problema?”</em>.
+    Ele chega e diz: <em>“olhei a operação, tem três coisas que você precisa saber hoje”</em>.
+  </p>
+
+  <p>
+    É exatamente o que o produto já faz. A landing tem que demonstrar <strong>isso</strong> —
+    e não a conversa, que é a Fase 2 do harness e ainda não existe.
+  </p>
 </section>
 
-<!-- ============ 2 ============ -->
+<!-- ======================== 03 — O DESENHO ======================== -->
 <section>
-  <h2><span class="num">02</span>A descoberta que decide o plano</h2>
-  <p class="subtitulo">Verificado no código antes de propor</p>
+  <h2><span class="num">03</span>O desenho</h2>
+  <p class="subtitulo">Sem herói, sem mockup, sem print — o produto rodando</p>
 
-<pre><span class="c">// as duas peças que fazem o trabalho pesado</span>
-src/lib/integrations/amazonOrdersReportParse.ts   <span class="g">→  ZERO imports</span>
-src/lib/profitability.ts  (calculateContribution) <span class="g">→  ZERO imports</span></pre>
-
-  <p><strong>São funções puras.</strong> Não dependem de banco, de API nem de sessão.
-  <strong>Rodam no navegador.</strong></p>
-
-  <p>Isso significa que a pessoa pode largar o relatório dela na página e ver o próprio
-  lucro <strong>sem criar conta, sem OAuth, e sem o arquivo sair do computador dela.</strong></p>
-</section>
-
-<!-- ============ 3 ============ -->
-<section>
-  <h2><span class="num">03</span>Caminho 1 — “Cole seu relatório”</h2>
-  <p class="subtitulo">A proposta principal</p>
-
-  <h3>Como funciona</h3>
-  <ul>
-    <li>A pessoa chega na landing. O herói não é uma frase bonita: é uma área para soltar arquivo.</li>
-    <li>Ela baixa o relatório <strong>Todos os pedidos</strong> no Seller Central — dois cliques.</li>
-    <li>Solta na página.</li>
-    <li><strong>Em menos de um segundo</strong> aparece: faturamento real, cupom resgatado que
-        ela não sabia que existia, ticket médio, receita por SKU — os números <strong>dela</strong>.</li>
-  </ul>
-
-  <h3>Por que este é o “momento Lovable” do NEXO</h3>
-  <p>Foi exatamente o que aconteceu em 23/08, nesta conversa. Ela baixou o relatório, e em
-  segundos apareceu:</p>
-
-<pre>30 dias   item-price  493,74   <span class="c">= o número do Seller Central</span>
-          cupom        19,02   <span class="a">← ela não sabia que era isso</span>
-          líquido     474,72   <span class="g">= o que entrou de verdade</span></pre>
-
-  <p>Ela levou <strong>três perguntas</strong> para entender por que dois números na tela
-  diferiam. Com o relatório na mão, a resposta apareceu em um segundo.
-  <strong>Esse é o produto</strong> — não a promessa dele, ele acontecendo.</p>
-
-  <h3>Rodar no navegador não é só elegante — é a decisão correta</h3>
-
-  <div class="alerta">
-    <p>⚠️ O relatório <strong>Todos os pedidos contém CPF, nome e endereço dos compradores.</strong>
-    Verificado em 23/08.</p>
+  <div class="mockup">
+    <div class="mockup-topo">
+      <div class="m">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M21 12 L5 4 L9 12 L5 20 Z" fill="#171717"/>
+        </svg>
+        NEXO
+      </div>
+      <div class="rot">Operação demonstrativa · 4 canais · 38 SKUs</div>
+    </div>
+    <div class="mockup-corpo">
+      <div class="quem">
+        <span class="dot">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M21 12 L5 4 L9 12 L5 20 Z" fill="#ffffff"/>
+          </svg>
+        </span>
+        NEXO
+      </div>
+      <div class="fala">
+        <p>Tem três coisas que eu olharia hoje.</p>
+        <p>
+          O <strong>Mercado Livre</strong> perdeu 62% do faturamento nesta semana. A causa
+          está nos anúncios: 11 dos 14 estão inativos.
+        </p>
+        <p>
+          Na <strong>Amazon</strong> as vendas cresceram 9%, mas o produto que responde por
+          37% da receita fica sem estoque em 6 dias.
+        </p>
+        <p>
+          A <strong>Shopee</strong> vendeu mais, e mesmo assim a margem caiu.
+        </p>
+      </div>
+      <div class="acao">Ver prioridades ↓</div>
+    </div>
   </div>
+
+  <p>
+    Abaixo da narração, <strong>os cards de prioridade do Briefing</strong> — os de verdade,
+    com evidência, impacto e próximo passo:
+  </p>
+
+  <div class="prioridades">
+    <div class="card critico">
+      <div class="sev">1 — Crítico</div>
+      <h4>Mercado Livre caiu 62%</h4>
+      <dl>
+        <dt>Evidência</dt><dd>11 de 14 anúncios inativos</dd>
+        <dt>Impacto</dt><dd>−R$ 8.420 no período</dd>
+        <dt>Próximo passo</dt><dd>Revisar anúncios inativos →</dd>
+      </dl>
+    </div>
+    <div class="card atencao">
+      <div class="sev">2 — Atenção</div>
+      <h4>Ruptura de estoque na Amazon</h4>
+      <dl>
+        <dt>Evidência</dt><dd>6 dias de cobertura</dd>
+        <dt>Impacto</dt><dd>37% da receita do canal</dd>
+        <dt>Próximo passo</dt><dd>Enviar reposição →</dd>
+      </dl>
+    </div>
+    <div class="card ok">
+      <div class="sev">3 — Observar</div>
+      <h4>Margem caindo na Shopee</h4>
+      <dl>
+        <dt>Evidência</dt><dd>desconto médio subiu 7 p.p.</dd>
+        <dt>Impacto</dt><dd>receita sobe, lucro não</dd>
+        <dt>Próximo passo</dt><dd>Rever campanhas →</dd>
+      </dl>
+    </div>
+  </div>
+
+  <p>
+    A pessoa expande a evidência, troca de canal, mexe no período — exatamente como faria
+    dentro do NEXO, porque <strong>é</strong> o NEXO. A fronteira só aparece quando ela
+    tenta atravessar do observar para o usar:
+  </p>
+
+  <div class="abre">
+    <p class="pergunta">Quer ver isso na sua operação?</p>
+    <p>Conecte Amazon, Mercado Livre, Shopee ou TikTok Shop.</p>
+  </div>
+
+  <h3>A ordem que isso inverte</h3>
 
   <div class="versus">
     <div class="ruim">
-      <h4>Se subir para o servidor</h4>
-      <ul>
-        <li>Recebemos dado pessoal de terceiro que <strong>não é nosso cliente</strong></li>
-        <li>Vira dever de LGPD antes de existir relação comercial</li>
-        <li>Precisa de armazenamento, retenção e exclusão</li>
-        <li><em>“Confie em nós com o CPF dos seus clientes”</em></li>
-      </ul>
+      <h4>Hoje</h4>
+      <p>headline → copy → mockup → CTA → cadastro → <strong>e só então o produto</strong></p>
+      <p>A pessoa faz o trabalho primeiro e talvez veja valor depois.</p>
     </div>
     <div class="bom">
-      <h4>Se rodar no navegador</h4>
-      <ul>
-        <li>O arquivo nunca sai da máquina dela</li>
-        <li>Zero superfície de dado pessoal</li>
-        <li>Nada para guardar</li>
-        <li><em>“Seu arquivo não sai do seu computador”</em> — e é <strong>verdade</strong></li>
-      </ul>
+      <h4>Proposto</h4>
+      <p><strong>produto funcionando</strong> → explora → entende → conecta</p>
+      <p>O valor aparece antes de qualquer pedido.</p>
     </div>
   </div>
 
-  <p>A versão no navegador é mais barata <strong>e</strong> mais defensável. Raramente as duas
-  coisas coincidem.</p>
+  <p>
+    É o que o Lovable faz de especial, e não tem nada a ver com caixa de texto: ele
+    <strong>elimina a distância entre a promessa e a experiência</strong>. Dá para fazer o
+    mesmo sem chat nenhum.
+  </p>
+</section>
 
-  <h3>O gancho de conversão</h3>
-  <p>É a diferença entre o que ela vê e o que ela teria:</p>
-  <div class="nota">
-    <p><em>“Isto é uma foto de um arquivo. Conecte a conta e isso se atualiza sozinho a cada
-    2 minutos, nos quatro canais, com o custo dos seus produtos entrando na conta.”</em></p>
-  </div>
+<!-- ================ 04 — A OPERAÇÃO DEMONSTRATIVA ================ -->
+<section>
+  <h2><span class="num">04</span>A operação demonstrativa</h2>
+  <p class="subtitulo">Neutra nos números, real nos padrões</p>
 
-  <p>O que o arquivo <strong>não</strong> mostra, e vira o argumento:</p>
+  <p><strong>Não são os números da Ana.</strong> Três motivos:</p>
+
   <ul>
-    <li>lucro de verdade — o arquivo não tem o custo do produto</li>
-    <li>os outros três canais</li>
-    <li>estoque, ranking, campanhas</li>
-    <li>o NEXO explicando <strong>por que</strong> mudou</li>
+    <li>expõe informação comercial numa página pública;</li>
+    <li>a demonstração ficaria refém das peculiaridades de uma conta específica;</li>
+    <li>é <strong>alvo móvel</strong> — quebraria a cada venda, e alguém teria que
+        consertar a landing por causa de um pedido.</li>
   </ul>
 
-  <p><strong>Esforço: 2 a 3 dias.</strong> O parser existe e é puro; falta a área de soltar
-  arquivo, a apresentação do resultado e o texto.</p>
-</section>
-
-<!-- ============ 4 ============ -->
-<section>
-  <h2><span class="num">04</span>Os outros dois caminhos</h2>
-  <p class="subtitulo">Apoio, não protagonistas</p>
-
-  <h3>Caminho 2 — Demonstração com dados semeados</h3>
-  <p>Um botão “ver com dados de exemplo” que entra no produto real, com o workspace de
-  demonstração que <strong>já existe</strong> (<code>scripts/_demo-seed.mjs</code>).</p>
-  <table>
-    <tr><td style="width:22%"><strong>A favor</strong></td><td>quase pronto; mostra o produto inteiro, não uma fatia</td></tr>
-    <tr><td><strong>Contra</strong></td><td><strong>não é o dado dela.</strong> Demonstração com dado de mentira convence menos que três números verdadeiros</td></tr>
-    <tr><td><strong>Esforço</strong></td><td>~1 dia</td></tr>
-  </table>
-
-  <h3>Caminho 3 — Calculadora aberta</h3>
-  <p>Preço, custo, canal → margem e ponto de equilíbrio. Sem login.
-  <code>calculateContribution</code> já é pura, e as regras de tarifa dos quatro canais já
-  estão no código.</p>
-  <table>
-    <tr><td style="width:22%"><strong>A favor</strong></td><td>o mais barato; compartilhável; entra em busca do Google</td></tr>
-    <tr><td><strong>Contra</strong></td><td>valor pequeno — existe calculadora de margem em todo lugar</td></tr>
-    <tr><td><strong>Esforço</strong></td><td>~1 dia</td></tr>
-  </table>
-  <p><strong>Papel:</strong> porta de entrada por busca. <em>“Calculadora de margem Mercado
-  Livre”</em> é o que vendedor procura, e traz gente que ainda não sabe que precisa do NEXO.</p>
-</section>
-
-<!-- ============ 5 ============ -->
-<section>
-  <h2><span class="num">05</span>O que não fazer</h2>
-  <p class="subtitulo">Três armadilhas que parecem boas ideias</p>
+  <p>
+    Mas os casos são construídos sobre <strong>padrões que o NEXO detecta de verdade</strong>,
+    senão a história não é crível:
+  </p>
 
   <table>
-    <tr>
-      <td style="width:34%"><strong>Não pedir OAuth na landing</strong></td>
-      <td>Conectar a conta do marketplace é o pedido de maior confiança que existe. Pedir
-      isso antes de mostrar valor é a ordem invertida — OAuth vem <strong>depois</strong> de
-      ela ver os próprios números.</td>
-    </tr>
-    <tr>
-      <td><strong>Não trocar a landing por um app pesado</strong></td>
-      <td>A página precisa continuar carregando rápido e sendo indexável. O parser são ~100
-      linhas; se virar um dashboard inteiro no <code>/landing</code>, perdemos as duas coisas.</td>
-    </tr>
-    <tr>
-      <td><strong>Não usar o benchmark como argumento de venda</strong></td>
-      <td>O relatório de mercado diz que a base instalada é de duas contas. Landing não é
-      lugar de comparação com concorrente até existir cliente.</td>
-    </tr>
+    <thead>
+      <tr><th>Canal</th><th>O caso</th><th>Por que é crível</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Mercado Livre</strong></td>
+        <td>queda de 62%; 11 de 14 anúncios inativos</td>
+        <td>é o sinal que <code>coletarSinaisDeCausa</code> já busca</td>
+      </tr>
+      <tr>
+        <td><strong>Amazon</strong></td>
+        <td>cresce 9%, mas o SKU de 37% da receita rompe em 6 dias</td>
+        <td>cobertura de estoque já existe no radar</td>
+      </tr>
+      <tr>
+        <td><strong>Shopee</strong></td>
+        <td>vende mais e a margem cai por aumento de desconto</td>
+        <td>a distinção receita × margem é a tese do produto</td>
+      </tr>
+      <tr>
+        <td><strong>TikTok Shop</strong></td>
+        <td>cresce rápido, base ainda pequena</td>
+        <td>mostra o quarto canal sem inventar drama</td>
+      </tr>
+    </tbody>
   </table>
-</section>
 
-<!-- ============ 6 ============ -->
-<section>
-  <h2><span class="num">06</span>Ordem proposta</h2>
-  <p class="subtitulo">Uma fase por vez, medindo entre elas</p>
+  <p>O rótulo diz o que é <strong>e por que vale olhar</strong>:</p>
 
-  <div class="fase">
-    <div class="fase-num">1</div>
-    <div class="fase-corpo">
-      <h4>Cole seu relatório</h4>
-      <p>É a ideia. Sem isso, os outros dois não mudam nada.</p>
-    </div>
-    <div class="fase-esforco">2–3 dias</div>
-  </div>
-  <div class="fase">
-    <div class="fase-num">2</div>
-    <div class="fase-corpo">
-      <h4>Demonstração com dados de exemplo</h4>
-      <p>Atende quem não quer baixar arquivo nenhum.</p>
-    </div>
-    <div class="fase-esforco">~1 dia</div>
-  </div>
-  <div class="fase">
-    <div class="fase-num">3</div>
-    <div class="fase-corpo">
-      <h4>Calculadora aberta</h4>
-      <p>Aquisição por busca, depois que o funil existir.</p>
-    </div>
-    <div class="fase-esforco">~1 dia</div>
-  </div>
+  <pre>Operação demonstrativa · 4 canais · 38 SKUs · <span class="c">dados de exemplo</span></pre>
 
   <div class="alerta">
-    <p>⚠️ <strong>Fazer a fase 1 sozinha e medir antes de seguir.</strong> Se as pessoas não
-    soltarem o arquivo, as fases 2 e 3 não salvam — e aí a hipótese está errada, o que
-    também é informação.</p>
+    <p>
+      ⚠️ O número é o que faz o rótulo trabalhar a favor. <code>Operação demonstrativa</code>
+      sozinho lê como <em>“isto é fake, ignore”</em>.
+    </p>
   </div>
 </section>
 
-<!-- ============ 7 ============ -->
+<!-- =============== 05 — O QUE O CÓDIGO JÁ ENTREGA =============== -->
 <section>
-  <h2><span class="num">07</span>Riscos, honestamente</h2>
+  <h2><span class="num">05</span>O que o código já entrega</h2>
+  <p class="subtitulo">Verificado antes de propor, não deduzido</p>
 
   <table>
-    <thead><tr><th style="width:32%">Risco</th><th>Leitura</th></tr></thead>
+    <thead>
+      <tr><th style="width:26%">Peça</th><th>Estado</th></tr>
+    </thead>
     <tbody>
-      <tr><td><strong>A pessoa não vai buscar o relatório</strong></td>
-          <td>É o risco principal. Baixar exige sair da landing e voltar. Mitigação:
-          instruções com print, e a demonstração da fase 2 como alternativa.</td></tr>
-      <tr><td><strong>Só funciona para Amazon no começo</strong></td>
-          <td>ML, Shopee e TikTok têm formatos diferentes. Começar pela Amazon, onde o
-          formato já está resolvido e testado.</td></tr>
-      <tr><td><strong>Arquivo em formato inesperado</strong></td>
-          <td>O parser lida com o relatório real, mas nunca viu arquivo de outra conta.
-          Precisa falhar dizendo o que houve — <strong>nunca mostrar número errado</strong>.</td></tr>
-      <tr><td><strong>Peso da landing</strong></td>
-          <td>Medir o bundle antes e depois. Se passar do aceitável, carregar o parser sob
-          demanda, só quando a pessoa soltar o arquivo.</td></tr>
+      <tr>
+        <td><strong>Workspace de demonstração</strong></td>
+        <td>
+          <code>scripts/_demo-seed.mjs</code> já existe — e foi feito <strong>para ser
+          mostrado a estranho</strong> (a análise da Shopee). Workspace isolado, 3 canais,
+          pedidos, custos e registros de sync.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Leitura sem token</strong></td>
+        <td>
+          <code>overview/route.ts:74</code> — havendo banco, a rota lê das <strong>tabelas
+          canônicas</strong>. A chamada ao marketplace (linha 118) é só o caminho de quando
+          não há banco. A demonstração renderiza sem credencial nenhuma.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Escopo de workspace</strong></td>
+        <td>
+          <code>withAuthenticatedWorkspace</code> tira o id do <code>sub</code> do JWT e
+          passa para <code>runWithWorkspace</code>. <strong>Uma porta, não trinta.</strong>
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Narração</strong></td>
+        <td>
+          Os ~18 segundos deixam de importar: é <strong>um</strong> workspace com dados que
+          não mudam. O texto é gerado uma vez e servido pronto — não é cache, é conteúdo.
+        </td>
+      </tr>
     </tbody>
   </table>
 </section>
 
-<!-- ============ 8 ============ -->
+<!-- ================= 06 — O QUE FALTA CONSTRUIR ================= -->
 <section>
-  <h2><span class="num">08</span>O que preciso de vocês antes de codar</h2>
+  <h2><span class="num">06</span>O que falta construir</h2>
+  <p class="subtitulo">Cinco peças, nesta ordem</p>
+
+  <table>
+    <thead>
+      <tr><th style="width:32%">O quê</th><th>Por quê</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Invólucro de leitura pública</strong></td>
+        <td>um wrapper que só sabe fixar o id da demonstração, com escrita impossível por construção</td>
+      </tr>
+      <tr>
+        <td><strong>Pular o sync no workspace demo</strong></td>
+        <td>as conexões do seed têm <code>metadata: {"demo": true}</code> e <strong>não têm token</strong>; <code>requestMercadoLivreSync</code> falharia</td>
+      </tr>
+      <tr>
+        <td><strong>Narração pré-gerada</strong></td>
+        <td>gerar uma vez e versionar junto com o seed</td>
+      </tr>
+      <tr>
+        <td><strong>Enriquecer o seed</strong></td>
+        <td>o TikTok não está lá, e os quatro casos precisam existir nos dados</td>
+      </tr>
+      <tr>
+        <td><strong>A página</strong></td>
+        <td>reaproveitando os componentes reais do Briefing e da Visão geral</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="alerta">
+    <p>
+      ⚠️ <strong>Não dou prazo antes da última peça estar mapeada tela por tela.</strong> O
+      que decide o tamanho é quantos componentes assumem sessão autenticada nas próprias
+      chamadas — e isso se descobre lendo o código, não estimando.
+    </p>
+  </div>
+</section>
+
+<!-- ===================== 07 — SEGURANÇA ===================== -->
+<section>
+  <h2><span class="num">07</span>Segurança — o ponto inegociável</h2>
+  <p class="subtitulo">A brecha que só apareceria depois de existir cliente</p>
+
+  <div class="abre">
+    <p class="pergunta">
+      A demonstração NÃO pode ser uma flag dentro do guard que já existe.
+    </p>
+  </div>
+
+  <p>
+    Escrever <code>if (demo) pula a autenticação</code> dentro de
+    <code>withAuthenticatedWorkspace</code> cria o caminho pelo qual, algum dia,
+    <strong>a requisição escolhe o workspace</strong>. Isso é vazamento de todos os
+    clientes.
+  </p>
+
+  <p>Tem que ser um invólucro <strong>separado</strong>, que:</p>
+
+  <ul>
+    <li>só sabe fixar o id da demonstração, e <strong>nunca</strong> recebe id da requisição;</li>
+    <li>não abre caminho de escrita;</li>
+    <li>é coberto por teste de arquitetura, como o <code>providerIsolation.test.mjs</code>.</li>
+  </ul>
+
+  <p>
+    É a mesma lógica do <strong>ADR-024</strong>: privilégio que atravessa clientes não se
+    concede por parâmetro.
+  </p>
+</section>
+
+<!-- ==================== 08 — O QUE NÃO FAZER ==================== -->
+<section>
+  <h2><span class="num">08</span>O que não fazer</h2>
+  <p class="subtitulo">Quatro linhas que o plano não cruza</p>
+
+  <p>
+    <strong>Não pedir OAuth antes de mostrar valor.</strong> Conectar marketplace é o maior
+    pedido de confiança que existe. Vem depois de a pessoa ver o produto funcionando.
+  </p>
+  <p>
+    <strong>Não colocar caixa de pergunta enquanto ela não existir no produto.</strong>
+    Quando a Fase 2 do harness existir, a caixa entra na landing e no produto no mesmo dia —
+    a promessa e a entrega nascem juntas.
+  </p>
+  <p>
+    <strong>Não usar o benchmark como argumento de venda.</strong> A base instalada é de
+    duas contas. Landing não é lugar de comparar com concorrente até existir cliente.
+  </p>
+  <p>
+    <strong>Não deixar a demonstração virar dashboard infinito.</strong> Navegação limitada
+    de propósito: Visão geral, Briefing e um canal. O resto é a fronteira de conversão.
+  </p>
+</section>
+
+<!-- ======================== 09 — FASES ======================== -->
+<section>
+  <h2><span class="num">09</span>Ordem proposta</h2>
+  <p class="subtitulo">Medir a fase 1 antes de seguir</p>
+
+  <div class="fase">
+    <div class="fase-num">1</div>
+    <div class="fase-corpo">
+      <h4>Briefing e Visão geral na operação demonstrativa</h4>
+      <p>É a ideia inteira. Sem isso, o resto não muda nada.</p>
+    </div>
+    <div class="fase-esforco">a dimensionar</div>
+  </div>
+
+  <div class="fase">
+    <div class="fase-num">2</div>
+    <div class="fase-corpo">
+      <h4>Navegação por canal dentro da demonstração</h4>
+      <p>Aprofunda quem já se interessou pela primeira dobra.</p>
+    </div>
+    <div class="fase-esforco">depois da 1</div>
+  </div>
+
+  <div class="fase">
+    <div class="fase-num">3</div>
+    <div class="fase-corpo">
+      <h4>Calculadora aberta e “analisar relatório da Amazon”</h4>
+      <p>Aquisição por busca, fora do funil principal. É aqui que o relatório sobrevive —
+         como ferramenta gratuita com URL própria, nunca como porta de entrada.</p>
+    </div>
+    <div class="fase-esforco">oportunista</div>
+  </div>
+
+  <div class="fase">
+    <div class="fase-num">4</div>
+    <div class="fase-corpo">
+      <h4>A caixa de pergunta</h4>
+      <p>Só quando existir no produto. Aí muda o herói, e a evolução fica natural:
+         <em>“ele olha e te diz”</em> → <em>“e você pode perguntar de volta”</em>.</p>
+    </div>
+    <div class="fase-esforco">Fase 2 do harness</div>
+  </div>
+</section>
+
+<!-- ======================== 10 — RISCOS ======================== -->
+<section>
+  <h2><span class="num">10</span>Riscos, honestamente</h2>
+  <p class="subtitulo">O que pode dar errado e como eu leria</p>
+
+  <table>
+    <thead>
+      <tr><th style="width:30%">Risco</th><th>Leitura</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Rota pública consultando o banco</strong></td>
+        <td>tráfego anônimo bate no Postgres. Mitigação: é um workspace só, com dados que
+            não mudam — dá para servir do cache de borda</td>
+      </tr>
+      <tr>
+        <td><strong>A demonstração envelhecer</strong></td>
+        <td>datas gravadas ficam estranhas com o tempo. Precisa de datas calculadas a
+            partir de hoje, não fixas no seed</td>
+      </tr>
+      <tr>
+        <td><strong>Parecer “conta de exemplo”</strong></td>
+        <td>o rótulo com número ajuda; o texto do NEXO precisa soar como operação real,
+            não como tutorial</td>
+      </tr>
+      <tr>
+        <td><strong>Peso da página</strong></td>
+        <td>é o produto inteiro carregando na home. Medir antes e depois; se pesar, servir
+            a primeira dobra estática e hidratar o resto</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ==================== 11 — DECISÕES ==================== -->
+<section>
+  <h2><span class="num">11</span>O que eu preciso de vocês</h2>
+  <p class="subtitulo">Três decisões antes de eu codar</p>
 
   <div class="pergunta-final">
-    <div class="q">1. A fase 1 sozinha primeiro, ou as três juntas?</div>
-    <p class="r">Minha recomendação é a fase 1 sozinha, com medição antes de seguir.</p>
+    <div class="q">A fase 1 sozinha primeiro?</div>
+    <p class="r">
+      Recomendo sim, com medição de quanta gente clica em “conectar” depois de explorar. Se
+      ninguém explorar, as outras fases não salvam — e isso também é informação.
+    </p>
   </div>
+
   <div class="pergunta-final">
-    <div class="q">2. A landing atual continua?</div>
-    <p class="r">A proposta é o herói virar a área de soltar arquivo, e o resto da página
-    seguir abaixo. A alternativa é uma página separada.</p>
+    <div class="q">A landing atual continua abaixo?</div>
+    <p class="r">
+      A proposta é a demonstração ocupar a primeira dobra e a página atual virar apoio —
+      não sumir.
+    </p>
   </div>
+
   <div class="pergunta-final">
-    <div class="q">3. Que números mostrar no resultado?</div>
-    <p class="r">Sugestão: faturamento, cupom, ticket médio e os cinco SKUs que mais
-    faturam. <strong>Lucro não</strong> — o arquivo não tem custo, e mostrar lucro errado na
-    primeira impressão é o pior começo possível.</p>
+    <div class="q">Larga com 3 canais ou espera o TikTok?</div>
+    <p class="r">
+      O seed tem Amazon, Mercado Livre e Shopee. Dá para lançar com 3 e somar o quarto
+      depois, ou segurar até o TikTok entrar e o rótulo poder dizer “4 canais”.
+    </p>
   </div>
 
   <p class="fim">
-    NEXO · Plano para discussão · 23 de agosto de 2026 · gerado a partir de
-    <code>docs/plano-landing-e-produto.md</code>
+    NEXO · plano interno, revisão 2 · 23 de agosto de 2026 · fonte deste PDF:
+    <code>docs/plano-landing-e-produto.html</code>
   </p>
 </section>
 
