@@ -242,9 +242,12 @@ export default function OverviewDashboard() {
 
         {series.length > 0 && (
           <section className="central-revenue-panel" aria-labelledby="central-revenue-title">
-            <div className="mb-2 flex items-baseline justify-between gap-4">
+            <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
               <div><p className="section-kicker">{chartChannel === "todos" ? "Todos os canais" : canaisComSerie.find((c) => c.id === chartChannel)?.name}</p><h2 id="central-revenue-title" className="mt-1 text-lg font-semibold text-[var(--ink)]">Faturamento {chartChannel === "todos" ? "consolidado" : "do canal"} por dia</h2></div>
-              <span className="text-sm font-semibold tabular-nums text-[var(--ink)]">{money(serieExibida.reduce((soma, p) => soma + p.revenue, 0))} <span className="font-normal text-[var(--ink-muted)]">nos últimos 30 dias</span></span>
+              <span className="inline-flex flex-none items-baseline gap-1 whitespace-nowrap">
+                <strong className="text-lg font-semibold tabular-nums text-[var(--ink)]">{money(serieExibida.reduce((soma, p) => soma + p.revenue, 0))}</strong>
+                <span className="text-sm font-normal text-[var(--ink-muted)]">nos últimos 30 dias</span>
+              </span>
             </div>
             {/* Feature 4: abrir a linha consolidada por canal — ver ONDE aconteceu. */}
             {canaisComSerie.length > 1 && (

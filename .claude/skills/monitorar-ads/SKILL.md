@@ -1670,6 +1670,120 @@ grupos têm lance próprio — mas segmentação nova nasceria nele).
 - Protetores com preço novo (−R$ 3, ~20h de 19/08): nenhuma venda ainda; reolhar 21/08
   (o combinado é 2 dias).
 
+## Leitura de 23/08/2026, ~14h — ✅ A ESPERA SE PAGOU: Substitutos VENDEU
+
+```
+Período lido: 23 de ago de 2026 (HOJE) — confirmado no seletor de CADA grupo
+Recarreguei: sim — navegação fresca em cada campanha e cada grupo
+Volume: 1.439 impressões · 11 cliques · R$ 10,82 · atribuição de hoje ABERTA
+⚠️ DIA PARCIAL (~14h). Serve para ver se a máquina anda e para ler ATRIBUIÇÃO
+   POSITIVA; NÃO serve para comparar volume com dia fechado.
+```
+
+| Campanha | Impr | Cliq | CTR | Custo | |
+|---|---|---|---|---|---|
+| **Auto - Protetor Kit 8** | 404 | 1 | 0,25% | R$ 1,29 | 🎉 **1 compra · R$ 21,90 · ROAS 16,98** |
+| Manual - Clips 320 | 397 | 5 | 1,26% | R$ 4,57 | |
+| **Auto - Protetor Kit 32** | 334 | 3 | 0,90% | R$ 2,97 | 1ª auditoria |
+| Auto - Clips 320 | 142 | 1 | 0,70% | R$ 0,41 | |
+| Manual - Protetor Kit 8 | 107 | — | — | — | sem entrega |
+| Auto - Martelo Borracha | 31 | — | — | — | |
+| Manual - Martelo Borracha | 24 | 1 | 4,17% | R$ 1,58 | |
+| **Total** | **1.439** | **11** | | **R$ 10,82** | |
+
+### 🔑 A pergunta nº 1 do plano está RESPONDIDA — e a resposta é NÃO PAUSAR
+
+Auto - Protetor Kit 8, nível de segmentação, hoje:
+
+| Grupo | Impressões | Custo | **Compras** |
+|---|---|---|---|
+| Correspondência aproximada | 81 | — | — |
+| Complementos | 1 | — | — |
+| Correspondência vaga | 12 | — | — |
+| **Substitutos** | **280** | **R$ 1,29** | **1** ✅ |
+
+**Um clique de R$ 1,29 em Substitutos gerou R$ 21,90.** Confirmado no banco: pedido
+novo de hoje, 03:41, `kitprote-8`, R$ 21,90 (`pending`) — **não** é a venda de 22/08
+re-atribuída (essa liquidou a R$ 19,71, com cupom resgatado).
+
+📌 **Terceira vez que a regra da atribuição salva uma campanha boa.** Em 16/08 cortei a
+Auto-Protetor por "21 cliques e zero venda" e ela era a melhor da conta. Em 19/08 quase
+cortei o clips por ACOS de 55% que virou 37% em 7 horas. Agora ia pausar Substitutos por
+"gasta 74% e não vende" — e ele é justamente quem vende neste produto.
+
+⚠️ **E isso NÃO contradiz a decisão de manter Substitutos pausado na Auto-Martelo.** São
+produtos diferentes: o protetor tem histórico de conversão por página de concorrente
+(ROAS 15,11 em agosto), o martelo nunca converteu por lá. A regra do guia (cap. 10) é
+sobre produto sem avaliação e sem marca — o martelo segue nas duas condições.
+
+### ✅ O lance de ontem funcionou: a Exata do Clips SAIU DO ZERO
+
+| Palavra (Exata) | Lance ontem | Lance hoje | Impressões ontem | Impressões hoje |
+|---|---|---|---|---|
+| `clips` | R$ 1,20 | **R$ 2,00** | **zero** | **83** · R$ 1,81 |
+| `clipe` | R$ 1,20 | **R$ 2,00** | **zero** | **7** |
+| as outras 12 | R$ 0,33–0,62 | idem | zero | **zero** |
+
+**Sexta confirmação do piso do leilão**, e a primeira com a mudança medida em cima do
+mesmo par de palavras. Abaixo de ~R$ 1,50 esta conta não compra impressão.
+
+### ⏳ `martelo de borracha` a R$ 2,00 continua em ZERO
+
+| Palavra (Frase) | Lance | Impressões hoje |
+|---|---|---|
+| `martelo borracha` | R$ 2,50 | 24 · R$ 1,58 |
+| **`martelo de borracha`** | **R$ 2,00** | **ZERO** |
+| as outras 8 | R$ 0,33–0,79 | zero |
+
+⚠️ **Não concluir hoje.** O lance subiu ontem ~16h40 e o dia está pela metade. A pergunta
+("o piso dessa variação é mais alto que o do termo curto?") só fecha com **um dia inteiro**
+a R$ 2,00 — ou seja, na leitura de 24/08.
+
+### 🆕 Auto - Protetor Kit 32 — primeira auditoria (ID finalmente documentado)
+
+**`A088134828NO7HY6TSFGA`** · grupo `A08801952DZDESERR5SOD` · R$ 10/dia · criada 18/08.
+
+| Grupo | Lance | Impressões | Custo |
+|---|---|---|---|
+| **Correspondência vaga** | R$ 1,20 | **198** | **R$ 2,07 (70%)** |
+| Substitutos | R$ 1,20 | 112 | R$ 0,90 |
+| Correspondência aproximada | R$ 1,20 | 36 | — |
+| Complementos | R$ 1,20 | — | — |
+
+🔑 **Aqui o padrão é OUTRO:** quem consome é **Correspondência vaga**, não Substitutos.
+Vaga é a correspondência mais frouxa de busca — é a candidata a desperdício desta
+campanha, e o remédio é o relatório de termos, não pausar grupo.
+
+**Zero venda desde que nasceu (18/08).** A última venda de `kitprote-32` foi 17/08, um dia
+ANTES da campanha existir. 5 dias, ~R$ 15 gastos. Ainda sem cliques suficientes para
+concluir pela árvore (cap. 23) — **esperar** e puxar termos.
+
+### 📌 A lista de campanhas NÃO está quebrada — está LENTA
+
+Desde 19/08 eu registrava "lista quebrada em esqueleto" e lia campanha a campanha. Hoje
+ela carregou: **precisa de ~25 segundos**. Eu esperava 3–6s e concluía que estava quebrada.
+
+⚠️ **`await new Promise(r=>setTimeout(r,20000))` antes de ler a lista agregada.** Cinco
+dias de trabalho manual por não ter esperado o suficiente.
+
+### Conclusões
+
+| Item | Conclusão |
+|---|---|
+| Substitutos na Auto-Protetor 8 | ❌ **NÃO pausar** — é quem vende. Pergunta encerrada. |
+| Substitutos na Auto-Clips | ❌ **NÃO pausar** — segue gastando R$ 0. Sem sangria. |
+| Exata do Clips a R$ 2,00 | ✅ Funcionou. **Esperar** conversão. |
+| `martelo de borracha` R$ 2,00 | ⏳ **Reolhar 24/08** com dia inteiro. |
+| Auto - Protetor 32 | ⏳ **Esperar** + puxar relatório de termos da Corresp. vaga. |
+| `protetor de pés de cadeiras` R$ 0,82 → R$ 1,20 | 🔴 **AGIR** — pendente desde 18/08, e agora nada bloqueia. Aguarda confirmação dela. |
+
+### Plano da leitura de 24/08
+
+1. **Dia 23 fechado**: `martelo de borracha` saiu do zero a R$ 2,00?
+2. **A compra do Substitutos se confirma** quando o pedido sair de `pending`?
+3. **Relatório de termos da Auto-Protetor 32**, foco em Correspondência vaga.
+4. `protetor de pés de cadeiras` → R$ 1,20, se ela aprovar (uma mudança por vez).
+
 ## 📌 PLANO DA PRÓXIMA LEITURA (23/08 em diante) — ler antes de agir
 
 ### ⛔ Substitutos: revi a proposta e NÃO é para pausar as duas
