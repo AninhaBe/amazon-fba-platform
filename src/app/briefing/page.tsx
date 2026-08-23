@@ -127,10 +127,19 @@ export default function BriefingPage() {
     const conectados = canais.filter((c) => c.connected);
     let revenue = 0;
     let profit = 0;
+    // Receita APENAS dos canais cujo lucro é conhecido. É a base correta da
+    // margem: dividir lucro parcial pela receita total produzia "margem 0,7%"
+    // numa operação saudável, porque o TikTok responde por quase todo o
+    // faturamento e não tem custo cadastrado (visto em 23/08/2026).
+    let receitaComLucro = 0;
     let algumLucro = false;
     for (const c of conectados) {
       if (c.revenue != null) revenue += c.revenue;
-      if (c.profit != null && c.revenue != null && c.revenue > 0) { profit += c.profit; algumLucro = true; }
+      if (c.profit != null && c.revenue != null && c.revenue > 0) {
+        profit += c.profit;
+        receitaComLucro += c.revenue;
+        algumLucro = true;
+      }
     }
     const serieTotal = mergeDailySeries(conectados.map((c) => c.series));
     const payload = {
@@ -139,7 +148,8 @@ export default function BriefingPage() {
       moeda: conectados[0]?.currency ?? "BRL",
       faturamento30d: conectados.some((c) => c.revenue != null) ? revenue : null,
       lucro30d: algumLucro ? profit : null,
-      margemPct: algumLucro && revenue > 0 ? Math.round((profit / revenue) * 1000) / 10 : null,
+      margemPct: algumLucro && receitaComLucro > 0 ? Math.round((profit / receitaComLucro) * 1000) / 10 : null,
+      receitaComLucro: algumLucro ? receitaComLucro : null,
       variacaoSemanaPct: tendenciaSemanal(serieTotal).deltaPct,
       canais: conectados.map((c) => ({
         nome: c.name,

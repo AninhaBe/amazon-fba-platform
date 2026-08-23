@@ -469,7 +469,18 @@ export async function getMercadoLivreOverviewFromCanonical(
       cancelledOrders: totals.cancelled_orders,
       lastSaleAt: totals.last_sale_at ? new Date(totals.last_sale_at).toISOString() : null,
       currency,
-      revenueCoverage: { capturedOrders: totals.total_orders, totalOrders: totals.total_orders, complete: periodCovered },
+      // ⚠️ `capturedOrders` e `totalOrders` são o MESMO valor, e sempre foram —
+      // por isso a tela comparava um número com ele mesmo e caía numa mensagem
+      // que sugeria pedido faltando. Cobertura aqui NÃO é sobre contagem de
+      // pedidos: é sobre a JANELA que o sync já importou. Quem diz isso são as
+      // datas, e é o que a tela precisa mostrar.
+      revenueCoverage: {
+        capturedOrders: totals.total_orders,
+        totalOrders: totals.total_orders,
+        complete: periodCovered,
+        sincronizadoAte: syncRow?.covered_to ? new Date(syncRow.covered_to).toISOString() : null,
+        historicoDesde: syncRow?.covered_from ? new Date(syncRow.covered_from).toISOString() : null,
+      },
     },
     profit: {
       fees,

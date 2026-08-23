@@ -23,14 +23,14 @@ const base = {
 test("descreve os números fornecidos, com moeda", () => {
   const t = descreverSnapshot(base);
   assert.match(t, /R\$\s?56\.909,63/);
-  assert.match(t, /margem 12,8%/);
+  assert.match(t, /\(margem 12,8%\)/);
   assert.match(t, /-57,4%/);
 });
 
 test("lucro consolidado desconhecido vira 'desconhecido', nunca zero", () => {
   const t = descreverSnapshot({ ...base, lucro30d: null, margemPct: null });
   // A linha do consolidado precisa dizer desconhecido — não R$ 0,00.
-  assert.match(t, /Lucro consolidado conhecido: desconhecido\./);
+  assert.match(t, /Lucro conhecido: desconhecido\./);
 });
 
 test("canal sem leitura é declarado, não zerado", () => {
@@ -46,4 +46,32 @@ test("custo faltando aparece como lucro subestimado", () => {
 test("sem base de comparação, não inventa tendência", () => {
   const t = descreverSnapshot({ ...base, variacaoSemanaPct: null });
   assert.match(t, /Ainda não há duas semanas/);
+});
+
+// A margem parcial não pode ser apresentada como resultado da operação inteira.
+//
+// Defeito real de 23/08/2026: o lucro só existe onde há custo cadastrado, mas a
+// margem dividia esse lucro pela receita de TODOS os canais. Com o TikTok
+// respondendo por quase todo o faturamento e sem custo, saiu
+// `383,94 / 55.396,14 = 0,7%` — e o NEXO narrou como "perda de margem",
+// mandando a vendedora resolver um problema que não existia.
+test("margem informa a BASE e separa o faturamento sem custo", () => {
+  const texto = descreverSnapshot({
+    data: "2026-08-23",
+    moeda: "BRL",
+    faturamento30d: 55396.14,
+    lucro30d: 383.94,
+    // 58,1% sobre a parte com custo — não 0,7% sobre o total.
+    margemPct: 58.1,
+    receitaComLucro: 661.0,
+    variacaoSemanaPct: -51.3,
+    canais: [],
+  });
+  assert.match(texto, /margem de 58,1% sobre R\$\s661,00/);
+  assert.match(texto, /parte do faturamento com custo cadastrado/);
+  // O que sobra tem de ser nomeado como DESCONHECIDO, nunca somado como zero.
+  assert.match(texto, /R\$\s54\.735,14.{0,40}SEM custo cadastrado/);
+  assert.match(texto, /DESCONHECIDO — não é zero/);
+  // E o percentual nunca pode aparecer colado ao faturamento total.
+  assert.ok(!/margem de 0,7%/.test(texto));
 });

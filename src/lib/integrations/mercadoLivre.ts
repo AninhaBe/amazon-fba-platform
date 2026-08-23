@@ -1006,7 +1006,17 @@ export async function getMercadoLivreOverview(
       cancelledOrders: 0,
       lastSaleAt: paidOrders[0]?.date_created ? new Date(paidOrders[0].date_created).toISOString() : null,
       currency: orders[0]?.currency_id ?? "BRL",
-      revenueCoverage: { capturedOrders: orders.length, totalOrders, complete: collectedOrders.complete },
+      // `sincronizadoAte`/`historicoDesde` existem para a tela explicar a
+      // cobertura em DATAS. Este builder é o caminho AO VIVO (sem canônico), que
+      // não tem janela de sync registrada — daí `null`, e a tela cai na frase
+      // genérica em vez de inventar um horário.
+      revenueCoverage: {
+        capturedOrders: orders.length,
+        totalOrders,
+        complete: collectedOrders.complete,
+        sincronizadoAte: null as string | null,
+        historicoDesde: null as string | null,
+      },
     },
     profit: {
       fees,

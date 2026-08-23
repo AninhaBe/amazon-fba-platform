@@ -23,7 +23,7 @@ export interface Provider {
 }
 interface AmazonProfit { estimatedProfit: number; unitsWithoutCost: number; finance: { currency: string } }
 interface AmazonSales { series: { totalRevenue: number; totalOrders: number; currency: string; points?: DailyPoint[] } }
-interface MercadoLivreOverview { metrics: { revenue30d: number; orders30d: number; activeListings: number; cancelledRevenue: number; cancelledOrders: number; currency: string; revenueCoverage: { complete: boolean; capturedOrders: number; totalOrders: number } }; profit: { estimatedProfit: number; unitsWithoutCost: number; coverage: { processedOrders: number; paidOrders: number; complete: boolean } }; dailySales?: DailyPoint[] }
+interface MercadoLivreOverview { metrics: { revenue30d: number; orders30d: number; activeListings: number; cancelledRevenue: number; cancelledOrders: number; currency: string; revenueCoverage: { complete: boolean; capturedOrders: number; totalOrders: number; sincronizadoAte?: string | null; historicoDesde?: string | null } }; profit: { estimatedProfit: number; unitsWithoutCost: number; coverage: { processedOrders: number; paidOrders: number; complete: boolean } }; dailySales?: DailyPoint[] }
 interface TiktokOverviewResponse {
   overview: { revenue: number | null; profit: number | null; currency: string } | null;
   orders?: number;
@@ -53,11 +53,36 @@ export interface ChannelSnapshot {
   unitsWithoutCost?: number;
 }
 
-// Cobertura incompleta tem duas causas diferentes e a mensagem precisa dizer qual.
-function coverageNote(coverage: { capturedOrders: number; totalOrders: number }) {
-  return coverage.capturedOrders < coverage.totalOrders
-    ? `Faturamento parcial: ${coverage.capturedOrders} de ${coverage.totalOrders} pedidos`
-    : `Sincronização ainda não cobre todo o período; ${coverage.capturedOrders} pedido(s) capturados`;
+/**
+ * Por que a leitura do canal está incompleta — em DATAS, não em contagem.
+ *
+ * A mensagem antiga dizia "Sincronização ainda não cobre todo o período;
+ * N pedido(s) capturados", e ela cobrou com razão em 23/08/2026: *"não existe
+ * isso de ter 45 pedidos e falar que cobriu 30"*. Dois defeitos somados:
+ *
+ * 1. O ramo "N de M pedidos" era CÓDIGO MORTO — a origem manda o mesmo valor
+ *    nos dois campos, então a condição nunca podia ser verdadeira.
+ * 2. O que sobrava exibia uma contagem de pedidos para explicar algo que não
+ *    tem a ver com contagem. Cobertura é a JANELA que o sync já importou.
+ *
+ * Medido na conta dela no mesmo dia: o Mercado Livre estava sincronizado até
+ * 04:33 e o período ia até aquele instante — uma defasagem de 8 horas. Nenhum
+ * pedido faltava; o sync é que estava atrasado. São problemas diferentes, com
+ * ações diferentes, e a frase precisa distinguir os dois.
+ */
+function coverageNote(coverage: { sincronizadoAte?: string | null; historicoDesde?: string | null }, inicioDoPeriodo?: Date) {
+  const hora = (iso: string) =>
+    new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+
+  // Buraco no COMEÇO: o histórico importado não alcança o início do período.
+  if (coverage.historicoDesde && inicioDoPeriodo && new Date(coverage.historicoDesde) > inicioDoPeriodo) {
+    return `Histórico importado a partir de ${hora(coverage.historicoDesde)} — o período pedido começa antes disso`;
+  }
+  // Buraco no FIM: o caso comum. É atraso de sincronização, não pedido faltando.
+  if (coverage.sincronizadoAte) {
+    return `Sincronizado até ${hora(coverage.sincronizadoAte)} — vendas depois disso ainda não entraram`;
+  }
+  return "Sincronização ainda não rodou neste canal";
 }
 
 /** Soma as séries diárias dos canais numa linha só — a visão que só a central pode dar. */
@@ -163,7 +188,8 @@ export async function gatherCentralChannels(): Promise<{ channels: ChannelSnapsh
         : overview.profit.unitsWithoutCost > 0
         ? `Lucro parcial: ${overview.profit.unitsWithoutCost} unidade(s) sem custo`
         : "Faturamento, pedidos e lucro estimado"
-      : coverageNote(overview.metrics.revenueCoverage);
+      // 30 dias é a janela que a central pede em todos os canais.
+      : coverageNote(overview.metrics.revenueCoverage, new Date(Date.now() - 30 * 86_400_000));
   }).catch((error) => { mercadoLivre.error = error instanceof Error ? error.message : "Dados indisponíveis"; }));
 
   if (shopee.connected) tasks.push((async () => {

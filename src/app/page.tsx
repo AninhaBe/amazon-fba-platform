@@ -107,7 +107,14 @@ export default function OverviewDashboard() {
         algum = true;
       }
     }
-    return algum && revenue > 0 ? Math.round((profit / revenue) * 1000) / 10 : null;
+    // Devolve TAMBÉM a base, não só o percentual. A margem aqui já era calculada
+    // certo (só canais com lucro conhecido), mas o snapshot mandava ao modelo o
+    // faturamento TOTAL ao lado dela — e ele leu "margem 0,7%" como resultado da
+    // operação inteira (23/08/2026). Percentual sem base é meia informação.
+    return {
+      pct: algum && revenue > 0 ? Math.round((profit / revenue) * 1000) / 10 : null,
+      base: algum ? revenue : null,
+    };
   }, [channels]);
   // Feature 4: qual série o gráfico mostra — todos (soma) ou um canal.
   const serieExibida = useMemo(() => {
@@ -129,7 +136,8 @@ export default function OverviewDashboard() {
       moeda: "BRL",
       faturamento30d: totals.revenue,
       lucro30d: totals.profitSources ? totals.profit : null,
-      margemPct: margemTotal,
+      margemPct: margemTotal.pct,
+      receitaComLucro: margemTotal.base,
       variacaoSemanaPct: tendenciaTotal.deltaPct,
       canais: conectados.map((c) => ({
         nome: c.name,
@@ -186,9 +194,17 @@ export default function OverviewDashboard() {
           />
           <Metric
             label="Margem consolidada"
-            value={margemTotal == null ? "—" : percent(margemTotal)}
-            sub={margemTotal == null ? "Aguardando lucro dos canais" : "Lucro sobre faturamento conhecido"}
-            tone={margemTotal == null ? "default" : margemTotal > 0 ? "positive" : margemTotal < 0 ? "danger" : "default"}
+            value={margemTotal.pct == null ? "—" : percent(margemTotal.pct)}
+            // A legenda nomeia a BASE em reais. "Faturamento conhecido" era vago
+            // demais para quem olha um faturamento total muito maior logo ao lado.
+            sub={
+              margemTotal.pct == null
+                ? "Aguardando lucro dos canais"
+                : margemTotal.base != null && margemTotal.base < totals.revenue
+                  ? `Sobre ${money(margemTotal.base)} — a parte com custo cadastrado`
+                  : "Lucro sobre o faturamento"
+            }
+            tone={margemTotal.pct == null ? "default" : margemTotal.pct > 0 ? "positive" : margemTotal.pct < 0 ? "danger" : "default"}
           />
           <Metric label="Pedidos" value={totals.orders.toLocaleString("pt-BR")} sub="Últimos 30 dias" />
           <Metric label="Canais ativos" value={`${totals.connected} de ${channels.length}`} sub="Contas conectadas agora" />

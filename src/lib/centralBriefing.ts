@@ -38,7 +38,19 @@ export interface SnapshotCentral {
   // é "não informado aqui", nunca zero.
   faturamento30d: number | null;
   lucro30d: number | null;
+  /**
+   * Margem do lucro CONHECIDO sobre a receita DESSE MESMO recorte — nunca sobre
+   * o faturamento total.
+   *
+   * O defeito que isto corrige (23/08/2026): o lucro só existe onde há custo
+   * cadastrado, mas a margem dividia esse lucro parcial pela receita de TODOS os
+   * canais. Com TikTok respondendo por quase todo o faturamento e sem custo, a
+   * conta saía `383,94 / 55.396,14 = 0,7%` — e o NEXO narrou isso como "perda de
+   * margem", inventando um problema que não existe.
+   */
   margemPct: number | null;
+  /** Quanto do faturamento está coberto pelo lucro acima. `null` = sem lucro conhecido. */
+  receitaComLucro?: number | null;
   variacaoSemanaPct: number | null;
   canais: CanalNoSnapshot[];
   /** Insights detectados (só no modo briefing) — o modelo os narra, não os inventa. */
@@ -75,7 +87,22 @@ export function descreverSnapshot(s: SnapshotCentral): string {
   if (s.faturamento30d != null) {
     linhas.push(
       `Faturamento consolidado (30 dias): ${money(s.faturamento30d, s.moeda)}.`,
-      `Lucro consolidado conhecido: ${money(s.lucro30d, s.moeda)}${s.margemPct != null ? ` (margem ${pct(s.margemPct)})` : ""}.`,
+      // A margem SEMPRE vem acompanhada da fatia que ela cobre — quando a fatia é
+      // conhecida. Sem a base, o percentual sozinho fez o modelo ler "margem
+      // 0,7%" como resultado da operação inteira (23/08/2026).
+      (() => {
+        const base = `Lucro conhecido: ${money(s.lucro30d, s.moeda)}`;
+        if (s.margemPct == null) return `${base}.`;
+        // Sem `receitaComLucro` (chamador antigo), diz só o percentual: inventar
+        // "sobre desconhecido" seria pior que omitir.
+        if (s.receitaComLucro == null) return `${base} (margem ${pct(s.margemPct)}).`;
+        const resto = s.faturamento30d != null ? s.faturamento30d - s.receitaComLucro : 0;
+        const ressalva =
+          resto > 0.01
+            ? ` O restante (${money(resto, s.moeda)}) está SEM custo cadastrado, então o lucro dele é DESCONHECIDO — não é zero, e não entra em nenhuma conta de margem.`
+            : "";
+        return `${base} — margem de ${pct(s.margemPct)} sobre ${money(s.receitaComLucro, s.moeda)}, que é a parte do faturamento com custo cadastrado.${ressalva}`;
+      })(),
       s.variacaoSemanaPct != null
         ? `Variação do faturamento na última semana vs. a anterior: ${s.variacaoSemanaPct >= 0 ? "+" : ""}${pct(s.variacaoSemanaPct)}.`
         : "Ainda não há duas semanas de histórico para comparar tendência."
@@ -122,6 +149,7 @@ const SISTEMA = [
 
   "NÃO GENERALIZE. Fale de cada produto/SKU exatamente como ele veio na lista. É proibido agrupar ('a linha de protetores', 'os kits de 8, 16, 24 e 32') ou estender uma constatação de um item para outros que não estão na lista. Se só um kit está sem estoque, fale só desse kit — não invente que os outros também estão. Cada afirmação sua tem que corresponder a uma linha que eu te dei.",
 
+  "MARGEM É SEMPRE PARCIAL ATÉ PROVA EM CONTRÁRIO — e você NUNCA a apresenta como resultado da operação inteira. O lucro só existe onde o custo do produto está cadastrado; quando eu te disser que a margem é sobre uma PARTE do faturamento, essa parte é a única base válida. Proibido: dizer que a operação 'está com margem de X%', falar em 'perda de margem' ou 'margem apertada' com base nesse número, ou compará-lo com o faturamento total. O certo é nomear a base — 'a margem é de X% sobre os R$ Y que têm custo cadastrado; o resto ainda não dá para calcular'. Se boa parte do faturamento estiver sem custo, a AÇÃO é cadastrar esses custos, e não 'estancar a perda de margem' — margem baixa por dado faltando é um buraco de cadastro, não um problema de negócio, e confundir os dois manda a pessoa resolver o problema errado.",
   "EXPLIQUE, não apenas relate. Quando eu te der uma seção de POSSÍVEIS CAUSAS, use-a para dizer POR QUE o número mudou — é isso que separa você de um relatório. 'O Mercado Livre caiu 100%' não ajuda ninguém; 'o Mercado Livre parou porque não há nenhum anúncio ativo' é acionável. Só use as causas que eu te dei; se nenhuma explicar o número, diga honestamente que a queda existe e a causa ainda não está identificada — nunca invente um motivo plausível.",
 
   "PRIORIDADE, sempre nesta ordem: primeiro o que exige AÇÃO (um canal que parou de vender, ruptura de estoque chegando, custo faltando que subestima o lucro, uma queda forte de faturamento); depois a OPORTUNIDADE (um canal ou produto puxando o resultado); por último, se estiver tudo estável, diga que está tranquilo — sem inventar drama. Não liste tudo: escolha o que mais muda a vida dela hoje.",
