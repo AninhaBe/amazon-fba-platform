@@ -268,8 +268,8 @@ export default function BriefingPage() {
                 <div className="briefing-table" role="table" aria-label="Prioridades da operação">
                   <div className="briefing-table-head" role="row">
                     <span role="columnheader">Prioridade</span>
-                    <span role="columnheader">Evidência</span>
-                    <span role="columnheader">Impacto</span>
+                    <span role="columnheader" className="text-center">Evidência</span>
+                    <span role="columnheader" className="text-center">Impacto</span>
                     <span role="columnheader">Canal</span>
                     <span role="columnheader"><span className="sr-only">Ações</span></span>
                   </div>
@@ -289,11 +289,11 @@ export default function BriefingPage() {
                             <span>{it.recommendation || TYPE_LABEL[it.type] || it.type}</span>
                           </div>
                         </div>
-                        <div className="briefing-evidence-cell" role="cell">
-                          {evidence.slice(0, 2).map(([key, value]) => <span key={key}><small>{EVIDENCE_LABEL[key] || key}</small><strong>{value == null ? "—" : String(value)}</strong></span>)}
+                        <div className="briefing-evidence-cell justify-center text-center" role="cell">
+                          {evidence.slice(0, 2).map(([key, value]) => <span className="justify-items-center" key={key}><small>{EVIDENCE_LABEL[key] || key}</small><strong>{value == null ? "—" : String(value)}</strong></span>)}
                           {evidence.length > 2 && <em>+{evidence.length - 2}</em>}
                         </div>
-                        <div className="briefing-impact-cell" role="cell">
+                        <div className="briefing-impact-cell justify-items-center text-center" role="cell">
                           {impactUnits == null ? <span>—</span> : <><strong>≈ {impactUnits}</strong><small>unidade(s) em risco</small></>}
                         </div>
                         <div className="briefing-channel-cell" role="cell">
