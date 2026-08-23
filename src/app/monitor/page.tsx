@@ -73,6 +73,28 @@ interface MonitorSnapshot {
 
 type MonitorSection = "composition" | "transactions" | "profitability";
 
+/**
+ * Aba inicial do monitor, vinda da URL (`?secao=vendas`).
+ *
+ * O card "Pedidos recentes" do dashboard linkava para cá sem dizer QUAL aba, e a
+ * padrão é a Composição — uma cascata financeira. Ou seja: o link prometia
+ * pedidos e entregava um resumo que o próprio dashboard já mostrava. Ela leu
+ * isso como "página crua e totalmente redundante" (23/08/2026), e estava certa:
+ * a tabela pedido a pedido existe, mas mora na TERCEIRA aba.
+ *
+ * Lido de `window.location` em vez de `useSearchParams` de propósito: o hook
+ * exige fronteira de Suspense na página inteira, e isto é só o estado inicial de
+ * uma aba.
+ */
+function secaoInicialDaUrl<T extends string>(validas: readonly T[], padrao: T): T {
+  if (typeof window === "undefined") return padrao;
+  const bruta = new URLSearchParams(window.location.search).get("secao");
+  // A URL fala português ("?secao=vendas"); os ids internos são os do estado.
+  const pedida = bruta === "vendas" ? "profitability" : bruta === "repasses" ? "transactions" : bruta;
+  return (validas as readonly string[]).includes(pedida ?? "") ? (pedida as T) : padrao;
+}
+
+
 // Escopo de módulo: sobrevive à navegação entre telas/canais (mesmo padrão do
 // dashboard Amazon e do workspace ML). Ao voltar, o período já visto pinta no
 // primeiro paint e a revalidação roda em segundo plano.
@@ -91,7 +113,9 @@ export default function MonitorPage() {
   const [profitabilityError, setProfitabilityError] = useState<string | null>(null);
   const [profitabilityScope, setProfitabilityScope] = useState<string | undefined>(initialCached?.profitabilityScope);
   const [feesOpen, setFeesOpen] = useState(false);
-  const [section, setSection] = useState<MonitorSection>("composition");
+  const [section, setSection] = useState<MonitorSection>(() =>
+    secaoInicialDaUrl(["composition", "transactions", "profitability"] as const, "composition")
+  );
 
   async function load(periodQuery: string) {
     const cached = monitorCache.get(periodQuery);

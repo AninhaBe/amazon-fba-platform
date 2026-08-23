@@ -750,7 +750,7 @@ export default function Dashboard() {
           )}
         </Panel>
 
-        <Panel title="Pedidos recentes" href="/amazon/monitor" linkLabel="Ver monitor">
+        <Panel title="Pedidos recentes" href="/amazon/monitor?secao=vendas" linkLabel="Ver todos os pedidos">
           {loading ? (
             <InlineLoading label="Carregando pedidos recentes" />
           ) : !orders || orders.orders.length === 0 ? (
