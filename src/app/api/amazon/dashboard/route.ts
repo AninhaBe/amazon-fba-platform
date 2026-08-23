@@ -57,6 +57,8 @@ interface BillingRow {
   frete: string | null;
   /** Cupom resgatado no período: preço de tabela menos o que o comprador pagou. */
   cupom: string | null;
+  /** Pedidos sem preço de tabela — com eles, o cupom acima é piso, não total. */
+  sem_preco_de_tabela: string | null;
 }
 
 export async function GET(req: NextRequest) {
@@ -143,7 +145,12 @@ export async function GET(req: NextRequest) {
                   -- no próprio ordered_gross pelo COALESCE acima. Assim a linha
                   -- exibida é exatamente Pedidos feitos − Faturamento, sem
                   -- inventar desconto que ainda não foi apurado.
-                  COALESCE(SUM(ordered_gross - COALESCE(gross, ordered_gross)), 0)::text AS cupom
+                  COALESCE(SUM(ordered_gross - COALESCE(gross, ordered_gross)), 0)::text AS cupom,
+                  -- Quantos pedidos NÃO têm preço de tabela. Sem ele o cupom
+                  -- daquele pedido é desconhecido, e o total exibido vira um
+                  -- PISO, não a diferença exata entre os dois cartões. Medido em
+                  -- 23/08/2026: 864 de 1.717 pedidos numa das contas.
+                  COUNT(*) FILTER (WHERE ordered_gross IS NULL)::text AS sem_preco_de_tabela
              FROM workspace_channel_orders
             WHERE workspace_id = $1 AND provider = 'amazon' AND connection_id = $2
               AND occurred_at BETWEEN $3 AND $4
@@ -201,6 +208,7 @@ export async function GET(req: NextRequest) {
       // omite a linha em vez de afirmar "cupom R$ 0,00" num período que ainda
       // não foi conciliado (null ≠ 0, AGENTS.md).
       const cupom = pedidosComValor > 0 ? +Number(billingRows[0]?.cupom ?? 0).toFixed(2) : null;
+      const cupomParcial = Number(billingRows[0]?.sem_preco_de_tabela ?? 0) > 0;
 
       const durationMs = Math.round(performance.now() - t0);
       // ADR-017 fixou orçamento de 1s por interação, com < 200ms para a camada de
@@ -246,7 +254,7 @@ export async function GET(req: NextRequest) {
         covered: canonical.covered,
         currency: canonical.currency,
         // Faturamento do período — a MESMA definição em toda tela do produto.
-        billing: { revenue: faturamento, orders: pedidosFaturados, ordersWithValue: pedidosComValor, coupon: cupom },
+        billing: { revenue: faturamento, orders: pedidosFaturados, ordersWithValue: pedidosComValor, coupon: cupom, couponPartial: cupomParcial },
         // PEDIDOS FEITOS — o mesmo número do Seller Central, com pendentes e
         // cancelados dentro. Fica ao lado do conciliado, nunca no lugar dele:
         // são perguntas diferentes (ADR-020) e a tela precisa dizer qual é qual.

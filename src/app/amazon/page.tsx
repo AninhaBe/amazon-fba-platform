@@ -125,6 +125,8 @@ interface DashboardPayload {
      * "Faturamento". `null` = período sem pedido conciliado, e a linha some.
      */
     coupon?: number | null;
+    /** Há pedidos sem preço de tabela: o cupom é um PISO, não o total exato. */
+    couponPartial?: boolean;
   };
   /**
    * Pedidos feitos, pela Sales API: inclui pendentes, EXCLUI cancelados, e
@@ -185,7 +187,7 @@ let productsCache: ProductRow[] | null = null;
  * estado: quantos pedidos ainda não têm valor, em vez de escondê-los na contagem.
  */
 function legendaFaturamento(
-  f: { revenue: number; orders: number; ordersWithValue?: number; coupon?: number | null } | null,
+  f: { revenue: number; orders: number; ordersWithValue?: number; coupon?: number | null; couponPartial?: boolean } | null,
   fallback: number,
   moeda: string
 ): string {
@@ -196,7 +198,9 @@ function legendaFaturamento(
   // logo abaixo — e ela perguntou três vezes por que os dois números diferem
   // (23/08/2026). A resposta tem de estar na tela, não na minha explicação.
   const cupom = f?.coupon ?? 0;
-  const sufixoCupom = cupom > 0 ? ` · já sem ${money(cupom, moeda)} de cupom` : "";
+  const sufixoCupom = cupom > 0
+    ? ` · já sem ${f?.couponPartial ? "ao menos " : ""}${money(cupom, moeda)} de cupom`
+    : "";
   if (comValor === undefined || comValor === pedidos) return `${plural(pedidos)} no período${sufixoCupom}`;
   const semValor = pedidos - comValor;
   // Nenhum tem valor ainda: dizer o motivo, não mostrar zero seco.
@@ -575,7 +579,14 @@ export default function Dashboard() {
             // Fecha a conta na tela: este é EXATAMENTE o valor que separa
             // "Pedidos feitos" de "Faturamento". Sem dizer isso, o número fica
             // solto e a pessoa não liga um card ao outro.
-            hint="a diferença entre Pedidos feitos e Faturamento"
+            // Só afirma a igualdade quando ela SE SUSTENTA. Com pedidos sem
+            // preço de tabela, este número é o que conseguimos apurar — e dizer
+            // que é "a diferença" seria mentira numa conta com cobertura parcial.
+            hint={
+              faturamento?.couponPartial
+                ? "apurado nos pedidos com preço de tabela — pode haver mais"
+                : "a diferença entre Pedidos feitos e Faturamento"
+            }
             loading={loading}
           />
         )}
