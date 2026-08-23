@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { nomeDaTarifa } from "@/lib/nomeDaTarifa";
 import { PageHeader, pageIcons } from "../components/PageHeader";
 import { PanelLoading } from "../components/LoadingState";
@@ -76,23 +77,25 @@ type MonitorSection = "composition" | "transactions" | "profitability";
 /**
  * Aba inicial do monitor, vinda da URL (`?secao=vendas`).
  *
- * O card "Pedidos recentes" do dashboard linkava para cá sem dizer QUAL aba, e a
- * padrão é a Composição — uma cascata financeira. Ou seja: o link prometia
- * pedidos e entregava um resumo que o próprio dashboard já mostrava. Ela leu
- * isso como "página crua e totalmente redundante" (23/08/2026), e estava certa:
- * a tabela pedido a pedido existe, mas mora na TERCEIRA aba.
+ * O card "Pedidos recentes" do dashboard linka para cá, e a aba padrão é a
+ * Composição — uma cascata financeira. O link prometia pedidos e entregava um
+ * resumo que o dashboard já mostrava ("tela super crua", 23/08/2026).
  *
- * Lido de `window.location` em vez de `useSearchParams` de propósito: o hook
- * exige fronteira de Suspense na página inteira, e isto é só o estado inicial de
- * uma aba.
+ * ⚠️ A 1ª tentativa lia `window.location.search` dentro de `useState`, e NÃO
+ * funcionava: `/monitor` é rota PRERENDERIZADA (`○ Static` no build), o
+ * inicializador roda no servidor com `window` indefinido, e a hidratação reusa
+ * o estado do servidor sem re-executá-lo. O parâmetro era ignorado em silêncio.
+ *
+ * `useSearchParams` é a API que a doc do Next indica para isto — e ela exige
+ * fronteira de `Suspense`, que é por que a página é exportada embrulhada.
  */
-function secaoInicialDaUrl<T extends string>(validas: readonly T[], padrao: T): T {
-  if (typeof window === "undefined") return padrao;
-  const bruta = new URLSearchParams(window.location.search).get("secao");
-  // A URL fala português ("?secao=vendas"); os ids internos são os do estado.
+function useSecaoInicial(): MonitorSection {
+  const bruta = useSearchParams().get("secao");
+  // A URL fala português; os ids internos são os do estado.
   const pedida = bruta === "vendas" ? "profitability" : bruta === "repasses" ? "transactions" : bruta;
-  return (validas as readonly string[]).includes(pedida ?? "") ? (pedida as T) : padrao;
+  return pedida === "profitability" || pedida === "transactions" ? pedida : "composition";
 }
+
 
 
 // Escopo de módulo: sobrevive à navegação entre telas/canais (mesmo padrão do
@@ -100,7 +103,7 @@ function secaoInicialDaUrl<T extends string>(validas: readonly T[], padrao: T): 
 // primeiro paint e a revalidação roda em segundo plano.
 const monitorCache = new Map<string, MonitorSnapshot>();
 
-export default function MonitorPage() {
+function MonitorPage({ secaoInicial }: { secaoInicial: MonitorSection }) {
   const period = useDashboardPeriod();
   const [initialCached] = useState(() => monitorCache.get(period.query));
   const [finance, setFinance] = useState<FinanceSummary | null>(initialCached?.finance ?? null);
@@ -113,9 +116,7 @@ export default function MonitorPage() {
   const [profitabilityError, setProfitabilityError] = useState<string | null>(null);
   const [profitabilityScope, setProfitabilityScope] = useState<string | undefined>(initialCached?.profitabilityScope);
   const [feesOpen, setFeesOpen] = useState(false);
-  const [section, setSection] = useState<MonitorSection>(() =>
-    secaoInicialDaUrl(["composition", "transactions", "profitability"] as const, "composition")
-  );
+  const [section, setSection] = useState<MonitorSection>(secaoInicial);
 
   async function load(periodQuery: string) {
     const cached = monitorCache.get(periodQuery);
@@ -418,5 +419,22 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
       <strong>{value}</strong>
       {hint && <small>{hint}</small>}
     </div>
+  );
+}
+
+/**
+ * `useSearchParams` obriga a fronteira de Suspense em rota prerenderizada — sem
+ * ela o build falha. A leitura da URL fica isolada aqui, e o resto da árvore
+ * segue podendo ser pré-renderizado.
+ */
+function MonitorComSecao() {
+  return <MonitorPage secaoInicial={useSecaoInicial()} />;
+}
+
+export default function MonitorPageWrapper() {
+  return (
+    <Suspense fallback={<PanelLoading label="Carregando monitor" />}>
+      <MonitorComSecao />
+    </Suspense>
   );
 }

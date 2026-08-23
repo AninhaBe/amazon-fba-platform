@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { AnimatedNumber } from "./AnimatedNumber";
 import { EmptyState } from "./EmptyState";
 import { DashboardSkeleton } from "./LoadingState";
@@ -87,7 +88,26 @@ function orderStatus(status: string) {
   return labels[status] || status.replaceAll("_", " ");
 }
 
-export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
+/**
+ * A aba inicial do monitor vem da URL (`?secao=vendas`), lida com
+ * `useSearchParams` — a API que a doc do Next indica e que funciona em rota
+ * PRERENDERIZADA, ao contrário de ler `window.location` no `useState`.
+ *
+ * Ela exige fronteira de Suspense, e é por isso que o workspace é exportado
+ * embrulhado: o resto da árvore continua podendo ser pré-renderizado.
+ */
+export function MercadoLivreWorkspace(props: { view: keyof typeof views }) {
+  return (
+    <Suspense fallback={<DashboardSkeleton />}>
+      <MercadoLivreWorkspaceInterno {...props} />
+    </Suspense>
+  );
+}
+
+function MercadoLivreWorkspaceInterno({ view }: { view: keyof typeof views }) {
+  const bruta = useSearchParams().get("secao");
+  const secaoInicial: "composition" | "profitability" =
+    bruta === "vendas" || bruta === "profitability" ? "profitability" : "composition";
   const period = useDashboardPeriod();
   // Ao voltar de outro canal, o período já visto renderiza no primeiro paint
   // (sem flash de skeleton); a revalidação segue em segundo plano.
@@ -210,7 +230,7 @@ export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
         </div>
       ) : !overview ? (
         <EmptyState title="Conecte sua conta do Mercado Livre" description="Autorize o NEXO para começar a importar anúncios e pedidos." action={<Link href="/integracoes" className="meli-primary-action">Gerenciar integração <span aria-hidden="true">→</span></Link>} />
-      ) : view === "dashboard" ? <Dashboard overview={overview} syncStatus={syncStatus} periodoLabel={period.label} /> : view === "estoque" ? <Inventory overview={overview} /> : <Monitor overview={overview} />}
+      ) : view === "dashboard" ? <Dashboard overview={overview} syncStatus={syncStatus} periodoLabel={period.label} /> : view === "estoque" ? <Inventory overview={overview} /> : <Monitor overview={overview} secaoInicial={secaoInicial} />}
     </IntegrationDashboardFrame>
   );
 }
@@ -219,26 +239,6 @@ export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
  * Estado do resultado do canal, em UM lugar só — o Dashboard e o Monitor liam a
  * mesma regra em cópias separadas, e foi assim que os dois divergiram.
  */
-/**
- * Aba inicial do monitor, vinda da URL (`?secao=vendas`).
- *
- * O card "Pedidos recentes" do dashboard linkava para cá sem dizer QUAL aba, e a
- * padrão é a Composição — uma cascata financeira. Ou seja: o link prometia
- * pedidos e entregava um resumo que o próprio dashboard já mostrava. Ela leu
- * isso como "página crua e totalmente redundante" (23/08/2026), e estava certa:
- * a tabela pedido a pedido existe, mas mora na TERCEIRA aba.
- *
- * Lido de `window.location` em vez de `useSearchParams` de propósito: o hook
- * exige fronteira de Suspense na página inteira, e isto é só o estado inicial de
- * uma aba.
- */
-function secaoInicialDaUrl<T extends string>(validas: readonly T[], padrao: T): T {
-  if (typeof window === "undefined") return padrao;
-  const bruta = new URLSearchParams(window.location.search).get("secao");
-  // A URL fala português ("?secao=vendas"); os ids internos são os do estado.
-  const pedida = bruta === "vendas" ? "profitability" : bruta === "repasses" ? "transactions" : bruta;
-  return (validas as readonly string[]).includes(pedida ?? "") ? (pedida as T) : padrao;
-}
 
 function avaliarResultado(overview: Overview) {
   const profitCoverage = overview.profit.coverage;
@@ -479,13 +479,15 @@ function Inventory({ overview }: { overview: Overview }) {
   </div>;
 }
 
-function Monitor({ overview }: { overview: Overview }) {
+function Monitor({ overview, secaoInicial }: { overview: Overview; secaoInicial: "composition" | "profitability" }) {
   const profitCoverage = overview.profit.coverage;
   const netReceived = overview.profit.revenueProcessed - overview.profit.fees - overview.profit.sellerShipping;
   const { semAliquota, resultParcial, resultIncomplete, margemSub } = avaliarResultado(overview);
-  const [section, setSection] = useState<"composition" | "profitability">(() =>
-      secaoInicialDaUrl(["composition", "profitability"] as const, "composition")
-    );
+  // ⚠️ Vem por PROP, não de `window.location`: a página é prerenderizada e um
+  // `useState` que lê a URL no inicializador roda no servidor, onde `window` não
+  // existe — e a hidratação não o re-executa. Quem lê a URL é o
+  // `useSearchParams`, dentro da fronteira de Suspense lá em cima.
+  const [section, setSection] = useState<"composition" | "profitability">(secaoInicial);
   return <div className="ml-monitor-body">
     <CustomizableMetricGrid
       viewKey="mercado-livre-monitor"
