@@ -16,6 +16,7 @@ import { ConnectionBroken, isBrokenConnection } from "../components/ConnectionBr
 import { TopProductsRanking } from "../components/TopProductsRanking";
 import { buildFinancialComposition, FinancialSummaryPanel } from "../components/FinancialSummaryPanel";
 import { BriefingLead } from "../components/BriefingLead";
+import { nomeDaTarifa } from "@/lib/nomeDaTarifa";
 import { IntegrationDashboardFrame } from "../components/IntegrationDashboardFrame";
 
 /**
@@ -831,24 +832,6 @@ function CompactMetric({
 // A Transactions API nomeia cada tarifa em inglês. "Taxas Amazon" somava tudo num
 // número só e a pergunta "qual taxa é essa?" não tinha resposta na tela.
 // Tipo desconhecido aparece com o nome original — nunca some nem vira "Outras".
-const NOME_DA_TARIFA: Record<string, string> = {
-  Commission: "Comissão",
-  AdvertisingFee: "Anúncios",
-  FBAPerUnitFulfillmentFee: "Logística FBA",
-  FBAStorageFee: "Armazenagem FBA",
-  FBAInventoryFee: "Estoque FBA",
-  StorageFee: "Armazenagem",
-  SubscriptionFee: "Assinatura",
-  RefundCommission: "Comissão de reembolso",
-  ShippingChargeback: "Estorno de frete",
-  DigitalServicesFee: "Taxa de serviços digitais",
-  VariableClosingFee: "Taxa de fechamento",
-  PerItemFee: "Taxa por item",
-};
-
-function nomeDaTarifa(tipo: string): string {
-  return NOME_DA_TARIFA[tipo] ?? tipo;
-}
 
 function Flow({
   label,

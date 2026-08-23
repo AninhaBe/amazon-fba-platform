@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { nomeDaTarifa } from "@/lib/nomeDaTarifa";
 import { PageHeader, pageIcons } from "../components/PageHeader";
 import { PanelLoading } from "../components/LoadingState";
 import { OrderProfitabilityTable } from "../components/OrderProfitabilityTable";
@@ -53,15 +54,6 @@ interface TransactionSummary {
   recent: FinancialTransaction[];
 }
 
-const FEE_LABELS: Record<string, string> = {
-  Commission: "Comissão",
-  FBAPerUnitFulfillmentFee: "FBA — coleta/embalagem",
-  FBAWeightBasedFee: "FBA — por peso",
-  ShippingChargeback: "Estorno de frete",
-  RefundCommission: "Comissão de reembolso",
-  VariableClosingFee: "Fechamento variável",
-  FixedClosingFee: "Fechamento fixo",
-};
 
 function money(v: number, currency: string) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(v);
@@ -267,7 +259,7 @@ export default function MonitorPage() {
                   value={money(finance.fees, finance.currency)}
                   open={feesOpen}
                   onToggle={() => setFeesOpen((open) => !open)}
-                  items={finance.feeBreakdown.map((fee) => ({ label: FEE_LABELS[fee.type] || fee.type, value: money(fee.amount, finance.currency) }))}
+                  items={finance.feeBreakdown.map((fee) => ({ label: nomeDaTarifa(fee.type), value: money(fee.amount, finance.currency) }))}
                 />
               ) : (
                 <Flow label="Taxas Amazon" value={money(finance.fees, finance.currency)} sign="−" />
