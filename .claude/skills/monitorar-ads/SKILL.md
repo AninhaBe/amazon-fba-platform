@@ -1777,12 +1777,46 @@ dias de trabalho manual por não ter esperado o suficiente.
 | Auto - Protetor 32 | ⏳ **Esperar** + puxar relatório de termos da Corresp. vaga. |
 | `protetor de pés de cadeiras` R$ 0,82 → R$ 1,20 | 🔴 **AGIR** — pendente desde 18/08, e agora nada bloqueia. Aguarda confirmação dela. |
 
+### ✅ APLICADO 23/08 ~14h30 — `protetor de pés de cadeiras` R$ 0,82 → R$ 1,20
+
+**Confirmado na tela após RECARREGAR.** Pendente desde 18/08; ela aprovou hoje.
+
+`Manual - Protetor Kit 8` (`A06695151U462T3OKRJIU`) → grupo **Exata**
+(`A09499593M3178TCSVANO`), 14 palavras. Estado completo do grupo depois da mudança:
+
+| Palavra | Lance |
+|---|---|
+| **protetor de pés de cadeiras** | **R$ 1,20** ← alterada |
+| protetor cadeira pé | R$ 1,20 |
+| ponteira de cadeira · ponteira para cadeira | R$ 1,30 |
+| protetor de piso para cadeira | R$ 1,14 |
+| protetor de pe de mesa | R$ 1,00 |
+| protetor de pe de cadeira silicone | R$ 0,90 |
+| protetor de pe de cadeira · protetor pe de cadeira | R$ 0,85 |
+| protetor de pe de cadeira transparente | R$ 0,73 |
+| capa para pe de cadeira · ponteira de silicone · protetor de perna · sapata | R$ 0,44 |
+
+**Por quê:** é a palavra que **vendeu duas vezes na automática** (ROAS 2,4) e estava com
+lance abaixo do piso do leilão desta conta (~R$ 1,50), fazendo 1 impressão. Agora empata
+com `protetor cadeira pé`, a outra palavra promovida da colheita de 18/08.
+
+⚠️ **Ainda pode não bastar.** Seis confirmações do piso apontam para ~R$ 1,50, e R$ 1,20
+fica abaixo. Escolhi 1,20 porque era o alvo já combinado em 18/08 e porque **uma mudança
+por vez** — se em 2 dias seguir sem entrega, a evidência aponta 1,50, não outro palpite.
+
+📌 **Método que evitou editar a linha errada:** a tabela tem grid fixo (nome) e grid
+rolável (métricas) em elementos separados, e os nomes vêm em **ordem alfabética** — casar
+por índice e **conferir o valor antigo antes de clicar** (esperava R$ 0,82, achou R$ 0,82).
+Sem essa conferência, um deslocamento de uma linha teria alterado `protetor de piso`.
+
 ### Plano da leitura de 24/08
 
 1. **Dia 23 fechado**: `martelo de borracha` saiu do zero a R$ 2,00?
 2. **A compra do Substitutos se confirma** quando o pedido sair de `pending`?
 3. **Relatório de termos da Auto-Protetor 32**, foco em Correspondência vaga.
-4. `protetor de pés de cadeiras` → R$ 1,20, se ela aprovar (uma mudança por vez).
+4. ✅ Feito hoje — **medir**: `protetor de pés de cadeiras` saiu de 1 impressão a
+   R$ 0,82? Se seguir ~zero a R$ 1,20, o piso desta conta é mesmo ~R$ 1,50 e a
+   evidência (agora com 7 casos) autoriza subir sem palpite.
 
 ## 📌 PLANO DA PRÓXIMA LEITURA (23/08 em diante) — ler antes de agir
 
