@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import { readFileSync } from "node:fs";
 import { somarValorPorPedido, pedidosSemValor } from "../src/lib/integrations/amazonOrdersReportParse.ts";
 
 // Medido em 22/08/2026: a Amazon zera o pedido cancelado em TODAS as APIs de
@@ -106,4 +107,24 @@ test("pedido com uma linha paga e outra zerada NÃO é estimado", () => {
     linha("999-9", "Cancelled", "0", "", "martelo-borracha"),
   ].join("\n");
   assert.deepEqual(pedidosSemValor(tsv), []);
+});
+
+// --- Venda nova dispara o relatório na hora, sem esperar o intervalo ---
+//
+// A Amazon não informa o valor de pedido Pending; ele só vem do relatório
+// ALL_ORDERS, que roda a cada 3h. Medido em 22/08/2026: venda às 17:32 ficou sem
+// valor na tela porque a última ingestão fora 15:37. Uma venda nova sem valor
+// precisa furar o intervalo — senão a tela mostra R$ 0,00 com a venda existindo.
+
+test("o gate do relatório também dispara com venda nova sem valor", () => {
+  const fonte = readFileSync(
+    new URL("../src/lib/integrations/amazonOrdersReport.ts", import.meta.url),
+    "utf8"
+  );
+  assert.match(fonte, /venda_sem_valor/, "precisa detectar venda recente sem valor");
+  assert.match(fonte, /gross IS NULL AND o\.ordered_gross IS NULL/);
+  // Janela curta: pedido antigo sem valor (a Amazon nunca vai informar) não pode
+  // disparar relatório para sempre.
+  assert.match(fonte, /interval '20 minutes'/);
+  assert.match(fonte, /vencido === true \|\| linhas\[0\]\?\.venda_sem_valor === true/);
 });

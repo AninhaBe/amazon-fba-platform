@@ -78,7 +78,7 @@ não re-deduza o que já foi decidido nem repita pegadinha já paga.
 |---|---|
 | [`landing-nexo.md`](./landing-nexo.md) | Landing do NEXO: estrutura mapeada do dub.co, efeitos do midday.ai, três versões de hero, contadores e os riscos a resolver antes de publicar. Esboço navegável em `/landing` |
 | [`menu-lateral.md`](./menu-lateral.md) | Menu que encolhe: a mecânica medida no dub/DataDive (aside de largura fixa + painel `absolute` que abre por cima), por que a forma de duas calhas venceu, o botão de fixar e as bancadas em `/lab` |
-| [`identidade-visual.md`](./identidade-visual.md) | Identidade monocromática escolhida a partir do peec.ai: a única cor da interface é a que significa algo. Valores, o que saiu da tipografia e o que falta no app |
+| [`identidade-visual.md`](./identidade-visual.md) | Especificação canônica do front: marca, tokens, tipografia, cor semântica, shell, componentes, gráficos, movimento, estados, responsividade e checklist de continuidade |
 | [`plans/plano-aquisicao-e-posicionamento.md`](./plans/plano-aquisicao-e-posicionamento.md) | GTM: aquisição e posicionamento |
 | [`plans/seller-intelligence-plan.md`](./plans/seller-intelligence-plan.md) | Plano do Seller Intelligence (briefing diário de prioridades — ver ADR-008) |
 | [`plans/migracao-coolify.md`](./plans/migracao-coolify.md) | Migração para self-hosted Coolify (ver ADR-006) |

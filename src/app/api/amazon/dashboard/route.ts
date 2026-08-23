@@ -51,8 +51,12 @@ interface FeeRow {
 }
 interface BillingRow {
   pedidos: string;
+  /** Quantos dos `pedidos` já têm valor conhecido. Menor que `pedidos` = há pendente sem valor. */
+  pedidos_com_valor: string;
   receita: string | null;
   frete: string | null;
+  /** Cupom resgatado no período: preço de tabela menos o que o comprador pagou. */
+  cupom: string | null;
 }
 
 export async function GET(req: NextRequest) {
@@ -113,8 +117,33 @@ export async function GET(req: NextRequest) {
         // "Taxas > Faturamento" na tela (20/08).
         dbQuery<BillingRow>(
           `SELECT COUNT(*)::text AS pedidos,
-                  COALESCE(SUM(gross), 0)::text AS receita,
-                  COALESCE(SUM(buyer_shipping), 0)::text AS frete
+                  -- Quantos desses pedidos TÊM valor. COUNT(*) conta todos e
+                  -- SUM(gross) soma só quem tem — emparelhar os dois no cartão
+                  -- produzia "R$ 0,00 · 1 pedido", que se contradiz na própria
+                  -- linha (visto em 22/08/2026, com o único pedido do dia ainda
+                  -- pendente). O cartão precisa poder dizer quantos faltam.
+                  COUNT(COALESCE(gross, ordered_gross))::text AS pedidos_com_valor,
+                  -- COALESCE com ordered_gross: a Amazon omite OrderTotal enquanto
+                  -- o pedido está Pending, mas o valor de TABELA foi capturado do
+                  -- relatório (migrations/0010). Sem isto, a tela mostrava
+                  -- "R$ 0,00" para uma venda que o Seller Central já exibia com
+                  -- valor — 22/08/2026, venda de R$ 21,90 às 17:32.
+                  COALESCE(SUM(COALESCE(gross, ordered_gross)), 0)::text AS receita,
+                  COALESCE(SUM(buyer_shipping), 0)::text AS frete,
+                  -- CUPOM RESGATADO — a diferença que fazia o Seller Central e o
+                  -- NEXO discordarem sem explicação (22/08/2026): "Vendas de
+                  -- produtos solicitados" é o preço de TABELA, antes do cupom; o
+                  -- Faturamento aqui é o que o comprador pagou. Nos 15 dias dela
+                  -- isso dava R$ 449,94 contra R$ 455,01, e a conta só fechava
+                  -- somando à mão. O valor existe no banco desde sempre
+                  -- (ordered_gross vs gross) e nunca esteve na tela.
+                  --
+                  -- Pendente entra como zero de propósito, não como cupom: sem
+                  -- item conciliado o desconto é DESCONHECIDO, e gross nulo cai
+                  -- no próprio ordered_gross pelo COALESCE acima. Assim a linha
+                  -- exibida é exatamente Pedidos feitos − Faturamento, sem
+                  -- inventar desconto que ainda não foi apurado.
+                  COALESCE(SUM(ordered_gross - COALESCE(gross, ordered_gross)), 0)::text AS cupom
              FROM workspace_channel_orders
             WHERE workspace_id = $1 AND provider = 'amazon' AND connection_id = $2
               AND occurred_at BETWEEN $3 AND $4
@@ -167,6 +196,11 @@ export async function GET(req: NextRequest) {
       // Bruto inclui o frete do comprador para espelhar o Seller Central (ADR-020).
       const faturamento = +(Number(billingRows[0]?.receita ?? 0) + buyerShipping).toFixed(2);
       const pedidosFaturados = Number(billingRows[0]?.pedidos ?? 0);
+      const pedidosComValor = Number(billingRows[0]?.pedidos_com_valor ?? 0);
+      // Só é fato quando há pedido com valor apurado. Sem isso, `null` — a tela
+      // omite a linha em vez de afirmar "cupom R$ 0,00" num período que ainda
+      // não foi conciliado (null ≠ 0, AGENTS.md).
+      const cupom = pedidosComValor > 0 ? +Number(billingRows[0]?.cupom ?? 0).toFixed(2) : null;
 
       const durationMs = Math.round(performance.now() - t0);
       // ADR-017 fixou orçamento de 1s por interação, com < 200ms para a camada de
@@ -212,7 +246,7 @@ export async function GET(req: NextRequest) {
         covered: canonical.covered,
         currency: canonical.currency,
         // Faturamento do período — a MESMA definição em toda tela do produto.
-        billing: { revenue: faturamento, orders: pedidosFaturados },
+        billing: { revenue: faturamento, orders: pedidosFaturados, ordersWithValue: pedidosComValor, coupon: cupom },
         // PEDIDOS FEITOS — o mesmo número do Seller Central, com pendentes e
         // cancelados dentro. Fica ao lado do conciliado, nunca no lugar dele:
         // são perguntas diferentes (ADR-020) e a tela precisa dizer qual é qual.

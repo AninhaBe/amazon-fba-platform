@@ -115,7 +115,16 @@ interface DashboardPayload {
   covered: boolean;
   currency: string;
   /** Faturamento bruto do período — espelha o painel do canal (ADR-020). */
-  billing: { revenue: number; orders: number };
+  billing: {
+    revenue: number;
+    orders: number;
+    ordersWithValue?: number;
+    /**
+     * Cupom resgatado no período — o que explica "Pedidos feitos" ser MAIOR que
+     * "Faturamento". `null` = período sem pedido conciliado, e a linha some.
+     */
+    coupon?: number | null;
+  };
   /**
    * Pedidos feitos, pela Sales API: inclui pendentes, EXCLUI cancelados, e
    * valoriza a preço de tabela (antes do cupom resgatado).
@@ -166,6 +175,30 @@ interface DashSnapshot {
 const dashCache = new Map<string, DashSnapshot>();
 let productsCache: ProductRow[] | null = null;
 
+/**
+ * A legenda do cartão de Faturamento.
+ *
+ * A Amazon não informa o valor de pedido `Pending`, então existe pedido real sem
+ * valor no período. Somar zero e contar um produz "R$ 0,00 · 1 pedido" — a
+ * contradição que a vendedora flagrou em 22/08/2026. Aqui a legenda nomeia o
+ * estado: quantos pedidos ainda não têm valor, em vez de escondê-los na contagem.
+ */
+function legendaFaturamento(
+  f: { revenue: number; orders: number; ordersWithValue?: number } | null,
+  fallback: number
+): string {
+  const pedidos = f?.orders ?? fallback;
+  const comValor = f?.ordersWithValue;
+  const plural = (n: number) => `${n} ${n === 1 ? "pedido" : "pedidos"}`;
+  if (comValor === undefined || comValor === pedidos) return `${plural(pedidos)} no período`;
+  const semValor = pedidos - comValor;
+  // Nenhum tem valor ainda: dizer o motivo, não mostrar zero seco.
+  if (comValor === 0) {
+    return `${plural(pedidos)} — a Amazon ainda não informou o valor`;
+  }
+  return `${plural(pedidos)} · ${semValor} ainda sem valor informado`;
+}
+
 export default function Dashboard() {
   const period = useDashboardPeriod();
   const [initialDash] = useState(() => dashCache.get(period.query));
@@ -184,7 +217,7 @@ export default function Dashboard() {
   // Faturamento do período — o MESMO número que a central mostra. Antes o card
   // exibia a receita conciliada (subconjunto), e por isso três telas do produto
   // mostravam três valores diferentes de "faturamento" (20/08/2026).
-  const [faturamento, setFaturamento] = useState<{ revenue: number; orders: number } | null>(null);
+  const [faturamento, setFaturamento] = useState<DashboardPayload["billing"] | null>(null);
   // O número que ela confere contra o Seller Central. Sem ele na tela, a conta
   // era feita à mão — e foi assim que apareceram os defeitos de 21/08.
   const [pedidosFeitos, setPedidosFeitos] = useState<{ revenue: number; orders: number; units: number; points: DailyPoint[] } | null>(null);
@@ -364,7 +397,16 @@ export default function Dashboard() {
   // que não está em lugar nenhum da tela. O ticket real é 39,80/2 = R$ 19,90.
   const vendasConciliadas = profit?.finance.orderCount ?? 0;
   const faturamentoConciliado = profit?.finance.revenue ?? 0;
-  const ticketMedio = vendasConciliadas > 0 ? faturamentoConciliado / vendasConciliadas : null;
+  // Decisão dela (22/08): sem base, o cartão mostra R$ 0,00 em vez de "—".
+  // Antes disso, porém, tenta o número REAL: quando ainda não há venda conciliada
+  // mas o período tem faturamento (pendente com valor de tabela), o ticket existe
+  // e é faturamento ÷ vendas — mostrar zero ali seria esconder um número que temos.
+  const ticketMedio =
+    vendasConciliadas > 0
+      ? faturamentoConciliado / vendasConciliadas
+      : (faturamento?.revenue ?? 0) > 0 && salesCount > 0
+        ? (faturamento?.revenue ?? 0) / salesCount
+        : 0;
   // Quanto dos pedidos recebidos a Amazon ainda não confirmou. As duas bases só
   // podem ser subtraídas no MESMO critério: `revenue` (orderMetrics) é preço de
   // tabela, então o conciliado precisa voltar ao bruto somando o cupom.
@@ -396,6 +438,10 @@ export default function Dashboard() {
         lucro={profit?.estimatedProfit ?? null}
         loading={loading}
         format={(v) => money(v, currency)}
+        escopo="amazon"
+        canalNome="Amazon"
+        moeda={currency}
+        briefingHref="/amazon/briefing"
         // Uma pergunta, um lugar. As pendências de conta e de sincronização
         // vêm do hook; estoque crítico vem do radar já carregado nesta tela.
         acoes={[
@@ -462,10 +508,12 @@ export default function Dashboard() {
                     : card.value}
                   // O selo de tendência ("novo ritmo") só faz sentido no faturamento.
                   sub={card.key === "revenue"
-                    // O subtítulo acompanha a MESMA base do valor: pedidos não
-                    // cancelados do período. A cobertura da conciliação é assunto
-                    // da seção "Financeiro conciliado", que a declara lá.
-                    ? `${faturamento?.orders ?? salesCount} pedidos no período`
+                    // O subtítulo tem de acompanhar a base do VALOR. O valor soma
+                    // só quem tem `gross`; a contagem inclui pendente sem valor —
+                    // e emparelhar os dois produzia "R$ 0,00 · 1 pedido", que se
+                    // contradiz na própria linha (22/08/2026). Quando há pedido
+                    // sem valor, o subtítulo DIZ isso em vez de fingir coerência.
+                    ? legendaFaturamento(faturamento, salesCount)
                     : card.context}
                   trend={card.key === "revenue" ? revenueTrend : undefined}
                   tone={card.tone}
@@ -495,12 +543,27 @@ export default function Dashboard() {
           }
           loading={loading}
         />
+        {/*
+          CUPOM — a ponte entre os dois números acima. "Pedidos feitos" vem a
+          preço de tabela e "Faturamento" é o que o comprador pagou; sem esta
+          linha a diferença ficava sem nome na tela e ela conferia à mão contra o
+          Seller Central (22/08: R$ 449,94 lá contra R$ 455,01 aqui, em 15 dias).
+          Só aparece quando houve cupom — período sem resgate não ganha um card
+          de R$ 0,00 ocupando a faixa.
+        */}
+        {(faturamento?.coupon ?? 0) > 0 && (
+          <CompactMetric
+            label="Cupom resgatado"
+            value={`− ${money(faturamento?.coupon ?? 0, currency)}`}
+            loading={loading}
+          />
+        )}
         <CompactMetric label="Vendas" value={String(salesCount)} loading={loading} />
         <CompactMetric label="Unidades" value={String(unitsCount)} loading={loading} />
-        <CompactMetric label="Ticket médio" value={ticketMedio == null ? "—" : money(ticketMedio, currency)} loading={loading} />
+        <CompactMetric label="Ticket médio" value={money(ticketMedio, currency)} loading={loading} />
         <CompactMetric
           label="ROI"
-          value={cogs > 0 ? `${roiPct.toFixed(1)}%` : "—"}
+          value={`${roiPct.toFixed(1)}%`}
           tone={cogs > 0 ? (roiPct > 0 ? "positive" : roiPct < 0 ? "danger" : "default") : "default"}
           loading={loading}
         />
@@ -514,12 +577,17 @@ export default function Dashboard() {
           // Daí os três estados, e o do meio é o que quase virou bug: com 160
           // cancelados e 1 com valor, exibir só a soma afirmaria que os 160
           // custaram R$ 89,70. Cobertura parcial tem que aparecer como parcial.
+          // SEM cancelamento no período, R$ 0,00 é FATO — "não houve" — e é o que
+          // ela pediu ver (22/08). O "—" ali sugeria "não sei", que é pior.
+          // Só continua desconhecido quando EXISTE cancelado e a Amazon não
+          // informou o valor de nenhum deles: aí zero seria afirmar que cancelar
+          // não custou nada, e isso a legenda abaixo explica.
           value={
-            canceladas
-              ? canceladas.revenue === null
+            !canceladas || canceladas.orders === 0
+              ? money(0, currency)
+              : canceladas.revenue === null
                 ? "—"
                 : money(canceladas.revenue, currency)
-              : "—"
           }
           tone={canceladas && canceladas.orders > 0 ? "danger" : "default"}
           loading={loading}

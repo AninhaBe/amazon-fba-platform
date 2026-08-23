@@ -42,8 +42,10 @@ export async function signIn(_state: AuthActionState, formData: FormData): Promi
 export async function signUp(_state: AuthActionState, formData: FormData): Promise<AuthActionState> {
   if (!supabaseConfigured()) return { message: "Configure as credenciais do Supabase no servidor." };
   const { email, password } = credentials(formData);
+  const passwordConfirmation = String(formData.get("password_confirmation") ?? "");
   const validation = validate(email, password);
   if (validation) return { message: validation };
+  if (password !== passwordConfirmation) return { message: "As senhas não coincidem." };
 
   const baseUrl = process.env.APP_BASE_URL || "http://localhost:3000";
   const supabase = await createClient();
@@ -61,11 +63,15 @@ export async function signUp(_state: AuthActionState, formData: FormData): Promi
   return { success: true, message: "Conta criada. Confira seu e-mail para confirmar o acesso." };
 }
 
+// NÃO redireciona aqui: o LogoutButton faz a navegação com reload REAL do
+// navegador (window.location), o que zera os caches de módulo do cliente
+// (centralCache, dashCache, monitorCache...). Sem isso, o logout é uma navegação
+// SPA e esses caches sobrevivem — pintando os dados da conta anterior antes de
+// revalidar. Foi o vazamento entre contas relatado em 22/08/2026.
 export async function signOut() {
   if (supabaseConfigured()) {
     const supabase = await createClient();
     await supabase.auth.signOut();
   }
   (await cookies()).delete("active_seller");
-  redirect("/login");
 }

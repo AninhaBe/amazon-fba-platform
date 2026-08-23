@@ -193,6 +193,11 @@ export function TikTokWorkspace() {
           pedidos={data.orders ?? 0}
           lucro={phase === "ready" && !financialBlocked ? (data.overview?.profit ?? null) : null}
           format={(v) => new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(v)}
+          escopo="tiktok_shop"
+          canalNome="TikTok Shop"
+          moeda={currency}
+          briefingHref="/tiktok/monitor"
+          briefingLabel="Ver detalhes"
           acoes={
             data.overview?.taxRate == null
               ? [{ label: "Configurar a alíquota de imposto", href: "/tiktok", tone: "pendencia" as const }]

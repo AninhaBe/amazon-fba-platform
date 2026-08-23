@@ -1,7 +1,9 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import { NexoMensagem } from "./NexoMensagem";
 
 /**
  * A abertura do painel de canal — a frase que diz o que aconteceu, e o que
@@ -59,6 +61,20 @@ export interface BriefingLeadProps {
   acoes?: BriefingAction[];
   format: (value: number) => string;
   loading?: boolean;
+  /**
+   * Liga a narração do NEXO abaixo da frase. É o identificador do canal
+   * ("amazon", "mercado_livre"…) e serve de escopo do cache diário. Ausente =
+   * sem narração (a peça segue puramente calculada, como antes).
+   */
+  escopo?: string;
+  /** Nome do canal para o modelo ("Amazon"). Só usado quando `escopo` está setado. */
+  canalNome?: string;
+  /** Moeda dos valores, para o modelo formatar certo. */
+  moeda?: string;
+  /** Destino do CTA — o briefing do canal ("/amazon/briefing") ou o monitor dele. */
+  briefingHref?: string;
+  /** Rótulo do CTA. "Ver briefing" onde há briefing; "Ver detalhes" onde não há. */
+  briefingLabel?: string;
 }
 
 function variacao(atual: number, anterior: number) {
@@ -109,8 +125,45 @@ function montarFrase(p: BriefingLeadProps): { titulo: string; detalhe: string | 
   };
 }
 
+/**
+ * A narração do NEXO para o resumo do canal. Monta o snapshot do próprio canal,
+ * pede o texto (modo resumo) e devolve a prosa — que SUBSTITUI a frase calculada
+ * quando existe. Só narra os números que recebeu; sem chave/resposta volta null
+ * e a frase calculada fica como fallback. Cache diário no servidor.
+ */
+function useNexoResumo(props: BriefingLeadProps): string | null {
+  const [texto, setTexto] = useState<string | null>(null);
+  const { escopo, canalNome, faturamento, lucro, pedidos, moeda } = props;
+
+  useEffect(() => {
+    if (!escopo || faturamento == null || pedidos === 0) return;
+    const margemPct = lucro != null && faturamento > 0 ? Math.round((lucro / faturamento) * 1000) / 10 : null;
+    const payload = {
+      modo: "resumo",
+      escopo,
+      data: "",
+      moeda: moeda ?? "BRL",
+      faturamento30d: faturamento,
+      lucro30d: lucro,
+      margemPct,
+      variacaoSemanaPct: null,
+      canais: [{ nome: canalNome ?? "seu canal", faturamento, lucro, margemPct, variacaoSemanaPct: null, semLeitura: false, unidadesSemCusto: 0 }],
+    };
+    let cancelado = false;
+    fetch("/api/central/briefing", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!cancelado && d?.texto) setTexto(d.texto as string); })
+      .catch(() => {});
+    return () => { cancelado = true; };
+  }, [escopo, canalNome, faturamento, lucro, pedidos, moeda]);
+
+  return texto;
+}
+
 export function BriefingLead(props: BriefingLeadProps) {
   const { acoes = [], loading } = props;
+  // Chamado sempre (regra dos hooks), antes de qualquer return.
+  const narracao = useNexoResumo(props);
 
   if (loading) {
     return (
@@ -126,8 +179,17 @@ export function BriefingLead(props: BriefingLeadProps) {
   return (
     <div className="briefing-lead">
       <div className="briefing-lead-texto">
-        <h2>{titulo}</h2>
-        {detalhe && <p>{detalhe}</p>}
+        {/* Quando o NEXO fala, ele TOMA O LUGAR da frase calculada — não fica
+            abaixo dela. A frase calculada é o fallback (sem chave/resposta). */}
+        {narracao ? (
+          // A narração do NEXO TOMA O LUGAR da frase calculada (que fica de fallback).
+          <NexoMensagem texto={narracao} ctaHref={props.briefingHref ?? "/briefing"} ctaLabel={props.briefingLabel ?? "Ver briefing"} />
+        ) : (
+          <>
+            <h2>{titulo}</h2>
+            {detalhe && <p>{detalhe}</p>}
+          </>
+        )}
       </div>
 
       {acoes.length > 0 && (

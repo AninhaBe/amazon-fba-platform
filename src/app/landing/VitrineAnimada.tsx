@@ -1,15 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { BarChart3, LayoutDashboard, PackageSearch } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { BarChart3, Check, ChevronDown, LayoutDashboard, MousePointer2, PackageSearch } from "lucide-react";
 import { AnimatedNumber } from "../components/AnimatedNumber";
 import { CompositionDonut } from "../components/CompositionDonut";
-import { MarketplaceIcon } from "../components/MarketplaceIcon";
+import { MarketplaceIcon, type MarketplaceIconProvider } from "../components/MarketplaceIcon";
 import { Metric } from "../components/Metric";
 import { NexoSymbol } from "../components/NexoSymbol";
-import { RevenueChart, type DailyPoint } from "../components/RevenueChart";
+import { RevenueChart, type ChartMetric, type DailyPoint } from "../components/RevenueChart";
 
 type Periodo = 15 | 30;
+type CanalId = MarketplaceIconProvider;
+
+const CANAIS: Array<{ id: CanalId; label: string; title: string }> = [
+  { id: "sellercore", label: "Todos os canais", title: "Visão geral dos canais" },
+  { id: "amazon", label: "Amazon", title: "Dashboard Amazon" },
+  { id: "mercado_livre", label: "Mercado Livre", title: "Dashboard Mercado Livre" },
+  { id: "shopee", label: "Shopee", title: "Dashboard Shopee" },
+  { id: "tiktok_shop", label: "TikTok Shop", title: "Dashboard TikTok Shop" },
+];
 
 const REVENUES = [
   620, 890, 760, 1120, 980, 1340, 1210, 1490, 1380, 1580,
@@ -28,11 +37,132 @@ const RESUMOS = {
   30: { revenue: 55_720, fees: 12_210, cogs: 19_120, profit: 24_390, orders: 714 },
 } as const;
 
+const CANAIS_RESUMO: Array<{
+  id: Exclude<CanalId, "sellercore">;
+  label: string;
+  revenue: number;
+  fees: number;
+  cogs: number;
+  profit: number;
+  orders: number;
+  trend: number;
+}> = [
+  { id: "amazon", label: "Amazon", revenue: 55_720, fees: 12_210, cogs: 19_120, profit: 24_390, orders: 714, trend: 12.8 },
+  { id: "mercado_livre", label: "Mercado Livre", revenue: 35_480, fees: 6_120, cogs: 12_420, profit: 16_940, orders: 452, trend: 6.2 },
+  { id: "shopee", label: "Shopee", revenue: 24_160, fees: 3_890, cogs: 9_840, profit: 10_430, orders: 318, trend: -2.6 },
+  { id: "tiktok_shop", label: "TikTok Shop", revenue: 17_120, fees: 2_390, cogs: 7_300, profit: 7_430, orders: 208, trend: 18.4 },
+];
+
 const money = (value: number) => new Intl.NumberFormat("pt-BR", {
   style: "currency",
   currency: "BRL",
   maximumFractionDigits: 0,
 }).format(value);
+
+function VisaoTodosCanais({ periodo }: { periodo: Periodo }) {
+  const scale = periodo === 30 ? 1 : 0.57;
+  const rows = CANAIS_RESUMO.map((item) => ({
+    ...item,
+    revenue: Math.round(item.revenue * scale),
+    fees: Math.round(item.fees * scale),
+    cogs: Math.round(item.cogs * scale),
+    profit: Math.round(item.profit * scale),
+    orders: Math.round(item.orders * scale),
+  }));
+  const totals = rows.reduce(
+    (sum, item) => ({
+      revenue: sum.revenue + item.revenue,
+      fees: sum.fees + item.fees,
+      cogs: sum.cogs + item.cogs,
+      profit: sum.profit + item.profit,
+      orders: sum.orders + item.orders,
+    }),
+    { revenue: 0, fees: 0, cogs: 0, profit: 0, orders: 0 },
+  );
+  const maxRevenue = Math.max(...rows.map((item) => item.revenue));
+  const margin = (totals.profit / totals.revenue) * 100;
+
+  return (
+    <div className="lp-product-content lp-product-all-content" aria-live="polite">
+      <div className="lp-product-heading">
+        <div>
+          <p>Visão consolidada</p>
+          <h2>A operação inteira, sem trocar de painel</h2>
+        </div>
+        <span>{totals.orders.toLocaleString("pt-BR")} pedidos conciliados</span>
+      </div>
+
+      <div className="metric-grid lp-product-metrics">
+        <Metric
+          label="Faturamento"
+          value={<AnimatedNumber id="landing-all-revenue" value={totals.revenue} format={money} />}
+          sub="Soma dos quatro canais"
+          trend={{ direction: "up", percentage: periodo === 30 ? 10.7 : 7.9 }}
+        />
+        <Metric
+          label="Taxas"
+          value={<AnimatedNumber id="landing-all-fees" value={totals.fees} format={money} />}
+          sub="Valores conciliados"
+          tone="danger"
+        />
+        <Metric
+          label="Custo dos produtos"
+          value={<AnimatedNumber id="landing-all-cogs" value={totals.cogs} format={money} />}
+          sub="Custos cadastrados"
+          tone="danger"
+        />
+        <Metric
+          label="Lucro estimado"
+          value={<AnimatedNumber id="landing-all-profit" value={totals.profit} format={money} />}
+          sub={`${margin.toFixed(1).replace(".", ",")}% de margem consolidada`}
+          tone="positive"
+        />
+      </div>
+
+      <section className="performance-panel lp-product-all-panel">
+        <div className="lp-product-channel-table" role="table" aria-label="Resultado por canal">
+          <div className="lp-product-chart-title">
+            <div><p className="section-kicker">Comparação por canal</p><h3>Onde está o resultado</h3></div>
+            <strong>{rows.length} canais ativos</strong>
+          </div>
+          <div className="lp-product-channel-table-head" role="row">
+            <span role="columnheader">Canal</span>
+            <span role="columnheader">Faturamento</span>
+            <span role="columnheader">Pedidos</span>
+            <span role="columnheader">Margem</span>
+          </div>
+          <div className="lp-product-channel-rows" role="rowgroup">
+            {rows.map((item) => {
+              const itemMargin = (item.profit / item.revenue) * 100;
+              return (
+                <div key={item.id} className="lp-product-channel-row" data-channel={item.id} role="row">
+                  <i aria-hidden="true" style={{ width: `${(item.revenue / maxRevenue) * 100}%` }} />
+                  <span className="lp-product-channel-name" role="cell">
+                    <MarketplaceIcon provider={item.id} size={18} />
+                    <span><strong>{item.label}</strong><small className={item.trend >= 0 ? "is-positive" : "is-negative"}>{item.trend >= 0 ? "+" : ""}{item.trend.toFixed(1).replace(".", ",")}%</small></span>
+                  </span>
+                  <strong role="cell">{money(item.revenue)}</strong>
+                  <span role="cell">{item.orders.toLocaleString("pt-BR")}</span>
+                  <strong className="is-positive" role="cell">{itemMargin.toFixed(1).replace(".", ",")}%</strong>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <aside className="lp-product-all-summary" aria-label="Leitura rápida dos canais">
+          <div><p className="section-kicker">Leitura rápida</p><h3>O que pede atenção</h3></div>
+          <dl>
+            <div><dt>Maior faturamento</dt><dd><MarketplaceIcon provider="amazon" size={16} />Amazon</dd></div>
+            <div><dt>Maior ritmo</dt><dd className="is-positive"><MarketplaceIcon provider="tiktok_shop" size={16} />TikTok Shop · +18,4%</dd></div>
+            <div><dt>Queda no período</dt><dd className="is-negative"><MarketplaceIcon provider="shopee" size={16} />Shopee · −2,6%</dd></div>
+          </dl>
+          <p>{totals.orders.toLocaleString("pt-BR")} pedidos vistos como uma única operação.</p>
+        </aside>
+      </section>
+    </div>
+  );
+}
 
 /**
  * Demonstração pública composta pela UI real do produto.
@@ -44,20 +174,121 @@ const money = (value: number) => new Intl.NumberFormat("pt-BR", {
  */
 export function PainelCanal() {
   const [periodo, setPeriodo] = useState<Periodo>(30);
+  const [canal, setCanal] = useState<CanalId>("amazon");
+  const [channelMenuOpen, setChannelMenuOpen] = useState(false);
+  const [chartMetric, setChartMetric] = useState<ChartMetric>("revenue");
+  const [cursorTarget, setCursorTarget] = useState("period-15");
+  const [cursorClicking, setCursorClicking] = useState(false);
+  const [cursorPosition, setCursorPosition] = useState({ x: 0, y: 0, ready: false });
+  const demoRef = useRef<HTMLDivElement>(null);
+  const pauseUntilRef = useRef(0);
   const resumo = RESUMOS[periodo];
   const points = periodo === 15 ? POINTS.slice(-15) : POINTS;
+  const canalAtual = CANAIS.find((item) => item.id === canal) ?? CANAIS[1];
+
+  const chartTotal = chartMetric === "revenue"
+    ? resumo.revenue
+    : chartMetric === "orders"
+      ? resumo.orders
+      : Math.round(resumo.orders * 1.18);
+  const chartHeading = chartMetric === "revenue"
+    ? "Evolução das vendas"
+    : chartMetric === "orders"
+      ? "Evolução dos pedidos"
+      : "Evolução das unidades";
+  const chartTotalText = chartMetric === "revenue"
+    ? money(chartTotal)
+    : `${chartTotal.toLocaleString("pt-BR")} ${chartMetric === "orders" ? "pedidos" : "unidades"}`;
+
+  function pauseDemo() {
+    pauseUntilRef.current = Date.now() + 8_000;
+    setCursorClicking(false);
+    setCursorPosition((current) => ({ ...current, ready: false }));
+  }
 
   useEffect(() => {
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduceMotion) return;
-    const interval = window.setInterval(() => {
-      setPeriodo((current) => current === 30 ? 15 : 30);
-    }, 7200);
-    return () => window.clearInterval(interval);
+    const steps: Array<{ target: string; apply: () => void }> = [
+      { target: "channel-selector", apply: () => setChannelMenuOpen(true) },
+      {
+        target: "channel-sellercore",
+        apply: () => {
+          setCanal("sellercore");
+          setChannelMenuOpen(false);
+        },
+      },
+      { target: "channel-selector", apply: () => setChannelMenuOpen(true) },
+      {
+        target: "channel-amazon",
+        apply: () => {
+          setCanal("amazon");
+          setChannelMenuOpen(false);
+        },
+      },
+      { target: "period-15", apply: () => setPeriodo(15) },
+      { target: "metric-orders", apply: () => setChartMetric("orders") },
+      { target: "period-30", apply: () => setPeriodo(30) },
+      { target: "metric-units", apply: () => setChartMetric("units") },
+      { target: "metric-revenue", apply: () => setChartMetric("revenue") },
+    ];
+    let stepIndex = 0;
+    let moveTimer = 0;
+    let clickTimer = 0;
+    let releaseTimer = 0;
+
+    const runStep = () => {
+      if (Date.now() < pauseUntilRef.current) {
+        moveTimer = window.setTimeout(runStep, 1_000);
+        return;
+      }
+      const step = steps[stepIndex % steps.length];
+      setCursorTarget(step.target);
+      setCursorClicking(false);
+      clickTimer = window.setTimeout(() => {
+        if (Date.now() < pauseUntilRef.current) return;
+        step.apply();
+        setCursorClicking(true);
+        releaseTimer = window.setTimeout(() => setCursorClicking(false), 240);
+      }, 850);
+      stepIndex += 1;
+      moveTimer = window.setTimeout(runStep, 2_350);
+    };
+
+    moveTimer = window.setTimeout(runStep, 900);
+    return () => {
+      window.clearTimeout(moveTimer);
+      window.clearTimeout(clickTimer);
+      window.clearTimeout(releaseTimer);
+    };
   }, []);
 
+  useEffect(() => {
+    if (Date.now() < pauseUntilRef.current) return;
+    const frame = window.requestAnimationFrame(() => {
+      const demo = demoRef.current;
+      const target = demo?.querySelector<HTMLElement>(`[data-demo-target="${cursorTarget}"]`);
+      if (!demo || !target) return;
+      const demoRect = demo.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      setCursorPosition({
+        x: targetRect.left - demoRect.left + targetRect.width * 0.62,
+        y: targetRect.top - demoRect.top + targetRect.height * 0.66,
+        ready: true,
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [cursorTarget, periodo, chartMetric, canal, channelMenuOpen]);
+
   return (
-    <div className="lp-product-demo" data-channel="amazon">
+    <div ref={demoRef} className="lp-product-demo" data-channel={canal}>
+      <span
+        className={`lp-demo-cursor${cursorClicking ? " is-clicking" : ""}${cursorPosition.ready ? " is-ready" : ""}`}
+        style={{ left: cursorPosition.x, top: cursorPosition.y }}
+        aria-hidden="true"
+      >
+        <MousePointer2 />
+      </span>
       <aside className="lp-product-sidebar" aria-label="Navegação da demonstração">
         <div className="lp-product-brand"><NexoSymbol size={22} /><strong>NEXO</strong></div>
         <span className="lp-product-nav-label">Painéis</span>
@@ -69,7 +300,61 @@ export function PainelCanal() {
 
       <div className="lp-product-main">
         <header className="lp-product-topbar">
-          <span><MarketplaceIcon provider="amazon" size={18} />Dashboard Amazon</span>
+          <div
+            className="lp-product-channel-picker"
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget)) setChannelMenuOpen(false);
+            }}
+          >
+            <button
+              type="button"
+              className="lp-product-channel-trigger"
+              aria-haspopup="menu"
+              aria-expanded={channelMenuOpen}
+              data-demo-target="channel-selector"
+              onClick={() => {
+                pauseDemo();
+                setChannelMenuOpen((current) => !current);
+              }}
+              onKeyDown={(event) => {
+                if (event.key !== "Escape") return;
+                setChannelMenuOpen(false);
+                event.currentTarget.focus();
+              }}
+            >
+              <MarketplaceIcon provider={canalAtual.id} size={18} />
+              <span>{canalAtual.title}</span>
+              <ChevronDown aria-hidden="true" />
+            </button>
+
+            <div
+              className={`lp-product-channel-menu${channelMenuOpen ? " is-open" : ""}`}
+              role="menu"
+              aria-label="Canais disponíveis"
+              aria-hidden={!channelMenuOpen}
+            >
+              <p>Trocar visão</p>
+              {CANAIS.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={canal === item.id}
+                  tabIndex={channelMenuOpen ? 0 : -1}
+                  data-demo-target={`channel-${item.id}`}
+                  onClick={() => {
+                    pauseDemo();
+                    setCanal(item.id);
+                    setChannelMenuOpen(false);
+                  }}
+                >
+                  <MarketplaceIcon provider={item.id} size={18} />
+                  <span>{item.label}</span>
+                  <Check aria-hidden="true" />
+                </button>
+              ))}
+            </div>
+          </div>
           <em>Demonstração</em>
         </header>
 
@@ -82,7 +367,11 @@ export function PainelCanal() {
                 role="tab"
                 aria-selected={periodo === days}
                 className={periodo === days ? "is-active" : ""}
-                onClick={() => setPeriodo(days)}
+                data-demo-target={`period-${days}`}
+                onClick={() => {
+                  pauseDemo();
+                  setPeriodo(days);
+                }}
               >
                 {days} dias
               </button>
@@ -91,6 +380,7 @@ export function PainelCanal() {
           <span>Dados ilustrativos · atualizados agora</span>
         </div>
 
+        {canal === "sellercore" ? <VisaoTodosCanais periodo={periodo} /> : (
         <div className="lp-product-content" aria-live="polite">
           <div className="lp-product-heading">
             <div>
@@ -129,10 +419,23 @@ export function PainelCanal() {
           <section className="performance-panel lp-product-performance">
             <div className="performance-chart">
               <div className="lp-product-chart-title">
-                <div><p className="section-kicker">Desempenho diário</p><h3>Evolução das vendas</h3></div>
-                <strong><AnimatedNumber id="landing-chart-total" value={resumo.revenue} format={money} /></strong>
+                <div><p className="section-kicker">Desempenho diário</p><h3>{chartHeading}</h3></div>
+                <strong>{chartMetric === "revenue"
+                  ? <AnimatedNumber id="landing-chart-total" value={chartTotal} format={money} />
+                  : chartTotalText}
+                </strong>
               </div>
-              <RevenueChart key={periodo} points={points} currency="BRL" explorable />
+              <RevenueChart
+                points={points}
+                currency="BRL"
+                explorable
+                metric={chartMetric}
+                demoTargetPrefix="metric"
+                onMetricChange={(metric) => {
+                  pauseDemo();
+                  setChartMetric(metric);
+                }}
+              />
             </div>
 
             <aside className="financial-composition" aria-label="Composição financeira demonstrativa">
@@ -153,6 +456,7 @@ export function PainelCanal() {
             </aside>
           </section>
         </div>
+        )}
       </div>
     </div>
   );

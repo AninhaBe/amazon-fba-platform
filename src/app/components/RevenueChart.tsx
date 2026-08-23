@@ -16,7 +16,7 @@ const H = 320;
 // left comporta o rótulo mais largo ("R$ 18,3k") sem cortar o "R$".
 const PAD = { top: 20, right: 16, bottom: 28, left: 72 };
 
-type ChartMetric = "revenue" | "orders" | "units";
+export type ChartMetric = "revenue" | "orders" | "units";
 
 const METRICS: Array<{ key: ChartMetric; label: string; icon: LucideIcon }> = [
   { key: "revenue", label: "Faturamento", icon: Banknote },
@@ -56,15 +56,21 @@ export function RevenueChart({
   points,
   explorable = false,
   currency = "BRL",
+  metric: controlledMetric,
+  onMetricChange,
+  demoTargetPrefix,
 }: {
   points: DailyPoint[];
   explorable?: boolean;
   currency?: string;
+  metric?: ChartMetric;
+  onMetricChange?: (metric: ChartMetric) => void;
+  demoTargetPrefix?: string;
 }) {
   const gradientId = `revenue-fill-${useId().replaceAll(":", "")}`;
   const ref = useRef<SVGSVGElement>(null);
   const [hover, setHover] = useState<number | null>(null);
-  const [metric, setMetric] = useState<ChartMetric>("revenue");
+  const [internalMetric, setInternalMetric] = useState<ChartMetric>("revenue");
 
   // O estado estrutural novo pertence ao dashboard Amazon em validação. As
   // demais famílias que reutilizam o componente mantêm o vazio já aprovado.
@@ -76,7 +82,7 @@ export function RevenueChart({
     );
   }
 
-  const activeMetric = explorable ? metric : "revenue";
+  const activeMetric = explorable ? controlledMetric ?? internalMetric : "revenue";
   const hasPoints = points.length > 0;
   const values = points.map((point) => point[activeMetric]);
   const maximum = Math.max(...values, 0);
@@ -135,6 +141,12 @@ export function RevenueChart({
         : `${Math.abs(deltaPct).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% ${delta > 0 ? "acima" : "abaixo"} do dia anterior`;
   const hoverLeftPct = hover != null ? (x(hover) / W) * 100 : 0;
 
+  function selectMetric(nextMetric: ChartMetric) {
+    if (controlledMetric === undefined) setInternalMetric(nextMetric);
+    onMetricChange?.(nextMetric);
+    setHover(null);
+  }
+
   return (
     <div className={`revenue-chart${explorable ? " is-explorable is-chart-v3" : ""}`}>
       {explorable && (
@@ -150,18 +162,15 @@ export function RevenueChart({
                 title={item.label}
                 aria-selected={activeMetric === item.key}
                 tabIndex={activeMetric === item.key ? 0 : -1}
-                onClick={() => {
-                  setMetric(item.key);
-                  setHover(null);
-                }}
+                data-demo-target={demoTargetPrefix ? `${demoTargetPrefix}-${item.key}` : undefined}
+                onClick={() => selectMetric(item.key)}
                 onKeyDown={(event) => {
                   if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
                   event.preventDefault();
                   const index = METRICS.findIndex((candidate) => candidate.key === item.key);
                   const offset = event.key === "ArrowRight" ? 1 : -1;
                   const nextIndex = (index + offset + METRICS.length) % METRICS.length;
-                  setMetric(METRICS[nextIndex].key);
-                  setHover(null);
+                  selectMetric(METRICS[nextIndex].key);
                   const buttons = event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>("[role='tab']");
                   buttons?.[nextIndex]?.focus();
                 }}

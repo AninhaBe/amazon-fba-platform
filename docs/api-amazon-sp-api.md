@@ -183,6 +183,55 @@ Amazon*. Se o papel for concedido, o caminho é `transportationOptions` da 2024-
 
 ## Changelog observado (mais recente primeiro)
 
+### 22/08/2026 — "Vendas de produtos solicitados" é preço de TABELA, não o que entrou
+
+Divergência que parecia bug e não era. Conferido pedido a pedido nos 20 pedidos da
+conta `AO62LVXJMX3AA`:
+
+| Janela | Seller Central | NEXO | Diferença |
+|---|---|---|---|
+| 7 dias | R$ 319,49 · 12 unidades | R$ 333,40 · 12 pedidos | +13,91 |
+| 15 dias | R$ 449,94 · 18 unidades | R$ 455,01 · 18 pedidos | +5,07 |
+
+⚠️ **A diferença troca de sinal entre as janelas** — e isso é a pista de que não é
+uma causa só. São **duas**, em direções opostas:
+
+```
+7 dias    319,49 (SC)  + 21,90 (venda de hoje)  − 7,99 (cupom)  = 333,40 ✓
+15 dias   449,94 (SC)  + 21,90 (venda de hoje)  − 16,83 (cupom) = 455,01 ✓
+```
+
+1. **Cupom.** `Vendas de produtos solicitados` soma o **preço de tabela**, antes do
+   cupom que o comprador resgatou. O Faturamento do NEXO soma o que o comprador
+   **pagou**. No banco os dois valores já existiam lado a lado — `ordered_gross`
+   (tabela, do relatório All Orders) e `gross` (pago) — e a tela só mostrava o
+   segundo. Sete pedidos com cupom: 5 × R$ 2,21 no clips + 2 × R$ 2,89 no martelo.
+2. **Latência do Seller Central.** A venda das 17:32 de hoje já estava no NEXO e
+   ainda não no Seller Central — mesma defasagem de relatório já registrada.
+
+### 🔴 A armadilha do "18 = 18"
+
+Nos 15 dias os dois painéis mostraram **18**, e significavam coisas diferentes:
+
+| | |
+|---|---|
+| Seller Central: `Unidades pedidas 18` | **unidades** de **17 pedidos** (um pedido levou `kitprote-8 x2`) |
+| NEXO: `18 pedidos no período` | **pedidos**, e inclui o de hoje que o SC ainda não tinha |
+
+Dois erros que se cancelaram no total e batiam por coincidência. 📌 **Ao conferir
+paridade, casar rótulo com rótulo — unidade com unidade, pedido com pedido.** Números
+iguais em campos de nome diferente não são confirmação.
+
+### O que foi feito
+
+A linha **"Cupom resgatado"** entrou na faixa de indicadores do painel da Amazon,
+entre "Pedidos feitos" (tabela) e "Faturamento" (pago) — os dois números que ela
+comparava sem ter na tela o que os separava. Só aparece quando houve resgate.
+
+**Não mudamos o Faturamento para o número do Seller Central.** Os R$ 16,83 de cupom
+não entraram na conta dela; contá-los inflaria faturamento, lucro e margem.
+
+
 - **2026-08-22** — **Pedido cancelado não tem valor recuperável em NENHUMA API.**
   Testados os quatro caminhos, todos na mesma janela de 30 dias:
 

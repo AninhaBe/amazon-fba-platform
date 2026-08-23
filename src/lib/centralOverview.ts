@@ -63,6 +63,54 @@ export function margemDoCanal(channel: { revenue: number | null; profit: number 
   return Math.round((channel.profit / channel.revenue) * 1000) / 10;
 }
 
+export interface DestaqueDeRitmo<T> {
+  canal: T;
+  variacaoPct: number;
+}
+
+/**
+ * Resume os canais para a leitura lateral da central sem fabricar comparação.
+ * Canal desconectado, com erro ou faturamento desconhecido não disputa liderança;
+ * zero explícito continua sendo um valor conhecido. Ritmo só existe quando a
+ * série tem uma semana anterior válida para servir de base.
+ */
+export function leituraRapidaDosCanais<T extends CanalParaAlerta>(channels: T[]): {
+  maiorFaturamento: T | null;
+  maiorAlta: DestaqueDeRitmo<T> | null;
+  maiorQueda: DestaqueDeRitmo<T> | null;
+  canaisComFaturamento: number;
+  canaisComTendencia: number;
+} {
+  let maiorFaturamento: T | null = null;
+  let maiorAlta: DestaqueDeRitmo<T> | null = null;
+  let maiorQueda: DestaqueDeRitmo<T> | null = null;
+  let canaisComFaturamento = 0;
+  let canaisComTendencia = 0;
+
+  for (const canal of channels) {
+    if (!canal.connected || canal.error) continue;
+
+    if (canal.revenue != null) {
+      canaisComFaturamento += 1;
+      if (maiorFaturamento == null || canal.revenue > (maiorFaturamento.revenue ?? Number.NEGATIVE_INFINITY)) {
+        maiorFaturamento = canal;
+      }
+    }
+
+    const variacaoPct = tendenciaSemanal(canal.series).deltaPct;
+    if (variacaoPct == null) continue;
+    canaisComTendencia += 1;
+    if (variacaoPct > 0 && (maiorAlta == null || variacaoPct > maiorAlta.variacaoPct)) {
+      maiorAlta = { canal, variacaoPct };
+    }
+    if (variacaoPct < 0 && (maiorQueda == null || variacaoPct < maiorQueda.variacaoPct)) {
+      maiorQueda = { canal, variacaoPct };
+    }
+  }
+
+  return { maiorFaturamento, maiorAlta, maiorQueda, canaisComFaturamento, canaisComTendencia };
+}
+
 export interface AlertaCentral {
   tom: "atencao" | "positivo";
   texto: string;

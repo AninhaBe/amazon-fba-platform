@@ -3,9 +3,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { PageHeader, pageIcons } from "../components/PageHeader";
+import { NexoMensagem } from "../components/NexoMensagem";
 import { PanelLoading } from "../components/LoadingState";
 import { EmptyState } from "../components/EmptyState";
 import { readJson } from "../../lib/readJson";
+import { gatherCentralChannels, mergeDailySeries, type ChannelSnapshot } from "../centralChannels";
+import { tendenciaSemanal, margemDoCanal } from "@/lib/centralOverview";
 
 interface Insight {
   id: string;
@@ -66,6 +69,16 @@ export default function BriefingPage() {
   const [filter, setFilter] = useState<BriefingFilter>("all");
   const [visibleLimit, setVisibleLimit] = useState(12);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Narração do NEXO (Gemini) que sintetiza os insights numa conversa. Null sem
+  // chave/resposta; aí a tela mostra só os cartões, como antes.
+  const [narracao, setNarracao] = useState<string | null>(null);
+  // Começa true: sempre vamos tentar narrar, então mostramos o "analisando…"
+  // desde o início em vez de deixar o espaço em branco durante a coleta.
+  const [narracaoCarregando, setNarracaoCarregando] = useState(true);
+  // Financeiro cross-channel — a MESMA fonte da Visão geral. Alimenta o NEXO
+  // para o briefing raciocinar sobre a história do dinheiro (quem concentra a
+  // venda, quem parou, margem), não só sobre ruptura de estoque.
+  const [canais, setCanais] = useState<ChannelSnapshot[] | null>(null);
 
   async function load(analyze = false) {
     setError(null);
@@ -82,9 +95,63 @@ export default function BriefingPage() {
   }
 
   useEffect(() => {
-    const t = window.setTimeout(() => void load(), 0);
+    // Re-detecta ao abrir (POST), em vez de só ler o que estava gravado. Sem
+    // isso, o briefing mostrava ruptura ANTIGA: um SKU detectado sem estoque
+    // dias atrás, já reposto, continuava na lista até o cron rodar. O reconcile
+    // auto-resolve o que não aparece mais, então a leitura fresca se corrige.
+    const t = window.setTimeout(() => void load(true), 0);
+    // Em paralelo, junta o financeiro dos canais (não bloqueia os insights).
+    gatherCentralChannels().then(({ channels }) => setCanais(channels)).catch(() => setCanais([]));
     return () => window.clearTimeout(t);
   }, []);
+
+  // Quando insights E financeiro chegam, o NEXO sintetiza o briefing. Recebe as
+  // duas coisas — a história do dinheiro (quem concentra a venda, quem parou,
+  // margem) E os sinais operacionais (ruptura). Só narra fato; não inventa.
+  useEffect(() => {
+    if (insights == null || canais == null) return;
+    const conectados = canais.filter((c) => c.connected);
+    let revenue = 0;
+    let profit = 0;
+    let algumLucro = false;
+    for (const c of conectados) {
+      if (c.revenue != null) revenue += c.revenue;
+      if (c.profit != null && c.revenue != null && c.revenue > 0) { profit += c.profit; algumLucro = true; }
+    }
+    const serieTotal = mergeDailySeries(conectados.map((c) => c.series));
+    const payload = {
+      modo: "briefing",
+      data: "",
+      moeda: conectados[0]?.currency ?? "BRL",
+      faturamento30d: conectados.some((c) => c.revenue != null) ? revenue : null,
+      lucro30d: algumLucro ? profit : null,
+      margemPct: algumLucro && revenue > 0 ? Math.round((profit / revenue) * 1000) / 10 : null,
+      variacaoSemanaPct: tendenciaSemanal(serieTotal).deltaPct,
+      canais: conectados.map((c) => ({
+        nome: c.name,
+        faturamento: c.revenue,
+        lucro: c.profit,
+        margemPct: margemDoCanal(c),
+        variacaoSemanaPct: tendenciaSemanal(c.series).deltaPct,
+        semLeitura: !!c.error,
+        unidadesSemCusto: c.unitsWithoutCost ?? 0,
+      })),
+      insights: insights.slice(0, 12).map((i) => ({
+        canal: CHANNEL[i.provider] ?? i.provider,
+        tipo: TYPE_LABEL[i.type] ?? i.type,
+        severidade: i.severity,
+        titulo: i.title,
+        recomendacao: i.recommendation,
+      })),
+    };
+    let cancelado = false;
+    fetch("/api/central/briefing", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!cancelado && d?.texto) setNarracao(d.texto as string); })
+      .catch(() => {})
+      .finally(() => { if (!cancelado) setNarracaoCarregando(false); });
+    return () => { cancelado = true; };
+  }, [insights, canais]);
 
   async function act(id: string, action: "dispensar" | "adiar" | "resolver") {
     setBusy(id);
@@ -120,6 +187,10 @@ export default function BriefingPage() {
         icon={pageIcons.chart}
         subtitle="Evidência, impacto e próximo passo para o que realmente precisa de atenção hoje."
       />
+
+      {/* O NEXO abre o briefing em prosa: lê os sinais detectados e diz, do jeito
+          de um colega, o que priorizar. Os cartões abaixo são a evidência. */}
+      {narracao ? <NexoMensagem texto={narracao} /> : narracaoCarregando ? <NexoMensagem carregando /> : null}
 
       {error && (
         <div role="alert" className="briefing-error">

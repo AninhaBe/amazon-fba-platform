@@ -1670,6 +1670,282 @@ grupos têm lance próprio — mas segmentação nova nasceria nele).
 - Protetores com preço novo (−R$ 3, ~20h de 19/08): nenhuma venda ainda; reolhar 21/08
   (o combinado é 2 dias).
 
+## 📌 PLANO DA PRÓXIMA LEITURA (23/08 em diante) — ler antes de agir
+
+### ⛔ Substitutos: revi a proposta e NÃO é para pausar as duas
+
+Eu havia proposto pausar Substitutos na Auto-Clips E na Auto-Protetor 8. Ela
+perguntou se era mesmo uma boa. Revendo o dado, **são casos diferentes**:
+
+| Campanha | Substitutos | Decisão | Por quê |
+|---|---|---|---|
+| **Auto - Clips** | 406 impr · **R$ 0,00** | ❌ **NÃO pausar** | **Não gasta nada** — não há sangria para estancar. E 406 impressões está **abaixo do limiar de 500**: não dá para concluir nada sobre CTR. Pausar seria churn sem ganho. |
+| **Auto - Protetor 8** | 847 impr · **R$ 2,56** (74% do gasto) | ⏳ **Esperar 2–3 dias** | Vale pausar, **mas não antes de saber de onde veio a venda de hoje**. |
+
+### Por que ESPERAR no protetor — a armadilha é a mesma de 16/08
+
+🔴 **O `kitprote-8` VENDEU em 22/08 às 17:32** (pedido `701-0816834-0793058`,
+R$ 21,90, `Pending`) — a primeira venda de protetor desde 17/08. **A atribuição está
+ABERTA.** Não se sabe se a venda veio de Substitutos, da busca, ou se foi orgânica.
+
+Pausar Substitutos agora é repetir **exatamente** o erro de 16/08, quando cortei a
+Auto-Protetor por "21 cliques e zero venda" e ela era a melhor campanha da conta
+(ROAS 15,11) — a atribuição só não tinha fechado.
+
+**Custo de esperar:** ~R$ 2,56/dia × 3 = ~R$ 7.
+**Custo de errar:** matar a fonte da única venda de protetor em 5 dias.
+
+### O que fazer na próxima leitura, em ordem
+
+1. **Descobrir a origem da venda de 22/08 17:32.** Abrir `Auto - Protetor Kit 8` →
+   nível de segmentação, com o período em 22/08, e ver qual grupo recebeu a compra.
+   - Veio de **Substitutos** → **não pausar**; ele funciona neste produto.
+   - Veio da **busca** (aproximada/vaga) ou nenhum grupo → **pausar Substitutos**,
+     liberando R$ 2,56/dia para o tráfego que converte.
+2. **Auto - Protetor 32** — única campanha ainda não auditada. Achar pelo Chrome
+   (a lista agregada está quebrada desde 19/08 e o ID nunca foi documentado).
+   ⚠️ **Não** usar a API interna do console: a Ads API não está aprovada.
+3. **Medir o efeito dos lances de 22/08** (só depois de 24h de veiculação):
+   - `martelo borracha` R$ 1,50 → 2,50 e `martelo de borracha` R$ 1,20 → 2,00
+   - `clips` e `clipe` (Exata) R$ 1,20 → 2,00
+   Pergunta única: **as impressões subiram?** Se `martelo de borracha` seguir em zero
+   mesmo a R$ 2,00, o piso daquela variação é mais alto que o do termo curto.
+4. **Só então** `protetor de pés de cadeiras` R$ 0,82 → R$ 1,20 (pendente desde
+   18/08). Uma mudança por vez: não misturar com o efeito do Substitutos.
+
+### Contexto que não pode ser esquecido na próxima leitura
+
+- ⚠️ **O "concorrente de R$ 9,90" foi RETRATADO** — produto diferente, não comparável.
+  Nenhuma decisão de preço do protetor pode se apoiar nele.
+- ⚠️ **Substitutos segue pausado na Auto-Martelo** e assim deve ficar: o guia (cap. 10)
+  é explícito para produto sem avaliação e sem marca, e o martelo continua sem as duas.
+- 📌 **Gasto zero ≠ campanha morta.** A Auto-Martelo faz 370 impressões com R$ 0.
+  Sempre abrir a segmentação antes de concluir.
+
+## Auditoria por SEGMENTAÇÃO — 22/08/2026, ~19h — 🔑 SUBSTITUTOS ESTÁ DE VOLTA
+
+```
+Período lido: 22 de ago de 2026 (HOJE), confirmado no seletor de cada grupo
+Recarreguei: sim — navegação fresca em cada grupo de anúncios
+Cobertura: 6 de 7 campanhas no nível de PALAVRA/SEGMENTAÇÃO
+⚠️ NÃO lida: Auto - Protetor 32 (lista de campanhas quebrada desde 19/08 e o ID
+   dela nunca foi documentado). Não inventar número dela.
+```
+
+### O padrão que atravessa a conta: Substitutos consome o dinheiro
+
+| Campanha | Substitutos | % das impressões | % do gasto |
+|---|---|---|---|
+| **Auto - Protetor 8** | **ATIVO** | 847 de 1.049 = **81%** | R$ 2,56 de 3,46 = **74%** |
+| **Auto - Clips** | **ATIVO** | 406 de 596 = **68%** | R$ 0 |
+| Auto - Martelo | pausado ✅ | — | — |
+
+📌 É **o mesmo padrão** que derrubou a Auto-Martelo em 17/08 (75% das impressões e
+todo o custo). Foi pausado lá e ficou **ativo nas outras duas** — ninguém replicou.
+
+Isso **reabre a hipótese dos protetores**: eles podem não estar falhando por produto
+nem por preço, e sim porque **três quartos do investimento vão para o tipo de tráfego
+que esta conta já provou ser o pior** (guia cap. 10: para produto sem avaliação e sem
+marca, Substitutos é quase sempre o pior tráfego). A parte de busca da campanha
+(Correspondência aproximada) recebe só R$ 0,90/dia.
+
+### Auto - Martelo NÃO estava morta — correção da leitura das 16h30
+
+Eu li "R$ 0 gasto" e escrevi "morta". No nível de segmentação:
+
+| Grupo | Lance | Impressões |
+|---|---|---|
+| **Complementos** | R$ 0,90 | **305** (82%) |
+| Correspondência vaga | R$ 0,90 | 48 |
+| Correspondência aproximada | R$ 0,90 | 17 |
+| Substitutos | R$ 0,50 | pausado |
+| **Total** | | **370 · ZERO clique · R$ 0** |
+
+Ela **entrega e não é clicada** — e 82% vem de Complementos (página de produto
+complementar), que é tráfego de página, não de busca. Mesma família do Substitutos.
+
+📌 **Gasto zero ≠ campanha morta.** Sem abrir a segmentação, eu tinha concluído errado.
+
+### Auto - Clips
+
+| Grupo | Lance | Impressões | Custo |
+|---|---|---|---|
+| **Substitutos** | R$ 0,61 | **406** (68%) | R$ 0 |
+| Correspondência aproximada | R$ 0,61 | 169 | **R$ 0,79** (o único com clique) |
+| Correspondência vaga | R$ 0,61 | 20 | — |
+| Complementos | R$ 0,61 | 1 | — |
+
+### Manual - Protetor 8 — o ajuste de 18/08 nunca foi feito
+
+`Exata` (14 palavras, **33 impressões no total**):
+
+| Palavra | Lance | Impressões | |
+|---|---|---|---|
+| protetor de pés de cadeiras | **R$ 0,82** | 13 | 🔴 **vendeu na automática (ROAS 2,4)** — o log de 18/08 dizia "alvo R$ 1,20, ajuste pendente". **Segue pendente.** |
+| protetor de pe de cadeira silicone | R$ 0,90 | 12 | |
+| ponteira de silicone para cadeira | R$ 0,44 | 6 | |
+| protetor cadeira pé | R$ 1,20 | 2 | vendeu na automática (ROAS 14,3) |
+| as outras 10 | R$ 0,44–1,30 | **zero** | |
+
+`Frase` (12 palavras, 68 impressões): só `protetor de piso para cadeira` (R$ 1,16) faz
+volume (50); o resto ~zero.
+
+### ✅ Aplicado 22/08 — Exata do Clips (confirmado após RECARREGAR)
+
+| Palavra | Antes | Agora |
+|---|---|---|
+| `clips` | R$ 1,20 | **R$ 2,00** |
+| `clipe` | R$ 1,20 | **R$ 2,00** |
+
+Motivo: as duas **vendem** (CVR 25% e 40%, ROAS 12,74 e 22,00) e estavam com **zero
+impressão** na Exata, enquanto as MESMAS palavras a R$ 1,50 na Frase fazem 768
+impressões. Quinta confirmação do piso do leilão. Equilíbrio do clips é R$ 3,82
+(`--preco 22.11 --custo 6.82 --cvr 25`), então R$ 2,00 é metade do teto.
+
+### 🔴 Erro meu: tentei a API interna do console
+
+Chamei `fetch('/cm/api/sp/campaigns…')` para achar o ID da Auto-Protetor 32. Ela
+cortou: *"nao sei pq vc ta indo na api interna do ads sendo que nem tenho acesso
+ainda, voce vai usar direto no chrome, como sempre fez"*. Correto — a Ads API não está
+aprovada e o caminho é navegar e ler a tela.
+
+📌 **Enquanto a Ads API não sair: navegar e ler, nunca chamar endpoint interno.**
+
+### Decisões propostas, aguardando ela
+
+1. **Pausar Substitutos na Auto - Protetor 8** — libera R$ 2,56/dia (74% do gasto) para
+   o tráfego de busca. Mesmo gatilho, evidência e remédio que funcionaram no martelo.
+2. **Pausar Substitutos na Auto - Clips** — 68% das impressões, zero clique.
+3. `protetor de pés de cadeiras` R$ 0,82 → R$ 1,20 (o ajuste pendente desde 18/08) —
+   **depois** do item 1, para não misturar dois efeitos na mesma leitura.
+4. Achar e auditar a **Auto - Protetor 32** pelo Chrome.
+
+## Leitura de 22/08/2026, ~16h30 — 🔴 AGIR (aplicado) · o martelo estava FORA DO LEILÃO
+
+```
+Período lido: 22 de ago de 2026 (HOJE) — confirmado no seletor de cada campanha
+Recarreguei: sim — naveguei fresco em cada campanha (a LISTA agregada segue quebrada desde 19/08)
+Volume: 32 impressões no grupo Frase-Martelo · atribuição de hoje ABERTA
+⚠️ Impressões/cliques por CAMPANHA não lidos (coluna ausente na visão de grupos) — só no nível de segmentação
+```
+
+| Campanha | Status | Gasto hoje | Vendas |
+|---|---|---|---|
+| Manual - Clips 320 | veiculando | R$ 7,09 | — |
+| Auto - Protetor Kit 8 | veiculando | R$ 3,46 | — |
+| Manual - Martelo | veiculando | R$ 1,00 | — |
+| Auto - Clips 320 | veiculando | R$ 0,79 | — |
+| Auto - Martelo | veiculando | **R$ 0 — morta** | — |
+| Manual - Protetor 8 | veiculando | R$ 0 — sem entrega | — |
+
+**A máquina NÃO parou** — 4 campanhas gastando normal, ninguém em "Orçamento excedido".
+Então a queda de vendas não se explica por campanha travada.
+
+### 🎯 O ranking mudou a leitura da conta inteira (SP-API, catalog/salesRanks)
+
+| Produto | BSR na subcategoria | Gasto hoje |
+|---|---|---|
+| **martelo-borracha** | **#12** Marretas de Borracha | R$ 1,00 (8%) |
+| kit-clips-320 | #53 Fixadores de Papel | R$ 7,88 (64%) |
+| protetores (4 kits) | **#485** Complementos p/ Móveis | R$ 3,46 (28%) |
+
+📌 **O produto que MAIS ranqueia recebia o MENOR investimento.** O Ads funcionou onde
+havia produto competitivo e não funcionou nos protetores.
+
+### 🔑 Quarta confirmação do piso do leilão — e a mais limpa de todas
+
+Nível de segmentação do grupo `Frase - Martelo Borracha`, dia 22/08:
+
+| Palavra | Lance | Impressões |
+|---|---|---|
+| **martelo borracha** | **R$ 1,50** | **29** |
+| martelo de borracha | R$ 1,20 | **ZERO** |
+| martelo emborrachado | R$ 0,98 | 2 |
+| martelinho de borracha | R$ 0,79 | 1 |
+| as outras 6 | R$ 0,33-0,60 | **ZERO** |
+
+⚠️ **`martelo de borracha` — a palavra mais óbvia do produto — estava no lance SUGERIDO
+pela Amazon (R$ 1,20) e não comprava uma única impressão.** Nove das dez palavras fora
+do leilão, com orçamento de R$ 10/dia e gasto de R$ 1,00.
+
+Diagnóstico pela árvore (cap. 23): parou na **Etapa 2 — não está entrando no leilão**.
+Não é oferta, não é página, não é orçamento. É lance abaixo do piso.
+
+### ✅ Aplicado 22/08 ~16h40 — confirmado após RECARREGAR
+
+| Palavra | Antes | Agora |
+|---|---|---|
+| `martelo borracha` | R$ 1,50 | **R$ 2,50** |
+| `martelo de borracha` | R$ 1,20 | **R$ 2,00** |
+
+Embasamento (`scripts/lance.mjs --preco 28.90 --custo 5.84 --cvr 33`):
+
+```
+Margem unitária       R$ 23,06
+ACOS de equilíbrio    79,8%
+CPC de equilíbrio     R$ 7,61   ← teto real
+CPC p/ ACOS 50%       R$ 4,77   ← faixa de lançamento
+Pagava                R$ 1,50
+```
+
+Mesmo a R$ 2,50 seguimos em **1/3 do CPC de equilíbrio**. Impressões subiram de 32 → 35
+durante a própria edição.
+
+**O que observar:** impressões devem subir bastante nas duas. Se o CVR se mantiver, ainda
+há folga até R$ 4,77. Se `martelo de borracha` continuar em zero mesmo a R$ 2,00, o piso
+dessa palavra é mais alto que o do termo curto.
+
+### 🔴 Erro meu nesta sessão: propus religar Substitutos
+
+Propus reativar `Substitutos` na Auto - Martelo argumentando que "o contexto mudou" (preço
+R$ 43,22 → 28,90 e agora ranqueia #12). **Ela cobrou, com razão**, que a decisão de pausar
+estava documentada — e o guia (cap. 10) é explícito:
+
+> "para produto **sem avaliação e sem marca**, é quase sempre o pior tráfego da conta"
+
+**As duas condições que tornam Substitutos ruim não mudaram** — o martelo segue sem
+avaliação e sem marca (Genérico). Preço e ranking não são as variáveis que decidem isso.
+Proposta retirada.
+
+📌 **Regra:** antes de propor REVERTER qualquer decisão, ler POR QUE ela foi tomada. Está
+em `docs/amazon-ads-do-zero-ao-especialista.md` (1.184 linhas) além desta skill — eu tinha
+lido a skill e não o guia.
+
+### Protetores: a árvore manda parar de mexer em lance
+
+~R$ 40 gastos em 5 dias, **zero venda desde 17/08**, BSR #485. Etapa 4 da árvore: "10+
+cliques com 0 venda → o problema é a PÁGINA. Pare de mexer em lance."
+
+🔴 **RETRATAÇÃO (22/08): o "concorrente de R$ 9,90" NÃO é concorrente.** Ela corrigiu:
+*"ele não é meu concorrente pq vende um produto diferente do meu, por isso esse preço"*.
+
+Eu citei esse preço duas vezes hoje como fato estabelecido e construí em cima dele a
+conclusão "não dá para competir, é decisão de negócio". **Essa conclusão cai.**
+
+📌 É a **segunda vez** que cometo exatamente este erro — o primeiro foi com o martelo
+("são tamanhos diferentes, meu nobre"), e a regra que ficou registrada nesta mesma skill
+é: **comparação de preço só vale entre produtos equivalentes**. Comparar por palavra-chave
+mistura tamanhos, materiais e quantidades.
+
+**Antes de qualquer conclusão de preço, verificar equivalência** — nº de peças, material,
+dimensão — via `catalog/2022-04-01` com `includedData=attributes,dimensions` no NOSSO
+produto e, no mínimo, pelo título do outro. Sem isso, não citar o preço alheio.
+
+**Causa dos protetores não venderem: EM ABERTO.** Lembrar que a `Auto - Protetor 8` já
+foi a melhor campanha da conta (ROAS 15,11) — não é um produto natimorto.
+
+### Estado da oferta (SP-API, 22/08)
+
+- Todos os anúncios principais **BUYABLE**, ela é a **única vendedora** (buy box é dela).
+- **`kitprote-24`: estoque 0 e não BUYABLE** — não vende porque não dá para comprar.
+  ⚠️ Não existe campanha para o kit 24; é só reposição de estoque.
+- `X4-9CGP-446J`: anúncio sem oferta (morto).
+
+### Ads API: 4º teste — ainda pendente
+
+`bad-scope` · `unknown scope` · `invalid-parameter`; `ADS_REFRESH_TOKEN` e
+`ADS_PROFILE_ID` seguem vazios. 3ª candidatura foi 21/08.
+
 ## Leitura de 21/08/2026, ~10h — dia 20 FECHADO
 
 ```
@@ -1714,6 +1990,10 @@ R$ 12,65 gastos em anúncio nas duas campanhas deles no dia 20.
 reforça o que a régua de viabilidade apontou em 20/08: **existe concorrente vendendo kit
 de 8 a R$ 9,90**, abaixo do custo dela (R$ 9,57 + tarifa futura). Ver ASIN `B0GKQ6ZFLH`.
 
+> 🔴 **RETRATADO em 22/08/2026.** Ela verificou: esse ASIN **vende produto diferente** —
+> por isso o preço. **Não é comparável e não é concorrente.** Nenhuma decisão deve se
+> apoiar neste parágrafo. Ver a retratação completa na leitura de 22/08.
+
 ### Auto - Martelo morreu de novo
 
 R$ 0 no dia 20, depois de ter voltado no dia 19 com R$ 0,79. O lance de R$ 0,90 nos 3
@@ -1726,4 +2006,4 @@ sugestão da Amazon subiu para R$ 0,94 — faixa 0,20–1,96).
   que vinha vendendo com ROAS 10+. Campanha não explica queda simultânea — olhar oferta,
   buy box, estoque e ranking.
 - **Esperar** no clips: decisão de corte marcada para 22/08 segue de pé.
-- Protetores: não mexer em preço de novo antes de entender o concorrente de R$ 9,90.
+- Protetores: não mexer em preço de novo. ⚠️ O "concorrente de R$ 9,90" foi **retratado em 22/08** — produto diferente, não comparável.

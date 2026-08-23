@@ -7,6 +7,7 @@ import { Contadores } from "./Contadores";
 import { Manifesto } from "./Manifesto";
 import { GraficoMetricas } from "./GraficoMetricas";
 import { Provas } from "./Provas";
+import styles from "./landing.module.css";
 
 export const metadata = {
   title: "NEXO — o funcionário que confere cada venda",
@@ -110,7 +111,8 @@ export default function LandingPage() {
         <Link href="/login" className="lp-cta-mini">Entrar</Link>
       </header>
 
-      <section className="lp-hero">
+      <section className={`lp-hero ${styles.hero}`}>
+        <span className={styles.heroGrid} aria-hidden="true" />
         <p className="lp-pill">Amazon · Mercado Livre · Shopee · TikTok Shop</p>
         {/* As duas metades são elementos separados de propósito: a segunda recua
             para preto 42% (`.lp-hero h1 span`). É a assinatura do peec.ai — dá
@@ -134,7 +136,7 @@ export default function LandingPage() {
           Conversion Analytics / Affiliate Programs). Lá são abas que trocam o
           mock; aqui são âncoras de verdade para as três seções profundas —
           mesmo elemento visual, sem fingir interação que não existe. */}
-      <section id="produto" className="lp-vitrine-secao">
+      <section id="produto" className={`lp-vitrine-secao ${styles.productSection}`}>
         <Vitrine />
       </section>
 
