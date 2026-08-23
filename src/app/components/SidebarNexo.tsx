@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Search, Settings } from "lucide-react";
+import { Search, Settings, ShieldCheck } from "lucide-react";
+import { useEhAdmin } from "./useEhAdmin";
 import type { WorkspaceId } from "@/lib/integrations/workspaces";
 import { MarketplaceIcon } from "./MarketplaceIcon";
 import { NavLinks } from "./Nav";
@@ -56,6 +57,7 @@ const CANAIS: Array<{ id: WorkspaceId; href: string }> = [
 ];
 
 export function SidebarNexo({ workspace, collapsed = false }: { workspace: WorkspaceId; collapsed?: boolean }) {
+  const ehAdmin = useEhAdmin();
   const pathname = usePathname();
   const [aberto, setAberto] = useState(false);
   const switcherRef = useRef<HTMLButtonElement>(null);
@@ -157,6 +159,14 @@ export function SidebarNexo({ workspace, collapsed = false }: { workspace: Works
             <Settings aria-hidden />
             <span>Configurações</span>
           </Link>
+          {/* Só aparece depois que o SERVIDOR confirma. Mostrar o link é
+              conveniência; quem protege é o `comAdmin` na rota de dados. */}
+          {ehAdmin && (
+            <Link href="/admin" className={`${accountStyles.utility}${collapsed ? ` ${accountStyles.utilityCollapsed}` : ""}`} aria-current={pathname === "/admin" ? "page" : undefined}>
+              <ShieldCheck aria-hidden />
+              <span>Administração</span>
+            </Link>
+          )}
         </div>
         <LogoutButton />
       </div>
