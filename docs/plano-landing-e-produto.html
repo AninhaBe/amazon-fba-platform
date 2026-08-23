@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>NEXO — A landing é o produto</title>
+<style>
+  /* ---------------------------------------------------------------------
+     Layout próprio deste documento. Não usa o template de docs/*.md porque
+     a crítica dela em 23/08/2026 foi justamente que todos os PDFs saem
+     iguais. Identidade vem de docs/identidade-visual.md: Inter, tinta
+     #171717, sem serifada, escala fechada.
+     --------------------------------------------------------------------- */
+  @page { size: A4; margin: 17mm 15mm 15mm; }
+
+  :root {
+    --tinta: #171717;
+    --tinta-media: #5c5c5c;
+    --tinta-fraca: #8a8a8a;
+    --linha: #e6e6e6;
+    --papel: #ffffff;
+    --papel-alt: #fafafa;
+    --acento: oklch(0.548 0.142 249);      /* azul do produto */
+    --acento-fraco: oklch(0.96 0.018 249);
+    --alerta: oklch(0.575 0.126 72);
+    --alerta-fraco: oklch(0.972 0.03 82);
+    --perigo: oklch(0.545 0.17 27);
+    --ok: oklch(0.505 0.102 161);
+    --ok-fraco: oklch(0.965 0.03 160);
+  }
+
+  * { box-sizing: border-box; }
+
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  body {
+    margin: 0;
+    background: var(--papel);
+    color: var(--tinta);
+    font-family: Inter, "Segoe UI", system-ui, sans-serif;
+    font-size: 10.5pt;
+    line-height: 1.55;
+    letter-spacing: -0.006em;
+    font-synthesis: none;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---------- capa ---------- */
+  .capa {
+    min-height: 232mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    page-break-after: always;
+  }
+  .marca {
+    display: flex; align-items: center; gap: 9px;
+    font-size: 12pt; font-weight: 700; letter-spacing: -0.03em;
+  }
+  .marca svg { width: 17px; height: 17px; }
+  .capa-meio { margin-block: auto; }
+  .capa h1 {
+    margin: 0 0 14px;
+    font-size: 34pt; line-height: 1.06;
+    font-weight: 700; letter-spacing: -0.035em;
+    max-width: 15ch;
+  }
+  .capa .linha-fina {
+    width: 54px; height: 3px; background: var(--acento);
+    border-radius: 2px; margin-bottom: 18px;
+  }
+  .capa .sub {
+    font-size: 13pt; line-height: 1.45; color: var(--tinta-media);
+    max-width: 46ch; font-weight: 400;
+  }
+  .capa-rodape {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    border-top: 1px solid var(--linha); padding-top: 12px;
+    font-size: 8.5pt; color: var(--tinta-fraca);
+  }
+  .capa-rodape strong { color: var(--tinta); font-weight: 600; }
+
+  /* ---------- estrutura ---------- */
+  section { page-break-inside: auto; }
+  h2 {
+    margin: 30px 0 4px;
+    font-size: 16pt; font-weight: 700; letter-spacing: -0.028em;
+    page-break-after: avoid;
+  }
+  h2 .num {
+    display: inline-block; min-width: 26px;
+    color: var(--acento); font-variant-numeric: tabular-nums;
+  }
+  h2 + .subtitulo {
+    margin: 0 0 16px; color: var(--tinta-media); font-size: 10pt;
+  }
+  h3 {
+    margin: 22px 0 6px; font-size: 11.5pt; font-weight: 650;
+    letter-spacing: -0.02em; page-break-after: avoid;
+  }
+  p { margin: 0 0 10px; }
+  ul { margin: 0 0 12px; padding-left: 17px; }
+  li { margin-bottom: 5px; }
+  strong { font-weight: 650; }
+  code {
+    font-family: "JetBrains Mono", Consolas, monospace;
+    font-size: 8.8pt; background: var(--papel-alt);
+    border: 1px solid var(--linha); border-radius: 4px; padding: 1px 4px;
+  }
+
+  /* ---------- destaque de abertura ---------- */
+  .abre {
+    border-left: 3px solid var(--acento);
+    background: var(--acento-fraco);
+    padding: 14px 18px; border-radius: 0 8px 8px 0;
+    margin: 0 0 20px;
+    page-break-inside: avoid;
+  }
+  .abre p:last-child { margin-bottom: 0; }
+  .abre .pergunta {
+    font-size: 12.5pt; font-weight: 650; letter-spacing: -0.02em;
+    line-height: 1.35;
+  }
+
+  /* ---------- caixas ---------- */
+  .nota, .alerta {
+    padding: 11px 14px; border-radius: 7px; margin: 14px 0;
+    font-size: 9.6pt; page-break-inside: avoid;
+  }
+  .nota   { background: var(--papel-alt); border: 1px solid var(--linha); }
+  .alerta { background: var(--alerta-fraco); border: 1px solid oklch(0.9 0.06 82); }
+  .nota p:last-child, .alerta p:last-child { margin-bottom: 0; }
+
+  /* ---------- tabelas ---------- */
+  table {
+    width: 100%; border-collapse: collapse; margin: 12px 0 16px;
+    font-size: 9.6pt; page-break-inside: avoid;
+  }
+  th {
+    text-align: left; font-weight: 650; font-size: 8.4pt;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--tinta-fraca);
+    border-bottom: 1.5px solid var(--tinta); padding: 0 10px 6px 0;
+  }
+  td {
+    padding: 8px 10px 8px 0; border-bottom: 1px solid var(--linha);
+    vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* ---------- comparação de duas colunas ---------- */
+  .versus { display: flex; gap: 12px; margin: 14px 0 18px; page-break-inside: avoid; }
+  .versus > div {
+    flex: 1; border-radius: 8px; padding: 13px 15px; font-size: 9.5pt;
+  }
+  .versus .ruim { background: oklch(0.975 0.02 27); border: 1px solid oklch(0.92 0.05 27); }
+  .versus .bom  { background: var(--ok-fraco); border: 1px solid oklch(0.9 0.06 160); }
+  .versus h4 {
+    margin: 0 0 8px; font-size: 9pt; text-transform: uppercase;
+    letter-spacing: 0.05em; font-weight: 650;
+  }
+  .versus .ruim h4 { color: var(--perigo); }
+  .versus .bom h4  { color: var(--ok); }
+  .versus ul { margin: 0; padding-left: 15px; }
+
+  /* ---------- bloco de código / demonstração ---------- */
+  pre {
+    background: var(--tinta); color: #f4f4f4;
+    padding: 14px 16px; border-radius: 8px;
+    font-family: "JetBrains Mono", Consolas, monospace;
+    font-size: 8.6pt; line-height: 1.65; margin: 12px 0 16px;
+    overflow: hidden; page-break-inside: avoid;
+  }
+  pre .g { color: oklch(0.78 0.13 160); }
+  pre .a { color: oklch(0.8 0.11 82); }
+  pre .c { color: #8d8d8d; }
+
+  /* ---------- fases ---------- */
+  .fase {
+    display: flex; gap: 14px; padding: 14px 0;
+    border-top: 1px solid var(--linha); page-break-inside: avoid;
+  }
+  .fase:first-of-type { border-top: 1.5px solid var(--tinta); }
+  .fase-num {
+    flex: 0 0 30px; height: 30px; border-radius: 50%;
+    background: var(--tinta); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 11pt;
+  }
+  .fase-corpo { flex: 1; }
+  .fase-corpo h4 {
+    margin: 3px 0 3px; font-size: 11pt; font-weight: 650; letter-spacing: -0.02em;
+  }
+  .fase-corpo p { margin: 0; font-size: 9.6pt; color: var(--tinta-media); }
+  .fase-esforco {
+    flex: 0 0 auto; align-self: flex-start; margin-top: 4px;
+    font-size: 8.4pt; font-weight: 650; color: var(--tinta-fraca);
+    border: 1px solid var(--linha); border-radius: 999px; padding: 3px 9px;
+    white-space: nowrap;
+  }
+
+  /* ---------- perguntas finais ---------- */
+  .pergunta-final {
+    border: 1px solid var(--linha); border-radius: 8px;
+    padding: 13px 16px; margin-bottom: 10px; page-break-inside: avoid;
+  }
+  .pergunta-final .q { font-weight: 650; margin-bottom: 4px; }
+  .pergunta-final .r { font-size: 9.5pt; color: var(--tinta-media); margin: 0; }
+
+  .fim {
+    margin-top: 26px; padding-top: 12px; border-top: 1px solid var(--linha);
+    font-size: 8.5pt; color: var(--tinta-fraca);
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ CAPA ============ -->
+<div class="capa">
+  <div class="marca">
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z" fill="#171717"/>
+    </svg>
+    NEXO
+  </div>
+
+  <div class="capa-meio">
+    <div class="linha-fina"></div>
+    <h1>A landing é o produto</h1>
+    <p class="sub">
+      Plano para a pessoa ver os próprios números antes de criar conta —
+      sem OAuth, sem upload, sem o arquivo sair do computador dela.
+    </p>
+  </div>
+
+  <div class="capa-rodape">
+    <div>
+      <strong>Plano para discussão</strong> — antes de implementar<br>
+      Ana Beatriz e Lucas
+    </div>
+    <div>23 de agosto de 2026</div>
+  </div>
+</div>
+
+<!-- ============ 1 ============ -->
+<section>
+  <h2><span class="num">01</span>O problema com a analogia do Lovable</h2>
+  <p class="subtitulo">Por que copiar o modelo literalmente não funciona aqui</p>
+
+  <p>No Lovable você digita um prompt e ele <strong>cria</strong> o artefato. O valor aparece
+  do nada, em segundos, sem você trazer nada.</p>
+
+  <p>O NEXO é o oposto: <strong>todo o valor vem do dado da pessoa.</strong> Sem loja
+  conectada não existe faturamento, não existe margem, não existe nada para mostrar. Uma
+  landing que tente imitar o Lovable literalmente esbarra nisso no primeiro segundo.</p>
+
+  <div class="abre">
+    <p class="pergunta">A pergunta certa não é “como imitar o Lovable”, e sim:<br>
+    o que o NEXO consegue mostrar de valioso <em>antes</em> de a pessoa conectar uma loja?</p>
+  </div>
+
+  <p>Existem três respostas — e uma delas é muito melhor que as outras.</p>
+</section>
+
+<!-- ============ 2 ============ -->
+<section>
+  <h2><span class="num">02</span>A descoberta que decide o plano</h2>
+  <p class="subtitulo">Verificado no código antes de propor</p>
+
+<pre><span class="c">// as duas peças que fazem o trabalho pesado</span>
+src/lib/integrations/amazonOrdersReportParse.ts   <span class="g">→  ZERO imports</span>
+src/lib/profitability.ts  (calculateContribution) <span class="g">→  ZERO imports</span></pre>
+
+  <p><strong>São funções puras.</strong> Não dependem de banco, de API nem de sessão.
+  <strong>Rodam no navegador.</strong></p>
+
+  <p>Isso significa que a pessoa pode largar o relatório dela na página e ver o próprio
+  lucro <strong>sem criar conta, sem OAuth, e sem o arquivo sair do computador dela.</strong></p>
+</section>
+
+<!-- ============ 3 ============ -->
+<section>
+  <h2><span class="num">03</span>Caminho 1 — “Cole seu relatório”</h2>
+  <p class="subtitulo">A proposta principal</p>
+
+  <h3>Como funciona</h3>
+  <ul>
+    <li>A pessoa chega na landing. O herói não é uma frase bonita: é uma área para soltar arquivo.</li>
+    <li>Ela baixa o relatório <strong>Todos os pedidos</strong> no Seller Central — dois cliques.</li>
+    <li>Solta na página.</li>
+    <li><strong>Em menos de um segundo</strong> aparece: faturamento real, cupom resgatado que
+        ela não sabia que existia, ticket médio, receita por SKU — os números <strong>dela</strong>.</li>
+  </ul>
+
+  <h3>Por que este é o “momento Lovable” do NEXO</h3>
+  <p>Foi exatamente o que aconteceu em 23/08, nesta conversa. Ela baixou o relatório, e em
+  segundos apareceu:</p>
+
+<pre>30 dias   item-price  493,74   <span class="c">= o número do Seller Central</span>
+          cupom        19,02   <span class="a">← ela não sabia que era isso</span>
+          líquido     474,72   <span class="g">= o que entrou de verdade</span></pre>
+
+  <p>Ela levou <strong>três perguntas</strong> para entender por que dois números na tela
+  diferiam. Com o relatório na mão, a resposta apareceu em um segundo.
+  <strong>Esse é o produto</strong> — não a promessa dele, ele acontecendo.</p>
+
+  <h3>Rodar no navegador não é só elegante — é a decisão correta</h3>
+
+  <div class="alerta">
+    <p>⚠️ O relatório <strong>Todos os pedidos contém CPF, nome e endereço dos compradores.</strong>
+    Verificado em 23/08.</p>
+  </div>
+
+  <div class="versus">
+    <div class="ruim">
+      <h4>Se subir para o servidor</h4>
+      <ul>
+        <li>Recebemos dado pessoal de terceiro que <strong>não é nosso cliente</strong></li>
+        <li>Vira dever de LGPD antes de existir relação comercial</li>
+        <li>Precisa de armazenamento, retenção e exclusão</li>
+        <li><em>“Confie em nós com o CPF dos seus clientes”</em></li>
+      </ul>
+    </div>
+    <div class="bom">
+      <h4>Se rodar no navegador</h4>
+      <ul>
+        <li>O arquivo nunca sai da máquina dela</li>
+        <li>Zero superfície de dado pessoal</li>
+        <li>Nada para guardar</li>
+        <li><em>“Seu arquivo não sai do seu computador”</em> — e é <strong>verdade</strong></li>
+      </ul>
+    </div>
+  </div>
+
+  <p>A versão no navegador é mais barata <strong>e</strong> mais defensável. Raramente as duas
+  coisas coincidem.</p>
+
+  <h3>O gancho de conversão</h3>
+  <p>É a diferença entre o que ela vê e o que ela teria:</p>
+  <div class="nota">
+    <p><em>“Isto é uma foto de um arquivo. Conecte a conta e isso se atualiza sozinho a cada
+    2 minutos, nos quatro canais, com o custo dos seus produtos entrando na conta.”</em></p>
+  </div>
+
+  <p>O que o arquivo <strong>não</strong> mostra, e vira o argumento:</p>
+  <ul>
+    <li>lucro de verdade — o arquivo não tem o custo do produto</li>
+    <li>os outros três canais</li>
+    <li>estoque, ranking, campanhas</li>
+    <li>o NEXO explicando <strong>por que</strong> mudou</li>
+  </ul>
+
+  <p><strong>Esforço: 2 a 3 dias.</strong> O parser existe e é puro; falta a área de soltar
+  arquivo, a apresentação do resultado e o texto.</p>
+</section>
+
+<!-- ============ 4 ============ -->
+<section>
+  <h2><span class="num">04</span>Os outros dois caminhos</h2>
+  <p class="subtitulo">Apoio, não protagonistas</p>
+
+  <h3>Caminho 2 — Demonstração com dados semeados</h3>
+  <p>Um botão “ver com dados de exemplo” que entra no produto real, com o workspace de
+  demonstração que <strong>já existe</strong> (<code>scripts/_demo-seed.mjs</code>).</p>
+  <table>
+    <tr><td style="width:22%"><strong>A favor</strong></td><td>quase pronto; mostra o produto inteiro, não uma fatia</td></tr>
+    <tr><td><strong>Contra</strong></td><td><strong>não é o dado dela.</strong> Demonstração com dado de mentira convence menos que três números verdadeiros</td></tr>
+    <tr><td><strong>Esforço</strong></td><td>~1 dia</td></tr>
+  </table>
+
+  <h3>Caminho 3 — Calculadora aberta</h3>
+  <p>Preço, custo, canal → margem e ponto de equilíbrio. Sem login.
+  <code>calculateContribution</code> já é pura, e as regras de tarifa dos quatro canais já
+  estão no código.</p>
+  <table>
+    <tr><td style="width:22%"><strong>A favor</strong></td><td>o mais barato; compartilhável; entra em busca do Google</td></tr>
+    <tr><td><strong>Contra</strong></td><td>valor pequeno — existe calculadora de margem em todo lugar</td></tr>
+    <tr><td><strong>Esforço</strong></td><td>~1 dia</td></tr>
+  </table>
+  <p><strong>Papel:</strong> porta de entrada por busca. <em>“Calculadora de margem Mercado
+  Livre”</em> é o que vendedor procura, e traz gente que ainda não sabe que precisa do NEXO.</p>
+</section>
+
+<!-- ============ 5 ============ -->
+<section>
+  <h2><span class="num">05</span>O que não fazer</h2>
+  <p class="subtitulo">Três armadilhas que parecem boas ideias</p>
+
+  <table>
+    <tr>
+      <td style="width:34%"><strong>Não pedir OAuth na landing</strong></td>
+      <td>Conectar a conta do marketplace é o pedido de maior confiança que existe. Pedir
+      isso antes de mostrar valor é a ordem invertida — OAuth vem <strong>depois</strong> de
+      ela ver os próprios números.</td>
+    </tr>
+    <tr>
+      <td><strong>Não trocar a landing por um app pesado</strong></td>
+      <td>A página precisa continuar carregando rápido e sendo indexável. O parser são ~100
+      linhas; se virar um dashboard inteiro no <code>/landing</code>, perdemos as duas coisas.</td>
+    </tr>
+    <tr>
+      <td><strong>Não usar o benchmark como argumento de venda</strong></td>
+      <td>O relatório de mercado diz que a base instalada é de duas contas. Landing não é
+      lugar de comparação com concorrente até existir cliente.</td>
+    </tr>
+  </table>
+</section>
+
+<!-- ============ 6 ============ -->
+<section>
+  <h2><span class="num">06</span>Ordem proposta</h2>
+  <p class="subtitulo">Uma fase por vez, medindo entre elas</p>
+
+  <div class="fase">
+    <div class="fase-num">1</div>
+    <div class="fase-corpo">
+      <h4>Cole seu relatório</h4>
+      <p>É a ideia. Sem isso, os outros dois não mudam nada.</p>
+    </div>
+    <div class="fase-esforco">2–3 dias</div>
+  </div>
+  <div class="fase">
+    <div class="fase-num">2</div>
+    <div class="fase-corpo">
+      <h4>Demonstração com dados de exemplo</h4>
+      <p>Atende quem não quer baixar arquivo nenhum.</p>
+    </div>
+    <div class="fase-esforco">~1 dia</div>
+  </div>
+  <div class="fase">
+    <div class="fase-num">3</div>
+    <div class="fase-corpo">
+      <h4>Calculadora aberta</h4>
+      <p>Aquisição por busca, depois que o funil existir.</p>
+    </div>
+    <div class="fase-esforco">~1 dia</div>
+  </div>
+
+  <div class="alerta">
+    <p>⚠️ <strong>Fazer a fase 1 sozinha e medir antes de seguir.</strong> Se as pessoas não
+    soltarem o arquivo, as fases 2 e 3 não salvam — e aí a hipótese está errada, o que
+    também é informação.</p>
+  </div>
+</section>
+
+<!-- ============ 7 ============ -->
+<section>
+  <h2><span class="num">07</span>Riscos, honestamente</h2>
+
+  <table>
+    <thead><tr><th style="width:32%">Risco</th><th>Leitura</th></tr></thead>
+    <tbody>
+      <tr><td><strong>A pessoa não vai buscar o relatório</strong></td>
+          <td>É o risco principal. Baixar exige sair da landing e voltar. Mitigação:
+          instruções com print, e a demonstração da fase 2 como alternativa.</td></tr>
+      <tr><td><strong>Só funciona para Amazon no começo</strong></td>
+          <td>ML, Shopee e TikTok têm formatos diferentes. Começar pela Amazon, onde o
+          formato já está resolvido e testado.</td></tr>
+      <tr><td><strong>Arquivo em formato inesperado</strong></td>
+          <td>O parser lida com o relatório real, mas nunca viu arquivo de outra conta.
+          Precisa falhar dizendo o que houve — <strong>nunca mostrar número errado</strong>.</td></tr>
+      <tr><td><strong>Peso da landing</strong></td>
+          <td>Medir o bundle antes e depois. Se passar do aceitável, carregar o parser sob
+          demanda, só quando a pessoa soltar o arquivo.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============ 8 ============ -->
+<section>
+  <h2><span class="num">08</span>O que preciso de vocês antes de codar</h2>
+
+  <div class="pergunta-final">
+    <div class="q">1. A fase 1 sozinha primeiro, ou as três juntas?</div>
+    <p class="r">Minha recomendação é a fase 1 sozinha, com medição antes de seguir.</p>
+  </div>
+  <div class="pergunta-final">
+    <div class="q">2. A landing atual continua?</div>
+    <p class="r">A proposta é o herói virar a área de soltar arquivo, e o resto da página
+    seguir abaixo. A alternativa é uma página separada.</p>
+  </div>
+  <div class="pergunta-final">
+    <div class="q">3. Que números mostrar no resultado?</div>
+    <p class="r">Sugestão: faturamento, cupom, ticket médio e os cinco SKUs que mais
+    faturam. <strong>Lucro não</strong> — o arquivo não tem custo, e mostrar lucro errado na
+    primeira impressão é o pior começo possível.</p>
+  </div>
+
+  <p class="fim">
+    NEXO · Plano para discussão · 23 de agosto de 2026 · gerado a partir de
+    <code>docs/plano-landing-e-produto.md</code>
+  </p>
+</section>
+
+</body>
+</html>
