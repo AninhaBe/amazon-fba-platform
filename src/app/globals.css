@@ -5327,13 +5327,18 @@ summary:hover { background: var(--paper-soft); }
   box-shadow: none;
 }
 .integration-dashboard .compact-metric {
-  align-content: flex-start;
-  min-height: 48px;
-  row-gap: 2px;
+  display: grid;
+  min-height: 56px;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: center;
+  align-items: start;
+  justify-content: stretch;
+  justify-items: start;
+  row-gap: 1px;
   padding: 7px 16px;
 }
-.integration-dashboard .compact-metric p { font-size: 13px; font-weight: var(--weight-body); letter-spacing: var(--track-s); text-transform: none; }
-.integration-dashboard .compact-metric strong { font-size: 14px; font-weight: var(--weight-body); }
+.integration-dashboard .compact-metric p { font-size: 13px; font-weight: var(--weight-body); line-height: 18px; letter-spacing: var(--track-s); text-transform: none; }
+.integration-dashboard .compact-metric strong { font-size: 14px; font-weight: var(--weight-body); line-height: 20px; }
 .integration-dashboard .compact-metric-hint {
   display: -webkit-box;
   overflow: hidden;
