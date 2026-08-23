@@ -35,8 +35,12 @@ A v2 inverte: **a home É o produto rodando.**
   produto funcionando → a pessoa explora → entende → conecta
 
 Sem herói de frase bonita. Sem print de tela. Sem mockup em moldura de notebook.
-A primeira coisa que a pessoa vê é o NEXO analisando uma operação e dizendo o que
-está errado nela.
+A primeira coisa que a pessoa vê é o NEXO olhando uma operação e dizendo o que
+importa nela agora.
+
+(O NEXO não é detector de problema. Na própria demonstração a Amazon está crescendo
+9% e o TikTok acelerando — o que ele faz é ordenar o que merece atenção, e isso
+inclui o que está indo bem.)
 
 A frase que resume a v2:
 
@@ -142,14 +146,27 @@ reproduzir o produto inteiro, senão vira dashboard sem fim e a conversão some.
 
 ### 5. A fronteira de conversão
 
-Aparece quando a pessoa tenta atravessar do observar para o usar — ao tentar mudar
-algo, exportar, ou ao rolar até o fim:
+A regra é a natureza da ação, não o quanto a pessoa já explorou:
 
-  Quer ver isso na sua operação?
-  Conecte Amazon, Mercado Livre, Shopee ou TikTok Shop.
+  LIVRE (tudo que é LEITURA) — trocar período, trocar canal, expandir evidência,
+  ordenar e filtrar a tabela, rolar o gráfico. Nada disso pede nada a ninguém.
+  Explorar é o produto se vendendo; interromper aqui destrói a tese.
+
+  FRONTEIRA (tudo que teria EFEITO na operação ou exigiria conta) — revisar
+  anúncio, cadastrar custo, exportar, configurar integração, mexer em campanha.
+
+O melhor gatilho já está na tela: os PRÓXIMO PASSO dos cards. Clicar em
+"Revisar anúncios →" abre:
+
+  Quer revisar os seus anúncios?
+  Conecte sua operação ao NEXO.
   [ Conectar minha operação → ]
 
-Não é um popup interrompendo. É o próximo bloco natural da página.
+Isso é muito melhor que um botão de cadastro solto, porque a pessoa clicou querendo
+fazer aquilo — o convite responde a uma intenção que ela acabou de demonstrar.
+
+O mesmo bloco aparece ao fim da página, como próximo bloco natural. Nunca como
+popup interrompendo.
 
 ### 6. Apoio, abaixo de tudo
 
@@ -174,8 +191,31 @@ Regras:
   Shopee         — vende mais e a margem cai, por aumento de desconto
   TikTok Shop    — cresce rápido, base ainda pequena
 
+### UMA FONTE, TUDO DERIVADO — a regra que mais importa aqui
+
+NÃO escreva totais independentes por período. Isto é PROIBIDO:
+
+    faturamento7d  = 2000
+    faturamento15d = 5700
+    faturamento30d = 10400
+
+Porque no dia seguinte alguém mexe num e esquece dos outros, e a tabela de pedidos
+passa a somar coisa diferente do card. É o bug mais fácil de nascer nesta tela.
+
+O que fazer: `operacaoDemo.ts` guarda a **série diária canônica** — pedidos por dia,
+por canal, com receita, custo, tarifa e desconto. TODO o resto é derivado dela por
+função pura:
+
+    totais por período · gráfico · margem · os cards · as comparações · a tabela
+
+Se dois componentes mostram o mesmo conceito, os dois chegam ao número pelo MESMO
+cálculo, não por duas constantes que por acaso combinam hoje.
+
 Os números têm que FECHAR entre si. Se um card diz −R$ 8.420, a soma dos pedidos do
 Mercado Livre no período tem que dar exatamente isso. Alguém vai conferir.
+
+📌 Escreva teste para isso: o total do card e o total da tabela saem da mesma
+função, e o teste prova que batem nos três períodos.
 
 
 ## IDENTIDADE VISUAL
@@ -191,6 +231,21 @@ Leia `docs/identidade-visual.md` antes de escolher qualquer cor ou fonte. Resumo
 
 CSS em módulo próprio (`landing-v2.module.css`), no padrão da v1. Não introduzir
 biblioteca de UI nova, não instalar dependência.
+
+### Componente compartilhado se IMPORTA, não se edita
+
+`NexoMensagem` e `NexoWordmark` são usados no produto inteiro. Importe à vontade,
+mas NÃO os edite para atender a landing-v2.
+
+A armadilha concreta: `NexoMensagem` não tem efeito de digitação. A tentação é
+"melhorar o componente" — e aí a animação passa a valer em todas as abas do
+produto, para todos os clientes, sem ninguém ter pedido.
+
+Se a demonstração precisar de comportamento que não existe, crie um wrapper ou um
+componente local DENTRO de `src/app/landing-v2/`.
+
+A regra vale para qualquer arquivo fora de `src/app/landing-v2/`: se você acha que
+precisa mexer, pare e anote como observação na entrega.
 
 
 ## O QUE NÃO FAZER
@@ -224,7 +279,10 @@ biblioteca de UI nova, não instalar dependência.
 
   1. `/landing` continua idêntica — abra e confirme.
   2. `/landing-v2` carrega e a fala do NEXO aparece em menos de 1,5 s.
-  3. Trocar o período muda os números, e eles continuam fechando.
+  3. Trocar o período muda os números, e eles continuam fechando — card, tabela e
+     gráfico saem da mesma série diária, provado por teste.
+  3b. `git status` não mostra NENHUM arquivo modificado fora de
+     `src/app/landing-v2/` (à parte da rota, se precisar registrá-la).
   4. Em 390 px de largura nada quebra e nada escapa para os lados.
   5. `prefers-reduced-motion` desliga a animação de digitação.
   6. Navegação por teclado alcança todos os controles com foco visível.
