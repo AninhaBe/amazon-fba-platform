@@ -989,6 +989,9 @@ button[class*="bg-blue-"]:hover, a[class*="bg-blue-"]:hover { background: var(--
 .sales-split { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin-block-end: 12px; color: var(--ink-muted); font-size: 12px; }
 .sales-split strong { color: var(--ink-soft); font-weight: 750; font-variant-numeric: tabular-nums; }
 .sales-split .is-pendente strong { color: var(--warning); }
+/* Cancelada é contagem, não dinheiro — por isso sem valor ao lado. Vermelho
+   discreto: informa sem competir com o confirmado, que é o número principal. */
+.sales-split .is-cancelada strong { color: var(--danger, #dc2626); }
 .sales-split small { flex-basis: 100%; color: var(--ink-muted); font-size: 12px; line-height: 1.4; opacity: 0.85; }
 .financial-composition {
   display: flex;
