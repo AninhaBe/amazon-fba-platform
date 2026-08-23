@@ -1,0 +1,624 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>NEXO — O que falta de implementação</title>
+<style>
+  /* ---------------------------------------------------------------------
+     Documento de INVENTÁRIO. O layout é diferente do plano da landing de
+     propósito: aqui não se lê um argumento, se varre uma lista e se decide
+     o que atacar. Por isso: painel de números na abertura, chips de estado
+     na margem, densidade alta, tabular-nums em tudo que é contagem.
+     Identidade de docs/identidade-visual.md.
+     Regerar: node scripts/html-para-pdf.mjs docs/o-que-falta-implementar.html <saida.pdf>
+     --------------------------------------------------------------------- */
+  @page { size: A4; margin: 15mm 14mm 14mm; }
+
+  :root {
+    --tinta: #171717;
+    --tinta-media: #5c5c5c;
+    --tinta-fraca: #8a8a8a;
+    --linha: #e6e6e6;
+    --papel: #fdfdfd;
+    --papel-alt: #f6f6f6;
+    --acento: oklch(0.548 0.142 249);
+    --acento-fraco: oklch(0.96 0.018 249);
+    --bloq: oklch(0.545 0.17 27);
+    --bloq-fraco: oklch(0.968 0.022 27);
+    --espera: oklch(0.575 0.126 72);
+    --espera-fraco: oklch(0.972 0.03 82);
+    --feito: oklch(0.505 0.102 161);
+    --feito-fraco: oklch(0.965 0.03 160);
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  body {
+    margin: 0; background: var(--papel); color: var(--tinta);
+    font-family: Inter, "Segoe UI", system-ui, sans-serif;
+    font-size: 9.8pt; line-height: 1.5;
+    letter-spacing: -0.006em; font-synthesis: none;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---------- abertura: painel, não capa ---------- */
+  .topo {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding-bottom: 10px; border-bottom: 1.5px solid var(--tinta);
+  }
+  .marca { display: flex; align-items: center; gap: 8px;
+           font-size: 11pt; font-weight: 700; letter-spacing: -0.03em; }
+  .marca svg { width: 15px; height: 15px; }
+  .data { font-size: 8.2pt; color: var(--tinta-fraca); text-align: right; }
+
+  h1 {
+    margin: 20px 0 6px; font-size: 27pt; line-height: 1.05;
+    font-weight: 700; letter-spacing: -0.035em; max-width: 20ch;
+  }
+  .chamada {
+    margin: 0 0 20px; font-size: 11.5pt; line-height: 1.45;
+    color: var(--tinta-media); max-width: 58ch;
+  }
+
+  /* ---------- painel de números ---------- */
+  .painel { display: flex; gap: 10px; margin: 0 0 8px; }
+  .stat {
+    flex: 1; border: 1px solid var(--linha); border-radius: 9px;
+    padding: 13px 14px; background: #fff;
+  }
+  .stat.destaque { border-color: oklch(0.9 0.06 27); background: var(--bloq-fraco); }
+  .stat .n {
+    font-size: 25pt; font-weight: 700; letter-spacing: -0.04em;
+    line-height: 1; font-variant-numeric: tabular-nums;
+  }
+  .stat.destaque .n { color: var(--bloq); }
+  .stat .r {
+    margin-top: 6px; font-size: 8.4pt; line-height: 1.35; color: var(--tinta-media);
+  }
+  .stat .r strong { color: var(--tinta); font-weight: 650; }
+
+  /* ---------- seções ---------- */
+  section { page-break-inside: auto; margin-top: 26px; }
+  h2 {
+    margin: 0 0 3px; font-size: 14pt; font-weight: 700; letter-spacing: -0.028em;
+    page-break-after: avoid;
+  }
+  h2 .num {
+    display: inline-block; min-width: 24px; color: var(--acento);
+    font-variant-numeric: tabular-nums;
+  }
+  .subtitulo { margin: 0 0 12px; color: var(--tinta-media); font-size: 9.2pt; }
+  h3 { margin: 18px 0 5px; font-size: 10.6pt; font-weight: 650;
+       letter-spacing: -0.02em; page-break-after: avoid; }
+  p { margin: 0 0 9px; }
+  strong { font-weight: 650; }
+  code {
+    font-family: "JetBrains Mono", Consolas, monospace; font-size: 8.3pt;
+    background: var(--papel-alt); border: 1px solid var(--linha);
+    border-radius: 4px; padding: 1px 4px;
+  }
+
+  /* ---------- item com chip de estado ---------- */
+  .item {
+    display: flex; gap: 12px; padding: 10px 0;
+    border-top: 1px solid var(--linha); page-break-inside: avoid;
+  }
+  .item:first-of-type { border-top: 1.5px solid var(--tinta); }
+  .chip {
+    flex: 0 0 88px; align-self: flex-start; margin-top: 1px;
+    font-size: 7.4pt; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.05em; text-align: center;
+    border-radius: 999px; padding: 3px 0;
+  }
+  .chip.bloq   { background: var(--bloq-fraco);   color: var(--bloq);
+                 border: 1px solid oklch(0.9 0.06 27); }
+  .chip.espera { background: var(--espera-fraco); color: var(--espera);
+                 border: 1px solid oklch(0.89 0.07 82); }
+  .chip.aberto { background: var(--acento-fraco); color: var(--acento);
+                 border: 1px solid oklch(0.89 0.05 249); }
+  .chip.feito  { background: var(--feito-fraco);  color: var(--feito);
+                 border: 1px solid oklch(0.89 0.06 160); }
+  .item-corpo { flex: 1; }
+  .item-corpo h4 { margin: 0 0 3px; font-size: 10pt; font-weight: 650;
+                   letter-spacing: -0.015em; }
+  .item-corpo p { margin: 0; font-size: 9pt; color: var(--tinta-media); }
+  .item-corpo p + p { margin-top: 4px; }
+  .item-corpo strong { color: var(--tinta); }
+
+  /* ---------- tabelas ---------- */
+  table {
+    width: 100%; border-collapse: collapse; margin: 10px 0 14px;
+    font-size: 9pt; page-break-inside: avoid;
+  }
+  th {
+    text-align: left; font-weight: 650; font-size: 7.8pt;
+    text-transform: uppercase; letter-spacing: 0.05em; color: var(--tinta-fraca);
+    border-bottom: 1.5px solid var(--tinta); padding: 0 9px 5px 0;
+  }
+  td { padding: 7px 9px 7px 0; border-bottom: 1px solid var(--linha);
+       vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  td.c { text-align: center; font-weight: 700; }
+
+  /* ---------- caixas ---------- */
+  .nota, .alerta {
+    padding: 10px 13px; border-radius: 7px; margin: 12px 0;
+    font-size: 9pt; page-break-inside: avoid;
+  }
+  .nota   { background: var(--papel-alt); border: 1px solid var(--linha); }
+  .alerta { background: var(--espera-fraco); border: 1px solid oklch(0.89 0.07 82); }
+  .nota p:last-child, .alerta p:last-child { margin-bottom: 0; }
+
+  .destaque-linha {
+    border-left: 3px solid var(--bloq); background: var(--bloq-fraco);
+    padding: 13px 16px; border-radius: 0 8px 8px 0; margin: 12px 0 16px;
+    page-break-inside: avoid;
+  }
+  .destaque-linha p:last-child { margin-bottom: 0; }
+  .destaque-linha .t {
+    font-size: 11.5pt; font-weight: 650; letter-spacing: -0.02em;
+    margin-bottom: 5px;
+  }
+
+  .fim { margin-top: 22px; padding-top: 10px; border-top: 1px solid var(--linha);
+         font-size: 8pt; color: var(--tinta-fraca); }
+</style>
+</head>
+<body>
+
+<div class="topo">
+  <div class="marca">
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M21 12 L5 4 L9 12 L5 20 Z" fill="#171717"/>
+    </svg>
+    NEXO
+  </div>
+  <div class="data">
+    Inventário de implementação<br>23 de agosto de 2026
+  </div>
+</div>
+
+<h1>O que falta de implementação</h1>
+<p class="chamada">
+  O produto funciona e os números estão certos. O que falta não é feature —
+  é o que separa um sistema que <em>a Ana</em> usa de um sistema que
+  <em>um estranho</em> pode pagar para usar.
+</p>
+
+<div class="painel">
+  <div class="stat destaque">
+    <div class="n">0</div>
+    <div class="r">linhas de <strong>cobrança</strong> no código. Sem gateway, sem assinatura, sem plano</div>
+  </div>
+  <div class="stat destaque">
+    <div class="n">1&thinsp;/&thinsp;4</div>
+    <div class="r">canais em que um <strong>cliente novo</strong> consegue conectar a loja hoje</div>
+  </div>
+  <div class="stat">
+    <div class="n">6</div>
+    <div class="r">correções de <strong>número</strong> abertas, valendo para os quatro canais</div>
+  </div>
+  <div class="stat">
+    <div class="n">4</div>
+    <div class="r">frentes <strong>esperando terceiro</strong> — nada a implementar nelas</div>
+  </div>
+</div>
+
+<!-- =================== 01 — COBRANÇA =================== -->
+<section>
+  <h2><span class="num">01</span>Não existe cobrança</h2>
+  <p class="subtitulo">A lacuna que ninguém tinha listado</p>
+
+  <div class="destaque-linha">
+    <p class="t">Nenhuma linha de código cobra por nada.</p>
+    <p>
+      Procurei por gateway, assinatura e checkout no <code>src/</code> inteiro e no
+      <code>package.json</code>: não existe. O <code>trial.ts</code> existe e o guard
+      bloqueia o acesso quando o período vence — mas <strong>vencer não leva a lugar
+      nenhum</strong>. Não há tela de plano, não há forma de pagar, não há o que
+      acontecer depois do "não".
+    </p>
+  </div>
+
+  <p>
+    Isso não é um item de lista igual aos outros. É o que separa <strong>produto</strong>
+    de <strong>produto vendável</strong>: hoje o NEXO não tem como transformar alguém
+    que gostou em alguém que paga.
+  </p>
+
+  <div class="item">
+    <div class="chip aberto">A decidir</div>
+    <div class="item-corpo">
+      <h4>Modelo de cobrança</h4>
+      <p>Preço fixo? Por canal conectado? Por volume de pedido? A escolha muda o que
+         precisa ser medido, e medir é código.</p>
+    </div>
+  </div>
+  <div class="item">
+    <div class="chip aberto">Aberto</div>
+    <div class="item-corpo">
+      <h4>Gateway e ciclo de assinatura</h4>
+      <p>Cobrar, renovar, falhar a cobrança, cancelar, reativar. O caminho triste é a
+         maior parte do trabalho, e é onde cliente é perdido.</p>
+    </div>
+  </div>
+  <div class="item">
+    <div class="chip aberto">Aberto</div>
+    <div class="item-corpo">
+      <h4>O que acontece quando o trial vence</h4>
+      <p>Hoje: bloqueio seco. Precisa virar uma tela que oferece o plano — e a regra do
+         ADR é que <strong>nenhum dado é apagado</strong>, o bloqueio é reversível.</p>
+    </div>
+  </div>
+</section>
+
+<!-- =================== 02 — CANAIS =================== -->
+<section>
+  <h2><span class="num">02</span>Só um canal aceita cliente novo</h2>
+  <p class="subtitulo">A pergunta não é "o canal funciona?", é "um estranho consegue conectar?"</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:22%">Canal</th>
+        <th class="c" style="width:14%">Cliente novo?</th>
+        <th>O que falta</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Mercado Livre</strong></td>
+        <td class="c" style="color:var(--feito)">sim</td>
+        <td>Nada. Em produção, sincronizando, faturamento batido ao centavo contra o
+            painel do ML.</td>
+      </tr>
+      <tr>
+        <td><strong>Amazon</strong></td>
+        <td class="c" style="color:var(--bloq)">não</td>
+        <td>Precisa do <strong>Solution Provider Portal</strong> — travado, caso
+            <code>21250777631</code>. A self-authorization que usamos hoje cobre
+            <strong>só a conta própria</strong>; não serve para atender terceiro.</td>
+      </tr>
+      <tr>
+        <td><strong>Shopee</strong></td>
+        <td class="c" style="color:var(--bloq)">não</td>
+        <td>Go Live (último estado comprovado: <em>under review</em> em 07/08). Depois
+            dele, revisar <code>shopeeCanonical.ts</code> contra payload real — foi
+            escrito contra a documentação, sem resposta de verdade para conferir.</td>
+      </tr>
+      <tr>
+        <td><strong>TikTok Shop</strong></td>
+        <td class="c" style="color:var(--bloq)">não</td>
+        <td>O app é <strong>Custom</strong>, e custom atende uma loja. Para atender
+            qualquer vendedor: Listing review, App review e Publish —
+            <strong>trabalho nosso</strong>, não espera.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="alerta">
+    <p>
+      ⚠️ Essa é a resposta estrutural à pergunta. O NEXO é vendido como painel
+      <strong>multicanal</strong>, e hoje um cliente que chegasse só conseguiria plugar
+      <strong>um</strong> dos quatro. Os outros três funcionam — para as contas que já
+      estão autorizadas.
+    </p>
+  </div>
+
+  <h3>Ainda no TikTok</h3>
+  <div class="item">
+    <div class="chip aberto">Aberto</div>
+    <div class="item-corpo">
+      <h4>Reenviar Accounting e Order Management</h4>
+      <p>Rejeitadas por divergência de razão social. O campo precisa dizer exatamente
+         <code>66.106.202 ANA BEATRIZ DE OLIVEIRA</code> — não "NEXAHUB", que é nome de
+         loja e não existe em registro.</p>
+    </div>
+  </div>
+  <div class="item">
+    <div class="chip aberto">Aberto</div>
+    <div class="item-corpo">
+      <h4>Concluir a validação financeira</h4>
+      <p>Rodar o procedimento de <code>tiktok-qa-evidence.md</code> e comparar origem,
+         ledger e overview. Dois riscos conhecidos: status fora do
+         <code>MAPA_STATUS</code> caem em <code>pending</code> <strong>em silêncio</strong>,
+         e o agrupamento por <code>product_id::sku_id</code> pode nascer errado.</p>
+    </div>
+  </div>
+</section>
+
+<!-- =================== 03 — NÚMEROS =================== -->
+<section>
+  <h2><span class="num">03</span>Paridade financeira entre canais</h2>
+  <p class="subtitulo">A frente mais quente — corrigido na Amazon, faltando replicar</p>
+
+  <p>
+    A auditoria da Amazon achou sete defeitos de cálculo. Todos foram corrigidos
+    <strong>só lá</strong>. Três já foram replicados; <strong>seis itens seguem
+    abertos</strong> nos quatro canais.
+  </p>
+
+  <div class="nota">
+    <p>
+      📌 <strong>Replicar não é copiar código.</strong> Cada API entrega a informação de
+      um jeito; replicar é reimplementar a mesma <em>garantia</em> com os campos que
+      aquele canal oferece.
+    </p>
+  </div>
+
+  <div class="item">
+    <div class="chip aberto">Todos</div>
+    <div class="item-corpo">
+      <h4>Cupom não é custo</h4>
+      <p>Se o desconto já veio abatido da receita, somá-lo às deduções desconta duas
+         vezes e o lucro sai menor do que é.</p>
+    </div>
+  </div>
+  <div class="item">
+    <div class="chip aberto">Todos</div>
+    <div class="item-corpo">
+      <h4>A pendência diz de quem é a espera</h4>
+      <p>"Aguardando dados" parece falha nossa. Precisa dizer se a espera é do canal ou
+         se falta algo que o vendedor tem que cadastrar.</p>
+    </div>
+  </div>
+  <div class="item">
+    <div class="chip aberto">Todos</div>
+    <div class="item-corpo">
+      <h4>Ausência em período conciliado = zero explicado</h4>
+      <p>Hoje exibe "—" para sempre. Se o período já fechou e a tarifa não veio, isso é
+         <strong>zero com explicação</strong>, não desconhecido.</p>
+    </div>
+  </div>
+  <div class="item">
+    <div class="chip aberto">Todos</div>
+    <div class="item-corpo">
+      <h4>Categorizar tarifa por padrão, não por lista de nomes</h4>
+      <p>Nome exato chutado deixa tarifa nova cair fora da conta. O total é a autoridade.</p>
+    </div>
+  </div>
+  <div class="item">
+    <div class="chip aberto">TikTok · Shopee</div>
+    <div class="item-corpo">
+      <h4>Saldo e retenção</h4>
+      <p>Quanto está disponível, quanto está retido e em que data cada venda cai. Já
+         existe na Amazon e no ML. A Shopee depende do Go Live.</p>
+    </div>
+  </div>
+  <div class="item">
+    <div class="chip aberto">Amazon</div>
+    <div class="item-corpo">
+      <h4>Lucro pelo modelo canônico</h4>
+      <p><code>/api/profit</code> ainda exige a Transactions API — carrega
+         <code>refunds</code>, <code>reimbursements</code> e <code>netProceeds</code>.
+         Preencher com zero violaria <code>null ≠ 0</code>; fazer certo exige tornar esses
+         campos nuláveis e ensinar dashboard e monitor a mostrar "—".</p>
+    </div>
+  </div>
+  <div class="item">
+    <div class="chip aberto">3 canais</div>
+    <div class="item-corpo">
+      <h4>"Pedidos a revisar" — auditoria de frete</h4>
+      <p>Entregue no ML em 16/08. Amazon, Shopee e TikTok também cobram frete e também
+         erram.</p>
+    </div>
+  </div>
+</section>
+
+<!-- =================== 04 — AMAZON CANÔNICO =================== -->
+<section>
+  <h2><span class="num">04</span>Amazon no modelo canônico</h2>
+  <p class="subtitulo">Fase 5, em andamento</p>
+
+  <div class="item">
+    <div class="chip aberto">Aberto</div>
+    <div class="item-corpo">
+      <h4>Trocar as rotas do dashboard</h4>
+      <p><code>/api/orders</code>, <code>/api/sales</code> e as demais ainda leem pelo
+         caminho antigo.</p>
+    </div>
+  </div>
+  <div class="item">
+    <div class="chip aberto">Aberto</div>
+    <div class="item-corpo">
+      <h4>Conciliar as tarifas canônicas</h4>
+      <p>Via <code>getOrderFinancialEvents</code>, para a tarifa por pedido sair do
+         mesmo lugar que o resto.</p>
+    </div>
+  </div>
+  <div class="item">
+    <div class="chip espera">Você</div>
+    <div class="item-corpo">
+      <h4>COGS zerado</h4>
+      <p>Os SKUs vendidos não têm custo cadastrado. <strong>Não é falha do sistema</strong> —
+         é cadastro que falta. O produto já aponta onde.</p>
+    </div>
+  </div>
+  <div class="item">
+    <div class="chip espera">Você</div>
+    <div class="item-corpo">
+      <h4>Reconectar as duas contas Amazon</h4>
+      <p>Refresh token revogado desde 06/08. O app opera pelo LWA do ambiente, então
+         scripts funcionam e o OAuth não. Caminho recomendado: self-authorization.</p>
+    </div>
+  </div>
+</section>
+
+<!-- =================== 05 — PRODUTO =================== -->
+<section>
+  <h2><span class="num">05</span>Produto e interface</h2>
+  <p class="subtitulo">Nada aqui bloqueia venda; melhora o que já existe</p>
+
+  <div class="item">
+    <div class="chip aberto">Pronto p/ codar</div>
+    <div class="item-corpo">
+      <h4>Landing v2 — a home é o produto</h4>
+      <p>Plano e prompt escritos hoje. A v1 continua no ar; a v2 nasce em
+         <code>/landing-v2</code>.</p>
+    </div>
+  </div>
+  <div class="item">
+    <div class="chip aberto">Aberto</div>
+    <div class="item-corpo">
+      <h4>Duas animações da landing v1</h4>
+      <p>Pesquisa de mercado da Amazon e aviso de dia de repasse — pedidas, não
+         começadas.</p>
+    </div>
+  </div>
+  <div class="item">
+    <div class="chip aberto">Aberto</div>
+    <div class="item-corpo">
+      <h4>Administração — fase 2</h4>
+      <p>Telas mais acessadas e funcionalidades mais usadas. Exige captura de navegação
+         em <code>src/proxy.ts</code> e tabela de eventos <strong>com retenção</strong>.
+         O dado começa do zero no dia que ligar.</p>
+    </div>
+  </div>
+  <div class="item">
+    <div class="chip aberto">Aberto</div>
+    <div class="item-corpo">
+      <h4>Editor de custo</h4>
+      <p>Distinguir "corrigir um custo errado" de "cadastrar custo novo", e barrar valor
+         absurdo. Custo tem vigência (ADR-004) — a diferença muda o lucro histórico.</p>
+    </div>
+  </div>
+  <div class="item">
+    <div class="chip aberto">Aberto</div>
+    <div class="item-corpo">
+      <h4>Renomear SellerCore → NEXO no produto</h4>
+      <p>Precisa de plano próprio: a URL <code>sellercore.onrender.com</code> está na
+         allowlist de OAuth da Shopee e do TikTok. Trocar sem ordem quebra os dois.</p>
+    </div>
+  </div>
+  <div class="item">
+    <div class="chip aberto">Opcional</div>
+    <div class="item-corpo">
+      <h4>Dark mode</h4>
+      <p>As cores já são tokens OKLCH. É trabalho de tema, não de arquitetura.</p>
+    </div>
+  </div>
+</section>
+
+<!-- =================== 06 — SEGURANÇA E INFRA =================== -->
+<section>
+  <h2><span class="num">06</span>Segurança e infraestrutura</h2>
+  <p class="subtitulo">Pequeno em esforço, caro se esquecer</p>
+
+  <div class="item">
+    <div class="chip bloq">Fazer já</div>
+    <div class="item-corpo">
+      <h4>Rotacionar segredos expostos</h4>
+      <p><code>MELI_CLIENT_SECRET</code> e <code>OAUTH_CLIENT_SECRET</code> foram expostos
+         em conversa. Some-se a chave do Gemini, exposta hoje. Segredo que passou por
+         chat tem que ser considerado vazado.</p>
+    </div>
+  </div>
+  <div class="item">
+    <div class="chip aberto">Aberto</div>
+    <div class="item-corpo">
+      <h4>Validar a origem do webhook do ML</h4>
+      <p>Hoje qualquer um que descubra a URL pode postar. A solução está desenhada, só
+         não foi aplicada.</p>
+    </div>
+  </div>
+  <div class="item">
+    <div class="chip bloq">Perto do teto</div>
+    <div class="item-corpo">
+      <h4>Supabase em 526 MB contra limite de 500 MB</h4>
+      <p>Já <strong>passou</strong>. E as tabelas legadas não podem cair: as três
+         candidatas estão em uso, e <code>workspace_marketplace_orders</code> guarda os
+         payloads brutos.</p>
+    </div>
+  </div>
+  <div class="item">
+    <div class="chip aberto">Aberto</div>
+    <div class="item-corpo">
+      <h4>Pinger em <code>/api/health</code></h4>
+      <p>Para a instância não hibernar. Item pequeno, some da lista quando o plano
+         subir.</p>
+    </div>
+  </div>
+</section>
+
+<!-- =================== 07 — TERCEIROS =================== -->
+<section>
+  <h2><span class="num">07</span>Esperando terceiro</h2>
+  <p class="subtitulo">Nada a implementar — não confundir com trabalho parado</p>
+
+  <div class="item">
+    <div class="chip espera">Amazon</div>
+    <div class="item-corpo">
+      <h4>Solution Provider Portal</h4>
+      <p>Caso <code>21250777631</code>. É o mesmo caminho que destravaria o Brand
+         Analytics, e o que decide se a Amazon vira canal vendável.</p>
+    </div>
+  </div>
+  <div class="item">
+    <div class="chip espera">Amazon</div>
+    <div class="item-corpo">
+      <h4>Ads API</h4>
+      <p>3ª candidatura em 21/08, já com o site corrigido para
+         <code>nexoaihub.com.br</code> — as duas anteriores declaravam uma URL que
+         responde 503.</p>
+    </div>
+  </div>
+  <div class="item">
+    <div class="chip espera">Shopee</div>
+    <div class="item-corpo">
+      <h4>Go Live</h4>
+      <p><em>Under review</em> desde 07/08. Reconferir no console antes de afirmar
+         qualquer coisa.</p>
+    </div>
+  </div>
+  <div class="item">
+    <div class="chip feito">Resolvido</div>
+    <div class="item-corpo">
+      <h4>TikTok DSPR</h4>
+      <p>Aprovada em 07/08. O que restou no TikTok é trabalho nosso, não espera.</p>
+    </div>
+  </div>
+</section>
+
+<!-- =================== 08 — ORDEM =================== -->
+<section>
+  <h2><span class="num">08</span>Se fosse eu escolhendo a ordem</h2>
+  <p class="subtitulo">Uma recomendação, não uma decisão</p>
+
+  <p>
+    <strong>Primeiro, cobrança.</strong> É a única coisa da lista que, faltando, faz todo
+    o resto não virar receita. E é a que ninguém tinha escrito em lugar nenhum.
+  </p>
+  <p>
+    <strong>Depois, os seis itens de paridade.</strong> São correções de número num
+    produto cuja promessa é justamente o número certo. Cada um é pequeno; juntos são a
+    diferença entre confiar e conferir.
+  </p>
+  <p>
+    <strong>Em paralelo, o TikTok publicável.</strong> É o único dos três canais travados
+    que depende de trabalho nosso — Amazon e Shopee estão na mão de terceiro.
+  </p>
+  <p>
+    <strong>A landing v2 entra quando houver o que vender.</strong> Ela converte melhor,
+    mas converter para um trial que não vira assinatura é adiar o problema.
+  </p>
+
+  <div class="alerta">
+    <p>
+      ⚠️ <strong>Um aviso sobre este inventário.</strong> Boa parte do
+      <code>docs/estado-atual.md</code> foi verificada em 16/08, e a seção de ambiente
+      ainda descreve o Render — a produção hoje é Fly (<code>app = "nexo"</code>, região
+      <code>gru</code>). Antes de agir em qualquer item marcado como "esperando terceiro",
+      reconferir o estado externo: eles mudam sem avisar.
+    </p>
+  </div>
+
+  <p class="fim">
+    NEXO · inventário de implementação · 23 de agosto de 2026 · fontes:
+    <code>docs/estado-atual.md</code>, <code>TODO.md</code> e leitura do código ·
+    fonte deste PDF: <code>docs/o-que-falta-implementar.html</code>
+  </p>
+</section>
+
+</body>
+</html>
