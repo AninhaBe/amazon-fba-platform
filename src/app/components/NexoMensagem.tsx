@@ -18,12 +18,23 @@ export function NexoMensagem({
   ctaHref,
   ctaLabel = "Ver briefing",
   carregando = false,
+  aoTentarDeNovo,
 }: {
   texto?: string;
   ctaHref?: string;
   ctaLabel?: string;
   /** Mostra "NEXO analisando…" com shimmer enquanto o modelo escreve. */
   carregando?: boolean;
+  /**
+   * Quando informado E não há texto nem carregamento, o bloco assume o estado de
+   * FALHA em vez de sumir da tela.
+   *
+   * O sumiço era o comportamento antigo: a tela renderizava `null` quando a
+   * narração vinha vazia, então o NEXO aparecia "lendo sua operação" e depois
+   * simplesmente não estava mais lá (23/08/2026). Some sem explicação é pior que
+   * erro: a pessoa não sabe se deu errado, se acabou, ou se ela fez algo.
+   */
+  aoTentarDeNovo?: () => void;
 }) {
   const paragrafos = (texto ?? "").split(/\n+/).map((p) => p.trim()).filter(Boolean);
   return (
@@ -53,6 +64,14 @@ export function NexoMensagem({
               Lendo sua operação<span className="nexo-mensagem-pontos" aria-hidden="true" />
             </p>
             <span className="nexo-mensagem-shimmer" style={{ width: "72%" }} />
+          </div>
+        ) : !paragrafos.length && aoTentarDeNovo ? (
+          // FALHA — o bloco fica, e diz o que houve. Ver `aoTentarDeNovo` acima.
+          <div className="nexo-mensagem-falha" aria-live="polite">
+            <p>Não consegui montar a leitura de hoje. Os números abaixo estão certos e não dependem de mim.</p>
+            <button type="button" className="nexo-mensagem-retry" onClick={aoTentarDeNovo}>
+              Tentar de novo
+            </button>
           </div>
         ) : (
           paragrafos.map((p, i) => <p key={i}>{p}</p>)

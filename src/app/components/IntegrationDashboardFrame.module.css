@@ -2,6 +2,21 @@
   min-width: 0;
 }
 
+/* As duas faixas usam a mesma cadência. A principal só cresce o necessário
+   para acomodar a terceira linha de contexto; não ganha espaço vazio próprio. */
+.root :global(.integration-dashboard-sections > .metric-grid > .metric-cell) {
+  min-height: 76px;
+  justify-content: center;
+  gap: 1px;
+  padding: 7px 16px !important;
+}
+
+.root :global(.integration-dashboard-sections > .metric-grid > .metric-cell .metric-value),
+.root :global(.secondary-metrics .compact-metric strong) {
+  font-size: 16px;
+  line-height: 22px;
+}
+
 @media (max-width: 600px) {
   .root :global(.metric-head:has(.revenue-trend)) {
     align-items: flex-start;

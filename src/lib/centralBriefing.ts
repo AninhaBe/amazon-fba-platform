@@ -182,7 +182,16 @@ export async function narrarBriefing(
           // resposta inteira; é uma chamada por dia, custo continua ínfimo.
           generationConfig: { maxOutputTokens: modo === "briefing" ? 4000 : 2500, temperature: 0.6 },
         }),
-        signal: AbortSignal.timeout(15_000),
+        // ⚠️ 45s, não 15s. Com 15s a narração do briefing SUMIA da tela de forma
+        // intermitente (23/08/2026): medido em produção, a rota leva ~18s desde
+        // que o prompt passou a carregar os sinais do banco (POSSÍVEIS CAUSAS).
+        // O abort caía no catch, devolvia null, e a tela — que renderiza `null`
+        // quando não há texto — apagava o bloco inteiro depois de mostrar
+        // "Lendo sua operação". Parecia bug de sumiço; era timeout.
+        //
+        // 45s é folgado de propósito: é UMA chamada por dia por workspace, com
+        // cache, e o custo de esperar é muito menor que o de não ter resposta.
+        signal: AbortSignal.timeout(45_000),
       }
     );
     if (!resposta.ok) {

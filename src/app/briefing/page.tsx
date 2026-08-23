@@ -75,6 +75,8 @@ export default function BriefingPage() {
   // Começa true: sempre vamos tentar narrar, então mostramos o "analisando…"
   // desde o início em vez de deixar o espaço em branco durante a coleta.
   const [narracaoCarregando, setNarracaoCarregando] = useState(true);
+  // Incrementar re-dispara o efeito que pede a narração ao servidor.
+  const [narracaoTentativa, setNarracaoTentativa] = useState(0);
   // Financeiro cross-channel — a MESMA fonte da Visão geral. Alimenta o NEXO
   // para o briefing raciocinar sobre a história do dinheiro (quem concentra a
   // venda, quem parou, margem), não só sobre ruptura de estoque.
@@ -163,7 +165,7 @@ export default function BriefingPage() {
       .catch(() => {})
       .finally(() => { if (!cancelado) setNarracaoCarregando(false); });
     return () => { cancelado = true; };
-  }, [insights, canais]);
+  }, [insights, canais, narracaoTentativa]);
 
   async function act(id: string, action: "dispensar" | "adiar" | "resolver") {
     setBusy(id);
@@ -202,7 +204,23 @@ export default function BriefingPage() {
 
       {/* O NEXO abre o briefing em prosa: lê os sinais detectados e diz, do jeito
           de um colega, o que priorizar. Os cartões abaixo são a evidência. */}
-      {narracao ? <NexoMensagem texto={narracao} /> : narracaoCarregando ? <NexoMensagem carregando /> : null}
+      {/* Três estados, nunca ausência: texto, carregando, ou falha com botão.
+          Renderizar `null` na falha era o "aparece e some" de 23/08/2026. */}
+      {narracao ? (
+        <NexoMensagem texto={narracao} />
+      ) : narracaoCarregando ? (
+        <NexoMensagem carregando />
+      ) : (
+        <NexoMensagem
+          aoTentarDeNovo={() => {
+            // Volta ao estado de carregamento aqui, no evento: sem isto o clique
+            // não muda nada na tela até o servidor responder (~18s) e parece
+            // que o botão não funcionou.
+            setNarracaoCarregando(true);
+            setNarracaoTentativa((n) => n + 1);
+          }}
+        />
+      )}
 
       {error && (
         <div role="alert" className="briefing-error">
