@@ -17,6 +17,15 @@
   line-height: 22px;
 }
 
+.root :global(.integration-dashboard-sections > .metric-grid > .metric-cell .metric-label),
+.root :global(.secondary-metrics .compact-metric p) {
+  font-size: 13px;
+  font-weight: var(--weight-body);
+  line-height: 18px;
+  letter-spacing: var(--track-s);
+  text-transform: none;
+}
+
 @media (max-width: 600px) {
   .root :global(.metric-head:has(.revenue-trend)) {
     align-items: flex-start;
