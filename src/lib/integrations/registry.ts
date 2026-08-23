@@ -42,7 +42,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     id: "shopee",
     name: "Shopee",
     shortName: "SHP",
-    description: "Pedidos, produtos, estoque e as taxas reais de cada venda (escrow).",
+    description: "Pedidos, produtos, estoque e o extrato financeiro de cada venda.",
     capabilities: ["catalog", "orders", "inventory", "finance"],
     availability: "available",
     connectHref: "/api/integrations/shopee/connect",

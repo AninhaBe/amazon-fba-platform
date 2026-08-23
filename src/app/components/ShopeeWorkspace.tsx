@@ -283,7 +283,7 @@ export function ShopeeWorkspace() {
       <ShopeeFrame subtitle="Conecte uma loja para começar a sincronizar pedidos e taxas.">
         <ChannelConnectionEmpty
           channel="Shopee"
-          description="Ao autorizar, o NEXO passa a ler pedidos, produtos e as taxas reais de cada venda (escrow)."
+          description="Ao autorizar, o NEXO passa a ler pedidos, produtos e o extrato financeiro de cada venda."
           action={
             <Link className="meli-primary-action" href={status.connectHref || "/integracoes"}>
               Conectar loja Shopee <span aria-hidden="true">→</span>
@@ -432,7 +432,7 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
 
       <section className="metric-grid shopee-dashboard-metrics" aria-label="Resumo financeiro Shopee">
         <Metric label="Faturamento" value={<AnimatedNumber id="shopee-dash-revenue" value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={`${overview.metrics.paidOrders} pedido(s) no período`} trend={getRevenueTrend(overview.dailySales)} />
-        <Metric label="Taxas" value={overview.profit.fees == null ? "—" : money(overview.profit.fees, overview.metrics.currency)} sub={overview.profit.feesComplete ? "escrow processado" : "aguardando fechamento do escrow"} />
+        <Metric label="Taxas" value={overview.profit.fees == null ? "—" : money(overview.profit.fees, overview.metrics.currency)} sub={overview.profit.feesComplete ? "extrato financeiro processado" : "aguardando fechamento do extrato financeiro"} />
         <Metric label="Custo dos produtos" value={overview.profit.cogs == null ? "—" : money(overview.profit.cogs, overview.metrics.currency)} sub={costsIncomplete ? `${overview.profit.unitsWithoutCost} unidade(s) sem custo` : "custos cadastrados"} tone={costsIncomplete ? "warn" : "default"} />
         <Metric label={resultIncomplete ? "Resultado processado" : "Lucro estimado"} value={resultIncomplete || overview.profit.estimatedProfit == null ? "—" : <AnimatedNumber id="shopee-dash-profit" value={overview.profit.estimatedProfit} format={(amount) => money(amount, overview.metrics.currency)} />} sub={resultIncomplete ? `${profitCoverage.processedOrders} de ${profitCoverage.paidOrders} vendas` : "após todos os custos"} tone={resultIncomplete || overview.profit.estimatedProfit == null ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
         <Metric label="Margem" value={resultIncomplete || overview.profit.marginPct == null ? "—" : percent(overview.profit.marginPct)} sub={resultIncomplete ? "aguardando conciliação completa" : "sobre o faturamento"} tone={resultIncomplete || overview.profit.marginPct == null ? "default" : overview.profit.marginPct > 0 ? "positive" : overview.profit.marginPct < 0 ? "danger" : "default"} />
@@ -486,7 +486,7 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
               <Link href="/shopee/produtos" className="meli-financial-link">Configurar custos e imposto <span aria-hidden="true">→</span></Link>
               {!overview.profit.feesComplete && (
                 <p className="text-xs leading-relaxed text-amber-700">
-                  As taxas da Shopee só fecham no escrow, depois do pagamento do pedido. Enquanto isso, as vendas mais recentes entram sem tarifa e aparecem como incompletas.
+                  As taxas da Shopee só fecham no extrato financeiro, depois do pagamento do pedido. Enquanto isso, as vendas mais recentes entram sem tarifa e aparecem como incompletas.
                 </p>
               )}
               {overview.profit.unitsWithoutCost > 0 && (
@@ -502,7 +502,7 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
               open={costsOpen}
               onToggle={() => setCostsOpen((open) => !open)}
               items={[
-                { label: "Taxas da Shopee (escrow)", value: overview.profit.fees == null ? "—" : money(overview.profit.fees, overview.metrics.currency) },
+                { label: "Taxas da Shopee", value: overview.profit.fees == null ? "—" : money(overview.profit.fees, overview.metrics.currency) },
                 { label: "Frete pago pelo vendedor", value: overview.profit.sellerShipping == null ? "—" : money(overview.profit.sellerShipping, overview.metrics.currency) },
                 { label: "Anúncios", value: overview.profit.ads == null ? "—" : money(overview.profit.ads, overview.metrics.currency) },
                 { label: "Impostos retidos", value: overview.profit.taxesWithheld == null ? "—" : money(overview.profit.taxesWithheld, overview.metrics.currency) },
