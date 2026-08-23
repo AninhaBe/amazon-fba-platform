@@ -602,8 +602,19 @@ export async function getShopeeOverviewFromCanonical(
     cost: shopeeCostEntry(costs, connection.id, row.external_product_id, row.sku, costNamespace)?.cost ?? null,
   }));
 
+  // ⚠️ Anúncio PAUSADO sem estoque não é ruptura — é anúncio desligado.
+  //
+  // Antes o radar incluía todo "active ou paused", e como pausado costuma estar
+  // zerado, ele virava "out" e entrava na contagem de estoque crítico. Na conta
+  // medida em 23/08/2026: 301 produtos alertados, dos quais **294 eram anúncios
+  // pausados com estoque zero**. Os 29 anúncios ativos tinham todos estoque
+  // positivo — ou seja, o alerta inteiro era ruído e escondia o que importa.
+  //
+  // A regra passa a ser: anúncio ATIVO sempre entra (zerado nele é ruptura de
+  // verdade); anúncio pausado só entra se ainda tem estoque parado, que é a
+  // informação útil ("tem mercadoria presa num anúncio desligado").
   const stockRadar = catalog
-    .filter((product) => product.status === "active" || product.status === "paused")
+    .filter((product) => product.status === "active" || (product.status === "paused" && product.availableQuantity > 0))
     .map((product) => {
       const unitsSold = unitsByItem.get(product.id) ?? 0;
       // Sem data de início do anúncio no canônico, o período inteiro é a janela.

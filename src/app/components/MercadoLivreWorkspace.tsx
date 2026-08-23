@@ -215,15 +215,48 @@ export function MercadoLivreWorkspace({ view }: { view: keyof typeof views }) {
   );
 }
 
+/**
+ * Estado do resultado do canal, em UM lugar só — o Dashboard e o Monitor liam a
+ * mesma regra em cópias separadas, e foi assim que os dois divergiram.
+ */
+function avaliarResultado(overview: Overview) {
+  const profitCoverage = overview.profit.coverage;
+  // MARGEM: parcial é diferente de desconhecida, e tratar as duas igual deixou o
+  // card em "—" para sempre.
+  //
+  // Na conta medida em 23/08/2026 faltava custo em 26 de ~8.000 unidades e frete
+  // em 59 de 7.133 pedidos — 0,8% do volume travando 100% do indicador. O
+  // AGENTS.md manda o oposto: "o painel mostra só o que foi capturado e diz que
+  // está parcial — nunca projeta o resto".
+  //
+  // Sem ALÍQUOTA, porém, a margem não é parcial: é errada para cima, porque o
+  // imposto incide sobre tudo e some da conta inteira. Esse caso continua "—",
+  // agora dizendo o que fazer para destravar.
+  const semAliquota = overview.profit.taxes == null;
+  const faltas: string[] = [];
+  if (!profitCoverage.complete) faltas.push(`${profitCoverage.paidOrders - profitCoverage.processedOrders} pedido(s) sem conciliar`);
+  if (overview.profit.unitsWithoutCost > 0) faltas.push(`${overview.profit.unitsWithoutCost} unidade(s) sem custo`);
+  if (!overview.profit.shippingCostsComplete) faltas.push("frete de alguns pedidos");
+  const resultParcial = faltas.length > 0;
+  // Mantido para o resto da tela, que usa "incompleto" no sentido antigo.
+  const resultIncomplete = semAliquota || resultParcial;
+  const margemSub = semAliquota
+    ? "cadastre a alíquota de imposto"
+    : resultParcial
+      ? `parcial — falta ${faltas.join(", ")}`
+      : "sobre o faturamento";
+  return { semAliquota, resultParcial, resultIncomplete, margemSub };
+}
+
 function Dashboard({ overview, syncStatus, periodoLabel }: { overview: Overview; syncStatus: SyncStatus | null; periodoLabel: string }) {
   const [costsOpen, setCostsOpen] = useState(false);
   const profitCoverage = overview.profit.coverage;
   const units = overview.dailySales.reduce((total, point) => total + point.units, 0);
   const critical = overview.stockRadar.filter((product) => product.status === "critical" || product.status === "out");
-  const resultIncomplete = !profitCoverage.complete || overview.profit.unitsWithoutCost > 0 || !overview.profit.shippingCostsComplete || overview.profit.taxes == null;
+  const { semAliquota, resultParcial, resultIncomplete, margemSub } = avaliarResultado(overview);
   const netReceived = overview.profit.revenueProcessed - overview.profit.fees - overview.profit.sellerShipping;
   const ticket = overview.metrics.paidOrders > 0 ? overview.metrics.approvedRevenue / overview.metrics.paidOrders : null;
-  const roi = overview.profit.cogs > 0 && !resultIncomplete ? (overview.profit.estimatedProfit / overview.profit.cogs) * 100 : null;
+  const roi = overview.profit.cogs > 0 && !semAliquota ? (overview.profit.estimatedProfit / overview.profit.cogs) * 100 : null;
   const knownCosts = overview.profit.fees + overview.profit.sellerShipping + overview.profit.cogs + (overview.profit.taxes ?? 0);
   return <div className="dashboard-sections integration-dashboard-sections ml-dashboard-body">
     {/* Mesma abertura dos outros três canais: a frase vem do dado e as
@@ -268,7 +301,7 @@ function Dashboard({ overview, syncStatus, periodoLabel }: { overview: Overview;
       <Metric label="Taxas" value={money(overview.profit.fees, overview.metrics.currency)} sub={`${profitCoverage.processedOrders} venda(s) processada(s)`} />
       <Metric label="Custo dos produtos" value={money(overview.profit.cogs, overview.metrics.currency)} sub={overview.profit.unitsWithoutCost > 0 ? `${overview.profit.unitsWithoutCost} unidade(s) sem custo` : "custos cadastrados"} tone={overview.profit.unitsWithoutCost > 0 ? "warn" : "default"} />
       <Metric label={resultIncomplete ? "Resultado processado" : "Lucro estimado"} value={<AnimatedNumber id="ml-dash-profit" value={overview.profit.estimatedProfit} format={(amount) => money(amount, overview.metrics.currency)} />} sub={resultIncomplete ? `${profitCoverage.processedOrders} de ${profitCoverage.paidOrders} vendas` : "após todos os custos"} tone={resultIncomplete ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
-      <Metric label="Margem" value={resultIncomplete ? "—" : percent(overview.profit.marginPct)} sub={resultIncomplete ? "aguardando conciliação completa" : "sobre o faturamento"} tone={resultIncomplete ? "default" : overview.profit.marginPct > 0 ? "positive" : overview.profit.marginPct < 0 ? "danger" : "default"} />
+      <Metric label="Margem" value={semAliquota ? "—" : percent(overview.profit.marginPct)} sub={margemSub} tone={semAliquota || resultParcial ? "default" : overview.profit.marginPct > 0 ? "positive" : overview.profit.marginPct < 0 ? "danger" : "default"} />
     </section>
 
     <section className="secondary-metrics" aria-label="Indicadores operacionais Mercado Livre">
@@ -424,7 +457,7 @@ function Inventory({ overview }: { overview: Overview }) {
 function Monitor({ overview }: { overview: Overview }) {
   const profitCoverage = overview.profit.coverage;
   const netReceived = overview.profit.revenueProcessed - overview.profit.fees - overview.profit.sellerShipping;
-  const resultIncomplete = !profitCoverage.complete || overview.profit.unitsWithoutCost > 0 || !overview.profit.shippingCostsComplete || overview.profit.taxes == null;
+  const { semAliquota, resultParcial, resultIncomplete, margemSub } = avaliarResultado(overview);
   const [section, setSection] = useState<"composition" | "profitability">("composition");
   return <div className="ml-monitor-body">
     <CustomizableMetricGrid
@@ -455,7 +488,7 @@ function Monitor({ overview }: { overview: Overview }) {
         {
           id: "margem-pct",
           label: "Margem",
-          node: <Metric label="Margem" value={resultIncomplete ? "—" : percent(overview.profit.marginPct)} sub={resultIncomplete ? "aguardando conciliação completa" : "sobre o faturamento"} tone={resultIncomplete ? "default" : overview.profit.marginPct > 0 ? "positive" : overview.profit.marginPct < 0 ? "danger" : "default"} />,
+          node: <Metric label="Margem" value={semAliquota ? "—" : percent(overview.profit.marginPct)} sub={margemSub} tone={semAliquota || resultParcial ? "default" : overview.profit.marginPct > 0 ? "positive" : overview.profit.marginPct < 0 ? "danger" : "default"} />,
         },
       ]}
     />
