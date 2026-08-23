@@ -1,0 +1,207 @@
+################################################################################
+#  NOTA VERDE — "TODOS:"   (cole tudo abaixo desta linha até o fim do bloco)
+################################################################################
+
+OBJETIVO DA RODADA
+O TikTok Shop deixa de ser um canal de uma loja só e passa a aceitar vendedor
+novo, com número financeiro provado contra a origem.
+
+Contexto que o orquestrador deve ler antes de planejar:
+  docs/tiktok-shop-integracao.md · docs/tiktok-qa-evidence.md
+  docs/tiktok-modules-api.md · AGENTS.md · docs/estado-atual.md (seção 4)
+  src/lib/integrations/tiktok*.ts · tests/tiktok*.test.mjs (20 arquivos)
+
+O código está LARGAMENTE implementado. Esta rodada não é construir a integração —
+é fechar as lacunas que impedem um estranho de usar e os números de serem
+confiáveis. Não reescrever o que já funciona.
+
+
+--- A. AUTORIZAÇÃO DE LOJA NOVA -----------------------------------------------
+
+[ ] Um OAuth novo completa de ponta a ponta e grava token + shop_cipher
+    Depende de Ana confirmar a Redirect URL no console (ver nota rosa). Enquanto
+    não confirmar, investigar o que é verificável do nosso lado: montagem da URL
+    de autorização, cookie de state, troca de código por token, tratamento de
+    erro quando o redirect não bate.
+
+[ ] Uma segunda loja autoriza e cai SÓ no workspace de quem autorizou
+    Provar com teste de isolamento, não por inspeção visual. Pedido, extrato e
+    produto da loja A nunca aparecem para o workspace B.
+
+[ ] Existe caminho de remoção quando a loja cai no workspace errado
+    Remove credencial e dados dependentes do nosso lado, sem chamar a API do
+    TikTok e sem revogar acesso no marketplace (mesmo comportamento da Shopee).
+
+[ ] O app não pede nenhum escopo de ESCRITA
+    Hoje estão ativos quatro que o produto não usa: Product Modify, Product
+    Delete & Recover, Promotion Modify, Update Delivery Status. O NEXO é somente
+    leitura. A remoção é no console (Ana), mas o código precisa provar que não
+    depende deles: teste que falha se algum caminho tentar escrever no TikTok.
+    ⚠️ Investigar ANTES: remover escopo obriga loja já autorizada a reautorizar?
+    Adicionar obriga (documentado em 07/08). Se remover também obrigar, a loja
+    conectada precisa de aviso claro no produto, nunca falha silenciosa.
+
+
+--- B. OS NÚMEROS TÊM QUE FECHAR ----------------------------------------------
+
+[ ] O procedimento de docs/tiktok-qa-evidence.md roda inteiro e origem, ledger e
+    overview batem — distinguindo extrato LIQUIDADO de ESTIMATIVA
+    Sem mutação. É o passo que estava marcado como PRÓXIMO PASSO desde 15/08.
+
+[ ] Status devolvido pela API que não existe no MAPA_STATUS não vira "pending"
+    em silêncio
+    Hoje cai em pending sem ninguém saber. O MAPA_STATUS de tiktokCanonical.ts
+    veio da documentação em prosa; o OAS declara status como string sem enum.
+    Status desconhecido tem que ser registrado e visível.
+
+[ ] A contagem de unidades por SKU bate com o pedido real
+    O TikTok emite uma linha por unidade e agruparItens junta por
+    product_id::sku_id. Se divergir, "unidades vendidas por SKU" nasce errado.
+
+[ ] revenue + fee_and_tax + shipping_cost = settlement reconcilia ao centavo em
+    toda a amostra observada
+    Identidade já vista numa amostra (23,90 − 9,13 + 0 = 14,77). Provar que vale
+    em todos os pedidos, não em um.
+
+[ ] Nenhum breakdown é persistido como fee adicional
+    Os componentes de fee_tax_breakdown detalham o total, não somam a ele.
+    Persistir os dois duplica custo. Só substituir a linha agregada quando a
+    soma assinada reconciliar ao centavo — caso contrário, manter o total.
+
+[ ] Ads, impostos retidos e reembolso continuam NÃO mapeados até haver payload
+    real que prove a semântica
+    Isto é um outcome de "não fazer": se algum agente mapear por adivinhação, é
+    regressão. Registrar como pendência conhecida, não preencher.
+
+
+--- C. PARIDADE COM OS OUTROS CANAIS ------------------------------------------
+
+Os sete defeitos achados na auditoria da Amazon foram corrigidos só lá. Replicar
+NÃO é copiar código: é reimplementar a mesma garantia com os campos que a API do
+TikTok oferece.
+
+[ ] Saldo e retenção do TikTok
+    Quanto está disponível, quanto está retido, e em que data cada venda cai.
+    Já existe na Amazon e no ML. Fonte provável: /finance/202507/orders/unsettled.
+
+[ ] Cupom/desconto não é contado como custo
+    Se já veio abatido da receita, somar às deduções desconta duas vezes.
+
+[ ] A pendência diz de quem é a espera
+    "Aguardando dados" parece falha nossa. Tem que dizer se a espera é do canal
+    ou se falta algo que o vendedor precisa cadastrar.
+    ⚠️ Proibido usar "parcial", "incompleto" ou qualquer adjetivo que se
+    desculpe. Diga o que falta, com número e link.
+
+[ ] Ausência de tarifa em período JÁ CONCILIADO aparece como zero explicado
+    Hoje exibe "—" para sempre. Período fechado sem tarifa é zero com
+    explicação, não desconhecido. (Fora de período conciliado, continua null.)
+
+[ ] Tarifa é categorizada por padrão, não por lista de nomes exatos
+    Nome chutado deixa tarifa nova cair fora da conta. O total é a autoridade.
+
+[ ] "Pedidos a revisar" — auditoria de frete cobrado contra frete declarado
+    Entregue no ML em 16/08. O TikTok também cobra frete e também erra.
+
+
+--- D. VERIFICAÇÃO DA RODADA --------------------------------------------------
+
+[ ] npm test passa inteiro (baseline: 559 testes em 23/08)
+[ ] npm run build passa
+[ ] Nenhum teste de isolamento de workspace ou de provider foi enfraquecido
+[ ] Nenhuma rota do TikTok ficou acessível sem autenticação
+[ ] git diff não mostra mudança em canal que não seja TikTok, salvo quando o
+    item exigir explicitamente (ex.: função compartilhada de tarifa)
+
+
+--- REGRAS QUE VALEM PARA TUDO ACIMA ------------------------------------------
+
+  · null ≠ 0. Tarifa, frete ou custo desconhecido é null. Zero é o fato
+    "não houve".
+  · Não extrapolar. Enquanto o dado não estiver completo, mostrar só o que foi
+    capturado.
+  · Tela sem dado mostra o estado real ("conecte uma loja"), nunca zero que
+    pareça "não vendeu".
+  · Todo mapeamento de campo fica em tiktokCanonical.ts, isolado do sync.
+  · O banco não muda: canal grava nas mesmas tabelas workspace_channel_*,
+    sem migration (ADR-001).
+  · Achou problema não relacionado? Registrar como observação. Não corrigir.
+
+
+
+################################################################################
+#  NOTA ROSA — "TODOS ANA:"   (cole tudo abaixo desta linha)
+################################################################################
+
+Só o que exige você. Cada item diz o que fazer, por que, e o que trava.
+
+
+1. CONFERIR A REDIRECT URL DO APP NO PARTNER CENTER      ⚠️ PROVÁVEL BLOQUEIO
+   Onde: TikTok Partner Center → App & Service → o app conectado → Redirect URL
+   O que: ver se ainda está https://sellercore.onrender.com/api/tiktok/callback
+          e, se estiver, trocar pelo host vivo.
+   Por quê: o Render morreu na migração e esse endereço devolve 503. É o mesmo
+          defeito que achamos na candidatura da Ads API em 21/08.
+   Trava: TODA autorização de loja nova. O erro acontece no console do TikTok,
+          antes de chegar no nosso código — nenhum teste nosso pega isso.
+   ⚠️ Não trocar o identificador "sellercore" em outros lugares: ele está na
+      allowlist da Shopee também, e mexer quebra os dois OAuth.
+
+
+2. REMOVER OS QUATRO ESCOPOS DE ESCRITA
+   Onde: App & Service → o app → Manage API
+   O que: desligar Product Modify, Product Delete & Recover, Promotion Modify e
+          Update Delivery Status.
+   Por quê: o NEXO é somente leitura. Pedir permissão de APAGAR produto num
+          painel de lucro é excesso de privilégio, e o App review avalia
+          justamente se o escopo condiz com a função.
+   Trava: o App review futuro. E é risco de segurança agora — permissão que não
+          se usa é permissão que só pode ser abusada.
+   ⚠️ Antes de desligar, me avise: preciso confirmar se a loja já conectada
+      precisa reautorizar. Adicionar escopo obriga; remover pode obrigar também.
+
+
+3. DECLARAR OS IPs NO IP ALLOWLIST DO TIKTOK
+   Onde: console do app, seção IP allowlist (marcada como "New")
+   O que: declarar os IPs de saída do host atual (Fly, região gru).
+   Por quê: a documentação diz para declarar ANTES do App review, não depois.
+   Trava: o App review. E, se o allowlist já estiver ativo com IP antigo, pode
+          estar bloqueando chamada em silêncio — mesmo risco que corremos na
+          Shopee.
+
+
+4. REVISAR A FICHA PÚBLICA DO APP
+   Onde: console do app, listing pt-BR
+   O que: conferir se está completa e TROCAR O TELEFONE que veio pré-preenchido.
+   Por quê: o campo "Contact phone" veio com telefone pessoal e a ficha é
+          pública. Além disso, vendedor real não consegue autorizar com ficha
+          vazia (visto em 07/08).
+   Trava: Listing review, e a autorização de vendedor que não seja por link
+          direto.
+
+
+5. DECIDIR O CAMINHO: CUSTOM ATÉ 25 LOJAS, OU ISV AGORA
+   O que: escolher entre seguir com o app Custom (link privado de autorização,
+          sem App review até 25 lojas autorizadas) ou já abrir o caminho ISV,
+          que exige Listing review + App review e permite autorização pública.
+   Por quê: é decisão de negócio, não de engenharia. O Custom atende cliente
+          novo hoje mesmo; o ISV é o que faz o TikTok virar canal que se
+          conecta sozinho, sem você mandar link.
+   Trava: nada agora — o Custom funciona. Mas define se os itens de review
+          entram nesta rodada ou na próxima.
+
+
+6. REENVIAR ACCOUNTING E ORDER MANAGEMENT  (só se ainda quiser essas categorias)
+   O que: reenviar com a razão social EXATA: 66.106.202 ANA BEATRIZ DE OLIVEIRA
+   Por quê: foram rejeitadas por divergência de nome. "NEXAHUB" é nome de loja e
+          não existe em registro oficial — é empresário individual, então a
+          razão social é CNPJ + seu nome.
+   Trava: nada crítico. A categoria Catalog / Product Listing já aprovada é o
+          que sustenta o app hoje.
+
+
+--- O QUE O ORQUESTRADOR PODE COMEÇAR SEM VOCÊ --------------------------------
+
+Tudo do bloco B (os números), tudo do bloco C (paridade) e a maior parte do A —
+isolamento entre lojas, caminho de remoção e o teste que prova que nenhum código
+escreve no TikTok. Só o OAuth de ponta a ponta espera o item 1.
