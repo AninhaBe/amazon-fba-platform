@@ -58,6 +58,7 @@ O que ganhamos, o que abrimos mão, o que passa a ser obrigatório respeitar.
 | [ADR-021](./ADR-021-runner-de-migrations-destravado.md) | Runner de migrations destravado — e a custódia da chave que o autoriza | Aceito |
 | [ADR-022](./ADR-022-camada-fisica-particionamento-e-escrita.md) | Camada física: particionar por tempo e parar de reescrever o que não mudou | Proposto |
 | [ADR-023](./ADR-023-notificacoes-da-amazon.md) | Notificações da Amazon por SQS, consumidas pelo agendador que já existe (custo zero no volume atual) | Proposto |
+| [ADR-024](./ADR-024-tela-de-administracao.md) | Uma única rota (`/admin`) lê entre workspaces, com allowlist de e-mail no servidor e só dado agregado | Aceito |
 
 **Índice completo em 16/08/2026** — 14 ADRs, todos listados. Ao criar um ADR novo,
 adicione a linha aqui na mesma hora; este índice já ficou 8 ADRs atrás uma vez.
