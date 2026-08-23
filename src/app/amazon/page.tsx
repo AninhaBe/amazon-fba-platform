@@ -185,13 +185,19 @@ let productsCache: ProductRow[] | null = null;
  * estado: quantos pedidos ainda não têm valor, em vez de escondê-los na contagem.
  */
 function legendaFaturamento(
-  f: { revenue: number; orders: number; ordersWithValue?: number } | null,
-  fallback: number
+  f: { revenue: number; orders: number; ordersWithValue?: number; coupon?: number | null } | null,
+  fallback: number,
+  moeda: string
 ): string {
   const pedidos = f?.orders ?? fallback;
   const comValor = f?.ordersWithValue;
   const plural = (n: number) => `${n} ${n === 1 ? "pedido" : "pedidos"}`;
-  if (comValor === undefined || comValor === pedidos) return `${plural(pedidos)} no período`;
+  // O CUPOM entra na legenda porque é o que separa este card do "Pedidos feitos"
+  // logo abaixo — e ela perguntou três vezes por que os dois números diferem
+  // (23/08/2026). A resposta tem de estar na tela, não na minha explicação.
+  const cupom = f?.coupon ?? 0;
+  const sufixoCupom = cupom > 0 ? ` · já sem ${money(cupom, moeda)} de cupom` : "";
+  if (comValor === undefined || comValor === pedidos) return `${plural(pedidos)} no período${sufixoCupom}`;
   const semValor = pedidos - comValor;
   // Nenhum tem valor ainda: dizer o motivo, não mostrar zero seco.
   if (comValor === 0) {
@@ -514,7 +520,7 @@ export default function Dashboard() {
                     // e emparelhar os dois produzia "R$ 0,00 · 1 pedido", que se
                     // contradiz na própria linha (22/08/2026). Quando há pedido
                     // sem valor, o subtítulo DIZ isso em vez de fingir coerência.
-                    ? legendaFaturamento(faturamento, salesCount)
+                    ? legendaFaturamento(faturamento, salesCount, currency)
                     : card.context}
                   trend={card.key === "revenue" ? revenueTrend : undefined}
                   tone={card.tone}
@@ -542,6 +548,16 @@ export default function Dashboard() {
               ? `${money(pedidosFeitos.revenue, currency)} · ${pedidosFeitos.orders}`
               : "—"
           }
+          // Este é o número que ela compara com o Seller Central todo dia. Dizer
+          // isso na própria legenda encerra a dúvida "por que é diferente do
+          // Faturamento?" sem exigir que ela lembre da regra.
+          hint={
+            pedidosFeitos
+              ? (faturamento?.coupon ?? 0) > 0
+                ? "preço de tabela, antes do cupom — é o número do Seller Central"
+                : "preço de tabela — é o número do Seller Central"
+              : undefined
+          }
           loading={loading}
         />
         {/*
@@ -556,6 +572,10 @@ export default function Dashboard() {
           <CompactMetric
             label="Cupom resgatado"
             value={`− ${money(faturamento?.coupon ?? 0, currency)}`}
+            // Fecha a conta na tela: este é EXATAMENTE o valor que separa
+            // "Pedidos feitos" de "Faturamento". Sem dizer isso, o número fica
+            // solto e a pessoa não liga um card ao outro.
+            hint="a diferença entre Pedidos feitos e Faturamento"
             loading={loading}
           />
         )}
