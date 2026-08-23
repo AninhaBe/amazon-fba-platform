@@ -1,6 +1,6 @@
 # Estado atual — onde cada frente parou
 
-**Última atualização: 16/08/2026.** Leia isto antes de continuar qualquer frente
+**Última atualização: 23/08/2026** (seções de ambiente, infraestrutura e IP da Shopee). Leia isto antes de continuar qualquer frente
 em andamento; o "porquê" das decisões está nos docs de cada área e nos ADRs.
 
 Este doc responde três perguntas: **o que está pronto**, **o que está no meio do
@@ -48,8 +48,8 @@ Estado dos cadastros de OAuth/webhook por portal (todos feitos em 19–20/08):
 | **Shopee** | Implementação local completa (OAuth, dashboard multi-loja, ingestão fail-closed/retomável, settings por loja, remoção local). **Go Live: último estado comprovado é "under review" em 07/08** — reconferir no console antes de afirmar qualquer coisa. Credenciais, autorização e payload Live seguem **BLOCKED**. | 07/08 |
 | **TikTok Shop** | OAuth, sync paginado, cron, modelo canônico, overview, Dashboard e Financeiro implementados. Ledger financeiro **destravado em 15/08** (ver abaixo). Conciliação financeira real segue parcial. | 15/08 |
 
-**Baseline local de qualidade: 491 testes passando** (`node --experimental-strip-types
---test tests/*.test.mjs`, medido em 16/08). Evidência intermediária — não equivale a
+**Baseline local de qualidade: 559 testes passando** (`node --experimental-strip-types
+--test tests/*.test.mjs`, medido em 23/08). Evidência intermediária — não equivale a
 validação live, visual ou autenticada do produto.
 
 ---
@@ -251,14 +251,18 @@ dashboard e módulos suportam múltiplas lojas; `/integracoes` remove credenciai
 dependentes **somente do nosso lado**, sem chamar a OpenAPI nem revogar acesso no
 marketplace.
 
-⚠️ **Declaramos UM IP** (`74.220.49.18`, medido). O Render publica as faixas
-`74.220.49.0/24` e `74.220.57.0/24`, mas a Shopee **rejeita CIDR** — só aceita endereço
-avulso, e 256 endereços não cabem no limite de 2000 caracteres. Se o Render migrar dentro
-da faixa, as chamadas passam a ser **bloqueadas em silêncio**. Reconferir o IP depois de
-qualquer mudança de plano ou região.
+🔴 **O IP declarado está OBSOLETO.** Declaramos `74.220.49.18`, que era o IP de saída do
+**Render** — desativado em 19/08. A produção hoje é Fly (`gru`), com outro IP.
+
+A Shopee **rejeita CIDR**: só aceita endereço avulso, e uma faixa /24 não cabe no limite
+de 2000 caracteres. Então o allowlist tem que declarar o IP de saída real do Fly.
+
+⚠️ **Medir o IP de saída do Fly e reescrever o allowlist antes de qualquer chamada Live.**
+Enquanto o IP estiver errado, as chamadas são **bloqueadas em silêncio** — não dá erro
+claro, some. Reconferir depois de qualquer mudança de plano ou região.
 
 **Depois da aprovação** (a Shopee devolve `partner_id` e key de produção):
-1. Definir no Render: `SHOPEE_PARTNER_ID`, `SHOPEE_PARTNER_KEY` (a de Live) e
+1. Definir no Fly (`fly secrets set`): `SHOPEE_PARTNER_ID`, `SHOPEE_PARTNER_KEY` (a de Live) e
    `SHOPEE_ENV=live`.
 2. O sócio da Ana (que tem loja Shopee) abre `/api/integrations/shopee/connect` e
    autoriza. ⚠️ **A loja cai no workspace de quem estiver logado** — decidir antes quem
@@ -402,9 +406,15 @@ não uso de produto.
 
 ## Ambiente e credenciais
 
-- Produção: Render (`sellercore.onrender.com`), banco Supabase, cron por GitHub Actions a
-  cada 5 min (ADR-003).
-- Segredos **nunca** no repo: `.env.local` local, painel do Render em produção.
+- Produção: **Fly.io**, app `nexo`, região `gru` (São Paulo), em
+  **`https://nexoaihub.com.br`** — ADR-015. Banco Supabase. Agendamento pelo
+  **agendador interno** (ADR-019) somado ao workflow `cron.yml`; a máquina agendada
+  nativa do Fly não serve, porque `--schedule` só aceita granularidade horária.
+  ⚠️ `auto_stop_machines` fica **desligado** e `min_machines_running = 1`.
+- ~~Render~~ — **desativado**. `sellercore.onrender.com` foi suspenso em 19/08 e devolve
+  503. O identificador continua nas allowlists de OAuth (ver `AGENTS.md`), mas **não é
+  mais um endereço vivo**: nada novo deve apontar para lá.
+- Segredos **nunca** no repo: `.env.local` local, `fly secrets` em produção.
 - **Tokens são cifrados no banco** (`enc:v1:`, AES-256-GCM, chave
   `INTEGRATION_TOKEN_KEY`). Sempre passar por `revealSecret()`
   (`src/lib/integrations/secrets.ts`) antes de usar. 📌 Mandar o texto cifrado como Bearer
@@ -424,8 +434,8 @@ Levantado em 15/08 ao dimensionar escala (ADR-014):
 
 | Item | Situação | Ação |
 |---|---|---|
-| Render Free | 512 MB | Standard (2 GB, ~US$ 25/mês) antes de escalar usuários |
-| Supabase Free | banco em **526 MB** contra limite de 500 MB | avaliar upgrade |
+| Fly `shared-cpu-1x` | **1 GB** — 512 MB está descartado, foi o que matou o Render Free | reavaliar ao escalar usuários |
+| Supabase Free | banco em **526 MB** contra limite de 500 MB | **já passou do teto** — avaliar upgrade |
 
 ⚠️ **As tabelas legadas NÃO podem cair.** Foi cogitado dropar três delas (~266 MB) — todas
 as três estão em uso, e `workspace_marketplace_orders` guarda os payloads brutos.

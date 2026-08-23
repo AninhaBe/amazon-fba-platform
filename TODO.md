@@ -189,7 +189,7 @@ decidir. Ideia veio de um print de concorrente (Hunter Hub) que ela mandou.
 - [ ] **Replicar para os outros canais.** Amazon, Shopee e TikTok também cobram
   frete e também declaram envio — mesma garantia, campos diferentes.
 
-## Limpeza (depois que o overview SQL do ML estiver estável no Render)
+## Limpeza (depois que o overview SQL do ML estiver estável em produção)
 
 - [ ] Remover o código dormente de snapshots/materializer do ML
   (`mercadoLivreOverviewCache.ts`, `mercadoLivreOverviewMaterializer.ts`,
@@ -202,12 +202,11 @@ decidir. Ideia veio de um print de concorrente (Hunter Hub) que ela mandou.
 
 ## Infra / performance
 
-- [ ] **Aproximar app e banco**: Render está em Oregon e o Supabase em
-  São Paulo (~180ms por query). Opções: mover o serviço do Render, ou testar o
-  deploy Vercel que já está configurado para `gru1` (São Paulo) com os crons no
-  `vercel.json`
-- [ ] Pinger externo em `/api/health` a cada 5–10 min para a instância free do
-  Render não hibernar (pode ser no mesmo cron-job.org)
+- [x] ~~**Aproximar app e banco**~~ — RESOLVIDO pela migração para o Fly em São
+  Paulo (região `gru`, ADR-015). Era o motivo de existir da migração: o Render
+  estava em Oregon e o Supabase em São Paulo, ~180ms por query.
+- [x] ~~Pinger externo em `/api/health`~~ — desnecessário no Fly:
+  `auto_stop_machines = false` e `min_machines_running = 1` no `fly.toml`.
 
 ## UI (opcional, sem urgência)
 
@@ -220,4 +219,4 @@ decidir. Ideia veio de um print de concorrente (Hunter Hub) que ela mandou.
 
 - [ ] Rotacionar `MELI_CLIENT_SECRET` e `OAUTH_CLIENT_SECRET` (foram expostos
   em uma conversa de suporte; trocar nos painéis do Mercado Livre/Amazon e
-  atualizar no Render)
+  atualizar com `fly secrets set`)

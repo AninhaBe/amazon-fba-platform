@@ -14,7 +14,7 @@ de propósito em três lugares que quebram se você mexer:
 
 | Onde | Por que não trocar |
 |---|---|
-| `sellercore.onrender.com` | Está cadastrada como **Redirect URI** na allowlist da Shopee e do TikTok. Trocar a URL **quebra o OAuth** dos dois canais. |
+| `sellercore.onrender.com` | Segue cadastrada **na Amazon (SP-API) e no Mercado Livre**, onde o endereço novo entrou *ao lado* do antigo. Remover de lá **quebra o OAuth** desses dois. ⚠️ **Na Shopee e no TikTok já foi substituído** em 19–20/08 (campo único) — ver `docs/estado-atual.md` → "Domínio e OAuth". O host em si está **morto** (503): serve de identificador cadastrado, nunca de endereço para apontar algo novo. |
 | `admin@sellercore.test`, `admin2@sellercore.test` | Contas reais no banco de produção. |
 | Nomes de variável, arquivo e tabela | Renomear é churn sem ganho e conflita com tudo em andamento. |
 
