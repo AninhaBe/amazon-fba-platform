@@ -1441,7 +1441,7 @@ summary:hover { background: var(--paper-soft); }
 .meli-products-page table td:last-child small { min-height: 12px; color: var(--ink-muted); font-size: 12px; }
 
 /* Catálogo operacional do Mercado Livre. */
-.listing-refresh { min-height: 34px; border-radius: var(--radius-sm); background: var(--ink); padding-inline: 11px; color: white; font-size: 12px; font-weight: var(--weight-medium); transition-property: background-color, scale; transition-duration: 150ms; transition-timing-function: ease-out; }
+.listing-refresh { display: inline-flex; min-height: 40px; align-items: center; justify-content: center; border-radius: var(--radius-sm); background: var(--ink); padding-inline: 14px; color: white; font-size: 13px; font-weight: var(--weight-medium); line-height: 18px; text-decoration: none; transition-property: background-color, scale; transition-duration: 150ms; transition-timing-function: ease-out; }
 .listing-refresh:hover { background: color-mix(in oklch, var(--ink) 88%, white); }
 .listing-refresh:active { scale: .96; }
 .listing-refresh:disabled { cursor: wait; opacity: .62; }
@@ -4020,9 +4020,6 @@ summary:hover { background: var(--paper-soft); }
 .research-explainer > div { padding: 10px 12px; border-block-start: 1px solid var(--ink-08); }
 .research-explainer > div > div > div { border: 0 !important; border-inline-start: 2px solid var(--ink-08) !important; border-radius: 0 !important; background: transparent !important; padding: 6px 10px !important; }
 .research-controls { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border-radius: var(--radius-md); background: var(--paper); box-shadow: var(--shadow-surface); }
-.research-table { min-width: 960px; }
-.research-table td { height: 58px; padding-block: 7px !important; }
-.research-table img { width: 36px !important; height: 36px !important; }
 .research-load-more { display: flex; justify-content: center; padding: 10px 16px; border-block-start: 1px solid var(--ink-08); }
 .research-load-more button { min-height: 32px; padding-inline: 10px; border: 0; border-radius: var(--radius-sm); background: var(--paper); color: var(--ink-soft); font-size: 12px; box-shadow: var(--shadow-xs); cursor: pointer; }
 .research-load-more button:hover { background: var(--ink-03); color: var(--ink); transform: none !important; }

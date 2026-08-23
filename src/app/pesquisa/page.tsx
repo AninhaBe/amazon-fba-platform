@@ -8,6 +8,7 @@ import { TableLoading } from "../components/LoadingState";
 import { EmptyState } from "../components/EmptyState";
 import { readJson } from "../../lib/readJson";
 import { brDate } from "../../lib/datetime";
+import styles from "./PesquisaPage.module.css";
 
 interface ProductResult {
   asin: string;
@@ -324,16 +325,28 @@ export default function PesquisaPage() {
         </div>
       )}
 
-      <section className="listing-table-shell research-results-shell" aria-labelledby="research-results-title">
-        <header><div><p className="section-kicker">Mercado Amazon</p><h2 id="research-results-title">{searched ? `${sorted.length} ${sorted.length === 1 ? "resultado carregado" : "resultados carregados"}` : "Encontre e compare produtos"}</h2></div><p>{searched ? `cerca de ${total.toLocaleString("pt-BR")} encontrados` : "preço, concorrência, idade e posição"}</p></header>
-        <div className="overflow-x-auto"><table className="listing-table research-table">
+      <section className={`${styles.resultsShell} listing-table-shell research-results-shell`} aria-labelledby="research-results-title">
+        <header className={styles.resultsHeader}>
+          <div>
+            <p className="section-kicker">Mercado Amazon</p>
+            <h2 id="research-results-title">
+              {searched ? `${sorted.length} ${sorted.length === 1 ? "produto encontrado" : "produtos encontrados"}` : "Encontre e compare produtos"}
+            </h2>
+          </div>
+          <p aria-live="polite">
+            {searched ? (
+              <><span>Busca</span><strong title={searchedQuery}>{searchedQuery}</strong><span>· {items.length} de ~{total.toLocaleString("pt-BR")}</span></>
+            ) : "Preço, concorrência, idade e posição"}
+          </p>
+        </header>
+        <div className={styles.tableViewport}><table className={`${styles.table} listing-table research-table`}>
           <caption className="sr-only">Resultados da pesquisa de anúncios da Amazon</caption>
-          <thead className="bg-[var(--ink-03)] text-left text-xs uppercase tracking-wide text-[var(--ink-muted)]">
+          <thead>
             <tr>
-              <th scope="col" className="px-3 py-3">Produto</th>
+              <th scope="col">Produto</th>
               <th
                 scope="col"
-                className="whitespace-nowrap px-3 py-3 text-right"
+                className="text-right"
                 title={
                   somenteFba
                     ? "Menor preço entre as ofertas com logística da Amazon (FBA)"
@@ -344,20 +357,20 @@ export default function PesquisaPage() {
               </th>
               <th
                 scope="col"
-                className="whitespace-nowrap px-3 py-3 text-right"
+                className="text-right"
                 title="Quantidade de ofertas ativas concorrendo neste produto"
               >
                 Concorrentes
               </th>
-              <th scope="col" className="whitespace-nowrap px-3 py-3 text-right">Idade / criação</th>
+              <th scope="col" className="text-right">Idade / criação</th>
               <th
                 scope="col"
-                className="whitespace-nowrap px-3 py-3 text-right"
+                className="text-right"
                 title="Posição atual de vendas na categoria. Quanto menor, melhor."
               >
                 Posição de vendas
               </th>
-              <th scope="col" className="px-3 py-3 text-right">Ações</th>
+              <th scope="col" className="text-right">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--line)]">
@@ -379,39 +392,39 @@ export default function PesquisaPage() {
                 const age = ageLabel(eff);
                 const isNew = eff && REFERENCE_NOW - new Date(eff).getTime() < 180 * 86400000;
                 return (
-                  <tr key={p.asin} className="hover:bg-[var(--ink-03)]">
-                    <td className="px-3 py-2.5">
-                      <div className="flex items-center gap-3">
+                  <tr key={p.asin} className={styles.resultRow}>
+                    <td className={styles.productCell}>
+                      <div className={styles.productIdentity}>
                         {p.imageUrl && (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={p.imageUrl} alt="" className="h-10 w-10 shrink-0 rounded object-contain" />
+                          <img src={p.imageUrl} alt="" className={styles.productImage} />
                         )}
-                        <div className="min-w-0">
-                          <p className="max-w-[46ch] truncate font-medium">
+                        <div className={styles.productCopy}>
+                          <p className={styles.productTitle}>
                             {p.title || p.asin}
                             {p.isVariation && (
                               <span
-                                className="ml-2 rounded bg-violet-100 px-1.5 py-0.5 align-middle text-[12px] font-semibold text-violet-700"
+                                className={styles.variationBadge}
                                 title="Variação (cor/tamanho). A idade mostrada é a da linha do produto (produto-pai)."
                               >
                                 variação
                               </span>
                             )}
                           </p>
-                          <p className="font-mono text-xs text-[var(--ink-muted)]">
-                            {p.asin}
-                            {p.brand ? ` · ${p.brand}` : ""}
+                          <p className={styles.productMeta}>
+                            <code>{p.asin}</code>
+                            {p.brand ? <span>{p.brand}</span> : null}
                           </p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-3 py-2.5 text-right tabular-nums font-medium text-[var(--ink-soft)]">
+                    <td className={styles.metricCell} data-label={somenteFba ? "Preço FBA" : "Preço"}>
                       {somenteFba ? (
-                        <span className="inline-flex items-center gap-1.5">
-                          <span className="font-semibold text-blue-700">{money(p.fbaPrice, p.currency)}</span>
+                        <span className={styles.inlineMetric}>
+                          <strong className={styles.metricValue}>{money(p.fbaPrice, p.currency)}</strong>
                           {p.fbaPrice != null && p.fbaPrice === pisoFba && (
                             <span
-                              className="rounded bg-blue-100 px-1.5 py-0.5 text-[12px] font-semibold text-blue-700"
+                              className={styles.floorBadge}
                               title="Menor preço FBA entre os resultados carregados"
                             >
                               piso
@@ -419,19 +432,18 @@ export default function PesquisaPage() {
                           )}
                         </span>
                       ) : (
-                        money(p.price, p.currency)
+                        <strong className={styles.metricValue}>{money(p.price, p.currency)}</strong>
                       )}
                     </td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-[var(--ink-soft)]">
-                      {p.offerCount != null ? p.offerCount : "—"}
+                    <td className={styles.metricCell} data-label="Concorrentes">
+                      <strong className={styles.metricValue}>{p.offerCount != null ? p.offerCount : "—"}</strong>
+                      {p.offerCount != null ? <span className={styles.metricCaption}>{p.offerCount === 1 ? "oferta ativa" : "ofertas ativas"}</span> : null}
                     </td>
-                    <td className="px-3 py-2.5 text-right">
-                      <div className="flex flex-col items-end gap-0.5">
+                    <td className={styles.metricCell} data-label="Idade / criação">
+                      <div className={styles.metricStack}>
                         {age ? (
-                          <span
-                            className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${
-                              isNew ? "bg-emerald-100 text-emerald-700" : "bg-[var(--ink-05)] text-[var(--ink-muted)]"
-                            }`}
+                          <strong
+                            className={`${styles.metricValue} ${isNew ? styles.positiveValue : ""}`}
                             title={
                               p.isVariation
                                 ? `Idade da linha (produto-pai ${p.parentAsin})`
@@ -439,24 +451,28 @@ export default function PesquisaPage() {
                             }
                           >
                             {age}
-                            {p.isVariation && <span className="ml-1 opacity-60">·var</span>}
-                          </span>
+                            {p.isVariation && <small>· variação</small>}
+                          </strong>
                         ) : (
-                          <span className="text-[var(--ink-muted)]">—</span>
+                          <strong className={styles.metricValue}>—</strong>
                         )}
-                        <span className="whitespace-nowrap text-[12px] text-[var(--ink-muted)]">
-                          criado {fmtDate(p.launchDate)}
+                        <span className={styles.metricCaption}>
+                          criado em {fmtDate(p.launchDate)}
                         </span>
                       </div>
                     </td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-[var(--ink-soft)]">
+                    <td className={styles.metricCell} data-label="Posição de vendas">
                       {p.salesRank ? (
-                        <div className="flex flex-col items-end gap-0.5">
-                          <span className="inline-flex items-baseline gap-1.5">
+                        <div className={styles.metricStack}>
+                          <span className={styles.rankLine}>
+                            {/* O RANK vem primeiro: é o dado. O delta é contexto,
+                                e vinha antes — o olho lia a variação como se fosse
+                                a posição (23/08/2026). */}
+                            <strong className={styles.metricValue}>#{p.salesRank.toLocaleString("pt-BR")}</strong>
                             {p.rankDelta != null && (
                               <span
-                                className={`inline-flex items-center gap-0.5 text-[12px] font-bold tabular-nums ${
-                                  p.rankDelta > 0 ? "text-emerald-600" : p.rankDelta < 0 ? "text-red-500" : "text-amber-500"
+                                className={`${styles.rankDelta} ${
+                                  p.rankDelta > 0 ? styles.positiveValue : p.rankDelta < 0 ? styles.negativeValue : styles.neutralValue
                                 }`}
                                 title={
                                   p.rankDelta === 0
@@ -475,23 +491,22 @@ export default function PesquisaPage() {
                                 {Math.abs(p.rankDelta).toLocaleString("pt-BR")}
                               </span>
                             )}
-                            <strong className="font-semibold text-[var(--ink-soft)]">#{p.salesRank.toLocaleString("pt-BR")}</strong>
                           </span>
                           {p.salesRankCategory && (
-                            <span className="max-w-[24ch] truncate text-[12px] text-[var(--ink-muted)]" title={p.salesRankCategory}>
+                            <span className={`${styles.metricCaption} ${styles.rankCaption}`} title={p.salesRankCategory}>
                               em {p.salesRankCategory}
                             </span>
                           )}
                           {p.subRank && p.subRankCategory !== p.salesRankCategory && (
-                            <span className="max-w-[24ch] truncate text-[12px] font-medium text-emerald-600" title={`Subcategoria: ${p.subRankCategory}`}>
+                            <span className={`${styles.metricCaption} ${styles.rankCaption} ${styles.positiveValue}`} title={`Subcategoria: ${p.subRankCategory}`}>
                               #{p.subRank.toLocaleString("pt-BR")} em {p.subRankCategory}
                             </span>
                           )}
                         </div>
                       ) : "—"}
                     </td>
-                    <td className="px-3 py-2.5 text-right">
-                      <div className="flex items-center justify-end gap-2">
+                    <td className={styles.actionsCell} data-label="Ações">
+                      <div className={styles.actions}>
                         <button
                           type="button"
                           onClick={() => void alternarMonitor(p)}
@@ -502,37 +517,33 @@ export default function PesquisaPage() {
                               ? "Parar de acompanhar — o histórico já coletado é preservado"
                               : "Acompanhar este anúncio: a posição passa a ser fotografada todo dia"
                           }
-                          className={`inline-flex items-center gap-1 whitespace-nowrap rounded-md border px-2.5 py-1 text-xs font-semibold disabled:opacity-50 ${
-                            p.monitorado
-                              ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:border-red-300 hover:bg-red-50 hover:text-red-600"
-                              : "border-[var(--line-strong)] text-[var(--ink-soft)] hover:border-blue-400 hover:text-blue-600"
-                          }`}
+                          className={`${styles.actionButton} ${p.monitorado ? styles.monitoringAction : ""}`}
                         >
                           {p.monitorado ? (
                             <>
                               <Eye className="h-3.5 w-3.5" strokeWidth={2.2} aria-hidden />
-                              monitorando
+                              Monitorando
                             </>
                           ) : (
                             <>
                               <EyeOff className="h-3.5 w-3.5" strokeWidth={2.2} aria-hidden />
-                              monitorar
+                              Monitorar
                             </>
                           )}
                         </button>
                         <Link
                           href={`/calculadora?asin=${p.asin}`}
-                          className="whitespace-nowrap rounded-md bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-700"
+                          className={`${styles.actionButton} ${styles.primaryAction}`}
                         >
-                          calcular
+                          Calcular
                         </Link>
                         <a
                           href={`https://www.amazon.com.br/dp/${p.asin}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="whitespace-nowrap rounded-md border border-[var(--line-strong)] px-2.5 py-1 text-xs font-medium text-[var(--ink-soft)] hover:border-blue-400 hover:text-blue-600"
+                          className={styles.actionButton}
                         >
-                          abrir ↗
+                          Abrir ↗
                         </a>
                       </div>
                     </td>

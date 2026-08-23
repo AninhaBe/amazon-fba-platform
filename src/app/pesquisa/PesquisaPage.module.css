@@ -1,0 +1,397 @@
+.resultsShell {
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--paper);
+  box-shadow: var(--shadow-surface);
+}
+
+.resultsHeader {
+  display: flex;
+  min-height: 60px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 10px 16px;
+  border-block-end: 1px solid var(--ink-08);
+  background: color-mix(in oklch, var(--paper) 96%, var(--ink));
+}
+
+.resultsHeader h2 {
+  margin-block-start: 2px;
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: var(--weight-semibold);
+  line-height: 22px;
+  letter-spacing: var(--track-l);
+}
+
+.resultsHeader > p {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+.resultsHeader > p strong {
+  max-width: 24ch;
+  overflow: hidden;
+  color: var(--ink-soft);
+  font-weight: var(--weight-medium);
+  text-overflow: ellipsis;
+}
+
+.tableViewport {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  min-width: 1080px;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.table th {
+  height: 40px;
+  padding-inline: 14px !important;
+  background: var(--paper-soft);
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: var(--weight-medium);
+  line-height: 16px;
+  letter-spacing: var(--track-s);
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.table th:nth-child(1) { width: 31%; }
+.table th:nth-child(2) { width: 9%; }
+.table th:nth-child(3) { width: 9%; }
+.table th:nth-child(4) { width: 13%; }
+.table th:nth-child(5) { width: 18%; }
+.table th:nth-child(6) { width: 20%; }
+
+.resultRow {
+  background: var(--paper);
+  transition: background-color var(--duration) var(--ease);
+}
+
+.resultRow:hover {
+  background: var(--ink-03);
+}
+
+.resultRow td {
+  height: 80px;
+  padding: 10px 14px !important;
+  border-block-end: 1px solid var(--ink-08);
+  vertical-align: middle;
+}
+
+.resultRow:last-child td {
+  border-block-end: 0;
+}
+
+.productCell {
+  min-width: 0;
+}
+
+.productIdentity {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 44px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+
+.productImage {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  object-fit: contain;
+  outline: 1px solid oklch(0 0 0 / .1);
+  outline-offset: -1px;
+}
+
+.productCopy {
+  min-width: 0;
+}
+
+.productTitle {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: var(--weight-medium);
+  line-height: 18px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.variationBadge,
+.floorBadge {
+  display: inline-flex;
+  align-items: center;
+  height: 19px;
+  margin-inline-start: 6px;
+  border-radius: var(--radius-badge);
+  padding-inline: 6px;
+  font-size: 11px;
+  font-weight: var(--weight-medium);
+  line-height: 1;
+  vertical-align: 1px;
+  white-space: nowrap;
+}
+
+.variationBadge {
+  background: color-mix(in oklch, var(--brand) 10%, var(--paper));
+  color: var(--brand-dark);
+}
+
+.floorBadge {
+  background: var(--positive-soft);
+  color: var(--positive);
+}
+
+.productMeta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  margin-block-start: 3px;
+  overflow: hidden;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.productMeta code {
+  flex: none;
+  color: var(--ink-soft);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.productMeta span::before {
+  content: "·";
+  margin-inline-end: 6px;
+  color: var(--ink-faint);
+}
+
+.metricCell {
+  color: var(--ink-soft);
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.metricValue {
+  display: block;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: var(--weight-medium);
+  line-height: 22px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metricValue small {
+  margin-inline-start: 4px;
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: var(--weight-body);
+}
+
+.metricCaption {
+  display: block;
+  max-width: 100%;
+  margin-block-start: 1px;
+  overflow: hidden;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metricStack {
+  display: flex;
+  min-width: 0;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+.inlineMetric,
+.rankLine,
+.rankDelta {
+  display: inline-flex;
+  align-items: center;
+}
+
+.inlineMetric { justify-content: flex-end; gap: 5px; }
+/* O rank é o número principal e vem primeiro; o delta é sufixo.
+   Antes o delta abria a linha em 12px semibold e verde — mais chamativo que a
+   própria posição, e a leitura saía trocada (23/08/2026). */
+.rankLine { gap: 5px; flex-wrap: nowrap; justify-content: flex-end; }
+.rankLine .metricValue { font-size: 17px; font-weight: var(--weight-semibold); }
+.rankDelta {
+  gap: 1px; font-size: 11px; font-weight: var(--weight-semibold);
+  opacity: .8; flex-shrink: 0; font-variant-numeric: tabular-nums;
+}
+
+/* A categoria QUEBRA em duas linhas em vez de cortar no meio da palavra.
+   "em Ferramentas e Materiais de…" não diz nada; em duas linhas cabe inteiro. */
+.rankCaption {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+  text-wrap: balance;
+  line-height: 15px;
+}
+
+.positiveValue { color: var(--positive) !important; }
+.negativeValue { color: var(--danger) !important; }
+.neutralValue { color: var(--warning) !important; }
+
+.actionsCell {
+  text-align: end;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.actionButton {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  padding-inline: 10px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: var(--shadow-xs);
+  transition-property: background-color, color, box-shadow, scale;
+  transition-duration: var(--duration);
+  transition-timing-function: var(--ease);
+}
+
+.actionButton:hover {
+  background: var(--ink-05);
+  color: var(--ink);
+  box-shadow: var(--shadow-hover);
+}
+
+.actionButton:active { scale: .96; }
+.actionButton:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.actionButton:disabled { cursor: wait; opacity: .5; }
+
+.primaryAction,
+.primaryAction:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.monitoringAction {
+  background: var(--positive-soft);
+  color: var(--positive);
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--positive) 18%, transparent);
+}
+
+@media (max-width: 800px) {
+  .resultsHeader {
+    min-height: 0;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+    padding-block: 12px;
+  }
+
+  .resultsHeader > p {
+    width: 100%;
+    overflow: hidden;
+  }
+
+  .table {
+    min-width: 0;
+  }
+
+  .table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .resultRow {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin: 8px;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-xs);
+  }
+
+  .resultRow td {
+    display: block;
+    height: auto;
+    min-width: 0;
+    padding: 9px 10px !important;
+    border-block-end: 0;
+    text-align: start;
+  }
+
+  .productCell,
+  .actionsCell {
+    grid-column: 1 / -1;
+  }
+
+  .productCell {
+    border-block-end: 1px solid var(--ink-08) !important;
+    padding-block-end: 12px !important;
+  }
+
+  .metricCell::before,
+  .actionsCell::before {
+    content: attr(data-label);
+    display: block;
+    margin-block-end: 2px;
+    color: var(--ink-muted);
+    font-size: 11px;
+    font-weight: var(--weight-body);
+    line-height: 15px;
+  }
+
+  .metricStack { align-items: flex-start; }
+  .inlineMetric { justify-content: flex-start; }
+
+  .actionsCell {
+    border-block-start: 1px solid var(--ink-08) !important;
+    padding-block-start: 12px !important;
+  }
+
+  .actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+}
