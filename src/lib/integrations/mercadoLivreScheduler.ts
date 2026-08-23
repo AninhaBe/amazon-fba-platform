@@ -4,6 +4,7 @@ import { getIntegration } from "./integrationStore";
 import {
   reverifyMercadoLivreOrders,
   runMercadoLivreSyncBatch,
+  FRESH_FOR_MS,
   type MercadoLivreSyncStatus,
 } from "./mercadoLivreSync";
 
@@ -40,14 +41,17 @@ export async function runScheduledMercadoLivreSync(
         AND (
           (sync.status IN ('pending', 'syncing')
             AND (sync.lease_until IS NULL OR sync.lease_until < now()))
+          -- A janela vem de FRESH_FOR_MS (mercadoLivreSync.ts), não de um literal
+          -- daqui: os dois portões PRECISAM casar, e um literal solto foi o que
+          -- deixou este canal 6h atrás dos outros até 23/08/2026.
           OR (sync.status = 'complete'
-            AND COALESCE(sync.last_success_at, sync.updated_at) < now() - interval '6 hours')
+            AND COALESCE(sync.last_success_at, sync.updated_at) < now() - ($3 || ' milliseconds')::interval)
         )
       ORDER BY
         CASE WHEN sync.status = 'complete' THEN 1 ELSE 0 END,
         sync.updated_at ASC
       LIMIT $2`,
-    [PROVIDER, connectionLimit]
+    [PROVIDER, connectionLimit, String(FRESH_FOR_MS)]
   );
 
   return Promise.all(candidates.map(async (candidate): Promise<ScheduledSyncResult> => {

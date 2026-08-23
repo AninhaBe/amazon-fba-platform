@@ -48,7 +48,11 @@ export async function runScheduledShopeeSync(
             AND sync.updated_at < now() - interval '5 minutes'
             AND (sync.lease_until IS NULL OR sync.lease_until < now()))
           OR (sync.status = 'complete'
-            AND COALESCE(sync.last_success_at, sync.updated_at) < now() - interval '6 hours')
+            -- 6h → 10min em 23/08/2026: este literal DIVERGIA do FRESH_FOR_MS
+            -- de 10 minutos em shopeeSync.ts. Com os dois em desacordo, a
+            -- conexão só virava candidata a cada 6 horas — o portão mais lento
+            -- manda, e o valor curto do outro arquivo não servia para nada.
+            AND COALESCE(sync.last_success_at, sync.updated_at) < now() - interval '10 minutes')
         )
       ORDER BY
         CASE WHEN sync.status = 'complete' THEN 1 ELSE 0 END,

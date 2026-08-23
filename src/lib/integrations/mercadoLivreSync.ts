@@ -30,7 +30,24 @@ const WINDOW_DAYS = 7;
 const PAGE_SIZE = 50;
 const SHIPMENT_CONCURRENCY = 5;
 const SHIPMENT_BATCH_SIZE = 5;
-const FRESH_FOR_MS = 6 * 60 * 60_000;
+/**
+ * Por quanto tempo um sync "complete" é considerado fresco. Enquanto vale, o
+ * canal se recusa a abrir janela nova.
+ *
+ * 6 HORAS → 2 MINUTOS em 23/08/2026. A Amazon já tinha feito essa queda em
+ * 21/08 (ADR-023) pelo mesmo motivo, e ninguém replicou aqui — o resultado foi
+ * o painel dela mostrando o Mercado Livre com **8h42 de defasagem** enquanto a
+ * Amazon estava com 3 minutos, num produto que ela usa como tempo real.
+ *
+ * ⚠️ Este valor é EXPORTADO e o `mercadoLivreScheduler` o consome na consulta de
+ * candidatos. São dois portões em série — o scheduler decide SE a conexão entra
+ * no lote, este decide SE a janela abre — e divergir entre eles faz o sync rodar
+ * e não trazer nada. Antes eram dois literais soltos; agora é um número só.
+ *
+ * O custo é baixo porque a janela é INCREMENTAL: cada passada cobre de
+ * `covered_to` até agora, ou seja, ~2 minutos de pedidos.
+ */
+export const FRESH_FOR_MS = 2 * 60_000;
 const COVERAGE_TOLERANCE_MS = 15 * 60_000;
 
 interface SyncRow {
