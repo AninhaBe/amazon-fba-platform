@@ -9,6 +9,7 @@ import { EmptyState } from "../../components/EmptyState";
 import { Pagination } from "../../components/Pagination";
 import { readJson } from "../../../lib/readJson";
 import { brDate } from "../../../lib/datetime";
+import styles from "../PesquisaPage.module.css";
 
 interface RankPoint {
   date: string;
@@ -365,7 +366,7 @@ export default function HistoricoPage() {
         action={
           <Link
             href="/amazon/pesquisa"
-            className="listing-refresh"
+            className={`${styles.headerAction} listing-refresh`}
           >
             Nova pesquisa
           </Link>

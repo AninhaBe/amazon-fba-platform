@@ -195,7 +195,7 @@ export default function PesquisaPage() {
         action={
           <Link
             href="/amazon/pesquisa/historico"
-            className="listing-refresh"
+            className={`${styles.headerAction} listing-refresh`}
           >
             Ver histórico
           </Link>
@@ -311,7 +311,9 @@ export default function PesquisaPage() {
               ([k, label]) => (
                 <button
                   key={k}
+                  type="button"
                   onClick={() => setSort(k)}
+                  aria-pressed={sort === k}
                   className={`rounded-md px-3 py-1.5 font-medium ${
                     sort === k ? "bg-blue-100 text-blue-700" : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
                   }`}

@@ -5,7 +5,7 @@
   box-shadow: var(--shadow-surface);
 }
 
-.resultsHeader {
+.resultsShell > .resultsHeader {
   display: flex;
   min-height: 60px;
   align-items: center;
@@ -16,7 +16,7 @@
   background: color-mix(in oklch, var(--paper) 96%, var(--ink));
 }
 
-.resultsHeader h2 {
+.resultsShell > .resultsHeader h2 {
   margin-block-start: 2px;
   color: var(--ink);
   font-size: 16px;
@@ -25,7 +25,7 @@
   letter-spacing: var(--track-l);
 }
 
-.resultsHeader > p {
+.resultsShell > .resultsHeader > p {
   display: flex;
   min-width: 0;
   align-items: center;
@@ -36,7 +36,7 @@
   white-space: nowrap;
 }
 
-.resultsHeader > p strong {
+.resultsShell > .resultsHeader > p strong {
   max-width: 24ch;
   overflow: hidden;
   color: var(--ink-soft);
@@ -107,7 +107,7 @@
   gap: 12px;
 }
 
-.productImage {
+.table .productImage {
   width: 44px;
   height: 44px;
   border-radius: var(--radius-sm);
@@ -115,6 +115,17 @@
   object-fit: contain;
   outline: 1px solid oklch(0 0 0 / .1);
   outline-offset: -1px;
+}
+
+.headerAction {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  padding-inline: 14px;
+  font-size: 13px;
+  line-height: 18px;
+  text-decoration: none;
 }
 
 .productCopy {
@@ -317,7 +328,7 @@
 }
 
 @media (max-width: 800px) {
-  .resultsHeader {
+  .resultsShell > .resultsHeader {
     min-height: 0;
     align-items: flex-start;
     flex-direction: column;
@@ -325,7 +336,7 @@
     padding-block: 12px;
   }
 
-  .resultsHeader > p {
+  .resultsShell > .resultsHeader > p {
     width: 100%;
     overflow: hidden;
   }
