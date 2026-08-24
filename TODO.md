@@ -126,7 +126,18 @@ adaptar **não é copiar código**: cada API entrega a informação de um jeito.
   somá-lo às deduções desconta duas vezes. ✅ Amazon (15/08): a cascata parte do
   **preço de tabela**, mostra "Cupons e promoções" como dedução e fecha num
   subtotal que **é** o card de faturamento. Assim o cupom aparece sem descontar
-  duas vezes. Falta ML, Shopee e TikTok.
+  duas vezes.
+  ✅ TikTok (23/08): **não havia dupla contagem** — a receita já era o valor pago
+  (`sale_price ?? original_price`) e nenhum campo de desconto entrava em dedução.
+  O que faltava era a cascata. `descontoDaLinha` não confia na prosa da doc: exige
+  que **a própria linha reconcilie ao centavo**
+  (`original_price − seller_discount − platform_discount = sale_price`); não
+  reconciliou, faltou campo ou veio negativo ⇒ `null`, sem cascata. Uma unidade
+  não provada contamina o grupo (somar só as provadas afirmaria cupom menor que o
+  concedido). Provado, vira `listPrice`/`promotionDiscount` e
+  `coverage.revenueCascade`, onde `listRevenue − discounts = revenue` **por
+  construção**. Nunca vira `CanonicalFee`.
+  Falta ML e Shopee.
 - [x] **Todos: não misturar bases.** Auditado em 15/08/2026. Achado no **ML**:
   `revenue30d` soma aprovadas **+ canceladas** (proposital, é o "Vendas brutas"
   do painel), mas `paidOrders` conta só aprovadas — o ticket saía inflado em
@@ -137,17 +148,58 @@ adaptar **não é copiar código**: cada API entrega a informação de um jeito.
 - [ ] **Todos: pendência diz de quem é a espera.** "Aguardando dados" parece
   falha nossa; separar "o canal ainda não informou" de "falta você cadastrar".
   ✅ Amazon (15/08): a tela diz quantos pedidos a Amazon ainda não confirmou e
-  quanto valor está esperando, no formato que o Seller Central usa. Falta ML,
-  Shopee e TikTok.
+  quanto valor está esperando, no formato que o Seller Central usa.
+  ✅ TikTok (23/08): o painel separa **três** donos, não dois —
+  `vendedora` (custo de SKU e alíquota; vem primeiro e sempre com link),
+  `canal` (a TikTok não postou o extrato, ou fechou sem informar o componente;
+  **sem botão**, de propósito) e `conciliacao` (a janela ainda não fechou do
+  NOSSO lado). Travado por `tests/tiktokPendenciaDono.test.mjs`, que varre todo
+  texto gerado e o fonte contra `/parcial|incomplet/i`.
+  - 📌 **O terceiro dono não estava no plano e é o achado da rodada.** O card de
+    faturamento dizia "a TikTok ainda não devolveu todos os pedidos do período".
+    Era falso: `periodCovered` vem de `checkpointsCoverPeriod`, que começa com
+    `if (to > closedFinancialBoundary(now)) return false` — ou seja, **toda janela
+    que termina hoje nasce não-coberta**, "Hoje"/"7 dias"/"30 dias" incluídos. A
+    tela acusava o marketplace todo santo dia por uma janela nossa. Ao replicar
+    para ML e Shopee, conferir se a mesma frase existe lá.
+  Falta ML e Shopee.
 - [ ] **Todos: ausência em período conciliado = zero explicado**, não "—" eterno.
   ✅ Amazon (15/08): `somaTipos()` em `src/app/amazon/amazonFinancialCards.ts`
   devolve `0` quando o período está conciliado e `null` quando não está — três
-  cards ficavam mudos para sempre. Falta ML, Shopee e TikTok.
+  cards ficavam mudos para sempre.
+  ✅ TikTok (23/08): em `applyTiktokLedgerAuthority`
+  (`tiktokFinancialV2.ts`), no nível de **período**. O zero só vale com
+  `covered && finalTransactions > 0` — conciliado **sem nenhuma transação
+  liquidada** continua `null`, porque não há extrato afirmando nada. Vale só para
+  `fees` e `sellerShipping`, as categorias que o extrato discrimina, e o que
+  virou zero fica em `coverage.settledZeros` para a tela explicar.
+  ⚠️ **Única mudança de valor na tela desta rodada:** em período conciliado com
+  transação liquidada e sem comissão/frete do vendedor no ledger, "Taxas" e
+  "Frete do vendedor" saem de "—" para R$ 0,00. Falta ML e Shopee.
 - [ ] **Todos: categorizar tarifa por padrão, não por lista de nomes exatos.**
   Nome fora da lista vira R$ 0,00 numa conta que paga. O total é a autoridade.
   ✅ Amazon (15/08): trocado por regex (`/^FBA/i`, `/advertis|productads/i`,
-  `/commission|referralfee/i`) em `amazonFinancialCards.ts`. Falta ML, Shopee e
-  TikTok.
+  `/commission|referralfee/i`) em `amazonFinancialCards.ts`.
+  ✅ TikTok (23/08): `tiktokFeeDecomposition` em `tiktokCanonical.ts`.
+  - 📌 **O TikTok NÃO é o caso da Amazon, e a primeira versão errou por isso.**
+    Na Amazon `fees` é um total independente e o breakdown só o reparte:
+    categorizar errado move dinheiro de card, **não muda o total**. No TikTok
+    não existe total independente — as taxas **são** a soma dos campos. Somar um
+    `*_amount` desconhecido não é miscategorizar, é mexer no dinheiro, e o campo
+    real `fee_per_item_sold_amount` (regra do mercado BR) casa com `/fee/` e
+    somaria **em cima** do próprio pai `fee_and_tax_amount`.
+  - A saída: categorização por padrão continua, mas quem decide é a **aritmética
+    do próprio pedido**. Agregado comprovado (`fee_and_tax_amount` +
+    `shipping_cost_amount`) sempre entra; qualquer outro campo só conta se
+    `revenue_amount + Σ(componentes assinados) = settlement_amount` fechar ao
+    centavo — e aí o sinal sai da identidade, então subsídio comprovado continua
+    crédito em vez de virar custo. Não fechou (ou não veio `settlement_amount`)
+    ⇒ vale só o agregado e o campo vira **pendência nomeada** (`field`, `amount`
+    cru, `reason`), na mesma disciplina de `tiktokUnmappedOrderStatuses`.
+  - ⚠️ **Limite honesto:** a pendência tem nome e valor, mas hoje só os testes a
+    leem. Levar até `last_error`/tela exige `tiktokSync.ts` — fica na lista de
+    observações abaixo.
+  Falta ML e Shopee.
 - [x] **Saldo e retenção — Mercado Livre.** Feito em 15–16/08/2026 via API do
   Mercado Pago (`/v1/payments/search` com `range=money_release_date`), que abre
   com o MESMO token do ML. Leitura limitada a 6 páginas e declarada parcial
@@ -159,10 +211,19 @@ adaptar **não é copiar código**: cada API entrega a informação de um jeito.
     o frete desconta duas vezes). Conferido contra a tela do MP:
     `36,90 − 4,24 − 6,65 = 26,01` = "Total a receber". Ver
     `src/lib/integrations/mercadoPagoBalance.ts`.
-- [ ] **Saldo e retenção — TikTok.** `/finance/202507/orders/unsettled` devolve
-  `sum_est_settlement_amount` e `estimated_settlement` ("Delivered + 3 days").
-  Depende de o ledger financeiro encher — destravado hoje pela correção do
-  `payment_status`, falta confirmar que os dados chegaram.
+- [x] **Saldo e retenção — TikTok.** Feito em 23/08/2026. Retido vem das
+  transações `unsettled` (o valor que o próprio TikTok estima repassar); a data
+  de liberação vem de `expected_time` em `/finance/202309/payments` — a **única**
+  data que a API prova. Venda retida sem extrato aparece com valor e **sem data**,
+  com a contagem de quantas estão nesse estado; nada de previsão inventada.
+  `src/lib/integrations/tiktokSaldo.ts` (módulo puro), rota
+  `/api/integrations/tiktok/saldo` e `TikTokSaldo.tsx`.
+  - ⚠️ `settlement_state` é tratado por `switch` exaustivo com `default: never`:
+    **estorno não conta como venda** e um estado novo estoura em vez de virar
+    venda em silêncio. Foi um defeito real achado na revisão.
+  - A decomposição do repasse (ads, imposto retido, reembolso) segue **não
+    mapeada**: `settlement_amount` chega como número único e a semântica não
+    está provada.
 - [ ] **Saldo e retenção — Shopee.** Bloqueado: sem Go Live não há loja real.
 - [ ] **ML: usar `charges_details` no lucro.** O MP informa a tarifa
   DISCRIMINADA (`ml_sale_fee`, `mp_processing_fee`, `shp_fulfillment`); hoje
@@ -186,8 +247,65 @@ decidir. Ideia veio de um print de concorrente (Hunter Hub) que ela mandou.
   📌 **Lição:** antes de apresentar divergência financeira ao usuário, conferir
   se os dois lados da comparação estão na mesma base. Acusar cobrança errada sem
   isso queima confiança de um jeito que não se recupera.
-- [ ] **Replicar para os outros canais.** Amazon, Shopee e TikTok também cobram
-  frete e também declaram envio — mesma garantia, campos diferentes.
+- [x] **TikTok** — feito em 23/08/2026. `src/lib/integrations/tiktokAuditoria.ts`,
+  rota `/api/integrations/tiktok/auditoria` e `/tiktok/auditoria`.
+  Compara o mesmo campo (`shipping_cost_amount`) lido por dois caminhos
+  independentes: o extrato **por pedido** (fee `shipping_seller`) contra o feed de
+  **statements** (`workspace_financial_transactions.seller_shipping`).
+  📌 A lição do ML foi aplicada ANTES da primeira linha: cada lado carrega uma
+  `base` explícita e a comparação só acontece quando as bases batem. Bases
+  diferentes viram pendência com motivo nomeado, **nunca** divergência.
+  ⚠️ `payment.shipping_fee` (frete do comprador) **não** entra na subtração: o OAS
+  diz que `shipping_cost_amount` já é a soma do `shipping_cost_breakdown`, que
+  **já inclui** `customer_paid_shipping_fee_amount`. Subtrair descontaria a parte
+  do comprador duas vezes — o falso positivo do ML com o sinal invertido. Há
+  teste de regressão travando isso.
+- [ ] **Replicar para Amazon e Shopee.** Também cobram frete e também declaram
+  envio — mesma garantia, campos diferentes.
+
+## Observações da rodada do TikTok (23/08/2026) — achadas, NÃO corrigidas
+
+Levantadas pelos agentes enquanto fechavam o bloco C. Nenhuma foi tocada: ou é
+outro canal (o diff da rodada não podia sair do TikTok), ou é decisão de produto.
+
+- [ ] **`brDate()` adianta em um dia toda data de liberação do Mercado Livre.**
+  `MercadoLivreSaldo.tsx` passa um dia já calculado em São Paulo (`YYYY-MM-DD`)
+  por `brDate()`, que faz `new Date("2026-09-13")` — meia-noite **UTC** — e
+  reconverte para `America/Sao_Paulo`, devolvendo **12/09/2026**. Confirmado
+  rodando. Todas as datas de liberação do ML estão um dia adiantadas na tela.
+  O componente do TikTok não replicou o padrão (usa um `diaBr` local, com o
+  motivo comentado).
+- [ ] **`Math.abs()` transforma crédito em débito nos dois lados do frete.**
+  `canonicalTiktokFees` e `normalizeTransaction` normalizam o sinal com
+  `Math.abs`. Quando o frete líquido é **positivo** (subsídio da plataforma, ou
+  frete do comprador acima da tarifa real), o crédito vira custo e o lucro do
+  canal erra no **dobro** do valor. Inofensivo na auditoria de frete (os dois
+  lados sofrem a mesma transformação), mas não no lucro. Vale um probe quando a
+  loja BR liquidar o primeiro pedido com subsídio.
+- [ ] **`shipping_cost_breakdown` é descartado na ingestão** — não está em
+  `TiktokStatement` nem na allowlist do ledger. Sem ele **não dá para auditar o
+  frete de verdade**: a tarifa real da transportadora
+  (`actual_shipping_fee_amount`) nunca chega ao banco. Capturá-lo é decisão de
+  produto, não ajuste.
+- [ ] **`tiktokSync.ts` ainda fixa dois nomes exatos de tarifa** em dois pontos:
+  o purge de fees placeholder (`provider_fee_code IN ('fee_and_tax_amount',
+  'shipping_cost_amount')`) e `financialEvidence.fees`
+  (`Object.hasOwn(statement,"fee_and_tax_amount")`). O caminho autoritativo
+  (período/ledger) já categoriza por padrão; o caminho **por pedido**
+  (`orderProfitability`, `tiktokModules`) continua na lista exata.
+- [ ] **`TikTokModulePage.tsx` ainda diz "Extrato ainda incompleto"** — mesmo
+  defeito de pendência sem dono que foi corrigido no dashboard, nos módulos
+  monitor/catálogo/financeiro. Pela regra "correção vale para TODOS", ML e Shopee
+  provavelmente têm texto equivalente.
+- [ ] **Pendência de tarifa não chega à tela.** `tiktokFeeDecomposition` já
+  devolve o campo desconhecido com nome, valor cru e motivo, mas só os testes
+  leem. Levar até `last_error`/tela exige `tiktokSync.ts`, fora do escopo da
+  rodada. Não usar `throw`: campo novo benigno pararia a fila financeira em
+  retry infinito.
+- [ ] **Regra BR não separável:** o OAS traz `fee_per_item_sold_amount`
+  ("Applicable only for the Brazil market") dentro de `fee_tax_breakdown`. Está
+  somado dentro de `fee_and_tax_amount`, então não se perde — mas não é
+  discriminável hoje.
 
 ## Limpeza (depois que o overview SQL do ML estiver estável em produção)
 

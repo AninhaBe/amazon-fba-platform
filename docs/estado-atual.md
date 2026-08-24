@@ -46,9 +46,9 @@ Estado dos cadastros de OAuth/webhook por portal (todos feitos em 19–20/08):
 | **Amazon** | Em produção, vendendo, com Ads no ar. ⚠️ **As duas contas seguem com o refresh token revogado** — o app opera pelo `LWA_REFRESH_TOKEN` do ambiente. Ver "Amazon: autorização". | 16/08 |
 | **Mercado Livre** | Em produção e sincronizando. Faturamento validado ao centavo contra o painel do ML. Saldo/liberação e auditoria de frete no ar. | 16/08 |
 | **Shopee** | Implementação local completa (OAuth, dashboard multi-loja, ingestão fail-closed/retomável, settings por loja, remoção local). **Go Live: último estado comprovado é "under review" em 07/08** — reconferir no console antes de afirmar qualquer coisa. Credenciais, autorização e payload Live seguem **BLOCKED**. | 07/08 |
-| **TikTok Shop** | OAuth, sync paginado, cron, modelo canônico, overview, Dashboard e Financeiro implementados. Ledger financeiro **destravado em 15/08** (ver abaixo). Conciliação financeira real segue parcial. | 15/08 |
+| **TikTok Shop** | OAuth, sync paginado, cron, modelo canônico, overview, Dashboard e Financeiro implementados. **Paridade financeira com a Amazon fechada em 23/08** (saldo e retenção, pendência com dono, pedidos a revisar, cascata de cupom, tarifa por padrão, zero explicado). ⚠️ Paridade de tela não é número conferido: a **conciliação financeira real segue parcial** — o procedimento de `tiktok-qa-evidence.md` contra a origem nunca rodou. | 23/08 |
 
-**Baseline local de qualidade: 559 testes passando** (`node --experimental-strip-types
+**Baseline local de qualidade: 624 testes passando** (`node --experimental-strip-types
 --test tests/*.test.mjs`, medido em 23/08). Evidência intermediária — não equivale a
 validação live, visual ou autenticada do produto.
 
@@ -203,15 +203,38 @@ porque todos eram silenciosos:
 derrubava o container (502 em tempos variados — 37s, 75s, 100s: não era timeout, o
 processo morria). Baixado para `60_000ms`.
 
-**PRÓXIMO PASSO:** executar o procedimento autenticado e sem mutação de
+**Paridade financeira fechada em 23/08/2026.** O TikTok recebeu os itens que a
+auditoria da Amazon deixou pendentes: saldo e retenção, pendência com dono,
+"pedidos a revisar" (frete cobrado × declarado), cascata de cupom, categorização
+de tarifa por padrão e zero explicado em período conciliado. Detalhe de cada um
+em `TODO.md` → "Paridade financeira entre canais". Verificado com 624 testes,
+`tsc` limpo e build. **Única mudança de valor na tela:** em período conciliado com
+transação liquidada, "Taxas" e "Frete do vendedor" saem de "—" para R$ 0,00.
+
+📌 **Dois achados que valem para os outros canais** (ver `TODO.md` → "Observações
+da rodada do TikTok"):
+
+1. O card de faturamento acusava o marketplace por uma janela **nossa**:
+   `periodCovered` vem de `checkpointsCoverPeriod`, que devolve `false` para toda
+   janela que termina hoje. Ao replicar a pendência-com-dono para ML e Shopee,
+   conferir se a mesma frase existe lá.
+2. `brDate()` adianta em **um dia** toda data de liberação do Mercado Livre
+   (`new Date("YYYY-MM-DD")` é meia-noite UTC). Confirmado rodando, **não
+   corrigido** — é outro canal.
+
+**Status desconhecido deixou de ser silencioso** (23/08): o `MAPA_STATUS` segue
+fail-closed, mas a falha carrega o status cru e a contagem até a tela, que nomeia
+o status e não oferece "tentar novamente" — repetir o ciclo devolve o mesmo
+resultado. `/api/tiktok/amostra` parou de morrer no primeiro status novo, que era
+justamente a rota feita para revelá-lo.
+
+**PRÓXIMO PASSO (bloco B, adiado para a próxima rodada):** executar o
+procedimento autenticado e sem mutação de
 [`tiktok-qa-evidence.md`](./tiktok-qa-evidence.md), deixar a fila financeira convergir e
 comparar origem, ledger e overview — distinguindo extrato liquidado de estimativa.
 
-Dois pontos a conferir nessa passada:
+Ponto a conferir nessa passada:
 
-- **`statusObservados`** — o `MAPA_STATUS` em `tiktokCanonical.ts` veio da doc em prosa,
-  não do OAS (que declara `status` como string sem enum). Status fora do mapa cai em
-  `pending` **silenciosamente**.
 - **`linhasOriginais` vs `itensAgrupados`** — o TikTok emite uma linha por unidade;
   `agruparItens` junta por `product_id::sku_id`. Se a contagem não bater com o pedido
   real, "unidades vendidas por SKU" nasce errado.
