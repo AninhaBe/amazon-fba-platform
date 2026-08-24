@@ -210,12 +210,81 @@ const MAPA_STATUS: Record<string, CanonicalOrderStatus> = {
   CANCELLED: "cancelled",
 };
 
-export function canonicalTiktokStatus(providerStatus: string): CanonicalOrderStatus {
-  const status = MAPA_STATUS[providerStatus];
-  if (!status) {
-    throw new RangeError(`Status de pedido TikTok ainda não mapeado: ${providerStatus || "(vazio)"}.`);
+export const TIKTOK_UNMAPPED_STATUS_CODE = "TIKTOK_STATUS_NAO_MAPEADO";
+
+/**
+ * Status que a API devolveu e o mapa não conhece. Carrega o valor cru e a
+ * contagem porque mensagem genérica é o mesmo que silêncio: sem o nome do
+ * status ninguém sabe o que acrescentar ao `MAPA_STATUS`, e a sincronização
+ * fica parada repetindo "falha temporária".
+ */
+export class TiktokUnmappedStatusError extends RangeError {
+  readonly code = TIKTOK_UNMAPPED_STATUS_CODE;
+  readonly observed: Array<{ status: string; orders: number }>;
+  constructor(observed: Array<{ status: string; orders?: number }>) {
+    const normalizado = observed.map(({ status, orders }) => ({ status, orders: orders ?? 1 }));
+    super(`${TIKTOK_UNMAPPED_STATUS_CODE}: status de pedido TikTok ainda não mapeado: ${formatUnmappedStatuses(normalizado)}. Conhecidos: ${tiktokMappedStatuses().join(", ")}.`);
+    this.name = "TiktokUnmappedStatusError";
+    this.observed = normalizado;
   }
+}
+
+/**
+ * A mensagem do erro é o ÚNICO canal até a tela: ela é persistida em
+ * `workspace_marketplace_syncs.last_error` e o banco não ganha coluna nesta
+ * rodada (ADR-001). Formatação e leitura moram juntas de propósito — se uma
+ * mudar sem a outra, a tela volta a mostrar erro genérico. Travado por teste
+ * de ida e volta.
+ */
+export function formatUnmappedStatuses(observed: Array<{ status: string; orders: number }>): string {
+  return observed.map(({ status, orders }) => `${status || "(vazio)"} [${orders}]`).join(", ");
+}
+
+/** Statuses de volta a partir do `last_error`; `[]` quando a mensagem é outra. */
+export function parseUnmappedStatuses(message: string): Array<{ status: string; orders: number }> {
+  const inicio = message.indexOf(UNMAPPED_STATUS_PREFIX);
+  if (inicio < 0) return [];
+  const trecho = message.slice(inicio + UNMAPPED_STATUS_PREFIX.length);
+  const fim = trecho.indexOf(". Conhecidos:");
+  return (fim < 0 ? trecho : trecho.slice(0, fim))
+    .split(", ")
+    .map((parte) => /^(.*) \[(\d+)\]$/.exec(parte.trim()))
+    .filter((match): match is RegExpExecArray => match != null)
+    .map((match) => ({ status: match[1] === "(vazio)" ? "" : match[1], orders: Number(match[2]) }));
+}
+
+const UNMAPPED_STATUS_PREFIX = "status de pedido TikTok ainda não mapeado: ";
+
+/** Status conhecidos, em ordem estável — para diagnóstico e mensagem de erro. */
+export function tiktokMappedStatuses(): string[] {
+  return Object.keys(MAPA_STATUS);
+}
+
+/** Mapeamento sem exceção: `null` quando o status não está no mapa. */
+export function tiktokStatusIfMapped(providerStatus: string): CanonicalOrderStatus | null {
+  return MAPA_STATUS[providerStatus] ?? null;
+}
+
+export function canonicalTiktokStatus(providerStatus: string): CanonicalOrderStatus {
+  const status = tiktokStatusIfMapped(providerStatus);
+  if (!status) throw new TiktokUnmappedStatusError([{ status: providerStatus }]);
   return status;
+}
+
+/**
+ * Status não mapeados de um lote, cada um com quantos pedidos o trouxeram.
+ * O sync usa isto para falhar UMA vez dizendo exatamente o que apareceu, em vez
+ * de estourar no primeiro pedido e esconder os demais.
+ */
+export function tiktokUnmappedOrderStatuses(orders: TiktokOrder[]): Array<{ status: string; orders: number }> {
+  const contagem = new Map<string, number>();
+  for (const order of orders) {
+    const status = order.status ?? "";
+    if (tiktokStatusIfMapped(status)) continue;
+    contagem.set(status, (contagem.get(status) ?? 0) + 1);
+  }
+  return [...contagem].sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .map(([status, orders]) => ({ status, orders }));
 }
 
 /** Recusa payload incompleto antes da persistência canônica. */
@@ -230,12 +299,45 @@ export function validateTiktokOrderForSync(order: TiktokOrder): void {
 }
 
 /**
+ * Desconto POR UNIDADE **já abatido** do preço cobrado — ou `null` quando o
+ * payload não prova que foi abatido.
+ *
+ * O TikTok manda `original_price`, `seller_discount` e `platform_discount` ao
+ * lado de `sale_price`, e a documentação diz que `sale_price` já é líquido dos
+ * dois. Nenhuma amostra real com cupom foi observada até 23/08/2026 — o que
+ * existe é prosa, não payload. Em vez de confiar na prosa, cada linha só
+ * entrega o desconto quando ELA MESMA reconcilia ao centavo:
+ *
+ *     original_price − seller_discount − platform_discount = sale_price
+ *
+ * Faltou campo, veio desconto negativo ou não reconciliou = **desconhecido**.
+ * É essa reconciliação que impede o cupom de virar dedução em cima de uma
+ * receita que já está líquida: descontar duas vezes é pior do que não mostrar a
+ * cascata. E, provado o abatimento, o desconto entra apenas como `listPrice` /
+ * `promotionDiscount` (informativo, `docs/canonical-schema.md`) — nunca como
+ * `CanonicalFee`, que subtrairia do lucro uma segunda vez.
+ */
+function descontoDaLinha(linha: TiktokLineItem, unitPrice: number): number | null {
+  const precoDeTabela = paraNumero(linha.original_price);
+  const vendedor = paraNumero(linha.seller_discount);
+  const plataforma = paraNumero(linha.platform_discount);
+  if (precoDeTabela == null || vendedor == null || plataforma == null) return null;
+  const desconto = round2(vendedor + plataforma);
+  if (desconto < 0) return null;
+  if (round2(precoDeTabela - desconto) !== round2(unitPrice)) return null;
+  return desconto;
+}
+
+/**
  * Agrupa `line_items[]` por SKU para produzir itens canônicos com quantidade.
  * O TikTok emite uma linha por unidade; somar sem agrupar geraria N itens de
  * quantidade 1 e quebraria a leitura de "unidades vendidas por SKU".
  */
 export function agruparItens(linhas: TiktokLineItem[]): CanonicalOrderItem[] {
   const porSku = new Map<string, CanonicalOrderItem>();
+  // Desconto acumulado do grupo. `null` = alguma linha não provou o abatimento;
+  // somar só as linhas provadas afirmaria um cupom menor do que o concedido.
+  const descontoPorSku = new Map<string, number | null>();
 
   for (const linha of linhas) {
     const parentProductId = String(linha.product_id ?? "");
@@ -249,11 +351,15 @@ export function agruparItens(linhas: TiktokLineItem[]): CanonicalOrderItem[] {
       throw new TypeError(`Item TikTok ${skuId || parentProductId || "(sem id)"} sem preço comprovável.`);
     }
 
+    const desconto = descontoDaLinha(linha, unitPrice);
     const existente = porSku.get(chave);
     if (existente) {
       existente.qty += 1;
+      const acumulado = descontoPorSku.get(chave);
+      descontoPorSku.set(chave, acumulado == null || desconto == null ? null : round2(acumulado + desconto));
       continue;
     }
+    descontoPorSku.set(chave, desconto);
     porSku.set(chave, {
       externalProductId,
       sku: linha.seller_sku || linha.sku_id || null,
@@ -261,44 +367,181 @@ export function agruparItens(linhas: TiktokLineItem[]): CanonicalOrderItem[] {
         || externalProductId,
       qty: 1,
       unitPrice,
+      // `null` = o canal não provou o desconto (AGENTS.md: desconhecido ≠ zero).
+      listPrice: null,
+      promotionDiscount: null,
     });
+  }
+
+  for (const [chave, item] of porSku) {
+    const acumulado = descontoPorSku.get(chave);
+    if (acumulado == null) continue;
+    // Por unidade, como na Amazon (`amazonCanonical.ts`): o canônico guarda a
+    // parcela unitária e a quantidade separadas.
+    item.promotionDiscount = round2(acumulado / item.qty);
+    item.listPrice = round2(item.unitPrice + item.promotionDiscount);
   }
 
   return [...porSku.values()];
 }
 
+/** Todo valor monetário deste endpoint termina em `_amount`. */
+const CAMPO_MONETARIO = /_amount$/;
+/** Receita e resultado do pedido — não são custo, nunca foram tarifa. */
+const CAMPO_NAO_TARIFA = /^(revenue|settlement)_amount$/;
 /**
- * Extrato do pedido → taxas canônicas. Sinal canônico: positivo = debitado do
- * vendedor. A TikTok devolveu os custos com sinal negativo na amostra real.
- *
- * O `settlement_amount` NÃO vira taxa: ele é o resultado, não um custo.
+ * Os dois únicos campos comprovados por payload real (pedido
+ * 583985901599294689). São o **agregado conhecido**: sempre entram, e é para
+ * eles que a conta recua quando a decomposição não se prova.
  */
-const MAPA_TAXAS: Array<{ campo: keyof TiktokStatement; tipo: CanonicalFeeType }> = [
-  { campo: "fee_and_tax_amount", tipo: "commission" },
-  { campo: "shipping_cost_amount", tipo: "shipping_seller" },
+const CAMPOS_OBSERVADOS: Partial<Record<string, CanonicalFeeType>> = {
+  fee_and_tax_amount: "commission",
+  shipping_cost_amount: "shipping_seller",
+};
+/**
+ * ⚠️ Nenhum padrão para `ads`, `taxes_withheld` ou `refund` — de propósito.
+ * O extrato do TikTok não discrimina essas categorias e adivinhar pelo nome
+ * seria inventar um fato (`docs/tiktok-shop-integracao.md`).
+ */
+const PADROES_TAXA: Array<{ padrao: RegExp; tipo: CanonicalFeeType }> = [
+  { padrao: /shipping|logistic|delivery|freight/i, tipo: "shipping_seller" },
+  { padrao: /fulfil|warehous|storage/i, tipo: "fulfillment" },
+  { padrao: /commission|referral|fee/i, tipo: "commission" },
+];
+/** Ordem estável de saída — a linha gravada não pode depender da ordem das chaves do JSON. */
+const ORDEM_TIPO: CanonicalFeeType[] = [
+  "commission", "payment", "fulfillment", "shipping_seller", "ads", "taxes_withheld", "refund", "other",
 ];
 
-export function canonicalTiktokFees(extrato: TiktokStatement, currency: string): CanonicalFee[] {
-  const taxas: CanonicalFee[] = [];
-  for (const { campo, tipo } of MAPA_TAXAS) {
-    const valor = paraNumero(extrato[campo] as string | undefined);
+/**
+ * Em que categoria o campo cairia **se** fosse contado. `null` = não é tarifa.
+ * Responder isto NÃO decide se o valor entra no total — quem decide é a
+ * reconciliação com `settlement_amount`, em `tiktokFeeDecomposition`.
+ */
+export function classifyTiktokFeeField(campo: string): CanonicalFeeType | null {
+  if (!CAMPO_MONETARIO.test(campo) || CAMPO_NAO_TARIFA.test(campo)) return null;
+  return CAMPOS_OBSERVADOS[campo]
+    ?? PADROES_TAXA.find(({ padrao }) => padrao.test(campo))?.tipo
+    ?? "other";
+}
+
+/** Por que um campo monetário do extrato ficou de fora do total. */
+export type TiktokFeePendencyReason = "sem_settlement" | "nao_reconcilia";
+
+/** Campo que apareceu no extrato e NÃO entrou nas taxas, com nome e valor crus. */
+export interface TiktokFeePendency {
+  field: string;
+  /** Valor como a TikTok mandou (sinal dela), não o canônico. */
+  amount: number;
+  reason: TiktokFeePendencyReason;
+}
+
+export interface TiktokFeeDecomposition {
+  fees: CanonicalFee[];
+  /**
+   * Campos monetários que a TikTok passou a devolver e que a aritmética não
+   * comprovou. Não somam, não somem: carregam nome e valor crus para que o
+   * mapeamento novo seja uma decisão de alguém, e não um silêncio — mesma
+   * disciplina de `tiktokUnmappedOrderStatuses`.
+   */
+  pending: TiktokFeePendency[];
+  /** `true` = a soma assinada fecha com `settlement_amount` ao centavo. */
+  reconciled: boolean;
+}
+
+interface CampoMonetario { field: string; tipo: CanonicalFeeType; valor: number }
+
+/**
+ * Extrato do pedido → taxas canônicas, com a aritmética do próprio pedido
+ * decidindo no que dá para confiar.
+ *
+ * A categorização é por **padrão**, não por lista de nomes exatos: um
+ * `platform_service_fee_amount` novo cai em `commission` em vez de virar
+ * R$ 0,00 numa conta que paga. Mas categorizar bem não basta aqui, e é onde o
+ * TikTok difere da Amazon: lá `fees` é um total independente e o breakdown só
+ * o reparte — categorizar errado move dinheiro de card, não muda o total. Aqui
+ * **não existe total independente**: as taxas SÃO a soma destes campos. Somar
+ * um campo desconhecido não é miscategorizar, é mexer no dinheiro.
+ *
+ * Daí a trava: o `settlement_amount` do próprio pedido é a conferência.
+ * A identidade observada é
+ *
+ *     revenue_amount + Σ(componentes assinados) = settlement_amount
+ *     23,90 + (−9,13) + 0 = 14,77
+ *
+ * - **Fecha ao centavo** ⇒ a decomposição está provada *neste pedido*: todos os
+ *   campos entram, e o sinal sai da própria identidade (`−valor`), de modo que
+ *   um crédito — subsídio de frete, bônus — permanece crédito em vez de virar
+ *   custo.
+ * - **Não fecha** (ou não veio `settlement_amount`) ⇒ a decomposição não está
+ *   provada. Vale só o agregado conhecido (`CAMPOS_OBSERVADOS`), e cada campo
+ *   novo vira pendência **nomeada** em `pending`. É isso que impede o caso do
+ *   `fee_per_item_sold_amount`: componente do `fee_and_tax_amount` que subisse
+ *   ao nível de cima somaria em cima do próprio pai — e a soma deixaria de
+ *   fechar com o settlement, que é exatamente como este código percebe.
+ *
+ * Não confundir com o item B4 (provar a identidade na amostra inteira, adiado):
+ * aqui é só usar, num pedido, um campo que já está no payload dele.
+ */
+export function tiktokFeeDecomposition(extrato: TiktokStatement, currency: string): TiktokFeeDecomposition {
+  const campos: CampoMonetario[] = [];
+  for (const [field, bruto] of Object.entries(extrato as Record<string, unknown>)) {
+    // Só escalar: `sku_transactions[]` e qualquer bloco aninhado são detalhe.
+    if (typeof bruto !== "string" && typeof bruto !== "number") continue;
+    const tipo = classifyTiktokFeeField(field);
+    if (tipo == null) continue;
+    const valor = paraNumero(bruto);
     // null = não veio (desconhecido) → não grava linha. Zero é um fato conhecido
     // e entra para não ser confundido com uma tarifa ainda indisponível.
     if (valor == null) continue;
-    taxas.push({
-      feeType: tipo,
-      providerFeeCode: campo,
-      // ⚠️ O TikTok devolve o que ELE cobra com sinal NEGATIVO — confirmado no
-      // extrato real do pedido 583985901599294689 (`fee_and_tax_amount: "-9.13"`
-      // sobre `revenue_amount: "23.9"`, fechando em `settlement_amount: "14.77"`).
-      // O canônico grava taxa como POSITIVA (positivo = debitado do vendedor),
-      // então o sinal é invertido aqui. Sem isso, a comissão somaria ao lucro em
-      // vez de subtrair — erro de duas vezes o valor da taxa, para mais.
-      amount: round2(Math.abs(valor)),
-      currency,
-    });
+    campos.push({ field, tipo, valor });
   }
-  return taxas;
+
+  const novos = campos.filter((campo) => CAMPOS_OBSERVADOS[campo.field] == null);
+  const revenue = paraNumero(extrato.revenue_amount);
+  const settlement = paraNumero(extrato.settlement_amount);
+  const reconciled = revenue != null && settlement != null
+    && round2(campos.reduce((total, campo) => total + campo.valor, revenue)) === round2(settlement);
+
+  const contadas = reconciled || !novos.length
+    ? campos
+    : campos.filter((campo) => CAMPOS_OBSERVADOS[campo.field] != null);
+  const fees = contadas.map(({ field, tipo, valor }) => ({
+    feeType: tipo,
+    providerFeeCode: field,
+    // ⚠️ O TikTok devolve o que ELE cobra com sinal NEGATIVO — confirmado no
+    // extrato real do pedido 583985901599294689 (`fee_and_tax_amount: "-9.13"`
+    // sobre `revenue_amount: "23.9"`, fechando em `settlement_amount: "14.77"`).
+    // O canônico grava taxa como POSITIVA (positivo = debitado do vendedor).
+    //
+    // Provada a identidade, o sinal vem dela (`−valor`) e crédito continua
+    // crédito. Sem prova, `Math.abs` mantém o comportamento conservador de
+    // sempre: errar para o lado do custo deprime o lucro; errar para o outro
+    // inventa lucro que não existe.
+    amount: reconciled ? semZeroNegativo(round2(-valor)) : round2(Math.abs(valor)),
+    currency,
+  }));
+
+  return {
+    fees: fees.sort((esquerda, direita) =>
+      ORDEM_TIPO.indexOf(esquerda.feeType) - ORDEM_TIPO.indexOf(direita.feeType)
+      || esquerda.providerFeeCode.localeCompare(direita.providerFeeCode)),
+    pending: reconciled ? [] : novos.map(({ field, valor }) => ({
+      field,
+      amount: valor,
+      reason: revenue == null || settlement == null ? "sem_settlement" as const : "nao_reconcilia" as const,
+    })),
+    reconciled,
+  };
+}
+
+/** `-0` é o mesmo número que `0` e um ruído a menos na tela e nos testes. */
+function semZeroNegativo(valor: number): number {
+  return valor === 0 ? 0 : valor;
+}
+
+export function canonicalTiktokFees(extrato: TiktokStatement, currency: string): CanonicalFee[] {
+  return tiktokFeeDecomposition(extrato, currency).fees;
 }
 
 export interface NormalizeTiktokOrderOptions {

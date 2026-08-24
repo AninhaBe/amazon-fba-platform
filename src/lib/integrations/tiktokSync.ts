@@ -17,6 +17,10 @@ import {
   normalizeTiktokOrder,
   normalizeTiktokProducts,
   tiktokStatementSettled,
+  parseUnmappedStatuses,
+  TIKTOK_UNMAPPED_STATUS_CODE,
+  tiktokUnmappedOrderStatuses,
+  TiktokUnmappedStatusError,
   validateTiktokOrderForSync,
   type TiktokOrder,
   type TiktokProduct,
@@ -108,7 +112,36 @@ export interface TiktokSyncStatus {
   ordersComplete: boolean;
   productsComplete: boolean;
   financialBacklog: number;
-  error: { code: "SYNC_RETRYABLE" | "REAUTH_REQUIRED"; message: string; retryable: boolean } | null;
+  error: TiktokSyncError | null;
+}
+
+export type TiktokSyncErrorCode = "SYNC_RETRYABLE" | "REAUTH_REQUIRED" | typeof TIKTOK_UNMAPPED_STATUS_CODE;
+
+export interface TiktokSyncError {
+  code: TiktokSyncErrorCode;
+  message: string;
+  retryable: boolean;
+  /** Status que a API trouxe e o mapa não conhece, com quantos pedidos cada um. */
+  unmappedStatuses?: Array<{ status: string; orders: number }>;
+}
+
+/**
+ * Falha de status novo NÃO é "tentar de novo": repetir o ciclo devolve o mesmo
+ * status e a mesma parada. Ela precisa chegar à tela com o NOME do status, para
+ * virar uma linha no `MAPA_STATUS` — por isso ganha código próprio,
+ * `retryable: false` e a lista já estruturada. A leitura do `last_error`
+ * acontece aqui, no servidor: a tela recebe dado, não texto para reparsear.
+ */
+function syncError(lastError: string): TiktokSyncError {
+  if (!lastError.startsWith(`${TIKTOK_UNMAPPED_STATUS_CODE}:`)) {
+    return { code: "SYNC_RETRYABLE", message: lastError, retryable: true };
+  }
+  return {
+    code: TIKTOK_UNMAPPED_STATUS_CODE,
+    message: lastError,
+    retryable: false,
+    unmappedStatuses: parseUnmappedStatuses(lastError),
+  };
 }
 
 function iso(value: Date | string | null): string | null {
@@ -154,9 +187,7 @@ function publicStatus(row?: SyncRow, busy = false): TiktokSyncStatus {
       && new Date(row.cursor_to).getTime() <= new Date(row.target_from).getTime()),
     productsComplete: row.products_complete,
     financialBacklog: row.financial_backlog ?? 0,
-    error: row.status === "error" && row.last_error
-      ? { code: "SYNC_RETRYABLE", message: row.last_error, retryable: true }
-      : null,
+    error: row.status === "error" && row.last_error ? syncError(row.last_error) : null,
   };
 }
 
@@ -380,6 +411,13 @@ async function saveOrderWindow(
       () => getTiktokOrderDetail(shop, lote)
     )) as TiktokOrder[];
     validateTiktokOrderBatch(lote, pedidos);
+    // Status fora do `MAPA_STATUS` para a ingestão de propósito — inventar um
+    // canônico corromperia faturamento e cobertura. O que não pode acontecer é
+    // parar em silêncio: falhamos UMA vez, nomeando cada status novo e quantos
+    // pedidos o trouxeram, para que a mensagem chegue ao `last_error` e à tela
+    // em vez de virar "falha temporária" repetida a cada ciclo do cron.
+    const statusNovos = tiktokUnmappedOrderStatuses(pedidos);
+    if (statusNovos.length) throw new TiktokUnmappedStatusError(statusNovos);
     for (const pedido of pedidos) validateTiktokOrderForSync(pedido);
     const token = await assertOwnership();
     await withLeaseFence(connectionId, token, async (query) => {

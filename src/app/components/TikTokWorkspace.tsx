@@ -11,6 +11,7 @@ import { CompactMetric, Flow, FlowExpandable, Metric } from "./Metric";
 import { PageHeader } from "./PageHeader";
 import { RevenueChart } from "./RevenueChart";
 import { TopProductsRanking } from "./TopProductsRanking";
+import { TikTokSaldo } from "./TikTokSaldo";
 import { BriefingLead } from "./BriefingLead";
 import { IntegrationDashboardFrame } from "./IntegrationDashboardFrame";
 import { buildFinancialComposition, FinancialSummaryPanel } from "./FinancialSummaryPanel";
@@ -26,15 +27,20 @@ import {
   resolveTiktokConnection,
   shouldCanonicalizeTiktokUrl,
   syncStateContent,
+  tiktokSyncErrorContent,
   syncBacklogDescription,
   parseTaxRateDraft,
   tiktokConnectionError,
   tiktokOverviewQuery,
   tiktokOrderStatusLabel,
   tiktokPageHref,
+  tiktokPendencias,
   tiktokProductsHref,
   tiktokSettingsQuery,
+  tiktokTaxSettingsHref,
+  TIKTOK_TAX_SETTINGS_ANCHOR,
   type TiktokConnectionOption,
+  type TiktokPendencia,
   type TiktokOverviewResponse,
   type TiktokSyncPhase,
 } from "./TikTokWorkspaceModel";
@@ -156,7 +162,7 @@ export function TikTokWorkspace() {
 
   const syncPhase = data.sync.phase;
   if (syncPhase === "first_sync") return <SyncState phase={syncPhase} onRetry={retry} headerAction={selector} />;
-  if (syncPhase === "retryable_error") return <SyncState phase={syncPhase} onRetry={retry} headerAction={selector} />;
+  if (syncPhase === "retryable_error") return <SyncState phase={syncPhase} onRetry={retry} headerAction={selector} syncError={data.sync.error} />;
   if (syncPhase === "reauth_required") return <SyncState phase={syncPhase} reconnectHref={provider.connectHref || "/api/tiktok/login"} headerAction={selector} />;
   if (syncPhase === "unavailable") return <SyncState phase={syncPhase} onRetry={retry} headerAction={selector} />;
   if (!data.overview || !data.coverage) return <SyncState phase="first_sync" onRetry={retry} headerAction={selector} />;
@@ -172,6 +178,15 @@ export function TikTokWorkspace() {
     ? costCards.reduce((total, card) => total + Math.abs(card.raw ?? 0), 0)
     : null;
   const historicalBacklog = historicalBacklogDescription(data.coverage);
+  // Pendência sem dono soa como falha nossa. Estas duas listas dizem, com número
+  // e (quando há o que fazer) link, se a espera é da TikTok ou dela.
+  const pendencias = tiktokPendencias(data.coverage, selectedConnectionId);
+  const pendenciasDaVendedora = pendencias.filter((item) => item.espera === "vendedora");
+  const pendenciasDoCanal = pendencias.filter((item) => item.espera === "canal");
+  // Janela que ainda não fechou do nosso lado não entra na lista da TikTok:
+  // todo período que termina hoje nasce nesse estado, e culpar o canal por isso
+  // seria alarme falso diário.
+  const pendenciasDaConciliacao = pendencias.filter((item) => item.espera === "conciliacao");
   const currency = data.overview.currency;
   const capturedRevenue = data.overview.revenue ?? 0;
   const formatMoney = (value: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(value);
@@ -200,13 +215,26 @@ export function TikTokWorkspace() {
           briefingLabel="Ver detalhes"
           acoes={
             data.overview?.taxRate == null
-              ? [{ label: "Configurar a alíquota de imposto", href: "/tiktok", tone: "pendencia" as const }]
+              ? [{ label: "Configurar a alíquota de imposto", href: tiktokTaxSettingsHref(selectedConnectionId), tone: "pendencia" as const }]
               : []
           }
         />
-        {financialBlocked
-          ? <StatusNotice title="Financeiro indisponível neste ambiente">A estrutura do ledger financeiro ainda não está disponível. Vendas e catálogo continuam visíveis, mas taxas e resultado permanecem desconhecidos; nenhum valor foi convertido em zero.</StatusNotice>
-          : phase === "partial" && <StatusNotice title="Sincronização em andamento">Os números aparecem somente quando cada componente está completo. Nenhum é apresentado como definitivo antes disso.</StatusNotice>}
+        {financialBlocked ? (
+          <StatusNotice title="Financeiro indisponível neste ambiente">A estrutura do ledger financeiro ainda não está disponível. Vendas e catálogo continuam visíveis, mas taxas e resultado permanecem desconhecidos; nenhum valor foi convertido em zero.</StatusNotice>
+        ) : (
+          <>
+            {/* Primeiro o que ela resolve hoje; depois o que só a TikTok resolve.
+                A lista aparece sempre que houver pendência — inclusive quando a
+                fase é "ready", porque a API pode não mandar `financialCoverage`
+                e a cobertura seguir com buracos. */}
+            {pendenciasDaVendedora.length > 0 && <PendenciaNotice title="Falta você cadastrar" pendencias={pendenciasDaVendedora} />}
+            {pendenciasDoCanal.length > 0 && <PendenciaNotice title="Aguardando a TikTok Shop" pendencias={pendenciasDoCanal} />}
+            {pendenciasDaConciliacao.length > 0 && <PendenciaNotice title="Aguardando o fechamento do período" pendencias={pendenciasDaConciliacao} />}
+            {phase === "partial" && pendencias.length === 0 && (
+              <StatusNotice title="Sincronização em andamento">Os números aparecem somente quando cada componente está completo. Nenhum é apresentado como definitivo antes disso.</StatusNotice>
+            )}
+          </>
+        )}
         <section className="metric-grid tiktok-dashboard-metrics" aria-label="Resumo financeiro da TikTok Shop">
           {primaryCards.map((card) => <Metric key={card.key} label={card.label} value={card.value} sub={card.context} tone={(card.key === "profit" || card.key === "marginPct") && card.raw != null ? card.raw > 0 ? "positive" : card.raw < 0 ? "danger" : "default" : "default"} />)}
         </section>
@@ -246,7 +274,7 @@ export function TikTokWorkspace() {
               <>
                 <Link href={`/tiktok/financeiro?${new URLSearchParams({ connection_id: selectedConnectionId })}`} className="meli-financial-link">Ver composição completa no financeiro <span aria-hidden="true">→</span></Link>
                 <Link href={tiktokProductsHref(selectedConnectionId)} className="meli-financial-link">Configurar custos e imposto <span aria-hidden="true">→</span></Link>
-                {!resultReady ? <p className="text-xs leading-relaxed text-amber-700">O NEXO não estima os componentes ausentes: taxas, fretes, impostos ou custos pendentes continuam como “—”.</p> : null}
+                {!resultReady ? <p className="text-xs leading-relaxed text-amber-700">O NEXO não estima o que falta: componente que a TikTok ainda não postou e SKU sem custo cadastrado continuam como “—”.</p> : null}
               </>
             )}
           >
@@ -267,6 +295,11 @@ export function TikTokWorkspace() {
               />
           </FinancialSummaryPanel>
         </section>
+        {/* Mesma posição do bloco da Amazon e do Mercado Livre: logo depois da
+            conversa sobre dinheiro, respondendo o que o lucro sozinho deixa no
+            ar — "então cadê?". O TikTok segura cada venda até fechar o extrato,
+            e só aí emite o repasse com data. */}
+        <TikTokSaldo connectionId={selectedConnectionId} />
         <TopProductsRanking
           products={(data.topProducts ?? []).map((product) => ({ sku: product.sku || product.productId, title: product.title, units: product.units, revenue: product.revenue, marginPct: null }))}
           currency={currency}
@@ -292,7 +325,7 @@ export function TikTokWorkspace() {
             <h2 id="tiktok-orders-title" className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--ink-muted)]">Pedidos e rentabilidade</h2>
             {!data.orderProfitability?.length ? <EmptyState compact title="Nenhum pedido no período" /> : <ul className="divide-y divide-[var(--line)]">
               {data.orderProfitability.slice(0, 8).map((order) => <li key={order.orderId} className="flex items-center justify-between gap-4 py-3 text-sm">
-                <span className="min-w-0"><strong className="block truncate font-mono text-xs text-[var(--ink-soft)]">#{order.orderId}</strong><small className="text-[var(--ink-muted)]">{brDate(order.occurredAt)} · {order.financialStatus === "complete" ? "conciliado" : order.financialStatus === "partial" ? "faltam custos" : "aguardando extrato"}</small></span>
+                <span className="min-w-0"><strong className="block truncate font-mono text-xs text-[var(--ink-soft)]">#{order.orderId}</strong><small className="text-[var(--ink-muted)]">{brDate(order.occurredAt)} · {order.financialStatus === "complete" ? "conciliado" : order.financialStatus === "partial" ? "falta custo cadastrado" : "aguardando o extrato da TikTok"}</small></span>
                 <span className="shrink-0 text-right"><strong className="block tabular-nums">{new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(order.revenue)}</strong><small className={order.profit == null ? "text-[var(--ink-muted)]" : "text-emerald-700"}>{order.profit == null ? "Lucro —" : `${new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(order.profit)}${order.financialStatus === "complete" ? "" : " (sem repasse)"}`}</small></span>
               </li>)}
             </ul>}
@@ -325,7 +358,7 @@ function TikTokFinancialSettings({ connectionId, currentTaxRate, onSaved }: { co
     try { const response = await fetch(`/api/integrations/tiktok/settings?${tiktokSettingsQuery(connectionId)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ taxRate }) }); const body = await response.json(); if (!response.ok) throw new Error(body.error || "Não foi possível salvar a alíquota."); setDraft(body.taxRate == null ? "" : String(body.taxRate)); setState("saved"); setMessage(body.taxRate == null ? "Alíquota removida; imposto e lucro voltaram a desconhecidos." : "Alíquota salva para esta loja."); onSaved(); }
     catch (error) { setState("error"); setMessage(error instanceof Error ? error.message : "Não foi possível salvar a alíquota."); }
   }
-  return <section className="tiktok-settings-panel" aria-labelledby="tiktok-financial-settings-title"><div className="tiktok-settings-heading"><div><p className="section-kicker">Configuração da loja</p><h2 id="tiktok-financial-settings-title">Imposto e custos dos produtos</h2><p>A alíquota é aplicada ao faturamento desta loja. Sem alíquota ou custo por SKU, imposto, lucro, margem e ROI permanecem “—”.</p></div><Link href={tiktokProductsHref(connectionId)} className="meli-primary-action">Cadastrar custos</Link></div><form onSubmit={submit} className="tiktok-tax-form"><label><span>Alíquota de imposto (%)</span><input type="number" inputMode="decimal" min="0" max="100" step="0.01" value={draft} onChange={(event) => { setDraft(event.target.value); if (state === "error" || state === "saved") { setState("idle"); setMessage(""); } }} disabled={state === "loading" || state === "saving"} aria-describedby="tiktok-tax-help tiktok-tax-status" placeholder="Não configurada" /></label><button type="submit" disabled={state === "loading" || state === "saving"} className="meli-primary-action">{state === "saving" ? "Salvando…" : "Salvar alíquota"}</button><p id="tiktok-tax-help">Informe 0 somente quando zero for um fato contábil.</p><p id="tiktok-tax-status" role={state === "error" ? "alert" : "status"} aria-live="polite" className={state === "error" ? "is-error" : "is-success"}>{state === "loading" ? "Carregando alíquota…" : message}</p></form></section>;
+  return <section className="tiktok-settings-panel" id={TIKTOK_TAX_SETTINGS_ANCHOR} aria-labelledby="tiktok-financial-settings-title"><div className="tiktok-settings-heading"><div><p className="section-kicker">Configuração da loja</p><h2 id="tiktok-financial-settings-title">Imposto e custos dos produtos</h2><p>A alíquota é aplicada ao faturamento desta loja. Sem alíquota ou custo por SKU, imposto, lucro, margem e ROI permanecem “—”.</p></div><Link href={tiktokProductsHref(connectionId)} className="meli-primary-action">Cadastrar custos</Link></div><form onSubmit={submit} className="tiktok-tax-form"><label><span>Alíquota de imposto (%)</span><input type="number" inputMode="decimal" min="0" max="100" step="0.01" value={draft} onChange={(event) => { setDraft(event.target.value); if (state === "error" || state === "saved") { setState("idle"); setMessage(""); } }} disabled={state === "loading" || state === "saving"} aria-describedby="tiktok-tax-help tiktok-tax-status" placeholder="Não configurada" /></label><button type="submit" disabled={state === "loading" || state === "saving"} className="meli-primary-action">{state === "saving" ? "Salvando…" : "Salvar alíquota"}</button><p id="tiktok-tax-help">Informe 0 somente quando zero for um fato contábil.</p><p id="tiktok-tax-status" role={state === "error" ? "alert" : "status"} aria-live="polite" className={state === "error" ? "is-error" : "is-success"}>{state === "loading" ? "Carregando alíquota…" : message}</p></form></section>;
 }
 
 function WorkspaceFrame({ children, subtitle, action }: { children: React.ReactNode; subtitle?: string; action?: React.ReactNode }) {
@@ -344,11 +377,35 @@ function StatusNotice({ title, children }: { title: string; children: React.Reac
   return <aside className="channel-module-notice is-warning" role="status"><strong>{title}</strong><p>{children}</p></aside>;
 }
 
-function SyncState({ phase, onRetry, reconnectHref, headerAction }: { phase: TiktokSyncPhase; onRetry?: () => void; reconnectHref?: string; headerAction?: React.ReactNode }) {
+/**
+ * A pendência diz o que falta, com número, e só oferece link quando existe algo
+ * a fazer. O que depende da TikTok sai sem botão de propósito: ação para o que
+ * ela não controla seria promessa falsa.
+ */
+function PendenciaNotice({ title, pendencias }: { title: string; pendencias: TiktokPendencia[] }) {
+  return (
+    <aside className="channel-module-notice is-warning" role="status">
+      <strong>{title}</strong>
+      <ul className="mt-1 space-y-1 text-[var(--ink-muted)]">
+        {pendencias.map((item) => (
+          <li key={item.key}>
+            <span className="tabular-nums">{item.text}</span>
+            {item.action ? <> · <Link href={item.action.href} className="font-semibold text-sky-700 underline-offset-2 hover:underline">{item.action.label} <span aria-hidden="true">→</span></Link></> : null}
+          </li>
+        ))}
+      </ul>
+    </aside>
+  );
+}
+
+function SyncState({ phase, onRetry, reconnectHref, headerAction, syncError }: { phase: TiktokSyncPhase; onRetry?: () => void; reconnectHref?: string; headerAction?: React.ReactNode; syncError?: TiktokOverviewResponse["sync"]["error"] }) {
   if (phase === "reauth_required") return <WorkspaceFrame action={headerAction}><ConnectionBroken channel="tiktok_shop" /></WorkspaceFrame>;
-  const selected = syncStateContent(phase);
+  // Em `retryable_error` o motivo importa: status novo da API não se resolve
+  // tentando de novo, e oferecer o botão de repetir esconderia isso.
+  const detailed = phase === "retryable_error" ? tiktokSyncErrorContent(syncError ?? null) : null;
+  const selected = detailed ?? syncStateContent(phase);
   const action = reconnectHref
     ? <Link className="meli-primary-action" href={reconnectHref}>Reconectar loja <span aria-hidden="true">→</span></Link>
-    : onRetry ? <RetryButton onClick={onRetry} /> : <Link className="meli-primary-action" href={MANAGE_CONNECTIONS}>Gerenciar conexão</Link>;
+    : onRetry && detailed?.retryable !== false ? <RetryButton onClick={onRetry} /> : <Link className="meli-primary-action" href={MANAGE_CONNECTIONS}>Gerenciar conexão</Link>;
   return <WorkspaceFrame action={headerAction}><EmptyState kind={phase === "first_sync" ? "data" : "permission"} title={selected.title} description={selected.description} action={action} /></WorkspaceFrame>;
 }

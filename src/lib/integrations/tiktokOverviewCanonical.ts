@@ -13,8 +13,11 @@ export {
   type TiktokCoverageV2,
   type TiktokFinancialInput,
   type TiktokFinancialOverviewV2,
+  type TiktokRevenueCascade,
+  type TiktokSettledComponent,
 } from "./tiktokFinancialV2";
 import {
+  applyTiktokLedgerAuthority,
   calculateTiktokFinancialV2,
   type TiktokCoverageV2,
   type TiktokFinancialInput,
@@ -46,7 +49,7 @@ interface OrderRow {
   ads: string | null; taxes_withheld: string | null; refunds: string | null;
   fees_known: boolean; seller_shipping_known: boolean; ads_known: boolean; taxes_withheld_known: boolean; refunds_known: boolean;
 }
-interface ItemRow { external_order_id: string; external_product_id: string; sku: string | null; title: string; qty: number; unit_price: string }
+interface ItemRow { external_order_id: string; external_product_id: string; sku: string | null; title: string; qty: number; unit_price: string; promotion_discount: string | null }
 interface ProductRow { external_product_id: string; sku: string | null; title: string; status: string; price: string; currency: string; available_qty: number }
 
 function findCost(costs: Record<string, CostEntry>, connectionId: string, productId: string, sku: string | null): CostEntry | undefined {
@@ -73,7 +76,7 @@ export async function getTiktokOverviewFromCanonical(connection: IntegrationConn
       COALESCE((o.raw #>> '{_sellercore,financialEvidence,taxesWithheld}')::boolean, false) AS taxes_withheld_known,
       COALESCE((o.raw #>> '{_sellercore,financialEvidence,refunds}')::boolean, false) AS refunds_known
       FROM workspace_channel_orders o WHERE o.workspace_id=$1 AND o.provider=$2 AND o.connection_id=$3 AND o.occurred_at >= $4 AND o.occurred_at <= $5 AND o.status=ANY($6::text[]) ORDER BY o.occurred_at DESC,o.external_order_id DESC`, [...params, [...REVENUE_STATUSES]]),
-    dbQuery<ItemRow>(`SELECT i.external_order_id, i.external_product_id, i.sku, i.title, i.qty, i.unit_price FROM workspace_channel_order_items i JOIN workspace_channel_orders o ON o.workspace_id=i.workspace_id AND o.provider=i.provider AND o.connection_id=i.connection_id AND o.external_order_id=i.external_order_id WHERE i.workspace_id=$1 AND i.provider=$2 AND i.connection_id=$3 AND o.occurred_at >= $4 AND o.occurred_at <= $5 AND o.status=ANY($6::text[])`, [...params, [...REVENUE_STATUSES]]),
+    dbQuery<ItemRow>(`SELECT i.external_order_id, i.external_product_id, i.sku, i.title, i.qty, i.unit_price, i.promotion_discount FROM workspace_channel_order_items i JOIN workspace_channel_orders o ON o.workspace_id=i.workspace_id AND o.provider=i.provider AND o.connection_id=i.connection_id AND o.external_order_id=i.external_order_id WHERE i.workspace_id=$1 AND i.provider=$2 AND i.connection_id=$3 AND o.occurred_at >= $4 AND o.occurred_at <= $5 AND o.status=ANY($6::text[])`, [...params, [...REVENUE_STATUSES]]),
     dbQuery<ProductRow>(`SELECT external_product_id, sku, title, status, price, currency, available_qty
       FROM workspace_channel_products WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3
       ORDER BY status='active' DESC, title, sku`, params.slice(0, 3)),
@@ -93,7 +96,13 @@ export async function getTiktokOverviewFromCanonical(connection: IntegrationConn
     const entry = findCost(costs, connection.id, item.external_product_id, item.sku);
     const value = entry && order ? costAt(entry, new Date(order.occurred_at).toISOString()) : null;
     const group = itemsByOrder.get(item.external_order_id) ?? [];
-    group.push({ quantity: item.qty, unitCost: value != null && value >= 0 ? value : null });
+    group.push({
+      quantity: item.qty,
+      unitCost: value != null && value >= 0 ? value : null,
+      // Cupom já abatido do `unit_price` (gravado só quando o payload do TikTok
+      // reconciliou); nulo = desconhecido, e a cascata some em vez de chutar.
+      unitDiscount: item.promotion_discount == null ? null : Number(item.promotion_discount),
+    });
     itemsByOrder.set(item.external_order_id, group);
   }
   const taxRaw = connection.metadata?.taxRate;
@@ -114,11 +123,7 @@ export async function getTiktokOverviewFromCanonical(connection: IntegrationConn
     refunds: order.refunds_known ? Number(order.refunds ?? 0) : null,
     items: itemsByOrder.get(order.external_order_id) ?? [],
   })) }, orders[0]?.currency ?? "BRL");
-  {
-    const ledger=financialSnapshot.aggregate;result.overview.revenue=ledger.revenue;result.overview.fees=ledger.fees;result.overview.sellerShipping=ledger.sellerShipping;result.overview.buyerShipping=ledger.buyerShipping;result.overview.ads=ledger.ads;result.overview.taxesWithheld=ledger.taxesWithheld;result.overview.refunds=ledger.refunds;
-    for(const key of ["revenue","fees","sellerShipping","buyerShipping","ads","taxesWithheld","refunds"] as const){const value=result.overview[key];const metric=result.coverage.requestedPeriod[key];metric.capturedValue=value;if(financialSnapshot.covered){metric.known=value==null?0:metric.applicable;metric.missing=value==null?metric.applicable:0;metric.pending=0;metric.ratio=value==null?0:1;metric.status=value==null?"partial":"complete";}else if(metric.status==="complete"){metric.known=0;metric.missing=metric.applicable;metric.pending=0;metric.ratio=0;metric.status="partial";}}
-    result.overview.profit=null;result.overview.marginPct=null;result.overview.roiPct=null;result.coverage.financials.status="partial";result.coverage.requestedPeriod.financials.status="partial";
-  }
+  applyTiktokLedgerAuthority(result, { covered: financialSnapshot.covered, aggregate: financialSnapshot.aggregate });
   const orderProfitability = orders.map((order) => {
     const calculated = calculateTiktokFinancialV2({ periodCovered: true, taxRate, orders: [{
       revenue: Number(order.gross), buyerShipping: order.buyer_shipping == null ? null : Number(order.buyer_shipping),

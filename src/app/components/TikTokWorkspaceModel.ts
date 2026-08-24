@@ -83,6 +83,13 @@ export function tiktokProductsHref(connectionId: string) {
   return `/tiktok/produtos?${new URLSearchParams({ connection_id: connectionId }).toString()}`;
 }
 
+/** Âncora do painel onde a alíquota é cadastrada; o link da pendência aponta para ela. */
+export const TIKTOK_TAX_SETTINGS_ANCHOR = "tiktok-imposto";
+
+export function tiktokTaxSettingsHref(connectionId: string) {
+  return `/tiktok?${new URLSearchParams({ connection_id: connectionId }).toString()}#${TIKTOK_TAX_SETTINGS_ANCHOR}`;
+}
+
 export function productMatchesTiktokScope(product: { id: string; source: string }, connectionId: string | null) {
   return product.source === "tiktok" && (!connectionId || product.id.startsWith(`tiktok:${connectionId}:`));
 }
@@ -97,7 +104,7 @@ export function syncBacklogDescription(sync: TiktokSyncStatus) {
   return [
     { key: "orders", label: "Pedidos", status: sync.ordersComplete ? "Completa" : "Em andamento", detail: sync.ordersComplete ? `${sync.processedOrders} pedido(s) processado(s)` : `${Math.round(sync.progress * 100)}% da janela sincronizada` },
     { key: "products", label: "Produtos", status: sync.productsComplete ? "Completa" : "Em andamento", detail: `${sync.activeProducts} ativo(s) de ${sync.productsTotal} produto(s) importado(s)` },
-    { key: "financial", label: "Backlog financeiro histórico", status: sync.financialBacklog === 0 && sync.ordersComplete ? "Sem pendências" : "Pendente", detail: sync.financialBacklog > 0 ? `${sync.financialBacklog} pedido(s) histórico(s) aguardando extrato; esta contagem não é a cobertura do período selecionado` : sync.ordersComplete ? "Nenhum extrato histórico pendente" : "Será apurado depois da importação dos pedidos" },
+    { key: "financial", label: "Backlog financeiro histórico", status: sync.financialBacklog === 0 && sync.ordersComplete ? "Sem pendências" : ESPERA_LABEL.canal, detail: sync.financialBacklog > 0 ? `${sync.financialBacklog} pedido(s) histórico(s) aguardando extrato; esta contagem não é a cobertura do período selecionado` : sync.ordersComplete ? "Nenhum extrato histórico pendente" : "Será apurado depois da importação dos pedidos" },
   ];
 }
 
@@ -109,7 +116,7 @@ export function tiktokConnectionError(code?: string) {
 
 const syncStates: Record<TiktokSyncPhase, { title: string; description: string }> = {
   first_sync: { title: "Primeira sincronização em andamento", description: "A loja está conectada. Os indicadores aparecerão quando a primeira janela de pedidos estiver disponível." },
-  partial: { title: "Sincronização parcial", description: "Parte dos dados já chegou, mas o período ou os componentes financeiros ainda não estão completos." },
+  partial: { title: "Sincronização em andamento", description: "Parte dos pedidos já chegou. Cada componente financeiro aparece quando a TikTok Shop fecha o extrato dele." },
   ready: { title: "Dados sincronizados", description: "A sincronização está pronta." },
   retryable_error: { title: "A sincronização precisa de nova tentativa", description: "Houve uma falha temporária. Tente carregar novamente; o progresso já salvo será preservado." },
   reauth_required: { title: "Reconecte a TikTok Shop", description: "A autorização expirou ou foi revogada. Reconecte a loja para retomar a sincronização." },
@@ -118,28 +125,259 @@ const syncStates: Record<TiktokSyncPhase, { title: string; description: string }
 
 export function syncStateContent(phase: TiktokSyncPhase) { return syncStates[phase]; }
 
+/**
+ * Erro da sincronização com nome próprio. "Houve uma falha temporária" é
+ * verdadeiro para quase tudo e útil para nada: quando o motivo é um status novo
+ * da API, tentar de novo devolve o MESMO resultado, e o pedido fica fora do
+ * faturamento sem que ninguém saiba disso.
+ */
+export function tiktokSyncErrorContent(
+  error: TiktokSyncStatus["error"]
+): { title: string; description: string; retryable: boolean } {
+  if (error?.code === "TIKTOK_STATUS_NAO_MAPEADO") {
+    const observed = error.unmappedStatuses ?? [];
+    const pedidos = observed.reduce((total, item) => total + item.orders, 0);
+    const lista = observed.map((item) => `${item.status || "(vazio)"} (${item.orders})`).join(", ");
+    return {
+      title: "A TikTok Shop devolveu um status de pedido que o NEXO ainda não conhece",
+      description: observed.length
+        ? `${pedidos} pedido(s) com status ${lista} ficaram de fora do faturamento. O NEXO não escolhe um equivalente por conta própria — esse status precisa entrar no mapeamento antes de os pedidos contarem. Tentar de novo devolve o mesmo resultado.`
+        : `${error.message} Tentar de novo devolve o mesmo resultado.`,
+      retryable: false,
+    };
+  }
+  // Demais falhas mantêm o texto genérico de propósito: `last_error` carrega
+  // mensagem de driver e de API, que não se coloca na tela de quem vende.
+  const fallback = syncStates.retryable_error;
+  return { title: fallback.title, description: fallback.description, retryable: true };
+}
+
 const money = (value: number, currency: string) => new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(value);
 const percent = (value: number) => `${value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
 
-const contexts: Record<keyof TiktokFinancialOverviewV2, string> = {
-  currency: "",
-  revenue: "Aguardando cobertura completa do período",
-  fees: "Aguardando fechamento do extrato",
-  sellerShipping: "Aguardando frete cobrado do vendedor",
-  buyerShipping: "Aguardando frete pago pelo comprador",
-  ads: "Aguardando evidência de despesas com anúncios",
-  taxesWithheld: "Aguardando retenções discriminadas no extrato",
-  refunds: "Aguardando estornos discriminados no extrato",
-  tax: "Aguardando configuração do imposto",
-  taxRate: "Aguardando configuração da alíquota",
-  cogs: "Aguardando custos dos produtos",
-  profit: "Aguardando todos os componentes financeiros",
-  marginPct: "Aguardando receita e lucro completos",
-  roiPct: "Aguardando lucro e custo completos",
-};
+/**
+ * De quem é a espera.
+ *
+ * "Aguardando dados" descreve a tela, não o mundo: quem lê não sabe se o NEXO
+ * falhou, se a TikTok atrasou, ou se falta ela cadastrar alguma coisa. São três
+ * esperas com donos e desfechos diferentes, e a tela precisa separar as três:
+ *
+ *   • `canal`       — a TikTok Shop ainda não postou o extrato do pedido
+ *                     (`pending`), ou entregou o dado sem aquele componente
+ *                     (`missing`). Não há o que fazer além de esperar, e por
+ *                     isso essas pendências não ganham botão: oferecer ação
+ *                     para algo que só depende de terceiro é mentira educada.
+ *   • `vendedora`   — falta custo de SKU ou a alíquota de imposto. Isso ela
+ *                     resolve hoje; vem primeiro na lista e sempre com link.
+ *   • `conciliacao` — a janela ainda não fechou do NOSSO lado. Ver o comentário
+ *                     de `revenue` abaixo: culpar a TikTok por isso era alarme
+ *                     falso permanente.
+ *
+ * As contagens saem inteiras de `tiktokFinancialV2`: nada é estimado aqui.
+ */
+export type TiktokEsperaDe = "canal" | "vendedora" | "conciliacao";
+
+export interface TiktokPendencia {
+  key: string;
+  espera: TiktokEsperaDe;
+  /** Frase completa da lista na tela. Sempre nomeia o dono e traz número. */
+  text: string;
+  /** Versão curta, para caber no contexto de um card. */
+  short: string;
+  /** Só existe quando há o que fazer — ou seja, quando a espera é da vendedora. */
+  action?: { label: string; href: string };
+}
+
+type RequestedPeriodCoverage = TiktokCoverageV2["requestedPeriod"];
+
+const COMPONENT_DEFS: Array<{
+  key: keyof RequestedPeriodCoverage;
+  label: string;
+  unit: string;
+  knownLabel: string;
+  legacyKey?: keyof RequestedPeriodCoverage;
+  espera: TiktokEsperaDe;
+  /** Vem do extrato financeiro, pedido a pedido. Só esses podem falar em extrato. */
+  doExtrato?: true;
+}> = [
+  // `revenue` NÃO é espera da TikTok. Sua cobertura vem de `periodCovered`, que
+  // em `tiktokOverviewCanonical` é `financialSnapshot.covered` →
+  // `checkpointsCoverPeriod`, ou seja, a NOSSA conciliação ter fechado a janela.
+  // E `checkpointsCoverPeriod` começa recusando qualquer `to` posterior a
+  // `closedFinancialBoundary` (meia-noite de Brasília): todo período que termina
+  // hoje — "Hoje", "7 dias", "30 dias", os padrões da tela — nasce descoberto.
+  // Escrever "a TikTok ainda não devolveu os pedidos" aqui era alarme falso
+  // diário, do tipo que faz a vendedora abrir chamado com o marketplace.
+  { key: "revenue", label: "Faturamento", unit: "período", knownLabel: "conhecido", espera: "conciliacao" },
+  { key: "fees", label: "Taxas", unit: "pedidos", knownLabel: "conhecidos", espera: "canal", doExtrato: true },
+  { key: "sellerShipping", label: "Frete do vendedor", unit: "pedidos", knownLabel: "conhecidos", legacyKey: "shipping", espera: "canal", doExtrato: true },
+  // Sem `doExtrato`: o frete do comprador vem do PEDIDO (`order.buyer_shipping`),
+  // não do extrato — em `tiktokFinancialV2` a cobertura dele é montada com
+  // `pending: 0`, o extrato não entra na conta. Falar em "extrato fechado sem
+  // informar" aqui inventava um documento que nunca carregou esse campo.
+  { key: "buyerShipping", label: "Frete do comprador", unit: "pedidos", knownLabel: "conhecidos", legacyKey: "shipping", espera: "canal" },
+  { key: "ads", label: "Anúncios", unit: "pedidos", knownLabel: "conhecidos", espera: "canal", doExtrato: true },
+  { key: "taxesWithheld", label: "Impostos retidos", unit: "pedidos", knownLabel: "conhecidos", espera: "canal", doExtrato: true },
+  { key: "refunds", label: "Estornos", unit: "pedidos", knownLabel: "conhecidos", espera: "canal", doExtrato: true },
+  { key: "tax", label: "Impostos", unit: "período", knownLabel: "conhecido", espera: "vendedora" },
+  { key: "cogs", label: "Custo dos produtos", unit: "unidades", knownLabel: "conhecidas", espera: "vendedora" },
+  { key: "financials", label: "Resultado final", unit: "componentes", knownLabel: "conhecidos", espera: "canal" },
+];
+
+/** Componentes que vêm pedido a pedido do extrato — os únicos que podem citá-lo. */
+const EXTRATO_DEFS = COMPONENT_DEFS.filter((def) => def.doExtrato);
+
+const CONCILIACAO_PENDENTE = "O período ainda não foi conciliado no NEXO; o dia corrente só fecha depois da meia-noite de Brasília";
+const SEM_FRETE_DO_COMPRADOR = (pedidos: number) => `A TikTok Shop não informou o frete pago pelo comprador em ${pedidos} pedido(s)`;
+
+const lower = (label: string) => label.charAt(0).toLowerCase() + label.slice(1);
+
+function periodOf(coverage: TiktokFrontendCoverage): RequestedPeriodCoverage {
+  return (coverage.requestedPeriod ?? coverage) as RequestedPeriodCoverage;
+}
+
+function readCoverage(period: RequestedPeriodCoverage, key: keyof RequestedPeriodCoverage, legacyKey?: keyof RequestedPeriodCoverage) {
+  return (period[key] ?? (legacyKey ? period[legacyKey] : undefined)) as TiktokCoverageMetric | undefined;
+}
+
+function esperaDoComponente(key: keyof RequestedPeriodCoverage, period: RequestedPeriodCoverage): TiktokEsperaDe {
+  if (key === "cogs" || key === "tax") return "vendedora";
+  if (key === "revenue") return "conciliacao";
+  // O resultado final não tem dono próprio: herda o de quem está segurando os
+  // componentes que faltam, na ordem do que resolve mais cedo — ela desbloqueia
+  // hoje, a TikTok num prazo dela, a conciliação sozinha na virada do dia.
+  if (key === "financials") {
+    const cogs = readCoverage(period, "cogs");
+    const tax = readCoverage(period, "tax");
+    if ((cogs?.missing ?? 0) > 0 || (tax?.missing ?? 0) > 0) return "vendedora";
+    const doCanal = COMPONENT_DEFS.filter((def) => def.espera === "canal" && def.key !== "financials")
+      .some((def) => {
+        const item = readCoverage(period, def.key, def.legacyKey);
+        return (item?.missing ?? 0) > 0 || (item?.pending ?? 0) > 0;
+      });
+    return doCanal ? "canal" : "conciliacao";
+  }
+  return "canal";
+}
+
+/**
+ * Lista o que falta, com número, dono e — quando ela pode agir — link.
+ * Ordem deliberada: primeiro o que depende dela, depois o que depende da TikTok.
+ */
+export function tiktokPendencias(coverage: TiktokFrontendCoverage, connectionId?: string | null): TiktokPendencia[] {
+  const period = periodOf(coverage);
+  const daVendedora: TiktokPendencia[] = [];
+  const doCanal: TiktokPendencia[] = [];
+  const daConciliacao: TiktokPendencia[] = [];
+
+  const cogs = readCoverage(period, "cogs");
+  if (cogs && cogs.missing > 0) {
+    daVendedora.push({
+      key: "cogs",
+      espera: "vendedora",
+      text: `${cogs.missing} unidade(s) vendida(s) sem custo cadastrado`,
+      short: `custos de ${cogs.missing} unidade(s)`,
+      action: connectionId ? { label: "Cadastrar custos", href: tiktokProductsHref(connectionId) } : undefined,
+    });
+  }
+
+  const tax = readCoverage(period, "tax");
+  if (tax && tax.missing > 0) {
+    daVendedora.push({
+      key: "tax",
+      espera: "vendedora",
+      text: "Alíquota de imposto ainda não cadastrada para esta loja",
+      short: "alíquota de imposto",
+      action: connectionId ? { label: "Configurar alíquota", href: tiktokTaxSettingsHref(connectionId) } : undefined,
+    });
+  }
+
+  const revenue = readCoverage(period, "revenue");
+  if (revenue && revenue.known < revenue.applicable) {
+    daConciliacao.push({
+      key: "revenue",
+      espera: "conciliacao",
+      text: CONCILIACAO_PENDENTE,
+      short: "conciliação do período",
+    });
+  }
+
+  const buyerShipping = readCoverage(period, "buyerShipping", "shipping");
+  if (buyerShipping && buyerShipping.missing > 0) {
+    doCanal.push({
+      key: "buyerShipping",
+      espera: "canal",
+      text: SEM_FRETE_DO_COMPRADOR(buyerShipping.missing),
+      short: `frete do comprador de ${buyerShipping.missing} pedido(s)`,
+    });
+  }
+
+  // Extrato não fechado é um fato do pedido, não de cada componente: repetir a
+  // mesma contagem em seis linhas viraria ruído e esconderia o que é específico.
+  const semExtrato = Math.max(0, ...EXTRATO_DEFS.map((def) => readCoverage(period, def.key, def.legacyKey)?.pending ?? 0));
+  if (semExtrato > 0) {
+    doCanal.push({
+      key: "statement",
+      espera: "canal",
+      text: `${semExtrato} pedido(s) ainda sem extrato fechado na TikTok Shop`,
+      short: `extrato de ${semExtrato} pedido(s)`,
+    });
+  }
+
+  for (const def of EXTRATO_DEFS) {
+    const item = readCoverage(period, def.key, def.legacyKey);
+    if (!item || item.missing <= 0) continue;
+    doCanal.push({
+      key: def.key,
+      espera: "canal",
+      text: `A TikTok fechou o extrato de ${item.missing} pedido(s) sem informar ${lower(def.label)}`,
+      short: `${lower(def.label)} de ${item.missing} pedido(s)`,
+    });
+  }
+
+  return [...daVendedora, ...doCanal, ...daConciliacao];
+}
+
+function resumoDePendencias(pendencias: TiktokPendencia[]) {
+  if (!pendencias.length) return "todos os componentes financeiros";
+  const shorts = pendencias.map((item) => item.short);
+  return shorts.length <= 3 ? shorts.join("; ") : `${shorts.slice(0, 3).join("; ")} e mais ${shorts.length - 3}`;
+}
+
+function contextoDoCard(key: keyof TiktokFinancialOverviewV2, period: RequestedPeriodCoverage, pendencias: TiktokPendencia[]): string {
+  if (key === "profit") return `Faltam componentes: ${resumoDePendencias(pendencias)}`;
+  if (key === "marginPct") return `A margem só sai com faturamento e lucro completos. Faltam: ${resumoDePendencias(pendencias)}`;
+  if (key === "roiPct") return `O ROI só sai com lucro e custo completos. Faltam: ${resumoDePendencias(pendencias)}`;
+  if (key === "revenue") return CONCILIACAO_PENDENTE;
+  if (key === "buyerShipping") {
+    const item = readCoverage(period, "buyerShipping", "shipping");
+    return item && item.missing > 0
+      ? SEM_FRETE_DO_COMPRADOR(item.missing)
+      : "A TikTok Shop ainda não informou o frete pago pelo comprador neste período";
+  }
+  if (key === "cogs") {
+    const item = readCoverage(period, "cogs");
+    return item && item.missing > 0
+      ? `Você ainda não cadastrou os custos de ${item.missing} unidade(s) vendida(s)`
+      : "Você ainda não cadastrou os custos dos produtos vendidos";
+  }
+  if (key === "tax" || key === "taxRate") return "Você ainda não cadastrou a alíquota de imposto desta loja";
+
+  const def = COMPONENT_DEFS.find((candidate) => candidate.key === (key as keyof RequestedPeriodCoverage));
+  const nome = lower(def?.label ?? "este componente");
+  const item = def ? readCoverage(period, def.key, def.legacyKey) : undefined;
+  if (item && item.pending > 0 && item.missing > 0) {
+    return `${item.pending} pedido(s) aguardando o extrato da TikTok Shop e ${item.missing} fechado(s) sem ${nome}`;
+  }
+  if (item && item.pending > 0) return `${item.pending} pedido(s) aguardando o extrato da TikTok Shop`;
+  if (item && item.missing > 0) return `A TikTok fechou o extrato de ${item.missing} pedido(s) sem informar ${nome}`;
+  return `A TikTok Shop ainda não postou o extrato com ${nome} deste período`;
+}
 
 export function financialCards(overview: TiktokFinancialOverviewV2, coverage: TiktokFrontendCoverage) {
   const periodCoverage = coverage.requestedPeriod ?? coverage;
+  const period = periodOf(coverage);
+  const pendencias = tiktokPendencias(coverage);
   const definitions: Array<{ key: keyof TiktokFinancialOverviewV2; label: string; coverage?: ComponentCoverage; kind?: "percent" }> = [
     { key: "revenue", label: "Faturamento", coverage: periodCoverage.revenue },
     { key: "fees", label: "Taxas", coverage: periodCoverage.fees },
@@ -160,35 +398,36 @@ export function financialCards(overview: TiktokFinancialOverviewV2, coverage: Ti
     return {
       key, label, raw,
       value: raw == null || !complete ? "—" : kind === "percent" ? percent(raw) : money(raw, overview.currency),
-      context: complete && raw != null ? "Total oficial do período" : contexts[key],
+      context: complete && raw != null ? "Total oficial do período" : contextoDoCard(key, period, pendencias),
     };
   });
 }
 
-type RequestedPeriodCoverage = TiktokCoverageV2["requestedPeriod"];
-const coverageDefinitions: Array<{ key: keyof RequestedPeriodCoverage; label: string; unit: string; knownLabel: string; legacyKey?: keyof RequestedPeriodCoverage }> = [
-  { key: "revenue", label: "Faturamento", unit: "período", knownLabel: "conhecido" },
-  { key: "fees", label: "Taxas", unit: "pedidos", knownLabel: "conhecidos" },
-  { key: "sellerShipping", label: "Frete do vendedor", unit: "pedidos", knownLabel: "conhecidos", legacyKey: "shipping" },
-  { key: "buyerShipping", label: "Frete do comprador", unit: "pedidos", knownLabel: "conhecidos", legacyKey: "shipping" },
-  { key: "ads", label: "Anúncios", unit: "pedidos", knownLabel: "conhecidos" },
-  { key: "taxesWithheld", label: "Impostos retidos", unit: "pedidos", knownLabel: "conhecidos" },
-  { key: "refunds", label: "Estornos", unit: "pedidos", knownLabel: "conhecidos" },
-  { key: "tax", label: "Impostos", unit: "período", knownLabel: "conhecido" },
-  { key: "cogs", label: "Custo dos produtos", unit: "unidades", knownLabel: "conhecidas" },
-  { key: "financials", label: "Resultado final", unit: "componentes", knownLabel: "conhecidos" },
-];
+const ESPERA_LABEL: Record<TiktokEsperaDe, string> = {
+  canal: "Aguardando a TikTok",
+  vendedora: "Falta você cadastrar",
+  conciliacao: "Aguardando conciliação",
+};
+
+function detalheDoQueFalta(key: keyof RequestedPeriodCoverage, item: TiktokCoverageMetric, label: string) {
+  if (key === "cogs") return `${item.missing} unidade(s) sem custo cadastrado`;
+  if (key === "tax") return "alíquota de imposto não cadastrada";
+  if (key === "revenue") return "o período ainda não foi conciliado no NEXO";
+  if (key === "buyerShipping") return `${item.missing} pedido(s) sem o valor do frete pago pelo comprador`;
+  if (key === "financials") return `${item.missing} componente(s) sem valor`;
+  return `${item.missing} pedido(s) com extrato fechado sem ${lower(label)}`;
+}
 
 export function coverageDescription(coverage: TiktokFrontendCoverage, currency = "BRL") {
-  const periodCoverage = coverage.requestedPeriod ?? coverage;
-  return coverageDefinitions.map(({ key, label, unit, knownLabel, legacyKey }) => {
-    const item = (periodCoverage[key] ?? (legacyKey ? periodCoverage[legacyKey] : undefined)) as TiktokCoverageMetric | undefined;
-    if (!item) return { key, label, status: "Parcial", detail: "Cobertura ainda não informada", captured: null };
-    const status = item.status === "complete" ? "Completa" : item.status === "pending" ? "Aguardando" : "Parcial";
+  const period = periodOf(coverage);
+  return COMPONENT_DEFS.map(({ key, label, unit, knownLabel, legacyKey }) => {
+    const item = readCoverage(period, key, legacyKey);
+    if (!item) return { key, label, status: ESPERA_LABEL.canal, detail: "Cobertura ainda não informada nesta resposta", captured: null };
+    const status = item.status === "complete" ? "Completa" : ESPERA_LABEL[esperaDoComponente(key, period)];
     const ratio = item.ratio ?? (item.applicable > 0 ? item.known / item.applicable : item.status === "complete" ? 1 : 0);
     const parts = [`${item.known} de ${item.applicable} ${unit} ${knownLabel} (${Math.round(ratio * 100)}%)`];
-    if (item.pending) parts.push(`${item.pending} aguardando extrato`);
-    if (item.missing) parts.push(`${item.missing} pendentes`);
+    if (item.pending) parts.push(`${item.pending} aguardando extrato da TikTok`);
+    if (item.missing) parts.push(detalheDoQueFalta(key, item, label));
     const captured = item.capturedValue == null ? null : `${money(item.capturedValue, currency)} capturados até agora; não é o total oficial do card`;
     return { key, label, status, detail: parts.join("; "), captured };
   });
@@ -198,7 +437,7 @@ export function historicalBacklogDescription(coverage: TiktokFrontendCoverage) {
   const backlog = coverage.historicalBacklog;
   return {
     label: "Backlog financeiro histórico",
-    status: backlog.pending === 0 ? "Sem pendências" : "Pendente",
+    status: backlog.pending === 0 ? "Sem pendências" : ESPERA_LABEL.canal,
     detail: backlog.pending === 0
       ? "Nenhum pedido histórico aguardando extrato"
       : `${backlog.pending} pedido(s) histórico(s) aguardando extrato`,

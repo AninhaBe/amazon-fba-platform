@@ -38,12 +38,14 @@ test("formata valores completos, margem e ROI", () => {
   assert.equal(cards.find((card) => card.key === "roiPct").value, "97,50%");
 });
 
-test("traduz cobertura completa, parcial e aguardando em texto acessível", () => {
+// O status da cobertura deixou de ser um adjetivo ("Parcial") e passou a dizer
+// de QUEM e a espera — ver tests/tiktokPendenciaDono.test.mjs.
+test("traduz cobertura completa e nomeia o dono da espera em texto acessível", () => {
   const items = coverageDescription(coverage);
   assert.equal(items.find((item) => item.key === "revenue").status, "Completa");
-  assert.equal(items.find((item) => item.key === "fees").status, "Aguardando");
+  assert.equal(items.find((item) => item.key === "fees").status, "Aguardando a TikTok");
   assert.match(items.find((item) => item.key === "fees").detail, /aguardando extrato/);
-  assert.equal(items.find((item) => item.key === "sellerShipping").status, "Parcial");
+  assert.equal(items.find((item) => item.key === "sellerShipping").status, "Aguardando a TikTok");
 });
 
 test("usa unidades semânticas, separa fretes e contextualiza valor capturado", () => {
@@ -57,7 +59,7 @@ test("usa unidades semânticas, separa fretes e contextualiza valor capturado", 
   assert.match(items.find((item) => item.key === "fees").detail, /4 de 10 pedidos conhecidos \(40%\)/);
   assert.match(items.find((item) => item.key === "fees").captured, /não é o total oficial/);
   assert.match(items.find((item) => item.key === "cogs").detail, /18 de 24 unidades conhecidas \(75%\)/);
-  assert.equal(items.find((item) => item.key === "sellerShipping").status, "Parcial");
+  assert.equal(items.find((item) => item.key === "sellerShipping").status, "Aguardando a TikTok");
   assert.equal(items.find((item) => item.key === "buyerShipping").status, "Completa");
   assert.ok(items.every((item) => !item.detail.includes("itens")));
 });

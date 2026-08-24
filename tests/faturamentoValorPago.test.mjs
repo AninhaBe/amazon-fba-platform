@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { agruparItens } from "../src/lib/integrations/tiktokCanonical.ts";
 
 // Faturamento é SEMPRE o que o comprador pagou, nunca o preço de tabela.
 //
@@ -33,13 +34,25 @@ test("Amazon: receita e o valor pago, nao o preco de tabela", () => {
   }
 });
 
-test("TikTok: sale_price (pos-desconto) vem antes de original_price", () => {
+test("TikTok: sale_price (pos-desconto) tem precedencia sobre original_price", () => {
   const s = fonte("src/lib/integrations/tiktokCanonical.ts");
   assert.match(s, /paraNumero\(linha\.sale_price\) \?\? paraNumero\(linha\.original_price\)/);
-  // A ordem importa: invertida, todo pedido com desconto inflaria o faturamento.
-  const posSale = s.indexOf("linha.sale_price");
-  const posOriginal = s.indexOf("linha.original_price");
-  assert.ok(posSale < posOriginal, "sale_price precisa ter precedencia");
+
+  // A checagem antiga comparava a POSICAO das duas strings no arquivo. Era um
+  // proxy: qualquer helper novo que citasse `linha.original_price` mais acima
+  // acusava uma inversao inexistente — foi o que aconteceu em 23/08/2026 com o
+  // calculo de desconto. Trocado por comportamento, que e o que importa e nao
+  // depende de onde o codigo mora.
+  const [comDesconto] = agruparItens([
+    { product_id: "p1", sku_id: "s1", seller_sku: "SKU-1", sale_price: "17.90", original_price: "19.90" },
+  ]);
+  assert.equal(comDesconto.unitPrice, 17.9, "faturamento tem que usar o valor pago, nao o preco de tabela");
+
+  // Sem `sale_price`, o preco de tabela e o unico fato disponivel — e ai vale.
+  const [semDesconto] = agruparItens([
+    { product_id: "p2", sku_id: "s2", seller_sku: "SKU-2", original_price: "19.90" },
+  ]);
+  assert.equal(semDesconto.unitPrice, 19.9);
 });
 
 test("Shopee: model_discounted_price vem antes de model_original_price", () => {

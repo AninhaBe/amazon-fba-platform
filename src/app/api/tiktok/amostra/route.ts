@@ -8,11 +8,12 @@ import {
 import { getTiktokShops, refreshTiktokShopIfNeeded } from "@/lib/tiktokStore";
 import {
   agruparItens,
-  canonicalTiktokStatus,
   normalizeTiktokOrder,
   normalizeTiktokProduct,
   sanitizeTiktokOrder,
   tiktokStatementSettled,
+  tiktokStatusIfMapped,
+  tiktokUnmappedOrderStatuses,
   type TiktokOrder,
   type TiktokProduct,
   type TiktokStatement,
@@ -75,12 +76,17 @@ export async function GET(req: NextRequest) {
           const s = String((o as { status?: string }).status ?? "?");
           statusVistos.set(s, (statusVistos.get(s) ?? 0) + 1);
         }
+        // Este bloco existe justamente para revelar status novo — usar
+        // `canonicalTiktokStatus` aqui derrubava a amostra inteira no primeiro
+        // status desconhecido e a resposta virava uma linha em `erros`, sem
+        // dizer QUAL status apareceu. É o contrário do objetivo da rota.
         resultado.statusObservados = [...statusVistos].map(([status, vezes]) => ({
           status,
           vezes,
-          canonicoAtual: canonicalTiktokStatus(status),
-          conhecido: canonicalTiktokStatus(status) !== "pending" || status === "UNPAID" || status === "ON_HOLD",
+          canonicoAtual: tiktokStatusIfMapped(status),
+          mapeado: tiktokStatusIfMapped(status) != null,
         }));
+        resultado.statusNaoMapeados = tiktokUnmappedOrderStatuses(detalhes);
 
         // Um pedido inteiro, cru (sem PII) + o que o parser fez com ele.
         const primeiro = detalhes[0];
