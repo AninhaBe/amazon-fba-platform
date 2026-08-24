@@ -65,3 +65,14 @@ test("a legenda aparece quando ha pedido, mesmo sem pendente", () => {
     /confirmados\.pedidos <= 0 && pedidosAguardando <= 0 && pedidosCancelados <= 0/
   );
 });
+
+test("o monitor tem as mesmas tres abas nos dois canais", () => {
+  const amazon = fonte("src/app/monitor/page.tsx");
+  const ml = fonte("src/app/components/MercadoLivreWorkspace.tsx");
+  // "Transações" faltava no ML: o extrato do Mercado Pago existia só no card do
+  // dashboard, e quem abria o monitor não achava onde ver quando o dinheiro cai.
+  for (const aba of ["Composição", "Transações", "Rentabilidade por venda"]) {
+    assert.ok(amazon.includes(aba), `Amazon perdeu a aba "${aba}"`);
+    assert.ok(ml.includes(aba), `Mercado Livre perdeu a aba "${aba}"`);
+  }
+});

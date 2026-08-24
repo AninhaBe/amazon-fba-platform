@@ -29,7 +29,20 @@ const money = (v: number, currency = "BRL") =>
  * (`mercadopago_account/balance` → 403), então **não afirmamos "disponível
  * agora"**. Mostramos o que dá para provar: o que está retido e quando cai.
  */
-export function MercadoLivreSaldo({ connectionId }: { connectionId?: string }) {
+export function MercadoLivreSaldo({
+  connectionId,
+  modo = "resumo",
+}: {
+  connectionId?: string;
+  /**
+   * `resumo` — o card compacto do dashboard.
+   * `transacoes` — a aba do monitor, no mesmo formato da Amazon: faixa de
+   * números em cima, extrato de liberações embaixo. Mesma busca, mesma fonte;
+   * só a apresentação muda, para as duas abas dizerem a mesma coisa do mesmo
+   * jeito nos dois canais.
+   */
+  modo?: "resumo" | "transacoes";
+}) {
   const [saldo, setSaldo] = useState<Saldo | null>(null);
   const [erro, setErro] = useState(false);
 
@@ -48,6 +61,85 @@ export function MercadoLivreSaldo({ connectionId }: { connectionId?: string }) {
   if (erro || !saldo) return null;
 
   const proxima = saldo.liberacoes[0];
+
+  if (modo === "transacoes") {
+    return (
+      <section className="monitor-transactions" aria-labelledby="ml-transacoes-title">
+        <header className="monitor-section-heading">
+          <div>
+            <p>Financeiro conciliado</p>
+            <h2 id="ml-transacoes-title">Conciliação de transações</h2>
+            <small>
+              O que o Mercado Pago já liberou e o que ainda retém, com a data de cada
+              liberação. Não é o saldo da sua conta.
+            </small>
+          </div>
+          <span>Valores do Mercado Pago</span>
+        </header>
+
+        <div className="monitor-transactions-body">
+          <div className="transaction-summary-band">
+            <StatSaldo
+              label="Já liberado na janela"
+              value={money(saldo.liberadoNaJanela, saldo.currency)}
+              hint="O que o Mercado Pago já movimentou no período lido."
+            />
+            <StatSaldo
+              label="Ainda retido"
+              value={money(saldo.retido, saldo.currency)}
+              hint="Vendas que o Mercado Livre segura até a data de liberação de cada uma."
+            />
+            <StatSaldo
+              label="Líquido se tudo liquidar"
+              value={money(+(saldo.liberadoNaJanela + saldo.retido).toFixed(2), saldo.currency)}
+              hint="Soma dos dois. O retido ainda pode mudar por devolução ou ajuste."
+            />
+            <StatSaldo
+              label="Pagamentos"
+              value={saldo.pagamentosTotais.toLocaleString("pt-BR")}
+              hint={
+                saldo.parcial
+                  ? `Lemos as ${saldo.pagamentosLidos} liberações mais próximas — o retido real é maior que o exibido.`
+                  : "Todos os pagamentos pendentes foram lidos."
+              }
+            />
+          </div>
+
+          {saldo.liberacoes.length === 0 ? (
+            <p className="saldo-nota">Nenhuma venda retida no período.</p>
+          ) : (
+            <div className="table-scroll monitor-transaction-table">
+              <table className="data-table min-w-[520px]">
+                <caption className="sr-only">Liberações previstas do Mercado Pago</caption>
+                <thead className="bg-[var(--ink-03)] text-left text-xs uppercase tracking-wide text-[var(--ink-muted)]">
+                  <tr>
+                    <th scope="col" className="px-4 py-3">Data de liberação</th>
+                    <th scope="col" className="px-4 py-3">Pagamentos</th>
+                    <th scope="col" className="px-4 py-3 text-right">Valor líquido</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {saldo.liberacoes.map((l) => (
+                    <tr key={l.date}>
+                      <td className="px-4 py-3">{brDate(l.date)}</td>
+                      <td className="px-4 py-3 tabular-nums">{l.pagamentos}</td>
+                      <td className="px-4 py-3 text-right tabular-nums">{money(l.amount, saldo.currency)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <p className="saldo-nota">
+            O valor é o <strong>líquido</strong>: venda menos tarifas menos a sua parte do frete — a
+            mesma conta do &quot;Total a receber&quot; do Mercado Pago.
+          </p>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="saldo-panel" aria-labelledby="saldo-ml-title">
       <div>
@@ -89,5 +181,15 @@ export function MercadoLivreSaldo({ connectionId }: { connectionId?: string }) {
           : ""}
       </p>
     </section>
+  );
+}
+
+function StatSaldo({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="transaction-stat">
+      <span>{label}</span>
+      <strong className="tabular-nums">{value}</strong>
+      {hint && <small>{hint}</small>}
+    </div>
   );
 }

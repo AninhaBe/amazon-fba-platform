@@ -15,7 +15,7 @@ import { CustomizableMetricGrid } from "./CustomizableMetricGrid";
 // O mesmo dicionário do radar da Amazon: equalizar canal é usar a MESMA palavra
 // para o mesmo estado, senão "Saudável" no ML e "Ok" na Amazon parecem coisas
 // diferentes sendo a mesma.
-import { ROTULO_DE_COBERTURA } from "@/lib/coberturaDeEstoque";
+import { ORDEM_DO_RADAR, ROTULO_DE_COBERTURA, type StockStatus } from "@/lib/coberturaDeEstoque";
 import { LegendaDeVendas } from "./LegendaDeVendas";
 import { CompactMetric, Flow, FlowExpandable, Metric, getRevenueTrend } from "./Metric";
 import { buildFinancialComposition, FinancialSummaryPanel } from "./FinancialSummaryPanel";
@@ -27,6 +27,9 @@ import { TopProductsRanking } from "./TopProductsRanking";
 import { BriefingLead } from "./BriefingLead";
 import { IntegrationDashboardFrame } from "./IntegrationDashboardFrame";
 
+/** As três abas do monitor — as mesmas da Amazon. */
+type SecaoDoMonitor = "composition" | "transactions" | "profitability";
+
 interface Overview {
   account: { id: string; nickname: string; siteId: string; };
   period: { from: string; to: string; label: string; };
@@ -34,7 +37,7 @@ interface Overview {
   profit: { fees: number; cogs: number; taxes: number | null; taxRate: number | null; sellerShipping: number; buyerShipping: number; shippingCostsComplete: boolean; revenueProcessed: number; coverage: { processedOrders: number; paidOrders: number; complete: boolean; }; estimatedProfit: number; marginPct: number; unitsWithoutCost: number; };
   dailySales: DailyPoint[];
   topProducts: Array<{ id: string; sku: string | null; title: string; units: number; revenue: number; cost: number; contribution: number; complete: boolean; marginPct: number | null; }>;
-  stockRadar: Array<{ id: string; sku: string | null; title: string; thumbnail: string | null; availableQuantity: number; unitsSold: number; calculationDays: number; daysRemaining: number | null; status: "out" | "critical" | "ok"; }>;
+  stockRadar: Array<{ id: string; sku: string | null; title: string; thumbnail: string | null; availableQuantity: number; unitsSold: number; calculationDays: number; daysRemaining: number | null; status: StockStatus; }>;
   profitabilityLines: ProfitabilityLine[];
   recentOrders: Array<{ id: string; packId: string | null; status: string; createdAt: string; total: number; currency: string; items: number; }>;
 }
@@ -111,8 +114,8 @@ export function MercadoLivreWorkspace(props: { view: keyof typeof views }) {
 
 function MercadoLivreWorkspaceInterno({ view }: { view: keyof typeof views }) {
   const bruta = useSearchParams().get("secao");
-  const secaoInicial: "composition" | "profitability" =
-    bruta === "vendas" || bruta === "profitability" ? "profitability" : "composition";
+  const secaoInicial: SecaoDoMonitor =
+    bruta === "vendas" || bruta === "profitability" ? "profitability" : bruta === "transacoes" || bruta === "transactions" ? "transactions" : "composition";
   const period = useDashboardPeriod();
   // Ao voltar de outro canal, o período já visto renderiza no primeiro paint
   // (sem flash de skeleton); a revalidação segue em segundo plano.
@@ -453,7 +456,9 @@ function Inventory({ overview }: { overview: Overview }) {
   const [statusFilter, setStatusFilter] = useState<"all" | "out" | "critical" | "ok">("all");
   const [sort, setSort] = useState<"urgency" | "stock" | "sales">("urgency");
   const [page, setPage] = useState(1);
-  const urgencyRank: Record<"out" | "critical" | "ok", number> = { out: 0, critical: 1, ok: 2 };
+  // A ordem de urgência também vem do módulo compartilhado — era mais uma
+  // cópia local, e ela nem conhecia "sem venda".
+  const urgencyRank = ORDEM_DO_RADAR;
   const rows = [...overview.stockRadar]
     .filter((product) => `${product.title || ""} ${product.sku || ""} ${product.id}`.toLowerCase().includes(query.toLowerCase()) && (statusFilter === "all" || product.status === statusFilter))
     .sort((a, b) =>
@@ -494,7 +499,7 @@ function Inventory({ overview }: { overview: Overview }) {
   </div>;
 }
 
-function Monitor({ overview, secaoInicial }: { overview: Overview; secaoInicial: "composition" | "profitability" }) {
+function Monitor({ overview, secaoInicial }: { overview: Overview; secaoInicial: SecaoDoMonitor }) {
   const profitCoverage = overview.profit.coverage;
   const netReceived = overview.profit.revenueProcessed - overview.profit.fees - overview.profit.sellerShipping;
   const { semAliquota, resultParcial, resultIncomplete, margemSub } = avaliarResultado(overview);
@@ -502,7 +507,7 @@ function Monitor({ overview, secaoInicial }: { overview: Overview; secaoInicial:
   // `useState` que lê a URL no inicializador roda no servidor, onde `window` não
   // existe — e a hidratação não o re-executa. Quem lê a URL é o
   // `useSearchParams`, dentro da fronteira de Suspense lá em cima.
-  const [section, setSection] = useState<"composition" | "profitability">(secaoInicial);
+  const [section, setSection] = useState<SecaoDoMonitor>(secaoInicial);
   return <div className="ml-monitor-body">
     <CustomizableMetricGrid
       viewKey="mercado-livre-monitor"
@@ -537,7 +542,12 @@ function Monitor({ overview, secaoInicial }: { overview: Overview; secaoInicial:
       ]}
     />
 
-    <nav className="monitor-section-tabs" aria-label="Visões do monitor Mercado Livre"><button type="button" aria-current={section === "composition" ? "page" : undefined} onClick={() => setSection("composition")}>Composição</button><button type="button" aria-current={section === "profitability" ? "page" : undefined} onClick={() => setSection("profitability")}>Rentabilidade por venda</button></nav>
+    {/* Mesmas três abas da Amazon, na mesma ordem. "Transações" faltava aqui: o
+        extrato do Mercado Pago existia só no card do dashboard, e quem abria o
+        monitor não achava onde ver quando o dinheiro cai. */}
+    <nav className="monitor-section-tabs" aria-label="Visões do monitor Mercado Livre"><button type="button" aria-current={section === "composition" ? "page" : undefined} onClick={() => setSection("composition")}>Composição</button><button type="button" aria-current={section === "transactions" ? "page" : undefined} onClick={() => setSection("transactions")}>Transações</button><button type="button" aria-current={section === "profitability" ? "page" : undefined} onClick={() => setSection("profitability")}>Rentabilidade por venda</button></nav>
+
+    {section === "transactions" && <MercadoLivreSaldo modo="transacoes" />}
 
     {section === "composition" && <section className="monitor-composition" aria-labelledby="meli-financial-title">
       <header className="monitor-section-heading"><div><p>Financeiro realizado</p><h2 id="meli-financial-title">Do faturamento ao resultado</h2></div><span>Valores conciliados do Mercado Livre</span></header>
