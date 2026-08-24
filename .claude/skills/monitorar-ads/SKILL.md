@@ -1670,6 +1670,78 @@ grupos têm lance próprio — mas segmentação nova nasceria nele).
 - Protetores com preço novo (−R$ 3, ~20h de 19/08): nenhuma venda ainda; reolhar 21/08
   (o combinado é 2 dias).
 
+## ✅ Aplicado 24/08/2026, ~17h — VIRADA AGRESSIVA (decisão dela: aceitar 12% de margem)
+
+> *"bora fazer um ads agressivo, to disposta a ter 12% de margem no protetor e
+> investir em bastante ads agora e depois vou aumentando, ta mt devagar as vendas."*
+
+### 🔑 A conta que passa a abrir toda decisão de lance
+
+Margem real medida no banco (30 dias, preço RECEBIDO já sem cupom × custo cadastrado):
+
+| SKU | Recebido/un | Custo | Margem/un | Margem % |
+|---|---|---|---|---|
+| martelo-borracha | R$ 26,19 | 5,84 | **R$ 20,35** | **77,7%** |
+| kit-clips-320 | R$ 19,07 | 6,82 | R$ 12,25 | 64,2% |
+| kitprote-8 | R$ 21,15 | 9,57 | R$ 11,58 | 54,7% |
+| 🔴 kitprote-32 | R$ 44,33 | 38,28 | R$ 6,05 | **13,6%** |
+
+Com 12% de margem alvo, a verba de Ads por unidade é `margem − 12% do preço`, e daí sai
+o **lance máximo = verba × taxa de conversão**:
+
+| Produto | Verba/un | ACOS máx | ROAS mín | CVR real | **Lance máximo** |
+|---|---|---|---|---|---|
+| Martelo | R$ 17,21 | 65,7% | 1,52 | 16,1% | **R$ 2,77** |
+| Clips | R$ 9,96 | 52,2% | 1,92 | 7,0% | **R$ 0,70** |
+| Kit 8 | R$ 9,04 | 42,7% | 2,34 | 3,7% | **R$ 0,33** |
+| Kit 32 | R$ 0,73 | 1,6% | — | 0% | **R$ 0,00** |
+
+📌 **ROAS só significa alguma coisa dividido pela margem do produto.** Comparar ROAS
+entre campanhas de produtos diferentes compara coisas diferentes.
+
+### As seis mudanças
+
+| Campanha / grupo | De | Para | Motivo |
+|---|---|---|---|
+| Manual - Clips 320 (orçamento) | 10 | **15** | teto limitando quem lucra; Amazon recomendava 15 |
+| Manual - Martelo (orçamento) | 10 | **20** | lance alto sem teto é inútil |
+| Manual - Martelo · Frase | 0,90 | **1,80** | 77,7% de margem e CVR 16,1%; suporta até 2,77 |
+| Manual - Clips · Frase | 0,50 | **0,70** | no teto do que os 12% permitem |
+| Auto - Protetor Kit 8 | 1,29 | **0,35** | ROAS 1,24 contra equilíbrio 1,8 — perdia dinheiro |
+| Auto - Martelo | 3,00 | **0,64** | era 4,7× a sugestão; usado o botão "Aplicar" |
+| 🔴 Auto - Protetor Kit 32 | ativa | **PAUSADA** | 13,6% de margem: não sobra verba para anúncio |
+
+Todas confirmadas relendo a tabela/cabeçalho depois de salvar.
+
+### 🔑 A ARMADILHA DO EDITOR DE LANCE — anotar, custou 4 tentativas
+
+**Triplo clique DIRETO na célula não abre o editor.** A sequência que funciona é:
+
+1. **um clique simples** na célula do lance → abre o editor com o valor
+2. **triplo clique DENTRO do campo** → seleciona o conteúdo
+3. digitar o novo valor
+4. **conferir por screenshot ANTES de salvar**
+
+Pulando o passo 1, o triplo clique só seleciona a linha e a digitação entra pela metade:
+tentando trocar 1,29 por 0,35 o campo ficou com **`R$ 1,3`**. Cancelei a tempo — mas se
+tivesse salvo, teria gravado um lance que ninguém escolheu.
+
+⚠️ **Quando existir botão "Aplicar" ao lado da sugestão, use ele.** Não tem digitação, não
+tem erro possível. Foi assim no `Auto - Martelo` (3,00 → 0,64).
+
+⚠️ O renderizador do console travou no meio da sessão (screenshot expirando, coordenadas
+do DOM divergindo das do clique). **Recarregar a página resolve** — insistir com a aba
+degradada é como o `R$ 1,3` acontece.
+
+### O que medir daqui a uma semana
+
+O martelo dobrou de lance com teto dobrado: é a aposta principal. Se o CVR de 16,1% se
+mantiver, ele aguenta; se cair, o lance máximo cai junto e a conta tem que ser refeita.
+
+⚠️ **Tudo isso vale com a tarifa da Amazon ZERADA** pela promoção de vendedor novo. Quando
+acabar, comissão e logística voltam e todas as margens acima pioram. Reconferir antes de
+subir mais orçamento.
+
 ## Leitura de 24/08/2026, ~15h — 🔴 AGIR (aplicado) · orçamento subiu na campanha que lucra
 
 ```
