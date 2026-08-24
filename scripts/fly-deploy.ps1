@@ -38,11 +38,16 @@ if (-not $url) { Write-Error "NEXT_PUBLIC_SUPABASE_URL vazia em $envFile" }
 if (-not $key) { Write-Error "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY vazia em $envFile" }
 "ok: URL ($($url.Length) chars) e KEY ($($key.Length) chars) lidas de $envFile"
 
+$version = (& git rev-parse --short HEAD).Trim()
+if (-not $version) { Write-Error "Nao foi possivel identificar a versao do NEXO" }
+"ok: versao de deploy $version"
+
 # --remote-only: o Fly compila. Sem isto o flyctl usa o Docker local, que come
 # RAM e disco desta maquina — exatamente o que se quer evitar aqui.
 & $fly deploy --remote-only `
   --build-arg "NEXT_PUBLIC_SUPABASE_URL=$url" `
-  --build-arg "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$key"
+  --build-arg "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$key" `
+  --build-arg "DEPLOYMENT_VERSION=$version"
 
 if ($LASTEXITCODE -ne 0) { Write-Error "deploy falhou (exit $LASTEXITCODE)" }
 
