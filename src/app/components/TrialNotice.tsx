@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { brDate } from "@/lib/datetime";
+import { NEXO_TRIAL_DISMISSED_EVENT, NEXO_TRIAL_STATE_EVENT } from "@/lib/productTour";
 
 interface Trial {
   startsAt: string;
@@ -36,15 +37,23 @@ export function TrialNotice() {
     (async () => {
       try {
         const response = await fetch("/api/trial", { cache: "no-store" });
-        if (!response.ok) return;
+        if (!response.ok) {
+          window.dispatchEvent(new CustomEvent(NEXO_TRIAL_STATE_EVENT, { detail: { willOpen: false } }));
+          return;
+        }
         const data = await response.json();
-        if (cancelled || !data.trial) return;
+        if (cancelled || !data.trial) {
+          if (!cancelled) window.dispatchEvent(new CustomEvent(NEXO_TRIAL_STATE_EVENT, { detail: { willOpen: false } }));
+          return;
+        }
         setTrial(data.trial);
         const seenThisSession = sessionStorage.getItem(SEEN_KEY);
-        if (data.trial.expired) setShowModal(true);
-        else if (!data.trial.acknowledged && !seenThisSession) setShowModal(true);
+        const willOpen = Boolean(data.trial.expired || (!data.trial.acknowledged && !seenThisSession));
+        window.dispatchEvent(new CustomEvent(NEXO_TRIAL_STATE_EVENT, { detail: { willOpen } }));
+        if (willOpen) setShowModal(true);
       } catch {
         // aviso é acessório: silencioso em caso de falha
+        if (!cancelled) window.dispatchEvent(new CustomEvent(NEXO_TRIAL_STATE_EVENT, { detail: { willOpen: false } }));
       }
     })();
     return () => {
@@ -56,6 +65,7 @@ export function TrialNotice() {
 
   const dismiss = () => {
     setShowModal(false);
+    window.dispatchEvent(new Event(NEXO_TRIAL_DISMISSED_EVENT));
     try {
       sessionStorage.setItem(SEEN_KEY, "1");
     } catch {

@@ -1,0 +1,25 @@
+.tour { position: fixed; inset: 0; z-index: 70; pointer-events: none; }
+.blocker { position: fixed; inset: 0; pointer-events: auto; }
+.highlight { position: fixed; inset: var(--target-top) auto auto var(--target-left); width: var(--target-width); height: var(--target-height); border-radius: 14px; box-shadow: 0 0 0 9999px oklch(0.985 0.003 90 / .84), 0 0 0 2px var(--ink), 0 16px 40px oklch(0.15 0 0 / .18); transition-property: inset, width, height; transition-duration: 220ms; transition-timing-function: var(--ease); }
+.tooltip { position: fixed; inset: var(--tooltip-top) auto auto var(--tooltip-left); width: var(--tooltip-width); min-height: 176px; border-radius: 14px; background: oklch(0.2 0 0); padding: 18px; color: white; pointer-events: auto; box-shadow: 0 20px 54px oklch(0.1 0 0 / .28); }
+.tooltip::before { content: ""; position: absolute; width: 14px; height: 14px; rotate: 45deg; background: inherit; }
+.right::before { inset: 20px auto auto -7px; }
+.left::before { inset: 20px -7px auto auto; }
+.bottom::before { inset: -7px auto auto 24px; }
+.progress { color: oklch(0.76 0 0); font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.tooltip h2 { max-width: 24ch; margin-block-start: 5px; font-size: 15px; font-weight: 760; letter-spacing: -.02em; line-height: 1.3; }
+.tooltip p { margin-block-start: 6px; color: oklch(0.8 0 0); font-size: 12.5px; line-height: 1.48; text-wrap: pretty; }
+.close { position: absolute; inset: 8px 8px auto auto; display: grid; width: 40px; height: 40px; place-items: center; border-radius: 10px; color: oklch(0.72 0 0); transition-property: background-color, color, scale; transition-duration: 140ms; }
+.close:hover { background: oklch(1 0 0 / .1); color: white; }
+.close:active { scale: .96; }
+.close svg { width: 15px; height: 15px; }
+.actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-block-start: 17px; }
+.actions button { min-height: 40px; border-radius: 10px; padding-inline: 13px; font-size: 12.5px; font-weight: 720; transition-property: background-color, color, scale; transition-duration: 140ms; }
+.actions button:active { scale: .96; }
+.skip { color: oklch(0.76 0 0); }
+.skip:hover { color: white; }
+.next { background: white; color: oklch(0.2 0 0); box-shadow: 0 5px 16px oklch(0 0 0 / .24); }
+.next:hover { background: oklch(0.94 0 0); }
+@media (prefers-reduced-motion: no-preference) { .tooltip { animation: tooltip-in 180ms var(--ease) both; } @keyframes tooltip-in { from { opacity: 0; translate: 0 5px; scale: .98; } } }
+@media (max-width: 700px) { .tooltip { inset: auto 12px 12px 12px; width: auto; min-height: 166px; } .tooltip::before { display: none; } .highlight { border-radius: 12px; } }
+@media (prefers-reduced-motion: reduce) { .highlight { transition: none; } }

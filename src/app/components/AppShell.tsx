@@ -12,6 +12,7 @@ import { SidebarNexo } from "./SidebarNexo";
 import { workspaceFromPath } from "@/lib/integrations/workspaces";
 import { LogoutButton } from "./LogoutButton";
 import { TrialNotice } from "./TrialNotice";
+import { NexoOnboarding } from "./NexoOnboarding";
 import { ShellTopbar } from "./ShellTopbar";
 import Link from "next/link";
 import { Settings } from "lucide-react";
@@ -82,6 +83,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
         />
         <TrialNotice />
+        <NexoOnboarding />
         {/* Sem `max-w` e sem padding grande: a referência deixa o conteúdo
             crescer com a tela e usa 24px de respiro lateral. O container de
             1500px centralizado deixava faixa morta dos dois lados em monitor

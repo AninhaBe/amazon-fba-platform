@@ -167,7 +167,7 @@ export function BriefingLead(props: BriefingLeadProps) {
 
   if (loading) {
     return (
-      <div className="briefing-lead is-loading" aria-busy="true">
+      <div className="briefing-lead is-loading" data-onboarding="context" aria-busy="true">
         <span className="briefing-lead-skeleton" style={{ width: "62%" }} />
         <span className="briefing-lead-skeleton" style={{ width: "38%", height: 18 }} />
       </div>
@@ -177,7 +177,7 @@ export function BriefingLead(props: BriefingLeadProps) {
   const { titulo, detalhe } = montarFrase(props);
 
   return (
-    <div className="briefing-lead">
+    <div className="briefing-lead" data-onboarding="context">
       <div className="briefing-lead-texto">
         {/* Quando o NEXO fala, ele TOMA O LUGAR da frase calculada — não fica
             abaixo dela. A frase calculada é o fallback (sem chave/resposta). */}

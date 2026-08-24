@@ -18,6 +18,7 @@ export function ChannelSwitcher({ compact = false }: { compact?: boolean }) {
   return (
     <div
       className={`channel-switcher${compact ? " is-compact" : ""}`}
+      data-onboarding="channels"
       role="navigation"
       aria-label="Alternar canal de venda"
       style={compact ? { flex: "1 1 auto", minWidth: 0, maxWidth: "calc(100% - 76px)", overflowX: "auto" } : undefined}

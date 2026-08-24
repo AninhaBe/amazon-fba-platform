@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { Lightbulb, PanelLeftClose, PanelLeftOpen, Plug, Search } from "lucide-react";
+import { CircleHelp, Lightbulb, PanelLeftClose, PanelLeftOpen, Plug, Search } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { workspaceFromPath } from "@/lib/integrations/workspaces";
 import { MarketplaceIcon } from "./MarketplaceIcon";
+import { NEXO_ONBOARDING_OPEN_EVENT } from "@/lib/productTour";
 
 const TITULOS: Record<string, string> = {
   "/": "Visão geral",
@@ -66,6 +67,10 @@ export function ShellTopbar({
         <span>{tituloDaRota(pathname)}</span>
       </div>
       <nav className="app-topbar-actions" aria-label="Ações globais">
+        <button type="button" onClick={() => window.dispatchEvent(new Event(NEXO_ONBOARDING_OPEN_EVENT))}>
+          <CircleHelp aria-hidden />
+          <span>Como funciona</span>
+        </button>
         {sidebarCollapsed && (
           <Link href="/pesquisa" aria-label="Pesquisa">
             <Search aria-hidden />

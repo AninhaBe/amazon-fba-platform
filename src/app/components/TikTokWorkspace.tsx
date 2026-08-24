@@ -237,9 +237,19 @@ export function TikTokWorkspace() {
                 A lista aparece sempre que houver pendência — inclusive quando a
                 fase é "ready", porque a API pode não mandar `financialCoverage`
                 e a cobertura seguir com buracos. */}
-            {pendenciasDaVendedora.length > 0 && <PendenciaNotice title="Falta você cadastrar" pendencias={pendenciasDaVendedora} />}
-            {pendenciasDoCanal.length > 0 && <PendenciaNotice title="Aguardando a TikTok Shop" pendencias={pendenciasDoCanal} />}
-            {pendenciasDaConciliacao.length > 0 && <PendenciaNotice title="Aguardando o fechamento do período" pendencias={pendenciasDaConciliacao} />}
+            {pendencias.length > 0 && (
+              <details className="tiktok-attention-summary">
+                <summary>
+                  <span><strong>{pendencias.length} {pendencias.length === 1 ? "pendência" : "pendências"} no período</strong><small>Abra para separar o que depende de você, do canal ou da conciliação.</small></span>
+                  <ChevronDown aria-hidden="true" />
+                </summary>
+                <div className="tiktok-attention-details">
+                  {pendenciasDaVendedora.length > 0 && <PendenciaNotice title="Falta você cadastrar" pendencias={pendenciasDaVendedora} />}
+                  {pendenciasDoCanal.length > 0 && <PendenciaNotice title="Aguardando a TikTok Shop" pendencias={pendenciasDoCanal} />}
+                  {pendenciasDaConciliacao.length > 0 && <PendenciaNotice title="Aguardando o fechamento do período" pendencias={pendenciasDaConciliacao} />}
+                </div>
+              </details>
+            )}
             {phase === "partial" && pendencias.length === 0 && (
               <StatusNotice title="Sincronização em andamento">Os números aparecem somente quando cada componente está completo. Nenhum é apresentado como definitivo antes disso.</StatusNotice>
             )}
@@ -248,19 +258,13 @@ export function TikTokWorkspace() {
         <section className="metric-grid tiktok-dashboard-metrics" aria-label="Resumo financeiro da TikTok Shop">
           {primaryCards.map((card) => <Metric key={card.key} label={card.label} value={card.value} sub={card.context} tone={card.key === "marginPct" ? marginMetricTone(card.raw) : card.key === "profit" && card.raw != null ? card.raw > 0 ? "positive" : card.raw < 0 ? "danger" : "default" : "default"} />)}
         </section>
-        <details className="tiktok-financial-components">
-          <summary><span>Componentes financeiros do período</span><small>{componentCards.length} valores preservados no detalhamento</small><ChevronDown aria-hidden="true" /></summary>
-          <dl>
-            {componentCards.map((card) => <div key={card.key}><dt>{card.label}</dt><dd className="tabular-nums">{card.value}</dd><small>{card.context}</small></div>)}
-          </dl>
-        </details>
         <section className="secondary-metrics" aria-label="Indicadores operacionais TikTok Shop">
-          <CompactMetric label="Pedidos" value={(data.orders ?? 0).toLocaleString("pt-BR")} />
+          <CompactMetric label="Pedidos feitos" value={`${formatMoney(capturedRevenue)} · ${(data.orders ?? 0).toLocaleString("pt-BR")}`} info="Valor capturado nos pedidos e quantidade total recebida no período." />
+          <CompactMetric label="Vendas" value={pedidosConfirmados.toLocaleString("pt-BR")} />
           <CompactMetric label="Unidades" value={(data.units ?? 0).toLocaleString("pt-BR")} />
           <CompactMetric label="Ticket médio" value={data.ticket == null ? "—" : new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(data.ticket)} />
-          {(data.statusBreakdown ?? []).map((item) => (
-            <CompactMetric key={item.status} label={tiktokOrderStatusLabel(item.status)} value={item.orders.toLocaleString("pt-BR")} tone={item.status === "cancelled" ? "danger" : "default"} />
-          ))}
+          <CompactMetric label="Aguardando" value={pedidosAguardando.toLocaleString("pt-BR")} tone={pedidosAguardando > 0 ? "warn" : "default"} />
+          <CompactMetric label="Canceladas" value={pedidosCancelados.toLocaleString("pt-BR")} tone={pedidosCancelados > 0 ? "danger" : "default"} />
         </section>
         <section className="performance-panel tiktok-performance-panel" aria-labelledby="tiktok-performance-title">
           <div className="performance-chart">
@@ -315,16 +319,31 @@ export function TikTokWorkspace() {
               />
           </FinancialSummaryPanel>
         </section>
-        {/* Mesma posição do bloco da Amazon e do Mercado Livre: logo depois da
-            conversa sobre dinheiro, respondendo o que o lucro sozinho deixa no
-            ar — "então cadê?". O TikTok segura cada venda até fechar o extrato,
-            e só aí emite o repasse com data. */}
-        <TikTokSaldo connectionId={selectedConnectionId} />
+        <div className="tiktok-dashboard-drilldowns">
+          <details className="tiktok-financial-components">
+            <summary><span>Componentes financeiros do período</span><small>{componentCards.length} valores preservados no detalhamento</small><ChevronDown aria-hidden="true" /></summary>
+            <dl>
+              {componentCards.map((card) => <div key={card.key}><dt>{card.label}</dt><dd className="tabular-nums">{card.value}</dd><small>{card.context}</small></div>)}
+            </dl>
+          </details>
+          <details className="tiktok-financial-components">
+            <summary><span>Distribuição dos pedidos</span><small>{porStatus.length} status informados pela TikTok Shop</small><ChevronDown aria-hidden="true" /></summary>
+            <dl>
+              {porStatus.map((item) => <div key={item.status}><dt>{tiktokOrderStatusLabel(item.status)}</dt><dd className={item.status === "cancelled" ? "tabular-nums text-[var(--danger)]" : "tabular-nums"}>{item.orders.toLocaleString("pt-BR")}</dd></div>)}
+            </dl>
+          </details>
+        </div>
         <TopProductsRanking
           products={(data.topProducts ?? []).map((product) => ({ sku: product.sku || product.productId, title: product.title, units: product.units, revenue: product.revenue, marginPct: null }))}
           currency={currency}
           productsHref={`/tiktok/catalogo?${new URLSearchParams({ connection_id: selectedConnectionId })}`}
         />
+        {/* Mesma posição do bloco da Amazon e do Mercado Livre: logo depois da
+            conversa sobre dinheiro, respondendo o que o lucro sozinho deixa no
+            ar — "então cadê?". O TikTok segura cada venda até fechar o extrato,
+            e só aí emite o repasse com data. */}
+        <TikTokSaldo connectionId={selectedConnectionId} />
+        <TikTokOperations>
         <section className="tiktok-sync-panel" aria-labelledby="tiktok-sync-coverage-title">
           <div className="mb-4"><p className="section-kicker">Sincronização geral</p><h2 id="tiktok-sync-coverage-title" className="mt-1 text-lg font-semibold text-[var(--ink)]">Importação e backlog histórico</h2><p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--ink-muted)]">O backlog financeiro inclui pedidos históricos, inclusive fora da janela selecionada. Ele não é comparado com os denominadores do período abaixo.</p></div>
           <dl className="tiktok-sync-grid">{syncBacklogDescription(data.sync).filter((item) => item.key !== "financial").map((item) => <div key={item.key}><dt>{item.label}</dt><dd><span>{item.status}</span> · {item.detail}</dd></div>)}<div className="is-warning"><dt>{historicalBacklog.label}</dt><dd><span>{historicalBacklog.status}</span> · <span className="tabular-nums">{historicalBacklog.detail}</span><small>{historicalBacklog.context}</small></dd></div></dl>
@@ -340,6 +359,7 @@ export function TikTokWorkspace() {
             {coverageDescription(data.coverage, currency).map((item) => <div key={item.key}><dt>{item.label}</dt><dd><span>{item.status}</span> · <span className="tabular-nums">{item.detail}</span>{item.captured && <small>{item.captured}</small>}</dd></div>)}
           </dl>
         </section>
+        </TikTokOperations>
         <div className="tiktok-detail-grid">
           <section className="tiktok-detail-panel" aria-labelledby="tiktok-orders-title">
             <h2 id="tiktok-orders-title" className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--ink-muted)]">Pedidos e rentabilidade</h2>
@@ -359,6 +379,27 @@ export function TikTokWorkspace() {
         </div>
       </div>
     </IntegrationDashboardFrame>
+  );
+}
+
+function TikTokOperations({ children }: { children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const syncWithHash = () => {
+      if (window.location.hash === `#${TIKTOK_TAX_SETTINGS_ANCHOR}`) setOpen(true);
+    };
+    syncWithHash();
+    window.addEventListener("hashchange", syncWithHash);
+    return () => window.removeEventListener("hashchange", syncWithHash);
+  }, []);
+  return (
+    <details className="tiktok-operations-disclosure" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary>
+        <span><strong>Operação e sincronização</strong><small>Backlog, cobertura financeira e configurações da loja</small></span>
+        <ChevronDown aria-hidden="true" />
+      </summary>
+      <div className="tiktok-operations-content">{children}</div>
+    </details>
   );
 }
 

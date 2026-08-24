@@ -3563,12 +3563,14 @@ summary:hover { background: var(--paper-soft); }
 .app-topbar-sidebar-toggle:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 .app-topbar-sidebar-toggle svg { width: 16px; height: 16px; }
 .app-topbar-actions { display: flex; align-items: center; gap: 2px; }
-.app-topbar-actions a {
+.app-topbar-actions a,
+.app-topbar-actions button {
   display: inline-flex; min-height: 32px; align-items: center; gap: 6px; padding-inline: 8px;
   border-radius: var(--radius-sm); color: var(--ink-muted); font-size: 13px; text-decoration: none;
   transition: background-color var(--duration) var(--ease), color var(--duration) var(--ease);
 }
-.app-topbar-actions a:hover { background: var(--ink-05); color: var(--ink); }
+.app-topbar-actions a:hover,
+.app-topbar-actions button:hover { background: var(--ink-05); color: var(--ink); }
 .app-topbar-actions svg { width: 15px; height: 15px; }
 
 /* Dashboard Amazon: mesma anatomia da referência — topbar, filtros encostados
@@ -5455,6 +5457,44 @@ summary:hover { background: var(--paper-soft); }
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.4s ease-in-out infinite;
 }
+.tiktok-attention-summary,
+.tiktok-operations-disclosure {
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--paper);
+  box-shadow: var(--shadow-xs);
+}
+.tiktok-attention-summary > summary,
+.tiktok-operations-disclosure > summary {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 14px;
+  color: var(--ink);
+  cursor: pointer;
+  list-style: none;
+}
+.tiktok-attention-summary > summary::-webkit-details-marker,
+.tiktok-operations-disclosure > summary::-webkit-details-marker { display: none; }
+.tiktok-attention-summary > summary > span,
+.tiktok-operations-disclosure > summary > span { min-width: 0; }
+.tiktok-attention-summary > summary strong,
+.tiktok-operations-disclosure > summary strong { display: block; font-size: 13px; font-weight: var(--weight-semibold); }
+.tiktok-attention-summary > summary small,
+.tiktok-operations-disclosure > summary small { display: block; margin-block-start: 1px; color: var(--ink-muted); font-size: 11.5px; line-height: 16px; }
+.tiktok-attention-summary > summary svg,
+.tiktok-operations-disclosure > summary svg { width: 15px; height: 15px; flex: none; color: var(--ink-muted); transition: rotate var(--duration) var(--ease); }
+.tiktok-attention-summary[open] > summary svg,
+.tiktok-operations-disclosure[open] > summary svg { rotate: 180deg; }
+.tiktok-attention-summary > summary::before { content: ""; width: 7px; height: 7px; flex: none; border-radius: 999px; background: var(--warning); }
+.tiktok-attention-summary > summary > span { margin-inline-end: auto; }
+.tiktok-attention-details { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-block-start: 1px solid var(--ink-08); }
+.tiktok-attention-details .channel-module-notice { min-width: 0; margin: 0; border: 0; border-inline-end: 1px solid var(--ink-08); border-radius: 0; background: color-mix(in oklch, var(--warning) 5%, var(--paper)); padding: 12px 14px; }
+.tiktok-attention-details .channel-module-notice:last-child { border-inline-end: 0; }
+.tiktok-dashboard-drilldowns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.tiktok-operations-content { display: flex; flex-direction: column; gap: 14px; border-block-start: 1px solid var(--ink-08); background: var(--canvas); padding: 14px; }
 .tiktok-financial-components {
   overflow: hidden;
   border-radius: var(--radius-lg);
@@ -5499,6 +5539,9 @@ summary:hover { background: var(--paper-soft); }
   .integration-dashboard .secondary-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .integration-dashboard .compact-metric:nth-child(3n) { border-inline-end: 0; }
   .integration-dashboard .compact-metric:nth-child(-n+3) { border-block-end: 1px solid var(--line); }
+  .tiktok-attention-details { grid-template-columns: 1fr; }
+  .tiktok-attention-details .channel-module-notice { border-block-end: 1px solid var(--ink-08); border-inline-end: 0; }
+  .tiktok-attention-details .channel-module-notice:last-child { border-block-end: 0; }
 }
 
 @media (max-width: 600px) {
@@ -5522,6 +5565,7 @@ summary:hover { background: var(--paper-soft); }
   .tiktok-financial-components summary svg { position: absolute; inset-inline-end: 14px; }
   .tiktok-financial-components dl { grid-template-columns: 1fr; }
   .tiktok-financial-components dl > div { border-block-end: 1px solid var(--ink-08); border-inline-end: 0; }
+  .tiktok-dashboard-drilldowns { grid-template-columns: 1fr; }
 }
 
 /* Public auth is a single reading column below the desktop breakpoint. Keep this

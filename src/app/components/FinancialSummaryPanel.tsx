@@ -76,7 +76,7 @@ export function FinancialSummaryPanel({
 }) {
   const titleId = labelledBy ?? "financial-summary-title";
   return (
-    <aside className={`financial-composition ${complete ? "is-complete" : "is-partial"}`} aria-labelledby={titleId}>
+    <aside className={`financial-composition ${complete ? "is-complete" : "is-partial"}`} data-onboarding="financial-summary" aria-labelledby={titleId}>
       <div>
         <div className={styles.meta}>
           <p className={`${styles.kicker} section-kicker`}>Resumo financeiro</p>

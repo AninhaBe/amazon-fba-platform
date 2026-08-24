@@ -81,6 +81,7 @@ export function SidebarNexo({ workspace, collapsed = false }: { workspace: Works
             ref={switcherRef}
             type="button"
             className="nexo-switcher"
+            data-onboarding="channels"
             aria-expanded={aberto}
             aria-haspopup="menu"
             onClick={() => setAberto((v) => !v)}
