@@ -61,3 +61,18 @@ test("a central nao se desculpa com adjetivo", () => {
   assert.doesNotMatch(s, /Lucro parcial/, "voltou a dizer 'parcial' em vez do que falta");
   assert.match(s, /unidade\(s\) sem custo cadastrado/);
 });
+
+test("a voz do NEXO tem estado de carregando na central, como no briefing", () => {
+  // Ela viu em 24/08/2026: na Visão geral a faixa do NEXO não existia até o
+  // texto chegar — um buraco silencioso onde depois aparece um bloco. Ficou mais
+  // visível quando os cards passaram a pintar rápido.
+  const central = fonte("src/app/page.tsx");
+  const briefing = fonte("src/app/briefing/page.tsx");
+  for (const [tela, s] of [["central", central], ["briefing", briefing]]) {
+    assert.match(s, /<NexoMensagem carregando \/>/, `${tela} não mostra que está analisando`);
+  }
+  // O alerta por regra continua como rede de segurança: não depende de modelo e
+  // sempre tem o que dizer.
+  assert.match(central, /narracaoCarregando \? \(/);
+  assert.match(central, /\) : alerta \? \(/);
+});

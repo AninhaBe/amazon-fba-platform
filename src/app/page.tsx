@@ -62,6 +62,11 @@ export default function OverviewDashboard() {
   // Narração do dia gerada por modelo (Gemini). Fica null sem chave ou enquanto
   // não responde, e aí a tela usa o alerta por regra.
   const [narracao, setNarracao] = useState<string | null>(null);
+  // Sem este estado a faixa do NEXO simplesmente não existia até o texto chegar,
+  // e a central ficava com um buraco silencioso onde depois aparece um bloco —
+  // ainda mais visível desde que os cards passaram a pintar rápido. O briefing
+  // já fazia certo; era a central que não replicava.
+  const [narracaoCarregando, setNarracaoCarregando] = useState(false);
 
   useEffect(() => {
     const timer = window.setTimeout(async () => {
@@ -164,10 +169,12 @@ export default function OverviewDashboard() {
       })),
     };
     let cancelado = false;
+    setNarracaoCarregando(true);
     fetch("/api/central/briefing", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(snapshot) })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (!cancelado && d?.texto) setNarracao(d.texto as string); })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => { if (!cancelado) setNarracaoCarregando(false); });
     return () => { cancelado = true; };
   }, [loading, channels, totals, margemTotal, tendenciaTotal]);
 
@@ -182,6 +189,11 @@ export default function OverviewDashboard() {
             onde olhar" — um em prosa, o outro em uma linha. */}
         {narracao ? (
           <NexoMensagem texto={narracao} ctaHref="/briefing" />
+        ) : narracaoCarregando ? (
+          /* Enquanto o modelo escreve (~18s), a faixa mostra "NEXO analisando"
+             em vez de não existir. Se falhar, cai no alerta por regra abaixo —
+             que sempre tem o que dizer e não depende de modelo. */
+          <NexoMensagem carregando />
         ) : alerta ? (
           <Link href={alerta.href ?? "#"} className={`central-alerta is-${alerta.tom}`} aria-label={alerta.texto}>
             <span aria-hidden="true" className="central-alerta-ponto" />
