@@ -2,8 +2,10 @@ import { dropGhostSkus, getInventory, type StockItem } from "./inventory";
 import { getListings } from "./listings";
 import { getSalesVelocity } from "./orders";
 import type { Period } from "./period";
+import { classificarCobertura, ORDEM_DO_RADAR, type StockStatus } from "./coberturaDeEstoque";
 
-export type StockStatus = "out" | "critical" | "low" | "ok" | "overstock" | "idle";
+export { classificarCobertura, ORDEM_DO_RADAR, ROTULO_DE_COBERTURA } from "./coberturaDeEstoque";
+export type { StockStatus } from "./coberturaDeEstoque";
 
 export interface RadarRow extends StockItem {
   unitsSold: number;
@@ -12,19 +14,13 @@ export interface RadarRow extends StockItem {
   status: StockStatus;
 }
 
-// Limiares de dias para classificar a urgência.
-const CRITICAL_DAYS = 10; // repor já (menos que o lead time típico do FBA)
-const LOW_DAYS = 21; // repor em breve
-const OVERSTOCK_DAYS = 120; // parado demais, pagando armazenagem
-
 function classify(item: StockItem, perDay: number, daysRemaining: number | null): StockStatus {
-  if (item.fulfillable <= 0 && item.inbound <= 0) return "out";
-  if (perDay <= 0) return item.fulfillable > 0 ? "idle" : "out";
-  if (daysRemaining == null) return "idle";
-  if (daysRemaining <= CRITICAL_DAYS) return "critical";
-  if (daysRemaining <= LOW_DAYS) return "low";
-  if (daysRemaining >= OVERSTOCK_DAYS) return "overstock";
-  return "ok";
+  return classificarCobertura({
+    disponivel: item.fulfillable,
+    aCaminho: item.inbound,
+    porDia: perDay,
+    diasRestantes: daysRemaining,
+  });
 }
 
 /**
@@ -58,9 +54,7 @@ export async function getStockRadar(period: Period, velocityOverride?: Record<st
   });
 
   // Ordena por urgência: quem acaba antes primeiro; sem venda vai pro fim.
-  const rank: Record<StockStatus, number> = {
-    out: 0, critical: 1, low: 2, ok: 3, overstock: 4, idle: 5,
-  };
+  const rank = ORDEM_DO_RADAR;
   rows.sort((a, b) => {
     if (rank[a.status] !== rank[b.status]) return rank[a.status] - rank[b.status];
     const da = a.daysRemaining ?? Infinity;

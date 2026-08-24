@@ -10,6 +10,7 @@ import {
   type MercadoLivrePeriod,
   type MercadoLivreProduct,
 } from "./mercadoLivre";
+import { classificarCobertura, ORDEM_DO_RADAR, type StockStatus } from "../coberturaDeEstoque";
 import type { IntegrationConnection } from "./types";
 
 // Overview do Mercado Livre servido pelo modelo canônico (fase 4 da migração,
@@ -442,12 +443,15 @@ export async function getMercadoLivreOverviewFromCanonical(
     const calculationDays = Math.max(1, Math.min(periodDays, Math.ceil((period.to.getTime() - effectiveStart) / 86_400_000)));
     const perDay = unitsSold / calculationDays;
     const daysRemaining = perDay > 0 ? Math.floor(product.availableQuantity / perDay) : null;
-    const status: "out" | "critical" | "ok" = product.availableQuantity <= 0 ? "out" : daysRemaining != null && daysRemaining <= 10 ? "critical" : "ok";
+    // Mesma regra da Amazon, do mesmo lugar (`src/lib/radar.ts`). Antes havia uma
+    // cópia de três status aqui, e nela anúncio com estoque e ZERO venda saía
+    // como "Saudável" — ver `classificarCobertura`.
+    const status = classificarCobertura({ disponivel: product.availableQuantity, porDia: perDay, diasRestantes: daysRemaining });
     // A foto já vinha no payload do anúncio e nunca chegava à tela: quem olha
     // ruptura reconhece o produto pela imagem antes de ler o SKU.
     return { id: product.id, sku: product.sku, title: product.title, thumbnail: product.thumbnail, availableQuantity: product.availableQuantity, unitsSold, calculationDays, daysRemaining, status };
   }).sort((a, b) => {
-    const rank = (status: string) => status === "out" ? 0 : status === "critical" ? 1 : 2;
+    const rank = (status: StockStatus) => ORDEM_DO_RADAR[status];
     return rank(a.status) - rank(b.status) || (a.daysRemaining ?? Infinity) - (b.daysRemaining ?? Infinity);
   });
 

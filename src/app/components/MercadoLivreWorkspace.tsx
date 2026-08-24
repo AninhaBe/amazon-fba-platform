@@ -12,6 +12,10 @@ import { DashboardPeriodFilter, useDashboardPeriod } from "./DashboardPeriodFilt
 import { OrderProfitabilityTable } from "./OrderProfitabilityTable";
 import { ConnectionBroken, isBrokenConnection } from "./ConnectionBroken";
 import { CustomizableMetricGrid } from "./CustomizableMetricGrid";
+// O mesmo dicionário do radar da Amazon: equalizar canal é usar a MESMA palavra
+// para o mesmo estado, senão "Saudável" no ML e "Ok" na Amazon parecem coisas
+// diferentes sendo a mesma.
+import { ROTULO_DE_COBERTURA } from "@/lib/coberturaDeEstoque";
 import { CompactMetric, Flow, FlowExpandable, Metric, getRevenueTrend } from "./Metric";
 import { buildFinancialComposition, FinancialSummaryPanel } from "./FinancialSummaryPanel";
 import { brDate, brTime } from "@/lib/datetime";
@@ -464,7 +468,7 @@ function Inventory({ overview }: { overview: Overview }) {
       <aside className="inventory-method-strip" aria-label="Como a cobertura de estoque é calculada"><strong>Como calculamos</strong><span>Cobertura = estoque atual ÷ média diária de vendas no período. Pausas e dias históricos sem estoque ainda não são descontados.</span></aside>
       <section className="listing-controls cols-3" role="search" aria-label="Filtros de estoque">
         <label className="listing-search"><span className="sr-only">Buscar no estoque</span><input value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="Buscar SKU ou produto" /></label>
-        <select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as typeof statusFilter); setPage(1); }} aria-label="Filtrar status do estoque"><option value="all">Todos os status</option><option value="out">Esgotado</option><option value="critical">Crítico</option><option value="ok">Saudável</option></select>
+        <select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as typeof statusFilter); setPage(1); }} aria-label="Filtrar status do estoque"><option value="all">Todos os status</option><option value="out">Esgotado</option><option value="critical">Repor já</option><option value="low">Repor em breve</option><option value="ok">Saudável</option><option value="overstock">Excesso</option><option value="idle">Sem venda</option></select>
         <select value={sort} onChange={(event) => { setSort(event.target.value as typeof sort); setPage(1); }} aria-label="Ordenar estoque"><option value="urgency">Maior urgência</option><option value="stock">Maior estoque</option><option value="sales">Mais vendidos</option></select>
       </section>
       <section className="listing-table-shell inventory-table-shell" aria-labelledby="ml-inventory-results"><header><div><p className="section-kicker">Cobertura de estoque</p><h2 id="ml-inventory-results">{rows.length} {rows.length === 1 ? "produto encontrado" : "produtos encontrados"}</h2></div><p>{overview.period.label}</p></header>
@@ -472,7 +476,7 @@ function Inventory({ overview }: { overview: Overview }) {
                         // Miniatura já vem reduzida do catálogo do canal.
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={product.thumbnail} alt="" />
-                      ) : <span className="listing-image-fallback" aria-hidden="true">ML</span>}<div><strong className="block max-w-[320px] truncate" title={product.title}>{product.title}</strong></div></div></td><td className="font-mono text-xs">{product.sku || product.id}</td><td className="tabular-nums">{product.availableQuantity}</td><td className="tabular-nums">{product.unitsSold}</td><td className="stock-coverage-value tabular-nums"><strong>{product.daysRemaining == null ? "—" : `${product.daysRemaining} dias`}</strong><small>base: {product.calculationDays} dias</small></td><td className="inventory-status-cell"><span className={`stock-status is-${product.status}`}>{product.status === "out" ? "Esgotado" : product.status === "critical" ? "Crítico" : "Saudável"}</span></td></tr>)}</tbody></table></div>}
+                      ) : <span className="listing-image-fallback" aria-hidden="true">ML</span>}<div><strong className="block max-w-[320px] truncate" title={product.title}>{product.title}</strong></div></div></td><td className="font-mono text-xs">{product.sku || product.id}</td><td className="tabular-nums">{product.availableQuantity}</td><td className="tabular-nums">{product.unitsSold}</td><td className="stock-coverage-value tabular-nums"><strong>{product.daysRemaining == null ? "—" : `${product.daysRemaining} dias`}</strong><small>base: {product.calculationDays} dias</small></td><td className="inventory-status-cell"><span className={`stock-status is-${product.status}`}>{ROTULO_DE_COBERTURA[product.status] ?? "Saudável"}</span></td></tr>)}</tbody></table></div>}
         {pageCount > 1 && <div className="listing-pagination"><Pagination page={current} pageCount={pageCount} total={rows.length} pageSize={30} onPage={setPage} /></div>}
       </section>
     </>}

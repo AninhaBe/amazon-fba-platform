@@ -4,6 +4,7 @@ import type { IntegrationConnection } from "./types";
 import { costAt, getCosts } from "../costStore";
 import { allocateByWeight, calculateContribution, type ProfitabilityLine } from "../profitability";
 import { collectMercadoLivreOrders } from "./mercadoLivreOrders";
+import { classificarCobertura, ORDEM_DO_RADAR, type StockStatus } from "../coberturaDeEstoque";
 import { ChannelAuthExpiredError } from "./authErrors";
 import { calcularSaldoML, type PagamentoMP, type SaldoMercadoLivre } from "./mercadoPagoBalance";
 import { auditarFrete, type FreteEsperado, type PagamentoAuditoria, type ResultadoAuditoria } from "./mercadoLivreAuditoria";
@@ -982,10 +983,11 @@ export async function getMercadoLivreOverview(
     const calculationDays = Math.max(1, Math.min(periodDays, Math.ceil((to.getTime() - effectiveStart) / 86_400_000)));
     const perDay = unitsSold / calculationDays;
     const daysRemaining = perDay > 0 ? Math.floor(product.availableQuantity / perDay) : null;
-    const status = product.availableQuantity <= 0 ? "out" : daysRemaining != null && daysRemaining <= 10 ? "critical" : "ok";
+    // Mesma regra da Amazon, do mesmo lugar — ver `classificarCobertura`.
+    const status = classificarCobertura({ disponivel: product.availableQuantity, porDia: unitsSold / calculationDays, diasRestantes: daysRemaining });
     return { id: product.id, sku: product.sku, title: product.title, availableQuantity: product.availableQuantity, unitsSold, calculationDays, daysRemaining, status };
   }).sort((a, b) => {
-    const rank = (status: string) => status === "out" ? 0 : status === "critical" ? 1 : 2;
+    const rank = (status: StockStatus) => ORDEM_DO_RADAR[status];
     return rank(a.status) - rank(b.status) || (a.daysRemaining ?? Infinity) - (b.daysRemaining ?? Infinity);
   });
   return {
