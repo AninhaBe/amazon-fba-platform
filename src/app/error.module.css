@@ -1,0 +1,170 @@
+.page {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  width: 100%;
+  min-height: 100dvh;
+  overflow: hidden;
+  align-content: center;
+  justify-items: center;
+  gap: 24px;
+  padding: clamp(24px, 5vw, 72px);
+  background-color: var(--canvas);
+  background-image:
+    linear-gradient(to right, oklch(0 0 0 / 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, oklch(0 0 0 / 0.05) 1px, transparent 1px);
+  background-position: center;
+  background-size: 60px 60px;
+}
+
+:global(.app-shell) .page {
+  min-height: calc(100dvh - var(--topbar-h));
+}
+
+.ambient {
+  position: absolute;
+  z-index: -1;
+  inset: -20%;
+  background:
+    radial-gradient(circle at 30% 45%, oklch(1 0 0 / 0.98) 0 15%, transparent 38%),
+    radial-gradient(circle at 78% 62%, color-mix(in oklch, var(--danger) 5%, transparent) 0, transparent 32%);
+  pointer-events: none;
+  animation: errorAmbient 9s ease-in-out infinite alternate;
+}
+
+.brand {
+  display: flex;
+  width: min(860px, 100%);
+  min-height: 32px;
+  align-items: center;
+  gap: 9px;
+  color: var(--ink);
+  animation: errorEnter 420ms cubic-bezier(0.16, 0.84, 0.28, 1) both;
+}
+
+.brand img { flex: none; }
+.brand strong { font-size: 16px; font-weight: var(--weight-semibold); letter-spacing: var(--track-l); }
+.brand span { margin-inline-start: auto; color: var(--ink-muted); font-size: 12px; font-weight: var(--weight-semibold); letter-spacing: 0.06em; text-transform: uppercase; }
+
+.card {
+  display: grid;
+  width: min(860px, 100%);
+  grid-template-columns: minmax(220px, 0.78fr) minmax(0, 1.55fr);
+  gap: 8px;
+  overflow: hidden;
+  border-radius: var(--radius-modal);
+  background: var(--paper-modal);
+  padding: 8px;
+  box-shadow: var(--shadow-modal);
+  animation: errorEnter 480ms cubic-bezier(0.16, 0.84, 0.28, 1) 70ms both;
+}
+
+.signal {
+  position: relative;
+  display: grid;
+  min-height: 330px;
+  overflow: hidden;
+  align-content: space-between;
+  border-radius: var(--radius-md);
+  background:
+    radial-gradient(circle, var(--ink-08) 1px, transparent 1.2px) 0 0 / 18px 18px,
+    var(--paper-soft);
+  padding: 28px;
+}
+
+.signal::after {
+  position: absolute;
+  inset: auto -42px -54px auto;
+  width: 190px;
+  height: 190px;
+  border: 1px solid color-mix(in oklch, var(--danger) 14%, transparent);
+  border-radius: 999px;
+  content: "";
+}
+
+.signalMark {
+  position: relative;
+  display: grid;
+  width: 86px;
+  height: 86px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--paper-modal);
+  box-shadow: var(--shadow-surface);
+}
+
+.signalMark img { transform: rotate(-8deg); }
+
+.signalRing {
+  position: absolute;
+  inset: -1px;
+  border: 1px solid color-mix(in oklch, var(--danger) 34%, transparent);
+  border-radius: inherit;
+  animation: errorPulse 2.8s cubic-bezier(0.2, 0, 0, 1) infinite;
+}
+
+.signalCopy { position: relative; z-index: 1; display: flex; align-items: center; gap: 8px; }
+.signalCopy span { width: 7px; height: 7px; flex: none; border-radius: 999px; background: var(--danger); box-shadow: 0 0 0 4px color-mix(in oklch, var(--danger) 10%, transparent); }
+.signalCopy p { color: var(--ink-soft); font-size: 13px; font-weight: var(--weight-semibold); }
+
+.content {
+  display: grid;
+  min-width: 0;
+  align-content: center;
+  padding: clamp(28px, 5vw, 52px);
+}
+
+.eyebrow { color: var(--danger); font-size: 12px; font-weight: var(--weight-semibold); letter-spacing: 0.09em; text-transform: uppercase; }
+.content h1 { max-width: 17ch; margin-block-start: 10px; color: var(--ink); font-size: 28px; font-weight: var(--weight-semibold); letter-spacing: var(--track-display); line-height: 1.15; text-wrap: balance; }
+.description { max-width: 52ch; margin-block-start: 18px; color: var(--ink-muted); font-size: 14px; line-height: 1.6; text-wrap: pretty; }
+
+.actions { display: flex; flex-wrap: wrap; gap: 9px; margin-block-start: 28px; }
+.actions button { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 8px; border-radius: var(--radius-sm); padding-inline: 15px; font-size: 13px; font-weight: var(--weight-semibold); transition-property: background-color, box-shadow, color, scale; transition-duration: 160ms; transition-timing-function: cubic-bezier(0.2, 0, 0, 1); }
+.actions button:active { scale: 0.96; }
+.actions svg { width: 16px; height: 16px; stroke-width: 1.8; }
+.primaryAction { background: var(--ink); color: var(--paper-modal); box-shadow: var(--shadow-inset-highlight), var(--shadow-xs); }
+.primaryAction:hover { background: color-mix(in oklch, var(--ink) 86%, white); box-shadow: var(--shadow-inset-highlight), var(--shadow-hover); }
+.secondaryAction { background: var(--paper-modal); color: var(--ink-soft); box-shadow: var(--shadow-xs); }
+.secondaryAction:hover { background: var(--paper-soft); color: var(--ink); box-shadow: var(--shadow-hover); }
+
+.footer { display: flex; min-height: 20px; align-items: center; justify-content: space-between; gap: 16px; margin-block-start: 30px; padding-block-start: 14px; border-block-start: 1px solid var(--ink-08); color: var(--ink-muted); font-size: 12px; line-height: 1.5; }
+.footer code { color: var(--ink-faint); font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace; font-size: 12px; }
+
+@keyframes errorEnter {
+  from { opacity: 0; filter: blur(4px); transform: translateY(12px); }
+  to { opacity: 1; filter: blur(0); transform: translateY(0); }
+}
+
+@keyframes errorAmbient {
+  from { opacity: 0.62; transform: translate3d(-1%, 1%, 0) scale(0.99); }
+  to { opacity: 0.94; transform: translate3d(1%, -1%, 0) scale(1.02); }
+}
+
+@keyframes errorPulse {
+  0%, 34% { opacity: 0.55; transform: scale(1); }
+  78%, 100% { opacity: 0; transform: scale(1.38); }
+}
+
+@media (max-width: 680px) {
+  .page { align-content: start; gap: 18px; padding: 20px 14px 32px; }
+  .brand { min-height: 36px; }
+  .brand span { font-size: 12px; }
+  .card { grid-template-columns: 1fr; }
+  .signal { min-height: 126px; grid-template-columns: auto minmax(0, 1fr); align-content: center; align-items: center; gap: 20px; padding: 20px; }
+  .signalMark { width: 68px; height: 68px; }
+  .signalMark img { width: 42px; height: 42px; }
+  .content { padding: 24px 18px 20px; }
+  .actions { display: grid; }
+  .actions button { width: 100%; }
+  .footer { align-items: flex-start; flex-direction: column; gap: 6px; }
+}
+
+@media (max-height: 580px) and (min-width: 681px) {
+  .page { align-content: start; gap: 14px; padding-block: 16px; }
+  .signal { min-height: 286px; }
+  .content { padding-block: 24px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient, .brand, .card, .signalRing { animation: none; }
+}
