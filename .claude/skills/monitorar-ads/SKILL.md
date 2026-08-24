@@ -1670,6 +1670,94 @@ grupos têm lance próprio — mas segmentação nova nasceria nele).
 - Protetores com preço novo (−R$ 3, ~20h de 19/08): nenhuma venda ainda; reolhar 21/08
   (o combinado é 2 dias).
 
+## Leitura de 24/08/2026, ~15h — 🔴 AGIR (aplicado) · orçamento subiu na campanha que lucra
+
+```
+Período lido: 25 jul – 24 ago de 2026 (30 dias)
+Recarreguei: sim
+Volume: 48.241 impressões · 309 cliques · R$ 296,54 · 16 compras · R$ 496,16
+        atribuição fechada até ~16/08
+```
+
+⚠️ **ARMADILHA NOVA, e custou meia hora:** as páginas de campanha **ignoram o filtro de
+data do gerenciador**. Abri as sete pela URL de `/ad-groups` e todas vieram em **"hoje"**,
+não nos 30 dias — os números pareciam plausíveis e estavam errados. É preciso aplicar o
+período **dentro de cada campanha** (ele então persiste entre elas).
+
+⚠️ **E a tabela do gerenciador não acompanha o seletor:** troquei para "Ontem", o rótulo
+mudou para `ago 23` e as linhas continuaram mostrando o acumulado de 30 dias — a
+`Manual - Clips 320` aparecia com os mesmos R$ 111,28 do mês. O **cartão de resumo** do
+topo respeita o filtro; a tabela de baixo, não. Conferir sempre um valor conhecido antes
+de concluir.
+
+### As sete, campanha por campanha
+
+| Campanha / grupo | Lance | Impr. | Cliques | CTR | Custo | Compras | Vendas | ROAS |
+|---|---|---|---|---|---|---|---|---|
+| **Manual - Martelo** g1 | 0,90 | 795 | 31 | **3,90%** | 28,59 | 5 | 142,50 | **4,98** |
+| **Manual - Clips** · Frase | 0,50 | — | — | — | 101,39 | 8 | 243,21 | **2,40** |
+| **Auto - Protetor Kit 8** | 1,29 | 12.332 | 81 | 0,66% | 84,67 | 3 | 110,45 | 1,30 |
+| Auto - Protetor Kit 32 | 1,20 | 4.078 | 24 | 0,59% | 25,85 | — | — | — |
+| Auto - Clips 320 | 0,61 | 8.306 | 40 | 0,48% | 18,89 | — | — | — |
+| Auto - Martelo | **3,00** | 10.132 | 14 | **0,14%** | 20,56 | — | — | — |
+| Manual - Clips · Exata | 0,33 | — | — | — | 9,89 | — | — | — |
+| Manual - Protetor 8 | 0,85/0,60 | 606 | 5 | 0,83% | 3,90 | — | — | — |
+
+### 🔑 ROAS 1,27 não é "fraco" — é prejuízo
+
+O ponto de equilíbrio **não é ROAS 1**, é `1 ÷ margem`. Com a margem do `kitprote-8`
+(R$ 12,54 sobre R$ 22,11 = 57%), a `Auto - Protetor Kit 8` só empata em **ROAS 1,8**.
+Está em 1,27: 3 vendas geraram ~R$ 37 de margem e custaram **R$ 84,67 de anúncio**.
+
+Pela mesma conta: `Manual - Clips` empata em 1,45 e está em 2,19 → **lucra**.
+`Manual - Martelo` lucra folgado.
+
+📌 **Esta conta deveria abrir toda leitura.** Comparar ROAS entre campanhas sem dividir
+pela margem de cada produto compara coisas diferentes.
+
+### 🔑 Mesmo produto, mesma página: uma converte e a outra não
+
+`Auto - Clips 320` e `Manual - Clips 320` anunciam **o mesmo item**. A manual fez 8 vendas
+em 114 cliques; a automática, **zero em 40 cliques**. Se a página convertesse mal, as duas
+falhariam — **a página converte, o que a automática compra é tráfego errado.** É caso de
+colheita e negativa, não de mexer no anúncio.
+
+### ✅ Aplicado 24/08 ~15h — orçamento da `Manual - Clips 320`: R$ 10 → R$ 15/dia
+
+Motivo: status **"Orçamento excedido"**, ROAS 2,19 **acima** do equilíbrio de 1,45, e a
+própria Amazon recomendando R$ 15,00 na tela. O teto estava limitando a campanha que dá
+lucro.
+
+Confirmado pelo cabeçalho após salvar: `Orçamento: R$15,00 - Diariamente`.
+
+⚠️ **Ressalva registrada:** dentro dela o grupo **Exata** gastou R$ 9,89 sem nenhuma venda
+enquanto o **Frase** fez as 8. Subir o orçamento dá verba aos dois. Colher os termos do
+Frase antes seria o ideal — ficou como a mudança seguinte, não esta.
+
+### Próxima mudança (NÃO aplicada)
+
+**Baixar o lance da `Auto - Martelo` de R$ 3,00 para ~R$ 0,64** (a sugestão; faixa
+0,22–2,00). Está **4,7× acima** da sugestão e fora do topo da faixa, com CTR de 0,14% em
+10 mil impressões — o pior da conta. Já foi documentado em 22/08 e **continua em R$ 3,00**.
+
+### Ads API — caso 21706918611 (achado do dia)
+
+O teste de escopo segue `bad-scope` (5º teste, 24/08). Mas o **registro de casos** revelou
+o que faltava: em **21/08** ela abriu chat sobre a API e o agente Samuel escreveu:
+
+> *"Entendo que você enviou várias solicitações e ainda não recebeu a confirmação […]
+> determinei que isso requer um encaminhamento à nossa equipe de suporte interno."*
+
+Em 24/08 o agente Mosheh confirmou: **escalação ativa**, resolução virá por esse caso, e
+pediu para **usar sempre o `21706918611`** em contato futuro.
+
+📌 **Não enviar uma 4ª candidatura e não abrir caso novo.** As três não estavam numa fila
+lenta — estavam presas, e a Amazon reconheceu isso. Reenviar formulário não resolve.
+
+⚠️ O link que o suporte manda é do console **americano** (`advertising.amazon.com`) e dá
+404 numa conta BR. O caminho que funciona: **console de anúncios → ícone `?` → "Registro
+de casos"** (rodapé do painel). URL direta do console expulsa para a página pública.
+
 ## Leitura de 23/08/2026, ~14h — ✅ A ESPERA SE PAGOU: Substitutos VENDEU
 
 ```
