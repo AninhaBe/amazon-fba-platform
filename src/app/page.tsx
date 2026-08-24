@@ -12,6 +12,7 @@ import { brTime } from "@/lib/datetime";
 import { tendenciaSemanal, detectarAlerta, leituraRapidaDosCanais, margemDoCanal, percent } from "@/lib/centralOverview";
 import { NexoMensagem } from "./components/NexoMensagem";
 import { gatherCentralChannels, type ChannelSnapshot } from "./centralChannels";
+import { marginMetricTone, marginStateClass } from "@/lib/marginTone";
 
 function money(value: number | null, currency = "BRL") {
   if (value == null) return "Indisponível";
@@ -230,7 +231,7 @@ export default function OverviewDashboard() {
                   ? `Sobre ${money(margemTotal.base)} — a parte com custo cadastrado`
                   : "Lucro sobre o faturamento"
             }
-            tone={margemTotal.pct == null ? "default" : margemTotal.pct > 0 ? "positive" : margemTotal.pct < 0 ? "danger" : "default"}
+            tone={marginMetricTone(margemTotal.pct)}
           />
           <Metric label="Pedidos" value={totals.orders.toLocaleString("pt-BR")} sub="Últimos 30 dias" />
           <Metric label="Canais ativos" value={`${totals.connected} de ${channels.length}`} sub="Contas conectadas agora" />
@@ -247,7 +248,7 @@ export default function OverviewDashboard() {
                   <div className="channel-comparison-revenue" role="cell"><strong>{channel.connected && !channel.error ? money(channel.revenue, channel.currency) : "—"}</strong><span aria-label={`Participação relativa de ${channel.name}`}><i style={{ width: `${channel.connected ? ((channel.revenue ?? 0) / maxRevenue) * 100 : 0}%` }} /></span></div>
                   <div className="channel-comparison-number is-orders" role="cell"><strong>{channel.orders?.toLocaleString("pt-BR") ?? "—"}</strong><small>últimos 30 dias</small></div>
                   <div className="channel-comparison-number is-result" role="cell"><strong className={channel.profit == null ? undefined : channel.profit < 0 ? "is-negative" : "is-positive"}>{channel.connected ? money(channel.profit, channel.currency) : "—"}</strong><small>{channel.profitPartial ? "faltam custos" : "lucro conhecido"}{channel.cancelled != null && channel.cancelled > 0 ? ` · ${money(channel.cancelled, channel.currency)} canceladas` : ""}</small></div>
-                  <div className="channel-comparison-number is-margin" role="cell">{(() => { const m = margemDoCanal(channel); return <><strong className={m == null ? undefined : m < 0 ? "is-negative" : "is-positive"}>{channel.connected && m != null ? percent(m) : "—"}</strong><small>{channel.profitPartial ? "faltam custos" : "sobre faturamento"}</small></>; })()}</div>
+                  <div className="channel-comparison-number is-margin" role="cell">{(() => { const m = margemDoCanal(channel); return <><strong className={marginStateClass(m)}>{channel.connected && m != null ? percent(m) : "—"}</strong><small>{channel.profitPartial ? "faltam custos" : "sobre faturamento"}</small></>; })()}</div>
                   <div className="channel-comparison-action" role="cell"><Link href={channel.connected && !channel.attention ? channel.href : "/integracoes"} aria-label={channel.attention ? `Revisar integração ${channel.name}` : channel.connected ? `Abrir ${channel.name}` : `Conectar ${channel.name}`} title={channel.attention ? "Revisar integração" : channel.connected ? `Abrir ${channel.name}` : `Conectar ${channel.name}`}>→</Link></div>
                 </div>
               ))}

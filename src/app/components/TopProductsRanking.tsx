@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState, type CSSProperties } from "react";
+import { marginStateClass } from "@/lib/marginTone";
 
 export interface RankedProduct {
   sku: string;
@@ -12,13 +13,6 @@ export interface RankedProduct {
 }
 
 type RankingMetric = "revenue" | "units";
-
-function marginClass(marginPct: number | null) {
-  if (marginPct == null) return "is-unknown";
-  if (marginPct >= 18) return "is-positive";
-  if (marginPct >= 12) return "is-warning";
-  return "is-negative";
-}
 
 export function TopProductsRanking({
   products,
@@ -101,7 +95,7 @@ export function TopProductsRanking({
               </span>
               <span className="top-products-secondary">{secondary}</span>
               <strong className="top-products-primary">{primary}</strong>
-              <span className={`top-products-margin ${marginClass(product.marginPct)}`}>
+              <span className={`top-products-margin ${marginStateClass(product.marginPct)}`}>
                 {product.marginPct == null ? "Margem —" : `${product.marginPct.toFixed(1)}% margem`}
               </span>
             </li>

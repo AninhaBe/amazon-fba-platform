@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { PageHeader, pageIcons } from "../components/PageHeader";
 import { readJson } from "../../lib/readJson";
 import { AmazonTaxRateSetting } from "../components/AmazonTaxRateSetting";
+import { marginStateClass } from "@/lib/marginTone";
 
 interface ModeFees {
   totalFees: number;
@@ -329,7 +330,7 @@ export default function CalculatorPage() {
                       <strong>{money(col.net, result.currency)}</strong>
                     </div>
                     <dl>
-                      <div><dt>Margem</dt><dd>{col.marginPct.toFixed(1)}%</dd></div>
+                      <div><dt>Margem</dt><dd className={marginStateClass(col.marginPct)}>{col.marginPct.toFixed(1)}%</dd></div>
                       <div><dt>ROI</dt><dd>{num(cost) > 0 ? `${col.roiPct.toFixed(1)}%` : "—"}</dd></div>
                     </dl>
                   </div>

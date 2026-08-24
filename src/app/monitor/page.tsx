@@ -12,6 +12,7 @@ import { DashboardPeriodFilter, useDashboardPeriod } from "../components/Dashboa
 import type { ProfitabilityLine } from "@/lib/profitability";
 import { readJson } from "@/lib/readJson";
 import { brDate } from "@/lib/datetime";
+import { marginMetricTone } from "@/lib/marginTone";
 
 interface FinanceSummary {
   currency: string;
@@ -255,7 +256,7 @@ function MonitorPage({ secaoInicial }: { secaoInicial: MonitorSection }) {
               {
                 id: "margem-pct",
                 label: "Margem",
-                node: <Metric label="Margem" value={costsIncomplete || marginPct == null ? "—" : percent(marginPct)} sub={costsIncomplete ? "aguardando todos os custos" : "sobre a receita"} tone={costsIncomplete || marginPct == null ? "default" : marginPct > 0 ? "positive" : marginPct < 0 ? "danger" : "default"} />,
+                node: <Metric label="Margem" value={costsIncomplete || marginPct == null ? "—" : percent(marginPct)} sub={costsIncomplete ? "aguardando todos os custos" : "sobre a receita"} tone={costsIncomplete ? "default" : marginMetricTone(marginPct)} />,
               },
             ]}
           />

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { PageHeader, pageIcons } from "../../components/PageHeader";
 import { calculateMarketplaceScenario } from "@/lib/marketplaceCalculator";
+import { marginStateClass } from "@/lib/marginTone";
 
 interface Product {
   id: string;
@@ -247,7 +248,7 @@ export default function MercadoLivreCalculatorPage() {
           <h2>{calculating ? "Consultando tarifa…" : "Monte uma simulação"}</h2>
           <p>{calculating ? "Estamos verificando os custos deste anúncio para o preço informado." : "Cole um anúncio do Mercado Livre para ver a margem e cada desconto da venda."}</p>
         </div> : <>
-          <header><div><p>Margem de contribuição</p><strong className={scenario.contribution >= 0 ? "is-positive" : "is-negative"}>{pct(scenario.marginRate)}</strong></div><span>{fee.listingTypeName}</span></header>
+          <header><div><p>Margem de contribuição</p><strong className={marginStateClass(scenario.marginRate)}>{pct(scenario.marginRate)}</strong></div><span>{fee.listingTypeName}</span></header>
           <div className="meli-result-kpis">
             <div><span>Sobra por unidade</span><strong>{money(scenario.contribution, currency)}</strong></div>
             <div><span>ROI sobre o produto</span><strong>{scenario.roiRate == null ? "—" : pct(scenario.roiRate)}</strong></div>
@@ -269,7 +270,7 @@ export default function MercadoLivreCalculatorPage() {
         </>}
       </aside>
       {ready && premiumFeeIsCurrent && <section className="meli-calculator-result meli-premium-result is-ready" aria-label="Cenário Premium">
-        <header><div><p>Margem de contribuição</p><strong className={premiumScenario.contribution >= 0 ? "is-positive" : "is-negative"}>{pct(premiumScenario.marginRate)}</strong></div><span>{premiumFee.listingTypeName}</span></header>
+        <header><div><p>Margem de contribuição</p><strong className={marginStateClass(premiumScenario.marginRate)}>{pct(premiumScenario.marginRate)}</strong></div><span>{premiumFee.listingTypeName}</span></header>
         <div className="meli-result-kpis">
           <div><span>Sobra por unidade</span><strong>{money(premiumScenario.contribution, currency)}</strong></div>
           <div><span>ROI sobre o produto</span><strong>{premiumScenario.roiRate == null ? "—" : pct(premiumScenario.roiRate)}</strong></div>

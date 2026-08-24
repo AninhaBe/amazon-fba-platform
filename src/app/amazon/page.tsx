@@ -19,6 +19,7 @@ import { buildFinancialComposition, FinancialSummaryPanel } from "../components/
 import { BriefingLead } from "../components/BriefingLead";
 import { nomeDaTarifa } from "@/lib/nomeDaTarifa";
 import { IntegrationDashboardFrame } from "../components/IntegrationDashboardFrame";
+import { marginMetricTone } from "@/lib/marginTone";
 
 /**
  * Cobertura do cálculo de rentabilidade, como a API devolve. É objeto, não
@@ -527,7 +528,7 @@ export default function Dashboard() {
                       : undefined
                   }
                   trend={card.key === "revenue" ? revenueTrend : undefined}
-                  tone={card.tone}
+                  tone={card.key === "marginPct" ? marginMetricTone(card.raw) : card.tone}
                   loading={loading}
                 />
               )
@@ -729,11 +730,7 @@ export default function Dashboard() {
                   accent
                   tone={costsIncomplete
                     ? "default"
-                    : (profit?.estimatedProfit ?? 0) > 0
-                      ? "positive"
-                      : (profit?.estimatedProfit ?? 0) < 0
-                        ? "danger"
-                        : "default"}
+                    : marginMetricTone(((profit?.estimatedProfit ?? 0) / (profit?.finance.revenue || 1)) * 100)}
                 />
               )}
         </FinancialSummaryPanel>
@@ -847,7 +844,7 @@ function Flow({
   value: string;
   muted?: boolean;
   accent?: boolean;
-  tone?: "default" | "positive" | "danger";
+  tone?: "default" | "positive" | "danger" | "warn";
   sign?: "−" | "=";
   /** Fecha um trecho da cascata sem ser o resultado final (que é verde). */
   subtotal?: boolean;
@@ -860,9 +857,11 @@ function Flow({
         className={`tabular-nums ${detail ? "text-xs text-[var(--ink-muted)]" : "text-sm font-bold"} ${
           accent
             ? tone === "positive"
-              ? "text-emerald-700"
+              ? "text-[var(--positive)]"
               : tone === "danger"
-                ? "text-red-600"
+                ? "text-[var(--danger)]"
+                : tone === "warn"
+                  ? "text-[var(--warning)]"
                 : "text-[var(--ink)]"
             : muted && !detail
               ? "text-[var(--ink-soft)]"

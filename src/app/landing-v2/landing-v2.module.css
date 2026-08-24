@@ -12,6 +12,7 @@
   --success-soft: #e5f5ec;
   --danger: #c83a31;
   --danger-soft: #fbebe8;
+  --warning: oklch(0.575 0.126 72);
   --attention: #a96710;
   --attention-soft: #fbf2df;
   color: var(--ink);
@@ -812,6 +813,10 @@
 .negative,
 .cost {
   color: var(--danger) !important;
+}
+
+.marginWarning {
+  color: var(--warning) !important;
 }
 
 .analysisGrid {

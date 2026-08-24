@@ -9,6 +9,7 @@ import { EmptyState } from "../components/EmptyState";
 import { readJson } from "../../lib/readJson";
 import { gatherCentralChannels, mergeDailySeries, type ChannelSnapshot } from "../centralChannels";
 import { tendenciaSemanal, margemDoCanal } from "@/lib/centralOverview";
+import { marginStateClass } from "@/lib/marginTone";
 
 interface Insight {
   id: string;
@@ -60,6 +61,10 @@ function severityBand(severity: number): Exclude<BriefingFilter, "all"> {
 
 function severityLabel(severity: number) {
   return severity >= 90 ? "Crítica" : severity >= 70 ? "Atenção" : "Monitorar";
+}
+
+function evidenceValueClass(key: string, value: unknown) {
+  return key === "margemPct" && typeof value === "number" ? marginStateClass(value) : undefined;
 }
 
 export default function BriefingPage() {
@@ -318,7 +323,7 @@ export default function BriefingPage() {
                           </div>
                         </div>
                         <div className="briefing-evidence-cell justify-center text-center" role="cell">
-                          {evidence.slice(0, 2).map(([key, value]) => <span className="justify-items-center" key={key}><small>{EVIDENCE_LABEL[key] || key}</small><strong>{value == null ? "—" : String(value)}</strong></span>)}
+                          {evidence.slice(0, 2).map(([key, value]) => <span className="justify-items-center" key={key}><small>{EVIDENCE_LABEL[key] || key}</small><strong className={evidenceValueClass(key, value)}>{value == null ? "—" : String(value)}</strong></span>)}
                           {evidence.length > 2 && <em>+{evidence.length - 2}</em>}
                         </div>
                         <div className="briefing-impact-cell justify-items-center text-center" role="cell">
@@ -335,7 +340,7 @@ export default function BriefingPage() {
                       </div>
                       {expanded && (
                         <div className="briefing-row-detail">
-                          <dl>{evidence.map(([key, value]) => <div key={key}><dt>{EVIDENCE_LABEL[key] || key}</dt><dd>{value == null ? "—" : String(value)}</dd></div>)}</dl>
+                          <dl>{evidence.map(([key, value]) => <div key={key}><dt>{EVIDENCE_LABEL[key] || key}</dt><dd className={evidenceValueClass(key, value)}>{value == null ? "—" : String(value)}</dd></div>)}</dl>
                           <p>{impactUnits == null ? "Impacto ainda não estimado." : <>Impacto estimado: <strong>≈ {impactUnits} unidade(s) em risco</strong>{premissa ? <small>{premissa}</small> : null}</>}</p>
                           <div>
                             <button type="button" disabled={busy === it.id} onClick={() => void act(it.id, "adiar")}>Adiar 3d</button>

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import type { ProfitabilityLine } from "@/lib/profitability";
 import { brDate } from "@/lib/datetime";
+import { marginTone } from "@/lib/marginTone";
 import { EmptyState } from "./EmptyState";
 import { TableLoading } from "./LoadingState";
 import { Pagination } from "./Pagination";
@@ -51,18 +52,18 @@ function Margin({ line }: { line: ProfitabilityLine }) {
       <span>{motivo.ajuda}</span>
     </div>;
   }
-  // Mesma faixa da curva ABC: ≥18% verde, 12–18% âmbar, abaixo vermelho.
-  const tone = marginTone(line);
+  const tone = profitabilityMarginTone(line);
   return <div className={`profit-result ${styles.result} is-${tone}`}><strong>{money(line.contribution, line.currency)}</strong><span>{percent(line.marginPct)}</span></div>;
 }
 
-function marginTone(line: ProfitabilityLine): "positive" | "warning" | "negative" | "pending" {
+function profitabilityMarginTone(line: ProfitabilityLine): "positive" | "warning" | "negative" | "pending" {
   if (line.contribution == null || line.marginPct == null) return "pending";
-  return line.marginPct >= 18 ? "positive" : line.marginPct >= 12 ? "warning" : "negative";
+  const tone = marginTone(line.marginPct);
+  return tone === "danger" ? "negative" : tone === "unknown" ? "pending" : tone;
 }
 
 function Breakdown({ line }: { line: ProfitabilityLine }) {
-  const tone = marginTone(line);
+  const tone = profitabilityMarginTone(line);
   return <div className={`profit-breakdown ${styles.breakdown}`}>
     {line.listPrice != null && line.promotions != null && line.promotions > 0 && <>
       <div className="is-muted"><span>Preço de tabela</span><strong>{money(line.listPrice, line.currency)}</strong></div>

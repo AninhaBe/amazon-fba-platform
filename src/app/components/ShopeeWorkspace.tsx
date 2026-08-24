@@ -31,6 +31,7 @@ import {
   type ShopeeProviderIssue,
 } from "./ShopeeWorkspaceModel";
 import type { PublicIntegrationConnection } from "@/lib/integrations/types";
+import { marginMetricTone } from "@/lib/marginTone";
 
 interface Overview {
   account: { id: string; name: string; region: string };
@@ -436,7 +437,7 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
         <Metric label="Taxas" value={overview.profit.fees == null ? "—" : money(overview.profit.fees, overview.metrics.currency)} sub={overview.profit.feesComplete ? "extrato financeiro processado" : "aguardando fechamento do extrato financeiro"} />
         <Metric label="Custo dos produtos" value={overview.profit.cogs == null ? "—" : money(overview.profit.cogs, overview.metrics.currency)} sub={costsIncomplete ? `${overview.profit.unitsWithoutCost} unidade(s) sem custo` : "custos cadastrados"} tone={costsIncomplete ? "warn" : "default"} />
         <Metric label={resultIncomplete ? "Resultado processado" : "Lucro estimado"} value={resultIncomplete || overview.profit.estimatedProfit == null ? "—" : <AnimatedNumber id="shopee-dash-profit" value={overview.profit.estimatedProfit} format={(amount) => money(amount, overview.metrics.currency)} />} sub={resultIncomplete ? `${profitCoverage.processedOrders} de ${profitCoverage.paidOrders} vendas` : "após todos os custos"} tone={resultIncomplete || overview.profit.estimatedProfit == null ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
-        <Metric label="Margem" value={resultIncomplete || overview.profit.marginPct == null ? "—" : percent(overview.profit.marginPct)} sub={resultIncomplete ? "aguardando conciliação completa" : "sobre o faturamento"} tone={resultIncomplete || overview.profit.marginPct == null ? "default" : overview.profit.marginPct > 0 ? "positive" : overview.profit.marginPct < 0 ? "danger" : "default"} />
+        <Metric label="Margem" value={resultIncomplete || overview.profit.marginPct == null ? "—" : percent(overview.profit.marginPct)} sub={resultIncomplete ? "aguardando conciliação completa" : "sobre o faturamento"} tone={resultIncomplete ? "default" : marginMetricTone(overview.profit.marginPct)} />
       </section>
 
       <section className="secondary-metrics" aria-label="Indicadores operacionais Shopee">
@@ -531,7 +532,7 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
               label="Margem"
               value={resultIncomplete || overview.profit.marginPct == null ? "—" : percent(overview.profit.marginPct)}
               accent
-              tone={resultIncomplete || overview.profit.marginPct == null ? "default" : overview.profit.marginPct > 0 ? "positive" : overview.profit.marginPct < 0 ? "danger" : "default"}
+              tone={resultIncomplete ? "default" : marginMetricTone(overview.profit.marginPct)}
             />
         </FinancialSummaryPanel>
       </section>

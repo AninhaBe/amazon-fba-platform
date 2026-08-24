@@ -26,6 +26,7 @@ import { Pagination } from "./Pagination";
 import { TopProductsRanking } from "./TopProductsRanking";
 import { BriefingLead } from "./BriefingLead";
 import { IntegrationDashboardFrame } from "./IntegrationDashboardFrame";
+import { marginMetricTone } from "@/lib/marginTone";
 
 /** As três abas do monitor — as mesmas da Amazon. */
 type SecaoDoMonitor = "composition" | "transactions" | "profitability";
@@ -330,7 +331,7 @@ function Dashboard({ overview, syncStatus, periodoLabel }: { overview: Overview;
       <Metric label="Taxas" value={money(overview.profit.fees, overview.metrics.currency)} sub={`${profitCoverage.processedOrders} venda(s) processada(s)`} />
       <Metric label="Custo dos produtos" value={money(overview.profit.cogs, overview.metrics.currency)} sub={overview.profit.unitsWithoutCost > 0 ? `${overview.profit.unitsWithoutCost} unidade(s) sem custo` : "custos cadastrados"} tone={overview.profit.unitsWithoutCost > 0 ? "warn" : "default"} />
       <Metric label={resultIncomplete ? "Resultado processado" : "Lucro estimado"} value={<AnimatedNumber id="ml-dash-profit" value={overview.profit.estimatedProfit} format={(amount) => money(amount, overview.metrics.currency)} />} sub={resultIncomplete ? `${profitCoverage.processedOrders} de ${profitCoverage.paidOrders} vendas` : "após todos os custos"} tone={resultIncomplete ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
-      <Metric label="Margem" value={semAliquota ? "—" : percent(overview.profit.marginPct)} sub={margemSub} tone={semAliquota || resultParcial ? "default" : overview.profit.marginPct > 0 ? "positive" : overview.profit.marginPct < 0 ? "danger" : "default"} />
+      <Metric label="Margem" value={semAliquota ? "—" : percent(overview.profit.marginPct)} sub={margemSub} tone={semAliquota || resultParcial ? "default" : marginMetricTone(overview.profit.marginPct)} />
     </section>
 
     <section className="secondary-metrics" aria-label="Indicadores operacionais Mercado Livre">
@@ -404,7 +405,7 @@ function Dashboard({ overview, syncStatus, periodoLabel }: { overview: Overview;
             label="Margem"
             value={resultIncomplete ? "—" : percent(overview.profit.marginPct)}
             accent
-            tone={resultIncomplete ? "default" : overview.profit.marginPct > 0 ? "positive" : overview.profit.marginPct < 0 ? "danger" : "default"}
+            tone={resultIncomplete ? "default" : marginMetricTone(overview.profit.marginPct)}
           />
       </FinancialSummaryPanel>
     </section>
@@ -537,7 +538,7 @@ function Monitor({ overview, secaoInicial }: { overview: Overview; secaoInicial:
         {
           id: "margem-pct",
           label: "Margem",
-          node: <Metric label="Margem" value={semAliquota ? "—" : percent(overview.profit.marginPct)} sub={margemSub} tone={semAliquota || resultParcial ? "default" : overview.profit.marginPct > 0 ? "positive" : overview.profit.marginPct < 0 ? "danger" : "default"} />,
+          node: <Metric label="Margem" value={semAliquota ? "—" : percent(overview.profit.marginPct)} sub={margemSub} tone={semAliquota || resultParcial ? "default" : marginMetricTone(overview.profit.marginPct)} />,
         },
       ]}
     />

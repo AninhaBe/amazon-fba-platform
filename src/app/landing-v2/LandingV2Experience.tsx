@@ -18,6 +18,7 @@ import {
 import { MarketplaceIcon } from "../components/MarketplaceIcon";
 import { NexoWordmark } from "../components/NexoWordmark";
 import { RevenueChart, type ChartMetric } from "../components/RevenueChart";
+import { marginTone } from "@/lib/marginTone";
 import { NexoDemoMessage } from "./NexoDemoMessage";
 import {
   DEMO_CHANNELS,
@@ -41,6 +42,11 @@ const SEVERITY_ICON = {
   attention: CircleDot,
   observe: CircleCheck,
 };
+
+function marginClassName(value: number | null) {
+  const tone = marginTone(value);
+  return tone === "positive" ? styles.profit : tone === "warning" ? styles.marginWarning : tone === "danger" ? styles.cost : undefined;
+}
 
 type SortKey = "revenueCents" | "productCostCents" | "marginPct";
 
@@ -431,7 +437,7 @@ export function LandingV2Experience() {
               <div>
                 <span>Lucro</span>
                 <strong className={styles.profit}>{formatMoney(totals.profitCents)}</strong>
-                <small>{formatPercent(totals.marginPct)} de margem</small>
+                <small className={marginClassName(totals.marginPct)}>{formatPercent(totals.marginPct)} de margem</small>
               </div>
               <div>
                 <span>Pedidos</span>
@@ -474,7 +480,7 @@ export function LandingV2Experience() {
                 <dl>
                   <div><dt>Ticket médio</dt><dd>{formatMoney(totals.orders ? Math.round(totals.revenueCents / totals.orders) : null)}</dd></div>
                   <div><dt>Descontos</dt><dd>{formatMoney(totals.discountCents)}</dd></div>
-                  <div><dt>Margem</dt><dd className={totals.marginPct !== null && totals.marginPct >= 0 ? styles.profit : styles.cost}>{formatPercent(totals.marginPct)}</dd></div>
+                  <div><dt>Margem</dt><dd className={marginClassName(totals.marginPct)}>{formatPercent(totals.marginPct)}</dd></div>
                 </dl>
               </article>
             </div>
@@ -516,7 +522,7 @@ export function LandingV2Experience() {
                         <td>{formatMoney(row.revenueCents)}</td>
                         <td className={styles.cost}>{formatMoney(row.productCostCents)}</td>
                         <td className={styles.profit}>{formatMoney(row.profitCents)}</td>
-                        <td className={row.marginPct !== null && row.marginPct >= 0 ? styles.profit : styles.cost}>{formatPercent(row.marginPct)}</td>
+                        <td className={marginClassName(row.marginPct)}>{formatPercent(row.marginPct)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -527,7 +533,7 @@ export function LandingV2Experience() {
                       <td>{formatMoney(totals.revenueCents)}</td>
                       <td className={styles.cost}>{formatMoney(totals.productCostCents)}</td>
                       <td className={styles.profit}>{formatMoney(totals.profitCents)}</td>
-                      <td className={styles.profit}>{formatPercent(totals.marginPct)}</td>
+                      <td className={marginClassName(totals.marginPct)}>{formatPercent(totals.marginPct)}</td>
                     </tr>
                   </tfoot>
                 </table>

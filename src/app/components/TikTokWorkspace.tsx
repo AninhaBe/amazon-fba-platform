@@ -19,6 +19,7 @@ import { buildFinancialComposition, FinancialSummaryPanel } from "./FinancialSum
 import { ConnectionBroken } from "./ConnectionBroken";
 import { ChannelConnectionEmpty } from "./ChannelConnectionEmpty";
 import { brDate } from "@/lib/datetime";
+import { marginMetricTone } from "@/lib/marginTone";
 import {
   coverageDescription,
   effectiveTiktokDashboardPhase,
@@ -245,7 +246,7 @@ export function TikTokWorkspace() {
           </>
         )}
         <section className="metric-grid tiktok-dashboard-metrics" aria-label="Resumo financeiro da TikTok Shop">
-          {primaryCards.map((card) => <Metric key={card.key} label={card.label} value={card.value} sub={card.context} tone={(card.key === "profit" || card.key === "marginPct") && card.raw != null ? card.raw > 0 ? "positive" : card.raw < 0 ? "danger" : "default" : "default"} />)}
+          {primaryCards.map((card) => <Metric key={card.key} label={card.label} value={card.value} sub={card.context} tone={card.key === "marginPct" ? marginMetricTone(card.raw) : card.key === "profit" && card.raw != null ? card.raw > 0 ? "positive" : card.raw < 0 ? "danger" : "default" : "default"} />)}
         </section>
         <details className="tiktok-financial-components">
           <summary><span>Componentes financeiros do período</span><small>{componentCards.length} valores preservados no detalhamento</small><ChevronDown aria-hidden="true" /></summary>
@@ -310,7 +311,7 @@ export function TikTokWorkspace() {
                 label="Margem"
                 value={resultReady ? primaryCards.find((card) => card.key === "marginPct")?.value ?? "—" : "—"}
                 accent
-                tone={!resultReady ? "default" : (data.overview.marginPct ?? 0) > 0 ? "positive" : (data.overview.marginPct ?? 0) < 0 ? "danger" : "default"}
+                tone={!resultReady ? "default" : marginMetricTone(data.overview.marginPct)}
               />
           </FinancialSummaryPanel>
         </section>

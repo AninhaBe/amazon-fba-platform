@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { EmptyState } from "./EmptyState";
 import { PanelLoading } from "./LoadingState";
 import { PageHeader } from "./PageHeader";
+import { marginTone } from "@/lib/marginTone";
 
 // Curva ABC por lucro — visão compartilhada entre canais. A fonte de dados muda
 // pelo `endpoint`; o formato de resposta é idêntico (Mercado Livre e Amazon).
@@ -235,18 +236,31 @@ function Results({ data, quad, setQuad, costsHref }: { data: Abc; quad: Quadrant
                   const q = p.quadrant ? QUAD[p.quadrant] : null;
                   const clsColor = p.profitClass === "A" ? "bg-emerald-50 text-emerald-700" : p.profitClass === "B" ? "bg-amber-50 text-amber-700" : "bg-[var(--ink-05)] text-[var(--ink-muted)]";
                   const neg = p.contribution != null && p.contribution < 0;
+                  const marginStatus = marginTone(p.marginPct);
                   return (
                     <tr key={p.sku || p.productId} className="[&_td]:border-b [&_td]:border-[var(--line)] [&_td]:px-3 [&_td]:py-2.5 [&_td]:tabular-nums hover:bg-[var(--ink-03)]">
                       <td className="!text-left">
                         <div className="flex max-w-[240px] flex-col">
                           <strong className="truncate text-[13px] font-semibold" title={p.title}>{p.title}</strong>
-                          <small className="font-mono text-[12px] text-[var(--ink-muted)]">{p.sku || p.productId}{!p.costMissing && !p.complete && " · sem repasse postado"}</small>
+                          <small className="abc-product-meta">
+                            <span className="abc-product-sku">{p.sku || p.productId}</span>
+                            {!p.costMissing && !p.complete && (
+                              <span className="abc-product-status is-warning">
+                                <i aria-hidden="true" />
+                                Sem repasse postado
+                              </span>
+                            )}
+                          </small>
                         </div>
                       </td>
                       <td className="text-right">{p.units}</td>
                       <td className="text-right">{money(p.revenue, currency)}</td>
-                      <td className={`text-right font-bold ${p.contribution == null ? "text-[var(--ink-faint)]" : neg ? "text-red-600" : "text-emerald-700"}`}>{p.contribution == null ? "—" : money(p.contribution, currency)}</td>
-                      <td className={`text-right ${p.marginPct == null ? "text-[var(--ink-faint)]" : p.marginPct < 0 ? "font-bold text-red-600" : p.marginPct < 12 ? "text-red-600" : p.marginPct < 18 ? "text-amber-600" : "font-semibold text-emerald-700"}`}>{p.marginPct == null ? "—" : `${p.marginPct.toFixed(1)}%`}</td>
+                      <td className={`text-right font-bold ${p.contribution == null ? "text-[var(--ink-faint)]" : neg ? "text-[var(--danger)]" : "text-[var(--positive)]"}`}>{p.contribution == null ? "—" : money(p.contribution, currency)}</td>
+                      <td className="text-right">
+                        <span className={`abc-margin is-${marginStatus}`}>
+                          {p.marginPct == null ? "—" : `${p.marginPct.toFixed(1)}%`}
+                        </span>
+                      </td>
                       <td className="text-center">
                         {p.profitClass == null
                           ? <span className="text-[var(--ink-faint)]">—</span>

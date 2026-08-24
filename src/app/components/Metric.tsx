@@ -123,14 +123,14 @@ export function CompactMetric({
   );
 }
 
-export function Flow({ label, value, sign, accent = false, tone = "positive" }: { label: string; value: string; sign?: "−" | "="; accent?: boolean; tone?: "positive" | "danger" | "default" }) {
+export function Flow({ label, value, sign, accent = false, tone = "positive" }: { label: string; value: string; sign?: "−" | "="; accent?: boolean; tone?: "positive" | "danger" | "warn" | "default" }) {
   // Custo (sinal "−") em vermelho; subtotal ("=") e valores de entrada em tinta
   // cheia; o resultado final só ganha cor quando o dado permite afirmar o sinal.
   return (
     <div className={`financial-line ${accent ? `is-result is-result-${tone}` : ""}`}>
       <span className="financial-sign" aria-hidden="true">{sign}</span>
       <p className="text-xs font-medium text-[var(--ink-muted)]">{label}</p>
-      <p className={`text-sm font-bold tabular-nums ${accent ? tone === "positive" ? "text-emerald-700" : tone === "danger" ? "text-red-600" : "text-[var(--ink)]" : sign === "−" ? "text-red-600" : "text-[var(--ink)]"}`}>{value}</p>
+      <p className={`text-sm font-bold tabular-nums ${accent ? tone === "positive" ? "text-[var(--positive)]" : tone === "danger" ? "text-[var(--danger)]" : tone === "warn" ? "text-[var(--warning)]" : "text-[var(--ink)]" : sign === "−" ? "text-[var(--danger)]" : "text-[var(--ink)]"}`}>{value}</p>
     </div>
   );
 }
