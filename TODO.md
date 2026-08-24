@@ -268,7 +268,12 @@ decidir. Ideia veio de um print de concorrente (Hunter Hub) que ela mandou.
 Levantadas pelos agentes enquanto fechavam o bloco C. Nenhuma foi tocada: ou é
 outro canal (o diff da rodada não podia sair do TikTok), ou é decisão de produto.
 
-- [ ] **`brDate()` adianta em um dia toda data de liberação do Mercado Livre.**
+- [x] ~~**`brDate()` erra em um dia toda data de liberação do Mercado Livre.**~~
+  **CORRIGIDO em 23/08** no ponto único (`src/lib/datetime.ts`): data no formato
+  `YYYY-MM-DD` passa a ser ancorada em `-03:00` antes do parse. Travado por
+  `tests/brDateSomenteData.test.mjs`. ⚠️ A data ficava um dia **atrasada**, não
+  adiantada — o exemplo abaixo estava certo, a palavra é que não. Diagnóstico
+  original preservado:
   `MercadoLivreSaldo.tsx` passa um dia já calculado em São Paulo (`YYYY-MM-DD`)
   por `brDate()`, que faz `new Date("2026-09-13")` — meia-noite **UTC** — e
   reconverte para `America/Sao_Paulo`, devolvendo **12/09/2026**. Confirmado
