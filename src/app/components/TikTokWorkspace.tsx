@@ -10,6 +10,7 @@ import { DashboardSkeleton } from "./LoadingState";
 import { CompactMetric, Flow, FlowExpandable, Metric } from "./Metric";
 import { PageHeader } from "./PageHeader";
 import { RevenueChart } from "./RevenueChart";
+import { LegendaDeVendas } from "./LegendaDeVendas";
 import { TopProductsRanking } from "./TopProductsRanking";
 import { TikTokSaldo } from "./TikTokSaldo";
 import { BriefingLead } from "./BriefingLead";
@@ -189,6 +190,14 @@ export function TikTokWorkspace() {
   const pendenciasDaConciliacao = pendencias.filter((item) => item.espera === "conciliacao");
   const currency = data.overview.currency;
   const capturedRevenue = data.overview.revenue ?? 0;
+  // A legenda sai do `statusBreakdown`, que é a contagem por status vinda do
+  // canônico. "Confirmado" usa os mesmos status que compõem receita; o que não
+  // é confirmado nem cancelado ainda está para fechar.
+  const CONFIRMADOS = new Set(["paid", "shipped", "delivered"]);
+  const porStatus = data.statusBreakdown ?? [];
+  const pedidosConfirmados = porStatus.filter((i) => CONFIRMADOS.has(i.status)).reduce((t, i) => t + i.orders, 0);
+  const pedidosCancelados = porStatus.filter((i) => i.status === "cancelled").reduce((t, i) => t + i.orders, 0);
+  const pedidosAguardando = Math.max(0, (data.orders ?? 0) - pedidosConfirmados - pedidosCancelados);
   const formatMoney = (value: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(value);
   return (
     <IntegrationDashboardFrame
@@ -255,6 +264,16 @@ export function TikTokWorkspace() {
         <section className="performance-panel tiktok-performance-panel" aria-labelledby="tiktok-performance-title">
           <div className="performance-chart">
             <div className="mb-2 flex flex-wrap items-baseline justify-between gap-3"><div><p className="section-kicker">Desempenho diário</p><h2 id="tiktok-performance-title" className="mt-1 text-lg font-semibold text-[var(--ink)]">Evolução do faturamento operacional</h2></div><span className="text-xs text-[var(--ink-muted)]">Valores de pedidos do período; não substituem o ledger financeiro.</span></div>
+            {/* Mesma legenda dos outros três canais, montada a partir do
+                `statusBreakdown`: confirmado é o que já conta como receita,
+                cancelado é explícito, e o resto é o que ainda não fechou. */}
+            <LegendaDeVendas
+              confirmados={{ pedidos: pedidosConfirmados, valor: capturedRevenue }}
+              aguardando={{ pedidos: pedidosAguardando, valor: null }}
+              cancelados={{ pedidos: pedidosCancelados }}
+              nota="A TikTok só posta o extrato depois de a entrega fechar; até lá o pedido conta como venda, mas o valor final ainda pode mudar."
+              money={(valor) => new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(valor)}
+            />
             <RevenueChart points={data.dailySeries ?? []} currency={currency} explorable />
           </div>
           <FinancialSummaryPanel

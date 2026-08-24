@@ -2,6 +2,7 @@ import { dbQuery, ensureFinancialLedgerSchema, hasDb } from "../db";
 import { currentWorkspaceId } from "../workspaceScope";
 import { getTiktokShops } from "../tiktokStore";
 import { getTiktokOverviewFromCanonical } from "./tiktokOverviewCanonical";
+import { classificarCobertura, LOW_DAYS } from "../coberturaDeEstoque";
 import { parseTiktokConnectionId, tiktokConnectionId } from "./tiktokContract";
 import type { IntegrationConnection } from "./types";
 import { pageMetadata, pageRequest, periodRequest, TIKTOK_CATALOG_STATUSES, TiktokModuleError } from "./tiktokModuleContract";
@@ -87,14 +88,18 @@ export async function readInventory(connection: IntegrationConnection, params: U
   ), filtered AS (
     SELECT * FROM inventory
      WHERE $8='' OR ($8='out' AND available_qty=0)
-       OR ($8='low' AND available_qty>0 AND days_remaining IS NOT NULL AND days_remaining<=15)
+       OR ($8='low' AND available_qty>0 AND days_remaining IS NOT NULL AND days_remaining<=$12)
        OR ($8='no_sales' AND units_sold=0)
   )
   SELECT *,COUNT(*) OVER()::int total FROM filtered
    ORDER BY title,COALESCE(sku,''),external_product_id LIMIT $10 OFFSET $11`,[
-    currentWorkspaceId(),PROVIDER,connection.id,period.from,period.to,["paid","shipped","delivered"],q,filter??"",days,page.limit,page.offset,
+    currentWorkspaceId(),PROVIDER,connection.id,period.from,period.to,["paid","shipped","delivered"],q,filter??"",days,page.limit,page.offset,LOW_DAYS,
   ]);
-  const items=rows.map((r:any)=>({productId:r.external_product_id,variationId:r.external_product_id,sku:r.sku,title:r.title,status:r.status,providerStatus:r.provider_status,price:r.price==null?null:Number(r.price),currency:r.currency,availableQty:r.available_qty==null?null:Number(r.available_qty),updatedAt:new Date(r.synced_at).toISOString(),unitsSold:Number(r.units_sold),averagePerDay:+Number(r.average_per_day).toFixed(4),daysRemaining:r.days_remaining==null?null:+Number(r.days_remaining).toFixed(1)}));
+  const items=rows.map((r:any)=>({productId:r.external_product_id,variationId:r.external_product_id,sku:r.sku,title:r.title,status:r.status,providerStatus:r.provider_status,price:r.price==null?null:Number(r.price),currency:r.currency,availableQty:r.available_qty==null?null:Number(r.available_qty),updatedAt:new Date(r.synced_at).toISOString(),unitsSold:Number(r.units_sold),averagePerDay:+Number(r.average_per_day).toFixed(4),daysRemaining:r.days_remaining==null?null:+Number(r.days_remaining).toFixed(1),
+    // MESMA classificação dos outros três canais. Antes o TikTok não devolvia
+    // status nenhum e a tela não sabia dizer se um SKU estava saudável, parado
+    // ou perto de romper — ver `classificarCobertura`.
+    cobertura:classificarCobertura({disponivel:Number(r.available_qty??0),porDia:Number(r.average_per_day??0),diasRestantes:r.days_remaining==null?null:Number(r.days_remaining)})}));
   const total=rows[0]?.total??0;
   return {items,page:{...page,total,hasMore:page.offset+items.length<total},availability:"AVAILABLE" as const,period:{from:period.from.toISOString(),to:period.to.toISOString()}};
 }

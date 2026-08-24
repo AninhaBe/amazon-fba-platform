@@ -49,9 +49,14 @@ test("sem venda vai para o fim da fila de urgencia", () => {
 });
 
 test("nenhum canal reimplementa a regra por conta", () => {
+  // OS QUATRO CANAIS. Havia três regras diferentes rodando ao mesmo tempo:
+  // Amazon com seis status, ML e Shopee com três cópias iguais e erradas, e o
+  // TikTok filtrando em SQL com um limiar próprio de 15 dias.
   for (const caminho of [
     "src/lib/integrations/mercadoLivre.ts",
     "src/lib/integrations/mercadoLivreOverviewCanonical.ts",
+    "src/lib/integrations/shopeeOverviewCanonical.ts",
+    "src/lib/integrations/tiktokModules.ts",
   ]) {
     const s = fonte(caminho);
     assert.match(s, /classificarCobertura\(/, `${caminho} tem que usar a regra compartilhada`);
@@ -80,4 +85,13 @@ test("os dois radares mostram quantidade vendida, nao so ritmo", () => {
   assert.match(ml, />Vendidos</, "o radar do ML perdeu a coluna Vendidos");
   assert.match(amazon, /Unidades vendidas/, "falta o total do período no resumo da Amazon");
   assert.match(ml, /Unidades vendidas/, "falta o total do período no resumo do ML");
+});
+
+test("ninguem tem limiar de dias proprio", () => {
+  // O TikTok usava 15 dias para "repor em breve" enquanto o resto usava 21. Um
+  // produto classificado de um jeito na consulta e de outro na tela é pior que
+  // não classificar. Agora o número vem do módulo compartilhado.
+  const tiktok = fonte("src/lib/integrations/tiktokModules.ts");
+  assert.match(tiktok, /LOW_DAYS/, "o TikTok voltou a ter limiar próprio");
+  assert.doesNotMatch(tiktok, /days_remaining<=15/, "limiar de 15 dias reapareceu no SQL");
 });

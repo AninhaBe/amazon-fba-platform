@@ -16,9 +16,14 @@
 export type StockStatus = "out" | "critical" | "low" | "ok" | "overstock" | "idle";
 
 // Limiares de dias para classificar a urgência.
-const CRITICAL_DAYS = 10; // repor já (menos que o lead time típico do FBA)
-const LOW_DAYS = 21; // repor em breve
-const OVERSTOCK_DAYS = 120; // parado demais, pagando armazenagem
+//
+// Exportados porque o TikTok filtra em SQL e precisa dos MESMOS números: ele
+// usava 15 dias para "low" — um terceiro limiar, além dos 10 e 21 daqui — e um
+// produto classificado de um jeito na consulta e de outro na tela é pior que
+// não classificar.
+export const CRITICAL_DAYS = 10; // repor já (menos que o lead time típico do FBA)
+export const LOW_DAYS = 21; // repor em breve
+export const OVERSTOCK_DAYS = 120; // parado demais, pagando armazenagem
 
 /** Urgência do radar: quem acaba antes primeiro, sem venda no fim. */
 export const ORDEM_DO_RADAR: Record<StockStatus, number> = {

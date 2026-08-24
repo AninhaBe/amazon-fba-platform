@@ -8,6 +8,7 @@ import { EmptyState } from "./EmptyState";
 import { DashboardSkeleton } from "./LoadingState";
 import { PageHeader } from "./PageHeader";
 import { RevenueChart, type DailyPoint } from "./RevenueChart";
+import { LegendaDeVendas } from "./LegendaDeVendas";
 import { DashboardPeriodFilter, useDashboardPeriod } from "./DashboardPeriodFilter";
 import { OrderProfitabilityTable } from "./OrderProfitabilityTable";
 import { TopProductsRanking } from "./TopProductsRanking";
@@ -458,6 +459,20 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
               {money(overview.metrics.revenue30d, overview.metrics.currency)} <span className="font-normal text-[var(--ink-muted)]">no período</span>
             </span>
           </div>
+          {/* Mesma legenda dos outros canais. A nota é o que muda: na Shopee o
+              dinheiro fica no escrow até a entrega ser confirmada. */}
+          <LegendaDeVendas
+            confirmados={{ pedidos: overview.metrics.paidOrders, valor: overview.metrics.revenue30d }}
+            aguardando={{
+              pedidos: Math.max(0, overview.metrics.orders30d - overview.metrics.paidOrders - overview.metrics.cancelledOrders),
+              // O canônico da Shopee não separa o valor dos pendentes. `null` e
+              // não zero: a legenda mostra a quantidade e omite o valor.
+              valor: null,
+            }}
+            cancelados={{ pedidos: overview.metrics.cancelledOrders }}
+            nota="A Shopee retém o valor da venda no escrow até a entrega ser confirmada."
+            money={(valor) => money(valor, overview.metrics.currency)}
+          />
           <RevenueChart points={overview.dailySales} currency={overview.metrics.currency} explorable />
         </div>
         <FinancialSummaryPanel

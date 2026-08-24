@@ -11,9 +11,14 @@ import { readFileSync } from "node:fs";
 
 const fonte = (caminho) => readFileSync(new URL(`../${caminho}`, import.meta.url), "utf8");
 
+// OS QUATRO. Equalizar dois e esquecer dois é o mesmo defeito mudado de lugar —
+// foi o que ela cobrou em 24/08/2026: "você tá pecando na regra de deixar os
+// marketplaces atualizados".
 const TELAS = [
   ["src/app/amazon/page.tsx", "Amazon"],
   ["src/app/components/MercadoLivreWorkspace.tsx", "Mercado Livre"],
+  ["src/app/components/ShopeeWorkspace.tsx", "Shopee"],
+  ["src/app/components/TikTokWorkspace.tsx", "TikTok Shop"],
 ];
 
 test("os dois canais usam o mesmo componente de legenda", () => {
@@ -29,16 +34,14 @@ test("os dois canais usam o mesmo componente de legenda", () => {
 });
 
 test("cada canal explica a PROPRIA regra de quando o dinheiro entra", () => {
-  const amazon = fonte("src/app/amazon/page.tsx");
-  const ml = fonte("src/app/components/MercadoLivreWorkspace.tsx");
-  assert.match(amazon, /nota="A Amazon confirma o pagamento/);
-  assert.match(ml, /nota="O Mercado Livre só confirma a venda/);
+  const notas = TELAS.map(([caminho, canal]) => {
+    const nota = (fonte(caminho).match(/nota="([^"]+)"/) ?? [])[1];
+    assert.ok(nota, `${canal} não explica a regra do próprio marketplace`);
+    return nota;
+  });
   // Nota genérica seria pior que nota nenhuma: cada marketplace tem regra
   // própria, e uma frase que serve para todos não ensina nada sobre nenhum.
-  assert.notEqual(
-    (amazon.match(/nota="([^"]+)"/) ?? [])[1],
-    (ml.match(/nota="([^"]+)"/) ?? [])[1]
-  );
+  assert.equal(new Set(notas).size, notas.length, "dois canais estão repetindo a mesma explicação");
 });
 
 test("cancelado entra por quantidade, nunca por valor", () => {

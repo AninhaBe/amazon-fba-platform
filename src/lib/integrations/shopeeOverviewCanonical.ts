@@ -2,6 +2,7 @@ import { dbQuery, hasDb } from "../db";
 import { currentWorkspaceId } from "../workspaceScope";
 import { getCosts, costAt } from "../costStore";
 import { allocateByWeight, calculateContribution, type ProfitabilityLine } from "../profitability";
+import { classificarCobertura, ORDEM_DO_RADAR, type StockStatus } from "../coberturaDeEstoque";
 import { REVENUE_STATUSES } from "./canonical";
 import { getShopeeTaxRateSetting, normalizeShopeeTaxRate } from "./shopeeSettings";
 import type { IntegrationConnection, IntegrationProvider } from "./types";
@@ -206,7 +207,7 @@ export interface ShopeeOverview {
   stockRadar: Array<{
     id: string; sku: string | null; title: string; availableQuantity: number;
     unitsSold: number; calculationDays: number; daysRemaining: number | null;
-    status: "out" | "critical" | "ok";
+    status: StockStatus;
   }>;
   profitabilityLines: ProfitabilityLine[];
   profitabilityPage: {
@@ -621,9 +622,10 @@ export async function getShopeeOverviewFromCanonical(
       const calculationDays = periodDays;
       const perDay = unitsSold / calculationDays;
       const daysRemaining = perDay > 0 ? Math.floor(product.availableQuantity / perDay) : null;
-      const status: "out" | "critical" | "ok" = product.availableQuantity <= 0
-        ? "out"
-        : daysRemaining != null && daysRemaining <= 10 ? "critical" : "ok";
+      // Mesma regra dos outros canais, do mesmo lugar. Aqui havia a terceira
+      // cópia da classificação — e com o mesmo defeito do ML: anúncio com
+      // estoque e ZERO venda saía como "ok". Ver `classificarCobertura`.
+      const status = classificarCobertura({ disponivel: product.availableQuantity, porDia: perDay, diasRestantes: daysRemaining });
       return {
         id: product.id,
         sku: product.sku,
@@ -636,7 +638,7 @@ export async function getShopeeOverviewFromCanonical(
       };
     })
     .sort((a, b) => {
-      const rank = (status: string) => (status === "out" ? 0 : status === "critical" ? 1 : 2);
+      const rank = (status: StockStatus) => ORDEM_DO_RADAR[status];
       return rank(a.status) - rank(b.status) || (a.daysRemaining ?? Infinity) - (b.daysRemaining ?? Infinity);
     });
 
