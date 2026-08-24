@@ -188,14 +188,12 @@ export default function OverviewDashboard() {
         {/* A narração do modelo tem prioridade; sem ela (sem chave ou sem
             resposta), cai no alerta por regra. Os dois respondem "o que mudou e
             onde olhar" — um em prosa, o outro em uma linha. */}
-        {narracao ? (
-          <NexoMensagem texto={narracao} ctaHref="/briefing" />
-        ) : narracaoCarregando ? (
-          /* Enquanto o modelo escreve (~18s), a faixa mostra "NEXO analisando"
-             em vez de não existir. Se falhar, cai no alerta por regra abaixo —
-             que sempre tem o que dizer e não depende de modelo. */
-          <NexoMensagem carregando />
-        ) : alerta ? (
+        {/* A faixa do NEXO SAIU daqui em 24/08/2026, a pedido dela: a Visão geral
+            é tela de passagem, e o trabalho acontece no dashboard de cada canal —
+            é lá que a leitura do dia aparece agora (`NexoDoDia`).
+            ⚠️ A geração continua sendo disparada por esta tela (o POST abaixo):
+            sem ela, ninguém escreveria o texto que os canais exibem. */}
+        {alerta ? (
           <Link href={alerta.href ?? "#"} className={`central-alerta is-${alerta.tom}`} aria-label={alerta.texto}>
             <span aria-hidden="true" className="central-alerta-ponto" />
             <span className="central-alerta-texto">{alerta.texto}</span>

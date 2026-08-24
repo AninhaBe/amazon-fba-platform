@@ -13,6 +13,7 @@ import { DashboardPeriodFilter, useDashboardPeriod } from "./DashboardPeriodFilt
 import { OrderProfitabilityTable } from "./OrderProfitabilityTable";
 import { TopProductsRanking } from "./TopProductsRanking";
 import { BriefingLead } from "./BriefingLead";
+import { NexoDoDia } from "./NexoDoDia";
 import { IntegrationDashboardFrame } from "./IntegrationDashboardFrame";
 import { ConnectionBroken } from "./ConnectionBroken";
 import { ChannelConnectionEmpty } from "./ChannelConnectionEmpty";
@@ -391,6 +392,9 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
 
   return (
     <div className="dashboard-sections integration-dashboard-sections shopee-dashboard-body">
+      {/* A MESMA leitura do NEXO dos outros canais — uma narracao por dia por
+      workspace, nao uma por canal. So aparece se ja estiver escrita. */}
+      <NexoDoDia />
       {/* Mesma abertura dos outros três canais. A Shopee ainda não tem loja
           real conectada, e é justamente por isso que ela precisa nascer com a
           composição igual: no dia em que o Go Live sair, a tela já está pronta

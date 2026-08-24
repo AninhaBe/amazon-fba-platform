@@ -14,6 +14,7 @@ import { LegendaDeVendas } from "./LegendaDeVendas";
 import { TopProductsRanking } from "./TopProductsRanking";
 import { TikTokSaldo } from "./TikTokSaldo";
 import { BriefingLead } from "./BriefingLead";
+import { NexoDoDia } from "./NexoDoDia";
 import { IntegrationDashboardFrame } from "./IntegrationDashboardFrame";
 import { buildFinancialComposition, FinancialSummaryPanel } from "./FinancialSummaryPanel";
 import { ConnectionBroken } from "./ConnectionBroken";
@@ -207,6 +208,9 @@ export function TikTokWorkspace() {
       header={<PageHeader eyebrow="TikTok Shop" title={data.connection.name} subtitle={`${data.connection.region} · ${phase === "ready" ? "Dados sincronizados" : "Sincronizando"}`} action={selector} />}
     >
       <div className="dashboard-sections integration-dashboard-sections tiktok-dashboard-body">
+        {/* A MESMA leitura do NEXO dos outros canais — uma narracao por dia por
+        workspace, nao uma por canal. So aparece se ja estiver escrita. */}
+        <NexoDoDia />
         {/* Mesma abertura dos outros três canais. O TikTok é o caso mais
             extremo dessa peça: o ledger financeiro pode estar bloqueado neste
             ambiente, e a frase precisa dizer isso em vez de exibir lucro

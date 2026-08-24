@@ -6,6 +6,7 @@ import { RevenueChart, type DailyPoint } from "../components/RevenueChart";
 import { PageHeader, pageIcons } from "../components/PageHeader";
 import { InlineLoading } from "../components/LoadingState";
 import { LegendaDeVendas } from "../components/LegendaDeVendas";
+import { NexoDoDia } from "../components/NexoDoDia";
 import { EmptyState } from "../components/EmptyState";
 import { DashboardPeriodFilter, useDashboardPeriod } from "../components/DashboardPeriodFilter";
 import type { OperationPendingItem } from "../components/OperationPending";
@@ -435,6 +436,10 @@ export default function Dashboard() {
       />}
     >
       <div className="dashboard-sections integration-dashboard-sections">
+      {/* A leitura do NEXO do dia — a MESMA da Visão geral e do Briefing, não uma
+          narração própria do canal. Aparece só se já estiver escrita; nenhuma
+          tela de canal espera o modelo. */}
+      <NexoDoDia />
       {/* A leitura executiva abre todos os canais antes das métricas. */}
       <BriefingLead
         periodo={period.label}

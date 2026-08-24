@@ -25,6 +25,7 @@ import { MercadoLivreSaldo } from "./MercadoLivreSaldo";
 import { Pagination } from "./Pagination";
 import { TopProductsRanking } from "./TopProductsRanking";
 import { BriefingLead } from "./BriefingLead";
+import { NexoDoDia } from "./NexoDoDia";
 import { IntegrationDashboardFrame } from "./IntegrationDashboardFrame";
 import { marginMetricTone } from "@/lib/marginTone";
 
@@ -289,6 +290,9 @@ function Dashboard({ overview, syncStatus, periodoLabel }: { overview: Overview;
   const roi = overview.profit.cogs > 0 && !semAliquota ? (overview.profit.estimatedProfit / overview.profit.cogs) * 100 : null;
   const knownCosts = overview.profit.fees + overview.profit.sellerShipping + overview.profit.cogs + (overview.profit.taxes ?? 0);
   return <div className="dashboard-sections integration-dashboard-sections ml-dashboard-body">
+    {/* A MESMA leitura do NEXO dos outros canais — uma narracao por dia por
+    workspace, nao uma por canal. So aparece se ja estiver escrita. */}
+    <NexoDoDia />
     {/* Mesma abertura dos outros três canais: a frase vem do dado e as
         pendências ficam com ela. Ver `BriefingLead.tsx` — a peça é
         compartilhada de propósito, para os quatro painéis não divergirem. */}

@@ -62,17 +62,41 @@ test("a central nao se desculpa com adjetivo", () => {
   assert.match(s, /unidade\(s\) sem custo cadastrado/);
 });
 
-test("a voz do NEXO tem estado de carregando na central, como no briefing", () => {
-  // Ela viu em 24/08/2026: na Visão geral a faixa do NEXO não existia até o
-  // texto chegar — um buraco silencioso onde depois aparece um bloco. Ficou mais
-  // visível quando os cards passaram a pintar rápido.
-  const central = fonte("src/app/page.tsx");
-  const briefing = fonte("src/app/briefing/page.tsx");
-  for (const [tela, s] of [["central", central], ["briefing", briefing]]) {
-    assert.match(s, /<NexoMensagem carregando \/>/, `${tela} não mostra que está analisando`);
+test("a leitura do NEXO vive nos dashboards de CANAL, nao na Visao geral", () => {
+  // Mudou em 24/08/2026. A faixa ficava na Visão geral e no Briefing, e ela
+  // pediu o contrário: "não precisa aparecer no visão geral, não acho
+  // necessário" — a central é passagem, o trabalho é no canal.
+  //
+  // E antes disso ela matou a ideia do shimmer: gerar leva ~18s, e "como ela vai
+  // saber que algo vai aparecer? ela vai ficar navegando em outras telas". Por
+  // isso o componente de canal só LÊ o texto pronto; nunca fica esperando.
+  const canais = [
+    ["src/app/amazon/page.tsx", "Amazon"],
+    ["src/app/components/MercadoLivreWorkspace.tsx", "Mercado Livre"],
+    ["src/app/components/ShopeeWorkspace.tsx", "Shopee"],
+    ["src/app/components/TikTokWorkspace.tsx", "TikTok Shop"],
+  ];
+  for (const [caminho, canal] of canais) {
+    assert.match(fonte(caminho), /<NexoDoDia \/>/, `${canal} não mostra a leitura do NEXO`);
   }
-  // O alerta por regra continua como rede de segurança: não depende de modelo e
-  // sempre tem o que dizer.
-  assert.match(central, /narracaoCarregando \? \(/);
-  assert.match(central, /\) : alerta \? \(/);
+  const central = fonte("src/app/page.tsx");
+  assert.doesNotMatch(central, /<NexoMensagem/, "a faixa voltou para a Visão geral");
+});
+
+test("o componente de canal nao gera narracao nem fica esperando", () => {
+  const s = fonte("src/app/components/NexoDoDia.tsx");
+  // GET é o caminho rápido: devolve o que já foi escrito hoje. POST geraria — e
+  // gerar numa tela de canal traria de volta os 18 segundos de espera.
+  assert.match(s, /fetch\("\/api\/central\/briefing\?modo=resumo"/);
+  assert.doesNotMatch(s, /method:\s*"POST"/, "o canal não pode disparar geração");
+  // Procura o USO da prop, não a palavra: o comentário do arquivo explica
+  // justamente por que ele não carrega, e a busca crua reprovava o próprio texto.
+  assert.doesNotMatch(s, /<NexoMensagem\s+carregando/, "o canal não pode ficar em estado de carregando");
+  assert.match(s, /if \(!texto\) return null;/, "sem texto pronto, o bloco não existe");
+});
+
+test("a Visao geral continua DISPARANDO a geracao", () => {
+  // Ela saiu da tela, não do fluxo: se a central parar de gerar, os quatro
+  // canais ficam sem texto para exibir.
+  assert.match(fonte("src/app/page.tsx"), /method: "POST"[\s\S]{0,120}central\/briefing|central\/briefing[\s\S]{0,120}method: "POST"/);
 });
