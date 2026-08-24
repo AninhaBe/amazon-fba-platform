@@ -13,6 +13,13 @@ export interface AmazonFinanceInput {
   promotions?: number;
   buyerShipping?: number;
   feeBreakdown?: { type: string; amount: number }[];
+  /**
+   * Pedidos com repasse POSTADO no período. Zero significa que a Amazon ainda
+   * não postou nada — e aí todo valor derivado é desconhecido, não zero.
+   * Opcional porque nem toda origem informa; ausente, o comportamento é o de
+   * antes (não trava nada).
+   */
+  orderCount?: number;
 }
 
 export interface AmazonCardsInput {
@@ -82,6 +89,22 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
   const semExtrato = "Aguardando repasse postado pela Amazon";
   const custoIncompleto = input.unitsWithoutCost > 0;
 
+  // NENHUM REPASSE POSTADO no período: o resumo financeiro EXISTE, mas está
+  // vazio. Sem esta trava, tudo que deriva dele saía como R$ 0,00 — e zero aqui
+  // não é fato, é ausência.
+  //
+  // Achado por ela em 24/08/2026: um pedido de R$ 21,90 aguardando pagamento,
+  // e a tela mostrando "Custo dos produtos R$ 0,00" e "Lucro R$ 0,00". O painel
+  // ao lado já dizia a verdade em prosa ("A Amazon ainda não postou repasse
+  // deste período"), enquanto os cards afirmavam que não houve custo nem lucro.
+  // É o `null ≠ 0` do AGENTS.md: "não cobraram" e "ainda não sei" viravam o
+  // mesmo número.
+  //
+  // ⚠️ NÃO vale quando há repasse postado e o valor É zero. Aí zero é notícia —
+  // a promoção de vendedor novo realmente zera comissão e logística, e o
+  // `contextoQuandoZero` de cada card explica isso.
+  const semRepassePostado = f != null && f.orderCount === 0;
+
   // Zero tem significado próprio e merece explicação: "não cobraram" é notícia,
   // e o card que só diz "Total do período conciliado" desperdiça a informação.
   const num = (
@@ -90,8 +113,8 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
     tone?: "positive" | "danger",
     contextoQuandoZero?: string
   ): Omit<AmazonCard, "key" | "label"> =>
-    v == null
-      ? { value: "—", context: contextoQuandoFalta, raw: null }
+    v == null || semRepassePostado
+      ? { value: "—", context: semRepassePostado ? semExtrato : contextoQuandoFalta, raw: null }
       : {
           value: money(v, currency),
           context: v === 0 && contextoQuandoZero ? contextoQuandoZero : "Total do período conciliado",
@@ -105,7 +128,7 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
 
   // Lucro, margem e ROI só existem se TODO componente de custo existir. Com SKU
   // sem custo cadastrado, o resultado seria otimista — e otimista sem aviso é mentira.
-  const resultadoValido = f != null && !custoIncompleto;
+  const resultadoValido = f != null && !custoIncompleto && !semRepassePostado;
   const margem = resultadoValido && f.revenue > 0 ? (input.estimatedProfit / f.revenue) * 100 : null;
   const roi = resultadoValido && input.cogs > 0 ? (input.estimatedProfit / input.cogs) * 100 : null;
 
@@ -143,7 +166,9 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
       key: "cogs", label: "Custo dos produtos",
       // Sem período conciliado não há como afirmar custo zero: "não houve venda" e
       // "ainda não sei o que foi vendido" dariam o mesmo R$ 0,00 na tela.
-      ...(f == null || custoIncompleto ? { value: "—", context: faltaCusto } : num(input.cogs, faltaCusto)),
+      ...(f == null || custoIncompleto || semRepassePostado
+        ? { value: "—", context: semRepassePostado ? semExtrato : faltaCusto }
+        : num(input.cogs, faltaCusto)),
     },
     {
       key: "profit", label: "Lucro",
@@ -156,7 +181,7 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
             tone: input.estimatedProfit > 0 ? "positive" as const : input.estimatedProfit < 0 ? "danger" as const : "default" as const,
             raw: input.estimatedProfit,
           }
-        : { value: "—", context: custoIncompleto ? faltaCusto : "Aguardando todos os componentes financeiros", raw: null }),
+        : { value: "—", context: semRepassePostado ? semExtrato : custoIncompleto ? faltaCusto : "Aguardando todos os componentes financeiros", raw: null }),
     },
     {
       key: "marginPct", label: "Margem",
