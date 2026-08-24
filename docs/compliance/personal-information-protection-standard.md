@@ -92,9 +92,19 @@ Requests are recorded, evaluated, and answered within the periods required by ap
 
 SellerCore uses a limited set of service providers necessary to operate the service, currently including:
 
-- Supabase, for authentication and PostgreSQL data services;
-- Render, for application hosting and encrypted HTTPS delivery;
+- Supabase, for authentication and PostgreSQL data services (AWS São Paulo, Brazil);
+- Fly.io, for application hosting and encrypted HTTPS delivery (São Paulo, Brazil);
+- Google, for generating the plain-language summary described below;
 - Authorized marketplace platforms, including TikTok Shop, as directed by the merchant.
+
+The application and the database are both hosted in Brazil. The only processing
+outside the country is the plain-language summary: an **aggregate** snapshot
+(revenue, profit, margin, period variation, connected channel names and facts we
+already derived from the merchant's own data) is sent to a Google language model,
+which writes one explanatory sentence. **No buyer personal information is sent** —
+no name, tax ID, e-mail, phone or address — and no marketplace access token. The
+model only phrases figures we already computed; it takes no action on the
+merchant's account.
 
 Before adding a provider that will process personal information, SellerCore evaluates its security and privacy terms, limits the data shared, and documents the processing purpose. International transfers are handled under applicable contractual and legal safeguards.
 
@@ -157,8 +167,8 @@ Attach this policy together with redacted evidence. Do not expose secrets, token
 1. Screenshot of the SellerCore login page and individual user accounts.
 2. Screenshot showing that two users have separate integration workspaces.
 3. Screenshot of the integration screen showing seller-controlled connect/disconnect actions.
-4. Redacted screenshot of Render environment-variable names, with all values hidden.
+4. Redacted screenshot of Fly.io secret names, with all values hidden.
 5. Code excerpt showing AES-256-GCM token protection without showing the encryption key.
 6. Code excerpt showing database queries restricted by `workspace_id`.
-7. HTTPS/TLS validation for `https://sellercore.onrender.com`.
+7. HTTPS/TLS validation for `https://nexoaihub.com.br`.
 8. Test/build result showing automated security-relevant quality checks.

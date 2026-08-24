@@ -21,7 +21,7 @@ export default function PrivacidadePage() {
         <div>
           <p>Segurança e privacidade</p>
           <h1>Política de Privacidade</h1>
-          <span>Versão 1.0 · vigente desde 04/08/2026 · revisão anual</span>
+          <span>Versão 1.1 · vigente desde 24/08/2026 · revisão anual</span>
         </div>
         <Link href="/login" className="privacy-login">Entrar</Link>
       </header>
@@ -34,6 +34,7 @@ export default function PrivacidadePage() {
             <a href="#papeis">Nossos papéis</a>
             <a href="#dados">Dados tratados</a>
             <a href="#compartilhamento">Compartilhamento</a>
+            <a href="#ia">Inteligência artificial</a>
             <a href="#seguranca">Segurança</a>
             <a href="#retencao">Retenção e exclusão</a>
             <a href="#direitos">Seus direitos</a>
@@ -86,16 +87,43 @@ export default function PrivacidadePage() {
           <h2 id="compartilhamento" className="mb-2 text-lg font-semibold text-[var(--ink)]">4. Com quem compartilhamos</h2>
           <p>
             Apenas com os provedores necessários para operar o serviço: <strong>Supabase</strong>{" "}
-            (autenticação e banco de dados), <strong>Render</strong> (hospedagem da aplicação) e os{" "}
-            <strong>marketplaces autorizados por você</strong> (ex.: Amazon, Mercado Livre, TikTok
-            Shop). Não vendemos nem alugamos dados pessoais.
+            (autenticação e banco de dados), <strong>Fly.io</strong> (hospedagem da aplicação),{" "}
+            <strong>Google</strong> (geração do texto explicativo do NEXO — ver a seção 5) e os{" "}
+            <strong>marketplaces autorizados por você</strong> (Amazon, Mercado Livre, Shopee e
+            TikTok Shop). Não vendemos nem alugamos dados pessoais.
+          </p>
+        </section>
+
+        <section aria-labelledby="ia">
+          <h2 id="ia" className="mb-2 text-lg font-semibold text-[var(--ink)]">5. Inteligência artificial</h2>
+          <p>
+            O NEXO usa um modelo de linguagem do <strong>Google (Gemini)</strong> para escrever, em
+            português, a frase que explica o que mudou na sua operação. O que enviamos ao modelo é
+            um resumo <strong>agregado</strong> e nada além dele:
+          </p>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            <li>faturamento, lucro, margem e variação do período;</li>
+            <li>o nome dos canais conectados e os totais de cada um;</li>
+            <li>fatos já apurados por nós no seu próprio dado — por exemplo &quot;nenhum anúncio ativo&quot; ou &quot;estoque zerado&quot;.</li>
+          </ul>
+          <p className="mt-2">
+            <strong>Não enviamos dado de comprador.</strong> Nome, CPF, e-mail, telefone e endereço
+            de quem comprou de você nunca saem do NEXO para o modelo. Também não enviamos seus
+            tokens de acesso aos marketplaces.
+          </p>
+          <p className="mt-2">
+            O modelo apenas <strong>redige</strong> a explicação a partir dos números que já
+            calculamos — ele não decide preço, não altera anúncio e não executa ação nenhuma na sua
+            conta. Esse processamento ocorre na infraestrutura do Google, que pode estar fora do
+            Brasil, sob as salvaguardas contratuais aplicáveis.
           </p>
         </section>
 
         <section aria-labelledby="seguranca">
-          <h2 id="seguranca" className="mb-2 text-lg font-semibold text-[var(--ink)]">5. Onde os dados ficam e como são protegidos</h2>
+          <h2 id="seguranca" className="mb-2 text-lg font-semibold text-[var(--ink)]">6. Onde os dados ficam e como são protegidos</h2>
           <ul className="list-disc space-y-1 pl-5">
-            <li>Banco de dados hospedado no <strong>Brasil</strong> (região AWS São Paulo); aplicação processada nos <strong>Estados Unidos</strong> (Render), sob salvaguardas contratuais aplicáveis.</li>
+            <li>Banco de dados e aplicação hospedados no <strong>Brasil</strong> — banco na região AWS São Paulo, aplicação na região São Paulo da Fly.io. Seus dados de operação não saem do país para funcionar.</li>
+            <li>A única exceção é a geração do texto explicativo, descrita na seção 5: um resumo agregado, sem dado de comprador, é processado pelo Google sob as salvaguardas contratuais aplicáveis.</li>
             <li>Todo o tráfego é protegido por HTTPS (TLS 1.2 ou superior).</li>
             <li>Tokens de autorização dos marketplaces são criptografados em repouso (AES-256-GCM).</li>
             <li>Cada usuário tem um workspace isolado; as consultas são restritas ao seu workspace no servidor.</li>
@@ -104,7 +132,7 @@ export default function PrivacidadePage() {
         </section>
 
         <section aria-labelledby="retencao">
-          <h2 id="retencao" className="mb-2 text-lg font-semibold text-[var(--ink)]">6. Retenção e exclusão</h2>
+          <h2 id="retencao" className="mb-2 text-lg font-semibold text-[var(--ink)]">7. Retenção e exclusão</h2>
           <p>
             Ao desconectar uma integração, as credenciais de autorização daquela conexão são
             excluídas e o acesso à API cessa. Ao encerrar a relação com o serviço ou revogar uma
@@ -115,7 +143,7 @@ export default function PrivacidadePage() {
         </section>
 
         <section aria-labelledby="direitos">
-          <h2 id="direitos" className="mb-2 text-lg font-semibold text-[var(--ink)]">7. Seus direitos (LGPD)</h2>
+          <h2 id="direitos" className="mb-2 text-lg font-semibold text-[var(--ink)]">8. Seus direitos (LGPD)</h2>
           <p>
             Você pode solicitar confirmação de tratamento, acesso, correção, portabilidade,
             informação sobre compartilhamento, revogação de consentimento e exclusão pelo e-mail{" "}
@@ -130,7 +158,7 @@ export default function PrivacidadePage() {
         </section>
 
         <section aria-labelledby="incidentes">
-          <h2 id="incidentes" className="mb-2 text-lg font-semibold text-[var(--ink)]">8. Incidentes de segurança</h2>
+          <h2 id="incidentes" className="mb-2 text-lg font-semibold text-[var(--ink)]">9. Incidentes de segurança</h2>
           <p>
             Suspeitas de incidente são tratadas imediatamente: contenção, revogação e rotação de
             credenciais afetadas, apuração do alcance e notificação aos afetados, aos marketplaces e
@@ -139,7 +167,7 @@ export default function PrivacidadePage() {
         </section>
 
         <section aria-labelledby="alteracoes">
-          <h2 id="alteracoes" className="mb-2 text-lg font-semibold text-[var(--ink)]">9. Alterações desta política</h2>
+          <h2 id="alteracoes" className="mb-2 text-lg font-semibold text-[var(--ink)]">10. Alterações desta política</h2>
           <p>
             Mudanças relevantes de finalidade ou de categorias de dados serão comunicadas com
             atualização desta página e, quando exigido, renovação da autorização. A versão vigente e
