@@ -66,7 +66,21 @@ export default function OverviewDashboard() {
   useEffect(() => {
     const timer = window.setTimeout(async () => {
       try {
-        const { channels: coletados, series: merged } = await gatherCentralChannels();
+        // PINTA A CADA CANAL QUE CHEGA, não no fim.
+        //
+        // A central esperava os quatro e, dentro da Amazon, esperava também o
+        // `/api/profit` — que pagina a SP-API ao vivo. Media 8 a 10 segundos de
+        // esqueleto na primeira tela que o vendedor abre (24/08/2026). Agora os
+        // cards aparecem de imediato e cada número entra no lugar dele.
+        const { channels: coletados, series: merged } = await gatherCentralChannels(
+          ({ channels: parciais, series: parcial }) => {
+            // Cópia rasa: o coletor muta os mesmos objetos entre as emissões, e
+            // sem isto o React não vê mudança de identidade e não redesenha.
+            setChannels(parciais.map((canal) => ({ ...canal })));
+            setSeries(parcial);
+            setLoading(false);
+          }
+        );
         const refreshedAt = new Date();
         centralCache = { channels: coletados, series: merged, updatedAt: refreshedAt };
         setChannels(coletados);

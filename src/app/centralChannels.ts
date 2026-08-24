@@ -42,6 +42,8 @@ export interface ChannelSnapshot {
   profitPartial?: boolean;
   /** Faturamento servido pelo modelo canônico, não pelo orderMetrics oficial. */
   revenueFromCanonical?: boolean;
+  /** O faturamento chegou mas a rota de lucro falhou — não é "lucro zero". */
+  lucroIndisponivel?: boolean;
   cancelled?: number;
   orders: number | null;
   currency: string;
@@ -122,7 +124,13 @@ export async function json<T>(url: string): Promise<T> {
  * Consolida os quatro canais: faturamento, lucro, pedidos, série e cobertura de
  * cada um. Cada canal falha isolado — um erro não derruba os outros nem a central.
  */
-export async function gatherCentralChannels(): Promise<{ channels: ChannelSnapshot[]; series: DailyPoint[] }> {
+export async function gatherCentralChannels(
+  /**
+   * Chamado a cada canal que termina, para a tela pintar em vez de esperar o
+   * conjunto. Sem ele o comportamento é o de antes: uma resposta só, no fim.
+   */
+  aoAvancar?: (parcial: { channels: ChannelSnapshot[]; series: DailyPoint[] }) => void
+): Promise<{ channels: ChannelSnapshot[]; series: DailyPoint[] }> {
   const integrationData = await json<{ providers: Provider[] }>("/api/integrations");
   const amazonProvider = integrationData.providers.find((provider) => provider.id === "amazon");
   const mercadoLivreProvider = integrationData.providers.find((provider) => provider.id === "mercado_livre");
@@ -140,37 +148,59 @@ export async function gatherCentralChannels(): Promise<{ channels: ChannelSnapsh
   const tasks: Promise<void>[] = [];
   const channelSeries: Array<DailyPoint[] | undefined> = [];
 
-  if (amazon.connected) tasks.push((async () => {
-    const [profitResult, salesResult] = await Promise.allSettled([
-      json<{ summary: AmazonProfit }>("/api/profit?days=30"),
-      json<AmazonSales & { source?: string }>("/api/sales?days=30"),
-    ]);
-    if (salesResult.status === "fulfilled") {
-      const sales = salesResult.value;
+  const emitir = () =>
+    aoAvancar?.({ channels: [amazon, mercadoLivre, shopee, tiktok], series: mergeDailySeries(channelSeries) });
+
+  // Emite ANTES de qualquer rede: os quatro cards já aparecem com nome e estado
+  // de conexão, e cada número entra no lugar dele conforme chega. A tela deixa
+  // de ser um esqueleto cego.
+  emitir();
+
+  // ⚠️ SALES E PROFIT SÃO TAREFAS SEPARADAS, de propósito.
+  //
+  // Antes as duas eram esperadas juntas num `Promise.allSettled`, e a central
+  // só pintava a Amazon quando a mais lenta voltasse. A mais lenta é sempre a
+  // do lucro: `/api/profit` pagina `/finances/2024-06-19/transactions` AO VIVO,
+  // em série, 30 dias — e o faturamento, que vem do canônico e é instantâneo,
+  // ficava refém dela. Resultado medido em 24/08/2026: 8 a 10 segundos de tela
+  // em esqueleto na PRIMEIRA tela que o vendedor abre.
+  //
+  // Separadas, o faturamento e os pedidos aparecem de imediato e o lucro entra
+  // quando chega.
+  const notaDaAmazon = () => {
+    amazon.note = amazon.revenueFromCanonical
+      ? "Faturamento pelos pedidos importados; sem conta Amazon ativa para o número oficial"
+      : amazon.lucroIndisponivel
+      ? "Faturamento e pedidos disponíveis; lucro exige uma conta Amazon conectada"
+      : amazon.unitsWithoutCost
+      ? `${amazon.unitsWithoutCost} unidade(s) sem custo cadastrado`
+      : "Faturamento, pedidos e lucro estimado";
+  };
+
+  if (amazon.connected) {
+    tasks.push(json<AmazonSales & { source?: string }>("/api/sales?days=30").then((sales) => {
       channelSeries.push(sales.series.points);
       amazon.series = sales.series.points;
       amazon.revenue = sales.series.totalRevenue;
       amazon.orders = sales.series.totalOrders;
       amazon.currency = sales.series.currency || amazon.currency;
       amazon.revenueFromCanonical = sales.source === "canonical";
-    } else {
-      amazon.error = salesResult.reason instanceof Error ? salesResult.reason.message : "Dados indisponíveis";
-    }
-    if (profitResult.status === "fulfilled") {
-      const summary = profitResult.value.summary;
+      notaDaAmazon();
+    }).catch((error) => {
+      amazon.error = error instanceof Error ? error.message : "Dados indisponíveis";
+    }));
+
+    tasks.push(json<{ summary: AmazonProfit }>("/api/profit?days=30").then(({ summary }) => {
       amazon.profit = summary.estimatedProfit;
       amazon.profitPartial = summary.unitsWithoutCost > 0;
       amazon.unitsWithoutCost = summary.unitsWithoutCost;
       amazon.currency = amazon.currency || summary.finance.currency;
-    }
-    amazon.note = amazon.revenueFromCanonical
-      ? "Faturamento pelos pedidos importados; sem conta Amazon ativa para o número oficial"
-      : profitResult.status === "rejected"
-      ? "Faturamento e pedidos disponíveis; lucro exige uma conta Amazon conectada"
-      : amazon.profitPartial
-      ? `Lucro parcial: ${profitResult.status === "fulfilled" ? profitResult.value.summary.unitsWithoutCost : 0} unidade(s) sem custo cadastrado`
-      : "Faturamento, pedidos e lucro estimado";
-  })());
+      notaDaAmazon();
+    }).catch(() => {
+      amazon.lucroIndisponivel = true;
+      notaDaAmazon();
+    }));
+  }
 
   if (mercadoLivre.connected) tasks.push(json<{ overview: MercadoLivreOverview }>("/api/integrations/mercado-livre/overview?view=monitor").then(({ overview }) => {
     channelSeries.push(overview.dailySales);
@@ -186,7 +216,7 @@ export async function gatherCentralChannels(): Promise<{ channels: ChannelSnapsh
       ? !overview.profit.coverage.complete
         ? `Faturamento completo; lucro processado em ${overview.profit.coverage.processedOrders} de ${overview.profit.coverage.paidOrders} vendas`
         : overview.profit.unitsWithoutCost > 0
-        ? `Lucro parcial: ${overview.profit.unitsWithoutCost} unidade(s) sem custo`
+        ? `${overview.profit.unitsWithoutCost} unidade(s) sem custo cadastrado`
         : "Faturamento, pedidos e lucro estimado"
       // 30 dias é a janela que a central pede em todos os canais.
       : coverageNote(overview.metrics.revenueCoverage, new Date(Date.now() - 30 * 86_400_000));
@@ -239,6 +269,6 @@ export async function gatherCentralChannels(): Promise<{ channels: ChannelSnapsh
           : "Faturamento, pedidos e lucro estimado";
   })());
 
-  await Promise.all(tasks);
+  await Promise.all(tasks.map((tarefa) => tarefa.then(emitir)));
   return { channels: [amazon, mercadoLivre, shopee, tiktok], series: mergeDailySeries(channelSeries) };
 }
