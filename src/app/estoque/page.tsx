@@ -71,6 +71,8 @@ export default function EstoquePage() {
     {} as Record<StockStatus, number>
   );
   const attention = (counts.critical || 0) + (counts.out || 0);
+  const unidadesVendidas = rows.reduce((total, r) => total + r.unitsSold, 0);
+  const periodoLabel = `Últimos ${days} dias`;
   const urgency: Record<StockStatus, number> = { out: 0, critical: 1, low: 2, ok: 3, overstock: 4, idle: 5 };
   const visibleRows = rows
     .filter((row) => `${row.productName || ""} ${row.sellerSku} ${row.asin || ""}`.toLowerCase().includes(query.toLowerCase()) && (statusFilter === "all" || row.status === statusFilter))
@@ -109,11 +111,15 @@ export default function EstoquePage() {
       )}
 
       {!loading && !error && rows.length > 0 && (
-        <section className="listing-summary-band is-4" aria-label="Resumo do risco de estoque">
+        <section className="listing-summary-band is-5" aria-label="Resumo do risco de estoque">
           <div><span>SKUs monitorados</span><strong>{rows.length.toLocaleString("pt-BR")}</strong><small>com estoque FBA</small></div>
           <div className={attention > 0 ? "is-danger" : "is-positive"}><span>Ação imediata</span><strong>{attention.toLocaleString("pt-BR")}</strong><small>esgotados ou críticos</small></div>
           <div className={(counts.low || 0) > 0 ? "is-warning" : undefined}><span>Repor em breve</span><strong>{(counts.low || 0).toLocaleString("pt-BR")}</strong><small>abaixo da cobertura ideal</small></div>
           <div className="is-positive"><span>Saudáveis</span><strong>{(counts.ok || 0).toLocaleString("pt-BR")}</strong><small>cobertura dentro do esperado</small></div>
+          {/* O radar do Mercado Livre já mostrava isto e o da Amazon não: sem o
+              volume do período, "vende/dia" fica sem escala e não dá para julgar
+              se o ritmo é pouco ou é o normal do SKU. */}
+          <div><span>Unidades vendidas</span><strong>{unidadesVendidas.toLocaleString("pt-BR")}</strong><small>{periodoLabel}</small></div>
         </section>
       )}
 
@@ -145,6 +151,7 @@ export default function EstoquePage() {
               <th scope="col" className="px-4 py-3">Produto / SKU</th>
               <th scope="col" className="px-4 py-3 text-center">Disponível</th>
               <th scope="col" className="px-4 py-3 text-center">A caminho</th>
+              <th scope="col" className="px-4 py-3 text-center">Vendidos</th>
               <th scope="col" className="px-4 py-3 text-center">Vende/dia</th>
               <th scope="col" className="px-4 py-3 text-center">Acaba em</th>
               <th scope="col" className="px-4 py-3 text-center">Status</th>
@@ -153,14 +160,14 @@ export default function EstoquePage() {
           <tbody className="divide-y divide-[var(--line)]">
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8"><TableLoading label="Carregando estoque e velocidade de venda" /></td>
+                <td colSpan={7} className="px-4 py-8"><TableLoading label="Carregando estoque e velocidade de venda" /></td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-6"><EmptyState title="Seu estoque FBA aparecerá aqui" description="Quando houver mercadoria e vendas, o radar calcula automaticamente quantos dias restam para cada SKU." /></td>
+                <td colSpan={7} className="px-4 py-6"><EmptyState title="Seu estoque FBA aparecerá aqui" description="Quando houver mercadoria e vendas, o radar calcula automaticamente quantos dias restam para cada SKU." /></td>
               </tr>
             ) : visibleRows.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-6"><EmptyState kind="search" title="Nenhum SKU encontrado" description="Limpe a busca ou selecione outro status para ampliar os resultados." /></td></tr>
+              <tr><td colSpan={7} className="px-4 py-6"><EmptyState kind="search" title="Nenhum SKU encontrado" description="Limpe a busca ou selecione outro status para ampliar os resultados." /></td></tr>
             ) : (
               pagedRows.map((r) => {
                 const meta = STATUS_META[r.status];
@@ -177,6 +184,13 @@ export default function EstoquePage() {
                     </td>
                     <td className="px-4 py-3 text-center tabular-nums text-[var(--ink-muted)]">
                       {r.inbound || "—"}
+                    </td>
+                    {/* Quantidade vendida no período, como no radar do Mercado
+                        Livre. "Vende/dia" sozinho responde o ritmo mas não o
+                        volume: 0,2/dia pode ser 6 unidades em 30 dias ou 1 em 5,
+                        e a decisão de repor depende de saber qual. */}
+                    <td className="px-4 py-3 text-center tabular-nums font-medium">
+                      {r.unitsSold > 0 ? r.unitsSold.toLocaleString("pt-BR") : "—"}
                     </td>
                     <td className="px-4 py-3 text-center tabular-nums text-[var(--ink-soft)]">
                       {r.perDay > 0 ? r.perDay.toFixed(1) : "—"}

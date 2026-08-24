@@ -69,3 +69,15 @@ test("a tela do ML sabe nomear os seis status", () => {
     assert.ok(tela.includes(rotulo), `falta o rótulo "${rotulo}"`);
   }
 });
+
+test("os dois radares mostram quantidade vendida, nao so ritmo", () => {
+  // Ela comparou as duas telas em 24/08/2026: o radar do ML mostra "Vendidos" e
+  // o da Amazon só "Vende/dia". Ritmo sem volume não dá para julgar — 0,2/dia
+  // pode ser 6 unidades em 30 dias ou 1 em 5, e a decisão de repor muda.
+  const amazon = fonte("src/app/estoque/page.tsx");
+  const ml = fonte("src/app/components/MercadoLivreWorkspace.tsx");
+  assert.match(amazon, />Vendidos</, "o radar da Amazon perdeu a coluna Vendidos");
+  assert.match(ml, />Vendidos</, "o radar do ML perdeu a coluna Vendidos");
+  assert.match(amazon, /Unidades vendidas/, "falta o total do período no resumo da Amazon");
+  assert.match(ml, /Unidades vendidas/, "falta o total do período no resumo do ML");
+});
