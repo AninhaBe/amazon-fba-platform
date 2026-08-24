@@ -331,6 +331,45 @@ outro canal (o diff da rodada não podia sair do TikTok), ou é decisão de prod
 - [x] ~~Pinger externo em `/api/health`~~ — desnecessário no Fly:
   `auto_stop_machines = false` e `min_machines_running = 1` no `fly.toml`.
 
+## Explicações dentro do produto (pedido em 23/08/2026)
+
+Referência que ela mandou: painel de monitoramento de marca com **ⓘ em cada
+métrica** (*"hover any metric to learn what it measures"*) e uma trilha de
+primeiros passos (*"Start here · 0/4 — get your first win in 5 minutes"*).
+
+O NEXO tem o problema oposto do dashboard genérico: as métricas dele são
+**específicas e contraintuitivas**, e hoje ninguém explica. Exemplos que já
+custaram conversa nesta semana:
+
+- "Pedidos feitos" ≠ "Faturamento" — um é preço de tabela, o outro é o que o
+  comprador pagou. Ela perguntou **três vezes** até entender que a diferença era
+  cupom.
+- "Taxas Amazon" de R$ 6,12 que não é tarifa de pedido, é `ProductAdsPayment`.
+- Saldo retido × disponível × data de liberação.
+- Cobertura financeira: por que um pedido aparece sem tarifa.
+
+- [ ] **ⓘ por métrica, com o texto explicando de onde o número vem.** O padrão
+  já foi definido por ela em 23/08 para a diferença Pedidos × Faturamento:
+  *"só coloque uma bolinha i, sabe? de informação, aí quando a pessoa passa por
+  cima do i, aparece a frase"*. Falta virar componente único e cobrir o resto.
+- [ ] **Um dicionário só, não texto solto na tela.** Mesmo conceito tem que dar
+  a mesma explicação em qualquer canal — é a mesma regra de
+  `src/lib/nomeDaTarifa.ts` para nome de tarifa.
+- [ ] **Explicação é por canal quando a regra é do canal.** Faturamento no ML
+  segue a regra de aprovadas+canceladas sem frete; na Amazon é
+  `ItemPrice − PromotionDiscount`. O texto tem que dizer a regra **daquele**
+  marketplace, não uma frase genérica.
+- [ ] **Trilha de primeiros passos** — o equivalente ao "Start here · 0/4": o
+  que a pessoa precisa fazer para o painel ficar útil (conectar loja, cadastrar
+  custo, configurar imposto). ⚠️ Cada passo aponta o que falta **com número**,
+  nunca um adjetivo que se desculpe.
+- [ ] **Nada de tour modal que bloqueia a tela.** A referência usa balão preso à
+  métrica, e é o certo: a pessoa aprende olhando o próprio número, não uma
+  apresentação.
+
+📌 Isto é irmão da frente de cobrança: quem não entende a métrica não confia no
+número, e quem não confia não assina.
+
 ## UI (opcional, sem urgência)
 
 - [ ] Dark mode — todas as cores já são tokens OKLCH no `globals.css`; é
