@@ -5,6 +5,7 @@ import Link from "next/link";
 import { RevenueChart, type DailyPoint } from "../components/RevenueChart";
 import { PageHeader, pageIcons } from "../components/PageHeader";
 import { InlineLoading } from "../components/LoadingState";
+import { LegendaDeVendas } from "../components/LegendaDeVendas";
 import { EmptyState } from "../components/EmptyState";
 import { DashboardPeriodFilter, useDashboardPeriod } from "../components/DashboardPeriodFilter";
 import type { OperationPendingItem } from "../components/OperationPending";
@@ -638,31 +639,16 @@ export default function Dashboard() {
               </span>
             </span>
           </div>
-          {/* Os pedidos do período: vendidos, aguardando valor e cancelados.
-
-              ⚠️ A condição é HAVER pedido, não haver pendente. Antes era
-              `pedidosAguardando > 0`, e no filtro "Hoje" — com o único pedido já
-              confirmado — a linha inteira sumia (23/08/2026).
-
-              Cancelado entra por QUANTIDADE, nunca por valor: o valor de
-              cancelado é estimativa nossa (a Amazon não devolve valor de pedido
-              cancelado), e estimativa no meio de fatos confirmados faz duvidar
-              do resto da tela. */}
-          {!loading && (vendasConciliadas > 0 || pedidosAguardando > 0 || (canceladas?.orders ?? 0) > 0) && (
-            <p className="sales-split">
-              {vendasConciliadas > 0 && (
-                <span><strong>{vendasConciliadas}</strong> {vendasConciliadas === 1 ? "confirmado" : "confirmados"} · {money(faturamentoConciliado, currency)}</span>
-              )}
-              {pedidosAguardando > 0 && (
-                <span className="is-pendente"><strong>{pedidosAguardando}</strong> aguardando pagamento · {money(valorAguardando, currency)}</span>
-              )}
-              {(canceladas?.orders ?? 0) > 0 && (
-                <span className="is-cancelada"><strong>{canceladas?.orders}</strong> {canceladas?.orders === 1 ? "cancelado" : "cancelados"}</span>
-              )}
-              {pedidosAguardando > 0 && (
-                <small>A Amazon confirma o pagamento antes de informar o valor, e só libera o repasse depois da entrega.</small>
-              )}
-            </p>
+          {/* Regras e armadilhas moram no componente — ele é o mesmo nos quatro
+              canais. O que é da Amazon é só a `nota`. */}
+          {!loading && (
+            <LegendaDeVendas
+              confirmados={{ pedidos: vendasConciliadas, valor: faturamentoConciliado }}
+              aguardando={{ pedidos: pedidosAguardando, valor: valorAguardando }}
+              cancelados={{ pedidos: canceladas?.orders ?? 0 }}
+              nota="A Amazon confirma o pagamento antes de informar o valor, e só libera o repasse depois da entrega."
+              money={(valor) => money(valor, currency)}
+            />
           )}
           {loading ? (
             <span className="skeleton-chart" role="status" aria-label="Carregando evolução das vendas" />

@@ -16,6 +16,7 @@ import { CustomizableMetricGrid } from "./CustomizableMetricGrid";
 // para o mesmo estado, senão "Saudável" no ML e "Ok" na Amazon parecem coisas
 // diferentes sendo a mesma.
 import { ROTULO_DE_COBERTURA } from "@/lib/coberturaDeEstoque";
+import { LegendaDeVendas } from "./LegendaDeVendas";
 import { CompactMetric, Flow, FlowExpandable, Metric, getRevenueTrend } from "./Metric";
 import { buildFinancialComposition, FinancialSummaryPanel } from "./FinancialSummaryPanel";
 import { brDate, brTime } from "@/lib/datetime";
@@ -29,7 +30,7 @@ import { IntegrationDashboardFrame } from "./IntegrationDashboardFrame";
 interface Overview {
   account: { id: string; nickname: string; siteId: string; };
   period: { from: string; to: string; label: string; };
-  metrics: { activeListings: number; productsWithoutCost: number; orders30d: number; paidOrders: number; revenue30d: number; approvedRevenue: number; cancelledRevenue: number; cancelledOrders: number; lastSaleAt: string | null; currency: string; revenueCoverage: { capturedOrders: number; totalOrders: number; complete: boolean; sincronizadoAte?: string | null; historicoDesde?: string | null }; };
+  metrics: { activeListings: number; productsWithoutCost: number; orders30d: number; paidOrders: number; revenue30d: number; approvedRevenue: number; cancelledRevenue: number; cancelledOrders: number; pendingOrders: number; pendingRevenue: number | null; lastSaleAt: string | null; currency: string; revenueCoverage: { capturedOrders: number; totalOrders: number; complete: boolean; sincronizadoAte?: string | null; historicoDesde?: string | null }; };
   profit: { fees: number; cogs: number; taxes: number | null; taxRate: number | null; sellerShipping: number; buyerShipping: number; shippingCostsComplete: boolean; revenueProcessed: number; coverage: { processedOrders: number; paidOrders: number; complete: boolean; }; estimatedProfit: number; marginPct: number; unitsWithoutCost: number; };
   dailySales: DailyPoint[];
   topProducts: Array<{ id: string; sku: string | null; title: string; units: number; revenue: number; cost: number; contribution: number; complete: boolean; marginPct: number | null; }>;
@@ -344,6 +345,16 @@ function Dashboard({ overview, syncStatus, periodoLabel }: { overview: Overview;
           <div><p className="section-kicker">Desempenho diário</p><h2 className="mt-1 text-lg font-semibold text-[var(--ink)]">Evolução do faturamento</h2></div>
           <span className="text-sm font-semibold tabular-nums text-[var(--ink)]">{money(overview.metrics.revenue30d, overview.metrics.currency)} <span className="font-normal text-[var(--ink-muted)]">no período</span></span>
         </div>
+        {/* Mesma legenda da Amazon, mesmo componente. O que é do ML é só a nota:
+            aqui o dinheiro só entra quando o comprador paga, e o repasse do
+            Mercado Pago tem data própria de liberação. */}
+        <LegendaDeVendas
+          confirmados={{ pedidos: overview.metrics.paidOrders, valor: overview.metrics.approvedRevenue }}
+          aguardando={{ pedidos: overview.metrics.pendingOrders, valor: overview.metrics.pendingRevenue }}
+          cancelados={{ pedidos: overview.metrics.cancelledOrders }}
+          nota="O Mercado Livre só confirma a venda quando o pagamento é aprovado; o repasse tem data própria de liberação."
+          money={(valor) => money(valor, overview.metrics.currency)}
+        />
         <RevenueChart points={overview.dailySales} currency={overview.metrics.currency} explorable />
       </div>
       <FinancialSummaryPanel

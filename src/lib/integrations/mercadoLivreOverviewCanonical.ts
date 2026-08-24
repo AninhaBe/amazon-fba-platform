@@ -52,6 +52,8 @@ interface TotalsRow {
   approved_revenue: string | null;
   cancelled_revenue: string | null;
   cancelled_orders: number;
+  pending_orders: number;
+  pending_revenue: string | null;
   currency: string | null;
   last_sale_at: Date | string | null;
 }
@@ -143,6 +145,12 @@ export async function getMercadoLivreOverviewFromCanonical(
               SUM(gross) FILTER (WHERE status = ANY($6::text[])) AS approved_revenue,
               SUM(gross) FILTER (WHERE status = 'cancelled') AS cancelled_revenue,
               COUNT(*) FILTER (WHERE status = 'cancelled')::int AS cancelled_orders,
+              -- AGUARDANDO PAGAMENTO = o que não é aprovado nem cancelado.
+              -- Definido por exclusão de propósito: o ML cria status novo sem
+              -- avisar, e uma lista fixa faria o pedido novo sumir da legenda em
+              -- vez de aparecer como pendente.
+              COUNT(*) FILTER (WHERE status <> ALL($6::text[]) AND status <> 'cancelled')::int AS pending_orders,
+              SUM(gross) FILTER (WHERE status <> ALL($6::text[]) AND status <> 'cancelled') AS pending_revenue,
               MAX(occurred_at) FILTER (WHERE status = ANY($6::text[])) AS last_sale_at,
               MAX(currency) AS currency
          FROM workspace_channel_orders
@@ -471,6 +479,8 @@ export async function getMercadoLivreOverviewFromCanonical(
       approvedRevenue: Number(totals.approved_revenue ?? 0),
       cancelledRevenue: Number(totals.cancelled_revenue ?? 0),
       cancelledOrders: totals.cancelled_orders,
+      pendingOrders: totals.pending_orders,
+      pendingRevenue: totals.pending_revenue == null ? null : Number(totals.pending_revenue),
       lastSaleAt: totals.last_sale_at ? new Date(totals.last_sale_at).toISOString() : null,
       currency,
       // ⚠️ `capturedOrders` e `totalOrders` são o MESMO valor, e sempre foram —

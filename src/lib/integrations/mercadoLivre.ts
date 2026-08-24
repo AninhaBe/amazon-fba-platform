@@ -1006,6 +1006,11 @@ export async function getMercadoLivreOverview(
       approvedRevenue: revenue,
       cancelledRevenue: 0,
       cancelledOrders: 0,
+      // Caminho AO VIVO: dá para contar o que não foi aprovado, mas o valor
+      // desses pedidos não é somado aqui. `null` e não `0` — a legenda mostra a
+      // quantidade e omite o valor em vez de afirmar que vale zero.
+      pendingOrders: Math.max(0, totalOrders - paidOrders.length),
+      pendingRevenue: null as number | null,
       lastSaleAt: paidOrders[0]?.date_created ? new Date(paidOrders[0].date_created).toISOString() : null,
       currency: orders[0]?.currency_id ?? "BRL",
       // `sincronizadoAte`/`historicoDesde` existem para a tela explicar a
