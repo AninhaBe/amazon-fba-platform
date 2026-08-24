@@ -193,7 +193,11 @@ export function LandingV2Experience() {
 
   useEffect(() => {
     const exploration = explorationRef.current;
-    if (!exploration || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (
+      !exploration
+      || window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      || window.matchMedia("(max-width: 700px)").matches
+    ) {
       guidedEnabledRef.current = false;
       return;
     }

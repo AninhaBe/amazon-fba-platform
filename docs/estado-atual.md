@@ -76,7 +76,7 @@ Sessenta commits. Os que mudam como você deve trabalhar:
 
 ### 1. Paridade financeira entre canais — **a frente mais quente**
 
-*Verificado em 16/08.*
+*Verificado em 24/08.*
 
 A auditoria dos números da Amazon (pedida por ela em 15/08: *"para pra avaliar todos os
 valores que aparecem na amazon e garanta que todos estão certos"*) achou **sete
@@ -303,16 +303,10 @@ claro, some. Reconferir depois de qualquer mudança de plano ou região.
   A 1ª versão recriava a *cena* do vídeo de referência (parede escura atrás das letras) e
   virou um retângulo preto colado numa página clara — lia como banner, não como marca.
   Refeita sem fundo próprio.
-- 🚧 **Landing em `/landing`** — esboço navegável, rota pública, isolada do produto
-  (`AppShell` não renderiza a sidebar lá). Estrutura do dub.co, efeitos do midday.ai;
-  mapa em [`landing-nexo.md`](./landing-nexo.md).
-  - Prontas: vitrine animada da tela do produto (com cursor navegando) e a animação da
-    conciliação financeira.
-  - **Faltam duas animações pedidas:** pesquisa de mercado da Amazon e aviso de dia de
-    repasse.
-  - ⚠️ **Fidelidade pendente:** os cards reais têm borda superior colorida, a sidebar tem
-    seções (PAINÉIS/CATÁLOGO/FERRAMENTAS) e existe uma faixa VENDAS/UNIDADES/TICKET/ROI
-    que o mockup não tem.
+- ✅ **Landing v2 em `/landing`** — rota pública oficial, com demonstração multicanal
+  interativa, cursor guiado e comportamento responsivo. `/landing-v2` permanece como
+  alias da mesma experiência. A versão anterior foi preservada, fora das rotas e do
+  build, em `archive/landing-v1/src/app/landing`.
 - ⛔ **Renomear a URL não está autorizado** — ver `AGENTS.md`.
 
 📌 **Duas lições caras desta frente**, registradas para não repetir:

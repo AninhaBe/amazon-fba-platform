@@ -1453,6 +1453,10 @@
     display: none;
   }
 
+  .guidedToggle {
+    display: none;
+  }
+
   .prioritySummary {
     grid-template-columns: 30px 1fr 20px;
     gap: 12px;

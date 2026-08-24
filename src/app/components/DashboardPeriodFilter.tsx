@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { ArrowRight, CalendarRange } from "lucide-react";
 
 export type DashboardPeriodOption = "today" | "7" | "15" | "30" | "custom";
 
@@ -113,10 +114,16 @@ export function DashboardPeriodFilter({ selected, from, to, error, onPreset, onC
       <button type="button" aria-pressed={selected === "custom"} className={selected === "custom" ? "is-active" : ""} onClick={onCustom}>Personalizado</button>
     </div>
     {selected === "custom" && <div className="dashboard-custom-period">
-      <label>De<input type="date" value={from} max={to || today} onChange={(event) => onFrom(event.target.value)} /></label>
-      <span aria-hidden="true">→</span>
-      <label>Até<input type="date" value={to} min={from} max={today} onChange={(event) => onTo(event.target.value)} /></label>
-      <button type="button" className="dashboard-period-apply" onClick={onApply}>Aplicar período</button>
+      <div className="dashboard-custom-period-intro">
+        <span><CalendarRange aria-hidden="true" /></span>
+        <div><strong>Escolha o intervalo</strong><small>Até 365 dias</small></div>
+      </div>
+      <div className="dashboard-custom-period-fields">
+        <label><span>Data inicial</span><input type="date" value={from} max={to || today} onChange={(event) => onFrom(event.target.value)} /></label>
+        <ArrowRight aria-hidden="true" />
+        <label><span>Data final</span><input type="date" value={to} min={from} max={today} onChange={(event) => onTo(event.target.value)} /></label>
+      </div>
+      <button type="button" className="dashboard-period-apply" onClick={onApply}>Aplicar período<ArrowRight aria-hidden="true" /></button>
       {error && <p role="alert">{error}</p>}
     </div>}
     {meta && <div className="dashboard-period-meta">{meta}</div>}
