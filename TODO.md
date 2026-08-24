@@ -98,6 +98,26 @@ conforme for concluindo.
   plano: onde e so texto, onde e dominio, e a ordem de atualizar cada allowlist.
   Ja trocado: botao do login ("Entrar no NEXO").
 
+## Onboarding visual no produto (referência observada em 24/08/2026)
+
+- [ ] **Criar onboarding em mídia curta dentro de modal.** Referência funcional:
+  modal autenticado “Novidades no painel” da AbacatePay. O que parece vídeo é,
+  tecnicamente, uma captura animada em GIF (458 × 291 px) mostrando o cursor e a
+  interação real com a interface. A composição usa fundo do app desfocado,
+  cabeçalho com fechar, introdução curta, mídia sem áudio, três pontos objetivos
+  e rodapé fixo com um único CTA “Entendi”.
+  - Produzir gravação e texto **próprios do NEXO**; não reutilizar o asset nem o
+    conteúdo da referência.
+  - Definir duas ocasiões separadas: primeiro acesso (conectar canal e entender
+    o dashboard) e novidades de versão. Cada peça deve ensinar uma única tarefa.
+  - Persistir a versão já vista para não reabrir a cada login; reexibir somente
+    quando houver conteúdo novo ou por ação explícita em Ajuda.
+  - Preservar foco dentro do modal, fechamento por `Esc`, texto alternativo,
+    pausa/redução de movimento e alternativa estática para
+    `prefers-reduced-motion`.
+  - Só implementar depois de definir o primeiro roteiro, a tela-alvo e o evento
+    que marca a conclusão; até lá este item é documentação, não escopo ativo.
+
 ## Paridade financeira entre canais (pedido em 15/08/2026)
 
 A auditoria dos números da Amazon achou sete defeitos. Todos foram corrigidos
