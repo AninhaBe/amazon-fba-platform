@@ -235,7 +235,7 @@ export async function gatherCentralChannels(): Promise<{ channels: ChannelSnapsh
       : partialRevenue
         ? "Faturamento capturado; sincronização ainda não cobre todo o período"
         : tiktok.profitPartial
-          ? "Faturamento e pedidos disponíveis; lucro ainda incompleto"
+          ? `Lucro calculado em ${profits.length} de ${available.length} loja(s)`
           : "Faturamento, pedidos e lucro estimado";
   })());
 

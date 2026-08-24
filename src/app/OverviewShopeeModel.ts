@@ -154,7 +154,7 @@ export function aggregateShopeeStores(entries: CentralShopeeStoreResult[]): Cent
       : revenuePartial
         ? "Faturamento capturado; sincronização ainda não cobre todo o período em todas as lojas"
         : profitPartial
-          ? "Faturamento e pedidos completos; lucro ainda incompleto em parte das lojas"
+          ? `Lucro calculado em ${fulfilled.length - fulfilled.filter((o) => !o.profit.coverage.complete || o.profit.unitsWithoutCost > 0).length} de ${fulfilled.length} loja(s)`
           : "Faturamento, pedidos e lucro estimado de todas as lojas";
 
   return {

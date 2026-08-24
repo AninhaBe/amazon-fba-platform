@@ -36,7 +36,11 @@ test("UI usa status canônicos e explica schema financeiro bloqueado",async()=>{
   assert.match(financePage,/kind="finance"/);
   assert.doesNotMatch(financePage,/redirect/);
   assert.match(nav,/href: "\/tiktok\/financeiro"/);
-  assert.match(source,/Extrato ainda incompleto/);
+  // "incompleto" saiu da tela em 23/08: adjetivo que se desculpa não diz o que
+  // fazer. O painel agora nomeia o fato — o extrato oficial ainda não foi postado
+  // pela TikTok. Ver AGENTS.md → "Como este projeto trata dado incerto".
+  assert.match(source,/Extrato oficial ainda não postado/);
+  assert.doesNotMatch(source,/incompleto|parcial/i);
   assert.match(source,/Somente campos sanitizados do ledger/);
   assert.match(source,/Financeiro aguardando estrutura de dados/);
   assert.match(dashboard,/Financeiro indisponível neste ambiente/);
