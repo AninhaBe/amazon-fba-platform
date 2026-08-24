@@ -12,6 +12,7 @@ import { LogoutButton } from "./LogoutButton";
 import { AccountSwitcher } from "./AccountSwitcher";
 import { NexoSymbol } from "./NexoSymbol";
 import accountStyles from "./ShellAccountLinks.module.css";
+import { NEXO_ONBOARDING_CHANNELS_EVENT } from "@/lib/productTour";
 
 /**
  * SIDEBAR ÚNICA — a estrutura de navegação do NEXO na anatomia medida em
@@ -73,6 +74,15 @@ export function SidebarNexo({ workspace, collapsed = false }: { workspace: Works
     return () => document.removeEventListener("keydown", closeOnEscape);
   }, [aberto]);
 
+  useEffect(() => {
+    const syncTour = (event: Event) => {
+      const detail = (event as CustomEvent<{ open?: boolean }>).detail;
+      if (typeof detail?.open === "boolean") setAberto(detail.open);
+    };
+    window.addEventListener(NEXO_ONBOARDING_CHANNELS_EVENT, syncTour);
+    return () => window.removeEventListener(NEXO_ONBOARDING_CHANNELS_EVENT, syncTour);
+  }, []);
+
   return (
     <aside className={`nexo-sidebar${collapsed ? " is-collapsed" : ""}`} aria-label="Navegação principal">
       <div className="nexo-sidebar-topo">
@@ -110,7 +120,7 @@ export function SidebarNexo({ workspace, collapsed = false }: { workspace: Works
                 aria-label="Fechar seletor de canal"
                 onClick={() => setAberto(false)}
               />
-              <div className="nexo-switcher-menu" role="menu">
+              <div className="nexo-switcher-menu" role="menu" data-onboarding="channels">
                 {CANAIS.map((canal) => (
                   <Link
                     key={canal.id}

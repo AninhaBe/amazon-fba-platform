@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { X } from "lucide-react";
 import {
+  NEXO_ONBOARDING_CHANNELS_EVENT,
   NEXO_ONBOARDING_OPEN_EVENT,
   NEXO_ONBOARDING_VERSION,
   NEXO_TRIAL_DISMISSED_EVENT,
@@ -56,12 +57,32 @@ export function NexoOnboarding() {
   }, [canAutoOpen]);
 
   useLayoutEffect(() => {
+    const showChannels = open && step === 0;
+    window.dispatchEvent(new CustomEvent(NEXO_ONBOARDING_CHANNELS_EVENT, { detail: { open: showChannels } }));
+    return () => {
+      if (showChannels) {
+        window.dispatchEvent(new CustomEvent(NEXO_ONBOARDING_CHANNELS_EVENT, { detail: { open: false } }));
+      }
+    };
+  }, [open, step]);
+
+  useLayoutEffect(() => {
     if (!open) return;
     const updateTarget = () => {
-      const selected = Array.from(document.querySelectorAll<HTMLElement>(STEPS[step].selector)).find((element) => {
+      const visible = Array.from(document.querySelectorAll<HTMLElement>(STEPS[step].selector)).filter((element) => {
         const rect = element.getBoundingClientRect();
         return rect.width > 0 && rect.height > 0;
-      }) ?? document.querySelector<HTMLElement>("#main-content");
+      });
+      if (step === 0 && visible.length > 0) {
+        const rects = visible.map((element) => element.getBoundingClientRect());
+        const top = Math.min(...rects.map((rect) => rect.top));
+        const left = Math.min(...rects.map((rect) => rect.left));
+        const right = Math.max(...rects.map((rect) => rect.right));
+        const bottom = Math.max(...rects.map((rect) => rect.bottom));
+        setTarget({ top, left, width: right - left, height: bottom - top });
+        return;
+      }
+      const selected = visible[0] ?? document.querySelector<HTMLElement>("#main-content");
       if (!selected) return;
       const rect = selected.getBoundingClientRect();
       setTarget({ top: rect.top, left: rect.left, width: rect.width, height: rect.height });
@@ -71,10 +92,12 @@ export function NexoOnboarding() {
       return rect.width > 0 && rect.height > 0;
     })?.scrollIntoView({ block: "nearest", inline: "nearest" });
     const frame = window.requestAnimationFrame(updateTarget);
+    const menuFrame = window.requestAnimationFrame(() => window.requestAnimationFrame(updateTarget));
     window.addEventListener("resize", updateTarget);
     window.addEventListener("scroll", updateTarget, true);
     return () => {
       window.cancelAnimationFrame(frame);
+      window.cancelAnimationFrame(menuFrame);
       window.removeEventListener("resize", updateTarget);
       window.removeEventListener("scroll", updateTarget, true);
     };
