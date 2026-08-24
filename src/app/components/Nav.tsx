@@ -199,6 +199,7 @@ const navigation: Record<WorkspaceId, NavGroup[]> = {
         { href: "/tiktok", label: "Dashboard", desc: "Visão do canal", icon: icons.dashboard, exact: true },
         BRIEFING,
         { href: "/tiktok/monitor", label: "Monitor da conta", desc: "Pedidos e conciliação", icon: icons.monitor },
+        { href: "/tiktok/auditoria", label: "Pedidos a revisar", desc: "Frete cobrado × declarado", icon: icons.monitor },
         { href: "/tiktok/financeiro", label: "Financeiro", desc: "Transações e cobertura", icon: icons.performance },
       ],
     },
