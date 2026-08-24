@@ -500,9 +500,14 @@ export default function Dashboard() {
                   value={card.raw != null
                     ? <AnimatedNumber id="amz-profit" value={card.raw} format={(amount) => money(amount, currency)} />
                     : card.value}
-                  sub={card.value === "—" || margem?.value === "—"
+                  // O texto explicativo saiu de baixo do número e foi para o
+                  // "i", a pedido dela em 24/08/2026: "todos esses textos que
+                  // estão embaixo... pode colocar no i igual está em pedidos
+                  // feitos". O card fica com rótulo e valor; a explicação
+                  // aparece ao passar o mouse.
+                  info={card.value === "—" || margem?.value === "—"
                     ? card.context
-                    : `${margem?.value} de margem sobre vendas`}
+                    : `${card.context}. Margem de ${margem?.value} sobre vendas.`}
                 />
               ) : (
                 <Kpi
@@ -511,22 +516,24 @@ export default function Dashboard() {
                   value={loading ? "…" : card.key === "revenue" && (faturamento || card.raw != null)
                     ? <AnimatedNumber id="amz-revenue" value={faturamento?.revenue ?? card.raw ?? 0} format={(amount) => money(amount, currency)} />
                     : card.value}
-                  // O selo de tendência ("novo ritmo") só faz sentido no faturamento.
-                  sub={card.key === "revenue"
-                    // O subtítulo tem de acompanhar a base do VALOR. O valor soma
-                    // só quem tem `gross`; a contagem inclui pendente sem valor —
-                    // e emparelhar os dois produzia "R$ 0,00 · 1 pedido", que se
-                    // contradiz na própria linha (22/08/2026). Quando há pedido
-                    // sem valor, o subtítulo DIZ isso em vez de fingir coerência.
-                    ? legendaFaturamento(faturamento, salesCount)
+                  // TUDO que explicava o número embaixo dele agora mora no "i".
+                  // O card mostra rótulo e valor; a explicação aparece ao passar
+                  // o mouse, como já acontecia em "Pedidos feitos".
+                  //
+                  // ⚠️ No faturamento, a explicação tem de acompanhar a base do
+                  // VALOR. O valor soma só quem tem `gross`; a contagem inclui
+                  // pendente sem valor — emparelhar os dois produzia
+                  // "R$ 0,00 · 1 pedido", que se contradiz na própria linha
+                  // (22/08/2026). Quando há pedido sem valor, o texto DIZ isso
+                  // em vez de fingir coerência.
+                  info={card.key === "revenue"
+                    ? [
+                        legendaFaturamento(faturamento, salesCount),
+                        (faturamento?.coupon ?? 0) > 0
+                          ? `O que o comprador pagou, já sem ${money(faturamento?.coupon ?? 0, currency)} de cupom.`
+                          : null,
+                      ].filter(Boolean).join(" · ")
                     : card.context}
-                  // O "i" do Faturamento explica a BASE — é o que separa este
-                  // número do "Pedidos feitos" logo abaixo.
-                  info={
-                    card.key === "revenue" && (faturamento?.coupon ?? 0) > 0
-                      ? `O que o comprador pagou, já sem ${money(faturamento?.coupon ?? 0, currency)} de cupom.`
-                      : undefined
-                  }
                   trend={card.key === "revenue" ? revenueTrend : undefined}
                   tone={card.key === "marginPct" ? marginMetricTone(card.raw) : card.tone}
                   loading={loading}

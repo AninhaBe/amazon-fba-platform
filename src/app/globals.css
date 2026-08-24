@@ -847,7 +847,9 @@ button[class*="bg-blue-"]:hover, a[class*="bg-blue-"]:hover { background: var(--
 .metric-info::after {
   content: attr(data-dica);
   position: absolute; bottom: calc(100% + 7px); left: 50%; translate: -50% 0;
-  width: max-content; max-width: 210px; z-index: 40;
+  /* 260px e não 210: desde 24/08 o "i" carrega a explicação que antes ficava
+     embaixo do número, e frases de duas orações quebravam em coluna estreita. */
+  width: max-content; max-width: 260px; z-index: 40;
   padding: 7px 10px; border-radius: 8px;
   background: var(--ink, #111827); color: white;
   font: 400 12.5px/1.5 inherit; font-style: normal; text-align: start;
