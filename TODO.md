@@ -71,6 +71,27 @@ conforme for concluindo.
 
 ## Marca NEXO (pedido em 15/08/2026)
 
+- [ ] 🔴 **A TELA DE CONSENTIMENTO DOS CANAIS DIZ "SellerCore".** Achado por ela em
+  25/08/2026, ao autorizar a Amazon Ads: *"apareceu SellerCore Ads quer permissão, mas é
+  NEXO o nome"*.
+
+  Isto **não** é o caso dos identificadores que o `AGENTS.md` manda preservar. É o texto
+  mais público que existe no produto: **todo cliente lê esse nome antes de entrar**, na
+  hora de conectar a conta dele. Um vendedor que nunca ouviu falar de "SellerCore" vê uma
+  empresa desconhecida pedindo acesso à conta de anúncios — é o pior momento possível para
+  gerar dúvida.
+
+  - [ ] **Amazon Ads** — `developer.amazon.com` → Security Profiles → perfil
+        `SellerCore Ads` → editar o **nome de exibição**.
+        ⚠️ **NÃO tocar em Client ID, Client Secret nem "Reset Secret"** enquanto estiver
+        lá. O nome é etiqueta e troca sem quebrar nada; resetar o segredo derruba a
+        integração que levou 12 dias e três candidaturas para sair.
+  - [ ] **Shopee** — conferir o nome exibido no consentimento do app.
+  - [ ] **TikTok Shop** — idem, no app `SellerCore Conexao Parceiro`.
+  - [ ] **Mercado Livre** — conferir no DevCenter.
+
+  📌 Vale conferir os quatro de uma vez: o custo é o mesmo e o problema é idêntico.
+
 - [x] **Assinatura NEXO.** A 1a versao criava a CENA do video (parede escura
   atras das letras) e virou um retangulo preto colado numa pagina clara — lia como
   banner, nao como marca. Refeita sem fundo proprio (`NexoWordmark.tsx` + bloco
