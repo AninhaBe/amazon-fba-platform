@@ -1733,6 +1733,80 @@ tem erro possível. Foi assim no `Auto - Martelo` (3,00 → 0,64).
 do DOM divergindo das do clique). **Recarregar a página resolve** — insistir com a aba
 degradada é como o `R$ 1,3` acontece.
 
+### 🔑 O LANCE DO GRUPO NÃO VALE PARA PALAVRA QUE TEM LANCE PRÓPRIO
+
+Descoberto ao abrir a segmentação do `Frase - Martelo Borracha`: **as 10 palavras têm
+lance individual**, e lance de palavra sobrepõe o "Lance padrão" do grupo. Ou seja, subir
+o padrão de 0,90 → 1,80 → 2,50 **não mudou nada** para nenhuma delas — só valeria para
+palavra nova, adicionada depois.
+
+É a segunda vez que esta conta cai em "lance real ≠ lance anotado". Da primeira foi o
+`Auto - Martelo` em R$ 3,00; agora foi o padrão do grupo sem efeito.
+
+📌 **Regra:** ao mexer em lance, abrir SEMPRE a aba **Segmentação** do grupo e olhar a
+coluna `Lance` palavra por palavra. A tabela de grupos mostra só o padrão, e ele mente.
+
+### 🔴 O martelo não tem 10 palavras — tem UMA
+
+| Palavra | Lance | Impressões | Compras |
+|---|---|---|---|
+| **martelo borracha** | R$ 2,50 | **781** | **4** |
+| martelo de borracha | R$ 2,00 | 9 | 1 |
+| marreta de borracha | R$ 0,33 | 17 | — |
+| martelinho de borracha | R$ 0,79 | 4 | — |
+| martelo emborrachado | R$ 0,98 | 3 | — |
+| macete de borracha | R$ 0,60 → **1,20** | **0** | — |
+| … assentamento de piso | R$ 0,60 | **0** | — |
+| … cabo de madeira | R$ 0,36 | **0** | — |
+| … para azulejista | R$ 0,60 | **0** | — |
+| … porcelanato | R$ 0,60 | **0** | — |
+
+**781 das 819 impressões vêm de uma única palavra.** Cinco têm ZERO impressão: estão
+abaixo do piso do leilão e nem entram na disputa. Existem no papel, não na prática.
+
+E as cinco mortas são justamente as de **cauda longa** — "para azulejista",
+"porcelanato", "assentamento de piso", "cabo de madeira" — que são o que o título do
+produto descreve e onde a concorrência é menor.
+
+📌 **Isto redefine o que é "ser agressivo" nesta conta.** O gargalo do martelo NUNCA foi
+orçamento (gastava R$ 1/dia com teto de R$ 10) nem lance. É **superfície**: ele não tem
+onde aparecer.
+
+### ✅/⏳ Estado das palavras do martelo
+
+- ✅ `macete de borracha` — R$ 0,60 → **R$ 1,20** (aplicado e confirmado)
+- ⏳ `assentamento de piso`, `cabo de madeira`, `para azulejista`, `porcelanato` —
+  **NÃO aplicadas.** Seguem em R$ 0,60 / R$ 0,36, com zero impressão.
+
+⚠️ **Por que parei:** o renderizador do console degradou pela terceira vez na sessão —
+screenshot expirando, e as coordenadas do clique divergindo das da tela a ponto de a
+digitação cair num cabeçalho de coluna. Nessa condição, o próximo clique errado pode
+alterar o lance de **`martelo borracha`**, que sozinha responde por 95% das impressões e
+4 das 5 vendas. Não vale o risco: recarregar e continuar em outra sessão é mais barato
+que reconstruir a única palavra que funciona.
+
+**Retomar assim:** filtrar a tabela por uma palavra de cada vez (campo "Encontre um
+segmento"), para nunca haver duas linhas editáveis na tela ao mesmo tempo.
+
+### 📌 Ainda por fazer — a colheita, que é o maior ganho parado
+
+As automáticas somam ~30 mil impressões e **nunca foram colhidas**. O relatório de termos
+de pesquisa (aba "Termos de pesquisa" dentro do grupo) mostra o que as pessoas digitaram
+antes de comprar. O ciclo:
+
+```
+termo com 3+ pedidos na automática
+   → vira EXATA na manual, com lance alto
+   → vira NEGATIVA exata na automática
+```
+
+Sem isso, automática e manual leiloam as mesmas palavras e encarecem o próprio clique.
+
+### 📌 Preço do martelo mudou de novo
+
+A página do anúncio mostra **R$ 28,90** (o log registrava R$ 27,90 desde 16/08). A margem
+medida no banco — R$ 26,19 recebido — já reflete o preço praticado com cupom.
+
 ### O que medir daqui a uma semana
 
 O martelo dobrou de lance com teto dobrado: é a aposta principal. Se o CVR de 16,1% se
