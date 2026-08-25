@@ -126,6 +126,7 @@ canônico amadurece mesmo sem o cron.
 | Canônico — ingestão | `integrations/amazonSync.ts`, `amazonCanonical.ts`, `tiktokSync.ts`, `tiktokCanonical.ts`, `shopeeSync.ts`, `shopeeCanonical.ts`, `canonicalStore.ts`, `canonical.ts` |
 | Canônico — leitura | `integrations/mercadoLivreOverviewCanonical.ts`, `amazonOverviewCanonical.ts`, `tiktokOverviewCanonical.ts`, `shopeeOverviewCanonical.ts` |
 | Agendamento | `integrations/amazonScheduler.ts`, `amazonWarm.ts`, `tiktokScheduler.ts`, `shopeeScheduler.ts`, `.github/workflows/cron.yml`, `src/app/api/cron/*` |
+| Anúncio (Ads) | `integrations/amazonAdsAuth.ts` (OAuth + token cifrado), `amazonAdsSync.ts` (pedir/colher/resumir), `app/amazon/amazonFinancialCards.ts` (Ads, ACOS, TACOS e o lucro que os desconta) |
 | Domínio (ao vivo) | `orders.ts`, `finances.ts`, `transactions.ts`, `sales.ts`, `inventory.ts`, `radar.ts`, `profit.ts`, `topProducts.ts`, `amazonProfitability.ts`, `profitability.ts`, `costStore.ts` |
 | Rotas | `src/app/api/*` |
 | UI | `src/app/{page,amazon,mercado-livre,monitor,estoque,produtos,pesquisa}` + `components/` |

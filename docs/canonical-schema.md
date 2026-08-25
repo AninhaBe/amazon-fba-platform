@@ -36,13 +36,34 @@ destas; o código original fica em `provider_fee_code`.
 | `shipping_seller` | Frete pago pelo vendedor | ML `senders[].cost` do shipment · Amazon `ShippingChargeback` · TikTok `shipping_fee` (parcela do seller) · Shopee `actual_shipping_fee` − subsídio |
 | `fulfillment` | Logística do canal (armazenagem/expedição) | Amazon `FBAPerUnitFulfillmentFee` · ML Full · Shopee FBS |
 | `payment` | Taxa de processamento de pagamento | TikTok `transaction_fee` · Shopee `service_fee`/`transaction_fee` |
-| `ads` | Publicidade descontada no repasse | Amazon `CostOfPointsGranted`/campanhas · TikTok ads no statement |
+| `ads` | Publicidade **descontada no repasse** | TikTok ads no statement. ⚠️ **A Amazon NÃO usa este caminho** — ver abaixo |
 | `taxes_withheld` | Imposto retido na fonte **pelo canal** | Amazon `MarketplaceFacilitatorTax` · TikTok withholding |
 | `refund` | Estorno/devolução debitada do vendedor | Amazon refund events · ML claims |
 | `other` | Qualquer outra linha do repasse | sempre com `provider_fee_code` preenchido |
 
 Sinal: `amount` positivo = valor **debitado** do vendedor. Crédito (ex.:
 reembolso de tarifa) entra negativo no mesmo `fee_type`.
+
+### ⚠️ Gasto com anúncio da Amazon NÃO é tarifa de pedido
+
+Verificado em 25/08/2026 — os únicos `fee_type` gravados em
+`workspace_channel_order_fees` para a Amazon são:
+
+```
+commission · refund · fulfillment
+```
+
+Publicidade é **cobrança de conta**, não linha de pedido: não existe
+`external_order_id` para pendurá-la. Um card do dashboard procurou anúncio aqui
+por semanas e exibiu `R$ 0,00 · "Nenhuma despesa com anúncios no período"` numa
+conta gastando R$ 312,98 — ausência virando zero afirmativo, o oposto do
+`null ≠ 0`.
+
+**Onde o anúncio mora:** `workspace_ad_metrics`, tabela própria fora do canônico
+([ADR-025](adr/ADR-025-anuncio-entra-no-lucro.md)). O `fee_type` `ads` continua
+válido para canal que **realmente** desconta publicidade no repasse — hoje só o
+TikTok. Se um dia a Amazon passar a postar assim, o valor já entra em `fees` e já
+sai do lucro; o código detecta e **não** desconta a Ads API por cima.
 
 ## Status canônico de pedido
 

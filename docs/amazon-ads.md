@@ -254,6 +254,51 @@ A skill `monitorar-ads` (em `.claude/skills/`, **não versionada** porque o
 - [Políticas de anúncios patrocinados](https://advertising.amazon.com/pt-br/resources/ad-policy/sponsored-ads-policies)
 - Seller Central `G200663330` (só redireciona)
 
+## Endpoints da Ads API usados pelo NEXO
+
+Host: `https://advertising-api.amazon.com` (`ADS_API_HOST`). Todo request leva
+três cabeçalhos: `authorization: Bearer <token>`,
+`Amazon-Advertising-API-ClientId` e `Amazon-Advertising-API-Scope` (o
+`profileId`).
+
+| Endpoint | Onde | Para quê |
+|---|---|---|
+| `POST /auth/o2/token` (`api.amazon.com`) | `amazonAdsAuth.ts` | troca o refresh token por access token |
+| `GET /v2/profiles` | `scripts/ads-profiles.mjs` | descobre o `profileId` do anunciante |
+| `POST /reporting/reports` | `amazonAdsSync.ts` | **cria** o relatório (assíncrono) |
+| `GET /reporting/reports/{reportId}` | `amazonAdsSync.ts` | consulta status; `COMPLETED` traz a URL |
+| `GET <url do relatório>` | `amazonAdsSync.ts` | baixa o GZIP e grava as métricas |
+
+**Corpo do pedido de relatório** — o que importa e por quê:
+
+```jsonc
+{
+  "startDate": "2026-07-26", "endDate": "2026-08-25",
+  "configuration": {
+    "adProduct": "SPONSORED_PRODUCTS",
+    "groupBy": ["campaign"],
+    "columns": ["date", "campaignId", "campaignName",
+                "impressions", "clicks", "cost", "purchases30d", "sales30d"],
+    "reportTypeId": "spCampaigns",
+    "timeUnit": "DAILY",     // ⚠️ sem isto o relatório volta SOMADO
+    "format": "GZIP_JSON"
+  }
+}
+```
+
+⚠️ **`timeUnit: "DAILY"` + `date` nas colunas é o que dá granularidade diária.**
+Sem os dois, a API devolve um total do período inteiro — e a tela não consegue
+responder ao filtro de 7/15/30 dias, porque não há como recortar o que já veio
+somado. O primeiro relatório desta conta foi pedido sem `DAILY` e teve de ser
+refeito.
+
+⚠️ **`purchases30d` / `sales30d` são vendas ATRIBUÍDAS ao anúncio**, na janela de
+30 dias — **não** é o faturamento do canal. Confundir os dois inverte o ACOS.
+
+**Content-type do POST:** `application/vnd.createasyncreportrequest.v3+json`.
+Não é `application/json`; com o genérico a API recusa.
+
+
 ## Changelog observado — Ads API
 
 *Mais recente primeiro. Registrar aqui na hora de esbarrar num comportamento novo.*

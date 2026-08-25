@@ -57,7 +57,7 @@ não re-deduza o que já foi decidido nem repita pegadinha já paga.
 | [`architecture/read-and-cache.md`](./architecture/read-and-cache.md) | Leitura por SQL e cache |
 | [`canonical-schema.md`](./canonical-schema.md) | Schema canônico detalhado (pedidos, taxas, produtos) |
 | [`integrations-architecture.md`](./integrations-architecture.md) | Arquitetura multicanal (visão que o schema materializa) |
-| [`adr/`](./adr/) | Decisões e trade-offs — o **porquê** de cada escolha (15 ADRs; índice no [`adr/README.md`](./adr/README.md)). ADR-013 e ADR-014 tratam de escala (worker de sync separado do web; cache fora do processo). **ADR-015** divide o ADR-006 em fases: compute em São Paulo primeiro, banco e auth gerenciados por enquanto |
+| [`adr/`](./adr/) | Decisões e trade-offs — o **porquê** de cada escolha (25 ADRs; índice no [`adr/README.md`](./adr/README.md)). ADR-013 e ADR-014 tratam de escala (worker de sync separado do web; cache fora do processo). **ADR-015** divide o ADR-006 em fases: compute em São Paulo primeiro, banco e auth gerenciados por enquanto |
 | [`arquitetura-plano.md`](./arquitetura-plano.md) | Plano de arquitetura faseado — o que já foi feito e o que espera volume |
 
 ## Operação nos canais
@@ -65,7 +65,7 @@ não re-deduza o que já foi decidido nem repita pegadinha já paga.
 | Doc | O que tem |
 |---|---|
 | [`amazon-politicas.md`](./amazon-politicas.md) | Políticas da Amazon extraídas do Seller Central BR: título ≤75 chars, capa fundo branco sem texto, atributos fiscais do FBA, limites de caixa, manual de entrega no CD |
-| [`amazon-ads.md`](./amazon-ads.md) | Amazon Ads BR: como funciona, créditos, as campanhas no ar e as pegadinhas da tela de criação |
+| [`amazon-ads.md`](./amazon-ads.md) | Amazon Ads BR: como funciona, créditos, as campanhas no ar, as pegadinhas da tela de criação e o **Changelog observado da Ads API** (o que a API faz de verdade, medido) |
 | [`mercado-livre-diferencial.md`](./mercado-livre-diferencial.md) | Levantamento do que dá para oferecer no ML que a concorrência não oferece (13/08) — pesquisa, não implementação |
 | [`amazon-ads-especialista.pdf`](./amazon-ads-especialista.pdf) | Material de estudo (18 páginas): leilão, correspondências, matemática do lance, colheita, benchmarks 2026, COSMO/Rufus, glossário PT↔EN. Fonte em `amazon-ads-especialista.html` |
 | [`ferramentas-locais.md`](./ferramentas-locais.md) | Scripts de apoio que rodam fora do app: monitor de estoque FBA, seed do workspace demo, contas de avaliação |

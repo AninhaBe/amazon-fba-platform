@@ -24,6 +24,34 @@ tudo com colunas indexadas, sem trafegar `jsonb`.
 O selo `covered` é o interruptor: período coberto pelo sync → lê do canônico; ainda
 não coberto → cai no caminho ao vivo. Assim a troca é gradual e reversível.
 
+### Anúncio (Ads) — leitura nunca toca a API
+
+`workspace_ad_metrics` guarda **uma linha por dia × campanha**, e a tela lê só
+dali. Não há fallback ao vivo, e não pode haver: o relatório da Ads API é
+assíncrono e leva de 105 s a ~11 min ([sync-engine](./sync-engine.md#21-ingestão-assíncrona--o-padrão-do-relatório)).
+Ligar "abrir a aba dispara o relatório" faria a pessoa olhar um esqueleto por
+minutos.
+
+Duas funções servem a tela, e as duas só fazem `SELECT`:
+
+| | |
+|---|---|
+| `anunciosNoPeriodo(inicioISO, fimISO)` | o dashboard — recebe a **mesma** janela do resto do financeiro |
+| `resumoDeAnuncios(dias)` | atalho "últimos N dias" |
+
+⚠️ **A janela tem de ser a mesma do financeiro.** Se o gasto fosse fixo em 30
+dias, o filtro de 7 dividiria gasto de 30 por faturamento de 7 e o TACOS sairia
+~4× maior. Medido em 25/08/2026: 7 dias → R$ 193,93 · 15 e 30 dias → R$ 312,98.
+
+As bordas viram dia-calendário de Brasília
+(`AT TIME ZONE 'America/Sao_Paulo'`), como o resto da apuração — a Amazon reporta
+anúncio por dia do perfil, não em UTC.
+
+**Sem linha nenhuma, as funções devolvem `null`, não zero.** É o `null ≠ 0` do
+AGENTS.md: "não sincronizou" e "não gastou" não podem virar o mesmo `R$ 0,00`.
+Quem consome (`amazonFinancialCards.ts`) usa isso para decidir entre mostrar o
+lucro e mostrar `—` — ver [ADR-025](../adr/ADR-025-anuncio-entra-no-lucro.md).
+
 ### Workspace sem conta SP-API
 
 Há um segundo interruptor, independente do `covered`: **não existir nenhuma conta

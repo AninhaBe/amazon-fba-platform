@@ -68,6 +68,53 @@ sequenceDiagram
   paginado de pedidos/produtos e concilia o escrow por loja. O pipeline e seus
   testes de sandbox não equivalem a validação Live, que aguarda aprovação do
   Go Live, credenciais de produção e autorização de uma loja real.
+- **Anúncio** (`amazonAdsSync.ts` → `runScheduledAdsSync`, dentro de
+  `/api/cron/amazon-sync`): colhe o relatório pronto e pede o próximo. Ver a
+  seção abaixo — é um padrão **diferente** do resto do sync.
+
+### 2.1 Ingestão assíncrona — o padrão do relatório
+
+A Ads API (e os Reports da SP-API) **não respondem na hora**. Pede-se um
+relatório, ele fica `PENDING` → `PROCESSING`, e só depois vira `COMPLETED` com
+uma URL para baixar.
+
+Medido em 25/08/2026, na Ads API:
+
+| Janela pedida | Tempo até `COMPLETED` |
+|---|---|
+| 30 dias, granularidade diária (81 linhas) | **~11 minutos** |
+| 1 dia (6 linhas) | **105 segundos** |
+
+Nenhuma tela espera por isso. O ciclo é de **dois passos, em rodadas diferentes**:
+
+```mermaid
+sequenceDiagram
+    participant CRON as /api/cron/amazon-sync
+    participant API as Ads API
+    participant DB as PostgreSQL
+    CRON->>DB: colher: há report pendente?
+    DB-->>CRON: report_id
+    CRON->>API: GET /reporting/reports/{id}
+    API-->>CRON: COMPLETED + url
+    CRON->>DB: grava workspace_ad_metrics (ON CONFLICT)
+    CRON->>API: pedir: POST /reporting/reports
+    CRON->>DB: grava workspace_ad_reports (pending)
+```
+
+**Três invariantes que não são estéticas:**
+
+| | |
+|---|---|
+| **Colher ANTES de pedir** | colher libera a vaga do `MAX_PENDENTES`; invertido, cada rodada tentaria pedir com a vaga ocupada e só colheria na seguinte — metade da cadência de graça |
+| **`MAX_PENDENTES = 1`** | pedir sem colher **entope a fila**. Foi exatamente isso que travou o extrato financeiro do TikTok por **85 rodadas** em agosto, com o cron reportando sucesso o tempo todo |
+| **`PENDING` não é erro** | só `FAILED` marca falha. Tratar "ainda processando" como erro faria o cron desistir de todo relatório |
+
+A escrita é idempotente (`ON CONFLICT … DO UPDATE`): o mesmo período é pedido
+todo dia, e sem isso cada rodada duplicaria o gasto e o ACOS despencaria sozinho.
+
+📌 A tabela de **pedidos** (`workspace_ad_reports`) existe *antes* da primeira
+métrica ser gravada. Sem ela não há como saber o que já foi pedido, e o passo
+vira o defeito do TikTok por construção.
 - **Aquecimento** (`amazonWarm.ts`): para **todas** as contas ativas, pré-carrega os
   caches dos períodos do filtro (Hoje/7/15/30) — inclusive o KPI de Lucro — para a
   primeira visita já vir quente.

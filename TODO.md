@@ -21,6 +21,14 @@ conforme for concluindo.
   **BLOCKED** por dependência externa (`docs/estado-atual.md`).
 - [ ] **Shopee: confirmar IP Whitelist no ambiente Live** depois da aprovação;
   sem ela os dados do comprador vêm mascarados e não sai NF-e.
+- [ ] **Mercado Livre Ads: habilitar o escopo no DevCenter** (`advertising` /
+  `product_ads`). ⚠️ **Adicionar escopo força re-autorização** de quem já está
+  conectado — não é mudança silenciosa. A conta também precisa qualificar:
+  reputação amarela ou melhor, 15 dias de operação, mínimo de vendas e nenhuma
+  fatura em atraso.
+- [ ] **Renomear as telas de consentimento de "SellerCore" para NEXO** nos quatro
+  canais. Ela viu na autorização do Ads: *"apareceu SellerCore Ads quer permissão,
+  mas é NEXO o nome e você sabe"*. É o texto **mais público** do produto.
 
 - [x] ~~**Agendar o cron da Amazon**~~ — **já está feito e este item estava
   desatualizado.** O `.github/workflows/cron.yml` chama os **quatro** canais
@@ -132,6 +140,32 @@ conforme for concluindo.
     respeita redução de movimento e usa alvos semânticos na interface.
   - Novidades de versão continuam sendo uma ocasião separada e ainda não foram
     implementadas.
+
+## Anúncio nos outros canais (Amazon entregue em 25/08/2026)
+
+A Amazon já desconta anúncio do lucro e mostra Ads, ACOS e TACOS
+([ADR-025](docs/adr/ADR-025-anuncio-entra-no-lucro.md)). **Os outros três não** —
+e enquanto for assim, a comparação de margem entre canais é **injusta com a
+Amazon**, que é a única exibindo o custo real.
+
+A tabela `workspace_ad_metrics` já nasceu com coluna `provider`: o segundo canal
+tem de ser um `INSERT`, não uma tabela nova. Pesquisado em 25/08/2026 — os três
+têm API:
+
+- [ ] **Mercado Livre — Product Ads.** Depende do escopo no DevCenter (ver "Ação
+  manual"). É o próximo, por ser o canal com mais volume depois da Amazon.
+- [ ] **TikTok Shop — GMV Max.** A integração de pedidos já existe; falta a API de
+  anúncio.
+- [ ] **Shopee — AdsManager.** Bloqueado pelo mesmo Go Live que trava o resto.
+
+⚠️ **Replicar aqui é reimplementar com a API de cada um, não copiar o arquivo da
+Amazon.** Cada canal tem janela de atribuição, granularidade e semântica de custo
+próprias — a única coisa compartilhada é a tabela e a forma dos cards.
+
+- [ ] **Decidir se o "Ads" do TikTok vem da API ou do `fee_type: ads`.** O TikTok
+  desconta publicidade **no repasse**, então parte já pode estar em
+  `workspace_channel_order_fees`. Se vier dos dois lugares, é gasto contado duas
+  vezes — a mesma trava que já existe na Amazon precisa ser conferida lá.
 
 ## Paridade financeira entre canais (pedido em 15/08/2026)
 

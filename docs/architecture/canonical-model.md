@@ -19,6 +19,22 @@ cria tabela nova nem migration** — grava-se com `provider = '<novo>'`.
 | `workspace_product_costs` | Custo do produto **com histórico de vigência**. |
 | `workspace_persistent_cache` | Cache stale-while-revalidate em produção. |
 
+### O que NÃO entra no canônico — e por quê
+
+O canônico modela **venda**. Nem todo dado do produto é venda, e forçar tudo aqui
+custa caro: cria `provider` fantasma que sync, overview e dashboard teriam de
+aprender a ignorar em todo lugar.
+
+| Fora do canônico | Motivo |
+|---|---|
+| `workspace_ad_metrics` · `workspace_ad_reports` | **Publicidade não é canal de venda**: não tem pedido, item nem comprador. [ADR-025](../adr/ADR-025-anuncio-entra-no-lucro.md) |
+| `workspace_settings` (tokens de Ads) | Credencial de API de anúncio, não de canal de venda |
+
+⚠️ Estar fora do canônico **não** dispensa a disciplina: `workspace_ad_metrics`
+tem `workspace_id`, `provider` e `connection_id` na chave primária pelos mesmos
+motivos de sempre — isolamento de cliente e canal novo sendo `INSERT`, não
+tabela nova.
+
 **Status canônico** (único para todos): `pending`, `paid`, `shipped`, `delivered`,
 `cancelled`. Cada canal mapeia o seu (ex.: Amazon `Unshipped → paid`, `Shipped → shipped`).
 

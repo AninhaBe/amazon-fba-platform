@@ -155,12 +155,37 @@ Duas regras que já custaram erro:
 - **O dia fechado não fecha venda.** Atribuição de Ads é pela **data do clique**, com
   janela de 7 dias — a linha de hoje continua ganhando compras por uma semana. Fecha
   impressão, clique, CTR e gasto; não fecha compra e venda.
+- **A API entrega o dia corrente** (medido 25/08/2026: relatório de hoje voltou com
+  R$ 17,53 e 17 cliques em 105s). O gasto de hoje é real e já saiu do bolso — só
+  continua **crescendo** até a meia-noite. Por isso a tela mostra o valor com o aviso
+  "Hoje ainda está somando", e deixa ACOS/TACOS em `—` até a atribuição entrar.
 
-**Ads API: solicitada em 13/08 como Direct Advertiser, ainda não aprovada.** Teste sem
-navegador: montar a URL de consentimento com `ADS_CLIENT_ID` e
-`scope=advertising::campaign_management`; enquanto pendente volta
-`invalid-parameter-bad-scope`. Depois de aprovada, preencher `ADS_REFRESH_TOKEN` e
-`ADS_PROFILE_ID` e parar de depender do navegador.
+#### Ads API: **APROVADA em 25/08/2026** — e o gasto já está na tela
+
+12 dias depois do pedido, na 3ª candidatura (a que corrigiu o site declarado, que
+apontava para um endereço em 503). Conta que autoriza: `consultor.masterseller@gmail.com`,
+dona do perfil LWA "SellerCore Ads". Token cifrado em `workspace_settings`,
+`profileId 3728826838894301`.
+
+**O que entrou no produto no mesmo dia** — decisão registrada no
+[ADR-025](adr/ADR-025-anuncio-entra-no-lucro.md):
+
+| | |
+|---|---|
+| `migrations/0012` | `workspace_ad_metrics` (dia × campanha) e `workspace_ad_reports`, **aplicadas em produção** |
+| `src/lib/integrations/amazonAdsSync.ts` | pedir / colher / resumir — ingestão assíncrona |
+| Cron | passo `adsSync` em `/api/cron/amazon-sync`, colhendo antes de pedir |
+| Dashboard | cards **Ads**, **ACOS** e **TACOS**; o **Lucro passou a descontar anúncio** |
+
+🔴 **O número da conta virou negativo, e é o número certo.** Em 30 dias:
+R$ 295,65 de lucro contra R$ 312,98 de anúncio → **−R$ 17,33**, margem de 58,7%
+para **−2,9%**, TACOS de **52,9%**. O painel vinha exibindo margem alta numa
+operação no vermelho porque o maior custo variável não entrava na conta.
+
+⚠️ **Os outros três canais ainda não descontam anúncio.** ML (Product Ads),
+TikTok (GMV Max) e Shopee (AdsManager) têm API — a tabela já nasceu com coluna
+`provider` para o segundo canal ser um `INSERT`, não uma tabela nova. Até lá, a
+comparação de margem entre canais é injusta com a Amazon. Ver `TODO.md`.
 
 ⚠️ **Visualizações/sessões não funcionam no produto.** `/amazon/desempenho` existe e o
 código está pronto, mas `GET_SALES_AND_TRAFFIC_REPORT` responde **403**: exige o papel

@@ -180,6 +180,26 @@ aqui porque a tabela não tem coluna para guardá-lo.
 
 Resultado: 31 → 27 tabelas em `public`, banco em 441 MB, `/api/health` em 200.
 
+## 0012 aplicada pelo runner (25/08/2026) — sem desvio
+
+Registrada aqui porque é mudança de **schema em produção**, e o rastro dessas não
+pode viver só no commit.
+
+`migrations/0012_metricas_de_anuncio.sql` — cria `workspace_ad_metrics` e
+`workspace_ad_reports` ([ADR-025](adr/ADR-025-anuncio-entra-no-lucro.md)).
+
+Fluxo normal, sem exceção: `plan --out` → `migration-authorize.mjs` (Ed25519,
+chave fora do repo) → `apply --plan --authorization --expected-target --apply`.
+Resultado `APPLIED`, run `043f567e`. Conferido depois: `workspace_ad_metrics` com
+13 colunas, `workspace_ad_reports` com 10, mais 4 índices.
+
+⚠️ **É aditiva** — nenhuma tabela existente foi tocada, e nada no produto lia as
+novas no momento da aplicação. Ainda assim foi decidida e aplicada por mim antes
+de a pessoa dona do produto ver qualquer tela, o que ela cobrou na hora
+(*"eu pedi o card apenas, você fez isso?"*). Aditiva e reversível **não** é o
+mesmo que autorizada: mudança de schema em produção pede combinação antes, não
+depois.
+
 ## Incidente 0003/0004
 
 As migrations `0003_oauth_refresh_leases.sql` e `0004_tiktok_shop_tax_rate.sql` ficam **ratificadas quanto à permanência**: este incidente não autoriza rollback nem remoção de seus objetos. O processo histórico que as aplicou **não foi validado** e não deve ser tratado como evidência de execução segura. A ratificação é de estado desejado, não do procedimento anterior.

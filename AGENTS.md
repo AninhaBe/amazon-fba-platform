@@ -74,6 +74,7 @@ Antes de mexer em qualquer integração, leia a documentação interna — ela r
 - `docs/api-amazon-sp-api.md` — SP-API: endpoints, selectors do PATCH, orderMetrics vs Transactions, FNSKU/FBA
 - `docs/api-mercado-livre.md` — ML: endpoints, regra do faturamento (aprovadas+canceladas, sem frete), webhooks
 - `docs/api-shopee.md` — Shopee Open Platform v2 (**implementada; aguardando Go Live para conectar loja real**): assinatura HMAC validada em sandbox, OAuth, escrow, limites reais (janela de 15 dias, 50 pedidos por detalhe), App Types
+- `docs/amazon-ads.md` — **Amazon Ads API** (aprovada 25/08/2026): endpoints, o corpo do relatório assíncrono, e o "Changelog observado" com o que a API faz de verdade — inclusive que ela **entrega o dia corrente**, ao contrário do que já foi afirmado aqui
 - `docs/conexoes-que-expiram.md` — por que a autorização de cada canal cai e como evitar
 
 Cada doc de API termina num **"Changelog observado"** (datado, mais recente primeiro).
