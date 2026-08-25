@@ -254,7 +254,7 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
     // /advertis|productads/, que nunca casou com nada: exibia "R$ 0,00 · Nenhuma
     // despesa com anúncios no período" numa conta gastando R$ 312,98.
     {
-      key: "ads", label: "Anúncios",
+      key: "ads", label: "Ads",
       ...(anuncioJaNoExtrato
         ? { value: money(anuncios ?? 0, currency), context: "Postado como tarifa no extrato", raw: anuncios }
         : input.ads == null
