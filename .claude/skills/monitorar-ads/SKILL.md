@@ -160,6 +160,11 @@ lance**. Se passar, o lance anotado está errado — vá conferir.
 Advertiser e ainda não foi aprovada. Enquanto isso, a leitura é pela extensão do
 Chrome, na entidade **NEXAHUB BR** (`ENTITY16D5M3ZYVBEMC`).
 
+✅ **A conta que registrou a Ads API é `consultor.masterseller@gmail.com`** (confirmado em
+25/08/2026, ao abrir o link de integração). É ela que é dona do LWA app **SellerCore Ads**
+(`amzn1.application-oa2-client.c6783585294a46c294c10a5f372cc930`, o mesmo Client ID do
+`.env.local`). Use ESTA conta para qualquer coisa da Ads API.
+
 ⚠️ **NEXAHUB BR é a ENTIDADE de anúncios, não um login.** Este doc já registrou
 `admin@sellercore.test` como se fosse a conta do console — está errado: aquele é o login
 do NEXO (nosso produto), não existe conta Amazon com esse endereço. O login do console é
