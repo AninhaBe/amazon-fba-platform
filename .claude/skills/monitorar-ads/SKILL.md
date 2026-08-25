@@ -1772,11 +1772,52 @@ produto descreve e onde a concorrência é menor.
 orçamento (gastava R$ 1/dia com teto de R$ 10) nem lance. É **superfície**: ele não tem
 onde aparecer.
 
-### ✅/⏳ Estado das palavras do martelo
+### ✅ CONCLUÍDO — as 10 palavras do martelo
 
-- ✅ `macete de borracha` — R$ 0,60 → **R$ 1,20** (aplicado e confirmado)
-- ⏳ `assentamento de piso`, `cabo de madeira`, `para azulejista`, `porcelanato` —
-  **NÃO aplicadas.** Seguem em R$ 0,60 / R$ 0,36, com zero impressão.
+| Palavra | Antes | Agora | Impressões (30d) |
+|---|---|---|---|
+| **martelo borracha** | 2,50 | **2,77** | 811 · 4 compras |
+| martelo de borracha | 2,00 | 2,00 | 9 · 1 compra |
+| martelo emborrachado | 0,98 | 0,98 | 3 |
+| martelinho de borracha | 0,79 | 0,79 | 4 |
+| marreta de borracha | 0,33 | 0,33 | 17 |
+| macete de borracha | 0,60 | **1,20** | 0 |
+| … assentamento de piso | 0,60 | **1,20** | 0 |
+| … cabo de madeira | 0,36 | **1,20** | 0 |
+| … para azulejista | 0,60 | **1,20** | 0 |
+| … porcelanato | 0,60 | **1,20** | 0 |
+
+`martelo borracha` foi ao **teto exato** que a margem de 12% permite (R$ 2,77). É a única
+alavanca sobre os 28,46% de parcela de topo — em 7 de cada 10 buscas o anúncio perde a
+primeira posição.
+
+As cinco de cauda longa saíram do chão de uma vez. Não é aposta: R$ 1,20 é a sugestão da
+Amazon para as palavras que já vendem, e elas **não custam nada enquanto não receberem
+clique**. É o preço de descobrir se têm volume.
+
+📌 **Sobre remover `macete de borracha`:** ela cogitou em 24/08. Não removi — *macete* é o
+sinônimo que azulejista e marceneiro usam, e zero impressão a R$ 0,60 provava só que o
+lance estava abaixo do piso, não que ninguém busca. Se continuar em zero a R$ 1,20 depois
+da janela, aí sim é volume inexistente e sai.
+
+### 🔑 O FILTRO É O QUE TORNA A EDIÇÃO SEGURA
+
+Depois de 4 tentativas frustradas e de quase gravar `R$ 1,3` por engano, o que resolveu:
+
+**Filtrar a tabela por UMA palavra antes de editar** (campo "Encontre um segmento").
+
+Com uma linha só na tela, a instabilidade de renderização do console deixa de importar —
+não existe clique que caia na palavra errada. E errar aqui é caro: `martelo borracha`
+sozinha responde por **95% das impressões e 4 das 5 vendas** do produto.
+
+Sequência completa que funciona:
+
+1. filtrar pela palavra
+2. **clique simples** na célula do lance → abre o editor
+3. **triplo clique dentro do campo** → seleciona
+4. digitar
+5. conferir por screenshot
+6. Salvar
 
 ⚠️ **Por que parei:** o renderizador do console degradou pela terceira vez na sessão —
 screenshot expirando, e as coordenadas do clique divergindo das da tela a ponto de a
