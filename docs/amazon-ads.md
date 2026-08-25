@@ -253,3 +253,49 @@ A skill `monitorar-ads` (em `.claude/skills/`, **não versionada** porque o
 - [Guia de Sponsored Products para novos anunciantes](https://advertising.amazon.com/pt-br/library/guides/new-advertiser-success-guide)
 - [Políticas de anúncios patrocinados](https://advertising.amazon.com/pt-br/resources/ad-policy/sponsored-ads-policies)
 - Seller Central `G200663330` (só redireciona)
+
+## Changelog observado — Ads API
+
+*Mais recente primeiro. Registrar aqui na hora de esbarrar num comportamento novo.*
+
+### 25/08/2026 — a Reporting API **entrega o dia corrente**
+
+Medido, não suposto. Relatório `spCampaigns` de `25/08` a `25/08`, pedido às
+~17h20: aceito e **COMPLETED em 105 segundos**, com 6 linhas, R$ 17,53 de gasto
+e 17 cliques.
+
+⚠️ **Isto desmente o que eu tinha escrito no código e mandado para produção.**
+A `janela()` do `amazonAdsSync.ts` pedia até *ontem*, e o card do dashboard
+exibia o texto *"A Amazon publica o gasto do dia só no dia seguinte"* — afirmação
+minha, nunca testada. Corrigido no mesmo dia.
+
+**O que é verdade sobre o dia corrente:**
+
+| | |
+|---|---|
+| Gasto (`cost`, `clicks`, `impressions`) | **real e já pago** — mas cresce até a meia-noite |
+| Venda atribuída (`purchases30d`, `sales30d`) | entra **depois** do clique; hoje sai ~zero |
+
+Por isso a tela **mostra** o gasto de hoje (esconder um custo já pago é pior) com
+o aviso *"Hoje ainda está somando"*, e o ACOS do dia sai `—` com *"a venda
+atribuída ao clique de hoje entra depois"* — nunca 0% e nunca um ACOS
+catastrófico às 9h da manhã.
+
+### 25/08/2026 — o tempo do relatório varia com o tamanho da janela
+
+| Janela | Tempo até `COMPLETED` |
+|---|---|
+| 30 dias, diário (81 linhas) | **~11 minutos** |
+| 1 dia (6 linhas) | **105 segundos** |
+
+Nos dois casos passa por `PENDING` → `PROCESSING` → `COMPLETED`. Continua longe
+demais para uma requisição de tela: o desenho de dois passos (pedir num ciclo,
+colher noutro) segue valendo.
+
+### 25/08/2026 — gasto com anúncio **não** é tarifa de pedido
+
+Os únicos `fee_type` gravados em `workspace_channel_order_fees` são `commission`,
+`refund` e `fulfillment`. Anúncio é cobrança de conta e **só** existe pela Ads
+API — o card que procurava `/advertis|productads/` no extrato exibiu
+"R$ 0,00 · Nenhuma despesa com anúncios" durante todo o período em que a conta
+gastava R$ 312,98.
