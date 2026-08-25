@@ -1,5 +1,6 @@
 import { dbQuery } from "../db";
 import { currentWorkspaceId } from "../workspaceScope";
+import { protectSecret, revealSecret } from "./secrets";
 
 // OAuth da Amazon Ads API (Login with Amazon, Authorization Code grant).
 //
@@ -109,12 +110,24 @@ export async function listAdsProfiles(accessToken: string): Promise<AdsProfile[]
   return (await res.json()) as AdsProfile[];
 }
 
+/**
+ * ⚠️ O REFRESH TOKEN É CIFRADO ANTES DE ENCOSTAR NO BANCO.
+ *
+ * Este token não lê dado: ele **gasta dinheiro**. Com ele dá para criar campanha,
+ * subir lance e esvaziar o orçamento de anúncio da vendedora. É a credencial mais
+ * perigosa do produto, e era a única guardada em claro — 609 caracteres de JSON
+ * legível em `workspace_settings`, enquanto Amazon, ML, Shopee e TikTok já passavam
+ * por `protectSecret`/`revealSecret` (AES-256-GCM, prefixo `enc:v1:`).
+ *
+ * Corrigido em 25/08/2026, no mesmo dia em que o primeiro token foi emitido.
+ */
 export async function saveAdsCredentials(credentials: AmazonAdsCredentials): Promise<void> {
+  const protegidas = { ...credentials, refreshToken: protectSecret(credentials.refreshToken) };
   await dbQuery(
     `INSERT INTO workspace_settings (workspace_id,key,value,updated_at)
      VALUES ($1,$2,$3::jsonb,now())
      ON CONFLICT (workspace_id,key) DO UPDATE SET value=EXCLUDED.value,updated_at=now()`,
-    [currentWorkspaceId(), ADS_SETTING_KEY, JSON.stringify(credentials)],
+    [currentWorkspaceId(), ADS_SETTING_KEY, JSON.stringify(protegidas)],
   );
 }
 
@@ -124,5 +137,10 @@ export async function getAdsCredentials(): Promise<AmazonAdsCredentials | null> 
     [currentWorkspaceId(), ADS_SETTING_KEY],
   );
   const stored = rows[0]?.value;
-  return stored && typeof stored.refreshToken === "string" ? stored : null;
+  if (!stored || typeof stored.refreshToken !== "string") return null;
+  // `revealSecret` devolve o texto puro quando o valor NÃO tem o prefixo `enc:v1:`
+  // — é o que faz o token gravado antes desta mudança continuar funcionando.
+  // Ele é reescrito cifrado no próximo `saveAdsCredentials`.
+  const refreshToken = revealSecret(stored.refreshToken);
+  return refreshToken ? { ...stored, refreshToken } : null;
 }
