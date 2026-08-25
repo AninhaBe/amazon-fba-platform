@@ -80,7 +80,7 @@ interface ProfitData {
   /** Anuncio do periodo, da Ads API. `null` = nao sincronizado (nao e zero). */
   ads?: AmazonAdsInput | null;
   /** Janela do periodo em dia BRT. Vem mesmo sem metrica. */
-  adsJanela?: { inicioDia: string; esperadoAte: string } | null;
+  adsJanela?: { inicioDia: string; esperadoAte: string; incluiHoje?: boolean } | null;
   /** Ha conta de anuncio conectada? Separa "nao anuncia" de "nao sei quanto gastou". */
   adsConectado?: boolean;
 }
@@ -168,6 +168,9 @@ interface DashboardPayload {
   dailySales: Array<{ date: string; revenue: number; orders: number; units: number }>;
   topProducts: Array<{ sku: string; title: string; units: number; revenue: number; marginPct: number | null }>;
   profit: { revenueProcessed: number; fees: number; cogs: number; estimatedProfit: number; unitsWithCost: number; unitsWithoutCost: number; coverage?: { processedOrders: number; paidOrders: number; complete: boolean } };
+  ads?: AmazonAdsInput | null;
+  adsJanela?: { inicioDia: string; esperadoAte: string; incluiHoje?: boolean } | null;
+  adsConectado?: boolean;
   finance: ProfitData["finance"];
   profitabilityLines: ProfitabilityLine[];
   profitabilityScope?: ProfitabilityScope;
@@ -326,6 +329,14 @@ export default function Dashboard() {
         cogs: payload.profit.cogs,
         estimatedProfit: payload.profit.estimatedProfit,
         unitsWithoutCost: payload.profit.unitsWithoutCost,
+        // ⚠️ ESTE OBJETO E MONTADO CAMPO A CAMPO: campo novo na resposta da rota
+        // NAO chega na tela sozinho, e como os tres sao opcionais o TypeScript
+        // nao reclama. Foi assim que o card de Anuncios ficou em "—" com o dado
+        // ja gravado no banco de producao (25/08/2026) — a rota devolvia, e aqui
+        // ninguem lia.
+        ads: payload.ads ?? null,
+        adsJanela: payload.adsJanela ?? null,
+        adsConectado: payload.adsConectado ?? false,
       };
       // O gráfico se chama "pedidos recebidos", então tem de contar pedido
       // recebido — incluindo o que ainda está `pending`. A série canônica só tem

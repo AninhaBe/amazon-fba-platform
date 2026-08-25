@@ -188,3 +188,43 @@ test("sync atrasado continua sendo sync atrasado", () => {
   });
   assert.match(carta(c, "ads").context, /Aguardando sincronização/);
 });
+
+// ---------------------------------------------------------------------------
+// A FIAÇÃO ENTRE A ROTA E A TELA.
+//
+// Os testes acima provavam que a REGRA estava certa — e ela estava. O card
+// mesmo assim saiu em produção mostrando "—" com o dado já gravado no banco:
+// a rota devolvia `ads`, e a página, que monta `ProfitData` CAMPO A CAMPO,
+// simplesmente não lia. Os três campos são opcionais, então o TypeScript
+// compilou sem uma reclamação.
+//
+// Regra pura testada não prova tela ligada. Estes testes cobrem a emenda.
+// ---------------------------------------------------------------------------
+import { readFileSync } from "node:fs";
+const arquivo = (c) => readFileSync(new URL(`../${c}`, import.meta.url), "utf8");
+
+test("a rota devolve anuncio, janela e conexao", () => {
+  const rota = arquivo("src/app/api/amazon/dashboard/route.ts");
+  assert.match(rota, /ads: ads\?\.resumo \?\? null/);
+  assert.match(rota, /adsJanela: ads\?\.janela \?\? null/);
+  assert.match(rota, /adsConectado: ads\?\.conectado \?\? false/);
+});
+
+test("a pagina LE os tres campos ao montar ProfitData", () => {
+  const pagina = arquivo("src/app/amazon/page.tsx");
+  const i = pagina.indexOf("const profit: ProfitData = {");
+  assert.ok(i > 0, "a montagem de ProfitData precisa existir");
+  const montagem = pagina.slice(i, i + 1200);
+  for (const campo of ["ads: payload.ads", "adsJanela: payload.adsJanela", "adsConectado: payload.adsConectado"]) {
+    assert.ok(montagem.includes(campo), `${campo} não chega na tela`);
+  }
+});
+
+test("os cards de anuncio estao na faixa principal", () => {
+  const pagina = arquivo("src/app/amazon/page.tsx");
+  const i = pagina.indexOf("PRIMARY_FINANCIAL_CARDS = new Set(");
+  const faixa = pagina.slice(i, i + 400);
+  for (const k of ["ads", "acos", "tacos"]) {
+    assert.match(faixa, new RegExp(`"${k}"`), `${k} precisa aparecer na faixa de cima`);
+  }
+});
