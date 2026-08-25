@@ -22,9 +22,30 @@ export interface AmazonFinanceInput {
   orderCount?: number;
 }
 
+/**
+ * Métricas de anúncio do período, vindas da Ads API (`workspace_ad_metrics`).
+ *
+ * ⚠️ NÃO vem do extrato financeiro. A Amazon não posta gasto com anúncio como
+ * tarifa de pedido — verificado em 25/08/2026: os únicos tipos gravados em
+ * `workspace_channel_order_fees` são `commission`, `refund` e `fulfillment`.
+ * Anúncio é cobrança de conta, e só existe pela Ads API.
+ */
+export interface AmazonAdsInput {
+  /** Gasto com anúncio no período. */
+  cost: number;
+  /** Vendas ATRIBUÍDAS ao anúncio na janela de 30 dias — NÃO é o faturamento. */
+  sales: number;
+  purchases: number;
+  /** Último dia COM métrica gravada (`YYYY-MM-DD`). */
+  ateDia: string | null;
+  /** Último dia que DEVERIA ter métrica. Se `ateDia` for menor, falta anúncio. */
+  esperadoAte: string;
+}
+
 export interface AmazonCardsInput {
   finance: AmazonFinanceInput | null;
   cogs: number;
+  /** Lucro ANTES de anúncio. O card "Lucro" desconta o Ads em cima disto. */
   estimatedProfit: number;
   /** Unidades vendidas sem custo cadastrado — invalida COGS, lucro, margem e ROI. */
   unitsWithoutCost: number;
@@ -32,6 +53,16 @@ export interface AmazonCardsInput {
   taxRate?: number | null;
   /** Imposto do período, já descontado de `estimatedProfit`. `null` sem alíquota. */
   taxes?: number | null;
+  /** Anúncio do período. `null` = não sincronizado (≠ não gastou). */
+  ads?: AmazonAdsInput | null;
+  /**
+   * A conta tem Ads conectado?
+   *
+   * É o que separa "não anuncia" de "não sei quanto gastou". Sem Ads conectado,
+   * lucro sem anúncio é o lucro real. COM Ads conectado e sem métrica, lucro
+   * seria otimista — e otimista sem aviso é mentira (`null ≠ 0`).
+   */
+  adsConectado?: boolean;
 }
 
 export interface AmazonCard {
@@ -48,6 +79,21 @@ const money = (v: number, currency: string) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(v);
 const percent = (v: number) =>
   `${v.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
+
+const diaBR = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+
+/**
+ * Quantos dias do período ainda não têm métrica de anúncio.
+ *
+ * Datas `YYYY-MM-DD` lidas como UTC: as duas são dia civil puro, então a
+ * diferença é exata e não depende de fuso — a mesma cautela que o `brDate` usa
+ * para não deslocar a data de liberação do ML em um dia.
+ */
+export function diasSemAnuncio(ateDia: string | null, esperadoAte: string): number {
+  if (!ateDia) return 0;
+  const dias = (Date.parse(`${esperadoAte}T00:00:00Z`) - Date.parse(`${ateDia}T00:00:00Z`)) / 86_400_000;
+  return Number.isFinite(dias) && dias > 0 ? Math.round(dias) : 0;
+}
 
 // Categorização por PADRÃO, não por lista de nomes exatos.
 //
@@ -126,11 +172,48 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
   const anuncios = somaTipos(f?.feeBreakdown, ANUNCIOS, f != null);
   const comissao = somaTipos(f?.feeBreakdown, COMISSAO, f != null);
 
+  // ANÚNCIO É CUSTO, E ENTRA NO LUCRO.
+  //
+  // Decisão dela em 25/08/2026: *"o card de lucro passa a descontar também o
+  // ads, isso é lucro real"*. E o dado que motivou: R$ 295,65 de lucro contra
+  // R$ 312,98 de anúncio — o resultado verdadeiro era NEGATIVO, e a tela vinha
+  // exibindo o número positivo.
+  //
+  // ⚠️ Se a Amazon algum dia postar anúncio como tarifa de pedido, o valor já
+  // entra em `fees` e já saiu de `estimatedProfit`. Descontar a Ads API por cima
+  // contaria o mesmo dinheiro duas vezes — daí a checagem, mesmo que hoje nenhum
+  // tipo de tarifa case com o padrão.
+  const anuncioJaNoExtrato = (anuncios ?? 0) > 0;
+  const gastoComAnuncio = anuncioJaNoExtrato ? 0 : (input.ads?.cost ?? 0);
+
+  // Com Ads conectado e SEM métrica sincronizada, o gasto é desconhecido — não
+  // zero. Lucro, margem e ROI ficam "—" em vez de repetir o número otimista.
+  const anuncioDesconhecido = input.adsConectado === true && input.ads == null && !anuncioJaNoExtrato;
+
   // Lucro, margem e ROI só existem se TODO componente de custo existir. Com SKU
   // sem custo cadastrado, o resultado seria otimista — e otimista sem aviso é mentira.
-  const resultadoValido = f != null && !custoIncompleto && !semRepassePostado;
-  const margem = resultadoValido && f.revenue > 0 ? (input.estimatedProfit / f.revenue) * 100 : null;
-  const roi = resultadoValido && input.cogs > 0 ? (input.estimatedProfit / input.cogs) * 100 : null;
+  const resultadoValido = f != null && !custoIncompleto && !semRepassePostado && !anuncioDesconhecido;
+  const lucroReal = +(input.estimatedProfit - gastoComAnuncio).toFixed(2);
+  const margem = resultadoValido && f.revenue > 0 ? (lucroReal / f.revenue) * 100 : null;
+  const roi = resultadoValido && input.cogs > 0 ? (lucroReal / input.cogs) * 100 : null;
+
+  // Dias do período sem métrica. Não extrapolamos o que falta (AGENTS.md): o
+  // lucro desconta só o anúncio JÁ contabilizado, e o card diz até quando conta.
+  const faltamDias = input.ads ? diasSemAnuncio(input.ads.ateDia, input.ads.esperadoAte) : 0;
+  const anuncioAte =
+    faltamDias > 0 && input.ads?.ateDia
+      ? `Anúncio contabilizado até ${diaBR(input.ads.ateDia)} — falta${faltamDias > 1 ? "m" : ""} ${faltamDias} dia${faltamDias > 1 ? "s" : ""}`
+      : null;
+
+  // ACOS: gasto sobre a venda que O ANÚNCIO gerou. Mede o anúncio.
+  const acos = input.ads && input.ads.sales > 0 ? (input.ads.cost / input.ads.sales) * 100 : null;
+  // TACOS: gasto sobre o faturamento TOTAL. Mede quanto da operação inteira o
+  // anúncio consome — é o que mostra dependência de mídia, e é o número que
+  // denunciou os 62% aqui.
+  const tacos = input.ads && f != null && f.revenue > 0 && !semRepassePostado
+    ? (input.ads.cost / f.revenue) * 100
+    : null;
+  const semAds = input.adsConectado === false ? "Nenhuma conta de anúncio conectada" : "Aguardando sincronização do anúncio";
 
   const faltaCusto = custoIncompleto
     ? `Aguardando custo de ${input.unitsWithoutCost} unidade(s)`
@@ -141,7 +224,23 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
     { key: "fees", label: "Taxas", ...num(f?.fees, semExtrato) },
     { key: "fbaShipping", label: "Logística FBA", ...num(logistica, "Aguardando tarifas de logística no extrato", undefined, "A Amazon não cobrou logística no período") },
     { key: "buyerShipping", label: "Frete do comprador", ...num(f?.buyerShipping, "Aguardando frete pago pelo comprador", undefined, "Nenhum frete pago pelo comprador") },
-    { key: "ads", label: "Anúncios", ...num(anuncios, "Aguardando despesas com anúncios no extrato", undefined, "Nenhuma despesa com anúncios no período") },
+    // Fonte é a Ads API, NÃO o extrato — anúncio não é tarifa de pedido.
+    // Antes de 25/08/2026 este card lia `feeBreakdown` com o padrão
+    // /advertis|productads/, que nunca casou com nada: exibia "R$ 0,00 · Nenhuma
+    // despesa com anúncios no período" numa conta gastando R$ 312,98.
+    {
+      key: "ads", label: "Anúncios",
+      ...(anuncioJaNoExtrato
+        ? { value: money(anuncios ?? 0, currency), context: "Postado como tarifa no extrato", raw: anuncios }
+        : input.ads == null
+          ? { value: "—", context: semAds, raw: null }
+          : {
+              value: money(input.ads.cost, currency),
+              context: anuncioAte ?? `${input.ads.purchases} venda(s) atribuída(s) ao anúncio`,
+              tone: "danger" as const,
+              raw: input.ads.cost,
+            }),
+    },
     // Ocupa a vaga do antigo "Impostos retidos" (`MarketplaceFacilitatorTax`), que
     // é mecanismo de EUA/Europa e nunca apareceu numa conta BR. A comissão, ao
     // contrário, é a maior tarifa da Amazon para quase todo vendedor — e não
@@ -175,13 +274,32 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
       ...(resultadoValido
         // Sem alíquota o lucro sai SEM imposto — e precisa dizer, senão parece
         // líquido de tudo e a pessoa decide preço com um número otimista.
+        // Idem para anúncio: a composição fica escrita, componente por componente.
         ? {
-            value: money(input.estimatedProfit, currency),
-            context: input.taxRate == null ? "Faturamento − taxas − custo (sem imposto)" : "Faturamento − taxas − custo − imposto",
-            tone: input.estimatedProfit > 0 ? "positive" as const : input.estimatedProfit < 0 ? "danger" as const : "default" as const,
-            raw: input.estimatedProfit,
+            value: money(lucroReal, currency),
+            context:
+              anuncioAte ??
+              [
+                "Faturamento − taxas − custo",
+                input.taxRate == null ? null : "imposto",
+                gastoComAnuncio > 0 ? "anúncio" : null,
+              ]
+                .filter(Boolean)
+                .join(" − ") + (input.taxRate == null ? " (sem imposto)" : ""),
+            tone: lucroReal > 0 ? "positive" as const : lucroReal < 0 ? "danger" as const : "default" as const,
+            raw: lucroReal,
           }
-        : { value: "—", context: semRepassePostado ? semExtrato : custoIncompleto ? faltaCusto : "Aguardando todos os componentes financeiros", raw: null }),
+        : {
+            value: "—",
+            context: semRepassePostado
+              ? semExtrato
+              : custoIncompleto
+                ? faltaCusto
+                : anuncioDesconhecido
+                  ? "Aguardando o gasto com anúncio do período"
+                  : "Aguardando todos os componentes financeiros",
+            raw: null,
+          }),
     },
     {
       key: "marginPct", label: "Margem",
@@ -196,6 +314,37 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
       context: roi == null ? (custoIncompleto ? faltaCusto : "Aguardando lucro e custo completos") : "Lucro sobre o custo investido",
       tone: roi == null ? "default" : roi > 0 ? "positive" : roi < 0 ? "danger" : "default",
       raw: roi,
+    },
+    {
+      key: "acos", label: "ACOS",
+      // Gasto ÷ venda gerada PELO anúncio. Mede o anúncio, não a operação.
+      // Sem venda atribuída não é 0% nem 100%: é indefinido — dividir por zero
+      // aqui já seria Infinity, e exibir "0,0%" diria que o anúncio saiu de graça.
+      value: acos == null ? "—" : percent(acos),
+      context:
+        acos == null
+          ? input.ads == null
+            ? semAds
+            : "Nenhuma venda atribuída ao anúncio ainda"
+          : `Gasto sobre ${money(input.ads?.sales ?? 0, currency)} gerados pelo anúncio`,
+      tone: acos == null ? "default" : acos <= 25 ? "positive" : acos >= 50 ? "danger" : "default",
+      raw: acos,
+    },
+    {
+      key: "tacos", label: "TACOS",
+      // Gasto ÷ faturamento TOTAL. É o que mostra dependência de mídia: ACOS
+      // pode estar ótimo enquanto o anúncio come a operação inteira.
+      value: tacos == null ? "—" : percent(tacos),
+      context:
+        tacos == null
+          ? input.ads == null
+            ? semAds
+            : semRepassePostado
+              ? semExtrato
+              : "Aguardando faturamento do período"
+          : "Gasto com anúncio sobre o faturamento total",
+      tone: tacos == null ? "default" : tacos <= 10 ? "positive" : tacos >= 20 ? "danger" : "default",
+      raw: tacos,
     },
   ];
 }

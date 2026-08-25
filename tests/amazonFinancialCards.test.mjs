@@ -17,7 +17,7 @@ const FINANCE = {
 
 test("componente sem dado mostra o que falta, nunca zero", () => {
   const cards = amazonFinancialCards({ finance: null, cogs: 0, estimatedProfit: 0, unitsWithoutCost: 0 });
-  assert.equal(cards.length, 12);
+  assert.equal(cards.length, 14);
   for (const c of cards) {
     assert.equal(c.value, "—", `${c.key} deveria estar vazio`);
     // Todo card vazio diz o que falta. "Impostos" é o único cuja pendência não
@@ -157,7 +157,7 @@ test("tarifa de tipo desconhecido nao some do total", () => {
 
 test("o card de impostos retidos foi removido", () => {
   const cards = amazonFinancialCards({ finance: FINANCE, cogs: 13.64, estimatedProfit: 20.04, unitsWithoutCost: 0 });
-  assert.equal(cards.length, 12, "a grade continua com doze");
+  assert.equal(cards.length, 14, "doze + ACOS e TACOS, que entraram em 25/08/2026");
   assert.equal(cards.find((c) => c.key === "taxesWithheld"), undefined);
 });
 

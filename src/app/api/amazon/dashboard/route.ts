@@ -11,6 +11,7 @@ import { currentAccount, runWithAccount } from "@/lib/accountContext";
 import { runAmazonSyncBatch } from "@/lib/integrations/amazonSync";
 import { getDailySales } from "@/lib/sales";
 import { defaultMarketplaceId } from "@/lib/spapi";
+import { adsEstaConectado, anunciosNoPeriodo } from "@/lib/integrations/amazonAdsSync";
 
 // Frescor aceitável antes de buscar de novo ao abrir a tela.
 //
@@ -59,6 +60,38 @@ interface BillingRow {
   cupom: string | null;
   /** Pedidos sem preço de tabela — com eles, o cupom acima é piso, não total. */
   sem_preco_de_tabela: string | null;
+}
+
+/**
+ * Anúncio do período, no formato que os cards consomem.
+ *
+ * `esperadoAte` é o último dia que DEVERIA ter métrica: o fim do período, ou
+ * ONTEM se o período chega até hoje. A Amazon não fecha o dia corrente em
+ * relatório — cobrar o dia de hoje faria todo dashboard reclamar de um dia
+ * faltando que nunca vai existir.
+ */
+async function adsDoPeriodo(workspaceId: string, period: { startISO: string; endISO: string }) {
+  const [resumo, conectado] = await Promise.all([
+    anunciosNoPeriodo(period.startISO, period.endISO),
+    adsEstaConectado(),
+  ]);
+  if (!conectado) return { conectado: false, resumo: null };
+
+  const emBrasilia = (ms: number) => new Date(ms - 3 * 60 * 60_000).toISOString().slice(0, 10);
+  const ontem = emBrasilia(Date.now() - 86_400_000);
+  const fimDoPeriodo = emBrasilia(Date.parse(period.endISO));
+  void workspaceId; // o escopo já vem do contexto; explícito só na assinatura
+
+  return {
+    conectado: true,
+    resumo: resumo && {
+      cost: resumo.cost,
+      sales: resumo.sales,
+      purchases: resumo.purchases,
+      ateDia: resumo.ateDia,
+      esperadoAte: fimDoPeriodo < ontem ? fimDoPeriodo : ontem,
+    },
+  };
 }
 
 export async function GET(req: NextRequest) {
@@ -190,6 +223,19 @@ export async function GET(req: NextRequest) {
         ),
       ]);
 
+      // ANÚNCIO DO PERÍODO.
+      //
+      // Fica FORA do `Promise.all` acima de propósito: é a única consulta que
+      // pode não ter tabela populada, e uma falha aqui não pode derrubar o
+      // dashboard inteiro — o resto do financeiro continua válido sem ela.
+      //
+      // Lido de `workspace_ad_metrics`, nunca da Amazon: o relatório da Ads API
+      // é assíncrono (11 min medidos em 25/08/2026) e não cabe numa tela.
+      const ads = await adsDoPeriodo(workspaceId, period).catch((error) => {
+        console.error("[dashboard/amazon] metricas de anuncio indisponiveis", error);
+        return null;
+      });
+
       const feeBreakdown = feeRows
         .map((r) => ({ type: r.fee_type, amount: Math.abs(Number(r.total ?? 0)) }))
         .filter((f) => f.amount > 0);
@@ -303,6 +349,12 @@ export async function GET(req: NextRequest) {
           buyerShipping,
           feeBreakdown,
         },
+        // Anúncio fora de `finance`: não vem do extrato financeiro da Amazon,
+        // vem da Ads API. Misturar as duas origens dentro do mesmo objeto foi
+        // exatamente o que fez o card "Anúncios" procurar gasto de mídia numa
+        // tabela de tarifa de pedido e sempre achar zero.
+        ads: ads?.resumo ?? null,
+        adsConectado: ads?.conectado ?? false,
         profitabilityLines: canonical.profitabilityLines,
         profitabilityScope: canonical.profitabilityScope,
         recentOrders: canonical.recentOrders,

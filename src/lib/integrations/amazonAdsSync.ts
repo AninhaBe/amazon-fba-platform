@@ -200,7 +200,60 @@ export interface ResumoDeAnuncios {
  * `null ≠ 0` do AGENTS.md, a mesma que fez o card de custo da Amazon parar de
  * afirmar lucro zero quando a Amazon ainda não tinha postado repasse.
  */
+/**
+ * Existe conta de anúncio conectada?
+ *
+ * É o que separa "não anuncia" de "não sei quanto gastou". Sem esta distinção,
+ * uma conta com Ads conectado e sync atrasado exibiria o lucro SEM anúncio como
+ * se fosse o lucro real — o defeito que esta entrega inteira corrige.
+ *
+ * Consulta a existência da credencial, sem decifrá-la: nada de token em memória
+ * no caminho de uma tela.
+ */
+export async function adsEstaConectado(): Promise<boolean> {
+  const rows = await dbQuery<{ n: string }>(
+    `SELECT COUNT(*)::text AS n FROM workspace_settings
+      WHERE workspace_id=$1 AND key='amazon_ads_oauth'`,
+    [currentWorkspaceId()],
+  );
+  return Number(rows[0]?.n ?? 0) > 0;
+}
+
+/**
+ * O anúncio de um intervalo de datas — a forma que o dashboard usa.
+ *
+ * Recebe o MESMO período do resto do financeiro. Sem isso, gasto de 30 dias
+ * dividiria faturamento de 7 e o TACOS sairia 4× maior.
+ *
+ * As bordas viram dia-calendário de Brasília, igual ao resto da apuração: a
+ * Amazon reporta anúncio por dia do perfil, não em UTC.
+ */
+export async function anunciosNoPeriodo(inicioISO: string, fimISO: string): Promise<ResumoDeAnuncios | null> {
+  return agregar(
+    `AND day BETWEEN ($3::timestamptz AT TIME ZONE 'America/Sao_Paulo')::date
+                 AND ($4::timestamptz AT TIME ZONE 'America/Sao_Paulo')::date`,
+    [inicioISO, fimISO],
+  );
+}
+
 export async function resumoDeAnuncios(dias: number): Promise<ResumoDeAnuncios | null> {
+  return agregar(
+    `AND day >= (now() AT TIME ZONE 'America/Sao_Paulo')::date - $3::int`,
+    [dias],
+  );
+}
+
+/**
+ * O SELECT único das duas leituras acima — só o recorte de data muda.
+ *
+ * ⚠️ `recorte` é concatenado no SQL, então é privado e só aceita literal escrito
+ * aqui neste arquivo. Toda data entra por `extras`, como parâmetro ligado —
+ * nunca interpolada.
+ */
+async function agregar(
+  recorte: string,
+  extras: (string | number)[],
+): Promise<ResumoDeAnuncios | null> {
   const rows = await dbQuery<{
     cost: string; sales: string; purchases: string;
     impressions: string; clicks: string; ate: string | null; linhas: string;
@@ -214,8 +267,8 @@ export async function resumoDeAnuncios(dias: number): Promise<ResumoDeAnuncios |
             COUNT(*)::text                    AS linhas
        FROM workspace_ad_metrics
       WHERE workspace_id=$1 AND provider=$2
-        AND day >= (now() AT TIME ZONE 'America/Sao_Paulo')::date - $3::int`,
-    [currentWorkspaceId(), PROVIDER, dias],
+        ${recorte}`,
+    [currentWorkspaceId(), PROVIDER, ...extras],
   );
   const r = rows[0];
   if (!r || Number(r.linhas) === 0) return null;

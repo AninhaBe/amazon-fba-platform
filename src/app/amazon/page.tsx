@@ -11,7 +11,7 @@ import { EmptyState } from "../components/EmptyState";
 import { DashboardPeriodFilter, useDashboardPeriod } from "../components/DashboardPeriodFilter";
 import type { OperationPendingItem } from "../components/OperationPending";
 import { Metric as Kpi, CompactMetric, getRevenueTrend } from "../components/Metric";
-import { amazonFinancialCards } from "./amazonFinancialCards";
+import { amazonFinancialCards, type AmazonAdsInput } from "./amazonFinancialCards";
 import { AnimatedNumber } from "../components/AnimatedNumber";
 import { OrderProfitabilityTable } from "../components/OrderProfitabilityTable";
 import { ConnectionBroken, isBrokenConnection } from "../components/ConnectionBroken";
@@ -41,7 +41,12 @@ import type { ProfitabilityLine } from "@/lib/profitability";
 import { brDate, brTime } from "@/lib/datetime";
 import { readJson } from "../../lib/readJson";
 
-const PRIMARY_FINANCIAL_CARDS = new Set(["revenue", "fees", "cogs", "profit", "marginPct"]);
+// Faixa de cima: o que resume o RESULTADO. Anuncio entrou aqui em 25/08/2026
+// porque virou componente do lucro — deixa-lo so na composicao la embaixo
+// esconderia justamente o custo que inverteu o sinal do resultado.
+const PRIMARY_FINANCIAL_CARDS = new Set([
+  "revenue", "fees", "cogs", "ads", "profit", "marginPct", "acos", "tacos",
+]);
 
 function money(v: number, currency = "BRL") {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(v);
@@ -72,6 +77,10 @@ interface ProfitData {
   unitsWithoutCost: number;
   taxRate?: number | null;
   taxes?: number | null;
+  /** Anuncio do periodo, da Ads API. `null` = nao sincronizado (nao e zero). */
+  ads?: AmazonAdsInput | null;
+  /** Ha conta de anuncio conectada? Separa "nao anuncia" de "nao sei quanto gastou". */
+  adsConectado?: boolean;
 }
 interface SaldoData {
   currency: string;
@@ -481,6 +490,8 @@ export default function Dashboard() {
           unitsWithoutCost: profit?.unitsWithoutCost ?? 0,
           taxRate: profit?.taxRate ?? null,
           taxes: profit?.taxes ?? null,
+          ads: profit?.ads ?? null,
+          adsConectado: profit?.adsConectado ?? false,
         });
         const margem = cards.find((c) => c.key === "marginPct");
         const primaryCards = cards.filter((card) => PRIMARY_FINANCIAL_CARDS.has(card.key));
