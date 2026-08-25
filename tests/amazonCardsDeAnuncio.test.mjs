@@ -144,19 +144,39 @@ test("o card acompanha o filtro de periodo", () => {
   assert.ok(carta(sete, "acos").raw > carta(trinta, "acos").raw);
 });
 
-test("no filtro 'Hoje' o card culpa a Amazon, nao o NEXO", () => {
-  // A Amazon fecha o dia de anúncio só no dia seguinte, então "Hoje" NUNCA tem
-  // métrica — verificado em 25/08/2026: zero linha em "Hoje", 42 em 7 dias.
-  // Dizer "Aguardando sincronização" ali culparia o NEXO por um dado que ainda
-  // não existe na origem.
+test("o gasto de hoje aparece, com aviso de que o dia nao fechou", () => {
+  // ⚠️ CORRIGE UMA AFIRMAÇÃO FALSA que chegou a ir para produção: eu disse que a
+  // Amazon só publica o gasto no dia seguinte. MEDIDO em 25/08/2026 — pedi um
+  // relatório de hoje e vieram 6 linhas, R$ 17,53 e 17 cliques, em 105s.
+  //
+  // O gasto de hoje já saiu do bolso: esconder seria pior que mostrar. Mostra,
+  // avisando que ainda cresce.
+  const c = amazonFinancialCards({
+    ...base,
+    ads: { cost: 17.53, sales: 0, purchases: 0, ateDia: "2026-08-25", esperadoAte: "2026-08-25" },
+    adsJanela: { inicioDia: "2026-08-25", esperadoAte: "2026-08-25", incluiHoje: true },
+  });
+  assert.equal(carta(c, "ads").raw, 17.53, "custo já pago não pode sumir da tela");
+  assert.match(carta(c, "ads").context, /ainda está somando/);
+  // O lucro de hoje desconta o anúncio de hoje.
+  assert.equal(carta(c, "profit").raw, 295.65 - 17.53);
+  // ACOS sem venda atribuída não é 0% nem catastrófico: é cedo.
+  assert.equal(carta(c, "acos").value, "—");
+  assert.match(carta(c, "acos").context, /entra depois/);
+  for (const k of ["ads", "acos"]) {
+    assert.doesNotMatch(carta(c, k).context, /dia seguinte/, "a Amazon entrega o dia corrente");
+  }
+});
+
+test("sem metrica de hoje o texto nao culpa a Amazon", () => {
+  // O cron ainda não colheu o dia. A pendência é nossa — mas também não é
+  // "sincronização atrasada", porque hoje sempre chega por último.
   const c = amazonFinancialCards({
     ...base, ads: null, adsConectado: true,
-    adsJanela: { inicioDia: "2026-08-25", esperadoAte: "2026-08-24" },
+    adsJanela: { inicioDia: "2026-08-25", esperadoAte: "2026-08-25", incluiHoje: true },
   });
-  for (const k of ["ads", "profit", "acos", "tacos"]) {
-    assert.match(carta(c, k).context, /só no dia seguinte/, `${k} precisa explicar o porquê`);
-    assert.doesNotMatch(carta(c, k).context, /sincroniza/i, `${k} não pode culpar o sync`);
-  }
+  assert.match(carta(c, "profit").context, /ainda não foi contabilizado/);
+  assert.doesNotMatch(carta(c, "profit").context, /dia seguinte/);
 });
 
 test("sync atrasado continua sendo sync atrasado", () => {

@@ -60,7 +60,7 @@ export interface AmazonCardsInput {
    * conectado, INCLUSIVE quando não há métrica — é ela que distingue
    * "sync atrasado" de "a Amazon ainda não publicou".
    */
-  adsJanela?: { inicioDia: string; esperadoAte: string } | null;
+  adsJanela?: { inicioDia: string; esperadoAte: string; incluiHoje?: boolean } | null;
   /**
    * A conta tem Ads conectado?
    *
@@ -196,17 +196,18 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
   // zero. Lucro, margem e ROI ficam "—" em vez de repetir o número otimista.
   const anuncioDesconhecido = input.adsConectado === true && input.ads == null && !anuncioJaNoExtrato;
 
-  // O FILTRO "HOJE" NÃO TEM ANÚNCIO — E ISSO NÃO É ATRASO.
+  // O DIA DE HOJE EXISTE, MAS AINDA ESTÁ SOMANDO.
   //
-  // A Amazon fecha o dia de anúncio só no dia seguinte. No filtro "Hoje" a
-  // janela inteira cai depois do último dia publicável, então nunca haverá
-  // métrica — medido em 25/08/2026: "Hoje" devolve zero linha enquanto 7 dias
-  // devolve 42. Sem esta distinção o card diria "Aguardando sincronização" para
-  // sempre, culpando o NEXO por um dado que ainda não existe na Amazon.
-  const anuncioAindaNaoPublicado =
-    anuncioDesconhecido && input.adsJanela != null && input.adsJanela.inicioDia > input.adsJanela.esperadoAte;
-  const porQueSemAnuncio = anuncioAindaNaoPublicado
-    ? "A Amazon publica o gasto do dia só no dia seguinte"
+  // ⚠️ Aqui morava uma afirmação FALSA minha: "a Amazon publica o gasto do dia só
+  // no dia seguinte". Medido em 25/08/2026 e desmentido — um relatório de hoje
+  // voltou com 6 linhas, R$ 17,53 e 17 cliques.
+  //
+  // O que é verdade: o gasto de hoje é real e já saiu do bolso, mas cresce até a
+  // meia-noite, e a VENDA atribuída a ele entra depois. Então o número aparece
+  // (esconder um custo já pago seria pior) com o aviso de que o dia não fechou.
+  const diaAindaSomando = input.adsJanela?.incluiHoje === true;
+  const porQueSemAnuncio = diaAindaSomando
+    ? "O anúncio de hoje ainda não foi contabilizado"
     : "Aguardando o gasto com anúncio do período";
 
   // Lucro, margem e ROI só existem se TODO componente de custo existir. Com SKU
@@ -235,7 +236,7 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
   const semAds =
     input.adsConectado === false
       ? "Nenhuma conta de anúncio conectada"
-      : anuncioAindaNaoPublicado
+      : diaAindaSomando
         ? porQueSemAnuncio
         : "Aguardando sincronização do anúncio";
 
@@ -260,7 +261,11 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
           ? { value: "—", context: semAds, raw: null }
           : {
               value: money(input.ads.cost, currency),
-              context: anuncioAte ?? `${input.ads.purchases} venda(s) atribuída(s) ao anúncio`,
+              context:
+                anuncioAte ??
+                (diaAindaSomando
+                  ? "Hoje ainda está somando — o valor sobe até a meia-noite"
+                  : `${input.ads.purchases} venda(s) atribuída(s) ao anúncio`),
               tone: "danger" as const,
               raw: input.ads.cost,
             }),
@@ -349,7 +354,9 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
         acos == null
           ? input.ads == null
             ? semAds
-            : "Nenhuma venda atribuída ao anúncio ainda"
+            : diaAindaSomando
+              ? "A venda atribuída ao clique de hoje entra depois"
+              : "Nenhuma venda atribuída ao anúncio ainda"
           : `Gasto sobre ${money(input.ads?.sales ?? 0, currency)} gerados pelo anúncio`,
       tone: acos == null ? "default" : acos <= 25 ? "positive" : acos >= 50 ? "danger" : "default",
       raw: acos,

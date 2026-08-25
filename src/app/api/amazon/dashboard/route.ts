@@ -66,9 +66,8 @@ interface BillingRow {
  * Anúncio do período, no formato que os cards consomem.
  *
  * `esperadoAte` é o último dia que DEVERIA ter métrica: o fim do período, ou
- * ONTEM se o período chega até hoje. A Amazon não fecha o dia corrente em
- * relatório — cobrar o dia de hoje faria todo dashboard reclamar de um dia
- * faltando que nunca vai existir.
+ * HOJE se o período chega até aqui — a Amazon entrega o dia corrente (medido em
+ * 25/08/2026: relatório de hoje voltou com R$ 17,53 em 105s).
  */
 async function adsDoPeriodo(workspaceId: string, period: { startISO: string; endISO: string }) {
   const [resumo, conectado] = await Promise.all([
@@ -78,17 +77,20 @@ async function adsDoPeriodo(workspaceId: string, period: { startISO: string; end
   if (!conectado) return { conectado: false, janela: null, resumo: null };
 
   const emBrasilia = (ms: number) => new Date(ms - 3 * 60 * 60_000).toISOString().slice(0, 10);
-  const ontem = emBrasilia(Date.now() - 86_400_000);
+  const hoje = emBrasilia(Date.now());
   const inicioDia = emBrasilia(Date.parse(period.startISO));
   const fimDoPeriodo = emBrasilia(Date.parse(period.endISO));
-  const esperadoAte = fimDoPeriodo < ontem ? fimDoPeriodo : ontem;
+  const esperadoAte = fimDoPeriodo < hoje ? fimDoPeriodo : hoje;
   void workspaceId; // o escopo já vem do contexto; explícito só na assinatura
 
   return {
     conectado: true,
     // Vai MESMO sem métrica: é a janela que distingue "sync atrasado" de
     // "a Amazon ainda não publicou o dia" — o caso do filtro "Hoje".
-    janela: { inicioDia, esperadoAte },
+    // `incluiHoje` avisa a tela que o último dia da janela AINDA ESTÁ SOMANDO:
+    // o gasto de hoje é real, mas cresce até a meia-noite e a venda atribuída
+    // entra depois. Sem isso o ACOS de "Hoje" pareceria catastrófico às 9h.
+    janela: { inicioDia, esperadoAte, incluiHoje: fimDoPeriodo >= hoje },
     resumo: resumo && {
       cost: resumo.cost,
       sales: resumo.sales,

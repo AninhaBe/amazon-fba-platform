@@ -30,10 +30,20 @@ const HOST = process.env.ADS_API_HOST ?? "https://advertising-api.amazon.com";
 /** Um relatório em voo já basta: pedir de novo antes de colher é o defeito do TikTok. */
 const MAX_PENDENTES = 1;
 
-/** A Amazon não entrega relatório do dia corrente fechado — o último dia útil é ontem. */
+/**
+ * A janela do relatório, terminando HOJE.
+ *
+ * ⚠️ Já foi `ontem`, por suposição minha de que a Amazon não entregava o dia
+ * corrente. MEDIDO em 25/08/2026 e é falso: um relatório de 25/08 a 25/08 voltou
+ * com 6 linhas, R$ 17,53 e 17 cliques, em 105 segundos.
+ *
+ * O dado de hoje é REAL, mas ainda está somando — cresce ao longo do dia, e a
+ * atribuição de venda entra depois. Por isso a tela avisa que o dia não fechou,
+ * em vez de esconder o gasto (que é o custo que ela já teve).
+ */
 function janela(dias: number): { inicio: string; fim: string } {
   const dia = (atras: number) => new Date(Date.now() - atras * 86_400_000).toISOString().slice(0, 10);
-  return { inicio: dia(dias), fim: dia(1) };
+  return { inicio: dia(dias), fim: dia(0) };
 }
 
 interface LinhaDoRelatorio {
