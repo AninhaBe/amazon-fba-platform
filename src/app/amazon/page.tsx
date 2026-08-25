@@ -79,6 +79,8 @@ interface ProfitData {
   taxes?: number | null;
   /** Anuncio do periodo, da Ads API. `null` = nao sincronizado (nao e zero). */
   ads?: AmazonAdsInput | null;
+  /** Janela do periodo em dia BRT. Vem mesmo sem metrica. */
+  adsJanela?: { inicioDia: string; esperadoAte: string } | null;
   /** Ha conta de anuncio conectada? Separa "nao anuncia" de "nao sei quanto gastou". */
   adsConectado?: boolean;
 }
@@ -491,6 +493,7 @@ export default function Dashboard() {
           taxRate: profit?.taxRate ?? null,
           taxes: profit?.taxes ?? null,
           ads: profit?.ads ?? null,
+          adsJanela: profit?.adsJanela ?? null,
           adsConectado: profit?.adsConectado ?? false,
         });
         const margem = cards.find((c) => c.key === "marginPct");

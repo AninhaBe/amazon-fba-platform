@@ -56,6 +56,12 @@ export interface AmazonCardsInput {
   /** Anúncio do período. `null` = não sincronizado (≠ não gastou). */
   ads?: AmazonAdsInput | null;
   /**
+   * A janela do período em dia-calendário BRT. Enviada sempre que há Ads
+   * conectado, INCLUSIVE quando não há métrica — é ela que distingue
+   * "sync atrasado" de "a Amazon ainda não publicou".
+   */
+  adsJanela?: { inicioDia: string; esperadoAte: string } | null;
+  /**
    * A conta tem Ads conectado?
    *
    * É o que separa "não anuncia" de "não sei quanto gastou". Sem Ads conectado,
@@ -190,6 +196,19 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
   // zero. Lucro, margem e ROI ficam "—" em vez de repetir o número otimista.
   const anuncioDesconhecido = input.adsConectado === true && input.ads == null && !anuncioJaNoExtrato;
 
+  // O FILTRO "HOJE" NÃO TEM ANÚNCIO — E ISSO NÃO É ATRASO.
+  //
+  // A Amazon fecha o dia de anúncio só no dia seguinte. No filtro "Hoje" a
+  // janela inteira cai depois do último dia publicável, então nunca haverá
+  // métrica — medido em 25/08/2026: "Hoje" devolve zero linha enquanto 7 dias
+  // devolve 42. Sem esta distinção o card diria "Aguardando sincronização" para
+  // sempre, culpando o NEXO por um dado que ainda não existe na Amazon.
+  const anuncioAindaNaoPublicado =
+    anuncioDesconhecido && input.adsJanela != null && input.adsJanela.inicioDia > input.adsJanela.esperadoAte;
+  const porQueSemAnuncio = anuncioAindaNaoPublicado
+    ? "A Amazon publica o gasto do dia só no dia seguinte"
+    : "Aguardando o gasto com anúncio do período";
+
   // Lucro, margem e ROI só existem se TODO componente de custo existir. Com SKU
   // sem custo cadastrado, o resultado seria otimista — e otimista sem aviso é mentira.
   const resultadoValido = f != null && !custoIncompleto && !semRepassePostado && !anuncioDesconhecido;
@@ -213,7 +232,12 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
   const tacos = input.ads && f != null && f.revenue > 0 && !semRepassePostado
     ? (input.ads.cost / f.revenue) * 100
     : null;
-  const semAds = input.adsConectado === false ? "Nenhuma conta de anúncio conectada" : "Aguardando sincronização do anúncio";
+  const semAds =
+    input.adsConectado === false
+      ? "Nenhuma conta de anúncio conectada"
+      : anuncioAindaNaoPublicado
+        ? porQueSemAnuncio
+        : "Aguardando sincronização do anúncio";
 
   const faltaCusto = custoIncompleto
     ? `Aguardando custo de ${input.unitsWithoutCost} unidade(s)`
@@ -296,7 +320,7 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
               : custoIncompleto
                 ? faltaCusto
                 : anuncioDesconhecido
-                  ? "Aguardando o gasto com anúncio do período"
+                  ? porQueSemAnuncio
                   : "Aguardando todos os componentes financeiros",
             raw: null,
           }),

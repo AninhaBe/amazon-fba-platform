@@ -75,21 +75,26 @@ async function adsDoPeriodo(workspaceId: string, period: { startISO: string; end
     anunciosNoPeriodo(period.startISO, period.endISO),
     adsEstaConectado(),
   ]);
-  if (!conectado) return { conectado: false, resumo: null };
+  if (!conectado) return { conectado: false, janela: null, resumo: null };
 
   const emBrasilia = (ms: number) => new Date(ms - 3 * 60 * 60_000).toISOString().slice(0, 10);
   const ontem = emBrasilia(Date.now() - 86_400_000);
+  const inicioDia = emBrasilia(Date.parse(period.startISO));
   const fimDoPeriodo = emBrasilia(Date.parse(period.endISO));
+  const esperadoAte = fimDoPeriodo < ontem ? fimDoPeriodo : ontem;
   void workspaceId; // o escopo já vem do contexto; explícito só na assinatura
 
   return {
     conectado: true,
+    // Vai MESMO sem métrica: é a janela que distingue "sync atrasado" de
+    // "a Amazon ainda não publicou o dia" — o caso do filtro "Hoje".
+    janela: { inicioDia, esperadoAte },
     resumo: resumo && {
       cost: resumo.cost,
       sales: resumo.sales,
       purchases: resumo.purchases,
       ateDia: resumo.ateDia,
-      esperadoAte: fimDoPeriodo < ontem ? fimDoPeriodo : ontem,
+      esperadoAte,
     },
   };
 }
@@ -354,6 +359,7 @@ export async function GET(req: NextRequest) {
         // exatamente o que fez o card "Anúncios" procurar gasto de mídia numa
         // tabela de tarifa de pedido e sempre achar zero.
         ads: ads?.resumo ?? null,
+        adsJanela: ads?.janela ?? null,
         adsConectado: ads?.conectado ?? false,
         profitabilityLines: canonical.profitabilityLines,
         profitabilityScope: canonical.profitabilityScope,

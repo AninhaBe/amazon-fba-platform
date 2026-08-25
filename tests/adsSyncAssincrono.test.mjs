@@ -75,3 +75,36 @@ test("dinheiro e numeric, nunca float", () => {
   assert.match(m, /cost\s+numeric\(12,2\)/);
   assert.match(m, /sales\s+numeric\(12,2\)/);
 });
+
+test("o ciclo colhe ANTES de pedir", () => {
+  // A ordem não é estética: colher libera a vaga do MAX_PENDENTES, então o
+  // relatório pronto é gravado e o próximo pedido no MESMO ciclo. Invertido,
+  // cada rodada tentaria pedir com a vaga ocupada e só colheria na seguinte —
+  // metade da cadência, de graça.
+  const s = sync();
+  const i = s.indexOf("export async function runScheduledAdsSync");
+  assert.ok(i > 0, "o cron precisa de um passo de anúncio");
+  const corpo = s.slice(i);
+  assert.ok(
+    corpo.indexOf("colherRelatoriosDeAnuncios()") < corpo.indexOf("pedirRelatorioDeAnuncios("),
+    "colher tem que vir antes de pedir"
+  );
+});
+
+test("o ciclo roda para TODOS os workspaces, nao so um", () => {
+  // App multi-inquilino: curar dado só na conta de quem reportou já foi erro
+  // aqui. Um vendedor ficaria com o card de Lucro congelado sem ninguém ver.
+  const s = sync();
+  const corpo = s.slice(s.indexOf("export async function runScheduledAdsSync"));
+  assert.match(corpo, /FROM workspace_settings/);
+  assert.match(corpo, /runWithWorkspace/);
+  assert.match(corpo, /catch/, "falha de um workspace não pode calar os outros");
+});
+
+test("o passo de anuncio esta ligado no cron", () => {
+  const cron = fonte("src/app/api/cron/amazon-sync/route.ts");
+  assert.match(cron, /runScheduledAdsSync/);
+  // `passo()` faz a falha aparecer na resposta em vez de virar zero silencioso —
+  // foi assim que a foto de ranking ficou uma semana sem gravar nada.
+  assert.match(cron, /passo\("adsSync", runScheduledAdsSync, 0\)/);
+});

@@ -4,6 +4,7 @@ import { runScheduledAmazonWarm } from "@/lib/integrations/amazonWarm";
 import { runScheduledRankSnapshot } from "@/lib/integrations/amazonRankSnapshot";
 import { runScheduledAmazonOfferSnapshot } from "@/lib/integrations/amazonOfferSnapshot";
 import { runScheduledInsights } from "@/lib/integrations/amazonInsights";
+import { runScheduledAdsSync } from "@/lib/integrations/amazonAdsSync";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,6 +44,10 @@ export async function GET(req: NextRequest) {
   // Foto diária da oferta (ADR-010): reusa o inventário já aquecido acima, então não
   // gera chamada nova. É o "antes e depois" que explica por que um anúncio parou.
   const offerSnapshots = await passo("offerSnapshot", runScheduledAmazonOfferSnapshot, 0);
+  // Anúncio: colhe o relatório pronto e pede o próximo. O relatório da Ads API
+  // é ASSÍNCRONO (11 min medidos em 25/08/2026), então um ciclo pede e outro
+  // colhe — nunca espera aqui dentro.
+  const adsRows = await passo("adsSync", runScheduledAdsSync, 0);
   // Detecção de insights do briefing (ruptura, velocidade, margem).
   const insights = await passo("insights", runScheduledInsights, 0);
 
@@ -54,6 +59,7 @@ export async function GET(req: NextRequest) {
     rankSnapshots,
     offerSnapshots,
     insights,
+    adsRows,
     // Presente só quando algum passo quebrou — é o que torna a falha visível.
     ...(temFalha ? { falhas } : {}),
     durationMs: Math.round(performance.now() - startedAt),

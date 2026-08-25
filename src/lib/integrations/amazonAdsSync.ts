@@ -1,5 +1,5 @@
 import { dbQuery } from "../db";
-import { currentWorkspaceId } from "../workspaceScope";
+import { currentWorkspaceId, runWithWorkspace } from "../workspaceScope";
 import { adsAccessToken, getAdsCredentials } from "./amazonAdsAuth";
 
 /**
@@ -280,4 +280,42 @@ async function agregar(
     clicks: Number(r.clicks),
     ateDia: r.ate,
   };
+}
+
+/**
+ * Um ciclo de anúncio para TODOS os workspaces com Ads conectado.
+ *
+ * ⚠️ COLHER VEM ANTES DE PEDIR, e a ordem não é estética: colher primeiro libera
+ * a vaga do `MAX_PENDENTES`, então o relatório pronto é gravado e o próximo é
+ * pedido no MESMO ciclo. Invertido, cada rodada tentaria pedir com a vaga ainda
+ * ocupada, desistiria, e só colheria na seguinte — metade da cadência, de graça.
+ *
+ * Devolve quantas linhas de métrica foram gravadas no total.
+ *
+ * 📌 É multi-inquilino de propósito. Curar dado só na conta de quem reportou o
+ * problema já foi erro aqui antes: o app tem mais de um vendedor, e um deles
+ * ficaria com o card de Lucro congelado sem ninguém perceber.
+ */
+export async function runScheduledAdsSync(): Promise<number> {
+  const donos = await dbQuery<{ workspace_id: string }>(
+    `SELECT workspace_id::text AS workspace_id FROM workspace_settings
+      WHERE key='amazon_ads_oauth'`,
+    [],
+  );
+
+  let gravadas = 0;
+  for (const dono of donos) {
+    // Falha de um workspace não pode calar os outros — mesmo princípio do
+    // `passo()` do cron: erro aparece, mas não derruba o ciclo inteiro.
+    try {
+      gravadas += await runWithWorkspace(dono.workspace_id, async () => {
+        const colhidas = await colherRelatoriosDeAnuncios();
+        await pedirRelatorioDeAnuncios(30);
+        return colhidas;
+      });
+    } catch (error) {
+      console.error(`[ads-sync] workspace ${dono.workspace_id} falhou:`, error);
+    }
+  }
+  return gravadas;
 }

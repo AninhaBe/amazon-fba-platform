@@ -126,3 +126,45 @@ test("diasSemAnuncio nao desloca por fuso", () => {
   assert.equal(diasSemAnuncio("2026-08-25", "2026-08-24"), 0, "sync adiantado não é dia faltando");
   assert.equal(diasSemAnuncio(null, "2026-08-24"), 0);
 });
+
+test("o card acompanha o filtro de periodo", () => {
+  // Medido em 25/08/2026 contra o dado real: cada janela do filtro devolve
+  // gasto próprio — 7 dias R$ 193,93 · 15 e 30 dias R$ 312,98. O anúncio é
+  // consultado com o MESMO período do resto do financeiro; se fosse fixo em 30
+  // dias, o filtro de 7 dividiria gasto de 30 por faturamento de 7 e o TACOS
+  // sairia 4× maior.
+  const sete = amazonFinancialCards({
+    ...base, finance: { ...FINANCE, revenue: 200 },
+    ads: { cost: 193.93, sales: 161.35, purchases: 6, ateDia: "2026-08-24", esperadoAte: "2026-08-24" },
+  });
+  const trinta = amazonFinancialCards({ ...base, ads: ADS });
+  assert.notEqual(carta(sete, "ads").raw, carta(trinta, "ads").raw);
+  // 7 dias está PIOR que a média de 30: gasta mais do que a venda que gera.
+  assert.ok(carta(sete, "acos").raw > 100, "ACOS acima de 100% é gastar mais do que se vende");
+  assert.ok(carta(sete, "acos").raw > carta(trinta, "acos").raw);
+});
+
+test("no filtro 'Hoje' o card culpa a Amazon, nao o NEXO", () => {
+  // A Amazon fecha o dia de anúncio só no dia seguinte, então "Hoje" NUNCA tem
+  // métrica — verificado em 25/08/2026: zero linha em "Hoje", 42 em 7 dias.
+  // Dizer "Aguardando sincronização" ali culparia o NEXO por um dado que ainda
+  // não existe na origem.
+  const c = amazonFinancialCards({
+    ...base, ads: null, adsConectado: true,
+    adsJanela: { inicioDia: "2026-08-25", esperadoAte: "2026-08-24" },
+  });
+  for (const k of ["ads", "profit", "acos", "tacos"]) {
+    assert.match(carta(c, k).context, /só no dia seguinte/, `${k} precisa explicar o porquê`);
+    assert.doesNotMatch(carta(c, k).context, /sincroniza/i, `${k} não pode culpar o sync`);
+  }
+});
+
+test("sync atrasado continua sendo sync atrasado", () => {
+  // Janela que JÁ deveria ter dado: aí a pendência é nossa mesmo, e o texto
+  // não pode se esconder atrás da Amazon.
+  const c = amazonFinancialCards({
+    ...base, ads: null, adsConectado: true,
+    adsJanela: { inicioDia: "2026-08-01", esperadoAte: "2026-08-24" },
+  });
+  assert.match(carta(c, "ads").context, /Aguardando sincronização/);
+});
