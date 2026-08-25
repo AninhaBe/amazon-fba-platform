@@ -158,7 +158,14 @@ lance**. Se passar, o lance anotado está errado — vá conferir.
 
 **Hoje: navegador.** A Amazon Ads API foi solicitada em 13/08/2026 como Direct
 Advertiser e ainda não foi aprovada. Enquanto isso, a leitura é pela extensão do
-Chrome, na conta `admin@sellercore.test` / NEXAHUB BR.
+Chrome, na entidade **NEXAHUB BR** (`ENTITY16D5M3ZYVBEMC`).
+
+⚠️ **NEXAHUB BR é a ENTIDADE de anúncios, não um login.** Este doc já registrou
+`admin@sellercore.test` como se fosse a conta do console — está errado: aquele é o login
+do NEXO (nosso produto), não existe conta Amazon com esse endereço. O login do console é
+a conta de vendedora da Amazon, a mesma que abre o Seller Central e é dona de
+`AO62LVXJMX3AA`. Confusão registrada em 25/08/2026, ao definir com qual conta acessar o
+link de integração da Ads API — errar ali invalida o link e exige reset pelo suporte.
 
 **Como testar se a aprovação saiu, sem abrir o navegador** (10 segundos, não depende de
 sessão nem de a vendedora estar logada):
