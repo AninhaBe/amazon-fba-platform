@@ -679,12 +679,23 @@ button[class*="bg-blue-"]:hover, a[class*="bg-blue-"]:hover { background: var(--
 .metric-cell:first-child { border-inline-start: 0 !important; }
 
 .metric-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+/* ⚠️ O RECORTE MORA NO SPAN DE DENTRO, NUNCA AQUI.
+   `overflow: hidden` neste elemento cortava a dica do "i" — que é um `::after`
+   posicionado ACIMA e, sendo descendente do rótulo, morria no recorte. A faixa
+   de cima ficou com bolinha em todo card e nada ao passar o mouse; a de baixo
+   funcionava porque `.compact-metric p` não recorta nada. Achado em 25/08/2026.
+   Se precisar de reticências, é em `.metric-label-text`. */
 .metric-label {
+  display: flex;
   min-width: 0;
-  overflow: hidden;
+  align-items: center;
   color: var(--ink-muted);
   font-size: 14px;
   letter-spacing: var(--track-m);
+}
+.metric-label-text {
+  min-width: 0;
+  overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }

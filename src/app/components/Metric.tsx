@@ -83,7 +83,19 @@ export function Metric({ label, value, sub, info, tone = "default", loading, ico
   const body = (
     <>
       <div className="metric-head">
-        <p className="metric-label">{label}{info ? <MetricInfo texto={info} /> : null}</p>
+        {/*
+          O TEXTO fica num span próprio, e o "i" FORA dele.
+          `.metric-label` precisava de `overflow: hidden` para o reticências de
+          rótulo longo — e esse mesmo recorte CORTAVA a dica do "i", que é um
+          `::after` posicionado acima. Resultado: bolinha em todo card da faixa
+          de cima e nada ao passar o mouse (achado por ela em 25/08/2026). A
+          faixa de baixo sempre funcionou porque `.compact-metric p` não recorta.
+          Agora quem recorta é o span do texto; o "i" é irmão dele.
+        */}
+        <p className="metric-label">
+          <span className="metric-label-text">{label}</span>
+          {info ? <MetricInfo texto={info} /> : null}
+        </p>
         {trend ? <TrendIndicator trend={trend} /> : icon && <span className="metric-icon">{icon}</span>}
       </div>
       <p className={`metric-value${toneCls}`}>
