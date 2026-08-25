@@ -5,10 +5,49 @@
 /* As duas faixas usam a mesma cadência. A principal só cresce o necessário
    para acomodar a terceira linha de contexto; não ganha espaço vazio próprio. */
 .root :global(.integration-dashboard-sections > .metric-grid > .metric-cell) {
+  container-type: inline-size;
   min-height: 76px;
   justify-content: center;
   gap: 1px;
-  padding: 7px 16px !important;
+  padding: 7px 12px !important;
+}
+
+/* O faturamento combina rótulo, dica e tendência na mesma linha. Com oito
+   indicadores na faixa da Amazon, 16px de cada lado tiravam justamente o
+   espaço necessário para a palavra inteira e o navegador mostrava
+   "Faturam…". A densidade continua igual; apenas devolvemos largura útil ao
+   conteúdo e impedimos o selo de quebrar em duas linhas. */
+.root :global(.metric-head:has(.revenue-trend)) {
+  gap: 6px;
+}
+
+.root :global(.revenue-trend) {
+  flex: 0 0 auto;
+  padding-inline: 7px;
+  white-space: nowrap;
+}
+
+/* Em telas intermediárias os oito KPIs continuam na mesma faixa, mas cada
+   célula pode ficar estreita. Nesse caso o selo desce inteiro — o nome do
+   indicador nunca é sacrificado por reticências. */
+@container (max-width: 185px) {
+  .root :global(.metric-label) {
+    width: 100%;
+  }
+
+  .root :global(.metric-label-text) {
+    overflow: visible;
+    white-space: normal;
+    text-overflow: clip;
+    line-height: 16px;
+    text-wrap: pretty;
+  }
+
+  .root :global(.metric-head:has(.revenue-trend)) {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
+  }
 }
 
 .root :global(.integration-dashboard-sections > .metric-grid > .metric-cell .metric-value),
