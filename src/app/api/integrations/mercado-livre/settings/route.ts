@@ -33,9 +33,17 @@ export async function POST(req: NextRequest) {
     // isenção declarada. Mesmo contrato da Amazon e da Shopee.
     const bruto = (body as { taxRate?: unknown }).taxRate;
     if (bruto === null) {
-      const semAliquota = { ...connection.metadata };
-      delete semAliquota.taxRate;
-      await saveIntegration({ ...connection, metadata: semAliquota });
+      // ⚠️ GRAVA `null`, NÃO APAGA A CHAVE.
+      //
+      // `saveIntegration` funde metadata no banco com `metadata || EXCLUDED`,
+      // que só ADICIONA e sobrescreve chave — jsonb `||` nunca REMOVE. O código
+      // antigo fazia `delete semAliquota.taxRate` e mandava o objeto sem a
+      // chave; a fusão simplesmente mantinha o valor velho. Quem cadastrasse 8%
+      // e tentasse limpar continuava com 8%, e a tela dizia que tinha limpado.
+      //
+      // `mercadoLivreTaxRate` já lê `null` como "não configurada" — é o mesmo
+      // significado, agora persistido de um jeito que a fusão respeita.
+      await saveIntegration({ ...connection, metadata: { ...connection.metadata, taxRate: null } });
       return NextResponse.json({ taxRate: null });
     }
     const taxRate = Number(bruto);

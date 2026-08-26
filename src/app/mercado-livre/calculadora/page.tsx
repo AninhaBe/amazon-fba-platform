@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { dicaDoImposto } from "./dicaDoImposto";
 import { PageHeader, pageIcons } from "../../components/PageHeader";
 import { calculateMarketplaceScenario } from "@/lib/marketplaceCalculator";
 import { marginStateClass } from "@/lib/marginTone";
@@ -54,6 +55,9 @@ export default function MercadoLivreCalculatorPage() {
   // Vazio, não "0": campo pré-preenchido com zero afirma isenção antes de a
   // vendedora informar qualquer coisa.
   const [taxRate, setTaxRate] = useState("");
+  // A alíquota que está SALVA na conta. O campo acima é simulação e pode
+  // divergir — guardar as duas é o que permite a tela dizer qual é qual.
+  const [aliquotaSalva, setAliquotaSalva] = useState<number | null>(null);
   const [sellerShipping, setSellerShipping] = useState("");
   const [adsRate, setAdsRate] = useState("");
   const [otherCosts, setOtherCosts] = useState("");
@@ -72,6 +76,7 @@ export default function MercadoLivreCalculatorPage() {
       if (!response.ok) throw new Error(data.error || "Não foi possível carregar o imposto configurado.");
       // `null` = não configurada. `String(null)` escreveria "null" no campo.
       setTaxRate(data.taxRate == null ? "" : String(data.taxRate));
+      setAliquotaSalva(data.taxRate ?? null);
     }).catch((reason) => {
       if (!(reason instanceof DOMException && reason.name === "AbortError")) {
         setError(reason instanceof Error ? reason.message : "Não foi possível carregar a calculadora.");
@@ -230,7 +235,18 @@ export default function MercadoLivreCalculatorPage() {
           <MoneyField label="Preço de venda" value={price} onChange={setPrice} placeholder="0,00" />
           <MoneyField label="Custo do produto" value={cost} onChange={setCost} placeholder="0,00" hint={selected?.cost == null ? "Ainda não cadastrado" : "Preenchido pelo cadastro"} />
           <MoneyField label="Frete pago por você" value={sellerShipping} onChange={setSellerShipping} placeholder="0,00" hint={externalListing?.estimatedSellerShipping == null ? undefined : "Estimado para sua conta e a logística encontrada"} />
-          <RateField label="Imposto sobre a venda" value={taxRate} onChange={setTaxRate} hint={taxRate.trim() === "" ? "Não configurada" : "Alíquota configurada"} />
+          {/*
+            ⚠️ ESTE CAMPO NÃO SALVA — E PRECISA DIZER ISSO.
+            A calculadora só faz GET em /settings; os POST dela vão para
+            /calculator, que consulta tarifa. O `taxRate` aqui é `useState`:
+            some ao trocar de página.
+            Antes a dica dizia "Alíquota configurada" assim que qualquer número
+            fosse digitado. Em 25/08/2026 alguém digitou 5%, leu "configurada",
+            e o dashboard do canal passou horas com lucro e margem em "—"
+            esperando uma alíquota que nunca foi gravada. Quem salva de verdade
+            é o card em /mercado-livre/produtos.
+          */}
+          <RateField label="Imposto sobre a venda" value={taxRate} onChange={setTaxRate} hint={dicaDoImposto(taxRate, aliquotaSalva)} />
           <RateField label="Publicidade" value={adsRate} onChange={setAdsRate} hint="ACOS esperado" />
           <MoneyField label="Embalagem e outros" value={otherCosts} onChange={setOtherCosts} placeholder="0,00" />
         </div>

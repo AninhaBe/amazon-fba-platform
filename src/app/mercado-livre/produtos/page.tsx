@@ -34,6 +34,7 @@ export default function MercadoLivreProdutosPage() {
   const [saveState, setSaveState] = useState<Record<string, "saving" | "saved" | "error">>({});
   const [taxRate, setTaxRate] = useState("");
   const [taxState, setTaxState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [taxError, setTaxError] = useState<string | null>(null);
   const [costFilter, setCostFilter] = useState<"all" | "missing" | "complete">("all");
   const [page, setPage] = useState(1);
 
@@ -101,6 +102,7 @@ export default function MercadoLivreProdutosPage() {
     event.preventDefault();
     const value = Number(taxRate.replace(",", "."));
     if (!Number.isFinite(value) || value < 0 || value > 100) {
+      setTaxError("Informe um percentual entre 0 e 100.");
       setTaxState("error");
       return;
     }
@@ -112,10 +114,18 @@ export default function MercadoLivreProdutosPage() {
         body: JSON.stringify({ taxRate: value }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Não foi possível salvar a alíquota.");
+      if (!response.ok) throw new Error(data.error || `Não foi possível salvar a alíquota (HTTP ${response.status}).`);
       setTaxRate(String(data.taxRate));
+      setTaxError(null);
       setTaxState("saved");
-    } catch {
+    } catch (reason) {
+      // ⚠️ O ERRO REAL, NÃO UM PALPITE.
+      //
+      // Antes qualquer falha — sessão expirada, 404, 500, rede caída — exibia
+      // "Informe um percentual entre 0 e 100", culpando o número que a pessoa
+      // digitou. Em 25/08/2026 isso escondeu por horas uma alíquota que nunca
+      // era salva: quem tentava lia que o valor estava errado, e estava certo.
+      setTaxError(reason instanceof Error ? reason.message : "Não foi possível salvar a alíquota.");
       setTaxState("error");
     }
   }
@@ -149,7 +159,7 @@ export default function MercadoLivreProdutosPage() {
         <span className="meli-tax-input"><input type="number" min="0" max="100" step="0.01" value={taxRate} onChange={(event) => { setTaxRate(event.target.value); setTaxState("idle"); }} aria-label="Alíquota média de imposto" /><b>%</b></span>
       </label>
       <button type="submit" disabled={taxState === "saving"}>{taxState === "saving" ? "Salvando…" : "Salvar alíquota"}</button>
-      <small aria-live="polite" className={taxState === "error" ? "is-error" : ""}>{taxState === "saved" ? "Alíquota salva" : taxState === "error" ? "Informe um percentual entre 0 e 100" : ""}</small>
+      <small aria-live="polite" className={taxState === "error" ? "is-error" : ""}>{taxState === "saved" ? "Alíquota salva" : taxState === "error" ? (taxError ?? "Não foi possível salvar a alíquota.") : ""}</small>
     </form>
 
     {error && <div role="alert" className="listing-error"><div><strong>Não foi possível carregar os produtos.</strong><p>{error}</p></div></div>}
