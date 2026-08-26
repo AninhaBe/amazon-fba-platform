@@ -17,6 +17,10 @@ const publicPaths = [
   // fora do login (o proxy do Supabase os barraria antes de checar o segredo).
   "/api/cron/",
   "/api/webhooks/mercado-livre",
+  // Idem: a Stripe assina cada evento com HMAC-SHA256 (STRIPE_WEBHOOK_SECRET) e
+  // a rota recusa 400 sem assinatura válida. Exigir sessão aqui só derrubaria a
+  // entrega — quem chama é a Stripe, que nunca terá cookie de login.
+  "/api/webhooks/stripe",
 ];
 
 export async function updateSession(request: NextRequest) {
