@@ -2286,6 +2286,11 @@ summary:hover { background: var(--paper-soft); }
 .auth-submit:hover:not(:disabled) { background: var(--brand-strong); box-shadow: 0 1px 2px oklch(0 0 0 / .1), 0 10px 24px -10px var(--brand); }
 .auth-submit:active:not(:disabled) { scale: .96; }
 .auth-submit:disabled { cursor: not-allowed; opacity: .55; }
+/* Saida secundaria do formulario de acesso (hoje: "Esqueci minha senha").
+   Discreta de proposito — concorrer com o botao principal atrapalharia quem
+   so quer entrar. */
+.auth-secondary-link { display: block; margin-block-start: 14px; color: var(--ink-muted); font-size: 12px; font-weight: 650; text-align: center; text-decoration: none; }
+.auth-secondary-link:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
 .logout-form { margin-block-start: 10px; padding-block-start: 10px; border-block-start: 1px solid var(--line); }
 .logout-form button { display: flex; width: 100%; min-height: 40px; align-items: center; gap: 9px; border-radius: 10px; padding-inline: 10px; color: var(--ink-muted); font-size: 12px; font-weight: 650; transition-property: background-color, color, scale; transition-duration: 150ms; transition-timing-function: ease-out; }
 .logout-form button:hover { background: var(--paper-soft); color: var(--ink); }

@@ -54,7 +54,13 @@ export async function signUp(_state: AuthActionState, formData: FormData): Promi
     password,
     options: { emailRedirectTo: `${baseUrl}/auth/confirm` },
   });
-  if (error) return { message: error.message };
+  // Nunca devolver `error.message` cru: vem em inglês e com vocabulário de API
+  // ("User already registered", "Email rate limit exceeded"). Além de ilegível
+  // para o vendedor, o texto do Supabase diz se o e-mail já tem conta — o mesmo
+  // vazamento que a tela de recuperação evita de propósito.
+  if (error) {
+    return { message: "Não foi possível criar a conta agora. Confira os dados e tente novamente." };
+  }
 
   if (data.session) {
     revalidatePath("/", "layout");

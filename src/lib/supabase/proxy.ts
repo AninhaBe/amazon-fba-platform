@@ -6,6 +6,11 @@ const publicPaths = [
   // Landing: é a porta de entrada; exigir sessão para vê-la não faria sentido.
   "/landing",
   "/privacidade",
+  // Quem esqueceu a senha não tem sessão para provar quem é — pedir login para
+  // recuperar o login seria o laço fechado que tranca a pessoa do lado de fora.
+  // `/nova-senha` NÃO entra aqui de propósito: lá a sessão já existe, criada por
+  // `/auth/confirm` a partir do token do e-mail.
+  "/recuperar-senha",
   "/auth/confirm",
   "/api/health",
   // Todos os endpoints de cron: já se protegem com CRON_SECRET, então ficam

@@ -220,6 +220,13 @@ export function LoginForm() {
         <button className="auth-submit" type="submit" disabled={pending || setupMissing || passwordsMismatch}>
           {pending ? "Aguarde…" : mode === "login" ? "Entrar no NEXO" : "Criar minha conta"}
         </button>
+
+        {/* Só no login: quem está criando conta ainda não tem senha para esquecer. */}
+        {mode === "login" ? (
+          <Link className="auth-secondary-link" href="/recuperar-senha">
+            Esqueci minha senha
+          </Link>
+        ) : null}
       </form>
       <footer className="auth-card-footer">
         <Link href="/landing">Conhecer o NEXO</Link>
