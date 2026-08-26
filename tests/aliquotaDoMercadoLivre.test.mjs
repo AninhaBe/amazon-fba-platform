@@ -140,3 +140,31 @@ test("o erro mostrado e o do servidor, nao um palpite", () => {
   const p = painel();
   assert.match(p, /erro: motivo instanceof Error \? motivo\.message/);
 });
+
+test("a aliquota virou passo do onboarding", () => {
+  // Pedido dela em 26/08/2026: *"tem uma parte de onboarding pra primeiros
+  // acessos, coloque isso como mais um passo pra não passar despercebido"*.
+  // É o campo que mais passa batido — e sem ele o lucro do canal sai otimista.
+  const tour = arquivo("src/app/components/NexoOnboarding.tsx");
+  assert.match(tour, /data-onboarding='tax-rates'/);
+  // O passo é o ÚLTIMO: quem chega vê primeiro o que a operação já mostra, e só
+  // então o que precisa configurar.
+  const passos = tour.slice(tour.indexOf("const STEPS = ["), tour.indexOf("] as const;"));
+  const linhas = passos.split("{ selector:").slice(1);
+  assert.equal(linhas.length, 4, "o tour tem quatro passos");
+  assert.match(linhas.at(-1), /tax-rates/);
+  // A descrição precisa dizer que é UMA POR CANAL, senão o passo ensina errado.
+  assert.match(tour, /a da Amazon não vale para o Mercado Livre/);
+});
+
+test("o painel esta marcado para o tour achar", () => {
+  assert.match(painel(), /data-onboarding="tax-rates"/);
+});
+
+test("a versao do tour NAO foi bumpada", () => {
+  // Bumpar `nexo:onboarding:v1` re-exibiria o tour inteiro para quem já
+  // terminou. O pedido foi cobrir PRIMEIROS acessos; quem já usa reabre o tour
+  // pelo menu quando quiser. Se um dia a decisão mudar, é aqui que se vê.
+  const tour = arquivo("src/lib/productTour.ts");
+  assert.match(tour, /NEXO_ONBOARDING_VERSION = "nexo:onboarding:v1"/);
+});

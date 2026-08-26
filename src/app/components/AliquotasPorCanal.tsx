@@ -118,8 +118,12 @@ export function AliquotasPorCanal() {
 
   const algumConectado = CANAIS.some((c) => linhas[c.id].estado !== "desconectado" && linhas[c.id].estado !== "carregando");
 
+  // `data-onboarding` liga este painel ao 4º passo do tour (NexoOnboarding).
+  // Sem imposto cadastrado, lucro e margem do canal saem "—" ou otimistas — por
+  // isso a configuração entrou no caminho de quem chega, e não só numa tela que
+  // a pessoa precisaria descobrir sozinha.
   return (
-    <section className="aliquotas-panel" aria-labelledby="aliquotas-title">
+    <section className="aliquotas-panel" data-onboarding="tax-rates" aria-labelledby="aliquotas-title">
       <header>
         <p className="section-kicker">Imposto sobre vendas</p>
         <h2 id="aliquotas-title">Alíquota de cada canal</h2>

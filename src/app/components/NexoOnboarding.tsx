@@ -15,6 +15,17 @@ const STEPS = [
   { selector: "[data-onboarding='channels']", title: "Todos os canais no mesmo lugar", description: "Troque de marketplace sem perder o contexto da operação. A visão geral reúne o que importa entre eles.", placement: "right" },
   { selector: "[data-onboarding='context'], .page-heading", title: "Comece pelo que aconteceu", description: "O NEXO abre cada painel com uma leitura do período e coloca as pendências acionáveis ao lado.", placement: "bottom" },
   { selector: "[data-onboarding='financial-summary'], .app-topbar-actions a[href='/briefing']", title: "Entenda para onde o dinheiro foi", description: "Receita, custos e resultado ficam na mesma composição. O que ainda não fechou continua explicitamente pendente.", placement: "left" },
+  // ⚠️ 4º PASSO PORQUE ESTE É O CAMPO QUE MAIS PASSA DESPERCEBIDO.
+  //
+  // Sem alíquota, o lucro do canal sai sem imposto — otimista — e a margem pode
+  // nem aparecer. Em 25-26/08/2026 o Mercado Livre ficou horas com Lucro e
+  // Margem em "—" por causa disso: o número existia (R$ 61,89, margem 3,0%) e a
+  // tela não mostrava, porque a alíquota nunca tinha sido cadastrada.
+  //
+  // O passo aponta para a Visão geral, onde os quatro canais têm o campo lado a
+  // lado. A queda para `#main-content` (feita por `updateTarget`) cobre quem
+  // abrir o tour de outra rota; por isso a descrição NOMEIA onde fica.
+  { selector: "[data-onboarding='tax-rates']", title: "Cadastre a alíquota de cada canal", description: "Na Visão geral, cada marketplace tem a sua — a da Amazon não vale para o Mercado Livre. Sem ela o lucro do canal sai sem imposto, e a margem pode nem aparecer.", placement: "bottom" },
 ] as const;
 
 type TargetRect = { top: number; left: number; width: number; height: number };
