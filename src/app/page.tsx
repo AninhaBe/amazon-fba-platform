@@ -11,6 +11,7 @@ import { RevenueChart, type DailyPoint } from "./components/RevenueChart";
 import { brTime } from "@/lib/datetime";
 import { tendenciaSemanal, detectarAlerta, leituraRapidaDosCanais, margemDoCanal, percent } from "@/lib/centralOverview";
 import { NexoMensagem } from "./components/NexoMensagem";
+import { AliquotasPorCanal } from "./components/AliquotasPorCanal";
 import { gatherCentralChannels, type ChannelSnapshot } from "./centralChannels";
 import { marginMetricTone, marginStateClass } from "@/lib/marginTone";
 
@@ -302,6 +303,13 @@ export default function OverviewDashboard() {
             <RevenueChart key={chartChannel} points={serieExibida} explorable />
           </section>
         )}
+
+        {/* A alíquota dos quatro canais, num lugar só. Fica na Visão geral por
+            pedido dela em 26/08/2026: é configuração da operação inteira, e
+            caçá-la dentro de cada canal foi o que deixou o Mercado Livre meses
+            sem imposto cadastrado. UMA POR CANAL — o componente não copia
+            valor de um para o outro. */}
+        <AliquotasPorCanal />
 
       </div>}
     </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { dicaDoImposto } from "./dicaDoImposto";
+import { dicaDoImposto } from "@/lib/aliquota";
 import { PageHeader, pageIcons } from "../../components/PageHeader";
 import { calculateMarketplaceScenario } from "@/lib/marketplaceCalculator";
 import { marginStateClass } from "@/lib/marginTone";

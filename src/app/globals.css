@@ -5591,3 +5591,46 @@ summary:hover { background: var(--paper-soft); }
 /* Keep the TikTok ABC visualization in the final compiled layer as well. This
    marker also prevents an old development CSS chunk from winning after HMR. */
 .tiktok-abc-insights { --tiktok-abc-visualization: 1; }
+
+/* ---- Alíquota por canal (Visão geral) --------------------------------------
+   Quatro linhas, uma por canal, cada uma um <form> próprio: salvar a Amazon não
+   toca no Mercado Livre. A grade é `subgrid` para que rótulo, campo, botão e
+   dica fiquem em colunas alinhadas entre as linhas — sem isso, nome de canal
+   curto ("Shopee") e longo ("Mercado Livre") empurravam o campo para posições
+   diferentes e a coluna de números virava escada. */
+.aliquotas-panel { border-radius: var(--radius-lg); background: var(--paper); padding: 22px; box-shadow: var(--shadow-surface); }
+.aliquotas-panel > header h2 { margin-block-start: 4px; color: var(--ink); font-size: 18px; font-weight: 760; letter-spacing: -.025em; }
+.aliquotas-panel > header p:not(.section-kicker) { max-width: 72ch; margin-block-start: 5px; color: var(--ink-muted); font-size: 13px; line-height: 1.5; }
+.aliquotas-panel > header strong { color: var(--ink); font-weight: 700; }
+
+.aliquotas-grid { display: grid; grid-template-columns: minmax(150px, auto) auto auto minmax(0, 1fr); gap: 10px 14px; margin-block-start: 18px; }
+.aliquota-linha { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; border-block-start: 1px solid var(--ink-08); padding-block-start: 10px; }
+.aliquota-linha:first-child { border-block-start: 0; padding-block-start: 0; }
+.aliquota-canal { display: flex; align-items: center; gap: 9px; color: var(--ink); font-size: 14px; }
+.aliquota-canal b { font-weight: var(--weight-medium); }
+
+.aliquota-input { display: flex; overflow: hidden; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--paper); }
+.aliquota-input input { width: 86px; border: 0 !important; background: none; padding: 0 10px; min-height: 38px; text-align: end; font-size: 14px; font-variant-numeric: tabular-nums; box-shadow: none !important; }
+.aliquota-input input:disabled { color: var(--ink-muted); }
+.aliquota-input b { display: grid; width: 32px; place-items: center; border-inline-start: 1px solid var(--line); background: var(--paper-soft); color: var(--ink-muted); font-weight: 650; }
+
+.aliquota-linha button { min-height: 38px; border-radius: var(--radius-sm); background: var(--ink); padding-inline: 15px; color: white; font-size: 12px; font-weight: 700; }
+.aliquota-linha button:hover:not(:disabled) { background: color-mix(in oklch, var(--ink) 88%, white); }
+.aliquota-linha button:disabled { opacity: .5; cursor: default; }
+/* A dica ocupa a 4ª coluna e NÃO recorta: é ela que diz "simulação" ou o erro
+   real do servidor, e cortar essa frase foi o defeito que escondeu uma alíquota
+   nunca salva por horas. */
+.aliquota-linha > small { color: var(--ink-muted); font-size: 12px; line-height: 1.4; }
+.aliquota-linha > small.is-error { color: var(--danger); }
+.aliquota-vazio { grid-column: 2 / -1; color: var(--ink-muted); font-size: 12.5px; }
+
+.aliquotas-rodape { margin-block-start: 16px; color: var(--ink-muted); font-size: 12px; line-height: 1.5; }
+.aliquotas-rodape strong { color: var(--ink); font-weight: 700; }
+
+@media (max-width: 720px) {
+  /* Sem subgrid no estreito: cada linha vira um bloco, senão o campo de 86px e
+     o botão dividiriam 320px com o nome do canal e nada caberia. */
+  .aliquotas-grid { grid-template-columns: minmax(0, 1fr); }
+  .aliquota-linha { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 10px; }
+  .aliquota-canal, .aliquota-linha > small, .aliquota-vazio { grid-column: 1 / -1; }
+}
