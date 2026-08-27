@@ -7,6 +7,8 @@
 import { dbQuery } from "../src/lib/db.ts";
 import { runWithWorkspace } from "../src/lib/workspaceScope.ts";
 import { saveCanonicalOrders, saveCanonicalProducts } from "../src/lib/integrations/canonicalStore.ts";
+import { tiktokConnectionId, tiktokCostId } from "../src/lib/integrations/tiktokContract.ts";
+import crypto from "node:crypto";
 
 const DEMO_EMAIL = process.env.DEMO_EMAIL ?? "trial.sellercore@gmail.com";
 const DEMO_PASSWORD = process.env.DEMO_PASSWORD ?? "";
@@ -78,6 +80,13 @@ const AMZ_ITEMS = [
   { id: "B0DEMO0004", sku: "MOUSE-ERGO-BT", title: "Mouse Ergonômico Vertical Sem Fio", price: 89.9, cost: 42.1, qty: 120, thumbnail: null, weight: 2 },
 ];
 
+const TIKTOK_ITEMS = [
+  { id: "TTS-DEMO-001", sku: "RING-LIGHT-10", title: "Ring Light 10 Polegadas com Tripé e Suporte de Celular", price: 79.9, cost: 34.6, qty: 210, thumbnail: null, weight: 5 },
+  { id: "TTS-DEMO-002", sku: "MINI-VENT-USB", title: "Mini Ventilador Portátil USB Recarregável", price: 45.9, cost: 18.4, qty: 340, thumbnail: null, weight: 4 },
+  { id: "TTS-DEMO-003", sku: "ORGAN-MAQ-6", title: "Organizador de Maquiagem Acrílico 6 Gavetas", price: 99.9, cost: 44.2, qty: 120, thumbnail: null, weight: 3 },
+  { id: "TTS-DEMO-004", sku: "MASSAG-PESCOCO", title: "Massageador de Pescoço Elétrico Recarregável", price: 149.9, cost: 71.8, qty: 70, thumbnail: null, weight: 2 },
+];
+
 // PRNG determinístico (sem Math.random) — seed fixa deixa o script idempotente.
 function mulberry32(seed) {
   let a = seed >>> 0;
@@ -109,11 +118,13 @@ function buildOrders(provider, items, days, perDayAvg, seed) {
       const delivered = day > 7 || rand() < 0.5;
       const status = cancelled ? "cancelled" : delivered ? "delivered" : day > 2 ? "shipped" : "paid";
       sequence += 1 + Math.floor(rand() * 7);
-      const orderId = provider === "amazon" ? `701-${sequence}-${(2000000 + sequence * 3) % 9999999}` : `20000${sequence}`;
+      const orderId = provider === "amazon"
+        ? `701-${sequence}-${(2000000 + sequence * 3) % 9999999}`
+        : provider === "tiktok_shop" ? `5770${sequence}${(sequence * 7) % 97}` : `20000${sequence}`;
 
-      const feeRates = { amazon: 0.15, mercado_livre: 0.14, shopee: 0.12 };
-      const feeCodes = { amazon: "ReferralFee", mercado_livre: "sale_fee", shopee: "commission_fee" };
-      const shipCodes = { amazon: "FBAPerUnitFulfillmentFee", mercado_livre: "shipping_fee", shopee: "actual_shipping_fee" };
+      const feeRates = { amazon: 0.15, mercado_livre: 0.14, shopee: 0.12, tiktok_shop: 0.11 };
+      const feeCodes = { amazon: "ReferralFee", mercado_livre: "sale_fee", shopee: "commission_fee", tiktok_shop: "platform_commission" };
+      const shipCodes = { amazon: "FBAPerUnitFulfillmentFee", mercado_livre: "shipping_fee", shopee: "actual_shipping_fee", tiktok_shop: "shipping_fee" };
       const fees = cancelled ? [] : [
         {
           feeType: "commission",
@@ -142,7 +153,20 @@ function buildOrders(provider, items, days, perDayAvg, seed) {
         packId: null,
         items: [{ externalProductId: item.id, sku: item.sku, title: item.title, qty, unitPrice: item.price }],
         fees,
-        raw: { demo: true },
+        // O TikTok le o financeiro do LEDGER, nao do pedido: `statementSettled`
+        // e as flags de `financialEvidence` sao o que faz tarifa e frete serem
+        // CONHECIDOS em vez de `null`. Sem isso o painel do canal fica em
+        // travessao mesmo com pedido gravado. Nos outros canais o campo e
+        // ignorado, entao vai so no TikTok.
+        raw: provider === "tiktok_shop"
+          ? {
+              demo: true,
+              _sellercore: {
+                statementSettled: !cancelled,
+                financialEvidence: { fees: !cancelled, sellerShipping: !cancelled, ads: true, taxesWithheld: true, refunds: true },
+              },
+            }
+          : { demo: true },
       });
     }
   }
@@ -166,14 +190,8 @@ function buildProducts(items, provider) {
   }));
 }
 
-async function seedConnection(workspaceId, provider, connectionId, displayName) {
-  await dbQuery(
-    `INSERT INTO workspace_integrations
-       (workspace_id, id, provider, external_account_id, display_name, mode, status, metadata)
-     VALUES ($1, $2, $3, $4, $5, 'local', 'connected', '{"demo": true}'::jsonb)
-     ON CONFLICT (workspace_id, id) DO UPDATE SET status = 'connected', metadata = '{"demo": true}'::jsonb`,
-    [workspaceId, connectionId, provider, `demo-${provider}`, displayName]
-  );
+/** Linha de sync — comum aos quatro canais. */
+async function seedSync(workspaceId, provider, connectionId) {
   await dbQuery(
     `INSERT INTO workspace_marketplace_syncs
        (workspace_id, provider, connection_id, status, target_from, target_to,
@@ -188,6 +206,43 @@ async function seedConnection(workspaceId, provider, connectionId, displayName) 
   );
 }
 
+/**
+ * Loja sintetica do TikTok.
+ *
+ * ⚠️ O TikTok NAO usa `workspace_integrations` como os outros tres: a conexao
+ * dele mora em `workspace_tiktok_shops`, com token proprio. Por isso este canal
+ * tem funcao separada em vez de passar pelo `seedConnection`.
+ *
+ * Token sintetico com validade longa: o codigo do canal recusa operar com token
+ * vencido, e a conta precisa continuar aberta durante toda a moderacao.
+ */
+async function seedTiktokShop(workspaceId, shopId, shopName) {
+  await dbQuery(
+    `INSERT INTO workspace_tiktok_shops
+       (workspace_id, shop_id, shop_name, shop_cipher, region, access_token, refresh_token,
+        access_expires_at, refresh_expires_at, tax_rate)
+     VALUES ($1, $2, $3, $4, 'BR', $5, $6, now() + interval '365 days', now() + interval '365 days', 8.5)
+     ON CONFLICT (workspace_id, shop_id) DO UPDATE SET
+       shop_name = EXCLUDED.shop_name,
+       access_expires_at = EXCLUDED.access_expires_at,
+       refresh_expires_at = EXCLUDED.refresh_expires_at,
+       tax_rate = EXCLUDED.tax_rate`,
+    [workspaceId, shopId, shopName, `demo-cipher-${shopId}`, `demo-access-${shopId}`, `demo-refresh-${shopId}`]
+  );
+  await seedSync(workspaceId, "tiktok_shop", tiktokConnectionId(shopId));
+}
+
+async function seedConnection(workspaceId, provider, connectionId, displayName) {
+  await dbQuery(
+    `INSERT INTO workspace_integrations
+       (workspace_id, id, provider, external_account_id, display_name, mode, status, metadata)
+     VALUES ($1, $2, $3, $4, $5, 'local', 'connected', '{"demo": true}'::jsonb)
+     ON CONFLICT (workspace_id, id) DO UPDATE SET status = 'connected', metadata = '{"demo": true}'::jsonb`,
+    [workspaceId, connectionId, provider, `demo-${provider}`, displayName]
+  );
+  await seedSync(workspaceId, provider, connectionId);
+}
+
 async function seedCosts(workspaceId, items) {
   for (const item of items) {
     await dbQuery(
@@ -197,6 +252,80 @@ async function seedCosts(workspaceId, items) {
       [workspaceId, item.sku, item.sku, item.id, item.title, item.cost]
     );
   }
+}
+
+/**
+ * Extrato liquidado sintetico do TikTok: e ele que tira Taxas/Lucro/Margem do
+ * travessao.
+ *
+ * A tela do TikTok NAO soma o pedido: ela le `workspace_financial_transactions`
+ * e, sem cobertura, cai em `per_order_fallback` com `periodCovered: false` — e
+ * `calculateTiktokFinancialV2` devolve lucro `null` nesse caso. Entao o seed
+ * precisa das DUAS metades: as transacoes e os checkpoints que provam a janela.
+ *
+ * Sinais: `commission` e `seller_shipping` entram em MAGNITUDE POSITIVA, igual
+ * ao que o `normalizeTransaction` grava (ele aplica `Math.abs`). Inverter aqui
+ * faria o lucro do demo estourar para cima.
+ *
+ * `ads`, `taxes_withheld`, `refunds` e `buyer_shipping` vao com ZERO EXPLICITO,
+ * nao `null`: num extrato liquidado, ausencia de anuncio e ausencia de retencao
+ * sao fatos ("a plataforma nao cobrou"), e e o que faz esses componentes
+ * fecharem `complete` em vez de ficarem pendurados como desconhecidos.
+ */
+async function seedTiktokLedger(workspaceId, connectionId, orders) {
+  const REVENUE = new Set(["paid", "shipped", "delivered"]);
+  const liquidados = orders.filter((order) => REVENUE.has(order.status));
+  let gravadas = 0;
+  for (const order of liquidados) {
+    const dia = order.occurredAt.slice(0, 10);
+    const commission = order.fees.find((fee) => fee.feeType === "commission")?.amount ?? 0;
+    const frete = order.fees.find((fee) => fee.feeType === "shipping_seller")?.amount ?? 0;
+    const settlement = Number((order.gross - commission - frete).toFixed(2));
+    const transactionId = `demo-tx-${order.externalOrderId}`;
+    // 32 bytes exatos: a 0005 tem CHECK de octet_length no raw_sha256.
+    const hash = crypto.createHash("sha256").update(transactionId).digest();
+    await dbQuery(
+      `INSERT INTO workspace_financial_transactions
+         (workspace_id, provider, connection_id, transaction_id, statement_id, order_id,
+          transaction_type, occurred_at, currency, revenue, seller_shipping, commission,
+          buyer_shipping, ads, taxes_withheld, refunds,
+          settlement_amount, settlement_state, is_estimated, source_resource,
+          source_record_id, source_observed_at, source_rank, raw_allowlisted, raw_sha256)
+       VALUES ($1,'tiktok_shop',$2,$3,$4,$5,'ORDER',$6,'BRL',$7,$8,$9,
+               0, 0, 0, 0,
+               $10,
+               'settled', FALSE, 'statement_transactions', $3, now(), 100,
+               '{"demo": true}'::jsonb, $11)
+       ON CONFLICT (workspace_id, provider, connection_id, transaction_id) DO UPDATE SET
+         revenue = EXCLUDED.revenue, commission = EXCLUDED.commission,
+         seller_shipping = EXCLUDED.seller_shipping, settlement_amount = EXCLUDED.settlement_amount,
+         buyer_shipping = 0, ads = 0, taxes_withheld = 0, refunds = 0,
+         updated_at = now()`,
+      [workspaceId, connectionId, transactionId, `demo-stmt-${dia}`, order.externalOrderId,
+       order.occurredAt, order.gross, frete, commission, settlement, hash]
+    );
+    gravadas += 1;
+  }
+
+  // Checkpoint unico e largo. `checkpointsCoverPeriod` exige `completed_at`,
+  // `terminal_cursor` e `error_count = 0`, e recusa qualquer periodo que termine
+  // depois da fronteira do dia fechado — por isso a janela vai ate hoje 00:00 BRT.
+  for (const resource of ["statements", "payments", "unsettled"]) {
+    await dbQuery(
+      `INSERT INTO workspace_financial_sync_checkpoints
+         (workspace_id, provider, connection_id, resource, window_from, window_to,
+          owner_token, fencing_token, page_number, terminal_cursor, completed_at,
+          rows_seen, rows_written, error_count, lease_until)
+       VALUES ($1,'tiktok_shop',$2,$3, now() - interval '90 days',
+               date_trunc('day', now() AT TIME ZONE 'America/Sao_Paulo') AT TIME ZONE 'America/Sao_Paulo',
+               gen_random_uuid(), 1, 1, TRUE, now(), $4, $4, 0, now())
+       ON CONFLICT (workspace_id, provider, connection_id, resource, window_from, window_to)
+         DO UPDATE SET terminal_cursor = TRUE, completed_at = now(), error_count = 0,
+                       rows_seen = EXCLUDED.rows_seen, rows_written = EXCLUDED.rows_written`,
+      [workspaceId, connectionId, resource, gravadas]
+    );
+  }
+  return gravadas;
 }
 
 async function main() {
@@ -209,6 +338,9 @@ async function main() {
   await seedConnection(workspaceId, "mercado_livre", ML_CONN, "Loja Demo ML");
   await seedConnection(workspaceId, "amazon", AMZ_CONN, "Loja Demo Amazon");
   await seedConnection(workspaceId, "shopee", SHP_CONN, "Loja Demo Shopee");
+  const TTS_SHOP = "demo-tiktok-shop";
+  const TTS_CONN = tiktokConnectionId(TTS_SHOP);
+  await seedTiktokShop(workspaceId, TTS_SHOP, "Loja Demo TikTok");
   await seedCosts(workspaceId, [...ML_ITEMS, ...AMZ_ITEMS]);
   // A Shopee lê custo pela chave própria do canal (shopee:<conexao>:sku:<sku>).
   for (const item of SHOPEE_ITEMS) {
@@ -220,9 +352,20 @@ async function main() {
     );
   }
 
+  // O TikTok resolve custo por chave propria do canal, como a Shopee.
+  for (const item of TIKTOK_ITEMS) {
+    await dbQuery(
+      `INSERT INTO workspace_product_costs (workspace_id, id, sku, asin, title, cost)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (workspace_id, id) DO UPDATE SET cost = EXCLUDED.cost, title = EXCLUDED.title`,
+      [workspaceId, tiktokCostId(TTS_CONN, item.id, item.sku), item.sku, item.id, item.title, item.cost]
+    );
+  }
+
   const mlOrders = buildOrders("mercado_livre", ML_ITEMS, 45, 4, 42);
   const amzOrders = buildOrders("amazon", AMZ_ITEMS, 45, 3, 7);
   const shpOrders = buildOrders("shopee", SHOPEE_ITEMS, 45, 5, 91);
+  const ttsOrders = buildOrders("tiktok_shop", TIKTOK_ITEMS, 45, 5, 17);
 
   await runWithWorkspace(workspaceId, async () => {
     await saveCanonicalProducts({ provider: "mercado_livre", connectionId: ML_CONN }, buildProducts(ML_ITEMS, "mercado_livre"));
@@ -231,7 +374,11 @@ async function main() {
     await saveCanonicalOrders({ provider: "amazon", connectionId: AMZ_CONN }, amzOrders);
     await saveCanonicalProducts({ provider: "shopee", connectionId: SHP_CONN }, buildProducts(SHOPEE_ITEMS, "shopee"));
     await saveCanonicalOrders({ provider: "shopee", connectionId: SHP_CONN }, shpOrders);
+    await saveCanonicalProducts({ provider: "tiktok_shop", connectionId: TTS_CONN }, buildProducts(TIKTOK_ITEMS, "tiktok_shop"));
+    await saveCanonicalOrders({ provider: "tiktok_shop", connectionId: TTS_CONN }, ttsOrders);
   });
+
+  const ttsLedger = await seedTiktokLedger(workspaceId, TTS_CONN, ttsOrders);
 
   const counts = await dbQuery(
     `SELECT provider, COUNT(*)::text AS total FROM workspace_channel_orders WHERE workspace_id = $1 GROUP BY provider`,
@@ -240,7 +387,8 @@ async function main() {
   const countRows = Array.isArray(counts) ? counts : counts.rows;
   console.log("workspace:", workspaceId);
   for (const row of countRows) console.log(`pedidos ${row.provider}: ${row.total}`);
-  console.log("gerados -> ML:", mlOrders.length, "| Amazon:", amzOrders.length, "| Shopee:", shpOrders.length);
+  console.log("gerados -> ML:", mlOrders.length, "| Amazon:", amzOrders.length, "| Shopee:", shpOrders.length, "| TikTok:", ttsOrders.length);
+  console.log("extrato TikTok liquidado (transacoes):", ttsLedger);
 }
 
 main().then(() => process.exit(0)).catch((error) => {
