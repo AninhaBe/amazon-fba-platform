@@ -40,6 +40,7 @@ function scopeSentence(scope?: ProfitabilityScope): string | undefined {
 import type { ProfitabilityLine } from "@/lib/profitability";
 import { brDate, brTime } from "@/lib/datetime";
 import { coberturaDoPeriodo } from "@/lib/coberturaPeriodo";
+import { SincronizacaoCompleta } from "../components/SincronizacaoCompleta";
 import { readJson } from "../../lib/readJson";
 
 // Faixa de cima: o que resume o RESULTADO. Anuncio entrou aqui em 25/08/2026
@@ -133,7 +134,7 @@ interface DashboardPayload {
   /** Período resolvido + cobertura do sync (frente K): a tela distingue
    *  "não vendeu" de "ainda não importei" — nunca zero fabricado. */
   period?: { from: string; to: string };
-  sync?: { coveredFrom: string | null; status: string | null; processedOrders: number };
+  sync?: { connectionId: string; coveredFrom: string | null; coveredTo: string | null; status: string | null; processedOrders: number };
   currency: string;
   /** Faturamento bruto do período — espelha o painel do canal (ADR-020). */
   billing: {
@@ -259,7 +260,7 @@ export default function Dashboard() {
   // Cobertura do sync vs. período (frente K) — vem da rota agregadora.
   const [cobertura, setCobertura] = useState<{
     periodo: { from: string; to: string };
-    sync: { coveredFrom: string | null; status: string | null; processedOrders: number };
+    sync: { connectionId: string; coveredFrom: string | null; coveredTo: string | null; status: string | null; processedOrders: number };
   } | null>(null);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(initialDash?.updatedAt ?? null);
 
@@ -550,6 +551,15 @@ export default function Dashboard() {
             ? <> — o início do período ainda está sendo importado ({cobertura?.sync.processedOrders ?? 0} pedido(s) já importado(s)).</>
             : <> — o histórico importado começa aí.</>}
         </div>
+      )}
+
+      {cobertura && (
+        <SincronizacaoCompleta
+          connectionId={cobertura.sync.connectionId}
+          status={cobertura.sync.status}
+          coveredFrom={cobertura.sync.coveredFrom}
+          coveredTo={cobertura.sync.coveredTo}
+        />
       )}
 
       {/* A primeira faixa contém somente os indicadores que resumem o resultado.

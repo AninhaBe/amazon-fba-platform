@@ -21,6 +21,7 @@ import { CompactMetric, Flow, FlowExpandable, Metric, getRevenueTrend } from "./
 import { buildFinancialComposition, FinancialSummaryPanel } from "./FinancialSummaryPanel";
 import { brDate, brTime } from "@/lib/datetime";
 import { coberturaDoPeriodo } from "@/lib/coberturaPeriodo";
+import { SincronizacaoCompleta } from "./SincronizacaoCompleta";
 import type { ProfitabilityLine } from "@/lib/profitability";
 import { MercadoLivreSaldo } from "./MercadoLivreSaldo";
 import { ResumoDoCustoNoFull, TabelaDoCustoNoFull, useCustoNoFull } from "./MercadoLivreCustoNoFull";
@@ -53,6 +54,8 @@ interface SyncStatus {
   status: "pending" | "syncing" | "complete" | "error" | "unavailable";
   progress: number;
   processedOrders: number;
+  coveredFrom: string | null;
+  coveredTo: string | null;
   lastSuccessAt: string | null;
   error: string | null;
 }
@@ -134,6 +137,7 @@ function MercadoLivreWorkspaceInterno({ view }: { view: keyof typeof views }) {
   const [connectionPresent, setConnectionPresent] = useState(!!initialCached);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(initialCached?.updatedAt ?? null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(initialCached?.syncStatus ?? null);
+  const [connectionId, setConnectionId] = useState<string | null>(null);
   const [retryKey, setRetryKey] = useState(0);
   const page = views[view];
 
@@ -177,7 +181,10 @@ function MercadoLivreWorkspaceInterno({ view }: { view: keyof typeof views }) {
             }
             throw new Error(data.error || "Não foi possível consultar o Mercado Livre.");
           }
-          if (data.connectionId) setConnectionPresent(true);
+          if (data.connectionId) {
+            setConnectionPresent(true);
+            setConnectionId(String(data.connectionId));
+          }
           if (data.sync) setSyncStatus(data.sync as SyncStatus);
           if (data.overview) {
             const nextOverview = data.overview as Overview;
@@ -245,7 +252,7 @@ function MercadoLivreWorkspaceInterno({ view }: { view: keyof typeof views }) {
         </div>
       ) : !overview ? (
         <EmptyState title="Conecte sua conta do Mercado Livre" description="Autorize o NEXO para começar a importar anúncios e pedidos." action={<Link href="/integracoes" className="meli-primary-action">Gerenciar integração <span aria-hidden="true">→</span></Link>} />
-      ) : view === "dashboard" ? <Dashboard overview={overview} syncStatus={syncStatus} periodoLabel={period.label} /> : view === "estoque" ? <Inventory overview={overview} /> : <Monitor overview={overview} secaoInicial={secaoInicial} />}
+      ) : view === "dashboard" ? <Dashboard overview={overview} syncStatus={syncStatus} periodoLabel={period.label} connectionId={connectionId} /> : view === "estoque" ? <Inventory overview={overview} /> : <Monitor overview={overview} secaoInicial={secaoInicial} />}
     </IntegrationDashboardFrame>
   );
 }
@@ -289,7 +296,7 @@ function avaliarResultado(overview: Overview) {
   return { semAliquota, resultParcial, resultIncomplete, margemSub };
 }
 
-function Dashboard({ overview, syncStatus, periodoLabel }: { overview: Overview; syncStatus: SyncStatus | null; periodoLabel: string }) {
+function Dashboard({ overview, syncStatus, periodoLabel, connectionId }: { overview: Overview; syncStatus: SyncStatus | null; periodoLabel: string; connectionId: string | null }) {
   const [costsOpen, setCostsOpen] = useState(false);
   const profitCoverage = overview.profit.coverage;
   const units = overview.dailySales.reduce((total, point) => total + point.units, 0);
@@ -372,6 +379,15 @@ function Dashboard({ overview, syncStatus, periodoLabel }: { overview: Overview;
           ? <> — o início do período ainda está sendo importado ({syncStatus?.processedOrders ?? 0} pedido(s) já importado(s)).</>
           : <> — o histórico importado começa aí.</>}
       </div>
+    )}
+
+    {connectionId && syncStatus && (
+      <SincronizacaoCompleta
+        connectionId={connectionId}
+        status={syncStatus.status}
+        coveredFrom={syncStatus.coveredFrom}
+        coveredTo={syncStatus.coveredTo}
+      />
     )}
 
     <section className="metric-grid ml-dashboard-metric-grid" aria-label="Resumo financeiro Mercado Livre">

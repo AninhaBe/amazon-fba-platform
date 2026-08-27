@@ -22,6 +22,7 @@ import { ConnectionBroken } from "./ConnectionBroken";
 import { ChannelConnectionEmpty } from "./ChannelConnectionEmpty";
 import { brDate } from "@/lib/datetime";
 import { coberturaDoPeriodo, periodoDaQuery } from "@/lib/coberturaPeriodo";
+import { SincronizacaoCompleta } from "./SincronizacaoCompleta";
 import { marginMetricTone } from "@/lib/marginTone";
 import {
   coverageDescription,
@@ -280,6 +281,13 @@ export function TikTokWorkspace() {
               : <> — o histórico importado começa aí.</>}
           </div>
         )}
+        <SincronizacaoCompleta
+          connectionId={data.connection.id}
+          status={data.sync.status}
+          coveredFrom={data.sync.coveredFrom}
+          coveredTo={data.sync.coveredTo}
+        />
+
         {financialBlocked ? (
           <StatusNotice title="Financeiro indisponível neste ambiente">A estrutura do ledger financeiro ainda não está disponível. Vendas e catálogo continuam visíveis, mas taxas e resultado permanecem desconhecidos; nenhum valor foi convertido em zero.</StatusNotice>
         ) : (

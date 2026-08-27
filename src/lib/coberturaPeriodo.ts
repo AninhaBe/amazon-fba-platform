@@ -26,6 +26,28 @@ const TOLERANCIA_PADRAO_MS = 15 * 60_000;
 const DIA_MS = 86_400_000;
 
 /**
+ * Meses de histórico coberto, para o aviso "sua loja está 100% sincronizada —
+ * histórico de N meses completo". Arredonda por mês comercial (30 dias) e nunca
+ * devolve menos de 1 quando há cobertura.
+ */
+export function mesesDeHistorico(coveredFrom: string | null | undefined, coveredTo: string | null | undefined): number | null {
+  if (!coveredFrom || !coveredTo) return null;
+  const deMs = new Date(coveredFrom).getTime();
+  const ateMs = new Date(coveredTo).getTime();
+  if (!Number.isFinite(deMs) || !Number.isFinite(ateMs) || ateMs <= deMs) return null;
+  return Math.max(1, Math.round((ateMs - deMs) / (30 * DIA_MS)));
+}
+
+/**
+ * Chave do dismiss do aviso de sincronização completa. Inclui os meses de
+ * propósito: quando o alvo de histórico for aprofundado (ex.: 60d → 12 meses) e
+ * a fase 2 fechar de novo, o aviso reaparece com o número novo.
+ */
+export function chaveDeAvisoSincronizada(connectionId: string, meses: number): string {
+  return `nexo:sync-completa:${connectionId}:${meses}`;
+}
+
+/**
  * Range do período a partir da query do filtro de dashboard ("days=30" ou
  * "from=YYYY-MM-DD&to=YYYY-MM-DD") — o mesmo formato que as rotas resolvem no
  * servidor (fuso de Brasília no período personalizado).

@@ -21,6 +21,7 @@ import { CompactMetric, Flow, FlowExpandable, Metric, getRevenueTrend } from "./
 import { buildFinancialComposition, FinancialSummaryPanel } from "./FinancialSummaryPanel";
 import { brDate, brTime } from "@/lib/datetime";
 import { coberturaDoPeriodo } from "@/lib/coberturaPeriodo";
+import { SincronizacaoCompleta } from "./SincronizacaoCompleta";
 import { FlaskConical } from "lucide-react";
 import type { ProfitabilityLine } from "@/lib/profitability";
 import type { ShopeeSyncStatus } from "@/lib/integrations/shopeeSync";
@@ -484,6 +485,15 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
             ? <> — o início do período ainda está sendo importado ({sync?.processedOrders ?? 0} pedido(s) já importado(s)).</>
             : <> — o histórico importado começa aí.</>}
         </div>
+      )}
+
+      {sync && (
+        <SincronizacaoCompleta
+          connectionId={`shopee:${overview.account.id}`}
+          status={sync.status}
+          coveredFrom={sync.coveredFrom}
+          coveredTo={sync.coveredTo}
+        />
       )}
 
       {!SHOPEE_CATALOG_CAPABILITIES.models && (
