@@ -75,6 +75,20 @@ test("scheduler prioriza conta que nunca fechou uma janela e mantém o LEFT JOIN
   assert.match(scheduler, /LEFT JOIN workspace_integrations/);
 });
 
+test("checkpoints do sync são cercados pelo token do lease (fencing)", async () => {
+  const sync = await readFile(new URL("../src/lib/integrations/amazonSync.ts", import.meta.url), "utf8");
+  assert.match(sync, /lease_until::text AS ownership_token/);
+  assert.match(sync, /AmazonLeaseLostError/);
+  // Todo UPDATE de checkpoint dentro do passo carrega a cláusula do token —
+  // inclusive o avanço por NextToken e o caminho de erro.
+  const stepBody = sync.slice(sync.indexOf("export async function runAmazonSyncStep"));
+  const guardas = stepBody.match(/AND lease_until::text = \$\d+/g) ?? [];
+  assert.ok(guardas.length >= 5, `esperava >=5 cláusulas de fencing no passo, achei ${guardas.length}`);
+  // A reabertura não é dona de lease: só mexe no cursor com a linha livre.
+  const reopenBody = sync.slice(sync.indexOf("async function requestAmazonSync"), sync.indexOf("export async function runAmazonSyncStep"));
+  assert.match(reopenBody, /lease_until IS NULL OR lease_until < now\(\)/);
+});
+
 test("seed nasce com o alvo imediato de 30 dias e o alvo total é configurável", async () => {
   const sync = await readFile(new URL("../src/lib/integrations/amazonSync.ts", import.meta.url), "utf8");
   assert.match(sync, /const RECENT_DAYS = 30/);

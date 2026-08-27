@@ -16,7 +16,7 @@ import {
   upsertCanonicalOrderFees,
   type OrderItemsApplication,
 } from "./canonicalStore";
-import { nextAmazonOrderWindow } from "./amazonSyncControl";
+import { AmazonLeaseLostError, nextAmazonOrderWindow } from "./amazonSyncControl";
 
 // Sincronização da Amazon para o modelo canônico (fase 5, etapa Orders —
 // docs/canonical-schema.md). Mesmo desenho do Mercado Livre: janela de
@@ -152,11 +152,15 @@ async function requestAmazonSync(connectionId: string, forcar = false): Promise<
   if (row.status === "complete" && (forcar || Date.now() - lastSuccess > FRESH_FOR_MS)) {
     const now = syncHorizon();
     const coveredTo = row.covered_to ? new Date(row.covered_to) : new Date(row.target_to);
+    // A reabertura não é dona de lease nenhum: só pode mexer no cursor se
+    // nenhum worker ativo estiver segurando a linha — senão sobrescreveria o
+    // checkpoint de quem está trabalhando.
     await dbQuery(
       `UPDATE workspace_marketplace_syncs
           SET status = 'pending', target_from = $5, target_to = $4, cursor_from = $5, cursor_to = $4,
               cursor_token = NULL, cursor_offset = 0, last_error = NULL, updated_at = now()
-        WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
+        WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
+          AND (lease_until IS NULL OR lease_until < now())`,
       [currentWorkspaceId(), PROVIDER, connectionId, now, coveredTo]
     );
   }
@@ -344,13 +348,14 @@ export async function runAmazonSyncStep(account: AccountCtx, forcarJanela = fals
   if (!hasDb()) return;
   const connectionId = amazonConnectionId(account.sellerId);
   await requestAmazonSync(connectionId, forcarJanela);
-  const leased = await dbQuery<SyncRow>(
+  const workspaceId = currentWorkspaceId();
+  const leased = await dbQuery<SyncRow & { ownership_token: string }>(
     `UPDATE workspace_marketplace_syncs
         SET lease_until = now() + interval '5 minutes', status = 'syncing', updated_at = now()
       WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
         AND status <> 'complete' AND (lease_until IS NULL OR lease_until < now())
-      RETURNING ${SYNC_COLUMNS}`,
-    [currentWorkspaceId(), PROVIDER, connectionId]
+      RETURNING ${SYNC_COLUMNS}, lease_until::text AS ownership_token`,
+    [workspaceId, PROVIDER, connectionId]
   );
   const row = leased[0];
   if (!row) {
@@ -374,6 +379,24 @@ export async function runAmazonSyncStep(account: AccountCtx, forcarJanela = fals
     return;
   }
 
+  // Fencing igual aos outros três canais: o próprio lease_until é o token. Um
+  // worker cujo lease venceu (e outro assumiu) falha aqui e não escreve por
+  // cima do checkpoint do dono novo.
+  let ownershipToken = row.ownership_token;
+  const assertOwnership = async (): Promise<string> => {
+    const renewed = await dbQuery<{ ownership_token: string }>(
+      `UPDATE workspace_marketplace_syncs
+          SET lease_until = now() + interval '5 minutes', updated_at = now()
+        WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
+          AND lease_until::text = $4 AND lease_until > now()
+        RETURNING lease_until::text AS ownership_token`,
+      [workspaceId, PROVIDER, connectionId, ownershipToken]
+    );
+    if (!renewed[0]) throw new AmazonLeaseLostError("Lease da Amazon perdido; worker expirado não grava checkpoint.");
+    ownershipToken = renewed[0].ownership_token;
+    return ownershipToken;
+  };
+
   try {
     const from = new Date(row.cursor_from);
     const to = new Date(row.cursor_to);
@@ -383,19 +406,22 @@ export async function runAmazonSyncStep(account: AccountCtx, forcarJanela = fals
       maxResults: PAGE_SIZE,
       nextToken: row.cursor_token ?? undefined,
     }));
+    await assertOwnership();
     await saveCanonicalOrderHeaders(
       { provider: PROVIDER, connectionId, storeRaw: true },
       page.orders.map(normalizeAmazonOrderHeader)
     );
 
     const targetFrom = new Date(row.target_from);
+    await assertOwnership();
     if (page.nextToken) {
       await dbQuery(
         `UPDATE workspace_marketplace_syncs
             SET status = 'pending', cursor_token = $4, processed_orders = processed_orders + $5,
                 lease_until = NULL, last_error = NULL, last_success_at = now(), updated_at = now()
-          WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
-        [currentWorkspaceId(), PROVIDER, connectionId, page.nextToken, page.orders.length]
+          WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
+            AND lease_until::text = $6 AND lease_until > now()`,
+        [workspaceId, PROVIDER, connectionId, page.nextToken, page.orders.length, ownershipToken]
       );
     } else {
       const move = nextAmazonOrderWindow({
@@ -412,8 +438,9 @@ export async function runAmazonSyncStep(account: AccountCtx, forcarJanela = fals
               SET status = 'complete', covered_from = COALESCE(covered_from, target_from), covered_to = target_to,
                   processed_orders = processed_orders + $4, cursor_token = NULL,
                   lease_until = NULL, last_error = NULL, last_success_at = now(), updated_at = now()
-            WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
-          [currentWorkspaceId(), PROVIDER, connectionId, page.orders.length]
+            WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
+              AND lease_until::text = $5 AND lease_until > now()`,
+          [workspaceId, PROVIDER, connectionId, page.orders.length, ownershipToken]
         );
       } else if (move.kind === "extend") {
         // Fase 2: o alvo imediato (30 dias) fechou; estende o alvo até o
@@ -425,9 +452,10 @@ export async function runAmazonSyncStep(account: AccountCtx, forcarJanela = fals
                   cursor_from = $6, cursor_to = $7, cursor_token = NULL,
                   processed_orders = processed_orders + $8,
                   lease_until = NULL, last_error = NULL, last_success_at = now(), updated_at = now()
-            WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
-          [currentWorkspaceId(), PROVIDER, connectionId, new Date(move.targetFromMs), new Date(move.coveredFromMs),
-            new Date(move.nextFromMs), new Date(move.nextToMs), page.orders.length]
+            WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
+              AND lease_until::text = $9 AND lease_until > now()`,
+          [workspaceId, PROVIDER, connectionId, new Date(move.targetFromMs), new Date(move.coveredFromMs),
+            new Date(move.nextFromMs), new Date(move.nextToMs), page.orders.length, ownershipToken]
         );
       } else {
         await dbQuery(
@@ -436,8 +464,9 @@ export async function runAmazonSyncStep(account: AccountCtx, forcarJanela = fals
                   cursor_from = $5, cursor_to = $6, cursor_token = NULL,
                   processed_orders = processed_orders + $7,
                   lease_until = NULL, last_error = NULL, last_success_at = now(), updated_at = now()
-            WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
-          [currentWorkspaceId(), PROVIDER, connectionId, from, new Date(move.nextFromMs), new Date(move.nextToMs), page.orders.length]
+            WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
+              AND lease_until::text = $8 AND lease_until > now()`,
+          [workspaceId, PROVIDER, connectionId, from, new Date(move.nextFromMs), new Date(move.nextToMs), page.orders.length, ownershipToken]
         );
       }
     }
@@ -449,11 +478,14 @@ export async function runAmazonSyncStep(account: AccountCtx, forcarJanela = fals
       await syncMissingOrderFees(connectionId);
     });
   } catch (error) {
+    // O token cerca também a falha: worker que perdeu o lease não sobrescreve o
+    // estado do dono novo com 'error' (o UPDATE simplesmente não casa).
     await dbQuery(
       `UPDATE workspace_marketplace_syncs
           SET status = 'error', lease_until = NULL, last_error = $4, updated_at = now()
-        WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
-      [currentWorkspaceId(), PROVIDER, connectionId, error instanceof Error ? error.message : "Falha ao sincronizar Amazon."]
+        WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
+          AND lease_until::text = $5`,
+      [workspaceId, PROVIDER, connectionId, error instanceof Error ? error.message : "Falha ao sincronizar Amazon.", ownershipToken]
     );
   }
 }

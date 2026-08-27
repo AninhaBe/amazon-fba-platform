@@ -2,6 +2,8 @@
 // mercadoLivreSyncControl e do tiktokSyncControl: decisão de checkpoint
 // testável sem banco nem rede.
 
+export class AmazonLeaseLostError extends Error {}
+
 export type AmazonWindowAdvance =
   | { kind: "complete" }
   | { kind: "advance"; nextFromMs: number; nextToMs: number }
