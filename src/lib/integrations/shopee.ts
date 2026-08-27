@@ -440,6 +440,28 @@ export async function getShopeeItemBaseInfo(
   return { item_list: requireShopeeArray(raw.item_list) };
 }
 
+/**
+ * Variações (models) de UM item.
+ *
+ * ⚠️ POR QUE ESTA CHAMADA EXISTE — medido na loja real em 27/08/2026, item
+ * `44862300302`: quando `has_model` é `true`, o `get_item_base_info` devolve
+ * `price_info` e `stock_info_v2` **ausentes**. Preço, estoque e moeda moram em
+ * `model[].price_info[0]` e `model[].stock_info_v2.summary_info`. O parser
+ * antigo esperava os dois no item e lançava, derrubando a varredura inteira.
+ *
+ * Só é chamada para item com variação — item simples continua resolvido numa
+ * requisição só.
+ */
+export async function getShopeeModelList(
+  connection: IntegrationConnection,
+  itemId: number
+): Promise<{ model?: unknown[] }> {
+  const raw = requireShopeeObject(await shopeeFetch<unknown>(connection, "/api/v2/product/get_model_list", {
+    item_id: String(itemId),
+  }));
+  return { model: Array.isArray(raw.model) ? raw.model : [] };
+}
+
 /** `connection_id` canônico do canal: uma conexão por loja. */
 export function shopeeConnectionId(shopId: string): string {
   return `shopee:${shopId}`;

@@ -309,15 +309,75 @@ const PRODUCT_STATUS_MAP: Record<string, CanonicalProduct["status"]> = {
   REVIEWING: "paused",
 };
 
-export function normalizeShopeeProduct(product: ShopeeProductItem): CanonicalProduct {
+/** Uma variação do item, na forma medida em 27/08/2026 na loja real. */
+export interface ShopeeModel {
+  model_id?: number;
+  model_sku?: string;
+  price_info?: Array<{ current_price?: number; currency?: string }>;
+  stock_info_v2?: { summary_info?: { total_available_stock?: number } };
+}
+
+/**
+ * Preço, estoque e moeda de um item — do lugar certo do payload.
+ *
+ * ITEM SIMPLES: vem de `price_info[0]` / `stock_info_v2.summary_info` do item.
+ * ITEM COM VARIAÇÃO (`has_model`): os dois campos do item vêm **ausentes**, e o
+ * dado vive por variação. Preço = **menor `current_price`** entre as variações
+ * (o "a partir de" que o vendedor vê); estoque = **soma** das variações; moeda
+ * = a da variação.
+ *
+ * ⚠️ Devolve `null` quando não há preço em lugar nenhum. Continua valendo que
+ * zero NÃO é fabricado — o que muda é o escopo: quem decide o que fazer com a
+ * ausência é o chamador, item a item, em vez de a varredura inteira parar.
+ */
+const numeroValido = (valor: unknown): number | null =>
+  valor != null && Number.isFinite(Number(valor)) && Number(valor) >= 0 ? Number(valor) : null;
+
+export function precoDoProdutoShopee(
+  product: ShopeeProductItem,
+  models?: readonly ShopeeModel[]
+): { price: number | null; availableQty: number | null; currency: string } {
+  const doItem = product.price_info?.[0];
+  const precoDoItem = numeroValido(doItem?.current_price);
+  if (precoDoItem !== null) {
+    return {
+      price: precoDoItem,
+      // ⚠️ Estoque ausente continua ausente. Somar 0 aqui seria afirmar
+      // "esgotado" para um item que talvez tenha estoque — o mesmo `null ≠ 0`
+      // que vale para o preço.
+      availableQty: numeroValido(product.stock_info_v2?.summary_info?.total_available_stock),
+      currency: doItem?.currency ?? product.currency ?? "BRL",
+    };
+  }
+
+  const precos: number[] = [];
+  let estoque: number | null = null;
+  let moeda = "";
+  for (const model of models ?? []) {
+    const valor = numeroValido(model.price_info?.[0]?.current_price);
+    if (valor !== null) {
+      precos.push(valor);
+      if (!moeda && model.price_info?.[0]?.currency) moeda = model.price_info[0].currency!;
+    }
+    const qty = numeroValido(model.stock_info_v2?.summary_info?.total_available_stock);
+    if (qty !== null) estoque = (estoque ?? 0) + qty;
+  }
+  return {
+    price: precos.length ? Math.min(...precos) : null,
+    availableQty: estoque,
+    currency: moeda || product.currency || "BRL",
+  };
+}
+
+export function normalizeShopeeProduct(product: ShopeeProductItem, models?: readonly ShopeeModel[]): CanonicalProduct {
   const externalProductId = requiredIdentity(product.item_id, "item_id", "produto");
   const providerStatus = product.item_status ?? "";
   const status = PRODUCT_STATUS_MAP[providerStatus];
   if (!status) throw new Error(`Status de produto Shopee desconhecido: ${providerStatus || "ausente"}.`);
-  const price = product.price_info?.[0];
-  const currentPrice = requiredNonNegative(price?.current_price, "price_info.current_price", String(product.item_id));
+  const resolvido = precoDoProdutoShopee(product, models);
+  const currentPrice = requiredNonNegative(resolvido.price, "price_info.current_price", String(product.item_id));
   const availableQty = requiredNonNegative(
-    product.stock_info_v2?.summary_info?.total_available_stock,
+    resolvido.availableQty,
     "stock_info_v2.summary_info.total_available_stock",
     String(product.item_id)
   );
@@ -328,7 +388,7 @@ export function normalizeShopeeProduct(product: ShopeeProductItem): CanonicalPro
     status,
     providerStatus,
     price: currentPrice,
-    currency: price?.currency ?? product.currency ?? "BRL",
+    currency: resolvido.currency,
     availableQty,
     fulfillment: null,
     thumbnail: product.image?.image_url_list?.[0] ?? null,

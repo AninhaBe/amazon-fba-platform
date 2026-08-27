@@ -1,10 +1,12 @@
 import { dbQuery, dbTransaction, hasDb } from "../db";
 import { currentWorkspaceId } from "../workspaceScope";
 import { saveCanonicalOrders, saveCanonicalProducts } from "./canonicalStore";
+import type { CanonicalProduct } from "./canonical";
 import {
   getShopeeEscrowDetail,
   getShopeeItemBaseInfo,
   getShopeeItemList,
+  getShopeeModelList,
   getShopeeOrderDetail,
   getShopeeOrderList,
   ORDER_DETAIL_BATCH,
@@ -15,6 +17,7 @@ import {
   normalizeShopeeOrder,
   normalizeShopeeProduct,
   type ShopeeEscrowDetail,
+  type ShopeeModel,
   type ShopeeOrderDetail,
   type ShopeeProductItem,
 } from "./shopeeCanonical";
@@ -211,6 +214,8 @@ async function initializeCatalogCheckpoint(
 async function persistCatalogPage(input: {
   connection: IntegrationConnection;
   products: ShopeeProductItem[];
+  /** Variações por `item_id`, para item cujo preço mora nos models. */
+  modelsByItem?: Map<string, ShopeeModel[]>;
   checkpoint: ShopeeCatalogCheckpoint;
   nextCheckpoint: ShopeeCatalogCheckpoint | null;
   ownershipToken: string;
@@ -218,7 +223,31 @@ async function persistCatalogPage(input: {
   const workspaceId = currentWorkspaceId();
   const expectedCursor = encodeShopeeCatalogCheckpoint(input.checkpoint);
   const nextCursor = input.nextCheckpoint ? encodeShopeeCatalogCheckpoint(input.nextCheckpoint) : null;
-  const normalized = input.products.map(normalizeShopeeProduct);
+  // ITEM SEM PREÇO NÃO DERRUBA O CANAL (27/08/2026).
+  //
+  // Antes, `normalizeShopeeProduct` lançava e a exceção subia pela varredura
+  // inteira: um item com variação (`price_info` ausente no item) zerou a
+  // primeira sincronização da loja real — 0 pedidos, 0 produtos, `covered_to`
+  // nulo. A recusa a fabricar zero continua; o que muda é o ESCOPO, de canal
+  // para item. O que não tem preço fica de fora e é contado, para a tela dizer
+  // quantos são, com número.
+  const normalized: CanonicalProduct[] = [];
+  const semPreco: string[] = [];
+  for (const product of input.products) {
+    try {
+      normalized.push(normalizeShopeeProduct(product, input.modelsByItem?.get(String(product.item_id))));
+    } catch (error) {
+      const motivo = error instanceof Error ? error.message : String(error);
+      // Preço E estoque: os dois somem no mesmo payload de item com variação,
+      // e nenhum dos dois pode derrubar o canal inteiro. Outro erro sobe.
+      if (!/price_info\.current_price|stock_info_v2/.test(motivo)) throw error;
+      semPreco.push(String(product.item_id));
+    }
+  }
+  if (semPreco.length) {
+    // Conta no checkpoint (o alarme do agendador já lê isso) sem interromper.
+    console.warn(`[shopee] ${semPreco.length} item(ns) sem preço ou estoque informado pela Shopee: ${semPreco.join(", ")}`);
+  }
 
   await dbTransaction(async (query) => {
     const owner = await query(
@@ -315,10 +344,27 @@ async function syncProductsStep(
         : { item_list: [] };
       const products = (info.item_list ?? []) as ShopeeProductItem[];
       validateShopeeCatalogSnapshot(ids, products);
+      // Só o item COM variação precisa da segunda chamada; item simples já veio
+      // resolvido. Falha de uma variação não derruba a página: o item cai no
+      // caminho "sem preço" e vira pendência.
+      const modelsByItem = new Map<string, ShopeeModel[]>();
+      for (const product of products) {
+        if (!product.has_model) continue;
+        try {
+          const lista = await fencedShopeeExternalRead(
+            assertOwnership,
+            () => getShopeeModelList(connection, Number(product.item_id))
+          );
+          modelsByItem.set(String(product.item_id), (lista.model ?? []) as ShopeeModel[]);
+        } catch (error) {
+          console.warn(`[shopee] variações indisponíveis para ${product.item_id}:`, error instanceof Error ? error.message : error);
+        }
+      }
       const ownershipToken = await assertOwnership();
       await persistCatalogPage({
         connection,
         products,
+        modelsByItem,
         checkpoint: currentCheckpoint,
         nextCheckpoint,
         ownershipToken,
