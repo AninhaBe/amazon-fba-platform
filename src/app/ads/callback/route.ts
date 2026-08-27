@@ -12,7 +12,10 @@ export const dynamic = "force-dynamic";
 
 // ⚠️ O caminho desta rota é `/ads/callback`, NÃO `/api/...`, porque é esse o valor
 // registrado em "Allowed Return URLs" no perfil de segurança da Amazon
-// (developer.amazon.com → SellerCore Ads → Web Settings). Mudar o caminho aqui
+// (developer.amazon.com → `SellerCore Ads` → Web Settings). ⚠️ `SellerCore Ads` e o
+// NOME CADASTRADO do perfil LWA no console da Amazon, nao o nome do produto: e o
+// que aparece na tela de la, entao renomear aqui so faria a instrucao nao achar.
+// Mudar o caminho aqui
 // exige mudar lá antes, senão a Amazon recusa o redirecionamento.
 //
 // Registrado em 21/08/2026 apontando para nexoaihub.com.br — antes apontava para

@@ -17,7 +17,7 @@ import { MarketplaceIcon } from "./MarketplaceIcon";
 
 // Cabeçalho padrão das páginas: eyebrow + título + subtítulo, com um slot de ação.
 // O ícone é sempre o logo do workspace, sem chip: Amazon/ML mostram o logo do
-// marketplace; a Central mostra o logo do SellerCore.
+// marketplace; a Central mostra o logo do NEXO.
 export function PageHeader({
   eyebrow,
   title,

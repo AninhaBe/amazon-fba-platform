@@ -339,8 +339,16 @@ Encontrado pelo QA do vídeo do App review, na conta de demonstração
 tocado**: sair corrigindo rota de canal no meio da entrega do narrador seria
 misturar duas frentes, e o vídeo pode ser gravado contornando a aba.
 
-- [ ] **`/amazon` mostra Faturamento "—" e cai em estado de falha (3 recargas),
-  enquanto a Visão geral exibe R$ 5.169,20 do MESMO canal.** As duas telas leem
+- [x] ~~**`/amazon` mostra Faturamento "—" e cai em estado de falha (3 recargas),
+  enquanto a Visão geral exibe R$ 5.169,20 do MESMO canal.**~~
+  **CORRIGIDO em 27/08.** A causa não era a SP-API estourar: o workspace demo não
+  tem linha em `workspace_accounts`, e `withAccountContext` respondia **409
+  "Conecte uma conta Amazon"** antes de o handler rodar. `/api/amazon/dashboard`
+  ganhou `onMissingAccount` servindo o MESMO handler (o corpo já lia tudo do
+  canônico). Medido depois: a demo devolve **R$ 5.169,20 em 83 pedidos** — o
+  número que a Visão geral já mostrava. Conta real com token caído **tem** linha
+  em `workspace_accounts`, então o ramo nunca roda e nada mudou para ela.
+  Travado por `tests/dashboardAmazonSemConta.test.mjs`. Diagnóstico original: As duas telas leem
   por caminhos diferentes: a central consolida pelo canônico (banco), e o
   dashboard do canal ainda depende de rota que fala com a SP-API. A conexão
   `amazon:demo` é sintética — não tem `refreshToken` válido —, então a chamada

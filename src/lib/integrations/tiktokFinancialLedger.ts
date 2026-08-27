@@ -41,6 +41,21 @@ const items = (data: Record<string, unknown>, keys: string[]) => { for (const ke
 const token = (data: Record<string, unknown>) => text(data.next_page_token ?? data.nextPageToken) || null;
 const ISO_CURRENCY=/^[A-Z]{3}$/;
 const money=(value:unknown,field:string):number|null=>{if(value===undefined||value===null||value==="")return null;const parsed=Number(value);if(!Number.isFinite(parsed))throw new TypeError(`TikTok ${field} invalido.`);return parsed;};
+/**
+ * Dinheiro que vem como OBJETO `{currency, value}` — a forma do 202309.
+ *
+ * O escalar continua aceito porque outros endpoints usam essa forma; o que muda
+ * e que a moeda pode morar DENTRO do valor, e nao ao lado dele. Ver o changelog
+ * de 27/08/2026 em `docs/tiktok-shop-integracao.md`.
+ */
+function moneyBag(value:unknown,field:string):{amount:number|null;currency:string}{
+  if(value===undefined||value===null||value==="")return {amount:null,currency:""};
+  if(typeof value==="object"&&!Array.isArray(value)){
+    const bag=value as Record<string,unknown>;
+    return {amount:money(bag.value,field),currency:text(bag.currency).toUpperCase()};
+  }
+  return {amount:money(value,field),currency:""};
+}
 function requiredId(value:unknown,kind:string){const id=text(value);if(!id)throw new TypeError(`TikTok ${kind} sem identificador.`);return id;}
 function requiredEpoch(value:unknown,kind:string){const parsed=epoch(value);if(!parsed||!Number.isFinite(new Date(parsed*1000).getTime()))throw new TypeError(`TikTok ${kind} sem timestamp valido.`);return parsed;}
 function requiredCurrency(value:unknown,kind:string){const currency=text(value).toUpperCase();if(!ISO_CURRENCY.test(currency))throw new TypeError(`TikTok ${kind} sem moeda ISO valida.`);return currency;}
@@ -85,7 +100,25 @@ export class TiktokFinancialAdapters {
     // A versao 202605 nao existe na API; a oficial e 202309, com janela create_time_ge/lt
     // e sort_field obrigatorio aceitando so `create_time`.
     const data=object(await this.call<unknown>("/finance/202309/payments",{query:{create_time_ge:input.from,create_time_lt:input.to,sort_field:"create_time",page_size:100,page_token:input.pageToken}}));
-    return page(data,items(data,["payments"]),raw=>({id:requiredId(raw.id??raw.payment_id,"payment"),statementId:text(raw.statement_id)||null,status:text(raw.status),amount:raw.amount==null?null:String(money(raw.amount,"payment amount")),currency:requiredCurrency(raw.currency,"payment"),paidAt:raw.paid_time==null?null:requiredEpoch(raw.paid_time,"payment"),expectedAt:raw.expected_time==null?null:requiredEpoch(raw.expected_time,"payment"),raw}));
+    // ⚠️ FORMA REAL DO 202309, medida na conta real em 27/08/2026 — a suposicao
+    // anterior derrubava TODA leitura de repasse com `UNKNOWN_ERROR`:
+    // - `amount` e OBJETO `{currency,value}`, nao escalar;
+    // - NAO existe `currency` na linha nem no envelope: a moeda vem dentro do
+    //   proprio valor, e e de la que ela tem de sair;
+    // - `expected_time` e `statement_id` NAO existem nesta resposta. Ausencia e
+    //   `null` (desconhecido), nunca zero nem data inventada — e por isso que o
+    //   painel de saldo so promete data onde a API provou.
+    const envelope=text(object(data).currency).toUpperCase();
+    return page(data,items(data,["payments"]),raw=>{
+      const valor=moneyBag(raw.amount,"payment amount");
+      const liquidado=moneyBag(raw.settlement_amount,"payment settlement_amount");
+      const pago=epoch(raw.paid_time);
+      const previsto=epoch(raw.expected_time);
+      return {id:requiredId(raw.id??raw.payment_id,"payment"),statementId:text(raw.statement_id)||null,status:text(raw.status),
+        amount:valor.amount===null?null:String(valor.amount),
+        currency:requiredCurrency(valor.currency||liquidado.currency||text(raw.currency)||envelope,"payment"),
+        paidAt:pago||null,expectedAt:previsto||null,raw};
+    });
   }
   async unsettled(input:{from:number;to:number;pageToken?:string}):Promise<FinancialPage<TransactionRecord>> {
     // Janela search_time_ge/lt e sort_field obrigatorio aceitando so `order_create_time`.

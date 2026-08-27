@@ -100,7 +100,7 @@ export async function GET(req: NextRequest) {
           startedAt,
           { status: 202 }
         );
-        response.headers.set("X-SellerCore-Cache", "EMPTY");
+        response.headers.set("X-Nexo-Cache", "EMPTY");
         return response;
       }
       // Dashboard e monitor mostram a rentabilidade por venda; só o estoque dispensa as linhas.
@@ -112,7 +112,7 @@ export async function GET(req: NextRequest) {
         updatedAt: sync.lastSuccessAt || new Date().toISOString(),
         cached: false,
       }, startedAt);
-      response.headers.set("X-SellerCore-Cache", "SQL");
+      response.headers.set("X-Nexo-Cache", "SQL");
       return response;
     }
     return timedJson({ connectionId: connection.id, overview: await getMercadoLivreOverview(connection, period) }, startedAt);

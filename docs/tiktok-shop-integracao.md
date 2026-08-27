@@ -459,6 +459,33 @@ dependem do ledger e mantém vendas/catálogo disponíveis, sem inventar zeros.
 
 ## Changelog observado
 
+- **27/08/2026 — o repasse (`payments`) tem forma de dinheiro DIFERENTE, e nunca
+  foi lido uma vez sequer.**
+  O contador de erro novo acusou **18 falhas seguidas** no recurso `payments`,
+  todas como `UNKNOWN_ERROR`, com `rows_seen = 0` desde 27/08 04:35. Sondado na
+  conta real em `GET /finance/202309/payments`:
+
+  | O que | Suposto | Observado |
+  |---|---|---|
+  | `amount` | escalar (`"151.49"`) | **objeto `{currency, value}`** |
+  | Moeda | campo `currency` na linha | **não existe** na linha nem no envelope — vive **dentro** do `amount` |
+  | `expected_time` | presente | **não existe** nesta resposta |
+  | `statement_id` | presente | **não existe** nesta resposta |
+
+  `requiredCurrency(raw.currency)` lançava em toda linha, então nenhuma leitura
+  de repasse jamais completou. Chaves reais confirmadas: `amount`,
+  `bank_account`, `create_time`, `exchange_rate`, `id`, `paid_time`,
+  `payment_amount_before_exchange`, `reserve_amount`, `settlement_amount`,
+  `status`. Todos os 7 repasses da janela de 7 dias vieram com `status: "PAID"`,
+  `exchange_rate: "1"` e `reserve_amount` zerado.
+
+  📌 **Terceira vez que o mesmo defeito aparece** (moeda no envelope em
+  `statement_transactions`, `fee_tax_amount` inexistente, agora dinheiro como
+  objeto): a lição não é sobre um campo, é sobre **medir a forma do payload antes
+  de escrever o parser**. Consequência para o produto: sem `expected_time`, o
+  painel de saldo **não tem como prometer data de liberação** por esta via — o
+  que estiver sem data continua sem data, e não vira estimativa.
+
 - **26/08/2026 — `sort_field` também é obrigatório no detalhe do extrato, e o
   payload não é o que o parser supunha.**
   Ao destravar o checkpoint financeiro congelado desde 13/08, três achados na

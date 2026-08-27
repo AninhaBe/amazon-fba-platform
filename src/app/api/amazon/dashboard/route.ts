@@ -102,7 +102,13 @@ async function adsDoPeriodo(workspaceId: string, period: { startISO: string; end
 }
 
 export async function GET(req: NextRequest) {
-  return withAccountContext(req, async () => {
+  /**
+   * O corpo inteiro lê do canônico — a conta SP-API só é usada para o sync sob
+   * demanda (`conta?.refreshToken`), para o radar de estoque e para o
+   * `orderMetrics`, e os três já degradam sozinhos. Por isso o mesmo handler
+   * serve com e sem conta.
+   */
+  const responder = async () => {
     try {
       const period = resolvePeriod(req.nextUrl.searchParams);
       const t0 = performance.now();
@@ -372,5 +378,23 @@ export async function GET(req: NextRequest) {
     } catch (error) {
       return errorResponse(error);
     }
+  };
+
+  return withAccountContext(req, responder, {
+    // SEM NENHUMA CONTA, A TELA MOSTRA O QUE O BANCO TEM — não um erro.
+    //
+    // O workspace de demonstração tem conexão Amazon (`amazon:demo`,
+    // `metadata.demo = true`) e pedidos no canônico, mas NÃO tem linha em
+    // `workspace_accounts` — token sintético não é credencial. Sem este
+    // fallback, `withAccountContext` respondia 409 "Conecte uma conta Amazon"
+    // antes de o handler rodar, e `/amazon` inteira caía em estado de falha
+    // enquanto a Visão geral, que lê o mesmo canônico, mostrava os números.
+    //
+    // ⚠️ NÃO afeta conta real com token caído: essa TEM linha em
+    // `workspace_accounts`, então `accounts.length > 0` e este ramo nunca roda —
+    // ela continua entrando no caminho normal, e a falha de autorização continua
+    // aparecendo como sempre. A separação é essa, e é estrutural: o ramo é
+    // "não há credencial nenhuma", não "a credencial não funciona".
+    onMissingAccount: responder,
   });
 }

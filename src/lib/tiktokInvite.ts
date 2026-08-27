@@ -3,7 +3,7 @@ import crypto from "crypto";
 // Convite de autorização do TikTok Shop.
 //
 // O custom app é distribuído por link privado: o vendedor recebe a URL, autoriza
-// na TikTok e volta no callback — **sem ter sessão no SellerCore**. O fluxo com
+// na TikTok e volta no callback — **sem ter sessão no NEXO**. O fluxo com
 // cookie de CSRF não serve aqui, porque o cookie viveria no navegador de quem
 // gerou o link, não no de quem autoriza.
 //

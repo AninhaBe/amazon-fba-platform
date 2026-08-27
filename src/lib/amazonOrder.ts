@@ -29,7 +29,7 @@ export interface AmazonOrderResponse {
   orderTotal?: { CurrencyCode: string; Amount: string };
 }
 
-/** Converte o contrato oficial (PascalCase) para o modelo interno do SellerCore. */
+/** Converte o contrato oficial (PascalCase) para o modelo interno do NEXO. */
 export function normalizeAmazonOrder(order: AmazonOrderResponse): OrderSummary | null {
   const amazonOrderId = order.amazonOrderId ?? order.AmazonOrderId;
   const purchaseDate = order.purchaseDate ?? order.PurchaseDate;
