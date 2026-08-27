@@ -10,6 +10,7 @@ import { deduplicateTiktokRefresh, tiktokRefreshGrantKey } from "./integrations/
 import { coordinateOAuthRefresh, oauthRefreshFingerprint } from "./integrations/oauthRefreshLease";
 import { updateTiktokShopTaxRate } from "./integrations/tiktokSettings";
 import { assertGlobalTiktokShopOwnership } from "./integrations/tiktokOwnership";
+import { tiktokSeedSyncWindow } from "./integrations/tiktokSyncControl";
 export { deduplicateTiktokRefresh } from "./integrations/tiktokRefreshControl";
 export { resolveTiktokShop, TiktokConnectionError } from "./integrations/tiktokContract";
 
@@ -164,8 +165,10 @@ export async function saveTiktokAuthorization(
 ): Promise<void> {
   const workspaceId = currentWorkspaceId();
   const now = new Date();
-  const targetFrom = new Date(now.getTime() - 60 * 86_400_000).toISOString();
-  const cursorFrom = new Date(now.getTime() - 15 * 86_400_000).toISOString();
+  // Semente única com o tiktokSync (fase 1 de 30 dias; fase 2 estende no passo).
+  const seed = tiktokSeedSyncWindow(now.getTime());
+  const targetFrom = new Date(seed.targetFromMs).toISOString();
+  const cursorFrom = new Date(seed.cursorFromMs).toISOString();
   if (hasDb()) {
     await dbTransaction(async (query) => {
       await assertGlobalTiktokShopOwnership(query, workspaceId, shops.map((shop) => shop.shopId), true);

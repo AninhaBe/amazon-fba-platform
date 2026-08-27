@@ -32,9 +32,13 @@ import {
   fencedTiktokExternalRead,
   fencedTiktokMutation,
   hasSyncBudget,
+  nextTiktokOrderWindow,
   requireTiktokLeaseRow,
   TiktokLeaseLostError,
+  tiktokHistoryDays,
+  tiktokSeedSyncWindow,
   TIKTOK_STATEMENT_MARK_SQL,
+  TIKTOK_SYNC_WINDOW_DAYS,
   validateTiktokOrderBatch,
 } from "./tiktokSyncControl";
 import { allocateTiktokFinancialQuota, type TiktokFinancialCandidate } from "./tiktokFinancialScheduler";
@@ -55,10 +59,10 @@ import { allocateTiktokFinancialQuota, type TiktokFinancialCandidate } from "./t
 
 const PROVIDER = "tiktok_shop";
 const DAY = 86_400_000;
-const HISTORY_DAYS = 60;
-/** Janela do cursor. A API não impõe teto documentado; 15 dias mantém a
- *  resposta pequena e o passo do cron curto. */
-const WINDOW_DAYS = 15;
+// Alvo e janela moram em tiktokSyncControl — a MESMA semente vale para o
+// callback (tiktokStore) e para o ensureSyncRow daqui.
+const HISTORY_DAYS = tiktokHistoryDays();
+const WINDOW_DAYS = TIKTOK_SYNC_WINDOW_DAYS;
 const FRESH_FOR_MS = 10 * 60_000;
 /** Pedidos por passo que buscam extrato — o extrato é uma chamada por pedido. */
 const STATEMENT_BATCH_SIZE = 10;
@@ -222,7 +226,9 @@ async function ensureSyncRow(connectionId: string): Promise<SyncRow> {
   const existente = await getSyncRow(connectionId);
   if (existente) return existente;
   const ate = new Date();
-  const de = new Date(ate.getTime() - HISTORY_DAYS * DAY);
+  // O alvo nasce curto (fase 1, 30 dias) para o dashboard encher em minutos; ao
+  // fechá-lo, o passo estende o alvo até o histórico completo (fase 2).
+  const seed = tiktokSeedSyncWindow(ate.getTime());
   await dbQuery(
     `INSERT INTO workspace_marketplace_syncs
        (workspace_id, provider, connection_id, status, target_from, target_to,
@@ -231,8 +237,8 @@ async function ensureSyncRow(connectionId: string): Promise<SyncRow> {
      ON CONFLICT (workspace_id, provider, connection_id) DO NOTHING`,
     [
       currentWorkspaceId(), PROVIDER, connectionId,
-      de.toISOString(), ate.toISOString(),
-      new Date(ate.getTime() - WINDOW_DAYS * DAY).toISOString(),
+      new Date(seed.targetFromMs).toISOString(), ate.toISOString(),
+      new Date(seed.cursorFromMs).toISOString(),
     ]
   );
   return (await getSyncRow(connectionId))!;
@@ -709,6 +715,36 @@ export async function runTiktokSyncStep(
       && !linha.cursor_token
       && new Date(linha.cursor_to).getTime() <= new Date(linha.target_from).getTime();
     if (ordersComplete) {
+      // Cursor exaurido não é necessariamente fim: se o ponto mais antigo
+      // coberto ainda não alcança o histórico completo (fase 1 fechada), o
+      // alvo é estendido e o backfill continua — mesma decisão do fechamento
+      // de janela abaixo.
+      const coveredFromMs = new Date(linha.covered_from as string | Date).getTime();
+      const decisaoRetomada = nextTiktokOrderWindow({
+        windowFromMs: coveredFromMs,
+        targetFromMs: coveredFromMs,
+        coveredFromMs,
+        historyFloorMs: Date.now() - HISTORY_DAYS * DAY,
+        windowMs: WINDOW_DAYS * DAY,
+        toleranceMs: DAY,
+      });
+      if (decisaoRetomada.kind === "extend") {
+        const token = await assertOwnership();
+        const estendido = await dbQuery(
+          `UPDATE workspace_marketplace_syncs
+              SET status='pending', target_from=$4, cursor_from=$5, cursor_to=$6,
+                  cursor_token=NULL, last_error=NULL, last_success_at=now(),
+                  lease_until=NULL, updated_at=now()
+            WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3 AND lease_until::text=$7
+            RETURNING 1`,
+          [workspaceId, PROVIDER, connectionId,
+            new Date(decisaoRetomada.targetFromMs).toISOString(),
+            new Date(decisaoRetomada.nextFromMs).toISOString(),
+            new Date(decisaoRetomada.nextToMs).toISOString(), token]
+        );
+        requireTiktokLeaseRow(estendido);
+        return publicStatus(await getSyncRow(connectionId));
+      }
       const token = await assertOwnership();
       const released = await dbQuery(
         `UPDATE workspace_marketplace_syncs SET status='complete', last_error=NULL,
@@ -773,10 +809,21 @@ export async function runTiktokSyncStep(
       throw new Error("Janela de pedidos TikTok excedeu o limite seguro de paginação.");
     }
 
-    // Janela coberta: anda o cursor para trás; sem mais histórico, conclui.
-    const novoAte = cursorDe;
-    const novoDe = Math.max(alvoDe, novoAte - WINDOW_DAYS * DAY);
-    const terminou = novoAte <= alvoDe;
+    // Janela coberta: anda o cursor para trás; alvo imediato (fase 1) fechado
+    // estende o alvo até o histórico completo (fase 2); sem mais histórico,
+    // conclui.
+    const decisaoJanela = nextTiktokOrderWindow({
+      windowFromMs: cursorDe,
+      targetFromMs: alvoDe,
+      coveredFromMs: linha.covered_from ? new Date(linha.covered_from).getTime() : null,
+      historyFloorMs: Date.now() - HISTORY_DAYS * DAY,
+      windowMs: WINDOW_DAYS * DAY,
+      toleranceMs: DAY,
+    });
+    const novoAte = decisaoJanela.kind === "complete" ? cursorDe : decisaoJanela.nextToMs;
+    const novoDe = decisaoJanela.kind === "complete"
+      ? Math.max(alvoDe, cursorDe - WINDOW_DAYS * DAY)
+      : decisaoJanela.nextFromMs;
 
     // Ainda sob o lease: falha inequívoca de autorização precisa marcar a
     // conexão como reauth_required, não desaparecer como erro financeiro.
@@ -789,6 +836,7 @@ export async function runTiktokSyncStep(
               covered_to   = GREATEST(COALESCE(covered_to, $5), $5),
               cursor_from = $6, cursor_to = $7,
               cursor_token = NULL,
+              target_from = COALESCE($10::timestamptz, target_from),
               status = $8, last_error = NULL, last_success_at = now(),
               lease_until = NULL, updated_at = now()
         WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
@@ -799,7 +847,8 @@ export async function runTiktokSyncStep(
         new Date(cursorDe).toISOString(),
         new Date(cursorAte).toISOString(),
         new Date(novoDe).toISOString(), new Date(novoAte).toISOString(),
-        terminou ? "complete" : "pending", ownershipToken,
+        decisaoJanela.kind === "complete" ? "complete" : "pending", ownershipToken,
+        decisaoJanela.kind === "extend" ? new Date(decisaoJanela.targetFromMs).toISOString() : null,
       ]
     );
     requireTiktokLeaseRow(completed);

@@ -1,10 +1,15 @@
 import crypto from "crypto";
+import { after } from "next/server";
 import { NextRequest, NextResponse } from "next/server";
 import { exchangeAuthCode, getAuthorizedShops, epochToIso, TIKTOK_OAUTH_STATE_COOKIE } from "@/lib/tiktok";
 import { saveTiktokAuthorization } from "@/lib/tiktokStore";
 import { validarConviteTiktok } from "@/lib/tiktokInvite";
 import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
-import { runWithWorkspace } from "@/lib/workspaceScope";
+import { currentWorkspaceId, runWithWorkspace } from "@/lib/workspaceScope";
+import { runTiktokSyncBatch, tiktokConnectionId } from "@/lib/integrations/tiktokSync";
+
+/** Orçamento do sync imediato pós-conexão: cobre a janela recente de pedidos. */
+const KICK_BUDGET_MS = 60_000;
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -88,6 +93,26 @@ async function concluir(
         accessExpiresAt: accessExp,
         refreshExpiresAt: refreshExp,
       })));
+
+    // Primeira sincronização disparada na hora (o seed do estado já saiu no
+    // saveTiktokAuthorization): o `after()` roda fora do caminho do redirect e
+    // o lease de 5 minutos impede colisão com o cron. Vale para os dois
+    // caminhos — painel e convite do vendedor. Se o kick morrer, o agendador
+    // assume no próximo ciclo.
+    const workspaceId = currentWorkspaceId();
+    const shopIds = shops.map((s) => s.id);
+    after(() => runWithWorkspace(workspaceId, async () => {
+      for (const shopId of shopIds) {
+        try {
+          await runTiktokSyncBatch(tiktokConnectionId(shopId), KICK_BUDGET_MS);
+        } catch (error) {
+          console.error("Falha no sync imediato pós-conexão do TikTok Shop", {
+            shopId,
+            reason: error instanceof Error ? error.message : "Erro desconhecido",
+          });
+        }
+      }
+    }));
 
     return finish(NextResponse.redirect(`${baseUrl}/integracoes?connected=tiktok_shop`));
   } catch (err) {

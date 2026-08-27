@@ -78,7 +78,11 @@ export async function runScheduledTiktokSync(
                AND COALESCE(sync.last_success_at, sync.updated_at) < now() - interval '10 minutes')
          ))
       ORDER BY
-        CASE WHEN sync.connection_id IS NULL THEN 0
+        -- Loja sem linha de sync OU que nunca fechou uma janela (covered_from
+        -- nulo) é primeira sincronização: fura a fila para o vendedor não
+        -- esperar atrás do backfill das lojas antigas. Mesmo desenho do
+        -- shopeeScheduler.ts e do mercadoLivreScheduler.ts.
+        CASE WHEN sync.connection_id IS NULL OR sync.covered_from IS NULL THEN 0
              WHEN sync.status = 'complete' THEN 2
              ELSE 1 END,
         COALESCE(sync.updated_at, shop.connected_at) ASC
