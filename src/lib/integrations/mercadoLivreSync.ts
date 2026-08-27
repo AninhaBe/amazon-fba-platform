@@ -21,12 +21,24 @@ import {
   saveCanonicalOrders,
   saveCanonicalProducts,
 } from "./canonicalStore";
+import {
+  MercadoLivreLeaseLostError,
+  nextMercadoLivreOrderWindow,
+} from "./mercadoLivreSyncControl";
 
 const PROVIDER = "mercado_livre";
 const DAY = 86_400_000;
+/** Fase 1 do backfill: a janela que o vendedor vê primeiro, minutos após conectar. */
+const RECENT_DAYS = 30;
 // Um dia extra cobre o início do dia no filtro personalizado de 365 dias.
-const HISTORY_DAYS = 366;
+// `MERCADO_LIVRE_HISTORY_DAYS` permite mudar o alvo total sem deploy de código.
+const HISTORY_DAYS = historyDaysConfigurados();
 const WINDOW_DAYS = 7;
+
+function historyDaysConfigurados(): number {
+  const dias = Number(process.env.MERCADO_LIVRE_HISTORY_DAYS ?? "");
+  return Number.isFinite(dias) && dias >= RECENT_DAYS ? dias : 366;
+}
 const PAGE_SIZE = 50;
 const SHIPMENT_CONCURRENCY = 5;
 const SHIPMENT_BATCH_SIZE = 5;
@@ -128,7 +140,9 @@ async function ensureSyncRow(connectionId: string): Promise<SyncRow> {
   const existing = await getSyncRow(connectionId);
   if (existing) return existing;
   const now = new Date();
-  const targetFrom = new Date(now.getTime() - HISTORY_DAYS * DAY);
+  // O alvo nasce curto (fase 1) para o dashboard encher em minutos; ao fechá-lo,
+  // o passo estende o alvo até HISTORY_DAYS e segue em background (fase 2).
+  const targetFrom = new Date(now.getTime() - Math.min(RECENT_DAYS, HISTORY_DAYS) * DAY);
   const cursorFrom = new Date(Math.max(targetFrom.getTime(), now.getTime() - WINDOW_DAYS * DAY));
   await dbQuery(
     `INSERT INTO workspace_marketplace_syncs
@@ -199,7 +213,10 @@ async function saveOrders(connection: IntegrationConnection, orders: MercadoLivr
   ));
 }
 
-async function syncProducts(connection: IntegrationConnection): Promise<void> {
+async function syncProducts(
+  connection: IntegrationConnection,
+  assertOwnership: (() => Promise<string>) | null = null
+): Promise<void> {
   const data = await getMercadoLivreProducts(connection);
   if (data.products.length) {
     const records = data.products.map((product) => ({
@@ -224,6 +241,22 @@ async function syncProducts(connection: IntegrationConnection): Promise<void> {
       { provider: PROVIDER, connectionId: connection.id, storeRaw: false },
       data.products.map(normalizeMercadoLivreProduct)
     ));
+  }
+  // Sob lease, o checkpoint do catálogo só avança se o worker ainda for o dono
+  // — um worker vencido não pode adiar a próxima varredura de produtos.
+  if (assertOwnership) {
+    const token = await assertOwnership();
+    const updated = await dbQuery(
+      `UPDATE workspace_marketplace_syncs
+          SET products_synced_at = now(), products_total = $4, active_products = $5,
+              products_complete = $6, updated_at = now()
+        WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
+          AND lease_until::text = $7 AND lease_until > now()
+        RETURNING connection_id`,
+      [currentWorkspaceId(), PROVIDER, connection.id, data.total, data.activeTotal, data.complete, token]
+    );
+    if (!updated[0]) throw new MercadoLivreLeaseLostError("Lease do Mercado Livre perdido ao concluir o catálogo.");
+    return;
   }
   await dbQuery(
     `UPDATE workspace_marketplace_syncs
@@ -297,22 +330,42 @@ export async function runMercadoLivreSyncStep(
 ): Promise<MercadoLivreSyncStatus> {
   if (!hasDb()) return publicStatus();
   if (prepareSync) await requestMercadoLivreSync(connection.id);
-  const leased = await dbQuery<SyncRow>(
+  const workspaceId = currentWorkspaceId();
+  const leased = await dbQuery<SyncRow & { ownership_token: string }>(
     `UPDATE workspace_marketplace_syncs
         SET lease_until = now() + interval '5 minutes', status = 'syncing', updated_at = now()
       WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
         AND status <> 'complete' AND (lease_until IS NULL OR lease_until < now())
       RETURNING status, target_from, target_to, covered_from, covered_to, cursor_from, cursor_to,
                 cursor_offset, processed_orders, products_synced_at, products_total, active_products,
-                products_complete, lease_until, last_error, last_success_at, updated_at`,
-    [currentWorkspaceId(), PROVIDER, connection.id]
+                products_complete, lease_until, last_error, last_success_at, updated_at,
+                lease_until::text AS ownership_token`,
+    [workspaceId, PROVIDER, connection.id]
   );
   const row = leased[0];
   if (!row) return publicStatus(await getSyncRow(connection.id), true);
+  // Fencing igual ao TikTok/Shopee: o próprio lease_until é o token. Um worker
+  // cujo lease venceu (e outro assumiu) falha aqui e não escreve por cima do
+  // checkpoint do dono novo. O webhook não participa do lease — ele só empurra
+  // covered_to/last_success_at, e isso segue fora da cerca de propósito.
+  let ownershipToken = row.ownership_token;
+  const assertOwnership = async (): Promise<string> => {
+    const renewed = await dbQuery<{ ownership_token: string }>(
+      `UPDATE workspace_marketplace_syncs
+          SET lease_until = now() + interval '5 minutes', updated_at = now()
+        WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
+          AND lease_until::text = $4 AND lease_until > now()
+        RETURNING lease_until::text AS ownership_token`,
+      [workspaceId, PROVIDER, connection.id, ownershipToken]
+    );
+    if (!renewed[0]) throw new MercadoLivreLeaseLostError("Lease do Mercado Livre perdido; worker expirado não grava checkpoint.");
+    ownershipToken = renewed[0].ownership_token;
+    return ownershipToken;
+  };
 
   try {
     const productsDue = !row.products_synced_at || Date.now() - new Date(row.products_synced_at).getTime() > 6 * 60 * 60_000;
-    if (productsDue) await syncProducts(connection);
+    if (productsDue) await syncProducts(connection, assertOwnership);
 
     const from = new Date(row.cursor_from);
     const to = new Date(row.cursor_to);
@@ -328,50 +381,80 @@ export async function runMercadoLivreSyncStep(
     );
     const orders = page.results ?? [];
     const total = page.paging?.total ?? orders.length;
+    await assertOwnership();
     await saveOrders(connection, orders);
 
     const pageComplete = offset + orders.length >= total || orders.length < PAGE_SIZE;
     const targetFrom = new Date(row.target_from);
-    if (pageComplete && from.getTime() <= targetFrom.getTime()) {
-      await dbQuery(
-        `UPDATE workspace_marketplace_syncs
-            SET status = 'complete', covered_from = COALESCE(covered_from, target_from), covered_to = target_to,
-                processed_orders = processed_orders + $4, cursor_offset = 0,
-                lease_until = NULL, last_error = NULL, last_success_at = now(), updated_at = now()
-          WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
-        [currentWorkspaceId(), PROVIDER, connection.id, orders.length]
-      );
-    } else if (pageComplete) {
-      const nextTo = from;
-      const nextFrom = new Date(Math.max(targetFrom.getTime(), nextTo.getTime() - WINDOW_DAYS * DAY));
-      await dbQuery(
-        `UPDATE workspace_marketplace_syncs
-            SET status = 'pending', covered_from = $4,
-                covered_to = COALESCE(covered_to, target_to), cursor_from = $5, cursor_to = $6,
-                cursor_offset = 0, processed_orders = processed_orders + $7,
-                lease_until = NULL, last_error = NULL, last_success_at = now(), updated_at = now()
-          WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
-        [currentWorkspaceId(), PROVIDER, connection.id, from, nextFrom, nextTo, orders.length]
-      );
-    } else {
+    await assertOwnership();
+    if (!pageComplete) {
       await dbQuery(
         `UPDATE workspace_marketplace_syncs
             SET status = 'pending', cursor_offset = $4,
                 processed_orders = processed_orders + $5, lease_until = NULL,
                 last_error = NULL, last_success_at = now(), updated_at = now()
-          WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
-        [currentWorkspaceId(), PROVIDER, connection.id, offset + orders.length, orders.length]
+          WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
+            AND lease_until::text = $6 AND lease_until > now()`,
+        [workspaceId, PROVIDER, connection.id, offset + orders.length, orders.length, ownershipToken]
       );
+    } else {
+      const move = nextMercadoLivreOrderWindow({
+        windowFromMs: from.getTime(),
+        targetFromMs: targetFrom.getTime(),
+        coveredFromMs: row.covered_from ? new Date(row.covered_from).getTime() : null,
+        historyFloorMs: Date.now() - HISTORY_DAYS * DAY,
+        windowMs: WINDOW_DAYS * DAY,
+        toleranceMs: DAY,
+      });
+      if (move.kind === "complete") {
+        await dbQuery(
+          `UPDATE workspace_marketplace_syncs
+              SET status = 'complete', covered_from = COALESCE(covered_from, target_from), covered_to = target_to,
+                  processed_orders = processed_orders + $4, cursor_offset = 0,
+                  lease_until = NULL, last_error = NULL, last_success_at = now(), updated_at = now()
+            WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
+              AND lease_until::text = $5 AND lease_until > now()`,
+          [workspaceId, PROVIDER, connection.id, orders.length, ownershipToken]
+        );
+      } else if (move.kind === "extend") {
+        // Fase 2: o alvo imediato (30 dias) fechou; estende o alvo até o
+        // histórico completo e continua o backfill nas mesmas janelas.
+        await dbQuery(
+          `UPDATE workspace_marketplace_syncs
+              SET status = 'pending', target_from = $4, covered_from = $5,
+                  covered_to = COALESCE(covered_to, target_to), cursor_from = $6, cursor_to = $7,
+                  cursor_offset = 0, processed_orders = processed_orders + $8,
+                  lease_until = NULL, last_error = NULL, last_success_at = now(), updated_at = now()
+            WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
+              AND lease_until::text = $9 AND lease_until > now()`,
+          [workspaceId, PROVIDER, connection.id, new Date(move.targetFromMs), new Date(move.coveredFromMs),
+            new Date(move.nextFromMs), new Date(move.nextToMs), orders.length, ownershipToken]
+        );
+      } else {
+        await dbQuery(
+          `UPDATE workspace_marketplace_syncs
+              SET status = 'pending', covered_from = $4,
+                  covered_to = COALESCE(covered_to, target_to), cursor_from = $5, cursor_to = $6,
+                  cursor_offset = 0, processed_orders = processed_orders + $7,
+                  lease_until = NULL, last_error = NULL, last_success_at = now(), updated_at = now()
+            WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
+              AND lease_until::text = $8 AND lease_until > now()`,
+          [workspaceId, PROVIDER, connection.id, from, new Date(move.nextFromMs), new Date(move.nextToMs), orders.length, ownershipToken]
+        );
+      }
     }
     // Frete é uma conciliação complementar. Processamos poucos registros por
     // passo, depois de salvar e avançar os pedidos, sem bloquear o faturamento.
     await syncMissingShipmentCosts(connection);
   } catch (error) {
+    // O token cerca também a falha: worker que perdeu o lease não sobrescreve o
+    // estado do dono novo com 'error' (o UPDATE simplesmente não casa).
     await dbQuery(
       `UPDATE workspace_marketplace_syncs
           SET status = 'error', lease_until = NULL, last_error = $4, updated_at = now()
-        WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
-      [currentWorkspaceId(), PROVIDER, connection.id, error instanceof Error ? error.message : "Falha ao sincronizar Mercado Livre."]
+        WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
+          AND lease_until::text = $5`,
+      [workspaceId, PROVIDER, connection.id, error instanceof Error ? error.message : "Falha ao sincronizar Mercado Livre.", ownershipToken]
     );
   }
   if (invalidateSnapshot) await invalidateMercadoLivreOverviewSnapshots(connection.id);

@@ -1,9 +1,14 @@
+import { after } from "next/server";
 import { NextRequest, NextResponse } from "next/server";
 import { connectionId } from "@/lib/integrations/types";
 import { saveIntegration } from "@/lib/integrations/integrationStore";
 import { exchangeMercadoLivreCode, mercadoLivreFetch, type MercadoLivreUser } from "@/lib/integrations/mercadoLivre";
 import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
-import { ensureMercadoLivreSyncState } from "@/lib/integrations/mercadoLivreSync";
+import { ensureMercadoLivreSyncState, runMercadoLivreSyncBatch } from "@/lib/integrations/mercadoLivreSync";
+import { currentWorkspaceId, runWithWorkspace } from "@/lib/workspaceScope";
+
+/** Passos do sync imediato pós-conexão: cobre a janela recente de pedidos. */
+const KICK_MAX_STEPS = 16;
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -47,7 +52,21 @@ export async function GET(req: NextRequest) {
       region: user.site_id ?? "MLB",
       metadata: { nickname: user.nickname, countryId: user.country_id ?? "BR", siteId: user.site_id ?? "MLB" },
     });
+    // Primeira sincronização agendada E disparada na hora: o `after()` roda
+    // fora do caminho do redirect, e o lease de 5 minutos impede colisão com
+    // o cron. Se o kick morrer, o agendador assume no próximo ciclo.
     await ensureMercadoLivreSyncState(connection.id);
+    const workspaceId = currentWorkspaceId();
+    after(() => runWithWorkspace(workspaceId, async () => {
+      try {
+        await runMercadoLivreSyncBatch(connection, KICK_MAX_STEPS);
+      } catch (error) {
+        console.error("Falha no sync imediato pós-conexão do Mercado Livre", {
+          connectionId: connection.id,
+          reason: error instanceof Error ? error.message : "Erro desconhecido",
+        });
+      }
+    }));
     const response = NextResponse.redirect(`${uiBaseUrl}/integracoes?connected=mercado_livre`);
     response.cookies.set("meli_oauth_state", "", { maxAge: 0, path: "/" });
     response.cookies.set("meli_pkce_verifier", "", { maxAge: 0, path: "/" });

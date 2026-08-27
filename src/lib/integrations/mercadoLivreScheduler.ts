@@ -52,7 +52,14 @@ export async function runScheduledMercadoLivreSync(
             AND COALESCE(sync.last_success_at, sync.updated_at) < now() - ($3 || ' milliseconds')::interval)
         )
       ORDER BY
-        CASE WHEN sync.status = 'complete' THEN 1 ELSE 0 END,
+        -- Conta que nunca fechou uma janela (covered_from nulo) é primeira
+        -- sincronização: fura a fila para o vendedor não esperar atrás do
+        -- backfill das contas antigas. Mesmo desenho do shopeeScheduler.ts.
+        CASE
+          WHEN sync.covered_from IS NULL THEN 0
+          WHEN sync.status = 'complete' THEN 2
+          ELSE 1
+        END,
         sync.updated_at ASC
       LIMIT $2`,
     [PROVIDER, connectionLimit, String(FRESH_FOR_MS)]
