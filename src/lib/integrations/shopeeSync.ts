@@ -16,6 +16,7 @@ import {
 import {
   normalizeShopeeOrder,
   normalizeShopeeProduct,
+  ShopeeItemForaDoSnapshot,
   type ShopeeEscrowDetail,
   type ShopeeModel,
   type ShopeeOrderDetail,
@@ -223,30 +224,35 @@ async function persistCatalogPage(input: {
   const workspaceId = currentWorkspaceId();
   const expectedCursor = encodeShopeeCatalogCheckpoint(input.checkpoint);
   const nextCursor = input.nextCheckpoint ? encodeShopeeCatalogCheckpoint(input.nextCheckpoint) : null;
-  // ITEM SEM PREÇO NÃO DERRUBA O CANAL (27/08/2026).
+  // ITEM ESTRANHO NÃO DERRUBA O CANAL (27/08/2026).
   //
   // Antes, `normalizeShopeeProduct` lançava e a exceção subia pela varredura
   // inteira: um item com variação (`price_info` ausente no item) zerou a
   // primeira sincronização da loja real — 0 pedidos, 0 produtos, `covered_to`
-  // nulo. A recusa a fabricar zero continua; o que muda é o ESCOPO, de canal
-  // para item. O que não tem preço fica de fora e é contado, para a tela dizer
-  // quantos são, com número.
+  // nulo. Corrigido o preço, a MESMA parada voltou algumas horas depois por
+  // outro motivo: `item_status=SHOPEE_DELETE`, valor que a Shopee não
+  // documenta. Dois sintomas, um defeito só — o ESCOPO era o canal quando
+  // deveria ser o item.
+  //
+  // A recusa a fabricar dado continua inteira: o que não dá para afirmar fica
+  // de fora e é contado, com o valor cru que a Shopee mandou, para a tela poder
+  // dizer quantos são e por quê. Erro que não é `ShopeeItemForaDoSnapshot`
+  // (defeito nosso, lease perdido, resposta incoerente) continua subindo.
   const normalized: CanonicalProduct[] = [];
-  const semPreco: string[] = [];
+  const foraDoSnapshot: string[] = [];
   for (const product of input.products) {
     try {
       normalized.push(normalizeShopeeProduct(product, input.modelsByItem?.get(String(product.item_id))));
     } catch (error) {
-      const motivo = error instanceof Error ? error.message : String(error);
-      // Preço E estoque: os dois somem no mesmo payload de item com variação,
-      // e nenhum dos dois pode derrubar o canal inteiro. Outro erro sobe.
-      if (!/price_info\.current_price|stock_info_v2/.test(motivo)) throw error;
-      semPreco.push(String(product.item_id));
+      if (!(error instanceof ShopeeItemForaDoSnapshot)) throw error;
+      foraDoSnapshot.push(`${error.itemId} (${error.valorCru})`);
     }
   }
-  if (semPreco.length) {
+  if (foraDoSnapshot.length) {
     // Conta no checkpoint (o alarme do agendador já lê isso) sem interromper.
-    console.warn(`[shopee] ${semPreco.length} item(ns) sem preço ou estoque informado pela Shopee: ${semPreco.join(", ")}`);
+    console.warn(
+      `[shopee] ${foraDoSnapshot.length} item(ns) fora do snapshot, com o valor cru da Shopee: ${foraDoSnapshot.join(", ")}`
+    );
   }
 
   await dbTransaction(async (query) => {

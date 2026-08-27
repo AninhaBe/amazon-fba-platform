@@ -73,10 +73,12 @@ test("preço negativo é recusado como ausente", () => {
 
 test("a varredura NÃO para em item sem preço: vira pendência e segue", () => {
   const sync = readFileSync(new URL("../src/lib/integrations/shopeeSync.ts", import.meta.url), "utf8");
-  // O catch é restrito ao defeito de preço: qualquer outro erro continua subindo.
-  assert.match(sync, /price_info\\.current_price\|stock_info_v2\/\.test\(motivo\)\) throw error;/);
-  assert.match(sync, /semPreco\.push\(String\(product\.item_id\)\)/);
-  assert.match(sync, /item\(ns\) sem preço ou estoque informado pela Shopee/);
+  // O catch é restrito a defeito DE UM ITEM: qualquer outro erro continua
+  // subindo. O critério é o tipo do erro — era o texto da mensagem até
+  // 27/08/2026, e um status novo da Shopee passou por fora dele.
+  assert.match(sync, /if \(!\(error instanceof ShopeeItemForaDoSnapshot\)\) throw error;/);
+  assert.match(sync, /foraDoSnapshot\.push\(/);
+  assert.match(sync, /item\(ns\) fora do snapshot, com o valor cru da Shopee/);
   // E o item com variação ganha a segunda chamada, só ele.
   assert.match(sync, /if \(!product\.has_model\) continue;/);
   assert.match(sync, /getShopeeModelList\(connection, Number\(product\.item_id\)\)/);

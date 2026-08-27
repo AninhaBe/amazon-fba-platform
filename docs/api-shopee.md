@@ -146,6 +146,26 @@ Mesma convenção dos docs da Amazon e do ML: mudanças de comportamento da API 
 na prática entram aqui, com data. Enquanto o canal não for implementado, a lista fica
 vazia — ao implementar, re-validar tudo marcado com ⚠️ e registrar o que divergir.
 
+- **2026-08-27 — primeira loja real conectada: duas divergências no catálogo, ambas
+  medidas em produção.** A loja `275804987` autorizou o app e a primeira varredura
+  parou duas vezes. As duas eram o mesmo defeito nosso — **escopo de canal para o que
+  é problema de um item**:
+  - **Preço e estoque não estão no item quando ele tem variação.** Em
+    `get_item_base_info`, item com `has_model: true` volta com **`price_info` e
+    `stock_info_v2.summary_info` ausentes** (`undefined`, não vazio). Medido no item
+    `44862300302`: os valores moram em **`get_model_list` → `model[].price_info[]`**
+    (`current_price: 42.9`, `currency: "BRL"`) e `model[].stock_info_v2.summary_info`
+    (`total_available_stock: 913` por variação). Decisão: **menor `current_price`
+    entre as variações** ("a partir de"), **estoque somado**, moeda da variação.
+  - **`item_status` tem valor não documentado: `SHOPEE_DELETE`.** Pedindo a lista com
+    `item_status=DELETED`, o detalhe volta com `SHOPEE_DELETE` — pelo jeito o item
+    removido pela plataforma, não pelo vendedor. Não consta da documentação deles.
+    Mapeado para `closed`; o valor cru fica preservado em `provider_status`.
+  - ⚠️ **A lição, que vale para os próximos valores que eles inventarem:** item que a
+    Shopee manda fora do contrato **fica de fora do snapshot e é contado**, com o
+    valor cru registrado — nunca derruba a sincronização inteira. As duas paradas
+    zeraram o canal (0 pedidos, 0 produtos, `covered_to` nulo) por causa de um item.
+
 - **2026-08-14 — cadeia pública revalidada no sandbox; nenhuma loja autorizada.**
   `scripts/shopee-sandbox-probe.mjs` (novo) devolveu **HTTP 200** em
   `get_shops_by_partner` e `get_merchants_by_partner` — a **assinatura HMAC continua
@@ -259,8 +279,11 @@ vazia — ao implementar, re-validar tudo marcado com ⚠️ e registrar o que d
     receita infla. `model_sku` (variação) tem precedência sobre `item_sku`.
   - **`INVOICE_PENDING` conta como receita** (pago, só falta NF-e) — status
     específico do Brasil.
-  - Produtos: `item_status` usa `NORMAL`/`UNLIST`/`BANNED`/`DELETED`, e o estoque
-    vem aninhado em `stock_info_v2.summary_info.total_available_stock`.
+  - Produtos: `item_status` usa `NORMAL`/`UNLIST`/`BANNED`/`DELETED` **e também
+    `SHOPEE_DELETE`, que a documentação não lista** (medido em 27/08/2026 — ver o
+    Changelog). O estoque vem aninhado em
+    `stock_info_v2.summary_info.total_available_stock` — **exceto em item com
+    variação, onde ele e o preço só existem em `get_model_list`**.
   - ⚠️ **Cursor é opaco e não é estável entre execuções** (diferente do offset do
     ML): o sync percorre a janela inteira num passo só, em vez de guardar posição.
 

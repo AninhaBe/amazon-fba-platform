@@ -271,9 +271,44 @@ export function normalizeShopeeOrder(
   };
 }
 
+/**
+ * Dado de UM item que veio fora do contrato da Shopee.
+ *
+ * Quem varre o catálogo trata isto como pendência daquele item — ele fica de
+ * fora do snapshot, é contado e o valor cru da Shopee é registrado —, nunca
+ * como falha do canal. Qualquer outro erro continua derrubando a página, que é
+ * o comportamento certo para defeito nosso ou resposta incoerente.
+ *
+ * `valorCru` guarda o que a Shopee mandou de verdade: é o que permite descobrir
+ * um valor novo (como `SHOPEE_DELETE` em 27/08/2026) sem ter de reproduzir.
+ */
+export class ShopeeItemForaDoSnapshot extends Error {
+  readonly itemId: string;
+  readonly valorCru: string;
+
+  constructor(itemId: string, valorCru: string, mensagem: string) {
+    super(mensagem);
+    this.name = "ShopeeItemForaDoSnapshot";
+    this.itemId = itemId;
+    this.valorCru = valorCru;
+  }
+}
+
+const ehNaoNegativo = (value: number | null | undefined): boolean =>
+  value != null && Number.isFinite(Number(value)) && Number(value) >= 0;
+
+const recusaDeZero = (field: string, identity: string): string =>
+  `Shopee não informou ${field} válido para ${identity}; zero não será fabricado.`;
+
 function requiredNonNegative(value: number | null | undefined, field: string, identity: string): number {
-  if (value == null || !Number.isFinite(Number(value)) || Number(value) < 0) {
-    throw new Error(`Shopee não informou ${field} válido para ${identity}; zero não será fabricado.`);
+  if (!ehNaoNegativo(value)) throw new Error(recusaDeZero(field, identity));
+  return Number(value);
+}
+
+/** Igual ao acima, mas o escopo da falha é o item — não o canal. */
+function exigidoNoItem(value: number | null | undefined, field: string, itemId: string): number {
+  if (!ehNaoNegativo(value)) {
+    throw new ShopeeItemForaDoSnapshot(itemId, String(value ?? "(ausente)"), recusaDeZero(field, itemId));
   }
   return Number(value);
 }
@@ -307,6 +342,12 @@ const PRODUCT_STATUS_MAP: Record<string, CanonicalProduct["status"]> = {
   BANNED: "closed",
   DELETED: "closed",
   REVIEWING: "paused",
+  // Medido na loja real em 27/08/2026, NÃO documentado pela Shopee: pedimos a
+  // lista com `item_status=DELETED` e o detalhe volta com `SHOPEE_DELETE` —
+  // aparentemente o item removido pela própria plataforma, não pelo vendedor.
+  // Como os dois são item morto, o canônico é o mesmo `closed`; a diferença de
+  // origem fica preservada em `providerStatus`, que guarda o valor cru.
+  SHOPEE_DELETE: "closed",
 };
 
 /** Uma variação do item, na forma medida em 27/08/2026 na loja real. */
@@ -373,13 +414,22 @@ export function normalizeShopeeProduct(product: ShopeeProductItem, models?: read
   const externalProductId = requiredIdentity(product.item_id, "item_id", "produto");
   const providerStatus = product.item_status ?? "";
   const status = PRODUCT_STATUS_MAP[providerStatus];
-  if (!status) throw new Error(`Status de produto Shopee desconhecido: ${providerStatus || "ausente"}.`);
+  if (!status) {
+    // A Shopee inventa valor de `item_status` sem avisar (ver o mapa acima).
+    // Adivinhar o significado seria fabricar fato; derrubar o canal por um item
+    // morto seria pior ainda. O item fica de fora, contado e com o valor cru.
+    throw new ShopeeItemForaDoSnapshot(
+      externalProductId,
+      providerStatus || "(ausente)",
+      `Status de produto Shopee desconhecido: ${providerStatus || "ausente"}.`
+    );
+  }
   const resolvido = precoDoProdutoShopee(product, models);
-  const currentPrice = requiredNonNegative(resolvido.price, "price_info.current_price", String(product.item_id));
-  const availableQty = requiredNonNegative(
+  const currentPrice = exigidoNoItem(resolvido.price, "price_info.current_price", externalProductId);
+  const availableQty = exigidoNoItem(
     resolvido.availableQty,
     "stock_info_v2.summary_info.total_available_stock",
-    String(product.item_id)
+    externalProductId
   );
   return {
     externalProductId,
