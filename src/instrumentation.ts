@@ -14,6 +14,8 @@
 //
 // Desligado por padrão: só arma com INTERNAL_SCHEDULER=1 (Fly secrets).
 
+import { lerResultadoDoCron } from "./lib/schedulerResult";
+
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
   if (process.env.INTERNAL_SCHEDULER !== "1") return;
@@ -51,7 +53,16 @@ export async function register() {
         // Syncs têm orçamento de até 4 min nas rotas; folga acima disso.
         signal: AbortSignal.timeout(5 * 60_000),
       });
-      console.log(`[scheduler] ${rota}: HTTP ${res.status} em ${Math.round((Date.now() - inicio) / 1000)}s`);
+      const segundos = Math.round((Date.now() - inicio) / 1000);
+      // Status NÃO basta: a rota responde 200 com `ok:false` + `falhas{}` quando
+      // um passo best-effort quebra. Ver `lerResultadoDoCron`.
+      const corpo = await res.json().catch(() => null);
+      const { falhou, detalhe } = lerResultadoDoCron(res.status, corpo);
+      if (falhou) {
+        console.error(`[scheduler] ${rota}: HTTP ${res.status} em ${segundos}s — ${detalhe}`);
+      } else {
+        console.log(`[scheduler] ${rota}: HTTP ${res.status} em ${segundos}s`);
+      }
     } catch (error) {
       console.error(`[scheduler] ${rota} falhou:`, error instanceof Error ? error.message : error);
     } finally {
