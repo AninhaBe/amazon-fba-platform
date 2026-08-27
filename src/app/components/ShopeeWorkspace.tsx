@@ -113,6 +113,7 @@ export function ShopeeWorkspace() {
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [retryKey, setRetryKey] = useState(0);
   const [sync, setSync] = useState<ShopeeSyncStatus | null>(null);
+  const [syncPoll, setSyncPoll] = useState(0);
 
   useEffect(() => {
     if (previousPeriod.current === period.query) return;
@@ -204,7 +205,17 @@ export function ShopeeWorkspace() {
       }
     })();
     return () => { cancelled = true; };
-  }, [status, period.query, retryKey, searchParams]);
+  }, [status, period.query, retryKey, searchParams, syncPoll]);
+
+  // Enquanto a primeira sincronização roda, a tela se atualiza sozinha — o
+  // vendedor vê o número de pedidos crescer em vez de recarregar a página.
+  useEffect(() => {
+    if (!status?.connected || !sync) return;
+    const primeiraSincronizacao = (sync.phase === "idle" || sync.phase === "syncing") && (pending || !overview);
+    if (!primeiraSincronizacao) return;
+    const timer = setTimeout(() => setSyncPoll((value) => value + 1), 5_000);
+    return () => clearTimeout(timer);
+  }, [status, sync, pending, overview, syncPoll]);
 
   if (error) {
     return (
@@ -303,7 +314,14 @@ export function ShopeeWorkspace() {
         {status.demo && <ShopeeDemoNotice connectHref={status.configured ? status.connectHref : undefined} />}
         <section aria-live="polite" aria-labelledby="shopee-sync-title">
           <EmptyState title={state.title} description={detail} kind={sync.phase === "idle" ? "data" : "permission"} action={action} />
-          <p className="sr-only" id="shopee-sync-title">Progresso da sincronização: {sync.progress}%. {sync.processedOrders} pedidos processados.</p>
+          {sync.phase === "idle" || sync.phase === "syncing" ? (
+            // Progresso honesto, com o número real — não um spinner mudo.
+            <p className="integration-message" id="shopee-sync-title">
+              {sync.processedOrders} pedido(s) já importado(s) · {sync.progress}% do período coberto.
+            </p>
+          ) : (
+            <p className="sr-only" id="shopee-sync-title">Progresso da sincronização: {sync.progress}%. {sync.processedOrders} pedidos processados.</p>
+          )}
         </section>
       </ShopeeFrame>
     );

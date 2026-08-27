@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   nextShopeeEscrowOffset,
+  nextShopeeOrderWindow,
   ownsShopeeLease,
   shopeeEscrowSettled,
   decodeShopeeSyncFailure,
@@ -73,6 +74,60 @@ test("cursor de escrow avança deterministicamente e dá a volta", () => {
   assert.equal(nextShopeeEscrowOffset(0, 20, 53), 20);
   assert.equal(nextShopeeEscrowOffset(40, 20, 53), 7);
   assert.equal(nextShopeeEscrowOffset(10, 0, 0), 0);
+});
+
+test("janela de pedidos avança para trás até o alvo imediato", () => {
+  const DAY = 86_400_000;
+  const now = 1_700_000_000_000;
+  const move = nextShopeeOrderWindow({
+    windowFromMs: now - 15 * DAY,
+    targetFromMs: now - 30 * DAY,
+    historyFloorMs: now - 60 * DAY,
+    windowMs: 15 * DAY,
+    toleranceMs: DAY,
+  });
+  assert.deepEqual(move, { kind: "advance", nextToMs: now - 15 * DAY, nextFromMs: now - 30 * DAY });
+});
+
+test("alvo imediato coberto estende o alvo até o histórico completo (fase 2)", () => {
+  const DAY = 86_400_000;
+  const now = 1_700_000_000_000;
+  const move = nextShopeeOrderWindow({
+    windowFromMs: now - 30 * DAY,
+    targetFromMs: now - 30 * DAY,
+    historyFloorMs: now - 60 * DAY,
+    windowMs: 15 * DAY,
+    toleranceMs: DAY,
+  });
+  assert.deepEqual(move, {
+    kind: "extend",
+    targetFromMs: now - 60 * DAY,
+    nextToMs: now - 30 * DAY,
+    nextFromMs: now - 45 * DAY,
+  });
+});
+
+test("histórico completo coberto fecha em complete, sem reabrir alvo já alcançado", () => {
+  const DAY = 86_400_000;
+  const now = 1_700_000_000_000;
+  const alvoAntigo = nextShopeeOrderWindow({
+    windowFromMs: now - 60 * DAY,
+    targetFromMs: now - 60 * DAY,
+    historyFloorMs: now - 60 * DAY,
+    windowMs: 15 * DAY,
+    toleranceMs: DAY,
+  });
+  assert.deepEqual(alvoAntigo, { kind: "complete" });
+  // Conexão antiga: target_from ficou no passado em relação ao piso móvel —
+  // dentro da tolerância não há nada a estender.
+  const conexaoAntiga = nextShopeeOrderWindow({
+    windowFromMs: now - 61 * DAY,
+    targetFromMs: now - 61 * DAY,
+    historyFloorMs: now - 60 * DAY,
+    windowMs: 15 * DAY,
+    toleranceMs: DAY,
+  });
+  assert.deepEqual(conexaoAntiga, { kind: "complete" });
 });
 
 test("settlement depende de marcador explícito, não da presença de fees", () => {

@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { NextRequest, NextResponse } from "next/server";
 import { saveIntegration } from "@/lib/integrations/integrationStore";
 import {
@@ -6,8 +7,12 @@ import {
   shopeeConnectionId,
   shopeeSandbox,
 } from "@/lib/integrations/shopee";
-import { ensureShopeeSyncState } from "@/lib/integrations/shopeeSync";
+import { ensureShopeeSyncState, runShopeeSyncBatch } from "@/lib/integrations/shopeeSync";
 import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
+import { currentWorkspaceId, runWithWorkspace } from "@/lib/workspaceScope";
+
+/** Orçamento do sync imediato pós-conexão: cobre a janela recente de pedidos. */
+const KICK_BUDGET_MS = 60_000;
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -73,8 +78,21 @@ export async function GET(req: NextRequest) {
       }
 
       const saved = await saveIntegration({ ...connection, displayName });
-      // Primeira sincronização já agendada: o cron assume a partir daqui.
+      // Primeira sincronização agendada E disparada na hora: o `after()` roda
+      // fora do caminho do redirect, e o lease de 5 minutos impede colisão com
+      // o cron. Se o kick morrer, o agendador assume no próximo ciclo.
       await ensureShopeeSyncState(saved.id);
+      const workspaceId = currentWorkspaceId();
+      after(() => runWithWorkspace(workspaceId, async () => {
+        try {
+          await runShopeeSyncBatch(saved, KICK_BUDGET_MS);
+        } catch (error) {
+          console.error("Falha no sync imediato pós-conexão da Shopee", {
+            connectionId: saved.id,
+            reason: error instanceof Error ? error.message : "Erro desconhecido",
+          });
+        }
+      }));
       const response = NextResponse.redirect(`${uiBaseUrl}/integracoes?connected=shopee`);
       response.cookies.set("shopee_oauth_state", "", { maxAge: 0, path: "/" });
       return response;

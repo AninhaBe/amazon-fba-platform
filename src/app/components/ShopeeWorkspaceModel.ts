@@ -37,13 +37,13 @@ export function resolveShopeeConnectionState(connections: ShopeeConnectionSummar
 
 const content: Record<ShopeeSyncPhase, { title: string; description: string; action: "refresh" | "reconnect" | "manage" | null }> = {
   idle: {
-    title: "Primeira sincronização pendente",
-    description: "A loja está conectada. Os dados aparecerão conforme pedidos e catálogo forem importados.",
+    title: "Importando os pedidos recentes",
+    description: "A loja está conectada e a importação já foi disparada: os pedidos dos últimos 30 dias entram primeiro, e o restante do histórico segue em segundo plano.",
     action: "manage",
   },
   syncing: {
     title: "Sincronização em andamento",
-    description: "Pedidos e catálogo estão sendo importados. O progresso já salvo será preservado.",
+    description: "Os pedidos recentes são importados primeiro; o restante do histórico continua em segundo plano. O progresso já salvo será preservado.",
     action: null,
   },
   ready: { title: "Dados sincronizados", description: "A sincronização inicial foi concluída.", action: null },

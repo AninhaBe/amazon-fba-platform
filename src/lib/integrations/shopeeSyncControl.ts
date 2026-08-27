@@ -92,6 +92,45 @@ function validateIdentityBijection(
   }
 }
 
+export type ShopeeOrderWindowAdvance =
+  | { kind: "complete" }
+  | { kind: "advance"; nextFromMs: number; nextToMs: number }
+  | { kind: "extend"; targetFromMs: number; nextFromMs: number; nextToMs: number };
+
+/**
+ * Decide o próximo movimento da janela de pedidos ao fim de um passo.
+ * Fase 1 termina quando o cursor alcança o alvo imediato (30 dias); se o
+ * histórico completo ainda não foi coberto, o alvo é estendido para trás
+ * ("extend") e o backfill continua nas mesmas janelas retomáveis, em vez de
+ * marcar `complete` e esconder o resto do histórico.
+ */
+export function nextShopeeOrderWindow(input: {
+  windowFromMs: number;
+  targetFromMs: number;
+  historyFloorMs: number;
+  windowMs: number;
+  toleranceMs: number;
+}): ShopeeOrderWindowAdvance {
+  if (input.windowFromMs > input.targetFromMs) {
+    const nextToMs = input.windowFromMs;
+    return {
+      kind: "advance",
+      nextToMs,
+      nextFromMs: Math.max(input.targetFromMs, nextToMs - input.windowMs),
+    };
+  }
+  if (input.targetFromMs > input.historyFloorMs + input.toleranceMs) {
+    const nextToMs = input.windowFromMs;
+    return {
+      kind: "extend",
+      targetFromMs: input.historyFloorMs,
+      nextToMs,
+      nextFromMs: Math.max(input.historyFloorMs, nextToMs - input.windowMs),
+    };
+  }
+  return { kind: "complete" };
+}
+
 /** Cerca toda leitura externa: lease válido antes e ainda válido ao voltar. */
 export async function fencedShopeeExternalRead<T>(
   assertOwnership: () => Promise<unknown>,

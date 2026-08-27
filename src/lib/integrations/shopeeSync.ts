@@ -38,6 +38,7 @@ import {
   encodeShopeeSyncFailure,
   fencedShopeeExternalRead,
   nextShopeeEscrowOffset,
+  nextShopeeOrderWindow,
   SHOPEE_ESCROW_MARK_SQL,
   validateShopeeCatalogSnapshot,
   validateShopeeOrderBatch,
@@ -55,8 +56,21 @@ import { withShopeeSyncWriteFence } from "./shopeeWriteFence";
 
 const PROVIDER = "shopee";
 const DAY = 86_400_000;
-const HISTORY_DAYS = 60;
+/** Fase 1 do backfill: a janela que o vendedor vê primeiro, minutos após conectar. */
+const RECENT_DAYS = 30;
+/**
+ * Fase 2: alvo total do histórico. 60 dias até segunda ordem — a extensão para
+ * 12 meses depende da decisão de custo do banco (Supabase acima do teto).
+ * `SHOPEE_HISTORY_DAYS` permite mudar o alvo sem deploy de código; ao subir o
+ * valor, conexões já completas aprofundam o histórico no ciclo seguinte.
+ */
+const HISTORY_DAYS = historyDaysConfigurados();
 const WINDOW_DAYS = ORDER_WINDOW_DAYS; // teto da própria API
+
+function historyDaysConfigurados(): number {
+  const dias = Number(process.env.SHOPEE_HISTORY_DAYS ?? "");
+  return Number.isFinite(dias) && dias >= RECENT_DAYS ? dias : 60;
+}
 const FRESH_FOR_MS = 10 * 60_000;
 /** Pedidos por passo que buscam escrow — mantém o passo curto no cron. */
 const ESCROW_BATCH_SIZE = 20;
@@ -149,7 +163,9 @@ async function ensureSyncRow(connectionId: string): Promise<SyncRow> {
   const existing = await getSyncRow(connectionId);
   if (existing) return existing;
   const now = new Date();
-  const targetFrom = new Date(now.getTime() - HISTORY_DAYS * DAY);
+  // O alvo nasce curto (fase 1) para o dashboard encher em minutos; ao fechá-lo,
+  // o passo estende o alvo até HISTORY_DAYS e segue em background (fase 2).
+  const targetFrom = new Date(now.getTime() - Math.min(RECENT_DAYS, HISTORY_DAYS) * DAY);
   const cursorFrom = new Date(Math.max(targetFrom.getTime(), now.getTime() - WINDOW_DAYS * DAY));
   await dbQuery(
     `INSERT INTO workspace_marketplace_syncs
@@ -553,9 +569,14 @@ export async function runShopeeSyncStep(
   };
 
   try {
+    // Primeira sincronização (nenhuma janela de pedidos fechada ainda): os
+    // pedidos recentes passam na frente do sweep de catálogo, para o dashboard
+    // mostrar venda em minutos. Um sweep já iniciado (cursor_token) não é
+    // interrompido — retomabilidade vale mais que a ordem.
+    const primeiraJanelaPendente = !row.covered_from && !row.cursor_token;
     const productsDue = Boolean(row.cursor_token) || !row.products_synced_at
       || Date.now() - new Date(row.products_synced_at).getTime() > 6 * 60 * 60_000;
-    if (productsDue) {
+    if (productsDue && !primeiraJanelaPendente) {
       await syncProductsStep(connection, row.cursor_token, assertOwnership, catalogBudgetMs);
       return publicStatus(await getSyncRow(connection.id));
     }
@@ -578,7 +599,14 @@ export async function runShopeeSyncStep(
     const targetFrom = new Date(row.target_from);
     await assertOwnership();
 
-    if (from.getTime() <= targetFrom.getTime()) {
+    const move = nextShopeeOrderWindow({
+      windowFromMs: from.getTime(),
+      targetFromMs: targetFrom.getTime(),
+      historyFloorMs: Date.now() - HISTORY_DAYS * DAY,
+      windowMs: WINDOW_DAYS * DAY,
+      toleranceMs: DAY,
+    });
+    if (move.kind === "complete") {
       await dbQuery(
         `UPDATE workspace_marketplace_syncs
             SET status = 'complete', covered_from = COALESCE(covered_from, target_from),
@@ -588,9 +616,21 @@ export async function runShopeeSyncStep(
             AND lease_until::text = $5 AND lease_until > now()`,
         [workspaceId, PROVIDER, connection.id, saved, ownershipToken]
       );
+    } else if (move.kind === "extend") {
+      // Fase 2: o alvo imediato (30 dias) fechou; estende o alvo até o
+      // histórico completo e continua o backfill nas mesmas janelas.
+      await dbQuery(
+        `UPDATE workspace_marketplace_syncs
+            SET status = 'pending', target_from = $4, covered_from = $5,
+                covered_to = COALESCE(covered_to, target_to),
+                cursor_from = $6, cursor_to = $7, processed_orders = processed_orders + $8,
+                lease_until = NULL, last_error = NULL, last_success_at = now(), updated_at = now()
+          WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
+            AND lease_until::text = $9 AND lease_until > now()`,
+        [workspaceId, PROVIDER, connection.id, new Date(move.targetFromMs), from,
+          new Date(move.nextFromMs), new Date(move.nextToMs), saved, ownershipToken]
+      );
     } else {
-      const nextTo = from;
-      const nextFrom = new Date(Math.max(targetFrom.getTime(), nextTo.getTime() - WINDOW_DAYS * DAY));
       await dbQuery(
         `UPDATE workspace_marketplace_syncs
             SET status = 'pending', covered_from = $4, covered_to = COALESCE(covered_to, target_to),
@@ -598,7 +638,7 @@ export async function runShopeeSyncStep(
                 lease_until = NULL, last_error = NULL, last_success_at = now(), updated_at = now()
           WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
             AND lease_until::text = $8 AND lease_until > now()`,
-        [workspaceId, PROVIDER, connection.id, from, nextFrom, nextTo, saved, ownershipToken]
+        [workspaceId, PROVIDER, connection.id, from, new Date(move.nextFromMs), new Date(move.nextToMs), saved, ownershipToken]
       );
     }
 
