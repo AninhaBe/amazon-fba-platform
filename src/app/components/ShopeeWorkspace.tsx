@@ -34,6 +34,7 @@ import {
 import type { PublicIntegrationConnection } from "@/lib/integrations/types";
 import { marginMetricTone } from "@/lib/marginTone";
 import { comSemImposto } from "@/lib/semImposto";
+import { rotuloStatusShopee } from "./statusDeExibicao";
 import { shopeeTaxRateHref } from "./ShopeeSettingsModel";
 
 interface Overview {
@@ -95,20 +96,10 @@ function percent(value: number) {
 }
 
 // Status da Shopee (v2) traduzidos; o que não estiver mapeado aparece legível.
-function orderStatus(status: string) {
-  const labels: Record<string, string> = {
-    UNPAID: "Aguardando pagamento",
-    READY_TO_SHIP: "Pronto para envio",
-    PROCESSED: "Em processamento",
-    SHIPPED: "Enviado",
-    COMPLETED: "Concluído",
-    CANCELLED: "Cancelado",
-    INVOICE_PENDING: "Aguardando NF-e",
-    paid: "Pago",
-    cancelled: "Cancelado",
-  };
-  return labels[status] || status.replaceAll("_", " ").toLowerCase();
-}
+// O mapa saiu daqui para `statusDeExibicao` porque o MONITOR da Shopee mostrava
+// os mesmos status crus que esta tela já traduzia — duas telas do mesmo canal
+// liam o mesmo pedido de dois jeitos.
+const orderStatus = rotuloStatusShopee;
 
 export function ShopeeWorkspace() {
   const period = useDashboardPeriod();

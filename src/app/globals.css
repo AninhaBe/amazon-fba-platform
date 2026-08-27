@@ -4771,7 +4771,9 @@ summary:hover { background: var(--paper-soft); }
 .channel-finance-coverage strong { color: var(--ink); font-size: 12px; font-weight: var(--weight-semibold); }
 .channel-finance-coverage p { margin-block-start: 2px; max-width: 90ch; color: var(--ink-muted); font-size: 12px; line-height: 15px; }
 .channel-finance-coverage > div > span { flex: none; border-radius: var(--radius-sm); background: var(--paper); padding: 3px 6px; color: var(--ink-muted); font-size: 12px; }
-.channel-finance-coverage dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; border: 1px solid var(--ink-08); background: var(--ink-08); }
+/* auto-fit: a lista tinha 3 colunas fixas e perdeu uma quando o contador de
+   falhas saiu de fato-do-período para nota com contexto. */
+.channel-finance-coverage dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; border: 1px solid var(--ink-08); background: var(--ink-08); }
 .channel-finance-coverage dl > div { background: var(--paper); padding: 7px 8px; }
 .channel-finance-coverage dt { color: var(--ink-muted); font-size: 12px; }
 .channel-finance-coverage dd { margin-block-start: 2px; color: var(--ink-soft); font-size: 12px; }

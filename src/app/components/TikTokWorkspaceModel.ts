@@ -3,6 +3,7 @@ import type { ComponentCoverage, TiktokCoverageV2, TiktokFinancialOverviewV2 } f
 // alias do Next nao existe.
 import { comSemImposto } from "../../lib/semImposto";
 import type { TiktokSyncStatus } from "@/lib/integrations/tiktokSync";
+import { rotuloStatusPedido } from "./statusDeExibicao";
 
 export type TiktokSyncPhase = TiktokSyncStatus["phase"];
 export type TiktokCoverageMetric = ComponentCoverage;
@@ -24,9 +25,13 @@ export interface TiktokOverviewResponse {
   orderProfitability?: Array<{ orderId: string; occurredAt: string; revenue: number; profit: number | null; marginPct: number | null; financialStatus: "complete" | "partial" | "pending" }>;
 }
 
+/**
+ * Mantido como ponto de entrada do canal, mas o vocabulário agora mora em
+ * `statusDeExibicao` — o monitor do TikTok e o da Shopee precisavam das mesmas
+ * palavras, e duas cópias já tinham começado a divergir (faltava `refunded`).
+ */
 export function tiktokOrderStatusLabel(status: string) {
-  const labels: Record<string, string> = { pending: "Pendente", paid: "Pago", shipped: "Enviado", delivered: "Entregue", cancelled: "Cancelado" };
-  return labels[status] ?? status.replaceAll("_", " ");
+  return rotuloStatusPedido(status);
 }
 
 export function effectiveTiktokDashboardPhase(
