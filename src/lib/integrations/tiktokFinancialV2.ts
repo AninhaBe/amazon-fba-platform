@@ -261,12 +261,45 @@ export function applyTiktokLedgerAuthority(
     revenue: operationalRevenue,
     discounts: result.coverage.revenueCascade.discounts,
   });
-  // Lucro do período segue fora do ar enquanto ads, retenção e reembolso não
-  // forem discriminados pelo extrato: exibi-lo aqui seria otimista sem aviso.
-  result.overview.profit = null;
-  result.overview.marginPct = null;
-  result.overview.roiPct = null;
-  result.coverage.financials.status = "partial";
-  result.coverage.requestedPeriod.financials.status = "partial";
+  // LUCRO DESTRAVADO QUANDO O EXTRATO FECHA — decisão dela em 27/08/2026.
+  //
+  // Aqui havia `profit = null` INCONDICIONAL, justificado por ads, retenção e
+  // reembolso "não discriminados pelo extrato". Eles são: `aggregateLedger` soma
+  // apenas transação NÃO estimada, e ausência de anúncio num extrato liquidado é
+  // fato ("a plataforma não cobrou"), não desconhecimento — a mesma regra que a
+  // auditoria da Amazon aplicou ao defeito de tarifa ausente em período
+  // conciliado. Enquanto durou, o TikTok era o único canal que nunca mostrava
+  // lucro, nem com o extrato inteiro na mão.
+  //
+  // ⚠️ A NUANCE CONTINUA DE PÉ. Só calcula quando a cobertura FECHOU
+  // (`ledger.covered`, que exige checkpoint terminal e período anterior à
+  // fronteira do dia fechado) E há transação liquidada. Janela aberta, valor
+  // estimado ou componente ausente mantêm o travessão: ali o número seria
+  // otimista sem aviso, que é exatamente o que o `null ≠ 0` proíbe.
+  const doExtrato = [
+    result.overview.revenue, result.overview.fees, result.overview.sellerShipping,
+    result.overview.ads, result.overview.taxesWithheld, result.overview.refunds,
+  ];
+  const fechado = settled && doExtrato.every((valor) => valor != null) && result.overview.cogs != null;
+  if (fechado) {
+    // `tax ?? 0`: alíquota não cadastrada não bloqueia — a tela rotula
+    // "(sem imposto)", igual aos outros três canais.
+    const lucro = +(
+      result.overview.revenue! - result.overview.fees! - result.overview.sellerShipping!
+      - result.overview.ads! - result.overview.taxesWithheld! - result.overview.refunds!
+      - (result.overview.tax ?? 0) - result.overview.cogs!
+    ).toFixed(2);
+    result.overview.profit = lucro;
+    result.overview.marginPct = result.overview.revenue! > 0 ? +(lucro / result.overview.revenue! * 100).toFixed(2) : null;
+    result.overview.roiPct = result.overview.cogs! > 0 ? +(lucro / result.overview.cogs! * 100).toFixed(2) : null;
+    result.coverage.financials.status = "complete";
+    result.coverage.requestedPeriod.financials.status = "complete";
+  } else {
+    result.overview.profit = null;
+    result.overview.marginPct = null;
+    result.overview.roiPct = null;
+    result.coverage.financials.status = "partial";
+    result.coverage.requestedPeriod.financials.status = "partial";
+  }
   return result;
 }
