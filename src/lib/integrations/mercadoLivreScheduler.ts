@@ -38,6 +38,10 @@ export async function runScheduledMercadoLivreSync(
         AND integration.provider = sync.provider
       WHERE sync.provider = $1
         AND integration.status = 'connected'
+        -- Conexao de demonstracao nunca vai para a API real: o token e falso e
+        -- cada tentativa grava erro no sync, que aparece na frente do dashboard
+        -- da conta de demo. Mesmo predicado do shopeeScheduler.ts.
+        AND integration.metadata->'demo' IS DISTINCT FROM 'true'::jsonb
         AND (
           (sync.status IN ('pending', 'syncing')
             AND (sync.lease_until IS NULL OR sync.lease_until < now()))
@@ -114,6 +118,10 @@ export async function runScheduledMercadoLivreReverify(
         AND integration.provider = sync.provider
       WHERE sync.provider = $1
         AND integration.status = 'connected'
+        -- Conexao de demonstracao nunca vai para a API real: o token e falso e
+        -- cada tentativa grava erro no sync, que aparece na frente do dashboard
+        -- da conta de demo. Mesmo predicado do shopeeScheduler.ts.
+        AND integration.metadata->'demo' IS DISTINCT FROM 'true'::jsonb
         AND sync.status = 'complete'
       ORDER BY sync.reverify_to ASC NULLS FIRST, sync.updated_at ASC
       LIMIT $2`,

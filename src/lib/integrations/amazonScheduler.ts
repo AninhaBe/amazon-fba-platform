@@ -34,7 +34,17 @@ export async function runScheduledAmazonSync(
   const candidates = await dbQuery<SyncCandidate>(
     `SELECT sync.workspace_id, sync.connection_id
        FROM workspace_marketplace_syncs sync
+       -- LEFT JOIN, nao JOIN: conexao Amazon REAL nao tem linha em
+       -- workspace_integrations (medido em 27/08/2026 — as tres contas vivas
+       -- estao so em workspace_marketplace_syncs). Um join interno pararia o
+       -- sync delas em silencio. Com LEFT JOIN, quem nao tem integracao segue
+       -- entrando; so a conexao marcada como demo fica de fora.
+       LEFT JOIN workspace_integrations integration
+         ON integration.workspace_id = sync.workspace_id
+        AND integration.id = sync.connection_id
+        AND integration.provider = sync.provider
       WHERE sync.provider = $1
+        AND integration.metadata->'demo' IS DISTINCT FROM 'true'::jsonb
         AND (
           (sync.status IN ('pending', 'syncing')
             AND (sync.lease_until IS NULL OR sync.lease_until < now()))

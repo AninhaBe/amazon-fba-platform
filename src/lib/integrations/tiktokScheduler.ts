@@ -8,6 +8,8 @@ import { processPaymentsPage, processStatementsPage, processUnsettledPage, selec
 import { runTiktokFinancialScheduler } from "./tiktokFinancialScheduler";
 
 const PROVIDER = "tiktok_shop";
+/** Namespace reservado ao seed de demonstracao (`scripts/_demo-seed.mjs`). */
+const DEMO_SHOP_PREFIX = "demo-%";
 
 interface SyncCandidate {
   workspace_id: string;
@@ -57,6 +59,17 @@ export async function runScheduledTiktokSync(
       WHERE (
            NOT EXISTS (SELECT 1 FROM workspace_tiktok_shops duplicate
              WHERE duplicate.shop_id=shop.shop_id AND duplicate.workspace_id<>shop.workspace_id)
+         -- Loja sintetica do workspace de demonstracao NUNCA vai para a API real.
+         --
+         -- Ela existe para o revisor do App review ver a tela com dado; o token e
+         -- falso, entao toda tentativa volta 36009004 e grava status='error' no
+         -- sync — e o erro aparece na frente do dashboard, justamente para quem
+         -- estamos tentando impressionar. O Shopee ja pula demo pelo
+         -- metadata->'demo' da integracao (shopeeScheduler.ts); o TikTok nao tem
+         -- essa coluna, porque a conexao dele mora em workspace_tiktok_shops.
+         -- O marcador aqui e o prefixo do shop_id, que o seed reserva: shop_id
+         -- real do TikTok e numerico, entao demo- nunca colide com loja viva.
+         AND shop.shop_id NOT LIKE $3
          AND (
            sync.connection_id IS NULL
            OR (sync.status IN ('pending', 'syncing', 'error')
@@ -70,7 +83,7 @@ export async function runScheduledTiktokSync(
              ELSE 1 END,
         COALESCE(sync.updated_at, shop.connected_at) ASC
       LIMIT $2`,
-    [PROVIDER, connectionLimit]
+    [PROVIDER, connectionLimit, DEMO_SHOP_PREFIX]
   );
 
   return Promise.all(candidates.map(async (candidate): Promise<ScheduledTiktokResult> => {
