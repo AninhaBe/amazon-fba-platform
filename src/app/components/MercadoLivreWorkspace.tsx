@@ -20,6 +20,7 @@ import { LegendaDeVendas } from "./LegendaDeVendas";
 import { CompactMetric, Flow, FlowExpandable, Metric, getRevenueTrend } from "./Metric";
 import { buildFinancialComposition, FinancialSummaryPanel } from "./FinancialSummaryPanel";
 import { brDate, brTime } from "@/lib/datetime";
+import { coberturaDoPeriodo } from "@/lib/coberturaPeriodo";
 import type { ProfitabilityLine } from "@/lib/profitability";
 import { MercadoLivreSaldo } from "./MercadoLivreSaldo";
 import { ResumoDoCustoNoFull, TabelaDoCustoNoFull, useCustoNoFull } from "./MercadoLivreCustoNoFull";
@@ -298,6 +299,28 @@ function Dashboard({ overview, syncStatus, periodoLabel }: { overview: Overview;
   const ticket = overview.metrics.paidOrders > 0 ? overview.metrics.approvedRevenue / overview.metrics.paidOrders : null;
   const roi = overview.profit.cogs > 0 && !resultParcial ? (overview.profit.estimatedProfit / overview.profit.cogs) * 100 : null;
   const knownCosts = overview.profit.fees + overview.profit.sellerShipping + overview.profit.cogs + (overview.profit.taxes ?? 0);
+  // Período do filtro vs. histórico já importado (frente K): mês ainda não
+  // importado nunca vira cards zerados — "não vendeu" e "não importei" são
+  // fatos diferentes. O covered_from chega pelo overview (historicoDesde).
+  const cobertura = coberturaDoPeriodo({
+    periodoDeMs: new Date(overview.period.from).getTime(),
+    periodoAteMs: new Date(overview.period.to).getTime(),
+    coveredFrom: overview.metrics.revenueCoverage.historicoDesde ?? null,
+    status: syncStatus?.status ?? null,
+  });
+  if (cobertura.periodoInteiroDescoberto) {
+    const desde = cobertura.cobreDesde ? brDate(new Date(cobertura.cobreDesde)) : null;
+    return <div className="dashboard-sections integration-dashboard-sections ml-dashboard-body">
+      <NexoDoDia />
+      <EmptyState
+        kind="data"
+        title={cobertura.emImportacao ? "Este período ainda está sendo importado" : "Período anterior ao histórico importado"}
+        description={cobertura.emImportacao
+          ? `${desde ? `O histórico já cobre a partir de ${desde}. ` : ""}${syncStatus?.processedOrders ?? 0} pedido(s) já importado(s) — este período aparece conforme o histórico avança.`
+          : `O histórico importado começa em ${desde ?? "—"}. Datas anteriores não foram importadas.`}
+      />
+    </div>;
+  }
   return <div className="dashboard-sections integration-dashboard-sections ml-dashboard-body">
     {/* A MESMA leitura do NEXO dos outros canais — uma narracao por dia por
     workspace, nao uma por canal. So aparece se ja estiver escrita. */}
@@ -339,6 +362,15 @@ function Dashboard({ overview, syncStatus, periodoLabel }: { overview: Overview;
       <div className="sync-chip" role="status">
         <span className="sync-chip-track" aria-hidden="true"><i style={{ width: `${syncStatus.progress}%` }} /></span>
         <p>Histórico: {syncStatus.progress}% importado — os dados abaixo já estão disponíveis.</p>
+      </div>
+    )}
+
+    {!cobertura.periodoCoberto && cobertura.cobreDesde && (
+      <div role="status" className="integration-message">
+        Os números abaixo cobrem a partir de {brDate(new Date(cobertura.cobreDesde))}
+        {cobertura.emImportacao
+          ? <> — o início do período ainda está sendo importado ({syncStatus?.processedOrders ?? 0} pedido(s) já importado(s)).</>
+          : <> — o histórico importado começa aí.</>}
       </div>
     )}
 

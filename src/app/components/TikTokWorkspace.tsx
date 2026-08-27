@@ -21,6 +21,7 @@ import { buildFinancialComposition, FinancialSummaryPanel } from "./FinancialSum
 import { ConnectionBroken } from "./ConnectionBroken";
 import { ChannelConnectionEmpty } from "./ChannelConnectionEmpty";
 import { brDate } from "@/lib/datetime";
+import { coberturaDoPeriodo, periodoDaQuery } from "@/lib/coberturaPeriodo";
 import { marginMetricTone } from "@/lib/marginTone";
 import {
   coverageDescription,
@@ -73,7 +74,7 @@ export function TikTokWorkspace() {
   }, [router, searchParams]);
   const period = useDashboardPeriod(searchParams.toString(), updatePeriodUrl);
   const [provider, setProvider] = useState<ProviderStatus | null>(null);
-  const [overviewState, setOverviewState] = useState<{ connectionId: string; data: TiktokOverviewResponse } | null>(null);
+  const [overviewState, setOverviewState] = useState<{ connectionId: string; data: TiktokOverviewResponse; em: number } | null>(null);
   const [errorState, setErrorState] = useState<{ connectionId: string | null; message: string } | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [costsOpen, setCostsOpen] = useState(false);
@@ -122,7 +123,7 @@ export function TikTokWorkspace() {
         const body = await response.json();
         const connectionError = tiktokConnectionError(body.code);
         if (!response.ok) throw new Error(response.status >= 500 ? "A TikTok Shop está temporariamente indisponível." : (connectionError || "Não foi possível carregar esta loja. Tente novamente ou gerencie as conexões."));
-        if (!cancelled) setOverviewState({ connectionId: selectedConnectionId, data: body });
+        if (!cancelled) setOverviewState({ connectionId: selectedConnectionId, data: body, em: Date.now() });
       } catch (cause) {
         if (!cancelled) setErrorState({ connectionId: selectedConnectionId, message: cause instanceof Error ? cause.message : "Não foi possível carregar a TikTok Shop." });
       }
@@ -172,6 +173,35 @@ export function TikTokWorkspace() {
   if (syncPhase === "reauth_required") return <SyncState phase={syncPhase} reconnectHref={provider.connectHref || "/api/tiktok/login"} headerAction={selector} />;
   if (syncPhase === "unavailable") return <SyncState phase={syncPhase} onRetry={retry} headerAction={selector} />;
   if (!data.overview || !data.coverage) return <SyncState phase="first_sync" onRetry={retry} headerAction={selector} />;
+
+  // Período do filtro vs. histórico já importado (frente K): mês ainda não
+  // importado nunca vira cards zerados — "não vendeu" e "não importei" são
+  // fatos diferentes.
+  const rangeDoFiltro = periodoDaQuery(period.query, overviewState?.em ?? 0);
+  const coberturaHistorico = rangeDoFiltro ? coberturaDoPeriodo({
+    periodoDeMs: rangeDoFiltro.deMs,
+    periodoAteMs: rangeDoFiltro.ateMs,
+    coveredFrom: data.sync.coveredFrom,
+    status: data.sync.status,
+  }) : null;
+  if (coberturaHistorico?.periodoInteiroDescoberto) {
+    const desde = coberturaHistorico.cobreDesde ? brDate(new Date(coberturaHistorico.cobreDesde)) : null;
+    return (
+      <IntegrationDashboardFrame
+        className="channel-dashboard tiktok-dashboard-page"
+        period={<DashboardPeriodFilter {...period.filterProps} />}
+        header={<PageHeader eyebrow="TikTok Shop" title={data.connection.name} subtitle={data.connection.region} action={selector} />}
+      >
+        <EmptyState
+          kind="data"
+          title={coberturaHistorico.emImportacao ? "Este período ainda está sendo importado" : "Período anterior ao histórico importado"}
+          description={coberturaHistorico.emImportacao
+            ? `${desde ? `O histórico já cobre a partir de ${desde}. ` : ""}${data.sync.processedOrders} pedido(s) já importado(s) — este período aparece conforme o histórico avança.`
+            : `O histórico importado começa em ${desde ?? "—"}. Datas anteriores não foram importadas.`}
+        />
+      </IntegrationDashboardFrame>
+    );
+  }
 
   const phase = effectiveTiktokDashboardPhase(syncPhase, data.financialAvailability, data.financialCoverage?.status);
   const financialBlocked = data.financialAvailability === "BLOCKED" || data.financialCoverage?.status === "blocked";
@@ -242,6 +272,14 @@ export function TikTokWorkspace() {
               : []
           }
         />
+        {coberturaHistorico && !coberturaHistorico.periodoCoberto && coberturaHistorico.cobreDesde && (
+          <div role="status" className="integration-message">
+            Os números abaixo cobrem a partir de {brDate(new Date(coberturaHistorico.cobreDesde))}
+            {coberturaHistorico.emImportacao
+              ? <> — o início do período ainda está sendo importado ({data.sync.processedOrders} pedido(s) já importado(s)).</>
+              : <> — o histórico importado começa aí.</>}
+          </div>
+        )}
         {financialBlocked ? (
           <StatusNotice title="Financeiro indisponível neste ambiente">A estrutura do ledger financeiro ainda não está disponível. Vendas e catálogo continuam visíveis, mas taxas e resultado permanecem desconhecidos; nenhum valor foi convertido em zero.</StatusNotice>
         ) : (

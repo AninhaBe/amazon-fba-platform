@@ -20,6 +20,7 @@ import { ChannelConnectionEmpty } from "./ChannelConnectionEmpty";
 import { CompactMetric, Flow, FlowExpandable, Metric, getRevenueTrend } from "./Metric";
 import { buildFinancialComposition, FinancialSummaryPanel } from "./FinancialSummaryPanel";
 import { brDate, brTime } from "@/lib/datetime";
+import { coberturaDoPeriodo } from "@/lib/coberturaPeriodo";
 import { FlaskConical } from "lucide-react";
 import type { ProfitabilityLine } from "@/lib/profitability";
 import type { ShopeeSyncStatus } from "@/lib/integrations/shopeeSync";
@@ -390,6 +391,30 @@ function ShopeeDemoNotice({ connectHref }: { connectHref?: string }) {
 
 function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overview; sync: ShopeeSyncStatus | null; onPage: (offset: number) => void; periodoLabel: string }) {
   const [costsOpen, setCostsOpen] = useState(false);
+  // Período do filtro vs. histórico já importado (frente K): mês ainda não
+  // importado nunca vira cards zerados — "não vendeu" e "não importei" são
+  // fatos diferentes.
+  const cobertura = sync ? coberturaDoPeriodo({
+    periodoDeMs: new Date(overview.period.from).getTime(),
+    periodoAteMs: new Date(overview.period.to).getTime(),
+    coveredFrom: sync.coveredFrom,
+    status: sync.status,
+  }) : null;
+  if (cobertura?.periodoInteiroDescoberto) {
+    const desde = cobertura.cobreDesde ? brDate(new Date(cobertura.cobreDesde)) : null;
+    return (
+      <div className="dashboard-sections integration-dashboard-sections shopee-dashboard-body">
+        <NexoDoDia />
+        <EmptyState
+          kind="data"
+          title={cobertura.emImportacao ? "Este período ainda está sendo importado" : "Período anterior ao histórico importado"}
+          description={cobertura.emImportacao
+            ? `${desde ? `O histórico já cobre a partir de ${desde}. ` : ""}${sync?.processedOrders ?? 0} pedido(s) já importado(s) — este período aparece conforme o histórico avança.`
+            : `O histórico importado começa em ${desde ?? "—"}. Datas anteriores não foram importadas.`}
+        />
+      </div>
+    );
+  }
   const profitCoverage = overview.profit.coverage;
   // Bases já coincidem (receita e contagem usam o mesmo filtro de status).
   // `null` sem venda: R$ 0,00 afirmaria que cada venda rendeu zero.
@@ -451,6 +476,15 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
       )}
 
       {sync?.phase === "syncing" && <div role="status" className="integration-message">Sincronização do NEXO em andamento: {sync.processedOrders} pedido(s) processado(s) ({sync.progress}%). <Link href="/shopee/monitor" className="font-semibold text-sky-700 underline-offset-2 hover:underline">Acompanhar no monitor <span aria-hidden="true">→</span></Link></div>}
+
+      {cobertura && !cobertura.periodoCoberto && cobertura.cobreDesde && (
+        <div role="status" className="integration-message">
+          Os números abaixo cobrem a partir de {brDate(new Date(cobertura.cobreDesde))}
+          {cobertura.emImportacao
+            ? <> — o início do período ainda está sendo importado ({sync?.processedOrders ?? 0} pedido(s) já importado(s)).</>
+            : <> — o histórico importado começa aí.</>}
+        </div>
+      )}
 
       {!SHOPEE_CATALOG_CAPABILITIES.models && (
         <div role="status" className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">

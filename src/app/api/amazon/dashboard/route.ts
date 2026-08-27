@@ -226,10 +226,13 @@ export async function GET(req: NextRequest) {
           console.error("[dashboard/amazon] orderMetrics indisponivel", error);
           return null;
         }),
-        // Frescor do sync desta conexão. Vai no mesmo Promise.all das outras
-        // consultas para não somar ida ao banco no caminho da tela.
-        dbQuery<{ velho: boolean }>(
-          `SELECT COALESCE(last_success_at, updated_at) < now() - ($3 || ' minutes')::interval AS velho
+        // Frescor e cobertura do sync desta conexão. Vai no mesmo Promise.all
+        // das outras consultas para não somar ida ao banco no caminho da tela.
+        // covered_from/status/processed_orders alimentam a faixa de cobertura
+        // do período na tela (frente K: período não importado nunca exibe zero).
+        dbQuery<{ velho: boolean; covered_from: Date | string | null; status: string | null; processed_orders: number | null }>(
+          `SELECT COALESCE(last_success_at, updated_at) < now() - ($3 || ' minutes')::interval AS velho,
+                  covered_from, status, processed_orders
              FROM workspace_marketplace_syncs
             WHERE workspace_id = $1 AND provider = 'amazon' AND connection_id = $2`,
           [workspaceId, canonical.connectionId, String(FRESCOR_MAXIMO_MINUTOS)]
@@ -311,6 +314,14 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         source: "canonical" as const,
         covered: canonical.covered,
+        // Período resolvido + cobertura do sync: a tela decide entre "não
+        // vendeu" (fato) e "ainda não importei" (estado) — nunca zero fabricado.
+        period: { from: period.startISO, to: period.endISO },
+        sync: {
+          coveredFrom: frescorRows[0]?.covered_from ? new Date(frescorRows[0].covered_from).toISOString() : null,
+          status: frescorRows[0]?.status ?? null,
+          processedOrders: Number(frescorRows[0]?.processed_orders ?? 0),
+        },
         currency: canonical.currency,
         // Faturamento do período — a MESMA definição em toda tela do produto.
         billing: { revenue: faturamento, orders: pedidosFaturados, ordersWithValue: pedidosComValor, coupon: cupom, couponPartial: cupomParcial },

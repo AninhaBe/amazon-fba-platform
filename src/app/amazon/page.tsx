@@ -39,6 +39,7 @@ function scopeSentence(scope?: ProfitabilityScope): string | undefined {
 }
 import type { ProfitabilityLine } from "@/lib/profitability";
 import { brDate, brTime } from "@/lib/datetime";
+import { coberturaDoPeriodo } from "@/lib/coberturaPeriodo";
 import { readJson } from "../../lib/readJson";
 
 // Faixa de cima: o que resume o RESULTADO. Anuncio entrou aqui em 25/08/2026
@@ -129,6 +130,10 @@ interface TopProduct {
 // sendo o contrato interno da página — aqui só o mapeamento de chegada.
 interface DashboardPayload {
   covered: boolean;
+  /** Período resolvido + cobertura do sync (frente K): a tela distingue
+   *  "não vendeu" de "ainda não importei" — nunca zero fabricado. */
+  period?: { from: string; to: string };
+  sync?: { coveredFrom: string | null; status: string | null; processedOrders: number };
   currency: string;
   /** Faturamento bruto do período — espelha o painel do canal (ADR-020). */
   billing: {
@@ -251,6 +256,11 @@ export default function Dashboard() {
   const [productsLoading, setProductsLoading] = useState(!productsCache);
   const [errors, setErrors] = useState<string[]>([]);
   const [brokenConnection, setBrokenConnection] = useState<string | null>(null);
+  // Cobertura do sync vs. período (frente K) — vem da rota agregadora.
+  const [cobertura, setCobertura] = useState<{
+    periodo: { from: string; to: string };
+    sync: { coveredFrom: string | null; status: string | null; processedOrders: number };
+  } | null>(null);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(initialDash?.updatedAt ?? null);
 
   const periodQuery = period.query;
@@ -369,6 +379,7 @@ export default function Dashboard() {
       setFaturamento(payload.billing ?? null);
       setPedidosFeitos(payload.ordered ?? null);
       setCanceladas(payload.cancelled ?? null);
+      setCobertura(payload.period && payload.sync ? { periodo: payload.period, sync: payload.sync } : null);
       next.profitabilityScope = payload.profitabilityScope; setProfitabilityScope(payload.profitabilityScope);
     }, (d) => d as DashboardPayload, "dashboard").then(() => {
       if (active) {
@@ -444,6 +455,42 @@ export default function Dashboard() {
   const roiPct = cogs > 0 ? (estProfit / cogs) * 100 : 0;
   const revenueTrend = getRevenueTrend(sales?.points ?? []);
 
+  // Período do filtro vs. histórico já importado (frente K): mês ainda não
+  // importado nunca vira cards zerados — "não vendeu" e "não importei" são
+  // fatos diferentes.
+  const coberturaHistorico = cobertura ? coberturaDoPeriodo({
+    periodoDeMs: new Date(cobertura.periodo.from).getTime(),
+    periodoAteMs: new Date(cobertura.periodo.to).getTime(),
+    coveredFrom: cobertura.sync.coveredFrom,
+    status: cobertura.sync.status,
+  }) : null;
+  if (!loading && coberturaHistorico?.periodoInteiroDescoberto) {
+    const desde = coberturaHistorico.cobreDesde ? brDate(new Date(coberturaHistorico.cobreDesde)) : null;
+    return (
+      <IntegrationDashboardFrame
+        className="dashboard-page amazon-dashboard"
+        period={<DashboardPeriodFilter {...period.filterProps} />}
+        header={<PageHeader
+          eyebrow="Operação Amazon"
+          title="Resumo financeiro"
+          subtitle="Faturamento, pedidos e resultado do período selecionado."
+          icon={pageIcons.dashboard}
+        />}
+      >
+        <div className="dashboard-sections integration-dashboard-sections">
+          <NexoDoDia />
+          <EmptyState
+            kind="data"
+            title={coberturaHistorico.emImportacao ? "Este período ainda está sendo importado" : "Período anterior ao histórico importado"}
+            description={coberturaHistorico.emImportacao
+              ? `${desde ? `O histórico já cobre a partir de ${desde}. ` : ""}${cobertura?.sync.processedOrders ?? 0} pedido(s) já importado(s) — este período aparece conforme o histórico avança.`
+              : `O histórico importado começa em ${desde ?? "—"}. Datas anteriores não foram importadas.`}
+          />
+        </div>
+      </IntegrationDashboardFrame>
+    );
+  }
+
   return (
     <IntegrationDashboardFrame
       className="dashboard-page amazon-dashboard"
@@ -493,6 +540,15 @@ export default function Dashboard() {
       {errors.length > 0 && (
         <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
           Não foi possível carregar: {errors.join(", ")}.
+        </div>
+      )}
+
+      {coberturaHistorico && !coberturaHistorico.periodoCoberto && coberturaHistorico.cobreDesde && (
+        <div role="status" className="integration-message">
+          Os números abaixo cobrem a partir de {brDate(new Date(coberturaHistorico.cobreDesde))}
+          {coberturaHistorico.emImportacao
+            ? <> — o início do período ainda está sendo importado ({cobertura?.sync.processedOrders ?? 0} pedido(s) já importado(s)).</>
+            : <> — o histórico importado começa aí.</>}
         </div>
       )}
 
