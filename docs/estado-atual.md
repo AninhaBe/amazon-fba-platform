@@ -1,7 +1,7 @@
 # Estado atual — onde cada frente parou
 
-**Última atualização: 27/08/2026** (submissão do TikTok, monetização, acesso, cron e
-baseline de testes). Leia isto antes de continuar qualquer frente em andamento; o
+**Última atualização: 27/08/2026** (submissão do TikTok, monetização, acesso, cron,
+baseline de testes e a frente de sync imediato pós-conexão — seção 12). Leia isto antes de continuar qualquer frente em andamento; o
 "porquê" das decisões está nos docs de cada área e nos ADRs.
 
 Este doc responde três perguntas: **o que está pronto**, **o que está no meio do
@@ -52,9 +52,10 @@ Estado dos cadastros de OAuth/webhook por portal (todos feitos em 19–20/08):
 | **Shopee** | Implementação local completa (OAuth, dashboard multi-loja, ingestão fail-closed/retomável, settings por loja, remoção local). **Go Live: último estado comprovado é "under review" em 07/08** — nunca reconferido; a extensão do navegador não tem permissão para `open.shopee.com`, então a checagem depende dela abrir o console. IP de saída do Fly já medido (ver seção 5). Credenciais, autorização e payload Live seguem **BLOCKED**. | 07/08 |
 | **TikTok Shop** | OAuth, sync paginado, cron, modelo canônico, overview, Dashboard, Financeiro e ledger de extratos **implementados**. **App público SUBMETIDO em 27/08** para App review + Listing review — ver seção 4. Lucro, margem e ROI aparecem quando o extrato liquidado cobre o período. ⚠️ A conciliação financeira real segue parcial: 330 pedidos no backlog e o recurso `payments` com erro (seção 4). | 27/08 |
 
-**Baseline local de qualidade: 825 testes passando** (`node --experimental-strip-types
---test tests/*.test.mjs`, medido em 27/08 — eram 624 em 23/08). Evidência intermediária —
-não equivale a validação live, visual ou autenticada do produto.
+**Baseline local de qualidade: 897 testes passando** (`node --experimental-strip-types
+--test tests/*.test.mjs`, medido em 27/08 após a frente de sync imediato — eram 825 mais
+cedo no mesmo dia e 624 em 23/08). Evidência intermediária — não equivale a validação
+live, visual ou autenticada do produto.
 
 ---
 
@@ -73,6 +74,8 @@ não equivale a validação live, visual ou autenticada do produto.
    **alarmar `ok:false`** em vez de logar HTTP 200 sobre passo quebrado.
 6. **"SellerCore" não pode mais ser citado** em texto que uma pessoa lê — ver o aviso no
    topo.
+7. **Sync imediato pós-conexão nos quatro canais** (27/08, v118→v124) — conectar uma
+   loja dispara a importação na hora, com os 30 dias recentes primeiro. Ver a seção 12.
 
 ## Em andamento — retomar aqui
 
@@ -450,6 +453,47 @@ colados no provedor.
 📌 Pré-requisito silencioso da conta de review do TikTok: o revisor precisa conseguir
 entrar — e, se algo der errado, se recuperar sem falar com ninguém.
 
+### 12. Sync imediato pós-conexão (frente K) — **concluída em 27/08, v118→v124**
+
+*Verificado em 27/08.* Pedido da Ana: *"assim que a pessoa clica em integrar, dispara o
+sync na hora — janela recente primeiro"*, como regra para **todas** as integrações.
+
+O que está em produção, por release:
+
+| Release | O que entrou |
+|---|---|
+| v118 | **Shopee**: callback dispara o sync via `after()` (sem segurar o redirect), primeira sincronização fura a fila do cron, fase dupla (30 dias imediatos → alvo total), pedidos antes do sweep de catálogo no 1º sync, número real na tela + poll |
+| v119 | **Mercado Livre**: kick + prioridade + fase dupla (30d → 366d) + **fencing por token no lease** (não existia) |
+| v120 | **TikTok**: kick nos dois caminhos do callback (painel e convite), semente do sync unificada (morreram os literais 60d/15d duplicados), fase dupla (30d → 60d); fila financeira e ledger intocados |
+| v121 | **Amazon**: a linha de estado nasce no callback (antes só na 1ª visita ao dashboard — o agendador nunca via a conta nova), kick, fase dupla (30d → 366d) |
+| v122 | **Período não importado nunca exibe zero** nos 4 dashboards (`src/lib/coberturaPeriodo.ts`): filtro em período descoberto mostra o estado real com data e número, nunca cards zerados |
+| v123 | **Fencing por token na Amazon** (espelho do ML): todos os checkpoints do passo + guarda no reopen — os 4 canais agora têm a mesma proteção |
+| v124 | **Aviso "sua loja está 100% sincronizada — histórico de N meses completo"** nos 4 canais (`SincronizacaoCompleta.tsx`); dismiss por localStorage (não acompanha entre dispositivos — trade-off aceito e documentado no componente) |
+
+Mecânica comum (reimplementada canal a canal, não copiada): o alvo do backfill nasce em
+**30 dias** e, ao fechar, **estende sozinho** até o histórico completo nas mesmas janelas
+retomáveis. A extensão olha o ponto mais antigo **coberto** (`covered_from`), nunca o
+alvo — no ML e na Amazon o reopen incremental estreita o alvo, e basear a extensão nele
+redispararia o backfill inteiro a cada ciclo (travado por teste nos 4).
+
+**Condicionado à decisão do Supabase (com a Ana):**
+
+- Estender TikTok/Shopee de 60 dias para 12 meses: **pronto** — é setar
+  `TIKTOK_HISTORY_DAYS`/`SHOPEE_HISTORY_DAYS` (env, sem deploy); conexões já completas
+  aprofundam sozinhas no ciclo seguinte.
+- Ajustar o re-walk do reopen na Shopee/TikTok (estreitar o alvo ao reabrir, como
+  ML/Amazon fazem) — hoje cada reabertura re-caminha as janelas até o alvo; com 60 dias
+  são ~4 janelas, com 12 meses seriam ~25 por ciclo. Decidir junto com a extensão.
+- 📌 Medição de 27/08 para essa decisão: banco em **466 MB** (abaixo do teto de 500; era
+  526 em 15/08), sendo **~90% do workspace do sócio** — existe caminho alternativo ao
+  upgrade via curadoria desse dado (decisão de produto, não tomada).
+
+**Pendências registradas:** (a) a verificação de ponta a ponta real (conectar loja nova →
+dado na tela em 1–2 min) fica para a **próxima conexão real** — a Shopee do sócio
+pós-Go Live é o candidato natural; **não simular**; (b) o 503 do dashboard da Amazon
+quando não há canônico nenhum mantém a mensagem genérica — item de fila normal, fora
+desta frente.
+
 ---
 
 ## Bloqueado por terceiros
@@ -531,7 +575,7 @@ Levantado em 15/08 ao dimensionar escala (ADR-014):
 | Item | Situação | Ação |
 |---|---|---|
 | Fly `shared-cpu-1x` | **1 GB** — 512 MB está descartado, foi o que matou o Render Free | reavaliar ao escalar usuários |
-| Supabase Free | banco em **526 MB** contra limite de 500 MB | **já passou do teto** — avaliar upgrade |
+| Supabase Free | banco em **466 MB** contra limite de 500 MB (medido em 27/08; era 526 em 15/08 — encolheu) | perto do teto; **~90% é do workspace do sócio** — decidir entre upgrade (Pro, ~US$ 25/mês, 8 GB) e curadoria desse dado. A extensão do histórico para 12 meses (seção 12) espera essa decisão |
 
 ⚠️ **As tabelas legadas NÃO podem cair.** Foi cogitado dropar três delas (~266 MB) — todas
 as três estão em uso, e `workspace_marketplace_orders` guarda os payloads brutos.
