@@ -5,8 +5,10 @@ import { EmptyState } from "../../components/EmptyState";
 import { PageHeader, pageIcons } from "../../components/PageHeader";
 import { TableLoading } from "../../components/LoadingState";
 import { Pagination } from "../../components/Pagination";
+import { useAnchoredField } from "../../components/useAnchoredField";
 
 const PAGE_SIZE = 30;
+export const MERCADO_LIVRE_TAX_RATE_ANCHOR = "mercado-livre-aliquota";
 
 interface Product {
   id: string;
@@ -37,6 +39,7 @@ export default function MercadoLivreProdutosPage() {
   const [taxError, setTaxError] = useState<string | null>(null);
   const [costFilter, setCostFilter] = useState<"all" | "missing" | "complete">("all");
   const [page, setPage] = useState(1);
+  const taxInputRef = useAnchoredField(MERCADO_LIVRE_TAX_RATE_ANCHOR);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -148,7 +151,7 @@ export default function MercadoLivreProdutosPage() {
       icon={pageIcons.box}
     />
 
-    <form className="meli-tax-card product-tax-panel" onSubmit={saveTaxRate}>
+    <form id={MERCADO_LIVRE_TAX_RATE_ANCHOR} className="meli-tax-card product-tax-panel" onSubmit={saveTaxRate}>
       <div>
         <p className="section-kicker">Imposto sobre vendas</p>
         <h2>Alíquota da sua empresa</h2>
@@ -156,7 +159,7 @@ export default function MercadoLivreProdutosPage() {
       </div>
       <label>
         <span>Alíquota média</span>
-        <span className="meli-tax-input"><input type="number" min="0" max="100" step="0.01" value={taxRate} onChange={(event) => { setTaxRate(event.target.value); setTaxState("idle"); }} aria-label="Alíquota média de imposto" /><b>%</b></span>
+        <span className="meli-tax-input"><input ref={taxInputRef} type="number" min="0" max="100" step="0.01" value={taxRate} onChange={(event) => { setTaxRate(event.target.value); setTaxState("idle"); }} aria-label="Alíquota média de imposto" /><b>%</b></span>
       </label>
       <button type="submit" disabled={taxState === "saving"}>{taxState === "saving" ? "Salvando…" : "Salvar alíquota"}</button>
       <small aria-live="polite" className={taxState === "error" ? "is-error" : ""}>{taxState === "saved" ? "Alíquota salva" : taxState === "error" ? (taxError ?? "Não foi possível salvar a alíquota.") : ""}</small>

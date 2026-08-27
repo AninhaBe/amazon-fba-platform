@@ -50,6 +50,8 @@ const capabilityLabels: Record<string, string> = {
   promotions: "Promoções",
 };
 
+const canonicalProviderOrder: Provider["id"][] = ["amazon", "mercado_livre", "shopee", "tiktok_shop"];
+
 export default function IntegracoesPage() {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [loading, setLoading] = useState(true);
@@ -112,6 +114,7 @@ export default function IntegracoesPage() {
   const connectedProviders = providers.filter((provider) => provider.connections.some((connection) => connection.status === "connected")).length;
   const attentionProviders = providers.filter((provider) => provider.issue || provider.connections.some((connection) => connection.status !== "connected")).length;
   const availableProviders = providers.filter((provider) => provider.availability === "available").length;
+  const orderedProviders = [...providers].sort((a, b) => canonicalProviderOrder.indexOf(a.id) - canonicalProviderOrder.indexOf(b.id));
 
   return (
     <div className="integrations-page analysis-page">
@@ -147,7 +150,7 @@ export default function IntegracoesPage() {
           <PanelLoading label="Carregando integrações" />
         ) : (
           <div className="integration-grid integration-provider-list">
-            {providers.map((provider) => {
+            {orderedProviders.map((provider) => {
               const planned = provider.availability === "planned";
               const state = providerState(provider.connections, {
                 planned,
@@ -157,6 +160,9 @@ export default function IntegracoesPage() {
               const connected = state === "connected";
               const needsReconnect = state === "attention" || state === "disconnected";
               const removableProvider = isRemovableProvider(provider.id) ? provider.id : null;
+              const capabilities = provider.id === "mercado_livre" && !provider.capabilities.includes("finance")
+                ? [...provider.capabilities, "finance"]
+                : provider.capabilities;
               return (
                 <article key={provider.id} className={`integration-card provider-${provider.id}${connected ? " is-connected" : ""}`}>
                   <header>
@@ -173,7 +179,7 @@ export default function IntegracoesPage() {
                   </header>
 
                   <div className="capability-list" aria-label={`Recursos de ${provider.name}`}>
-                    {provider.capabilities.map((capability) => <span key={capability}>{capabilityLabels[capability] || capability}</span>)}
+                    {capabilities.map((capability) => <span key={capability}>{capabilityLabels[capability] || capability}</span>)}
                   </div>
 
                   {provider.issue && (

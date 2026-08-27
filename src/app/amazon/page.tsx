@@ -47,6 +47,7 @@ import { readJson } from "../../lib/readJson";
 const PRIMARY_FINANCIAL_CARDS = new Set([
   "revenue", "fees", "cogs", "ads", "profit", "marginPct", "acos", "tacos",
 ]);
+const AMAZON_TAX_RATE_HREF = "/amazon/calculadora#amazon-aliquota";
 
 function money(v: number, currency = "BRL") {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(v);
@@ -478,6 +479,9 @@ export default function Dashboard() {
         // vêm do hook; estoque crítico vem do radar já carregado nesta tela.
         acoes={[
           ...pendencias.map((p) => ({ ...p, tone: "pendencia" as const })),
+          ...(!loading && profit?.taxRate === null
+            ? [{ label: "Cadastrar alíquota", href: AMAZON_TAX_RATE_HREF, tone: "pendencia" as const }]
+            : []),
           ...(critical.length > 0
             ? [{ label: `${critical.length} produto(s) com estoque crítico`, href: "/amazon/estoque", tone: "alerta" as const }]
             : []),

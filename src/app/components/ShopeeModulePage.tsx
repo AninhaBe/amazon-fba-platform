@@ -9,8 +9,9 @@ import { DashboardPeriodFilter, useDashboardPeriod } from "./DashboardPeriodFilt
 import { ChannelModuleSummary } from "./ChannelModuleSummary";
 import { ChannelConnectionEmpty } from "./ChannelConnectionEmpty";
 import { SHOPEE_MODULES, shopeeModuleError, shopeeModuleHref, shopeeModuleQuery, type ShopeeModuleKind } from "./ShopeeModulesModel";
-import { parseShopeeTaxRateDraft, shopeeSettingsPath } from "./ShopeeSettingsModel";
+import { parseShopeeTaxRateDraft, SHOPEE_TAX_RATE_ANCHOR, shopeeSettingsPath } from "./ShopeeSettingsModel";
 import { shopeeProviderIssueContent, type ShopeeProviderIssue } from "./ShopeeWorkspaceModel";
+import { useAnchoredField } from "./useAnchoredField";
 
 type Connection={id:string;status:string;displayName?:string;externalAccountId?:string;metadata?:{demo?:boolean}};
 type Coverage={complete?:boolean;capturedOrders?:number;totalOrders?:number;processedOrders?:number;paidOrders?:number};
@@ -33,8 +34,9 @@ export function ShopeeModulePage({kind}:{kind:ShopeeModuleKind}) {
   const retry=()=>setAttempt(value=>value+1);
   const attention=connections?.some(item=>item.status==="attention"||item.status==="disconnected");
   const issueContent=shopeeProviderIssueContent(providerIssue);
-  return <div className={`channel-module-page analysis-page channel-module-${kind}`}><PageHeader eyebrow="Shopee" title={cfg.title} subtitle={cfg.subtitle} action={selected&&connected&&<label className="channel-store-selector">Loja<select aria-label="Loja Shopee" value={selected.id} onChange={event=>router.push(shopeeModuleHref(location.pathname,params.toString(),event.target.value),{scroll:false})}>{connected.map(item=><option value={item.id} key={item.id}>{item.displayName||item.externalAccountId||item.id}</option>)}</select></label>}/>
-    {cfg.period&&selected&&<DashboardPeriodFilter {...period.filterProps}/>} 
+  return <div className={`channel-module-page analysis-page channel-module-${kind}`}>
+    {cfg.period&&selected&&<DashboardPeriodFilter {...period.filterProps}/>}
+    <PageHeader eyebrow="Shopee" title={cfg.title} subtitle={cfg.subtitle} action={selected&&connected&&<label className="channel-store-selector">Loja<select aria-label="Loja Shopee" value={selected.id} onChange={event=>router.push(shopeeModuleHref(location.pathname,params.toString(),event.target.value),{scroll:false})}>{connected.map(item=><option value={item.id} key={item.id}>{item.displayName||item.externalAccountId||item.id}</option>)}</select></label>}/>
     {!connections&&!error?<DashboardSkeleton/>:issueContent?<EmptyState kind="permission" title={issueContent.title} description={issueContent.description} action={<Link href="/integracoes" className="meli-primary-action">{issueContent.actionLabel}</Link>}/>:!selected&&!error?(attention?<EmptyState kind="permission" title="Reconecte a loja Shopee" description="A autorização expirou ou foi interrompida. Reconecte para retomar a sincronização." action={<Link href="/integracoes" className="meli-primary-action">Gerenciar conexões</Link>}/>:<ChannelConnectionEmpty channel="Shopee" description="Conecte uma loja para acessar este módulo." action={<Link href="/integracoes" className="meli-primary-action">Gerenciar conexões</Link>}/>):error?<EmptyState kind="permission" title="Não foi possível carregar" description={error} action={<button type="button" className="meli-primary-action min-h-11 active:scale-[0.96] transition-transform" onClick={retry}>Tentar novamente</button>}/>:!payload?<DashboardSkeleton/>:payload.availability==="NOT_AVAILABLE"?<EmptyState title="Dados ainda indisponíveis" description="A loja está conectada, mas este conjunto ainda não foi materializado pela sincronização."/>:<Content kind={kind} body={payload} params={params} update={update} connectionId={selected!.id} retry={retry}/>}</div>;
 }
 
@@ -56,6 +58,7 @@ function ShopeeTaxRateEditor({connectionId}:{connectionId:string}) {
   const [draft,setDraft]=useState("");
   const [state,setState]=useState<"loading"|"idle"|"saving"|"saved"|"error">("loading");
   const [message,setMessage]=useState("");
+  const inputRef=useAnchoredField(SHOPEE_TAX_RATE_ANCHOR,state!=="loading");
 
   useEffect(()=>{
     const controller=new AbortController();
@@ -96,12 +99,12 @@ function ShopeeTaxRateEditor({connectionId}:{connectionId:string}) {
     }
   }
 
-  return <form onSubmit={save} className="channel-tax-panel">
+  return <form id={SHOPEE_TAX_RATE_ANCHOR} onSubmit={save} className="channel-tax-panel">
     <div className="flex flex-wrap items-end gap-3">
       <label className="flex min-w-60 flex-1 flex-col gap-1 text-sm font-medium text-[var(--ink-soft)]">
         <span>Alíquota média de imposto</span>
         <span className="flex items-center rounded-lg bg-white shadow-[inset_0_0_0_1px_rgb(203_213_225)]">
-          <input aria-label="Alíquota média de imposto da Shopee" type="text" inputMode="decimal" value={draft}
+          <input ref={inputRef} aria-label="Alíquota média de imposto da Shopee" type="text" inputMode="decimal" value={draft}
             disabled={state==="loading"||state==="saving"} onChange={event=>{setDraft(event.target.value);setState("idle");setMessage("")}}
             placeholder="Desconhecida" className="min-h-11 min-w-0 flex-1 bg-transparent px-3 outline-none"/>
           <span className="pr-3 text-[var(--ink-muted)]">%</span>

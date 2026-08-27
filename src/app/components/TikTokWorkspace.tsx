@@ -13,6 +13,7 @@ import { RevenueChart } from "./RevenueChart";
 import { LegendaDeVendas } from "./LegendaDeVendas";
 import { TopProductsRanking } from "./TopProductsRanking";
 import { TikTokSaldo } from "./TikTokSaldo";
+import { useAnchoredField } from "./useAnchoredField";
 import { BriefingLead } from "./BriefingLead";
 import { NexoDoDia } from "./NexoDoDia";
 import { IntegrationDashboardFrame } from "./IntegrationDashboardFrame";
@@ -229,7 +230,7 @@ export function TikTokWorkspace() {
           briefingLabel="Ver detalhes"
           acoes={
             data.overview?.taxRate == null
-              ? [{ label: "Configurar a alíquota de imposto", href: tiktokTaxSettingsHref(selectedConnectionId), tone: "pendencia" as const }]
+              ? [{ label: "Cadastrar alíquota", href: tiktokTaxSettingsHref(selectedConnectionId), tone: "pendencia" as const }]
               : []
           }
         />
@@ -301,7 +302,7 @@ export function TikTokWorkspace() {
             footer={(
               <>
                 <Link href={`/tiktok/financeiro?${new URLSearchParams({ connection_id: selectedConnectionId })}`} className="meli-financial-link">Ver composição completa no financeiro <span aria-hidden="true">→</span></Link>
-                <Link href={tiktokProductsHref(selectedConnectionId)} className="meli-financial-link">Configurar custos e imposto <span aria-hidden="true">→</span></Link>
+                <Link href={data.overview.taxRate == null ? tiktokTaxSettingsHref(selectedConnectionId) : tiktokProductsHref(selectedConnectionId)} className="meli-financial-link">{data.overview.taxRate == null ? "Cadastrar alíquota" : "Configurar custos e imposto"} <span aria-hidden="true">→</span></Link>
                 {!resultReady ? <p className="text-xs leading-relaxed text-amber-700">O NEXO não estima o que falta: componente que a TikTok ainda não postou e SKU sem custo cadastrado continuam como “—”.</p> : null}
               </>
             )}
@@ -392,9 +393,18 @@ function TikTokOperations({ children }: { children: React.ReactNode }) {
     const syncWithHash = () => {
       if (window.location.hash === `#${TIKTOK_TAX_SETTINGS_ANCHOR}`) setOpen(true);
     };
+    const syncWithLink = (event: MouseEvent) => {
+      if (!(event.target instanceof Element)) return;
+      const link = event.target.closest<HTMLAnchorElement>("a[href]");
+      if (link && new URL(link.href, window.location.href).hash === `#${TIKTOK_TAX_SETTINGS_ANCHOR}`) setOpen(true);
+    };
     syncWithHash();
     window.addEventListener("hashchange", syncWithHash);
-    return () => window.removeEventListener("hashchange", syncWithHash);
+    document.addEventListener("click", syncWithLink);
+    return () => {
+      window.removeEventListener("hashchange", syncWithHash);
+      document.removeEventListener("click", syncWithLink);
+    };
   }, []);
   return (
     <details className="tiktok-operations-disclosure" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
@@ -411,6 +421,7 @@ function TikTokFinancialSettings({ connectionId, currentTaxRate, onSaved }: { co
   const [draft, setDraft] = useState(currentTaxRate == null ? "" : String(currentTaxRate));
   const [state, setState] = useState<"loading" | "idle" | "saving" | "saved" | "error">("loading");
   const [message, setMessage] = useState("");
+  const inputRef = useAnchoredField(TIKTOK_TAX_SETTINGS_ANCHOR, state !== "loading");
   useEffect(() => {
     let cancelled = false;
     fetch(`/api/integrations/tiktok/settings?${tiktokSettingsQuery(connectionId)}`, { cache: "no-store" }).then(async (response) => { const body = await response.json(); if (!response.ok) throw new Error(body.error || "Não foi possível carregar a alíquota."); if (!cancelled) { setDraft(body.taxRate == null ? "" : String(body.taxRate)); setState("idle"); setMessage(""); } }).catch((error) => { if (!cancelled) { setState("error"); setMessage(error instanceof Error ? error.message : "Não foi possível carregar a alíquota."); } });
@@ -423,7 +434,7 @@ function TikTokFinancialSettings({ connectionId, currentTaxRate, onSaved }: { co
     try { const response = await fetch(`/api/integrations/tiktok/settings?${tiktokSettingsQuery(connectionId)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ taxRate }) }); const body = await response.json(); if (!response.ok) throw new Error(body.error || "Não foi possível salvar a alíquota."); setDraft(body.taxRate == null ? "" : String(body.taxRate)); setState("saved"); setMessage(body.taxRate == null ? "Alíquota removida; imposto e lucro voltaram a desconhecidos." : "Alíquota salva para esta loja."); onSaved(); }
     catch (error) { setState("error"); setMessage(error instanceof Error ? error.message : "Não foi possível salvar a alíquota."); }
   }
-  return <section className="tiktok-settings-panel" id={TIKTOK_TAX_SETTINGS_ANCHOR} aria-labelledby="tiktok-financial-settings-title"><div className="tiktok-settings-heading"><div><p className="section-kicker">Configuração da loja</p><h2 id="tiktok-financial-settings-title">Imposto e custos dos produtos</h2><p>A alíquota é aplicada ao faturamento desta loja. Sem alíquota ou custo por SKU, imposto, lucro, margem e ROI permanecem “—”.</p></div><Link href={tiktokProductsHref(connectionId)} className="meli-primary-action">Cadastrar custos</Link></div><form onSubmit={submit} className="tiktok-tax-form"><label><span>Alíquota de imposto (%)</span><input type="number" inputMode="decimal" min="0" max="100" step="0.01" value={draft} onChange={(event) => { setDraft(event.target.value); if (state === "error" || state === "saved") { setState("idle"); setMessage(""); } }} disabled={state === "loading" || state === "saving"} aria-describedby="tiktok-tax-help tiktok-tax-status" placeholder="Não configurada" /></label><button type="submit" disabled={state === "loading" || state === "saving"} className="meli-primary-action">{state === "saving" ? "Salvando…" : "Salvar alíquota"}</button><p id="tiktok-tax-help">Informe 0 somente quando zero for um fato contábil.</p><p id="tiktok-tax-status" role={state === "error" ? "alert" : "status"} aria-live="polite" className={state === "error" ? "is-error" : "is-success"}>{state === "loading" ? "Carregando alíquota…" : message}</p></form></section>;
+  return <section className="tiktok-settings-panel" id={TIKTOK_TAX_SETTINGS_ANCHOR} aria-labelledby="tiktok-financial-settings-title"><div className="tiktok-settings-heading"><div><p className="section-kicker">Configuração da loja</p><h2 id="tiktok-financial-settings-title">Imposto e custos dos produtos</h2><p>A alíquota é aplicada ao faturamento desta loja. Sem alíquota ou custo por SKU, imposto, lucro, margem e ROI permanecem “—”.</p></div><Link href={tiktokProductsHref(connectionId)} className="meli-primary-action">Cadastrar custos</Link></div><form onSubmit={submit} className="tiktok-tax-form"><label><span>Alíquota de imposto (%)</span><input ref={inputRef} type="number" inputMode="decimal" min="0" max="100" step="0.01" value={draft} onChange={(event) => { setDraft(event.target.value); if (state === "error" || state === "saved") { setState("idle"); setMessage(""); } }} disabled={state === "loading" || state === "saving"} aria-describedby="tiktok-tax-help tiktok-tax-status" placeholder="Não configurada" /></label><button type="submit" disabled={state === "loading" || state === "saving"} className="meli-primary-action">{state === "saving" ? "Salvando…" : "Salvar alíquota"}</button><p id="tiktok-tax-help">Informe 0 somente quando zero for um fato contábil.</p><p id="tiktok-tax-status" role={state === "error" ? "alert" : "status"} aria-live="polite" className={state === "error" ? "is-error" : "is-success"}>{state === "loading" ? "Carregando alíquota…" : message}</p></form></section>;
 }
 
 function WorkspaceFrame({ children, subtitle, action }: { children: React.ReactNode; subtitle?: string; action?: React.ReactNode }) {

@@ -33,6 +33,8 @@ import {
 } from "./ShopeeWorkspaceModel";
 import type { PublicIntegrationConnection } from "@/lib/integrations/types";
 import { marginMetricTone } from "@/lib/marginTone";
+import { comSemImposto } from "@/lib/semImposto";
+import { shopeeTaxRateHref } from "./ShopeeSettingsModel";
 
 interface Overview {
   account: { id: string; name: string; region: string };
@@ -387,8 +389,16 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
   const critical = overview.stockRadar.filter((product) => product.status === "critical" || product.status === "out");
   const roi = overview.profit.cogs != null && overview.profit.cogs > 0 && overview.profit.estimatedProfit != null ? (overview.profit.estimatedProfit / overview.profit.cogs) * 100 : null;
   const costsIncomplete = overview.profit.unitsWithoutCost > 0;
-  const resultIncomplete = !profitCoverage.complete || !overview.profit.feesComplete || costsIncomplete || overview.profit.fees == null || overview.profit.sellerShipping == null || overview.profit.ads == null || overview.profit.taxesWithheld == null || overview.profit.refunds == null || overview.profit.cogs == null || overview.profit.taxes == null || overview.profit.estimatedProfit == null || overview.profit.marginPct == null;
-  const knownCosts = resultIncomplete ? null : overview.profit.fees! + overview.profit.sellerShipping! + overview.profit.ads! + overview.profit.taxesWithheld! + overview.profit.refunds! + overview.profit.cogs! + overview.profit.taxes!;
+  // `overview.profit.taxes == null` saiu daqui em 26/08/2026: alíquota não
+  // cadastrada é configuração da vendedora, não dado que faltou da Shopee. O
+  // lucro sai sem o imposto e a tela rotula "(sem imposto)"; o CTA "Cadastrar
+  // alíquota →" continua no painel. Tarifa, frete, ads, retenção, estorno e
+  // custo seguem bloqueando.
+  const semAliquota = overview.profit.taxRate == null;
+  const resultIncomplete = !profitCoverage.complete || !overview.profit.feesComplete || costsIncomplete || overview.profit.fees == null || overview.profit.sellerShipping == null || overview.profit.ads == null || overview.profit.taxesWithheld == null || overview.profit.refunds == null || overview.profit.cogs == null || overview.profit.estimatedProfit == null || overview.profit.marginPct == null;
+  const knownCosts = resultIncomplete ? null : overview.profit.fees! + overview.profit.sellerShipping! + overview.profit.ads! + overview.profit.taxesWithheld! + overview.profit.refunds! + overview.profit.cogs! + (overview.profit.taxes ?? 0);
+  const ordersAwaitingCapture = Math.max(0, overview.metrics.revenueCoverage.totalOrders - overview.metrics.revenueCoverage.capturedOrders);
+  const ordersAwaitingStatement = Math.max(0, profitCoverage.paidOrders - profitCoverage.processedOrders);
 
   return (
     <div className="dashboard-sections integration-dashboard-sections shopee-dashboard-body">
@@ -413,6 +423,9 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
         briefingHref="/shopee/monitor"
         briefingLabel="Ver detalhes"
         acoes={[
+          ...(overview.profit.taxRate == null
+            ? [{ label: "Cadastrar alíquota", href: shopeeTaxRateHref(overview.account.id), tone: "pendencia" as const }]
+            : []),
           ...(overview.metrics.productsWithoutCost > 0
             ? [{ label: `Cadastrar custo de ${overview.metrics.productsWithoutCost} produto(s)`, href: "/shopee/produtos", tone: "pendencia" as const }]
             : []),
@@ -424,11 +437,11 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
 
       {!overview.metrics.revenueCoverage.complete && (
         <div role="status" className="integration-message is-error">
-          {overview.metrics.revenueCoverage.totalOrders - overview.metrics.revenueCoverage.capturedOrders} pedido(s) do período ainda não foram capturados pela sincronização.
+          {ordersAwaitingCapture} pedido(s) do período aguardam captura pela sincronização do NEXO. <Link href="/shopee/monitor" className="font-semibold text-sky-700 underline-offset-2 hover:underline">Ver pedidos <span aria-hidden="true">→</span></Link>
         </div>
       )}
 
-      {sync?.phase === "syncing" && <div role="status" className="integration-message">Sincronização em andamento: {sync.progress}% · {sync.processedOrders} pedido(s) processados. Os dados abaixo podem estar parciais.</div>}
+      {sync?.phase === "syncing" && <div role="status" className="integration-message">Sincronização do NEXO em andamento: {sync.processedOrders} pedido(s) processado(s) ({sync.progress}%). <Link href="/shopee/monitor" className="font-semibold text-sky-700 underline-offset-2 hover:underline">Acompanhar no monitor <span aria-hidden="true">→</span></Link></div>}
 
       {!SHOPEE_CATALOG_CAPABILITIES.models && (
         <div role="status" className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
@@ -440,8 +453,8 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
         <Metric label="Faturamento" value={<AnimatedNumber id="shopee-dash-revenue" value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={`${overview.metrics.paidOrders} pedido(s) no período`} trend={getRevenueTrend(overview.dailySales)} />
         <Metric label="Taxas" value={overview.profit.fees == null ? "—" : money(overview.profit.fees, overview.metrics.currency)} sub={overview.profit.feesComplete ? "extrato financeiro processado" : "aguardando fechamento do extrato financeiro"} />
         <Metric label="Custo dos produtos" value={overview.profit.cogs == null ? "—" : money(overview.profit.cogs, overview.metrics.currency)} sub={costsIncomplete ? `${overview.profit.unitsWithoutCost} unidade(s) sem custo` : "custos cadastrados"} tone={costsIncomplete ? "warn" : "default"} />
-        <Metric label={resultIncomplete ? "Resultado processado" : "Lucro estimado"} value={resultIncomplete || overview.profit.estimatedProfit == null ? "—" : <AnimatedNumber id="shopee-dash-profit" value={overview.profit.estimatedProfit} format={(amount) => money(amount, overview.metrics.currency)} />} sub={resultIncomplete ? `${profitCoverage.processedOrders} de ${profitCoverage.paidOrders} vendas` : "após todos os custos"} tone={resultIncomplete || overview.profit.estimatedProfit == null ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
-        <Metric label="Margem" value={resultIncomplete || overview.profit.marginPct == null ? "—" : percent(overview.profit.marginPct)} sub={resultIncomplete ? "aguardando conciliação completa" : "sobre o faturamento"} tone={resultIncomplete ? "default" : marginMetricTone(overview.profit.marginPct)} />
+        <Metric label={resultIncomplete ? "Resultado processado" : "Lucro estimado"} value={resultIncomplete || overview.profit.estimatedProfit == null ? "—" : <AnimatedNumber id="shopee-dash-profit" value={overview.profit.estimatedProfit} format={(amount) => money(amount, overview.metrics.currency)} />} sub={resultIncomplete ? `${profitCoverage.processedOrders} de ${profitCoverage.paidOrders} vendas` : comSemImposto("após todos os custos", semAliquota)} tone={resultIncomplete || overview.profit.estimatedProfit == null ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
+        <Metric label="Margem" value={resultIncomplete || overview.profit.marginPct == null ? "—" : percent(overview.profit.marginPct)} sub={resultIncomplete ? "aguardando conciliação completa" : comSemImposto("sobre o faturamento", semAliquota)} tone={resultIncomplete ? "default" : marginMetricTone(overview.profit.marginPct)} />
       </section>
 
       <section className="secondary-metrics" aria-label="Indicadores operacionais Shopee">
@@ -504,9 +517,10 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
             <>
               <Link href="/shopee/monitor" className="meli-financial-link">Ver composição completa no monitor <span aria-hidden="true">→</span></Link>
               <Link href="/shopee/produtos" className="meli-financial-link">Configurar custos e imposto <span aria-hidden="true">→</span></Link>
+              {overview.profit.taxRate == null && <Link href={shopeeTaxRateHref(overview.account.id)} className="meli-financial-link">Cadastrar alíquota <span aria-hidden="true">→</span></Link>}
               {!overview.profit.feesComplete && (
                 <p className="text-xs leading-relaxed text-amber-700">
-                  As taxas da Shopee só fecham no extrato financeiro, depois do pagamento do pedido. Enquanto isso, as vendas mais recentes entram sem tarifa e aparecem como incompletas.
+                  {ordersAwaitingStatement > 0 ? `${ordersAwaitingStatement} venda(s) aguardam a postagem do extrato financeiro pela Shopee.` : "A Shopee ainda não postou o extrato financeiro de todas as vendas do período."} <Link href="/shopee/monitor" className="font-semibold text-sky-700 underline-offset-2 hover:underline">Ver no monitor <span aria-hidden="true">→</span></Link>
                 </p>
               )}
               {overview.profit.unitsWithoutCost > 0 && (
@@ -531,9 +545,9 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
                 { label: shopeeTaxLabel(overview.profit.taxRate), value: overview.profit.taxes == null ? "—" : money(overview.profit.taxes, overview.metrics.currency) },
               ]}
             />
-            <Flow label={resultIncomplete ? "Lucro indisponível" : "Lucro estimado"} value={resultIncomplete || overview.profit.estimatedProfit == null ? "—" : money(overview.profit.estimatedProfit, overview.metrics.currency)} sign="=" accent tone={resultIncomplete || overview.profit.estimatedProfit == null ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
+            <Flow label={resultIncomplete ? "Lucro indisponível" : comSemImposto("Lucro estimado", semAliquota)} value={resultIncomplete || overview.profit.estimatedProfit == null ? "—" : money(overview.profit.estimatedProfit, overview.metrics.currency)} sign="=" accent tone={resultIncomplete || overview.profit.estimatedProfit == null ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
             <Flow
-              label="Margem"
+              label={comSemImposto("Margem", semAliquota)}
               value={resultIncomplete || overview.profit.marginPct == null ? "—" : percent(overview.profit.marginPct)}
               accent
               tone={resultIncomplete ? "default" : marginMetricTone(overview.profit.marginPct)}
@@ -548,7 +562,7 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
       />
 
       <div className="shopee-detail-grid">
-        <Panel title="Estoque crítico">
+        <Panel title="Estoque crítico" href="/shopee/estoque" linkLabel="Ver radar">
           {critical.length === 0 ? <Empty>Nenhum produto em ruptura iminente.</Empty> : (
             <ul className="divide-y divide-[var(--line)]">
               {critical.slice(0, 6).map((product) => (
@@ -560,7 +574,7 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
             </ul>
           )}
         </Panel>
-        <Panel title="Pedidos recentes">
+        <Panel title="Pedidos recentes" href="/shopee/monitor?secao=vendas" linkLabel="Ver todos os pedidos">
           {overview.recentOrders.length === 0 ? <Empty>Nenhum pedido no período.</Empty> : (
             <ul className="divide-y divide-[var(--line)]">
               {overview.recentOrders.slice(0, 6).map((order) => (
@@ -587,11 +601,12 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
   );
 }
 
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
+function Panel({ title, href, linkLabel, children }: { title: string; href: string; linkLabel: string; children: React.ReactNode }) {
   return (
     <section className="shopee-detail-panel">
       <div className="mb-3 flex items-center justify-between border-b border-[var(--line)] pb-3">
         <h2 className="text-[13px] font-semibold text-[var(--ink-soft)]">{title}</h2>
+        <Link href={href} className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:gap-1.5 hover:text-blue-700">{linkLabel}<span aria-hidden="true">→</span></Link>
       </div>
       {children}
     </section>

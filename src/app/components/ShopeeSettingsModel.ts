@@ -16,3 +16,9 @@ export function parseShopeeTaxRateDraft(draft: string): ShopeeTaxRateDraft {
 export function shopeeSettingsPath(connectionId: string): string {
   return `/api/integrations/shopee/settings?${new URLSearchParams({ connection_id: connectionId })}`;
 }
+
+export const SHOPEE_TAX_RATE_ANCHOR = "shopee-aliquota";
+
+export function shopeeTaxRateHref(connectionId: string): string {
+  return `/shopee/produtos?${new URLSearchParams({ connection_id: connectionId })}#${SHOPEE_TAX_RATE_ANCHOR}`;
+}

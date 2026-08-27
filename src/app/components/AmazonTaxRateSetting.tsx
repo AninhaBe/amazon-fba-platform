@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { readJson } from "../../lib/readJson";
+import { useAnchoredField } from "./useAnchoredField";
+
+export const AMAZON_TAX_RATE_ANCHOR = "amazon-aliquota";
 
 /**
  * Alíquota de imposto sobre vendas da Amazon.
@@ -20,6 +23,7 @@ export function AmazonTaxRateSetting() {
   const [erro, setErro] = useState<string | null>(null);
   const [salvo, setSalvo] = useState(false);
   const [indisponivel, setIndisponivel] = useState(false);
+  const inputRef = useAnchoredField(AMAZON_TAX_RATE_ANCHOR, carregado && !indisponivel);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -78,7 +82,7 @@ export function AmazonTaxRateSetting() {
   if (indisponivel) return null;
 
   return (
-    <section className="tax-setting" aria-labelledby="tax-setting-title">
+    <section id={AMAZON_TAX_RATE_ANCHOR} className="tax-setting" aria-labelledby="tax-setting-title">
       <div>
         <p className="section-kicker">Imposto sobre vendas</p>
         <h2 id="tax-setting-title" className="mt-1 text-lg font-semibold text-[var(--ink)]">Alíquota da Amazon</h2>
@@ -92,6 +96,7 @@ export function AmazonTaxRateSetting() {
         <label className="flex flex-col gap-1">
           <span className="text-sm font-medium">Alíquota (%)</span>
           <input
+            ref={inputRef}
             type="number"
             step="0.01"
             min="0"

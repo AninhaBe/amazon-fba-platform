@@ -28,6 +28,9 @@ import { BriefingLead } from "./BriefingLead";
 import { NexoDoDia } from "./NexoDoDia";
 import { IntegrationDashboardFrame } from "./IntegrationDashboardFrame";
 import { marginMetricTone } from "@/lib/marginTone";
+import { comSemImposto } from "@/lib/semImposto";
+
+const MERCADO_LIVRE_TAX_RATE_HREF = "/mercado-livre/produtos#mercado-livre-aliquota";
 
 /** As três abas do monitor — as mesmas da Amazon. */
 type SecaoDoMonitor = "composition" | "transactions" | "profitability";
@@ -260,22 +263,27 @@ function avaliarResultado(overview: Overview) {
   // AGENTS.md manda o oposto: "o painel mostra só o que foi capturado e diz que
   // está parcial — nunca projeta o resto".
   //
-  // Sem ALÍQUOTA, porém, a margem não é parcial: é errada para cima, porque o
-  // imposto incide sobre tudo e some da conta inteira. Esse caso continua "—",
-  // agora dizendo o que fazer para destravar.
+  // ALÍQUOTA AUSENTE NÃO BLOQUEIA MAIS (decisão dela em 26/08/2026).
+  //
+  // Ela é configuração da vendedora, não dado do canal: o lucro sai calculado
+  // sem o imposto (`estimatedProfit` já faz `taxes ?? 0` no canônico) e a tela
+  // rotula "(sem imposto)". A pendência "Cadastrar alíquota →" continua onde
+  // estava — mostrar o número não dispensa apontar o que falta.
+  //
+  // O que continua bloqueando é `resultParcial`: pedido sem conciliar, unidade
+  // sem custo, frete não capturado. Esses são `null` de dado do marketplace, e
+  // na tela ninguém distingue "não cobraram" de "ainda não sei".
   const semAliquota = overview.profit.taxes == null;
   const faltas: string[] = [];
   if (!profitCoverage.complete) faltas.push(`${profitCoverage.paidOrders - profitCoverage.processedOrders} pedido(s) sem conciliar`);
   if (overview.profit.unitsWithoutCost > 0) faltas.push(`${overview.profit.unitsWithoutCost} unidade(s) sem custo`);
   if (!overview.profit.shippingCostsComplete) faltas.push("frete de alguns pedidos");
   const resultParcial = faltas.length > 0;
-  // Mantido para o resto da tela, que usa "incompleto" no sentido antigo.
-  const resultIncomplete = semAliquota || resultParcial;
-  const margemSub = semAliquota
-    ? "cadastre a alíquota de imposto"
-    : resultParcial
-      ? `falta ${faltas.join(", ")}`
-      : "sobre o faturamento";
+  // Só dado do canal bloqueia. A alíquota saiu daqui de propósito.
+  const resultIncomplete = resultParcial;
+  const margemSub = resultParcial
+    ? `falta ${faltas.join(", ")}`
+    : comSemImposto("sobre o faturamento", semAliquota);
   return { semAliquota, resultParcial, resultIncomplete, margemSub };
 }
 
@@ -287,7 +295,7 @@ function Dashboard({ overview, syncStatus, periodoLabel }: { overview: Overview;
   const { semAliquota, resultParcial, resultIncomplete, margemSub } = avaliarResultado(overview);
   const netReceived = overview.profit.revenueProcessed - overview.profit.fees - overview.profit.sellerShipping;
   const ticket = overview.metrics.paidOrders > 0 ? overview.metrics.approvedRevenue / overview.metrics.paidOrders : null;
-  const roi = overview.profit.cogs > 0 && !semAliquota ? (overview.profit.estimatedProfit / overview.profit.cogs) * 100 : null;
+  const roi = overview.profit.cogs > 0 && !resultParcial ? (overview.profit.estimatedProfit / overview.profit.cogs) * 100 : null;
   const knownCosts = overview.profit.fees + overview.profit.sellerShipping + overview.profit.cogs + (overview.profit.taxes ?? 0);
   return <div className="dashboard-sections integration-dashboard-sections ml-dashboard-body">
     {/* A MESMA leitura do NEXO dos outros canais — uma narracao por dia por
@@ -311,6 +319,9 @@ function Dashboard({ overview, syncStatus, periodoLabel }: { overview: Overview;
       briefingHref="/mercado-livre/monitor"
       briefingLabel="Ver detalhes"
       acoes={[
+        ...(semAliquota
+          ? [{ label: "Cadastrar alíquota", href: MERCADO_LIVRE_TAX_RATE_HREF, tone: "pendencia" as const }]
+          : []),
         ...(overview.metrics.productsWithoutCost > 0
           ? [{ label: `Cadastrar custo de ${overview.metrics.productsWithoutCost} produto(s)`, href: "/mercado-livre/produtos", tone: "pendencia" as const }]
           : []),
@@ -334,8 +345,8 @@ function Dashboard({ overview, syncStatus, periodoLabel }: { overview: Overview;
       <Metric label="Faturamento" value={<AnimatedNumber id="ml-dash-revenue" value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={`${overview.metrics.paidOrders} aprovadas + ${overview.metrics.cancelledOrders} canceladas`} trend={getRevenueTrend(overview.dailySales)} />
       <Metric label="Taxas" value={money(overview.profit.fees, overview.metrics.currency)} sub={`${profitCoverage.processedOrders} venda(s) processada(s)`} />
       <Metric label="Custo dos produtos" value={money(overview.profit.cogs, overview.metrics.currency)} sub={overview.profit.unitsWithoutCost > 0 ? `${overview.profit.unitsWithoutCost} unidade(s) sem custo` : "custos cadastrados"} tone={overview.profit.unitsWithoutCost > 0 ? "warn" : "default"} />
-      <Metric label={resultIncomplete ? "Resultado processado" : "Lucro estimado"} value={<AnimatedNumber id="ml-dash-profit" value={overview.profit.estimatedProfit} format={(amount) => money(amount, overview.metrics.currency)} />} sub={resultIncomplete ? `${profitCoverage.processedOrders} de ${profitCoverage.paidOrders} vendas` : "após todos os custos"} tone={resultIncomplete ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
-      <Metric label="Margem" value={semAliquota ? "—" : percent(overview.profit.marginPct)} sub={margemSub} tone={semAliquota || resultParcial ? "default" : marginMetricTone(overview.profit.marginPct)} />
+      <Metric label={resultIncomplete ? "Resultado processado" : "Lucro estimado"} value={<AnimatedNumber id="ml-dash-profit" value={overview.profit.estimatedProfit} format={(amount) => money(amount, overview.metrics.currency)} />} sub={resultIncomplete ? `${profitCoverage.processedOrders} de ${profitCoverage.paidOrders} vendas` : comSemImposto("após todos os custos", semAliquota)} tone={resultIncomplete ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
+      <Metric label="Margem" value={resultParcial ? "—" : percent(overview.profit.marginPct)} sub={margemSub} tone={resultParcial ? "default" : marginMetricTone(overview.profit.marginPct)} />
     </section>
 
     <section className="secondary-metrics" aria-label="Indicadores operacionais Mercado Livre">
@@ -386,6 +397,7 @@ function Dashboard({ overview, syncStatus, periodoLabel }: { overview: Overview;
           <>
             <Link href="/mercado-livre/monitor" className="meli-financial-link">Ver composição completa no monitor <span aria-hidden="true">→</span></Link>
             <Link href="/mercado-livre/produtos" className="meli-financial-link">Configurar custos e imposto <span aria-hidden="true">→</span></Link>
+            {semAliquota && <p className="text-xs leading-relaxed text-amber-700">A alíquota de imposto ainda não está cadastrada. <Link href={MERCADO_LIVRE_TAX_RATE_HREF} className="meli-financial-link">Cadastrar alíquota <span aria-hidden="true">→</span></Link></p>}
             {overview.profit.unitsWithoutCost > 0 && <p className="text-xs leading-relaxed text-amber-700">{overview.profit.unitsWithoutCost} unidade(s) vendida(s) ainda estão sem custo cadastrado.</p>}
             {!profitCoverage.complete && <p className="text-xs leading-relaxed text-amber-700">O NEXO mostra somente os valores já capturados e não extrapola o lucro enquanto o histórico, as tarifas e os fretes não estiverem completos.</p>}
           </>
@@ -404,9 +416,9 @@ function Dashboard({ overview, syncStatus, periodoLabel }: { overview: Overview;
               rotuloImposto(overview.profit.taxRate, overview.profit.taxes, overview.metrics.currency),
             ]}
           />
-          <Flow label={resultIncomplete ? "Lucro indisponível" : "Lucro estimado"} value={resultIncomplete ? "—" : money(overview.profit.estimatedProfit, overview.metrics.currency)} sign="=" accent tone={resultIncomplete ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
+          <Flow label={resultIncomplete ? "Lucro indisponível" : comSemImposto("Lucro estimado", semAliquota)} value={resultIncomplete ? "—" : money(overview.profit.estimatedProfit, overview.metrics.currency)} sign="=" accent tone={resultIncomplete ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
           <Flow
-            label="Margem"
+            label={comSemImposto("Margem", semAliquota)}
             value={resultIncomplete ? "—" : percent(overview.profit.marginPct)}
             accent
             tone={resultIncomplete ? "default" : marginMetricTone(overview.profit.marginPct)}
@@ -537,15 +549,16 @@ function Monitor({ overview, secaoInicial }: { overview: Overview; secaoInicial:
         {
           id: "margem",
           label: profitCoverage.complete ? "Margem de contribuição" : "Margem processada",
-          node: <Metric label={resultIncomplete ? "Resultado processado" : "Margem de contribuição"} value={money(overview.profit.estimatedProfit, overview.metrics.currency)} sub={`${overview.profit.coverage.processedOrders} de ${overview.profit.coverage.paidOrders} vendas`} tone={resultIncomplete ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />,
+          node: <Metric label={resultIncomplete ? "Resultado processado" : "Margem de contribuição"} value={money(overview.profit.estimatedProfit, overview.metrics.currency)} sub={comSemImposto(`${overview.profit.coverage.processedOrders} de ${overview.profit.coverage.paidOrders} vendas`, semAliquota)} tone={resultIncomplete ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />,
         },
         {
           id: "margem-pct",
           label: "Margem",
-          node: <Metric label="Margem" value={semAliquota ? "—" : percent(overview.profit.marginPct)} sub={margemSub} tone={semAliquota || resultParcial ? "default" : marginMetricTone(overview.profit.marginPct)} />,
+          node: <Metric label="Margem" value={resultParcial ? "—" : percent(overview.profit.marginPct)} sub={margemSub} tone={resultParcial ? "default" : marginMetricTone(overview.profit.marginPct)} />,
         },
       ]}
     />
+    {semAliquota && <div className="flex justify-end"><Link href={MERCADO_LIVRE_TAX_RATE_HREF} className="meli-primary-action">Cadastrar alíquota <span aria-hidden="true">→</span></Link></div>}
 
     {/* Mesmas três abas da Amazon, na mesma ordem. "Transações" faltava aqui: o
         extrato do Mercado Pago existia só no card do dashboard, e quem abria o
@@ -563,7 +576,7 @@ function Monitor({ overview, secaoInicial }: { overview: Overview; secaoInicial:
         <Flow label="Total recebido" value={money(netReceived, overview.metrics.currency)} sign="=" />
         <Flow label="Custo dos produtos" value={money(overview.profit.cogs, overview.metrics.currency)} sign="−" />
         <Flow label={rotuloImposto(overview.profit.taxRate, overview.profit.taxes, overview.metrics.currency).label} value={rotuloImposto(overview.profit.taxRate, overview.profit.taxes, overview.metrics.currency).value} sign="−" />
-        <Flow label="Margem de contribuição" value={money(overview.profit.estimatedProfit, overview.metrics.currency)} sign="=" accent />
+        <Flow label={comSemImposto("Margem de contribuição", semAliquota)} value={money(overview.profit.estimatedProfit, overview.metrics.currency)} sign="=" accent />
       </div>
       {overview.profit.buyerShipping > 0 && <p className="monitor-coverage-note">O comprador pagou {money(overview.profit.buyerShipping, overview.metrics.currency)} de frete no período. Esse valor não compõe o faturamento; o resultado considera apenas o frete efetivamente pago pelo vendedor.</p>}
     {(!profitCoverage.complete || !overview.profit.shippingCostsComplete) && (
