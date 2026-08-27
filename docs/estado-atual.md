@@ -1,7 +1,8 @@
 # Estado atual — onde cada frente parou
 
-**Última atualização: 23/08/2026** (seções de ambiente, infraestrutura e IP da Shopee). Leia isto antes de continuar qualquer frente
-em andamento; o "porquê" das decisões está nos docs de cada área e nos ADRs.
+**Última atualização: 27/08/2026** (submissão do TikTok, monetização, acesso, cron e
+baseline de testes). Leia isto antes de continuar qualquer frente em andamento; o
+"porquê" das decisões está nos docs de cada área e nos ADRs.
 
 Este doc responde três perguntas: **o que está pronto**, **o que está no meio do
 caminho** (com o passo exato para retomar) e **o que está bloqueado por
@@ -13,9 +14,12 @@ detalhe operacional — este arquivo não é histórico, é foto do presente.
 > afirmação com data antiga, confirme — foi assim que três erros seguidos
 > entraram nesta semana.
 
-> **O produto se chama NEXO.** "SellerCore" é o nome antigo e continua nos
-> identificadores de propósito (URL, contas, variáveis) — ver `AGENTS.md` antes de
-> renomear qualquer coisa.
+> **O produto se chama NEXO — e só NEXO.** Decisão dela em 27/08/2026: o nome antigo
+> **não pode mais ser citado** em texto que uma pessoa lê (tela, doc novo, mensagem,
+> commit); era nome de POC e ficou para trás. O identificador continua vivo **apenas**
+> onde quebra se mexer — URL cadastrada em allowlist de OAuth, contas `.test` do banco,
+> nomes de variável/arquivo/tabela e o `service_id` do app do TikTok. Ver `AGENTS.md`
+> antes de renomear qualquer coisa.
 
 ---
 
@@ -45,32 +49,30 @@ Estado dos cadastros de OAuth/webhook por portal (todos feitos em 19–20/08):
 |---|---|---|
 | **Amazon** | Em produção, vendendo, com Ads no ar. ⚠️ **As duas contas seguem com o refresh token revogado** — o app opera pelo `LWA_REFRESH_TOKEN` do ambiente. Ver "Amazon: autorização". | 16/08 |
 | **Mercado Livre** | Em produção e sincronizando. Faturamento validado ao centavo contra o painel do ML. Saldo/liberação e auditoria de frete no ar. | 16/08 |
-| **Shopee** | Implementação local completa (OAuth, dashboard multi-loja, ingestão fail-closed/retomável, settings por loja, remoção local). **Go Live: último estado comprovado é "under review" em 07/08** — reconferir no console antes de afirmar qualquer coisa. Credenciais, autorização e payload Live seguem **BLOCKED**. | 07/08 |
-| **TikTok Shop** | OAuth, sync paginado, cron, modelo canônico, overview, Dashboard e Financeiro implementados. **Paridade financeira com a Amazon fechada em 23/08** (saldo e retenção, pendência com dono, pedidos a revisar, cascata de cupom, tarifa por padrão, zero explicado). ⚠️ Paridade de tela não é número conferido: a **conciliação financeira real segue parcial** — o procedimento de `tiktok-qa-evidence.md` contra a origem nunca rodou. | 23/08 |
+| **Shopee** | Implementação local completa (OAuth, dashboard multi-loja, ingestão fail-closed/retomável, settings por loja, remoção local). **Go Live: último estado comprovado é "under review" em 07/08** — nunca reconferido; a extensão do navegador não tem permissão para `open.shopee.com`, então a checagem depende dela abrir o console. IP de saída do Fly já medido (ver seção 5). Credenciais, autorização e payload Live seguem **BLOCKED**. | 07/08 |
+| **TikTok Shop** | OAuth, sync paginado, cron, modelo canônico, overview, Dashboard, Financeiro e ledger de extratos **implementados**. **App público SUBMETIDO em 27/08** para App review + Listing review — ver seção 4. Lucro, margem e ROI aparecem quando o extrato liquidado cobre o período. ⚠️ A conciliação financeira real segue parcial: 330 pedidos no backlog e o recurso `payments` com erro (seção 4). | 27/08 |
 
-**Baseline local de qualidade: 624 testes passando** (`node --experimental-strip-types
---test tests/*.test.mjs`, medido em 23/08). Evidência intermediária — não equivale a
-validação live, visual ou autenticada do produto.
-
----
-
-## O que mudou desde 11/08 (para quem leu a versão anterior)
-
-Sessenta commits. Os que mudam como você deve trabalhar:
-
-1. **Auditoria financeira da Amazon** — sete defeitos de cálculo corrigidos. O padrão
-   que saiu dela vale para os quatro canais; ver a seção própria abaixo.
-2. **Saldo e retenção** entraram na Amazon e no Mercado Livre — quanto está disponível,
-   quanto está retido e **em que data cada venda cai**.
-3. **"Pedidos a revisar"** no ML — auditoria de frete cobrado contra frete declarado.
-4. **Ads da Amazon saíram do papel** — 6 campanhas no ar desde 12/08. A seção "pronto
-   para ligar quando o estoque liberar" morreu.
-5. **ADR-013 e ADR-014** — worker de sync separado do web; cache fora do processo e
-   ingestão em fluxo.
-6. **Esboço da landing** em `/landing`, rota pública, isolada do produto.
-7. **Marca NEXO** — assinatura na tela de login e o nome em texto novo.
+**Baseline local de qualidade: 825 testes passando** (`node --experimental-strip-types
+--test tests/*.test.mjs`, medido em 27/08 — eram 624 em 23/08). Evidência intermediária —
+não equivale a validação live, visual ou autenticada do produto.
 
 ---
+
+## O que mudou desde 23/08 (para quem leu a versão anterior)
+
+1. **O app público do TikTok foi submetido** (27/08) — App review + Listing review. É a
+   virada da frente: o que falta agora é espera, não trabalho nosso. Seção 4.
+2. **Monetização saiu do zero** — Stripe em sandbox ponta a ponta, migration `0013`
+   aplicada e webhook respondendo em produção. Seção nova, "Monetização".
+3. **Recuperação de senha e primeiro acesso no ar** (v107+), com SMTP próprio. Sem isso
+   ninguém que não fosse a Ana conseguia entrar sozinho.
+4. **Lucro, margem e ROI do TikTok destravaram** quando o extrato liquidado cobre o
+   período — era o único canal que nunca mostrava lucro.
+5. **Cron ficou honesto**: conexões de demonstração saíram do ciclo nos quatro canais, os
+   passos `insights` e `warm` da Amazon voltaram a rodar, e o agendador passou a
+   **alarmar `ok:false`** em vez de logar HTTP 200 sobre passo quebrado.
+6. **"SellerCore" não pode mais ser citado** em texto que uma pessoa lê — ver o aviso no
+   topo.
 
 ## Em andamento — retomar aqui
 
@@ -164,7 +166,8 @@ Duas regras que já custaram erro:
 
 12 dias depois do pedido, na 3ª candidatura (a que corrigiu o site declarado, que
 apontava para um endereço em 503). Conta que autoriza: `consultor.masterseller@gmail.com`,
-dona do perfil LWA "SellerCore Ads". Token cifrado em `workspace_settings`,
+dona do perfil LWA cadastrado na Amazon como `SellerCore Ads` (nome de registro, não do
+produto — não renomear). Token cifrado em `workspace_settings`,
 `profileId 3728826838894301`.
 
 **O que entrou no produto no mesmo dia** — decisão registrada no
@@ -192,101 +195,91 @@ código está pronto, mas `GET_SALES_AND_TRAFFIC_REPORT` responde **403**: exige
 **Brand Analytics**, que o app não tem e que **não aparece como caixa de seleção** —
 precisa ser pedido nominalmente em caso de suporte (candidatura travada; ver "Bloqueado").
 
-### 4. TikTok Shop: ledger destravado, validação financeira a concluir
+### 4. TikTok Shop: **app submetido**, conciliação real a concluir
 
-*Verificado em 15/08.*
-
-**Onde está:** custom app publicado, loja do parceiro autorizada, token e `shop_cipher`
-no banco. Sync de pedidos e produtos, scheduler, cron e overview canônico implementados.
+*Verificado em 27/08.*
 
 | | |
 |---|---|
-| App | `SellerCore Conexao Parceiro` · service_id `7671696361289074452` · key `6kt9seens0iip` |
-| Categoria | Custom · Catalog / Product Listing (as outras duas foram rejeitadas — ver abaixo) |
-| Loja | Crystal Fancy · `7494291387899806731` · BR · conectada 10/08 |
-| Escopos | `order.info`, `finance.info`, `product.basic`, `authorization.info` — todos Active |
+| App público | `service_id` **7662688850348934932** · Public · Product Listing · Brasil / Local sellers |
+| App custom (o que sincroniza hoje) | `service_id` `7671696361289074452` · key `6kt9seens0iip` · **On** |
+| Loja | Crystal Fancy · `7494291387899806731` · BR · autorização **Unlimited (Extended)**, só cai se o vendedor desautorizar |
+| Escopos | `order.info`, `finance.info`, `product.basic`, `authorization.info` — Active |
 
-✅ **A autorização NÃO vence.** Verificado no Partner Center em 14/08 (*Authorization
-details · Active*): `Authorization period: Unlimited (Extended)`. A loja estendeu em
-09/08. Authorization ID `7671858184827848468`. Só cai se o vendedor desautorizar.
+#### Submissão de 27/08 — o que foi enviado e o que esperar
 
-**Três defeitos financeiros corrigidos entre 13 e 15/08** — vale conhecer o padrão,
-porque todos eram silenciosos:
+Launch request enviado com: URL do produto, conta de teste, instruções passo a passo e
+lista de features (as duas em inglês), 10 capturas, vídeo de walkthrough e o PDF de PRD.
 
-1. **As três chamadas financeiras nunca funcionaram** — parâmetros inexistentes e
-   `sort_field` obrigatório ausente.
-2. **Token de página vazio era tratado como erro**, quando é o fim normal da paginação —
-   a trava derrubava toda leitura financeira.
-3. **O statement travou 85 rodadas** lendo `raw.status` quando a API manda
-   `payment_status`. Como o parser lançava **antes** de qualquer contador de erro,
-   `error_count` ficava em 0 e o cron reportava sucesso.
+O console respondeu: *"Once the app review and listing review have been completed, the app
+will automatically go live... The process usually takes **10–12 business days**. We will
+notify you of the result by email (partner@email.tiktok.com)."*
 
-📌 **Lição que vale para qualquer canal:** cron "com sucesso" e dado parado ao mesmo tempo
-é sinal de exceção lançada antes do contador de erro, não de API vazia.
+Estado do checklist logo após enviar:
 
-**Cron:** o orçamento do TikTok era `180_000ms` contra `20_000ms` dos outros canais e
-derrubava o container (502 em tempos variados — 37s, 75s, 100s: não era timeout, o
-processo morria). Baixado para `60_000ms`.
+- ✅ Partner registration review · ✅ Data security and privacy review
+- 🟡 **App review** — em revisão
+- ⚪ **Listing review** — o ícone **não** virou "em revisão", apesar de a confirmação
+  dizer que os dois serão avaliados. Reconferir no console antes de afirmar que está na
+  fila.
+- App saiu de **Draft** para **Off**; sobe sozinho quando os dois passarem.
 
-**Paridade financeira fechada em 23/08/2026.** O TikTok recebeu os itens que a
-auditoria da Amazon deixou pendentes: saldo e retenção, pendência com dono,
-"pedidos a revisar" (frete cobrado × declarado), cascata de cupom, categorização
-de tarifa por padrão e zero explicado em período conciliado. Detalhe de cada um
-em `TODO.md` → "Paridade financeira entre canais". Verificado com 624 testes,
-`tsc` limpo e build. **Única mudança de valor na tela:** em período conciliado com
-transação liquidada, "Taxas" e "Frete do vendedor" saem de "—" para R$ 0,00.
+⚠️ **Dois campos exigidos pelo formulário que não estavam previstos** e vão reaparecer em
+qualquer ressubmissão: o **PDF de PRD** ("Required Product Design") e a **senha da conta
+de teste**. E o uploader de capturas aceita **um arquivo por vez** — mandar dez de uma vez
+anexa só uma, em silêncio. Conferir a grade antes de submeter.
 
-📌 **Dois achados que valem para os outros canais** (ver `TODO.md` → "Observações
-da rodada do TikTok"):
+#### Ledger de extratos — estado real do banco (27/08)
 
-1. O card de faturamento acusava o marketplace por uma janela **nossa**:
-   `periodCovered` vem de `checkpointsCoverPeriod`, que devolve `false` para toda
-   janela que termina hoje. Ao replicar a pendência-com-dono para ML e Shopee,
-   conferir se a mesma frase existe lá.
-2. `brDate()` adianta em **um dia** toda data de liberação do Mercado Livre
-   (`new Date("YYYY-MM-DD")` é meia-noite UTC). Confirmado rodando, **não
-   corrigido** — é outro canal.
+O ledger destravou depois de duas causas raiz:
 
-**Status desconhecido deixou de ser silencioso** (23/08): o `MAPA_STATUS` segue
-fail-closed, mas a falha carrega o status cru e a contagem até a tela, que nomeia
-o status e não oferece "tentar novamente" — repetir o ciclo devolve o mesmo
-resultado. `/api/tiktok/amostra` parou de morrer no primeiro status novo, que era
-justamente a rota feita para revelá-lo.
+1. **A cobertura era medida por janela nossa**, não pelo extrato: `checkpointsCoverPeriod`
+   devolve `false` para toda janela que termina hoje, então o dia corrente nunca fechava.
+2. **A fase do dashboard mandava no lucro.** `financial_backlog` conta pedidos sem extrato
+   da **conexão inteira, de qualquer data** — um pedido antigo derrubava um período já
+   conciliado. Lucro, margem e ROI passaram a ler a cobertura **do período**.
 
-**PRÓXIMO PASSO (bloco B, adiado para a próxima rodada):** executar o
-procedimento autenticado e sem mutação de
-[`tiktok-qa-evidence.md`](./tiktok-qa-evidence.md), deixar a fila financeira convergir e
-comparar origem, ledger e overview — distinguindo extrato liquidado de estimativa.
+Medido no banco da loja real em 27/08:
 
-Ponto a conferir nessa passada:
+| | |
+|---|---|
+| Transações liquidadas (não estimadas) | **54**, de 26/07 a 25/08 |
+| Transações estimadas (`unsettled`) | **69**, de 26/08 |
+| Pedidos de receita | **10.075**, dos quais **9.745 já marcados** com extrato |
+| Backlog a conciliar | **330** pedidos — convergindo, o cron marca a cada ciclo |
+| Checkpoints | `statements`, `statement_transactions` e `unsettled` com **0 erros** |
 
-- **`linhasOriginais` vs `itensAgrupados`** — o TikTok emite uma linha por unidade;
-  `agruparItens` junta por `product_id::sku_id`. Se a contagem não bater com o pedido
-  real, "unidades vendidas por SKU" nasce errado.
+🔴 **`payments` é a exceção: 1 janela com 18 erros e `completed_at` nulo.** É o recurso que
+alimenta "a liberar com data" no painel de saldo. Enquanto não fechar, a data de liberação
+vem só de onde a API já provou. **Investigar antes de dar a conciliação por concluída.**
+
+#### Outros consertos da rodada
+
+- **Monitor voltou a responder** (500 → 200).
+- **Lucro/Margem/ROI** aparecem quando o extrato liquidado cobre o período; janela aberta,
+  valor estimado ou componente ausente mantêm o travessão.
+- **Conexão de demonstração saiu do cron** nos quatro canais — a loja sintética não vai
+  mais para a API real.
+
+**PRÓXIMO PASSO:** rodar o procedimento autenticado e sem mutação de
+[`tiktok-qa-evidence.md`](./tiktok-qa-evidence.md), comparando origem, ledger e overview —
+distinguindo extrato liquidado de estimativa. Ponto a conferir: **`linhasOriginais` vs
+`itensAgrupados`** — o TikTok emite uma linha por unidade e `agruparItens` junta por
+`product_id::sku_id`; se a contagem não bater, "unidades vendidas por SKU" nasce errada.
 
 **Pendência separada:** as categorias **Accounting** e **Order Management** foram
-**rejeitadas** — *"The Company Number that you entered was inconsistent with the company
-number on your Company registration document"*.
+**rejeitadas** por divergência de razão social. Ao reenviar, o campo de empresa precisa
+dizer exatamente `66.106.202 ANA BEATRIZ DE OLIVEIRA` — é empresário individual, a razão
+social é "CNPJ + nome da titular" e **não existe nome fantasia registrado** ("NEXAHUB" é
+nome de loja, não aparece em registro oficial).
 
-**O `cnpj.pdf` foi aberto em 13/08 e o mistério acabou:**
-
-| Campo do comprovante | Valor |
-|---|---|
-| Número de inscrição | `66.106.202/0001-20` |
-| **Nome empresarial (razão social)** | `66.106.202 ANA BEATRIZ DE OLIVEIRA` |
-| Título do estabelecimento (nome fantasia) | `********` — **não há** |
-
-O número está certo; **o que não bate é o nome**. É empresário individual, então a razão
-social é "CNPJ + nome da titular", e **não existe nome fantasia registrado** — "NEXAHUB" é
-nome de loja e não aparece em registro oficial. Ao reenviar, o campo de empresa precisa
-dizer exatamente `66.106.202 ANA BEATRIZ DE OLIVEIRA`.
-
-📌 Mesma lição para qualquer cadastro que peça razão social — foi assim que o registro da
-Amazon Ads API foi preenchido em 13/08.
+📌 Mesma lição para qualquer cadastro que peça razão social.
 
 ### 5. Shopee: implementação local pronta; Live **BLOCKED**
 
-*Verificado em 07/08 — **o estado externo precisa ser reconferido no console**.*
+*Local verificado em 07/08; IP de saída medido em 27/08. **O estado externo nunca foi
+reconferido** — a extensão do navegador não tem permissão para `open.shopee.com`, então
+essa checagem depende dela abrir o console.*
 
 Em 07/08 o console mostrou *"Application to go live is under review: audit results will be
 sent to your email within 24 hours"*. Esse é o último estado externo comprovado. Não há
@@ -300,14 +293,16 @@ dependentes **somente do nosso lado**, sem chamar a OpenAPI nem revogar acesso n
 marketplace.
 
 🔴 **O IP declarado está OBSOLETO.** Declaramos `74.220.49.18`, que era o IP de saída do
-**Render** — desativado em 19/08. A produção hoje é Fly (`gru`), com outro IP.
+**Render** — desativado em 19/08. A produção hoje é Fly (`gru`).
+
+**IP de saída medido: `50.31.196.138`** (27/08). ⚠️ **Com ressalva:** a medição foi feita
+contra um host só, e o Fly pode sair por endereços diferentes conforme o destino. Medir de
+novo contra `open.shopee.com` antes de gravar o allowlist, e reconferir depois de qualquer
+mudança de plano ou região.
 
 A Shopee **rejeita CIDR**: só aceita endereço avulso, e uma faixa /24 não cabe no limite
-de 2000 caracteres. Então o allowlist tem que declarar o IP de saída real do Fly.
-
-⚠️ **Medir o IP de saída do Fly e reescrever o allowlist antes de qualquer chamada Live.**
-Enquanto o IP estiver errado, as chamadas são **bloqueadas em silêncio** — não dá erro
-claro, some. Reconferir depois de qualquer mudança de plano ou região.
+de 2000 caracteres. Enquanto o IP estiver errado, as chamadas são **bloqueadas em
+silêncio** — não dá erro claro, some.
 
 **Depois da aprovação** (a Shopee devolve `partner_id` e key de produção):
 1. Definir no Fly (`fly secrets set`): `SHOPEE_PARTNER_ID`, `SHOPEE_PARTNER_KEY` (a de Live) e
@@ -345,24 +340,36 @@ claro, some. Reconferir depois de qualquer mudança de plano ou região.
 
 ### 7. Contas de avaliação ativas
 
-*Verificado em 06/08.*
+*Verificado em 27/08.*
 
 | Conta | Para quê | Prazo |
 |---|---|---|
-| `contato.anabeatrizoliver+trial@gmail.com` | Conta trial que a **Shopee** usa para avaliar o produto. Workspace com dados sintéticos: 186 pedidos ML + 133 Amazon + 214 Shopee. | sem prazo |
-| `emmanuvitorio@gmail.com` | Teste de uma pessoa conhecida. | **06/08 → 26/08/2026** |
+| `contato.anabeatrizoliver+tiktokreview@gmail.com` | Conta que o **TikTok** usa no App review. Workspace demo com os **quatro** canais e dados sintéticos. | **90 dias a partir de 27/08** |
+| `contato.anabeatrizoliver+trial@gmail.com` | Conta trial que a **Shopee** usa para avaliar o produto. Workspace com dados sintéticos: ML + Amazon + Shopee (sem TikTok). | sem prazo |
+| `emmanuvitorio@gmail.com` | Teste de uma pessoa conhecida. | venceu em **26/08/2026** |
 
 Gestão pelo script `scripts/trial-account.mjs` (`ACTION=status|create|extend|delete`).
 Ao vencer, a conta **para de abrir** (HTTP 403 `TRIAL_EXPIRED`) — nada é apagado
 automaticamente, de propósito: bloqueio é reversível, exclusão não. A exclusão exige
 `CONFIRM=SIM`.
 
-⚠️ **O demo envelhece em 15 minutos.** O seed grava `covered_to = now()`, e a checagem de
-cobertura exige que `covered_to` alcance o fim do período pedido (tolerância de 15 min).
-Canal real passa porque o cron roda a cada 5 min; o workspace demo não sincroniza nunca.
-Resultado: pouco depois de cada seed os cards voltam a dizer "Sincronização ainda não
-cobre todo o período". **É verdade** — o dado é mesmo daquele instante — e deixar limpo
-exigiria mentir sobre a cobertura. Se o texto incomodar numa avaliação, rode o seed de novo.
+O seed é `scripts/_demo-seed.mjs`. Aceita `--workspace <id>` (reaproveita um workspace
+demo que já existe, sem tocar em Auth) e `--canais a,b` (restaura canal cujo dado foi
+limpo); recusa qualquer workspace que tenha conexão real. **Ele apaga e regrava** o canal
+antes de semear — rodar de novo é a forma de reparar a demo.
+
+📌 **Três armadilhas que o seed já cobre**, resolvidas em 27/08 — não reintroduzir:
+
+1. **Pedido não pode nascer no futuro.** A versão anterior ancorava o dia em
+   `now - dia*24h` e somava até 22h, jogando o dia corrente adiante do relógio; "hoje"
+   ficava vazio e o narrador dizia que não havia faturamento.
+2. **`_sellercore` não passa por `saveCanonicalOrders`** — `stripReservedCanonicalMetadata`
+   apaga o bloco reservado de qualquer `raw` que chega de fora. A marca de extrato vai num
+   UPDATE próprio; sem ela o `financial_backlog` derruba a fase e a tela mostra
+   "Sincronizando" em cima de total oficial.
+3. **O painel de saldo lê outra fatia** que o Financeiro: só transação `unsettled` e as dos
+   extratos com repasse a pagar. Sem semear `workspace_financial_payments`, ele diz
+   "nenhuma movimentação" ao lado de um Financeiro cheio.
 
 ### 8. Amazon: pendências de catálogo
 
@@ -410,6 +417,41 @@ retenção** — não existe registro de uso hoje, e o dado começa do zero. O
 `metricas.ts` que já existe é telemetria operacional (Prometheus, porta 9091),
 não uso de produto.
 
+### 10. Monetização (Stripe) — **sandbox completo, produção depende de KYC**
+
+*Verificado em 27/08.*
+
+Primeira vez que o produto tem caminho de cobrança. Tudo abaixo está em **ambiente de
+teste**:
+
+- Produto **R$ 99/mês** criado, com **Payment Link** e endpoint de webhook registrado.
+- Segredos de teste no Fly (`fly secrets`), nunca no repo.
+- Migration **`0013_webhook_da_stripe.sql`** aplicada.
+- Webhook respondendo em produção com `configured: true`.
+- Código isolado em `src/lib/billing/` (`assinatura`, `runtime`, `stripeEvent`,
+  `stripeSignature`, `webhookStripe`) e `src/app/api/webhooks/stripe/`.
+
+🔴 **Bloqueio para cobrar de verdade: o KYC da conta de produção da Stripe.** Depende de
+**conta bancária PJ da Ana** — é ação dela, não nossa. Enquanto não sair, nenhuma chave
+`live` deve ser configurada.
+
+⚠️ Sandbox completo **não** é cobrança validada: assinatura real, primeiro pagamento,
+falha de cartão, cancelamento e reembolso nunca rodaram contra a Stripe de produção.
+
+### 11. Acesso: recuperação de senha e primeiro acesso — **no ar desde a v107**
+
+*Verificado em 27/08.*
+
+Até esta rodada, quem não fosse a Ana não tinha como entrar sozinho: não havia
+recuperação de senha nem fluxo de primeiro acesso. Ambos estão no ar
+(`src/app/recuperar-senha/`), com **SMTP da Resend** ativo e os templates em português
+colados no provedor.
+
+📌 Pré-requisito silencioso da conta de review do TikTok: o revisor precisa conseguir
+entrar — e, se algo der errado, se recuperar sem falar com ninguém.
+
+---
+
 ## Bloqueado por terceiros
 
 - **Solution Provider Portal (Amazon)** — candidatura travada, caso `21250777631`. Sem
@@ -417,10 +459,14 @@ não uso de produto.
   self-authorization). É o mesmo caminho que destravaria **Brand Analytics**.
 - **Amazon Ads API** — solicitada em 13/08, ainda não aprovada. Enquanto isso o
   acompanhamento é pelo navegador.
-- ~~**TikTok DSPR**~~ — ✅ **aprovada em 07/08**. As próximas etapas (Listing review, App
-  review, Publish) dependem de trabalho nosso, não de espera.
+- ~~**TikTok DSPR**~~ — ✅ aprovada em 07/08.
+- **TikTok: App review + Listing review** — **submetidos em 27/08**. Agora é espera:
+  10–12 dias úteis declarados pelo console, resultado por e-mail em
+  `partner@email.tiktok.com`. O app sobe sozinho se os dois passarem. Ver seção 4.
 - **TikTok: categorias Accounting e Order Management** — rejeitadas por divergência de
   razão social; reenviar com o nome do CNPJ (ver seção 4).
+- **KYC da Stripe (produção)** — depende de conta bancária PJ da Ana. Sem isso não há
+  cobrança real. Ver seção 10.
 - **Shopee Go Live** — último estado comprovado é "under review" em 07/08. A validação
   Live depende de aprovação, credenciais de produção, autorização de loja real e
   observação de payloads reais.
@@ -467,6 +513,14 @@ não uso de produto.
   quem **não** tem loja conectada vê "Configure as credenciais" — intencional, para não
   expor um botão que leva ao ambiente de teste.
 - Temporários no disco `G:` (`TMP=G:/sc-temp`) — o `C:` vive cheio.
+- **Stripe**: chaves de **teste** no `fly secrets`; nenhuma chave `live` configurada até o
+  KYC sair (seção 10).
+- **E-mail transacional**: SMTP da **Resend**, com os templates em português no provedor —
+  é o que faz recuperação de senha e primeiro acesso chegarem.
+- **Deploy**: `bash scripts/fly-deploy.sh` pelo Git Bash. `fly deploy` pelado sobe a
+  imagem **sem** as `NEXT_PUBLIC_*` e quebra o login — elas são substituídas durante o
+  `next build` e precisam entrar como `--build-arg`. Hoje (27/08) foram **cinco** deploys,
+  da **v107** à **v111**.
 - **DDL é fail-closed:** `ensureSchema()` lança `SCHEMA_BLOCKED`; migration só pelo
   `scripts/migrate-cli.mjs` (ver [`migrations.md`](./migrations.md)).
 
