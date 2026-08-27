@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { NextRequest, NextResponse } from "next/server";
 import { saveAccount } from "@/lib/accountStore";
 import { ACTIVE_COOKIE } from "@/lib/withAccount";
@@ -5,6 +6,15 @@ import { oauthClientCreds } from "@/lib/spapi";
 import { runWithAccount } from "@/lib/accountContext";
 import { getMarketplaceName } from "@/lib/sellers";
 import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
+import { currentWorkspaceId, runWithWorkspace } from "@/lib/workspaceScope";
+import {
+  amazonConnectionId,
+  ensureAmazonSyncState,
+  runAmazonSyncBatch,
+} from "@/lib/integrations/amazonSync";
+
+/** Passos do sync imediato pós-conexão: cobre a janela recente de pedidos. */
+const KICK_MAX_STEPS = 8;
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -63,6 +73,25 @@ export async function GET(req: NextRequest) {
       refreshToken: data.refresh_token,
       marketplace: marketplace ?? undefined,
     });
+
+    // Primeira sincronização agendada E disparada na hora. A linha de estado
+    // nasce aqui (antes só nascia na primeira visita ao dashboard — o agendador
+    // seleciona a partir de workspace_marketplace_syncs e nunca via a conta
+    // nova); o `after()` roda fora do caminho do redirect, e o lease de 5
+    // minutos impede colisão com o cron. Se o kick morrer, o cron assume.
+    await ensureAmazonSyncState(amazonConnectionId(sellerId));
+    const workspaceId = currentWorkspaceId();
+    const account = { sellerId, refreshToken: data.refresh_token };
+    after(() => runWithWorkspace(workspaceId, async () => {
+      try {
+        await runAmazonSyncBatch(account, KICK_MAX_STEPS);
+      } catch (error) {
+        console.error("Falha no sync imediato pós-conexão da Amazon", {
+          sellerId,
+          reason: error instanceof Error ? error.message : "Erro desconhecido",
+        });
+      }
+    }));
 
     // Define a conta ativa e limpa o state.
     const redirect = NextResponse.redirect(`${baseUrl}/?connected=1`);

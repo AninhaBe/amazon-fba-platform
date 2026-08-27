@@ -98,7 +98,14 @@ export async function runScheduledAmazonSync(
           ))
         )
       ORDER BY
-        CASE WHEN sync.status = 'complete' THEN 1 ELSE 0 END,
+        -- Conta que nunca fechou uma janela (covered_from nulo) é primeira
+        -- sincronização: fura a fila para o vendedor não esperar atrás do
+        -- backfill das contas antigas. Mesmo desenho dos outros três canais.
+        CASE
+          WHEN sync.covered_from IS NULL THEN 0
+          WHEN sync.status = 'complete' THEN 2
+          ELSE 1
+        END,
         sync.updated_at ASC
       LIMIT $2`,
     [PROVIDER, connectionLimit]

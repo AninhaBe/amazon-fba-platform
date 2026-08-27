@@ -16,6 +16,7 @@ import {
   upsertCanonicalOrderFees,
   type OrderItemsApplication,
 } from "./canonicalStore";
+import { nextAmazonOrderWindow } from "./amazonSyncControl";
 
 // Sincronização da Amazon para o modelo canônico (fase 5, etapa Orders —
 // docs/canonical-schema.md). Mesmo desenho do Mercado Livre: janela de
@@ -28,9 +29,18 @@ import {
 
 const PROVIDER = "amazon";
 const DAY = 86_400_000;
-const HISTORY_DAYS = 366;
+/** Fase 1 do backfill: a janela que o vendedor vê primeiro, minutos após conectar. */
+const RECENT_DAYS = 30;
+// Fase 2: alvo total do histórico. `AMAZON_HISTORY_DAYS` permite mudar o alvo
+// sem deploy de código.
+const HISTORY_DAYS = historyDaysConfigurados();
 const WINDOW_DAYS = 7;
 const PAGE_SIZE = 100;
+
+function historyDaysConfigurados(): number {
+  const dias = Number(process.env.AMAZON_HISTORY_DAYS ?? "");
+  return Number.isFinite(dias) && dias >= RECENT_DAYS ? dias : 366;
+}
 // 20 → 40 em 20/08: com 930 pedidos sem itens na conta grande, 20/passo dava
 // ~320/h e a conciliação levaria o dia. O teto real é o rate limit da
 // getOrderItems (0,5 req/s, burst 30) — 40 por passo continua com folga porque
@@ -96,7 +106,9 @@ async function ensureSyncRow(connectionId: string): Promise<SyncRow> {
   const existing = await getSyncRow(connectionId);
   if (existing) return existing;
   const now = syncHorizon();
-  const targetFrom = new Date(now.getTime() - HISTORY_DAYS * DAY);
+  // O alvo nasce curto (fase 1) para o dashboard encher em minutos; ao fechá-lo,
+  // o passo estende o alvo até HISTORY_DAYS e segue em background (fase 2).
+  const targetFrom = new Date(now.getTime() - Math.min(RECENT_DAYS, HISTORY_DAYS) * DAY);
   const cursorFrom = new Date(Math.max(targetFrom.getTime(), now.getTime() - WINDOW_DAYS * DAY));
   await dbQuery(
     `INSERT INTO workspace_marketplace_syncs
@@ -108,6 +120,16 @@ async function ensureSyncRow(connectionId: string): Promise<SyncRow> {
   const created = await getSyncRow(connectionId);
   if (!created) throw new Error("Não foi possível iniciar a sincronização da Amazon.");
   return created;
+}
+
+/**
+ * Garante a linha de estado da sincronização — chamado pelo callback OAuth para
+ * a conta recém-conectada já nascer candidata do agendador, mesmo que o kick
+ * imediato morra antes de rodar.
+ */
+export async function ensureAmazonSyncState(connectionId: string): Promise<void> {
+  if (!hasDb()) return;
+  await ensureSyncRow(connectionId);
 }
 
 /**
@@ -375,27 +397,49 @@ export async function runAmazonSyncStep(account: AccountCtx, forcarJanela = fals
           WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
         [currentWorkspaceId(), PROVIDER, connectionId, page.nextToken, page.orders.length]
       );
-    } else if (from.getTime() <= targetFrom.getTime()) {
-      await dbQuery(
-        `UPDATE workspace_marketplace_syncs
-            SET status = 'complete', covered_from = COALESCE(covered_from, target_from), covered_to = target_to,
-                processed_orders = processed_orders + $4, cursor_token = NULL,
-                lease_until = NULL, last_error = NULL, last_success_at = now(), updated_at = now()
-          WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
-        [currentWorkspaceId(), PROVIDER, connectionId, page.orders.length]
-      );
     } else {
-      const nextTo = from;
-      const nextFrom = new Date(Math.max(targetFrom.getTime(), nextTo.getTime() - WINDOW_DAYS * DAY));
-      await dbQuery(
-        `UPDATE workspace_marketplace_syncs
-            SET status = 'pending', covered_from = $4, covered_to = COALESCE(covered_to, target_to),
-                cursor_from = $5, cursor_to = $6, cursor_token = NULL,
-                processed_orders = processed_orders + $7,
-                lease_until = NULL, last_error = NULL, last_success_at = now(), updated_at = now()
-          WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
-        [currentWorkspaceId(), PROVIDER, connectionId, from, nextFrom, nextTo, page.orders.length]
-      );
+      const move = nextAmazonOrderWindow({
+        windowFromMs: from.getTime(),
+        targetFromMs: targetFrom.getTime(),
+        coveredFromMs: row.covered_from ? new Date(row.covered_from).getTime() : null,
+        historyFloorMs: Date.now() - HISTORY_DAYS * DAY,
+        windowMs: WINDOW_DAYS * DAY,
+        toleranceMs: DAY,
+      });
+      if (move.kind === "complete") {
+        await dbQuery(
+          `UPDATE workspace_marketplace_syncs
+              SET status = 'complete', covered_from = COALESCE(covered_from, target_from), covered_to = target_to,
+                  processed_orders = processed_orders + $4, cursor_token = NULL,
+                  lease_until = NULL, last_error = NULL, last_success_at = now(), updated_at = now()
+            WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
+          [currentWorkspaceId(), PROVIDER, connectionId, page.orders.length]
+        );
+      } else if (move.kind === "extend") {
+        // Fase 2: o alvo imediato (30 dias) fechou; estende o alvo até o
+        // histórico completo e continua o backfill nas mesmas janelas.
+        await dbQuery(
+          `UPDATE workspace_marketplace_syncs
+              SET status = 'pending', target_from = $4, covered_from = $5,
+                  covered_to = COALESCE(covered_to, target_to),
+                  cursor_from = $6, cursor_to = $7, cursor_token = NULL,
+                  processed_orders = processed_orders + $8,
+                  lease_until = NULL, last_error = NULL, last_success_at = now(), updated_at = now()
+            WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
+          [currentWorkspaceId(), PROVIDER, connectionId, new Date(move.targetFromMs), new Date(move.coveredFromMs),
+            new Date(move.nextFromMs), new Date(move.nextToMs), page.orders.length]
+        );
+      } else {
+        await dbQuery(
+          `UPDATE workspace_marketplace_syncs
+              SET status = 'pending', covered_from = $4, covered_to = COALESCE(covered_to, target_to),
+                  cursor_from = $5, cursor_to = $6, cursor_token = NULL,
+                  processed_orders = processed_orders + $7,
+                  lease_until = NULL, last_error = NULL, last_success_at = now(), updated_at = now()
+            WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
+          [currentWorkspaceId(), PROVIDER, connectionId, from, new Date(move.nextFromMs), new Date(move.nextToMs), page.orders.length]
+        );
+      }
     }
     await runWithAccount(account, async () => {
       // Pontual primeiro (alcança os recentes), varredura depois (descobre o resto).
