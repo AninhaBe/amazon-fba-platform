@@ -36,10 +36,12 @@ import {
   parseTaxRateDraft,
   tiktokConnectionError,
   tiktokOverviewQuery,
+  tiktokMotivoSemLucro,
   tiktokOrderStatusLabel,
   tiktokPageHref,
   tiktokPendencias,
   tiktokProductsHref,
+  tiktokResultadoFechado,
   tiktokSettingsQuery,
   tiktokTaxSettingsHref,
   TIKTOK_TAX_SETTINGS_ANCHOR,
@@ -177,7 +179,9 @@ export function TikTokWorkspace() {
   const primaryCards = cards.filter((card) => TIKTOK_PRIMARY_FINANCIAL_KEYS.has(card.key));
   const componentCards = cards.filter((card) => !TIKTOK_PRIMARY_FINANCIAL_KEYS.has(card.key));
   const costCards = cards.filter((card) => !["revenue", "buyerShipping", "profit", "marginPct", "roiPct"].includes(card.key));
-  const resultReady = phase === "ready" && !financialBlocked && data.overview.profit != null;
+  // MESMA autoridade da faixa de cima: a cobertura do PERÍODO escrita pelo
+  // ledger, nunca a fase do sync. Ver `tiktokResultadoFechado`.
+  const resultReady = tiktokResultadoFechado(data.overview, data.coverage, financialBlocked);
   const knownCosts = resultReady && costCards.every((card) => card.raw != null && card.value !== "—")
     ? costCards.reduce((total, card) => total + Math.abs(card.raw ?? 0), 0)
     : null;
@@ -215,13 +219,17 @@ export function TikTokWorkspace() {
         {/* Mesma abertura dos outros três canais. O TikTok é o caso mais
             extremo dessa peça: o ledger financeiro pode estar bloqueado neste
             ambiente, e a frase precisa dizer isso em vez de exibir lucro
-            zerado. `lucro={null}` fora do estado "pronto" é a tradução direta
-            de `null ≠ 0` para dentro do texto. */}
+            zerado. `lucro={null}` com o resultado ainda aberto é a tradução
+            direta de `null ≠ 0` para dentro do texto.
+            ⚠️ `resultReady` — a MESMA decisão do painel e dos cards. Com a fase
+            do sync no lugar dela, o NEXO narrava "seu lucro continua
+            desconhecido" logo acima do lucro que a própria tela exibia. */}
         <BriefingLead
           periodo={period.label}
           faturamento={data.overview?.revenue ?? null}
           pedidos={data.orders ?? 0}
-          lucro={phase === "ready" && !financialBlocked ? (data.overview?.profit ?? null) : null}
+          lucro={resultReady ? (data.overview?.profit ?? null) : null}
+          motivoSemLucro={resultReady ? null : tiktokMotivoSemLucro((data.coverage.requestedPeriod ?? data.coverage).cogs?.missing ?? 0)}
           format={(v) => new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(v)}
           escopo="tiktok_shop"
           canalNome="TikTok Shop"

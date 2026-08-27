@@ -292,14 +292,28 @@ export function applyTiktokLedgerAuthority(
     result.overview.profit = lucro;
     result.overview.marginPct = result.overview.revenue! > 0 ? +(lucro / result.overview.revenue! * 100).toFixed(2) : null;
     result.overview.roiPct = result.overview.cogs! > 0 ? +(lucro / result.overview.cogs! * 100).toFixed(2) : null;
-    result.coverage.financials.status = "complete";
-    result.coverage.requestedPeriod.financials.status = "complete";
   } else {
     result.overview.profit = null;
     result.overview.marginPct = null;
     result.overview.roiPct = null;
-    result.coverage.financials.status = "partial";
-    result.coverage.requestedPeriod.financials.status = "partial";
   }
+  // A cobertura de `financials` foi contada ANTES de o ledger assumir os
+  // componentes, então trocar só o `status` deixava o MESMO objeto dizendo
+  // "complete" e "5 componente(s) sem valor" ao mesmo tempo — e é dele que saem
+  // o rótulo dos cards de lucro/margem/ROI e o texto da pendência. A contagem é
+  // refeita sobre os valores que sobraram depois da autoridade, para decisão e
+  // explicação virem da mesma fonte.
+  const componentes = [...doExtrato, result.overview.cogs];
+  const conhecidos = componentes.filter((valor) => valor != null).length;
+  const financials = {
+    ...coverage("period", componentes.length, conhecidos, componentes.length - conhecidos),
+    // `known === applicable` não basta: componente conhecido em janela ainda
+    // aberta é o capturado, não o oficial. Quem decide continua sendo `fechado`.
+    status: fechado ? ("complete" as const) : ("partial" as const),
+  };
+  // Os dois apontam para o mesmo objeto desde `calculateTiktokFinancialV2`
+  // (`...requestedPeriod`); reatribuir os dois mantém isso explícito.
+  result.coverage.financials = financials;
+  result.coverage.requestedPeriod.financials = financials;
   return result;
 }

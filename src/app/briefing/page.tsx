@@ -164,6 +164,8 @@ export default function BriefingPage() {
         variacaoSemanaPct: tendenciaSemanal(c.series).deltaPct,
         semLeitura: !!c.error,
         unidadesSemCusto: c.unitsWithoutCost ?? 0,
+        // A causa do travessão vem do canal; sem ela o modelo inventa uma.
+        motivoSemLucro: c.profit == null ? c.motivoSemLucro ?? null : null,
       })),
       insights: insights.slice(0, 12).map((i) => ({
         canal: CHANNEL[i.provider] ?? i.provider,

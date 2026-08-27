@@ -40,6 +40,48 @@ export function effectiveTiktokDashboardPhase(
     : "ready";
 }
 
+/**
+ * O RESULTADO DO PERÍODO FECHOU? — a decisão única sobre lucro, margem e ROI.
+ *
+ * ⚠️ Não use a fase do dashboard para isto. `effectiveTiktokDashboardPhase`
+ * responde "o sync está em dia?", e ela cai para `partial` por
+ * `financialBacklog`: uma contagem de pedidos SEM extrato da CONEXÃO INTEIRA,
+ * de qualquer data, indiferente ao período que a tela está mostrando. Foi o que
+ * partiu a tela em duas em 27/08/2026: a faixa de cima (que lê a cobertura do
+ * período, `financials`) mostrava lucro, e o painel de composição logo abaixo —
+ * que lia a fase — dizia "Lucro indisponível" sobre os mesmos números.
+ *
+ * A autoridade do período é `coverage.requestedPeriod.financials`, escrita por
+ * `applyTiktokLedgerAuthority` a partir do extrato. É a MESMA que `financialCards`
+ * usa nos cards de lucro/margem/ROI — por isso as duas superfícies não podem
+ * mais discordar.
+ */
+export function tiktokResultadoFechado(
+  overview: TiktokFinancialOverviewV2 | null | undefined,
+  coverage: TiktokFrontendCoverage | null | undefined,
+  financialBlocked = false
+): boolean {
+  if (financialBlocked || !overview || !coverage || overview.profit == null) return false;
+  return periodOf(coverage).financials?.status === "complete";
+}
+
+/**
+ * POR QUE lucro, margem e ROI estão em travessão — a frase que acompanha o
+ * `null` até o narrador.
+ *
+ * O NEXO recebe o lucro como "desconhecido" e, sem o motivo junto, preenchia a
+ * lacuna sozinho: narrava "faltam os custos cadastrados" com os custos todos
+ * cadastrados e o extrato do período ainda aberto. São ações diferentes — uma
+ * ela faz hoje, a outra só a TikTok fecha — e mandar a errada é fazer a pessoa
+ * trabalhar à toa. Unidade sem custo vem primeiro por ser a única que depende
+ * dela.
+ */
+export function tiktokMotivoSemLucro(unidadesSemCusto: number): string {
+  return unidadesSemCusto > 0
+    ? `${unidadesSemCusto} unidade(s) vendida(s) sem custo cadastrado`
+    : "o extrato da TikTok Shop ainda não fechou este período; o dia corrente só fecha depois da meia-noite de Brasília";
+}
+
 export interface TiktokConnectionOption {
   id: string;
   externalAccountId?: string;

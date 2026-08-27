@@ -84,9 +84,14 @@ test("rota, overview e UI usam auth, selecao exata e setting persistido", async 
     readFile(new URL("../src/app/components/ShopeeModulePage.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(route, /withAuthenticatedWorkspace/);
-  assert.match(route, /params\.get\("connection_id"\)/);
+  assert.match(route, /searchParams\.get\("connection_id"\)/);
   assert.match(route, /requireShopeeConnection\(exactParams\(request\)\)/);
   assert.doesNotMatch(route, /params\.get\("connectionId"\)/);
+  // `connection_id` ausente NAO e erro: o painel de aliquotas da Visao geral
+  // pergunta os quatro canais sem saber os ids, e o 400 "Informe connection_id."
+  // vazava cru na linha da Shopee. Sem loja conectada a rota devolve 404, que a
+  // tela ja le como "Canal nao conectado" — igual aos outros tres canais.
+  assert.doesNotMatch(route, /CONNECTION_ID_REQUIRED/);
   assert.match(overview, /getShopeeTaxRateSetting\(query, workspaceId, connection\.id\)/);
   assert.doesNotMatch(overview, /configuredTaxRate\s*=\s*shopeeTaxRate\(connection\)/);
   assert.match(component, /kind==="costs"&&<ShopeeTaxRateEditor key=\{connectionId\} connectionId=\{connectionId\}/);

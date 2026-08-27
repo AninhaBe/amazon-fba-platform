@@ -75,3 +75,59 @@ test("margem informa a BASE e separa o faturamento sem custo", () => {
   // E o percentual nunca pode aparecer colado ao faturamento total.
   assert.ok(!/margem de 0,7%/.test(texto));
 });
+
+// LUCRO DESCONHECIDO TEM CAUSA — e quem informa a causa somos nós (27/08/2026).
+//
+// Na conta demo o NEXO narrava "seu lucro continua desconhecido porque faltam os
+// custos cadastrados" com os custos todos cadastrados: o que faltava era o
+// extrato do TikTok fechar. O `null` chegava mudo ao prompt e o modelo preenchia
+// a lacuna sozinho. Agora o motivo viaja junto com o `null`.
+
+test("motivo do lucro desconhecido entra no prompt, palavra por palavra", () => {
+  const t = descreverSnapshot({
+    ...base,
+    canais: [
+      { nome: "TikTok Shop", faturamento: 14887.2, lucro: null, margemPct: null, variacaoSemanaPct: null,
+        semLeitura: false, unidadesSemCusto: 0, motivoSemLucro: "o extrato da TikTok Shop ainda não fechou este período" },
+    ],
+  });
+  assert.match(t, /lucro ainda desconhecido — o extrato da TikTok Shop ainda não fechou este período/);
+});
+
+test("sem motivo informado o prompt não inventa um", () => {
+  const t = descreverSnapshot({
+    ...base,
+    canais: [
+      { nome: "TikTok Shop", faturamento: 14887.2, lucro: null, margemPct: null, variacaoSemanaPct: null,
+        semLeitura: false, unidadesSemCusto: 0 },
+    ],
+  });
+  assert.doesNotMatch(t, /lucro ainda desconhecido —/);
+  assert.doesNotMatch(t, /custo/i, "nenhuma causa aparece se ninguém a afirmou");
+});
+
+test("canal com lucro conhecido não carrega motivo nenhum", () => {
+  const t = descreverSnapshot({
+    ...base,
+    canais: [
+      { nome: "TikTok Shop", faturamento: 14887.2, lucro: 2691.83, margemPct: 18.1, variacaoSemanaPct: null,
+        semLeitura: false, unidadesSemCusto: 0, motivoSemLucro: "não deveria aparecer" },
+    ],
+  });
+  assert.match(t, /lucro R\$\s?2\.691,83/);
+  assert.doesNotMatch(t, /não deveria aparecer/);
+});
+
+test("sem faturamento lido em canal nenhum, o prompt omite o consolidado em vez de dizer R$ 0,00", () => {
+  const t = descreverSnapshot({
+    ...base,
+    faturamento30d: null,
+    lucro30d: null,
+    margemPct: null,
+    receitaComLucro: null,
+    canais: [{ nome: "Amazon", faturamento: null, lucro: null, margemPct: null, variacaoSemanaPct: null, semLeitura: true, unidadesSemCusto: 0 }],
+  });
+  assert.doesNotMatch(t, /Faturamento consolidado/);
+  assert.doesNotMatch(t, /R\$\s?0,00/);
+  assert.match(t, /Amazon: conectado, mas sem leitura no momento/);
+});

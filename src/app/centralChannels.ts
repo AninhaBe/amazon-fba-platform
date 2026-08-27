@@ -10,6 +10,7 @@ import {
   connectedShopeeConnectionIds,
   type CentralShopeeResponse,
 } from "./OverviewShopeeModel";
+import { tiktokMotivoSemLucro } from "./components/TikTokWorkspaceModel";
 
 export type { DailyPoint };
 
@@ -28,7 +29,12 @@ interface TiktokOverviewResponse {
   overview: { revenue: number | null; profit: number | null; currency: string } | null;
   orders?: number;
   dailySeries?: DailyPoint[];
-  coverage?: { requestedPeriod?: { revenue?: { status: "complete" | "partial" | "pending" } } } | null;
+  coverage?: {
+    requestedPeriod?: {
+      revenue?: { status: "complete" | "partial" | "pending" };
+      cogs?: { missing?: number };
+    };
+  } | null;
 }
 
 export interface ChannelSnapshot {
@@ -44,6 +50,12 @@ export interface ChannelSnapshot {
   revenueFromCanonical?: boolean;
   /** O faturamento chegou mas a rota de lucro falhou — não é "lucro zero". */
   lucroIndisponivel?: boolean;
+  /**
+   * POR QUE `profit` está `null`, na linguagem do canal. Vai inteiro para o
+   * narrador: sem ele o modelo deduzia a causa sozinho e errava (ver
+   * `CanalNoSnapshot.motivoSemLucro`).
+   */
+  motivoSemLucro?: string;
   cancelled?: number;
   orders: number | null;
   currency: string;
@@ -260,6 +272,16 @@ export async function gatherCentralChannels(
     channelSeries.push(...tiktokSeries);
     tiktok.series = mergeDailySeries(tiktokSeries);
     const partialRevenue = available.some((item) => item.coverage?.requestedPeriod?.revenue?.status !== "complete");
+    // O TikTok só solta lucro quando o extrato do período fecha, e a central
+    // pede sempre uma janela que termina AGORA — ou seja, aberta por definição.
+    // Sem dizer isso, o `profit: null` chegava mudo ao narrador, que o atribuía
+    // a custo não cadastrado. Unidade sem custo, quando existe, vem primeiro:
+    // é a única das duas que ela resolve hoje.
+    if (tiktok.profit == null) {
+      tiktok.motivoSemLucro = tiktokMotivoSemLucro(
+        available.reduce((total, item) => total + (item.coverage?.requestedPeriod?.cogs?.missing ?? 0), 0)
+      );
+    }
     tiktok.note = failed > 0
       ? `${available.length} de ${results.length} loja(s) com leitura; demais indisponíveis`
       : partialRevenue

@@ -104,12 +104,15 @@ export default function OverviewDashboard() {
 
 
   const totals = useMemo(() => channels.reduce((summary, channel) => {
-    if (channel.revenue != null) summary.revenue += channel.revenue;
+    // `revenueSources` separa "somou zero" de "ninguém respondeu". Sem ele o
+    // consolidado de um dia em que TODAS as leituras falharam é indistinguível
+    // de um dia sem venda — e era esse zero que ia para o narrador.
+    if (channel.revenue != null) { summary.revenue += channel.revenue; summary.revenueSources += 1; }
     if (channel.profit != null) { summary.profit += channel.profit; summary.profitSources += 1; }
     if (channel.orders != null) summary.orders += channel.orders;
     if (channel.connected) summary.connected += 1;
     return summary;
-  }, { revenue: 0, profit: 0, profitSources: 0, orders: 0, connected: 0 }), [channels]);
+  }, { revenue: 0, revenueSources: 0, profit: 0, profitSources: 0, orders: 0, connected: 0 }), [channels]);
   const maxRevenue = Math.max(...channels.map((channel) => channel.revenue ?? 0), 1);
 
   // Feature 1: variação do consolidado na semana, da própria série já carregada.
@@ -155,7 +158,11 @@ export default function OverviewDashboard() {
     const snapshot = {
       data: "",
       moeda: "BRL",
-      faturamento30d: totals.revenue,
+      // `null`, não `0`, quando nenhum canal respondeu: com zero o NEXO narrava
+      // "faturamento consolidado R$ 0,00" — que é exatamente o zero que parece
+      // "não vendeu nada". Com `null` o bloco financeiro some do prompt e sobram
+      // as linhas por canal, que dizem o estado real de cada leitura.
+      faturamento30d: totals.revenueSources ? totals.revenue : null,
       lucro30d: totals.profitSources ? totals.profit : null,
       margemPct: margemTotal.pct,
       receitaComLucro: margemTotal.base,
@@ -168,6 +175,8 @@ export default function OverviewDashboard() {
         variacaoSemanaPct: tendenciaSemanal(c.series).deltaPct,
         semLeitura: !!c.error,
         unidadesSemCusto: c.unitsWithoutCost ?? 0,
+        // A causa do travessão vem do canal; sem ela o modelo inventa uma.
+        motivoSemLucro: c.profit == null ? c.motivoSemLucro ?? null : null,
       })),
     };
     let cancelado = false;

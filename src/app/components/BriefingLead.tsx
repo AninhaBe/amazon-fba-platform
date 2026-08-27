@@ -75,6 +75,13 @@ export interface BriefingLeadProps {
   briefingHref?: string;
   /** Rótulo do CTA. "Ver briefing" onde há briefing; "Ver detalhes" onde não há. */
   briefingLabel?: string;
+  /**
+   * POR QUE `lucro` está `null`, na linguagem do canal ("o extrato do período
+   * ainda não fechou", "3 unidades sem custo cadastrado"). Vai para o NEXO junto
+   * com o snapshot: sem o motivo ele deduzia a causa e errava, narrando "faltam
+   * os custos cadastrados" quando o que faltava era o extrato fechar.
+   */
+  motivoSemLucro?: string | null;
 }
 
 function variacao(atual: number, anterior: number) {
@@ -133,7 +140,7 @@ function montarFrase(p: BriefingLeadProps): { titulo: string; detalhe: string | 
  */
 function useNexoResumo(props: BriefingLeadProps): string | null {
   const [texto, setTexto] = useState<string | null>(null);
-  const { escopo, canalNome, faturamento, lucro, pedidos, moeda } = props;
+  const { escopo, canalNome, faturamento, lucro, pedidos, moeda, motivoSemLucro } = props;
 
   useEffect(() => {
     if (!escopo || faturamento == null || pedidos === 0) return;
@@ -147,7 +154,8 @@ function useNexoResumo(props: BriefingLeadProps): string | null {
       lucro30d: lucro,
       margemPct,
       variacaoSemanaPct: null,
-      canais: [{ nome: canalNome ?? "seu canal", faturamento, lucro, margemPct, variacaoSemanaPct: null, semLeitura: false, unidadesSemCusto: 0 }],
+      canais: [{ nome: canalNome ?? "seu canal", faturamento, lucro, margemPct, variacaoSemanaPct: null, semLeitura: false, unidadesSemCusto: 0,
+        motivoSemLucro: lucro == null ? motivoSemLucro ?? null : null }],
     };
     let cancelado = false;
     fetch("/api/central/briefing", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) })
@@ -155,7 +163,7 @@ function useNexoResumo(props: BriefingLeadProps): string | null {
       .then((d) => { if (!cancelado && d?.texto) setTexto(d.texto as string); })
       .catch(() => {});
     return () => { cancelado = true; };
-  }, [escopo, canalNome, faturamento, lucro, pedidos, moeda]);
+  }, [escopo, canalNome, faturamento, lucro, pedidos, moeda, motivoSemLucro]);
 
   return texto;
 }

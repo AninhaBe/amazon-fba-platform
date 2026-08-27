@@ -14,11 +14,22 @@ import { withShopeeIntegrationWriteFence } from "@/lib/integrations/shopeeWriteF
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/**
+ * Só `connection_id` — `connectionId` em camelCase não é aceito, para a loja
+ * alvo nunca depender de qual grafia o chamador usou.
+ *
+ * ⚠️ Ausente NÃO é erro. Antes isto devolvia 400 "Informe connection_id.", e o
+ * painel de alíquotas da Visão geral — que pergunta a alíquota dos quatro canais
+ * sem saber os ids — imprimia essa frase técnica na linha da Shopee. Amazon,
+ * Mercado Livre e TikTok já resolvem a loja conectada sozinhos e devolvem 404
+ * quando não há nenhuma, que a tela lê como "Canal não conectado". A Shopee
+ * passa a seguir o mesmo contrato: `requireShopeeConnection` escolhe a loja
+ * conectada do workspace e lança 404 quando não existe.
+ */
 function exactParams(request: Request): URLSearchParams {
-  const params = new URL(request.url).searchParams;
-  if (!params.get("connection_id")) {
-    throw new ShopeeModuleError(400, "CONNECTION_ID_REQUIRED", "Informe connection_id.");
-  }
+  const requested = new URL(request.url).searchParams.get("connection_id");
+  const params = new URLSearchParams();
+  if (requested) params.set("connection_id", requested);
   return params;
 }
 

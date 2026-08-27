@@ -18,6 +18,18 @@ export interface CanalNoSnapshot {
   variacaoSemanaPct: number | null;
   semLeitura: boolean;
   unidadesSemCusto: number;
+  /**
+   * POR QUE o lucro deste canal está `null` — o fato que a própria tela do canal
+   * já usa para explicar o travessão ("o extrato do período ainda não fechou",
+   * "3 unidades sem custo cadastrado").
+   *
+   * Existe porque sem ele o modelo preenchia a lacuna sozinho: com o lucro do
+   * TikTok em `null`, ele narrava "seu lucro continua desconhecido porque faltam
+   * os custos cadastrados" — enquanto os custos estavam cadastrados e o que
+   * faltava era o extrato fechar. Motivo desconhecido continua `null`, e aí o
+   * modelo é proibido de inventar um.
+   */
+  motivoSemLucro?: string | null;
 }
 
 /** Um insight já detectado pelo cron (ruptura, queda, margem). Fato, não palpite. */
@@ -114,6 +126,7 @@ export function descreverSnapshot(s: SnapshotCentral): string {
       if (c.semLeitura) return `- ${c.nome}: conectado, mas sem leitura no momento.`;
       const partes = [`faturamento ${money(c.faturamento, s.moeda)}`];
       if (c.lucro != null) partes.push(`lucro ${money(c.lucro, s.moeda)}`);
+      else if (c.motivoSemLucro) partes.push(`lucro ainda desconhecido — ${c.motivoSemLucro}`);
       if (c.margemPct != null) partes.push(`margem ${pct(c.margemPct)}`);
       if (c.variacaoSemanaPct != null) partes.push(`${c.variacaoSemanaPct >= 0 ? "+" : ""}${pct(c.variacaoSemanaPct)} na semana`);
       if (c.unidadesSemCusto > 0) partes.push(`${c.unidadesSemCusto} unidade(s) sem custo cadastrado (lucro subestimado)`);
@@ -150,6 +163,8 @@ const SISTEMA = [
   "NÃO GENERALIZE. Fale de cada produto/SKU exatamente como ele veio na lista. É proibido agrupar ('a linha de protetores', 'os kits de 8, 16, 24 e 32') ou estender uma constatação de um item para outros que não estão na lista. Se só um kit está sem estoque, fale só desse kit — não invente que os outros também estão. Cada afirmação sua tem que corresponder a uma linha que eu te dei.",
 
   "MARGEM É SEMPRE PARCIAL ATÉ PROVA EM CONTRÁRIO — e você NUNCA a apresenta como resultado da operação inteira. O lucro só existe onde o custo do produto está cadastrado; quando eu te disser que a margem é sobre uma PARTE do faturamento, essa parte é a única base válida. Proibido: dizer que a operação 'está com margem de X%', falar em 'perda de margem' ou 'margem apertada' com base nesse número, ou compará-lo com o faturamento total. O certo é nomear a base — 'a margem é de X% sobre os R$ Y que têm custo cadastrado; o resto ainda não dá para calcular'. Se boa parte do faturamento estiver sem custo, a AÇÃO é cadastrar esses custos, e não 'estancar a perda de margem' — margem baixa por dado faltando é um buraco de cadastro, não um problema de negócio, e confundir os dois manda a pessoa resolver o problema errado.",
+  "LUCRO DESCONHECIDO TEM CAUSA, E A CAUSA É MINHA DE INFORMAR. Quando um canal vier com o lucro desconhecido, use EXATAMENTE o motivo que eu te der ao lado dele. Se eu não der motivo, diga só que ainda não dá para saber — é PROIBIDO deduzir a causa, e em especial atribuí-la a custo não cadastrado quando eu não afirmei isso. Um extrato que ainda não fechou e um custo que ninguém cadastrou mandam a pessoa fazer coisas diferentes, e chutar o motivo errado faz ela trabalhar à toa.",
+
   "EXPLIQUE, não apenas relate. Quando eu te der uma seção de POSSÍVEIS CAUSAS, use-a para dizer POR QUE o número mudou — é isso que separa você de um relatório. 'O Mercado Livre caiu 100%' não ajuda ninguém; 'o Mercado Livre parou porque não há nenhum anúncio ativo' é acionável. Só use as causas que eu te dei; se nenhuma explicar o número, diga honestamente que a queda existe e a causa ainda não está identificada — nunca invente um motivo plausível.",
 
   "PRIORIDADE, sempre nesta ordem: primeiro o que exige AÇÃO (um canal que parou de vender, ruptura de estoque chegando, custo faltando que subestima o lucro, uma queda forte de faturamento); depois a OPORTUNIDADE (um canal ou produto puxando o resultado); por último, se estiver tudo estável, diga que está tranquilo — sem inventar drama. Não liste tudo: escolha o que mais muda a vida dela hoje.",
