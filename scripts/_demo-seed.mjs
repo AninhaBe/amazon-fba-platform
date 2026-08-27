@@ -12,10 +12,6 @@ import crypto from "node:crypto";
 
 const DEMO_EMAIL = process.env.DEMO_EMAIL ?? "trial.sellercore@gmail.com";
 const DEMO_PASSWORD = process.env.DEMO_PASSWORD ?? "";
-if (!DEMO_PASSWORD) {
-  console.error("Defina DEMO_PASSWORD no ambiente ao rodar o script.");
-  process.exit(1);
-}
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SECRET = process.env.SUPABASE_SECRET_KEY;
@@ -35,6 +31,10 @@ async function adminFetch(path, init) {
 }
 
 async function ensureDemoUser() {
+  // Exigido so aqui: com `--workspace <id>` o seed reaproveita um workspace demo
+  // que ja existe e nao toca no Supabase Auth, entao pedir a senha seria barrar
+  // um caminho que nao a usa.
+  if (!DEMO_PASSWORD) throw new Error("Defina DEMO_PASSWORD no ambiente (ou use --workspace <id>).");
   const created = await adminFetch("/admin/users", {
     method: "POST",
     body: JSON.stringify({ email: DEMO_EMAIL, password: DEMO_PASSWORD, email_confirm: true }),
@@ -99,24 +99,60 @@ function mulberry32(seed) {
   };
 }
 
+/** Meia-noite de Brasilia do dia de `ms`. Brasil nao tem horario de verao desde 2019. */
+const inicioDoDiaBr = (ms) =>
+  new Date(`${new Date(ms - 3 * 60 * 60_000).toISOString().slice(0, 10)}T00:00:00-03:00`).getTime();
+
+/**
+ * ⚠️ PEDIDO NENHUM PODE NASCER NO FUTURO.
+ *
+ * A versao anterior ancorava o dia em `now - day*24h` e somava ate 22 HORAS
+ * dentro dele: o dia 0 saia inteiro adiante do relogio e os outros ficavam
+ * deslocados. Medido em 27/08/2026 na demo: 1 a 7 pedidos por canal com
+ * `occurred_at` amanha, e HOJE quase vazio — dai o NEXO narrar "faturamento dos
+ * quatro canais desconhecido hoje" com a tela cheia de venda.
+ *
+ * Aqui cada dia comeca a meia-noite de Brasilia e o dia corrente so ocupa as
+ * horas que ja passaram, com o volume proporcional a elas: hoje aparece, com
+ * numero modesto, porque o dia ainda nao acabou.
+ */
 function buildOrders(provider, items, days, perDayAvg, seed) {
   const rand = mulberry32(seed);
   const orders = [];
   const now = Date.now();
+  const hojeBr = inicioDoDiaBr(now);
   const weights = items.flatMap((item, index) => Array(item.weight).fill(index));
   let sequence = 1000;
 
   for (let day = days; day >= 0; day--) {
-    const dayStart = now - day * 24 * 60 * 60 * 1000;
-    const count = Math.max(0, Math.round(perDayAvg + (rand() - 0.5) * perDayAvg * 1.4));
+    const dayStart = hojeBr - day * 24 * 60 * 60 * 1000;
+    // Janela util do dia: 22h nos dias fechados, o que ja correu no dia de hoje.
+    const janela = day === 0 ? Math.max(0, Math.min(22 * 60 * 60_000, now - dayStart)) : 22 * 60 * 60_000;
+    const fracao = janela / (22 * 60 * 60_000);
+    // Piso de 2 no dia corrente: com 1 so pedido, um cancelamento ou uma venda
+    // ainda nao paga zerava a receita de HOJE naquele canal — que e justamente o
+    // buraco que o narrador reportava.
+    const count = Math.max(
+      day === 0 && fracao > 0 ? 3 : 0,
+      Math.round((perDayAvg + (rand() - 0.5) * perDayAvg * 1.4) * fracao)
+    );
     for (let i = 0; i < count; i++) {
       const item = items[weights[Math.floor(rand() * weights.length)]];
       const qty = rand() < 0.85 ? 1 : 2;
       const gross = Number((item.price * qty).toFixed(2));
-      const occurred = new Date(dayStart + Math.floor(rand() * 22 * 60 * 60 * 1000));
-      const cancelled = rand() < 0.06;
+      const occurred = new Date(Math.min(now, dayStart + Math.floor(rand() * janela)));
+      // As duas primeiras vendas do dia corrente sao sempre receita: o dia de
+      // hoje precisa existir na base de TODO canal, e sorteio nao garante isso.
+      const primeirasDeHoje = day === 0 && i < 2;
+      const cancelled = !primeirasDeHoje && rand() < 0.06;
       const delivered = day > 7 || rand() < 0.5;
-      const status = cancelled ? "cancelled" : delivered ? "delivered" : day > 2 ? "shipped" : "paid";
+      // Venda de hoje que o comprador ainda nao pagou existe de verdade, e e ela
+      // que da ao painel "Quando o dinheiro cai" o que esta RETIDO sem extrato.
+      // A terceira de hoje fica sempre AGUARDANDO. Ela e a venda que o TikTok
+      // ainda nao liquidou, e sem pelo menos uma o card "Retido pelo TikTok"
+      // volta ao travessao — a loja real sempre tem alguma nesse estado.
+      const aguardando = day === 0 && !cancelled && (i === 2 || (!primeirasDeHoje && rand() < 0.5));
+      const status = cancelled ? "cancelled" : aguardando ? "pending" : delivered ? "delivered" : day > 2 ? "shipped" : "paid";
       sequence += 1 + Math.floor(rand() * 7);
       const orderId = provider === "amazon"
         ? `701-${sequence}-${(2000000 + sequence * 3) % 9999999}`
@@ -153,20 +189,15 @@ function buildOrders(provider, items, days, perDayAvg, seed) {
         packId: null,
         items: [{ externalProductId: item.id, sku: item.sku, title: item.title, qty, unitPrice: item.price }],
         fees,
-        // O TikTok le o financeiro do LEDGER, nao do pedido: `statementSettled`
-        // e as flags de `financialEvidence` sao o que faz tarifa e frete serem
-        // CONHECIDOS em vez de `null`. Sem isso o painel do canal fica em
-        // travessao mesmo com pedido gravado. Nos outros canais o campo e
-        // ignorado, entao vai so no TikTok.
-        raw: provider === "tiktok_shop"
-          ? {
-              demo: true,
-              _sellercore: {
-                statementSettled: !cancelled,
-                financialEvidence: { fees: !cancelled, sellerShipping: !cancelled, ads: true, taxesWithheld: true, refunds: true },
-              },
-            }
-          : { demo: true },
+        // ⚠️ `_sellercore` NAO passa por aqui. `saveCanonicalOrders` chama
+        // `stripReservedCanonicalMetadata`, que apaga o bloco reservado do raw
+        // que chega de fora — so a plataforma escreve nele. O seed antigo
+        // mandava `statementSettled` aqui e ele nunca chegava ao banco: medido
+        // em 27/08/2026, os 234 pedidos da demo estavam com a marca AUSENTE, o
+        // `financial_backlog` do sync marcava 225 e a fase do dashboard caia
+        // para "partial" — a faixa "BR · Sincronizando" sobre totais oficiais.
+        // A marca correta e gravada depois, em `marcarExtratoDaDemo`.
+        raw: { demo: true },
       });
     }
   }
@@ -328,19 +359,219 @@ async function seedTiktokLedger(workspaceId, connectionId, orders) {
   return gravadas;
 }
 
+/**
+ * RETIDO SEM EXTRATO — a metade do painel "Quando o dinheiro cai" que o extrato
+ * liquidado nao responde.
+ *
+ * `/api/integrations/tiktok/saldo` NAO le a mesma fatia do Financeiro: ele pega
+ * so transacao `unsettled` e as dos extratos com repasse ainda a pagar. Com o
+ * seed antigo — 50 transacoes, todas `settled`, e zero repasse — as duas
+ * consultas voltavam vazias e o painel dizia "Nenhuma movimentacao financeira
+ * sincronizada" ao lado de um Financeiro cheio.
+ *
+ * Aqui entram os pedidos AGUARDANDO (status `pending`, que ficam de fora de
+ * `REVENUE_STATUSES` e por isso nao contam no `financial_backlog` do sync): o
+ * TikTok estima o repasse e ainda nao diz a data — exatamente o que o endpoint
+ * `/finance/202507/orders/unsettled` devolve.
+ *
+ * As CHECKs da 0005 mandam na forma: `unsettled` exige `is_estimated`,
+ * `source_rank < 100` e, com `source_resource='unsettled'`, `statement_id` nulo.
+ * `aggregateLedger` soma apenas `NOT is_estimated`, entao nada disto mexe em
+ * faturamento, tarifa ou lucro do periodo.
+ */
+async function seedTiktokRetido(workspaceId, connectionId, orders) {
+  const aguardando = orders.filter((order) => order.status === "pending");
+  let gravadas = 0;
+  for (const order of aguardando) {
+    const commission = order.fees.find((fee) => fee.feeType === "commission")?.amount ?? 0;
+    const frete = order.fees.find((fee) => fee.feeType === "shipping_seller")?.amount ?? 0;
+    const estimado = Number((order.gross - commission - frete).toFixed(2));
+    const transactionId = `demo-tx-unsettled-${order.externalOrderId}`;
+    const hash = crypto.createHash("sha256").update(transactionId).digest();
+    await dbQuery(
+      `INSERT INTO workspace_financial_transactions
+         (workspace_id, provider, connection_id, transaction_id, statement_id, order_id,
+          transaction_type, occurred_at, currency, settlement_amount, settlement_state,
+          is_estimated, source_resource, source_record_id, source_observed_at, source_rank,
+          raw_allowlisted, raw_sha256)
+       VALUES ($1,'tiktok_shop',$2,$3,NULL,$4,'ORDER',$5,'BRL',$6,'unsettled',
+               TRUE,'unsettled',$3, now(), 50, '{"demo": true}'::jsonb, $7)
+       ON CONFLICT (workspace_id, provider, connection_id, transaction_id) DO UPDATE SET
+         settlement_amount = EXCLUDED.settlement_amount, occurred_at = EXCLUDED.occurred_at,
+         updated_at = now()`,
+      [workspaceId, connectionId, transactionId, order.externalOrderId, order.occurredAt, estimado, hash]
+    );
+    gravadas += 1;
+  }
+  return gravadas;
+}
+
+/**
+ * REPASSES — a outra metade do painel do dinheiro, e a unica fonte de DATA.
+ *
+ * `workspace_financial_payments` nunca foi semeada, entao "A liberar com data" e
+ * "Ja liberado" nao tinham de onde sair. Um repasse por extrato (um por dia):
+ * os extratos mais antigos ja foram pagos (`paid_at`), os dos ultimos dias estao
+ * agendados (`expected_at` no futuro, `paid_at` nulo) — que e o que faz o painel
+ * dizer "Primeira liberacao em DD/MM" com a contagem de vendas do extrato.
+ *
+ * Valor = soma dos `settlement_amount` do proprio extrato. Nada inventado: o
+ * numero do repasse bate com as transacoes que ele paga.
+ */
+async function seedTiktokRepasses(workspaceId, connectionId, agora = new Date()) {
+  const extratos = await dbQuery(
+    `SELECT statement_id, SUM(settlement_amount)::text AS valor, MIN(currency) AS currency,
+            MAX(occurred_at) AS fim
+       FROM workspace_financial_transactions
+      WHERE workspace_id=$1 AND provider='tiktok_shop' AND connection_id=$2
+        AND settlement_state='settled' AND statement_id IS NOT NULL
+      GROUP BY statement_id ORDER BY statement_id`,
+    [workspaceId, connectionId]
+  );
+  // D+7 e o prazo que a demo conta na tela; extrato fechado ha mais que isso ja
+  // caiu na conta, o resto esta agendado.
+  const PRAZO_MS = 7 * 24 * 60 * 60_000;
+  let gravados = 0;
+  for (const extrato of extratos) {
+    const previsto = new Date(new Date(extrato.fim).getTime() + PRAZO_MS);
+    const pago = previsto.getTime() <= agora.getTime() ? previsto : null;
+    const paymentId = `demo-pay-${extrato.statement_id}`;
+    const hash = crypto.createHash("sha256").update(paymentId).digest();
+    await dbQuery(
+      `INSERT INTO workspace_financial_payments
+         (workspace_id, provider, connection_id, payment_id, statement_id, status,
+          amount, currency, paid_at, expected_at, is_estimated, source_observed_at, raw_sha256)
+       VALUES ($1,'tiktok_shop',$2,$3,$4,$5,$6,$7,$8,$9,FALSE, now(), $10)
+       ON CONFLICT (workspace_id, provider, connection_id, payment_id) DO UPDATE SET
+         statement_id = EXCLUDED.statement_id, status = EXCLUDED.status, amount = EXCLUDED.amount,
+         paid_at = EXCLUDED.paid_at, expected_at = EXCLUDED.expected_at, updated_at = now()`,
+      [workspaceId, connectionId, paymentId, extrato.statement_id, pago ? "PAID" : "PROCESSING",
+       Number(extrato.valor).toFixed(2), extrato.currency ?? "BRL", pago, previsto, hash]
+    );
+    gravados += 1;
+  }
+  return gravados;
+}
+
+/**
+ * MARCA DE EXTRATO NO PEDIDO — o que `saveCanonicalOrders` recusa a gravar.
+ *
+ * `stripReservedCanonicalMetadata` apaga `_sellercore` de qualquer raw que chega
+ * de fora: o bloco reservado so e escrito pela plataforma. Por isso a marca vai
+ * num UPDATE proprio, com o MESMO merge jsonb que o sync real usa
+ * (`TIKTOK_STATEMENT_MARK_SQL` em tiktokSyncControl.ts) — sem apagar nada que ja
+ * esteja no bloco.
+ *
+ * Sem ela, `financial_backlog` conta TODO pedido de receita da conexao e
+ * `deriveTiktokSyncPhase` derruba a fase para "partial": o dashboard mostra
+ * "BR · Sincronizando" e "Sincronizacao em andamento" em cima de total oficial.
+ * Pedido `pending` fica de fora de proposito — ele e o retido, e nao esta em
+ * extrato nenhum.
+ */
+async function marcarExtratoDaDemo(workspaceId, connectionId, orders) {
+  const REVENUE = new Set(["paid", "shipped", "delivered"]);
+  const ids = orders.filter((order) => REVENUE.has(order.status)).map((order) => order.externalOrderId);
+  if (!ids.length) return 0;
+  const marcados = await dbQuery(
+    `UPDATE workspace_channel_orders
+        SET raw = COALESCE(raw,'{}'::jsonb) || jsonb_build_object('_sellercore',
+              COALESCE(raw->'_sellercore','{}'::jsonb) || jsonb_build_object(
+                'statementSettled', true,
+                'financialEvidence', jsonb_build_object(
+                  'fees', true, 'sellerShipping', true, 'ads', true,
+                  'taxesWithheld', true, 'refunds', true)))
+      WHERE workspace_id=$1 AND provider='tiktok_shop' AND connection_id=$2
+        AND external_order_id = ANY($3::text[])
+      RETURNING 1`,
+    [workspaceId, connectionId, ids]
+  );
+  return marcados.length;
+}
+
+/**
+ * Workspace alvo.
+ *
+ * Sem argumento: cria/atualiza o usuario demo no Supabase Auth e usa o
+ * workspace dele — o caminho de sempre.
+ *
+ * Com `--workspace <id>`: reaproveita um workspace demo que JA existe, sem
+ * tocar em Auth. Serve para os dois workspaces de demonstracao que existem hoje
+ * (um deles nao tem TikTok).
+ *
+ * ⚠️ ISOLAMENTO: so aceita workspace cujas conexoes sao TODAS de demonstracao.
+ * Um id de conta real e recusado aqui, antes de qualquer escrita.
+ */
+async function alvo() {
+  const i = process.argv.indexOf("--workspace");
+  if (i === -1) return { workspaceId: await ensureDemoUser(), novo: true };
+  const workspaceId = process.argv[i + 1];
+  if (!/^[0-9a-f-]{36}$/i.test(workspaceId ?? "")) throw new Error("--workspace exige um UUID.");
+  const conexoes = await dbQuery(
+    `SELECT DISTINCT provider, connection_id FROM workspace_channel_orders WHERE workspace_id=$1`,
+    [workspaceId]
+  );
+  if (!conexoes.length) throw new Error(`Workspace ${workspaceId} nao tem dado semeado; recusado.`);
+  const reais = conexoes.filter((c) => !/(^|:)demo(-|$|:)/.test(c.connection_id));
+  if (reais.length) {
+    throw new Error(`Workspace ${workspaceId} tem conexao REAL (${reais.map((c) => c.provider).join(", ")}); recusado.`);
+  }
+  // `--canais a,b`: reafirma quais canais o workspace demo deve ter. Serve para
+  // RESTAURAR um canal cujo dado foi limpo (a deteccao so enxerga o que sobrou),
+  // nunca para inventar um canal que a demo nao tinha.
+  const j = process.argv.indexOf("--canais");
+  const pedidos = j === -1 ? null : String(process.argv[j + 1] ?? "").split(",").map((c) => c.trim()).filter(Boolean);
+  const CANAIS_VALIDOS = new Set(["amazon", "mercado_livre", "shopee", "tiktok_shop"]);
+  if (pedidos?.some((c) => !CANAIS_VALIDOS.has(c))) throw new Error("--canais aceita apenas os quatro canais conhecidos.");
+  return { workspaceId, novo: false, canais: new Set(pedidos ?? conexoes.map((c) => c.provider)) };
+}
+
+/**
+ * Limpa o dado sintetico ANTES de regravar.
+ *
+ * O seed nao e idempotente por si: o id do pedido sai de um contador que anda
+ * com o gerador aleatorio, entao mudar a quantidade por dia produz ids NOVOS e
+ * o upsert deixaria os antigos para tras. Foi assim que sobraram pedidos com
+ * `occurred_at` no futuro. Como `financial_backlog` e o painel do dinheiro
+ * varrem a conexao inteira (sem periodo), sobra vira contradicao na tela.
+ *
+ * ⚠️ So aceita `connection_id` de demonstracao — o `alvo()` ja recusou workspace
+ * com conexao real, e este segundo portao existe para o caso de alguem chamar a
+ * funcao direto.
+ */
+async function limparCanalDaDemo(workspaceId, provider, connectionId) {
+  if (!/(^|:)demo(-|$|:)/.test(connectionId)) {
+    throw new Error(`limparCanalDaDemo recusou conexao nao-demo: ${connectionId}`);
+  }
+  const escopo = [workspaceId, provider, connectionId];
+  // Ordem obrigatoria: `financial_transactions_order_fk` aponta para o pedido,
+  // entao o ledger sai primeiro. Repasse nao referencia pedido, mas vai junto
+  // para o extrato nao sobrar sem as transacoes que ele paga.
+  if (provider === "tiktok_shop") {
+    await dbQuery(`DELETE FROM workspace_financial_transactions WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3`, escopo);
+    await dbQuery(`DELETE FROM workspace_financial_payments WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3`, escopo);
+  }
+  await dbQuery(`DELETE FROM workspace_channel_order_items WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3`, escopo);
+  await dbQuery(`DELETE FROM workspace_channel_order_fees WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3`, escopo);
+  await dbQuery(`DELETE FROM workspace_channel_orders WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3`, escopo);
+}
+
 async function main() {
-  const workspaceId = await ensureDemoUser();
+  const { workspaceId, novo, canais } = await alvo();
+  // No workspace existente, mexe so nos canais que ele ja tem: acrescentar um
+  // canal que nao estava la nao e completar o seed, e redesenhar a demo.
+  const temCanal = (provider) => novo || canais.has(provider);
+  console.log("workspace alvo:", workspaceId, novo ? "(usuario demo)" : `(existente: ${[...canais].join(", ")})`);
 
   const ML_CONN = "mercado_livre:demo";
   const AMZ_CONN = "amazon:demo";
 
   const SHP_CONN = "shopee:demo";
-  await seedConnection(workspaceId, "mercado_livre", ML_CONN, "Loja Demo ML");
-  await seedConnection(workspaceId, "amazon", AMZ_CONN, "Loja Demo Amazon");
-  await seedConnection(workspaceId, "shopee", SHP_CONN, "Loja Demo Shopee");
+  if (temCanal("mercado_livre")) await seedConnection(workspaceId, "mercado_livre", ML_CONN, "Loja Demo ML");
+  if (temCanal("amazon")) await seedConnection(workspaceId, "amazon", AMZ_CONN, "Loja Demo Amazon");
+  if (temCanal("shopee")) await seedConnection(workspaceId, "shopee", SHP_CONN, "Loja Demo Shopee");
   const TTS_SHOP = "demo-tiktok-shop";
   const TTS_CONN = tiktokConnectionId(TTS_SHOP);
-  await seedTiktokShop(workspaceId, TTS_SHOP, "Loja Demo TikTok");
+  if (temCanal("tiktok_shop")) await seedTiktokShop(workspaceId, TTS_SHOP, "Loja Demo TikTok");
   await seedCosts(workspaceId, [...ML_ITEMS, ...AMZ_ITEMS]);
   // A Shopee lê custo pela chave própria do canal (shopee:<conexao>:sku:<sku>).
   for (const item of SHOPEE_ITEMS) {
@@ -353,7 +584,7 @@ async function main() {
   }
 
   // O TikTok resolve custo por chave propria do canal, como a Shopee.
-  for (const item of TIKTOK_ITEMS) {
+  for (const item of temCanal("tiktok_shop") ? TIKTOK_ITEMS : []) {
     await dbQuery(
       `INSERT INTO workspace_product_costs (workspace_id, id, sku, asin, title, cost)
        VALUES ($1, $2, $3, $4, $5, $6)
@@ -367,18 +598,38 @@ async function main() {
   const shpOrders = buildOrders("shopee", SHOPEE_ITEMS, 45, 5, 91);
   const ttsOrders = buildOrders("tiktok_shop", TIKTOK_ITEMS, 45, 5, 17);
 
+  for (const [provider, conexao] of [["mercado_livre", ML_CONN], ["amazon", AMZ_CONN], ["shopee", SHP_CONN], ["tiktok_shop", TTS_CONN]]) {
+    if (temCanal(provider)) await limparCanalDaDemo(workspaceId, provider, conexao);
+  }
+
   await runWithWorkspace(workspaceId, async () => {
-    await saveCanonicalProducts({ provider: "mercado_livre", connectionId: ML_CONN }, buildProducts(ML_ITEMS, "mercado_livre"));
-    await saveCanonicalProducts({ provider: "amazon", connectionId: AMZ_CONN }, buildProducts(AMZ_ITEMS, "amazon"));
-    await saveCanonicalOrders({ provider: "mercado_livre", connectionId: ML_CONN }, mlOrders);
-    await saveCanonicalOrders({ provider: "amazon", connectionId: AMZ_CONN }, amzOrders);
-    await saveCanonicalProducts({ provider: "shopee", connectionId: SHP_CONN }, buildProducts(SHOPEE_ITEMS, "shopee"));
-    await saveCanonicalOrders({ provider: "shopee", connectionId: SHP_CONN }, shpOrders);
-    await saveCanonicalProducts({ provider: "tiktok_shop", connectionId: TTS_CONN }, buildProducts(TIKTOK_ITEMS, "tiktok_shop"));
-    await saveCanonicalOrders({ provider: "tiktok_shop", connectionId: TTS_CONN }, ttsOrders);
+    if (temCanal("mercado_livre")) {
+      await saveCanonicalProducts({ provider: "mercado_livre", connectionId: ML_CONN }, buildProducts(ML_ITEMS, "mercado_livre"));
+      await saveCanonicalOrders({ provider: "mercado_livre", connectionId: ML_CONN }, mlOrders);
+    }
+    if (temCanal("amazon")) {
+      await saveCanonicalProducts({ provider: "amazon", connectionId: AMZ_CONN }, buildProducts(AMZ_ITEMS, "amazon"));
+      await saveCanonicalOrders({ provider: "amazon", connectionId: AMZ_CONN }, amzOrders);
+    }
+    if (temCanal("shopee")) {
+      await saveCanonicalProducts({ provider: "shopee", connectionId: SHP_CONN }, buildProducts(SHOPEE_ITEMS, "shopee"));
+      await saveCanonicalOrders({ provider: "shopee", connectionId: SHP_CONN }, shpOrders);
+    }
+    if (temCanal("tiktok_shop")) {
+      await saveCanonicalProducts({ provider: "tiktok_shop", connectionId: TTS_CONN }, buildProducts(TIKTOK_ITEMS, "tiktok_shop"));
+      await saveCanonicalOrders({ provider: "tiktok_shop", connectionId: TTS_CONN }, ttsOrders);
+    }
   });
 
-  const ttsLedger = await seedTiktokLedger(workspaceId, TTS_CONN, ttsOrders);
+  // Ordem obrigatoria: o extrato precisa existir antes de o repasse somar por
+  // extrato, e a marca do pedido depende de nada mais.
+  let ttsLedger = 0, ttsRetido = 0, ttsRepasses = 0, ttsMarcados = 0;
+  if (temCanal("tiktok_shop")) {
+    ttsLedger = await seedTiktokLedger(workspaceId, TTS_CONN, ttsOrders);
+    ttsRetido = await seedTiktokRetido(workspaceId, TTS_CONN, ttsOrders);
+    ttsRepasses = await seedTiktokRepasses(workspaceId, TTS_CONN);
+    ttsMarcados = await marcarExtratoDaDemo(workspaceId, TTS_CONN, ttsOrders);
+  }
 
   const counts = await dbQuery(
     `SELECT provider, COUNT(*)::text AS total FROM workspace_channel_orders WHERE workspace_id = $1 GROUP BY provider`,
@@ -389,6 +640,7 @@ async function main() {
   for (const row of countRows) console.log(`pedidos ${row.provider}: ${row.total}`);
   console.log("gerados -> ML:", mlOrders.length, "| Amazon:", amzOrders.length, "| Shopee:", shpOrders.length, "| TikTok:", ttsOrders.length);
   console.log("extrato TikTok liquidado (transacoes):", ttsLedger);
+  console.log("retido sem extrato (unsettled):", ttsRetido, "| repasses:", ttsRepasses, "| pedidos marcados com extrato:", ttsMarcados);
 }
 
 main().then(() => process.exit(0)).catch((error) => {
