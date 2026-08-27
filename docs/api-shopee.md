@@ -157,10 +157,13 @@ vazia — ao implementar, re-validar tudo marcado com ⚠️ e registrar o que d
     (`current_price: 42.9`, `currency: "BRL"`) e `model[].stock_info_v2.summary_info`
     (`total_available_stock: 913` por variação). Decisão: **menor `current_price`
     entre as variações** ("a partir de"), **estoque somado**, moeda da variação.
-  - **`item_status` tem valor não documentado: `SHOPEE_DELETE`.** Pedindo a lista com
-    `item_status=DELETED`, o detalhe volta com `SHOPEE_DELETE` — pelo jeito o item
-    removido pela plataforma, não pelo vendedor. Não consta da documentação deles.
-    Mapeado para `closed`; o valor cru fica preservado em `provider_status`.
+  - **`item_status` tem DOIS valores não documentados, e o documentado não aparece.**
+    Pedindo a lista com `item_status=DELETED`, o detalhe volta com **`SHOPEE_DELETE`**
+    (removido pela plataforma) ou **`SELLER_DELETE`** (removido pelo vendedor) — o
+    `DELETED` que pedimos não veio nenhuma vez. Nenhum dos dois consta da documentação
+    deles. Ambos mapeados para `closed`; o valor cru fica preservado em
+    `provider_status`, que é o que distingue quem removeu. Na loja `275804987`:
+    1 item `SHOPEE_DELETE` e **10 `SELLER_DELETE`**.
   - ⚠️ **A lição, que vale para os próximos valores que eles inventarem:** item que a
     Shopee manda fora do contrato **fica de fora do snapshot e é contado**, com o
     valor cru registrado — nunca derruba a sincronização inteira. As duas paradas
@@ -280,8 +283,8 @@ vazia — ao implementar, re-validar tudo marcado com ⚠️ e registrar o que d
   - **`INVOICE_PENDING` conta como receita** (pago, só falta NF-e) — status
     específico do Brasil.
   - Produtos: `item_status` usa `NORMAL`/`UNLIST`/`BANNED`/`DELETED` **e também
-    `SHOPEE_DELETE`, que a documentação não lista** (medido em 27/08/2026 — ver o
-    Changelog). O estoque vem aninhado em
+    `SHOPEE_DELETE` e `SELLER_DELETE`, que a documentação não lista** (medidos em
+    27/08/2026 — ver o Changelog; o `DELETED` documentado não apareceu na loja real). O estoque vem aninhado em
     `stock_info_v2.summary_info.total_available_stock` — **exceto em item com
     variação, onde ele e o preço só existem em `get_model_list`**.
   - ⚠️ **Cursor é opaco e não é estável entre execuções** (diferente do offset do

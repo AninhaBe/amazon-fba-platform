@@ -342,12 +342,14 @@ const PRODUCT_STATUS_MAP: Record<string, CanonicalProduct["status"]> = {
   BANNED: "closed",
   DELETED: "closed",
   REVIEWING: "paused",
-  // Medido na loja real em 27/08/2026, NÃO documentado pela Shopee: pedimos a
-  // lista com `item_status=DELETED` e o detalhe volta com `SHOPEE_DELETE` —
-  // aparentemente o item removido pela própria plataforma, não pelo vendedor.
-  // Como os dois são item morto, o canônico é o mesmo `closed`; a diferença de
+  // Medidos na loja real em 27/08/2026, NENHUM dos dois documentado pela
+  // Shopee: pedimos a lista com `item_status=DELETED` e o detalhe volta com
+  // `SHOPEE_DELETE` (removido pela plataforma) ou `SELLER_DELETE` (removido
+  // pelo vendedor) — o `DELETED` que pedimos não apareceu uma vez sequer.
+  // Como os três são item morto, o canônico é o mesmo `closed`; a diferença de
   // origem fica preservada em `providerStatus`, que guarda o valor cru.
   SHOPEE_DELETE: "closed",
+  SELLER_DELETE: "closed",
 };
 
 /** Uma variação do item, na forma medida em 27/08/2026 na loja real. */

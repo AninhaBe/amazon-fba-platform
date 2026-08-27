@@ -26,14 +26,15 @@ const ITEM = {
   stock_info_v2: { summary_info: { total_available_stock: 2688 } },
 };
 
-test("SHOPEE_DELETE entra como item morto, sem inventar significado", () => {
-  const produto = normalizeShopeeProduct({ ...ITEM, item_status: "SHOPEE_DELETE" });
-  assert.equal(produto.status, "closed");
-  // O valor cru sobrevive: é como a origem da remoção (plataforma x vendedor)
-  // continua auditável sem ter de reproduzir a chamada.
-  assert.equal(produto.providerStatus, "SHOPEE_DELETE");
-  // E continua distinto do DELETED do vendedor, que já era mapeado.
-  assert.equal(normalizeShopeeProduct({ ...ITEM, item_status: "DELETED" }).providerStatus, "DELETED");
+test("os dois DELETE não documentados entram como item morto", () => {
+  // Pedindo `item_status=DELETED`, a loja real devolveu SÓ estes dois valores —
+  // o `DELETED` da documentação não apareceu uma vez sequer. Os três são item
+  // morto; o que muda é quem removeu, e isso mora em `providerStatus`.
+  for (const cru of ["SHOPEE_DELETE", "SELLER_DELETE", "DELETED"]) {
+    const produto = normalizeShopeeProduct({ ...ITEM, item_status: cru });
+    assert.equal(produto.status, "closed", `${cru} tem de fechar o item`);
+    assert.equal(produto.providerStatus, cru, "o valor cru precisa sobreviver ao canônico");
+  }
 });
 
 test("status novo da Shopee é pendência DO ITEM, não morte do canal", () => {
