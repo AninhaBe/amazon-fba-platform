@@ -81,6 +81,18 @@ export interface SnapshotCentral {
 // trocar sem deploy quando o Google renomear de novo.
 const MODELO_PADRAO = "gemini-3.6-flash";
 
+/**
+ * A BASE que todo "desconhecido" precisa carregar.
+ *
+ * Regra da casa levada para dentro do prompt: valor em aberto se explica pelo
+ * recorte a que pertence. "Desconhecido" sem base foi lido pelo modelo como
+ * "nao sabemos nada", com o faturamento do periodo afirmado na linha de cima.
+ */
+const BASE = "nos ultimos 30 dias";
+
+const JANELA_DO_PERIODO =
+  "ESCOPO — os valores consolidados acima sao dos ULTIMOS 30 DIAS e sao FATO: nunca os descreva como desconhecidos. O unico recorte ainda em aberto e o DIA DE HOJE, que so fecha depois da meia-noite de Brasilia. Se falar do dia corrente, diga isso com essas palavras e em seguida dê o numero do periodo, nesta ordem.";
+
 const money = (v: number | null, moeda: string) =>
   v == null ? "desconhecido" : new Intl.NumberFormat("pt-BR", { style: "currency", currency: moeda }).format(v);
 const pct = (v: number | null) => (v == null ? "sem base" : `${v.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`);
@@ -99,11 +111,22 @@ export function descreverSnapshot(s: SnapshotCentral): string {
   if (s.faturamento30d != null) {
     linhas.push(
       `Faturamento consolidado (30 dias): ${money(s.faturamento30d, s.moeda)}.`,
+      // ESCOPO EXPLICITO. Sem esta linha o modelo somava "Lucro conhecido:
+      // desconhecido" com "Data de hoje" e escrevia "o faturamento de todos os
+      // canais ainda esta como desconhecido hoje" — ao lado da mensagem do canal
+      // que afirmava R$ 14.867,20 no mesmo periodo (27/08/2026). O numero acima
+      // e FATO; o unico recorte em aberto e o dia corrente, e dizer isso aqui é
+      // mais barato que esperar o modelo deduzir.
+      JANELA_DO_PERIODO,
       // A margem SEMPRE vem acompanhada da fatia que ela cobre — quando a fatia é
       // conhecida. Sem a base, o percentual sozinho fez o modelo ler "margem
       // 0,7%" como resultado da operação inteira (23/08/2026).
       (() => {
-        const base = `Lucro conhecido: ${money(s.lucro30d, s.moeda)}`;
+        // Lucro desconhecido NUNCA sai sem a base a que se refere: "desconhecido"
+        // solto, com faturamento afirmado logo acima, vira contradicao na tela.
+        const base = s.lucro30d == null
+          ? `Lucro consolidado: ainda desconhecido ${BASE}`
+          : `Lucro conhecido: ${money(s.lucro30d, s.moeda)}`;
         if (s.margemPct == null) return `${base}.`;
         // Sem `receitaComLucro` (chamador antigo), diz só o percentual: inventar
         // "sobre desconhecido" seria pior que omitir.
@@ -126,7 +149,9 @@ export function descreverSnapshot(s: SnapshotCentral): string {
       if (c.semLeitura) return `- ${c.nome}: conectado, mas sem leitura no momento.`;
       const partes = [`faturamento ${money(c.faturamento, s.moeda)}`];
       if (c.lucro != null) partes.push(`lucro ${money(c.lucro, s.moeda)}`);
-      else if (c.motivoSemLucro) partes.push(`lucro ainda desconhecido — ${c.motivoSemLucro}`);
+      // Mesma regra por canal: o desconhecido carrega a base junto.
+      else if (c.motivoSemLucro) partes.push(`lucro ainda desconhecido ${BASE} — ${c.motivoSemLucro}`);
+      else if (c.faturamento != null) partes.push(`lucro ainda desconhecido ${BASE}`);
       if (c.margemPct != null) partes.push(`margem ${pct(c.margemPct)}`);
       if (c.variacaoSemanaPct != null) partes.push(`${c.variacaoSemanaPct >= 0 ? "+" : ""}${pct(c.variacaoSemanaPct)} na semana`);
       if (c.unidadesSemCusto > 0) partes.push(`${c.unidadesSemCusto} unidade(s) sem custo cadastrado (lucro subestimado)`);
@@ -163,6 +188,8 @@ const SISTEMA = [
   "NÃO GENERALIZE. Fale de cada produto/SKU exatamente como ele veio na lista. É proibido agrupar ('a linha de protetores', 'os kits de 8, 16, 24 e 32') ou estender uma constatação de um item para outros que não estão na lista. Se só um kit está sem estoque, fale só desse kit — não invente que os outros também estão. Cada afirmação sua tem que corresponder a uma linha que eu te dei.",
 
   "MARGEM É SEMPRE PARCIAL ATÉ PROVA EM CONTRÁRIO — e você NUNCA a apresenta como resultado da operação inteira. O lucro só existe onde o custo do produto está cadastrado; quando eu te disser que a margem é sobre uma PARTE do faturamento, essa parte é a única base válida. Proibido: dizer que a operação 'está com margem de X%', falar em 'perda de margem' ou 'margem apertada' com base nesse número, ou compará-lo com o faturamento total. O certo é nomear a base — 'a margem é de X% sobre os R$ Y que têm custo cadastrado; o resto ainda não dá para calcular'. Se boa parte do faturamento estiver sem custo, a AÇÃO é cadastrar esses custos, e não 'estancar a perda de margem' — margem baixa por dado faltando é um buraco de cadastro, não um problema de negócio, e confundir os dois manda a pessoa resolver o problema errado.",
+  "TODO DESCONHECIDO CARREGA A BASE. Nunca escreva que algo esta desconhecido sem dizer A QUE PERIODO isso se refere. É PROIBIDO chamar de desconhecido um numero que eu te afirmei — se eu te dei o faturamento consolidado, ele é fato e continua fato mesmo que o lucro ao lado esteja em aberto. Quando o recorte em aberto for o dia corrente, nomeie-o ('o dia de hoje ainda nao fechou') e emende com o numero do periodo que eu te dei; jamais estenda o 'hoje' ao periodo inteiro.",
+
   "LUCRO DESCONHECIDO TEM CAUSA, E A CAUSA É MINHA DE INFORMAR. Quando um canal vier com o lucro desconhecido, use EXATAMENTE o motivo que eu te der ao lado dele. Se eu não der motivo, diga só que ainda não dá para saber — é PROIBIDO deduzir a causa, e em especial atribuí-la a custo não cadastrado quando eu não afirmei isso. Um extrato que ainda não fechou e um custo que ninguém cadastrou mandam a pessoa fazer coisas diferentes, e chutar o motivo errado faz ela trabalhar à toa.",
 
   "EXPLIQUE, não apenas relate. Quando eu te der uma seção de POSSÍVEIS CAUSAS, use-a para dizer POR QUE o número mudou — é isso que separa você de um relatório. 'O Mercado Livre caiu 100%' não ajuda ninguém; 'o Mercado Livre parou porque não há nenhum anúncio ativo' é acionável. Só use as causas que eu te dei; se nenhuma explicar o número, diga honestamente que a queda existe e a causa ainda não está identificada — nunca invente um motivo plausível.",

@@ -27,10 +27,12 @@ test("descreve os números fornecidos, com moeda", () => {
   assert.match(t, /-57,4%/);
 });
 
-test("lucro consolidado desconhecido vira 'desconhecido', nunca zero", () => {
+test("lucro consolidado desconhecido vira 'desconhecido' COM BASE, nunca zero", () => {
   const t = descreverSnapshot({ ...base, lucro30d: null, margemPct: null });
-  // A linha do consolidado precisa dizer desconhecido — não R$ 0,00.
-  assert.match(t, /Lucro conhecido: desconhecido\./);
+  // A linha do consolidado precisa dizer desconhecido — não R$ 0,00 — e dizer
+  // desconhecido A QUE PERIODO, senão o modelo estende o aberto ao todo.
+  assert.match(t, /Lucro consolidado: ainda desconhecido nos ultimos 30 dias\./);
+  assert.doesNotMatch(t, /Lucro consolidado: R\$\s?0,00/);
 });
 
 test("canal sem leitura é declarado, não zerado", () => {
@@ -91,7 +93,7 @@ test("motivo do lucro desconhecido entra no prompt, palavra por palavra", () => 
         semLeitura: false, unidadesSemCusto: 0, motivoSemLucro: "o extrato da TikTok Shop ainda não fechou este período" },
     ],
   });
-  assert.match(t, /lucro ainda desconhecido — o extrato da TikTok Shop ainda não fechou este período/);
+  assert.match(t, /lucro ainda desconhecido nos ultimos 30 dias — o extrato da TikTok Shop ainda não fechou este período/);
 });
 
 test("sem motivo informado o prompt não inventa um", () => {
@@ -102,7 +104,7 @@ test("sem motivo informado o prompt não inventa um", () => {
         semLeitura: false, unidadesSemCusto: 0 },
     ],
   });
-  assert.doesNotMatch(t, /lucro ainda desconhecido —/);
+  assert.doesNotMatch(t, /desconhecido nos ultimos 30 dias —/, "sem motivo, nao ha travessao nem causa");
   assert.doesNotMatch(t, /custo/i, "nenhuma causa aparece se ninguém a afirmou");
 });
 
@@ -130,4 +132,68 @@ test("sem faturamento lido em canal nenhum, o prompt omite o consolidado em vez 
   assert.doesNotMatch(t, /Faturamento consolidado/);
   assert.doesNotMatch(t, /R\$\s?0,00/);
   assert.match(t, /Amazon: conectado, mas sem leitura no momento/);
+});
+
+// DESCONHECIDO SEM BASE VIRA CONTRADICAO NA TELA (27/08/2026).
+//
+// A narracao geral saiu com "o faturamento de todos os canais ainda esta como
+// desconhecido hoje" enquanto a mensagem do canal, colada abaixo, afirmava
+// R$ 14.867,20 no mesmo periodo. Tecnicamente o dia corrente nao fechou — mas o
+// modelo somou "Lucro conhecido: desconhecido" com "Data de hoje" e estendeu o
+// aberto ao periodo inteiro. O prompt passa a dar a base junto do desconhecido.
+
+const BASE = /nos ultimos 30 dias/;
+
+/** Toda linha que diz "desconhecid" precisa nomear o recorte a que se refere. */
+function desconhecidosSemBase(texto) {
+  return texto
+    .split("\n")
+    .filter((linha) => /desconhecid/i.test(linha))
+    // A linha de ESCOPO fala do termo para PROIBI-lo; ela é a definição da regra.
+    .filter((linha) => !linha.startsWith("ESCOPO"))
+    .filter((linha) => !BASE.test(linha) && !/o dia de hoje|dia corrente|30 dias/i.test(linha));
+}
+
+test("periodo fechado populado: nenhum 'desconhecido' sai sem base", () => {
+  const t = descreverSnapshot({
+    ...base,
+    faturamento30d: 47293.9,
+    lucro30d: null,
+    margemPct: null,
+    receitaComLucro: null,
+    canais: [
+      { nome: "Amazon", faturamento: 5562.5, lucro: null, margemPct: null, variacaoSemanaPct: null, semLeitura: false, unidadesSemCusto: 0, motivoSemLucro: "o extrato do periodo ainda nao fechou" },
+      { nome: "TikTok Shop", faturamento: 15176.9, lucro: null, margemPct: null, variacaoSemanaPct: null, semLeitura: false, unidadesSemCusto: 0 },
+    ],
+  });
+  assert.deepEqual(desconhecidosSemBase(t), [], "todo desconhecido precisa dizer a que periodo se refere");
+  assert.match(t, /Lucro consolidado: ainda desconhecido nos ultimos 30 dias/);
+  assert.match(t, /- Amazon: faturamento R\$\s?5\.562,50, lucro ainda desconhecido nos ultimos 30 dias/);
+  assert.match(t, /- TikTok Shop: .*lucro ainda desconhecido nos ultimos 30 dias/);
+});
+
+test("com faturamento afirmado, o prompt proibe chamar o periodo de desconhecido", () => {
+  const t = descreverSnapshot({ ...base, lucro30d: null, margemPct: null, receitaComLucro: null });
+  assert.match(t, /ESCOPO — os valores consolidados acima sao dos ULTIMOS 30 DIAS e sao FATO/);
+  assert.match(t, /O unico recorte ainda em aberto e o DIA DE HOJE/);
+  // O faturamento afirmado continua na frente do escopo, com o numero.
+  assert.match(t, /Faturamento consolidado \(30 dias\): R\$\s?56\.909,63\./);
+});
+
+test("sem faturamento no periodo, o escopo NAO e afirmado", () => {
+  // Nada a afirmar: o bloco financeiro inteiro sai do prompt, e com ele a linha
+  // de escopo — dizer "os valores acima sao fato" sem valor acima seria mentira.
+  const t = descreverSnapshot({
+    ...base, faturamento30d: null, lucro30d: null, margemPct: null, receitaComLucro: null,
+    canais: [{ nome: "Amazon", faturamento: null, lucro: null, margemPct: null, variacaoSemanaPct: null, semLeitura: true, unidadesSemCusto: 0 }],
+  });
+  assert.doesNotMatch(t, /ESCOPO —/);
+  assert.doesNotMatch(t, /Lucro consolidado/);
+  assert.match(t, /Amazon: conectado, mas sem leitura no momento/);
+});
+
+test("lucro conhecido segue afirmado com valor, sem ressalva de base", () => {
+  const t = descreverSnapshot(base);
+  assert.match(t, /Lucro conhecido: R\$\s?361,47/);
+  assert.doesNotMatch(t, /Lucro consolidado: ainda desconhecido/);
 });

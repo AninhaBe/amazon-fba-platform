@@ -332,6 +332,33 @@ decidir. Ideia veio de um print de concorrente (Hunter Hub) que ela mandou.
 - [ ] **Replicar para Amazon e Shopee.** Também cobram frete e também declaram
   envio — mesma garantia, campos diferentes.
 
+## Dashboard da Amazon na conta demo em estado de falha (27/08/2026) — achado, NÃO corrigido
+
+Encontrado pelo QA do vídeo do App review, na conta de demonstração
+(workspace `fa6b806b`), enquanto a última milha do seed era fechada. **Não foi
+tocado**: sair corrigindo rota de canal no meio da entrega do narrador seria
+misturar duas frentes, e o vídeo pode ser gravado contornando a aba.
+
+- [ ] **`/amazon` mostra Faturamento "—" e cai em estado de falha (3 recargas),
+  enquanto a Visão geral exibe R$ 5.169,20 do MESMO canal.** As duas telas leem
+  por caminhos diferentes: a central consolida pelo canônico (banco), e o
+  dashboard do canal ainda depende de rota que fala com a SP-API. A conexão
+  `amazon:demo` é sintética — não tem `refreshToken` válido —, então a chamada
+  externa falha e a aba inteira entra em erro em vez de cair para o canônico que
+  já tem o dado na mão.
+
+  **Hipótese a confirmar antes de mexer** (não medida ainda): a rota de vendas
+  ou a de lucro estourando para a conexão demo. Conferir qual das duas, e se o
+  erro é `REAUTH_REQUIRED` ou falha de rede.
+
+  **Por que importa além da demo**: se o mesmo caminho não tem fallback para o
+  canônico, qualquer conta real com token caído perde a aba do canal inteira em
+  vez de mostrar o que já foi importado — o que contraria "tela sem dado mostra
+  o estado real", e não "estado de falha".
+
+  ⚠️ Ao corrigir, lembrar de `docs/adr/` antes: o fallback para o canônico é
+  decisão de arquitetura, não detalhe de implementação.
+
 ## Observações da rodada do TikTok (23/08/2026) — achadas, NÃO corrigidas
 
 Levantadas pelos agentes enquanto fechavam o bloco C. Nenhuma foi tocada: ou é
