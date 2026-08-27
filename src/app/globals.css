@@ -4262,6 +4262,15 @@ summary:hover { background: var(--paper-soft); }
 .inventory-family-body { display: flex; min-width: 0; flex-direction: column; gap: 20px; }
 .inventory-method-strip { display: flex; min-height: 42px; align-items: center; gap: 12px; padding: 8px 12px; border-inline-start: 3px solid var(--ink-32); background: var(--paper-soft); color: var(--ink-muted); font-size: 12px; line-height: 16px; }
 .inventory-method-strip strong { flex: none; color: var(--ink-soft); font-weight: var(--weight-semibold); }
+/* Capital parado no Full (Mercado Livre): tabela irmã da cobertura de estoque.
+   Linha sem custo cadastrado fica cinza — legível, sem peso de alerta. Quem
+   chama para a ação é a pendência com número e link no rodapé da tabela. */
+.full-stock-shell .listing-table { min-width: 720px; }
+.full-stock-shell tfoot :is(th, td) { border-block-start: 1px solid var(--line-strong); background: var(--paper-soft); color: var(--ink); font-size: 13px; font-weight: var(--weight-semibold); }
+.full-stock-shell tbody tr.is-sem-custo td:nth-child(n+3) { color: var(--ink-muted); }
+.full-stock-note { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 12px 18px; border-block-start: 1px solid var(--line); color: var(--ink-muted); font-size: 12px; line-height: 16px; }
+.full-pendencia-link { display: inline-flex; align-items: center; gap: 4px; color: var(--meli-dark); font-weight: var(--weight-semibold); }
+.full-pendencia-link:hover { text-decoration: underline; }
 .listing-filter-context { display: flex; min-height: 36px; align-items: center; justify-content: flex-end; padding-inline: 10px; color: var(--ink-muted); font-size: 12px; white-space: nowrap; }
 .listing-page .product-tax-panel { grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; padding: 12px 14px; border-inline-start-width: 3px; border-radius: var(--radius-sm); background: var(--paper-soft); box-shadow: none; }
 .listing-page .product-tax-panel h2 { margin-block-start: 2px; font-size: 14px; font-weight: var(--weight-semibold); line-height: 20px; }

@@ -125,6 +125,27 @@ terceiro), `/highlights/{site}/category/{id}` (top 20 da categoria, com
 
 ## Changelog observado (mais recente primeiro)
 
+- **2026-08-27** — **`available_quantity` no Full é POR OFERTA, e várias ofertas
+  dividem o mesmo estoque.** No Full o estoque pertence ao produto do vendedor
+  (`user_product`), não ao anúncio: o anúncio do catálogo e o próprio apontam
+  para o mesmo lote e **cada um reporta a mesma quantidade**. Medido no banco de
+  produção: o SKU `AREIA-MAGICA-300G` aparece em 3 ofertas Full com 159 unidades
+  cada — somar daria 477 e triplicaria o capital; o estoque real é 159.
+  `MESA-INFANTIL-MELI`: 2 ofertas × 213, soma 426. Quem for agregar estoque do
+  Full precisa contar por grupo (máximo), nunca `SUM`.
+
+  ⚠️ **A chave certa vem quase sempre `null`.** O identificador bom é o
+  `user_product_id`, que `/items` já devolve e o sync já lê
+  (`mercadoLivre.ts:216`) — mas só **1 de 29** ofertas Full com estoque tinha o
+  campo preenchido; as 3 do AREIA vinham `null`. Sem ele, o desempate possível é
+  o SKU do vendedor. Se um dia for preciso precisão maior, a fonte é
+  `/user-products/{id}/stock`, que custa uma chamada por produto e não está no
+  orçamento do cron hoje.
+
+  ⚠️ **Anúncio `closed` pode ter estoque no Full.** Na conta medida, o ÚNICO
+  item com saldo (32 unidades) estava num anúncio fechado. Filtrar a lista por
+  status ativo esconderia capital que continua parado no centro de distribuição.
+
 - **2026-08-15** — **A API do Mercado Pago abre com o MESMO token do ML.** Não
   precisa de credencial nova nem de novo OAuth: basta trocar o host para
   `https://api.mercadopago.com`. É a fonte de saldo, retenção e tarifa real.

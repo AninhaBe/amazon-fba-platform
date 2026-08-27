@@ -22,6 +22,7 @@ import { buildFinancialComposition, FinancialSummaryPanel } from "./FinancialSum
 import { brDate, brTime } from "@/lib/datetime";
 import type { ProfitabilityLine } from "@/lib/profitability";
 import { MercadoLivreSaldo } from "./MercadoLivreSaldo";
+import { ResumoDoCustoNoFull, TabelaDoCustoNoFull, useCustoNoFull } from "./MercadoLivreCustoNoFull";
 import { Pagination } from "./Pagination";
 import { TopProductsRanking } from "./TopProductsRanking";
 import { BriefingLead } from "./BriefingLead";
@@ -490,13 +491,18 @@ function Inventory({ overview }: { overview: Overview }) {
   const pagedRows = rows.slice((current - 1) * 30, current * 30);
   const healthy = overview.stockRadar.filter((product) => product.status === "ok").length;
   const sold = overview.stockRadar.reduce((total, product) => total + product.unitsSold, 0);
+  // Capital parado no Full: leitura própria, independente do período do radar —
+  // é foto do estoque de hoje, não de um intervalo de vendas.
+  const custoNoFull = useCustoNoFull();
   return <div className="inventory-family-body">
-    <section className="listing-summary-band is-4" aria-label="Resumo de estoque Mercado Livre">
+    <section className="listing-summary-band is-5" aria-label="Resumo de estoque Mercado Livre">
       <div><span>Produtos ativos</span><strong>{overview.stockRadar.length.toLocaleString("pt-BR")}</strong><small>monitorados no radar</small></div>
       <div className={critical ? "is-danger" : "is-positive"}><span>Ação imediata</span><strong>{critical.toLocaleString("pt-BR")}</strong><small>{critical ? "repor com urgência" : "tudo sob controle"}</small></div>
       <div className="is-positive"><span>Saudáveis</span><strong>{healthy.toLocaleString("pt-BR")}</strong><small>com cobertura</small></div>
       <div><span>Unidades vendidas</span><strong>{sold.toLocaleString("pt-BR")}</strong><small>{overview.period.label}</small></div>
+      <ResumoDoCustoNoFull leitura={custoNoFull} />
     </section>
+    <TabelaDoCustoNoFull leitura={custoNoFull} />
     {overview.stockRadar.length === 0 ? <Empty>Nenhum produto ativo encontrado.</Empty> : <>
       <aside className="inventory-method-strip" aria-label="Como a cobertura de estoque é calculada"><strong>Como calculamos</strong><span>Cobertura = estoque atual ÷ média diária de vendas no período. Pausas e dias históricos sem estoque ainda não são descontados.</span></aside>
       <section className="listing-controls cols-3" role="search" aria-label="Filtros de estoque">
