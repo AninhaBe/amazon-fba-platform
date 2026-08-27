@@ -25,7 +25,11 @@ export const PROVIDERS: ProviderDefinition[] = [
     name: "Mercado Livre",
     shortName: "MELI",
     description: "Conta, anúncios, estoque e pedidos do Mercado Livre Brasil.",
-    capabilities: ["catalog", "orders", "inventory", "pricing", "messages", "promotions"],
+    // `finance` entrou em 26/08/2026: o financeiro do ML está no ar por inteiro
+    // (paridade de faturamento auditada, tarifa e frete por pedido, saldo e
+    // liberação). Faltava só aqui, e por isso `/integracoes` injetava a
+    // capability no cliente para o chip aparecer.
+    capabilities: ["catalog", "orders", "inventory", "pricing", "messages", "promotions", "finance"],
     availability: "available",
     connectHref: "/api/integrations/mercado-livre/connect",
   },

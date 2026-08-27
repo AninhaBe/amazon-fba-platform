@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import type { DbQuery } from "../db";
-import { advanceCheckpoint, claimCheckpoint, isFinalStatement, normalizeTransaction, TIKTOK_FINANCIAL_PROVIDER, validateFinancialPagination, validatePersistentFinancialPagination, type FinancialPage, type FinancialPaginationSeen, type PaymentRecord, type StatementRecord, type TiktokFinancialAdapters, type TransactionRecord, upsertLedger } from "./tiktokFinancialLedger";
+import { advanceCheckpoint, checkpointInBackoff, claimCheckpoint, clearCheckpointFailures, financialErrorCode, isFinalStatement, recordCheckpointFailure, normalizeTransaction, TIKTOK_FINANCIAL_PROVIDER, validateFinancialPagination, validatePersistentFinancialPagination, type FinancialPage, type FinancialPaginationSeen, type PaymentRecord, type StatementRecord, type TiktokFinancialAdapters, type TransactionRecord, upsertLedger } from "./tiktokFinancialLedger";
 
 export interface PipelineDb { query:DbQuery; transaction:<T>(work:(query:DbQuery)=>Promise<T>)=>Promise<T>; }
 export interface PipelineScope { workspaceId:string; connectionId:string; }
@@ -16,8 +16,11 @@ async function cursor(query:DbQuery,scope:PipelineScope,resource:string,window:P
 }
 
 async function runPage<T>(input:{db:PipelineDb;scope:PipelineScope;window:PipelineWindow;resource:string;ownerToken:string;paginationSeen?:FinancialPaginationSeen;read:(token:string|undefined)=>Promise<FinancialPage<T>>;write:(query:DbQuery,items:T[])=>Promise<number>}){
+  if(await checkpointInBackoff(input.db.query,input.scope,input.resource,input.window))return {acquired:false,terminal:false,seen:0,written:0};
   const claimed=await claimCheckpoint(input.db.query,input.scope,input.resource as never,input.window,input.ownerToken);
   if(!claimed.acquired)return {acquired:false,terminal:false,seen:0,written:0};
+  const lease={ownerToken:input.ownerToken,fencingToken:claimed.fencingToken};
+  try{
   const state=await cursor(input.db.query,input.scope,input.resource,input.window);
   const page=await input.read(state.cursor_token??undefined);
   if((page.rejected??0)!==0||(page.unknown??0)!==0||(page.diagnostics?.length??0)!==0)throw new Error("FINANCIAL_PAGE_VALIDATION_FAILED");
@@ -28,8 +31,15 @@ async function runPage<T>(input:{db:PipelineDb;scope:PipelineScope;window:Pipeli
     const written=await input.write(query,page.items); const seen=Number(state.rows_seen)+page.items.length; const totalWritten=Number(state.rows_written)+written;
     const advanced=await advanceCheckpoint(query,input.scope,input.resource as never,input.window,{ownerToken:input.ownerToken,fencingToken:claimed.fencingToken},{nextPageToken:page.nextPageToken,pageNumber:state.page_number+1,rowsSeen:seen,rowsWritten:totalWritten});
     if(!advanced)throw new Error("FINANCIAL_CHECKPOINT_FENCE_LOST");
+    await clearCheckpointFailures(query,input.scope,input.resource,input.window);
     return {acquired:true,terminal:page.nextPageToken===null,seen:page.items.length,written,items:page.items};
   });
+  }catch(error){
+    // Fora da transacao que falhou, de proposito: dentro dela o rollback apagaria
+    // o registro do erro e o checkpoint voltaria a parecer intocado.
+    await recordCheckpointFailure(input.db.query,input.scope,input.resource,input.window,lease,financialErrorCode(error)).catch(()=>{});
+    throw error;
+  }
 }
 
 async function lockedCursor(query:DbQuery,scope:PipelineScope,resource:string,window:PipelineWindow,ownerToken:string,fencingToken:number):Promise<LockedCursor>{
@@ -47,8 +57,11 @@ export async function processFinalStatementTransactions(input:{db:PipelineDb;ada
 }
 
 export async function processStatementsPage(input:FinancialPipelineInput):Promise<FinancialPipelineResult>{
+  if(await checkpointInBackoff(input.db.query,input.scope,"statements",input.window))return {acquired:false,terminal:false,seen:0,written:0};
   const claimed=await claimCheckpoint(input.db.query,input.scope,"statements",input.window,input.ownerToken);
   if(!claimed.acquired)return {acquired:false,terminal:false,seen:0,written:0};
+  const lease={ownerToken:input.ownerToken,fencingToken:claimed.fencingToken};
+  try{
   const state=await cursor(input.db.query,input.scope,"statements",input.window);
   const page=await input.adapters.statements({from:Math.floor(input.window.from.getTime()/1000),to:Math.floor(input.window.to.getTime()/1000),pageToken:state.cursor_token??undefined});
   if((page.rejected??0)!==0||(page.unknown??0)!==0||(page.diagnostics?.length??0)!==0)throw new Error(`FINANCIAL_STATEMENT_STATUS_NOT_FINAL_RETRYABLE:${page.diagnostics.join(",")}`);
@@ -59,7 +72,11 @@ export async function processStatementsPage(input:FinancialPipelineInput):Promis
   // Each statement has its own checkpoint. A crash before advancing discovery
   // safely replays this page; transaction ids and source precedence make it idempotent.
   let written=0; for(const statement of page.items.filter(isFinalStatement)){const result=await processFinalStatementTransactions({...input,statement});written+=result.written;if(!result.terminal)return{acquired:true,terminal:false,seen:page.items.length,written};}
-  return input.db.transaction(async query=>{const locked=await lockedCursor(query,input.scope,"statements",input.window,input.ownerToken,claimed.fencingToken);validatePersistentFinancialPagination("statements",locked.cursor_token,page.nextPageToken,locked.cursor_hash_history);const advanced=await advanceCheckpoint(query,input.scope,"statements",input.window,{ownerToken:input.ownerToken,fencingToken:claimed.fencingToken},{nextPageToken:page.nextPageToken,pageNumber:state.page_number+1,rowsSeen:Number(state.rows_seen)+page.items.length,rowsWritten:Number(state.rows_written)+written});if(!advanced)throw new Error("FINANCIAL_CHECKPOINT_FENCE_LOST");return{acquired:true,terminal:page.nextPageToken===null,seen:page.items.length,written};});
+  return input.db.transaction(async query=>{const locked=await lockedCursor(query,input.scope,"statements",input.window,input.ownerToken,claimed.fencingToken);validatePersistentFinancialPagination("statements",locked.cursor_token,page.nextPageToken,locked.cursor_hash_history);const advanced=await advanceCheckpoint(query,input.scope,"statements",input.window,{ownerToken:input.ownerToken,fencingToken:claimed.fencingToken},{nextPageToken:page.nextPageToken,pageNumber:state.page_number+1,rowsSeen:Number(state.rows_seen)+page.items.length,rowsWritten:Number(state.rows_written)+written});if(!advanced)throw new Error("FINANCIAL_CHECKPOINT_FENCE_LOST");await clearCheckpointFailures(query,input.scope,"statements",input.window);return{acquired:true,terminal:page.nextPageToken===null,seen:page.items.length,written};});
+  }catch(error){
+    await recordCheckpointFailure(input.db.query,input.scope,"statements",input.window,lease,financialErrorCode(error)).catch(()=>{});
+    throw error;
+  }
 }
 
 export async function processUnsettledPage(input:FinancialPipelineInput):Promise<FinancialPipelineResult>{

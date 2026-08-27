@@ -142,10 +142,18 @@ export function calculateTiktokFinancialV2(input: TiktokFinancialInput, currency
   const discounts = totalUnits > 0 && discountKnownUnits === totalUnits
     ? sum(units.map((item) => item.unitDiscount! * item.quantity))
     : null;
-  const components = [revenue, fees.value, sellerShipping.value, ads.value, taxesWithheld.value, refunds.value, tax, cogs];
+  // `tax` FORA de `components` desde 26/08/2026.
+  //
+  // Ele e o unico item da lista que nao vem da TikTok: e a aliquota que a
+  // vendedora declara por loja. Sem ela o lucro sai SEM imposto (`tax ?? 0`) e a
+  // tela rotula "(sem imposto)"; `taxCoverage` continua existindo e e por ele
+  // que a tela sabe apontar "Cadastrar aliquota". Todos os outros continuam
+  // aqui: sem tarifa, frete, ads, retencao, estorno ou custo, o lucro seria
+  // otimista e ninguem saberia — esse e o `null != 0` de dado do canal.
+  const components = [revenue, fees.value, sellerShipping.value, ads.value, taxesWithheld.value, refunds.value, cogs];
   const financialCoverage = coverage("period", components.length, components.filter((value) => value != null).length, components.filter((value) => value == null).length);
   const complete = input.periodCovered && components.every((value) => value != null);
-  const profit = complete ? +(revenue! - fees.value! - sellerShipping.value! - ads.value! - taxesWithheld.value! - refunds.value! - tax! - cogs!).toFixed(2) : null;
+  const profit = complete ? +(revenue! - fees.value! - sellerShipping.value! - ads.value! - taxesWithheld.value! - refunds.value! - (tax ?? 0) - cogs!).toFixed(2) : null;
   return { overview: { currency, revenue, fees: fees.value, sellerShipping: sellerShipping.value, buyerShipping,
     ads: ads.value, taxesWithheld: taxesWithheld.value, refunds: refunds.value, tax, taxRate: input.taxRate, cogs, profit,
     marginPct: profit != null && revenue! > 0 ? +(profit / revenue! * 100).toFixed(2) : null,

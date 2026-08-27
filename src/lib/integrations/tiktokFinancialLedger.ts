@@ -68,8 +68,18 @@ export class TiktokFinancialAdapters {
     return result;
   }
   async transactions(statementId: string, pageToken?: string): Promise<FinancialPage<TransactionRecord>> {
-    const data=object(await this.call<unknown>(`/finance/202501/statements/${encodeURIComponent(statementId)}/statement_transactions`, { query:{page_size:100,page_token:pageToken} }));
-    return page(data,items(data,["statement_transactions","transactions"]),raw=>transaction(raw,statementId));
+    // `sort_field` e OBRIGATORIO aqui tambem, e o unico valor aceito e
+    // `order_create_time` — igual a statements/payments. Sem ele a API devolve
+    // 36009004 e a excecao subia entre o claim e o advance, congelando o
+    // checkpoint (medido em 26/08/2026: janela 12->13/08 parada desde 13/08, 3.070
+    // reivindicacoes, 0 linhas, `error_count` 0). Sondado no mesmo dia: sem
+    // sort_field, com `create_time` e com `statement_time` -> 36009004; com
+    // `order_create_time` -> 200 com 39 transacoes.
+    const data=object(await this.call<unknown>(`/finance/202501/statements/${encodeURIComponent(statementId)}/statement_transactions`, { query:{page_size:100,sort_field:"order_create_time",page_token:pageToken} }));
+    // A moeda vem no ENVELOPE, nao na transacao — nenhuma das 39 linhas medidas
+    // tinha `currency`, e `requiredCurrency` derrubaria todas.
+    const envelopeCurrency=text(data.currency);
+    return page(data,items(data,["statement_transactions","transactions"]),raw=>transaction(raw,statementId,envelopeCurrency));
   }
   async payments(input:{from:number;to:number;pageToken?:string}):Promise<FinancialPage<PaymentRecord>> {
     // A versao 202605 nao existe na API; a oficial e 202309, com janela create_time_ge/lt
@@ -84,12 +94,16 @@ export class TiktokFinancialAdapters {
   }
 }
 
-function transaction(raw:Record<string,unknown>, statementId:string|null):TransactionRecord { const type=text(raw.type??raw.transaction_type).toUpperCase();if(!type)throw new TypeError("TikTok transaction sem tipo provider.");return {id:requiredId(raw.id??raw.transaction_id,"transaction"),statementId:statementId??(text(raw.statement_id)||null),orderId:text(raw.order_id)||null,adjustmentOrderId:text(raw.adjustment_order_id)||null,type,occurredAt:requiredEpoch(raw.order_create_time??raw.create_time??raw.occurred_at,"transaction"),currency:requiredCurrency(raw.currency,"transaction"),totals:{revenue:money(raw.revenue_amount,"revenue_amount"),feeAndTax:money(raw.fee_and_tax_amount,"fee_and_tax_amount"),shippingCost:money(raw.shipping_cost_amount,"shipping_cost_amount"),settlement:money(raw.settlement_amount,"settlement_amount")},raw}; }
+function transaction(raw:Record<string,unknown>, statementId:string|null, fallbackCurrency=""):TransactionRecord { const type=text(raw.type??raw.transaction_type).toUpperCase();if(!type)throw new TypeError("TikTok transaction sem tipo provider.");return {id:requiredId(raw.id??raw.transaction_id,"transaction"),statementId:statementId??(text(raw.statement_id)||null),orderId:text(raw.order_id)||null,adjustmentOrderId:text(raw.adjustment_order_id)||null,type,occurredAt:requiredEpoch(raw.order_create_time??raw.create_time??raw.occurred_at,"transaction"),currency:requiredCurrency(text(raw.currency)||fallbackCurrency,"transaction"),
+  // `fee_tax_amount` e o nome real no 202501; `fee_and_tax_amount` era suposicao.
+  // Sem o alias a tarifa virava `null` em silencio — pior que lancar, porque o
+  // ledger gravaria a linha sem a maior despesa do pedido.
+  totals:{revenue:money(raw.revenue_amount,"revenue_amount"),feeAndTax:money(raw.fee_tax_amount??raw.fee_and_tax_amount,"fee_tax_amount"),shippingCost:money(raw.shipping_cost_amount,"shipping_cost_amount"),settlement:money(raw.settlement_amount,"settlement_amount")},raw}; }
 const FINAL_STATUSES = new Set(["PAID", "SETTLED", "COMPLETED", "CLOSED"]);
 export function isFinalStatement(statement:StatementRecord) { return FINAL_STATUSES.has(statement.status); }
 type MoneyKey="revenue"|"buyer_shipping"|"seller_shipping"|"commission"|"payment_fee"|"fulfillment_fee"|"ads"|"taxes_withheld"|"refunds"|"adjustment"|"settlement_amount";
 const OBSERVED_TYPES=new Set(["ORDER","LOGISTICS_REIMBURSEMENT"]);
-const ALLOWLIST=["id","transaction_id","statement_id","order_id","adjustment_order_id","type","transaction_type","order_create_time","create_time","occurred_at","currency","revenue_amount","fee_and_tax_amount","shipping_cost_amount","settlement_amount"];
+const ALLOWLIST=["id","transaction_id","statement_id","order_id","adjustment_order_id","type","transaction_type","order_create_time","create_time","occurred_at","currency","revenue_amount","fee_tax_amount","fee_and_tax_amount","shipping_cost_amount","settlement_amount"];
 export interface LedgerRow { transactionId:string; statementId:string|null; orderId:string|null; adjustmentOrderId:string|null; transactionType:string; occurredAt:string; currency:string; values:Partial<Record<MoneyKey,number|null>>; settlementState:"settled"|"unsettled"; estimated:boolean; sourceResource:string; sourceRank:number; rawAllowlisted:Record<string,unknown>; rawSha256:Buffer; }
 export function normalizeTransaction(record:TransactionRecord,input:{final:boolean;source:"statement_transactions"|"unsettled"}):LedgerRow {
   if(!OBSERVED_TYPES.has(record.type))throw new TypeError(`Tipo financeiro TikTok sem diagnostico: ${record.type}.`);
@@ -152,11 +166,93 @@ export function blockedTiktokLedgerSnapshot(scope:{from:Date;to:Date},operationa
   return {aggregate:{...emptyAggregate,...operational,finalTransactions:0,estimatedTransactions:0},covered:false,authority:"schema_blocked",coverage:{version:3,status:"blocked",terminal:false,from:scope.from.toISOString(),to:scope.to.toISOString(),source:"schema_blocked",estimatesIncluded:false,rejected:0}};
 }
 
+/**
+ * Espera entre tentativas depois de falhas seguidas: 1, 2, 4... ate 60 minutos.
+ *
+ * Existe porque "reivindicado para sempre sem progresso" era invisivel: o cron
+ * renovava o lease a cada ciclo e o unico rastro era o `fencing_token` subindo.
+ * Com backoff, um recurso quebrado para de queimar o orcamento de 60s do cron a
+ * cada 5 minutos e cede a vez aos outros recursos.
+ */
+export function financialCheckpointBackoffMs(errorCount:number):number{
+  if(errorCount<=0)return 0;
+  return Math.min(60*60_000,60_000*2**Math.min(errorCount-1,6));
+}
+
+/**
+ * Codigo curto para `last_error_code`. Extrai SO um marcador em maiusculas ou o
+ * codigo numerico do provider — nunca o texto livre do erro, que pode carregar
+ * identificador de pedido.
+ */
+export function financialErrorCode(error:unknown):string{
+  // Erro de driver traz o codigo em `.code`, nunca no texto: o 42883 que
+  // derrubou o advance chegava como "function ... does not exist" e saia daqui
+  // como UNKNOWN_ERROR, justamente o diagnostico que este campo existe para dar.
+  const codigo=(error as {code?:unknown})?.code;
+  if(typeof codigo==="string"&&/^[0-9A-Z]{5}$/.test(codigo))return `SQLSTATE_${codigo}`;
+  const raw=error instanceof Error?(error.message||error.name):String(error??"");
+  const marker=/\b([A-Z][A-Z0-9_]{5,})\b/.exec(raw)?.[1];
+  if(marker)return marker.slice(0,64);
+  const code=/\b(\d{4,})\b/.exec(raw)?.[1];
+  return code?`TIKTOK_${code}`.slice(0,64):"UNKNOWN_ERROR";
+}
+
+interface CheckpointLease{ownerToken:string;fencingToken:number;}
+
+/**
+ * Registra a falha NO CHECKPOINT e devolve o lease.
+ *
+ * As colunas `error_count`/`last_error_code`/`last_error_at` existem desde a
+ * 0005 e, ate 26/08/2026, NADA escrevia nelas: toda excecao entre o claim e o
+ * advance subia sem deixar rastro, e o checkpoint ficava indistinguivel de um
+ * que simplesmente ainda nao tinha rodado.
+ *
+ * Precisa rodar FORA da transacao que falhou (senao o rollback apaga o
+ * registro), e e cercada pelo mesmo fencing do advance: quem perdeu o lease nao
+ * contamina o contador de quem o tem.
+ */
+export async function recordCheckpointFailure(query:DbQuery,scope:{workspaceId:string;connectionId:string},resource:string,window:{from:Date;to:Date},lease:CheckpointLease,code:string):Promise<void>{
+  await query(`UPDATE workspace_financial_sync_checkpoints
+      SET error_count=error_count+1, last_error_code=$9, last_error_at=clock_timestamp(),
+          lease_until=clock_timestamp(), updated_at=clock_timestamp()
+    WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3 AND resource=$4
+      AND window_from=$5 AND window_to=$6 AND owner_token=$7 AND fencing_token=$8
+      AND completed_at IS NULL`,
+    [scope.workspaceId,TIKTOK_FINANCIAL_PROVIDER,scope.connectionId,resource,window.from,window.to,lease.ownerToken,lease.fencingToken,code]);
+}
+
+/** Zera o historico de falhas depois de uma pagina que avancou de verdade. */
+export async function clearCheckpointFailures(query:DbQuery,scope:{workspaceId:string;connectionId:string},resource:string,window:{from:Date;to:Date}):Promise<void>{
+  await query(`UPDATE workspace_financial_sync_checkpoints
+      SET error_count=0, last_error_code=NULL, last_error_at=NULL
+    WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3 AND resource=$4
+      AND window_from=$5 AND window_to=$6 AND error_count>0`,
+    [scope.workspaceId,TIKTOK_FINANCIAL_PROVIDER,scope.connectionId,resource,window.from,window.to]);
+}
+
+/** `true` enquanto o recurso estiver de castigo por falhas seguidas. */
+export async function checkpointInBackoff(query:DbQuery,scope:{workspaceId:string;connectionId:string},resource:string,window:{from:Date;to:Date},now=new Date()):Promise<boolean>{
+  const rows=await query<{error_count:string|number;last_error_at:Date|null}>(`SELECT error_count,last_error_at FROM workspace_financial_sync_checkpoints WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3 AND resource=$4 AND window_from=$5 AND window_to=$6`,[scope.workspaceId,TIKTOK_FINANCIAL_PROVIDER,scope.connectionId,resource,window.from,window.to]);
+  const row=rows[0];
+  if(!row?.last_error_at)return false;
+  return new Date(row.last_error_at).getTime()+financialCheckpointBackoffMs(Number(row.error_count))>now.getTime();
+}
+
 export async function claimCheckpoint(query:DbQuery,scope:{workspaceId:string;connectionId:string},resource:string,window:{from:Date;to:Date},ownerToken:string,leaseMs=30_000){
   const rows=await query<{acquired:boolean;fencing_token:string;db_now:Date}>("SELECT * FROM financial_checkpoint_claim($1,$2,$3,$4,$5,$6,$7,$8)",[scope.workspaceId,TIKTOK_FINANCIAL_PROVIDER,scope.connectionId,resource,window.from,window.to,ownerToken,leaseMs]);
   return rows[0] ? {acquired:rows[0].acquired,fencingToken:Number(rows[0].fencing_token),dbNow:new Date(rows[0].db_now)} : {acquired:false,fencingToken:0,dbNow:new Date()};
 }
+/**
+ * ⚠️ Sao 14 parametros, nao 15.
+ *
+ * O SQL pedia `$1..$15` para uma funcao que a 0005 declara com 14 argumentos.
+ * O Postgres nem chega a executar: erro 42883 ("function ... does not exist"),
+ * porque a assinatura procurada tem um argumento a mais. Ou seja, NENHUM advance
+ * jamais rodou desde que a 0005 entrou — e como a excecao subia entre o claim e
+ * o advance, o unico sintoma era o checkpoint eternamente na pagina 0 com
+ * `error_count` zerado. Encontrado em 26/08/2026, ao destravar o 36009004.
+ */
 export async function advanceCheckpoint(query:DbQuery,scope:{workspaceId:string;connectionId:string},resource:string,window:{from:Date;to:Date},lease:{ownerToken:string;fencingToken:number},page:{nextPageToken:string|null;pageNumber:number;rowsSeen:number;rowsWritten:number}){
-  const terminal=page.nextPageToken===null; const cursorHash=page.nextPageToken===null?null:financialCursorHash(page.nextPageToken); const rows=await query<{financial_checkpoint_advance:boolean}>("SELECT financial_checkpoint_advance($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) AS financial_checkpoint_advance",[scope.workspaceId,TIKTOK_FINANCIAL_PROVIDER,scope.connectionId,resource,window.from,window.to,lease.ownerToken,lease.fencingToken,page.nextPageToken,cursorHash,page.pageNumber,terminal,page.rowsSeen,page.rowsWritten]);
+  const terminal=page.nextPageToken===null; const cursorHash=page.nextPageToken===null?null:financialCursorHash(page.nextPageToken); const rows=await query<{financial_checkpoint_advance:boolean}>("SELECT financial_checkpoint_advance($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) AS financial_checkpoint_advance",[scope.workspaceId,TIKTOK_FINANCIAL_PROVIDER,scope.connectionId,resource,window.from,window.to,lease.ownerToken,lease.fencingToken,page.nextPageToken,cursorHash,page.pageNumber,terminal,page.rowsSeen,page.rowsWritten]);
   return rows[0]?.financial_checkpoint_advance===true;
 }

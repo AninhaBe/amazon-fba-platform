@@ -1,4 +1,7 @@
 import type { ComponentCoverage, TiktokCoverageV2, TiktokFinancialOverviewV2 } from "@/lib/integrations/tiktokFinancialV2";
+// Relativo, nao "@/": este modulo e carregado direto pelos testes, onde o
+// alias do Next nao existe.
+import { comSemImposto } from "../../lib/semImposto";
 import type { TiktokSyncStatus } from "@/lib/integrations/tiktokSync";
 
 export type TiktokSyncPhase = TiktokSyncStatus["phase"];
@@ -374,6 +377,9 @@ function contextoDoCard(key: keyof TiktokFinancialOverviewV2, period: RequestedP
   return `A TikTok Shop ainda não postou o extrato com ${nome} deste período`;
 }
 
+/** Os três que mudam de valor quando o imposto entra na conta. */
+const DERIVAM_DO_IMPOSTO = new Set<keyof TiktokFinancialOverviewV2>(["profit", "marginPct", "roiPct"]);
+
 export function financialCards(overview: TiktokFinancialOverviewV2, coverage: TiktokFrontendCoverage) {
   const periodCoverage = coverage.requestedPeriod ?? coverage;
   const period = periodOf(coverage);
@@ -398,7 +404,12 @@ export function financialCards(overview: TiktokFinancialOverviewV2, coverage: Ti
     return {
       key, label, raw,
       value: raw == null || !complete ? "—" : kind === "percent" ? percent(raw) : money(raw, overview.currency),
-      context: complete && raw != null ? "Total oficial do período" : contextoDoCard(key, period, pendencias),
+      // Lucro, margem e ROI saem calculados mesmo sem a alíquota da loja
+      // (26/08/2026) — o rótulo diz que estão sem imposto, e o card "Impostos"
+      // ao lado continua apontando o que falta cadastrar.
+      context: complete && raw != null
+        ? comSemImposto("Total oficial do período", overview.taxRate == null && DERIVAM_DO_IMPOSTO.has(key))
+        : contextoDoCard(key, period, pendencias),
     };
   });
 }

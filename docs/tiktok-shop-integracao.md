@@ -459,6 +459,47 @@ dependem do ledger e mantém vendas/catálogo disponíveis, sem inventar zeros.
 
 ## Changelog observado
 
+- **26/08/2026 — `sort_field` também é obrigatório no detalhe do extrato, e o
+  payload não é o que o parser supunha.**
+  Ao destravar o checkpoint financeiro congelado desde 13/08, três achados na
+  mesma chamada `GET /finance/202501/statements/{statement_id}/statement_transactions`:
+
+  | O que | Observado |
+  |---|---|
+  | `sort_field` | **Obrigatório**, e o único valor aceito é `order_create_time`. Sondado na conta real: sem o campo, com `create_time` e com `statement_time` → **`36009004`**; com `order_create_time` → 200 com 39 transações. |
+  | Moeda | Vem **no envelope** da resposta (`currency` ao lado de `transactions`), **não** em cada transação. Nenhuma das 39 linhas tinha `currency`, e `requiredCurrency` derrubava todas. |
+  | Tarifa | O campo é **`fee_tax_amount`**. `fee_and_tax_amount` era suposição e nunca existiu: o valor saía `null` em silêncio, o que é pior que lançar — o ledger gravaria a linha sem a maior despesa do pedido. |
+
+  Isto estende a entrada de 13/08: `sort_field` obrigatório com um único valor
+  aceito não vale só para os três endpoints de lista, vale também para o detalhe
+  do extrato. Chaves confirmadas na resposta real: `adjustment_amount`,
+  `adjustment_id`, `adjustment_order_id`, `fee_tax_amount`, `fee_tax_breakdown`,
+  `id`, `order_create_time`, `order_id`, `revenue_amount`, `revenue_breakdown`,
+  `settlement_amount`, `shipping_cost_amount`, `shipping_cost_breakdown`,
+  `supplementary_component`, `type`. Tipos observados: `ORDER` (37) e
+  `LOGISTICS_REIMBURSEMENT` (2) — os dois já na allowlist.
+
+  ⚠️ **Lição que não é da API, é nossa: `advanceCheckpoint` mandava 15
+  parâmetros para uma função de 14.** A `financial_checkpoint_advance` da
+  `0005_workspace_financial_ledger.sql` declara 14 argumentos; o SQL pedia
+  `$1..$15`. O Postgres nem executava — respondia **42883**
+  (*"function ... does not exist"*), porque a assinatura procurada tinha um
+  argumento a mais. Ou seja, **nenhum advance jamais rodou desde que a 0005
+  entrou**, e `workspace_financial_transactions` estava em zero linhas.
+  Só apareceu depois de destravar o `36009004`: um defeito escondia o outro.
+  Corrigido, com teste que compara os placeholders do SQL com os parâmetros
+  declarados na migration.
+
+  ⚠️ **Por que ninguém viu por 14 dias:** as colunas
+  `error_count`/`last_error_code`/`last_error_at` existem desde a 0005 e **nada
+  nunca escrevia nelas** — toda exceção entre `claimCheckpoint` e
+  `advanceCheckpoint` subia sem contador. O checkpoint ficava indistinguível de
+  um que ainda não tinha rodado: página 0, 0/0 linhas, zero erro, enquanto o
+  cron renovava o lease a cada ciclo (o `fencing_token` chegou a **3.070**).
+  Agora a falha é contada, o lease é devolvido e há backoff por recurso.
+  Evidência do destravamento: a janela 12→13/08 fechou com 39 transações
+  gravadas e `completed_at` preenchido nos dois checkpoints.
+
 - **13/08/2026 — as três chamadas financeiras nunca funcionaram: `36009004`.**
   O cron do TikTok respondia `{"ok":true}` e o GitHub Actions marcava `success`,
   mas o corpo trazia `status:"failed"` com

@@ -104,17 +104,21 @@ test("override true não torna alíquota ausente ou inválida conhecida", async 
   }
 });
 
-test("alíquota ausente permanece desconhecida e bloqueia derivados financeiros", async () => {
+test("alíquota ausente NAO bloqueia mais: lucro e margem saem sem o imposto", async () => {
+  // Regra nova, decidida por ela em 26/08/2026. A alíquota é configuração da
+  // vendedora, não dado da Shopee: o lucro sai calculado sem o imposto e a tela
+  // rotula "(sem imposto)", mantendo o CTA "Cadastrar alíquota →".
   assert.equal(shopeeTaxRate(connection()), null);
   const result = await overview();
   assert.equal(result.profit.taxRate, null);
   assert.equal(result.profit.taxRateKnown, false);
+  // O imposto EM SI continua desconhecido — `null`, nunca zero. É o valor
+  // derivado que passa a existir, não o imposto.
   assert.equal(result.profit.taxes, null);
-  assert.equal(result.profit.coverage.complete, false);
-  assert.equal(result.profit.estimatedProfit, null);
-  assert.equal(result.profit.marginPct, null);
-  assert.equal(result.profitabilityLines[0].tax, null);
-  assert.equal(result.profitabilityLines[0].complete, false);
+  assert.equal(result.profit.coverage.complete, true);
+  assert.equal(result.profit.estimatedProfit, 56);
+  assert.ok(Math.abs(result.profit.marginPct - 56) < 1e-9);
+  assert.equal(result.profitabilityLines[0].complete, true);
 });
 
 test("alíquota explicitamente zero é conhecida e permite completude", async () => {
@@ -127,12 +131,12 @@ test("alíquota explicitamente zero é conhecida e permite completude", async ()
   assert.ok(Math.abs(result.profit.marginPct - 56) < 1e-9);
 });
 
-test("override explícito false preserva imposto configurado como desconhecido", async () => {
+test("override explícito false mantém o imposto desconhecido, mas o lucro sai mesmo assim", async () => {
   const result = await overview({ taxRate: 10, taxRateKnown: false });
   assert.equal(result.profit.taxRate, 10);
   assert.equal(result.profit.taxRateKnown, false);
-  assert.equal(result.profit.taxes, null);
-  assert.equal(result.profit.estimatedProfit, null);
+  assert.equal(result.profit.taxes, null, "imposto desconhecido continua null, nunca zero");
+  assert.equal(result.profit.estimatedProfit, 56, "o lucro sai sem imposto, como quando não há alíquota");
 });
 
 test("período parcial bloqueia lucro e completude", async () => {

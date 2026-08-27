@@ -3,7 +3,11 @@
 // porque "R$ 0,00" e "ainda não sei" são fatos diferentes e confundi-los corrompe
 // qualquer decisão de preço ou de compra de estoque.
 //
-// Módulo puro, sem dependências, para ser testável.
+// Módulo puro: a única dependência é o rótulo compartilhado pelos quatro canais.
+
+// Relativo, nao "@/": este modulo e carregado direto pelos testes, onde o
+// alias do Next nao existe.
+import { comSemImposto } from "../../lib/semImposto";
 
 export interface AmazonFinanceInput {
   currency: string;
@@ -306,15 +310,19 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
         // Idem para anúncio: a composição fica escrita, componente por componente.
         ? {
             value: money(lucroReal, currency),
+            // Sem alíquota o lucro sai SEM imposto e o rótulo diz isso — não
+            // bloqueia mais (decisão dela em 26/08/2026). O que continua
+            // bloqueando é dado do canal: repasse não postado, custo sem
+            // cadastro, anúncio desconhecido.
             context:
               anuncioAte ??
-              [
+              comSemImposto([
                 "Faturamento − taxas − custo",
                 input.taxRate == null ? null : "imposto",
                 gastoComAnuncio > 0 ? "anúncio" : null,
               ]
                 .filter(Boolean)
-                .join(" − ") + (input.taxRate == null ? " (sem imposto)" : ""),
+                .join(" − "), input.taxRate == null),
             tone: lucroReal > 0 ? "positive" as const : lucroReal < 0 ? "danger" as const : "default" as const,
             raw: lucroReal,
           }
@@ -333,14 +341,14 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
     {
       key: "marginPct", label: "Margem",
       value: margem == null ? "—" : percent(margem),
-      context: margem == null ? (custoIncompleto ? faltaCusto : "Aguardando receita e lucro completos") : "Lucro sobre faturamento",
+      context: margem == null ? (custoIncompleto ? faltaCusto : "Aguardando receita e lucro completos") : comSemImposto("Lucro sobre faturamento", input.taxRate == null),
       tone: margem == null ? "default" : margem > 0 ? "positive" : margem < 0 ? "danger" : "default",
       raw: margem,
     },
     {
       key: "roiPct", label: "ROI",
       value: roi == null ? "—" : percent(roi),
-      context: roi == null ? (custoIncompleto ? faltaCusto : "Aguardando lucro e custo completos") : "Lucro sobre o custo investido",
+      context: roi == null ? (custoIncompleto ? faltaCusto : "Aguardando lucro e custo completos") : comSemImposto("Lucro sobre o custo investido", input.taxRate == null),
       tone: roi == null ? "default" : roi > 0 ? "positive" : roi < 0 ? "danger" : "default",
       raw: roi,
     },

@@ -522,9 +522,13 @@ export async function getShopeeOverviewFromCanonical(
       const lineFees = feesKnown ? feeShares[index] : null;
       const lineSellerShipping = shippingKnown ? sellerShares[index] : null;
       const lineBuyerShipping = orderBuyerShipping == null ? null : buyerShares[index];
-      const lineTax = taxRateKnown ? lineRevenue * taxRate! / 100 : null;
+      // Alíquota ausente NÃO bloqueia (decisão dela em 26/08/2026): entra como
+      // zero na conta e a tela rotula "(sem imposto)". Tarifa e frete do canal
+      // continuam bloqueando — esses são `null` de dado que a Shopee não
+      // entregou, e ninguém na tela distingue "não cobraram" de "não sei".
+      const lineTax = taxRateKnown ? lineRevenue * taxRate! / 100 : 0;
       const lineProductCost = unitCost == null ? null : unitCost * line.qty;
-      const complete = lineFees != null && lineSellerShipping != null && lineTax != null;
+      const complete = lineFees != null && lineSellerShipping != null;
       const lineResult = complete
         ? calculateContribution({ revenue: lineRevenue, productCost: lineProductCost, marketplaceFees: lineFees, sellerShipping: lineSellerShipping, tax: lineTax })
         : { contribution: null, marginPct: null, complete: false };
@@ -574,11 +578,15 @@ export async function getShopeeOverviewFromCanonical(
     && coveredTo + COVERAGE_TOLERANCE_MS >= period.to.getTime()
     && !!syncRow.products_synced_at;
   const cogsKnown = unitsWithoutCost === 0;
+  // `taxes` saiu desta lista de propósito: a alíquota é configuração da
+  // vendedora, não dado da Shopee. Sem ela o lucro sai SEM imposto (`taxes ?? 0`)
+  // e a tela rotula. Tarifa, frete, ads, retenção, estorno e custo continuam
+  // aqui — sem eles o número seria otimista sem ninguém saber.
   const financialComplete = periodCovered && ordersProcessed >= totals.paid_orders && cogsKnown
-    && [fees, sellerShipping, ads, taxesWithheld, refunds, taxes].every((value) => value != null);
+    && [fees, sellerShipping, ads, taxesWithheld, refunds].every((value) => value != null);
   const cogsValue = cogsKnown ? cogs : null;
   const estimatedProfit = financialComplete
-    ? processedRevenue - fees! - cogsValue! - taxes! - sellerShipping! - ads! - taxesWithheld! - refunds!
+    ? processedRevenue - fees! - cogsValue! - (taxes ?? 0) - sellerShipping! - ads! - taxesWithheld! - refunds!
     : null;
   const marginPct = estimatedProfit != null && processedRevenue > 0 ? (estimatedProfit / processedRevenue) * 100 : null;
 
