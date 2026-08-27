@@ -1,7 +1,6 @@
 import { dbQuery, hasDb } from "../db";
-import { runWithWorkspace } from "../workspaceScope";
 import { runWithAccount, type AccountCtx } from "../accountContext";
-import { getAccount } from "../accountStore";
+import { comContaDoWorkspace } from "./amazonCronScope";
 import { periodFromDays } from "../period";
 import { getDailySales } from "../sales";
 import { getProfitSummary } from "../profit";
@@ -51,16 +50,10 @@ export async function runScheduledAmazonWarm(limit = 2): Promise<number> {
     const sellerId = row.connection_id.startsWith(CONNECTION_PREFIX)
       ? row.connection_id.slice(CONNECTION_PREFIX.length)
       : row.connection_id;
-    const account = await getAccount(sellerId);
-    if (!account?.refreshToken) continue;
-    try {
-      await runWithWorkspace(row.workspace_id, () =>
-        warmOneAccount({ sellerId: account.sellerId, refreshToken: account.refreshToken })
-      );
-      warmed += 1;
-    } catch {
-      // best-effort: segue para a próxima conta.
-    }
+    warmed += await comContaDoWorkspace("warm", { workspace_id: row.workspace_id, sellerId }, 0, async (account) => {
+      await warmOneAccount(account);
+      return 1;
+    });
   }
   return warmed;
 }
