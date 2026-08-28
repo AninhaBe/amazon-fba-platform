@@ -13,7 +13,32 @@ Referência interna do SellerCore. Tudo aqui foi validado em produção (conta B
 
 | Endpoint | Uso no projeto | Observações |
 |---|---|---|
-| `GET /sales/v1/orderMetrics` | **Faturamento oficial** (`src/lib/sales.ts`) | É o número que bate com o Seller Central ("vendas de produtos pedidos"). Granularidade via `granularity` + `granularityTimeZone`. **Fonte da verdade para faturamento — não trocar.** |
+| `GET /sales/v1/orderMetrics` | **"Pedidos feitos"** (`src/lib/sales.ts`) | O número do Seller Central "vendas de produtos **pedidos**". Granularidade via `granularity` + `granularityTimeZone`. **Não é reproduzível pelo canônico** (ver abaixo) — e **não é o faturamento em caixa**: valoriza a preço de tabela, antes do cupom. ⚠️ Esta linha dizia "faturamento oficial / fonte da verdade para faturamento" até 28/08/2026, o que contradiz o changelog medido de 22/08 no fim deste doc. Corrigido para o que a medição mostrou. |
+
+### Por que `orderMetrics` não sai do nosso canônico (28/08/2026)
+
+A pergunta apareceu assim: *"por que a rota chama a Amazon ao vivo se já temos os
+22 mil pedidos no banco?"*. A resposta é que **o dado não está lá para ser
+somado** — e as duas razões já estavam medidas neste doc:
+
+1. **Pedido `Pending` não tem valor.** A Amazon **omite `OrderTotal`** enquanto o
+   pedido está `Pending`, e pedido FBA fica `Pending` mesmo depois do pagamento
+   confirmado. Esses pedidos entram no canônico **sem valor** — não é falha de
+   sync, é ausência na origem. Medido em 21/08/2026: R$ 360,99 conciliado contra
+   R$ 516,27 no Seller Central; a diferença eram **4 pedidos sem valor**.
+2. **`orderMetrics` valoriza a preço de tabela, antes do cupom**; `OrderTotal` é
+   o preço praticado. Medido em 22/08/2026: R$ 449,94 = `360,99` pago + `16,83`
+   de cupom + `72,12` de 3 pendentes.
+
+Ou seja: **são dois números diferentes por construção** — um é tabela e
+"solicitado", o outro é caixa e "capturado". Somar ou trocar um pelo outro
+produz número que não bate com nada.
+
+📌 O que **não** justifica é **bloquear a resposta** esperando por ele. A própria
+rota já trata a falha com `.catch(() => null)` e degrada limpo; se ausência é
+aceitável no erro, ausência temporária também é. Custo medido em 28/08/2026 na
+conta real: **252ms com cache frio, 38ms quente** — real, mas longe de explicar
+qualquer lentidão percebida.
 | `GET /orders/v0/orders` | Lista de pedidos (`src/lib/orders.ts`) | Paginação por `NextToken`. Filtros `CreatedAfter/Before`, `OrderStatuses`. |
 | `GET /orders/v0/orders/{id}/orderItems` | Itens do pedido | — |
 

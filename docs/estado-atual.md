@@ -703,6 +703,45 @@ cache frio: "30 dias" custa 1457ms **quente**, estourando o orçamento de 1s.
 
 ---
 
+## 17. Onde a Amazon mora — e a lição de concluir olhando no lugar errado (28/08/2026)
+
+### A Amazon NÃO está em `workspace_integrations`
+
+A conexão da Amazon vive em **`workspace_accounts`** — a tabela específica dela,
+**anterior ao modelo multicanal**. `workspace_integrations` só tem os canais
+novos (ML, Shopee, TikTok).
+
+O caminho de resolução confirma o desenho: `resolveConnection()` em
+`amazonOverviewCanonical.ts` tenta **`currentAccount()` primeiro** (o contexto
+que vem de `workspace_accounts`, via `withAccountContext`) e só cai em
+`getIntegrations()` se não houver conta.
+
+⚠️ **Quem investigar a Amazon procurando no lugar dos canais novos vai concluir
+errado.** Foi o que aconteceu: consultei `workspace_integrations`, não achei
+linha de `amazon` em nenhum workspace real e reportei *"a Amazon não tem conexão
+ativa; o dashboard não está lento, está desconectado"*. Estava errado — a conta
+está conectada desde 20/07 e servindo dado o tempo todo.
+
+Outro detalhe da mesma tabela que já custou uma medição inteira: o
+`refresh_token` está **cifrado** (`enc:v1:`). Quem ler com `SELECT` cru em vez de
+`accountStore.getAccount()` recebe o valor protegido, toda chamada à SP-API
+falha com *"reconecte a conta"*, e a conclusão sai invertida — na primeira
+versão da sonda de etapas isso fez o `orderMetrics` parecer que "falha rápido",
+inocentando justamente o principal suspeito.
+
+### A lição, que é a segunda do mesmo tipo no mesmo dia
+
+**Ausência encontrada no lugar errado não é ausência.** É irmã da lição de
+algumas horas antes — *"ausência de escrita ≠ ausência de tentativa"* — e as
+duas têm a mesma forma: uma conclusão forte tirada de uma fonte que **nunca
+teria** a resposta.
+
+A defesa é uma pergunta antes da conclusão: *"se a resposta fosse SIM, ela
+apareceria aqui?"* Se não aparecer, o silêncio da consulta não é evidência de
+nada. Vale para tabela, para log, para timestamp e para print de tela.
+
+---
+
 ## Bloqueado por terceiros
 
 - **Solution Provider Portal (Amazon)** — candidatura travada, caso `21250777631`. Sem
