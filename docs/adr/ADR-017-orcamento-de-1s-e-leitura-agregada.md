@@ -296,6 +296,53 @@ velho, nem com esqueleto piscando —, e o cache continua pintando na hora.
 3. **Animação entre valores é afirmação.** Contar de um número a outro é honesto
    quando o MESMO recorte recebe dado novo; quando o recorte muda, os quadros
    intermediários afirmam números que não pertencem a recorte nenhum.
+4. **Contar a partir do ZERO é a saída honesta.** A regra 3 tirou a contagem da
+   troca de período e a dona do produto reclamou três vezes que "o efeito não
+   voltou" — a troca ficou seca. A medição mostrou por quê: a animação de
+   entrada (180ms de fade) *disparava*, só era imperceptível perto da contagem
+   de 550ms que ela conhecia. A volta é contar de 0 até o valor novo, com a
+   mesma duração e a mesma curva: nenhum quadro traz número de outro recorte,
+   porque zero não é total de recorte nenhum, e o movimento diz sozinho que
+   aquilo é animação e não afirmação. O que não pode voltar é o valor **real**
+   do período anterior — número plausível e **parado** é o que se confunde com
+   verdade.
+
+### Identidade de recorte precisa ser estável na granularidade do recorte
+
+A regra 3 exige que o componente saiba de que recorte é o valor, e a identidade
+veio por prop, derivada do dado: `` `${period.from}|${period.to}` ``. Parecia
+certo — e estava errado de um jeito que só apareceu quando a contagem voltou.
+
+As rotas de overview devolvem `to` = **agora**, com milissegundos
+(`2026-08-28T22:24:40.014Z`). Duas respostas do MESMO recorte — a do cache e a da
+revalidação que chega logo atrás — carregam `to` diferente. Para o componente
+isso é troca de período: a contagem **reiniciava do zero no meio** (medido aos
+344ms) e, sob `prefers-reduced-motion`, virava um piscar de R$ 0,00 sem
+movimento nenhum para explicá-lo.
+
+O defeito estava lá desde que a identidade passou a ser derivada do dado;
+ninguém o tinha visto porque, sem contagem, o "período novo" só repintava o
+mesmo valor. **Foi a animação que expôs a instabilidade da chave.**
+
+A regra: **identidade de recorte carrega a granularidade do recorte, e nenhuma
+precisão além dela.** Os presets são janelas de dias inteiros, então o dia
+basta — `identidadeDePeriodo(from, to)` trunca o `to`. Precisão que muda a cada
+resposta não é identidade, é carimbo de tempo. Há teste que reprova quem
+interpolar o `to` cru numa prop `periodo`.
+
+### Armadilha do detector: permanência distingue herança de passagem
+
+O critério "nenhum quadro com valor de outro período" foi lido ao pé da letra
+pela sonda: *quadro cujo valor é igual ao anterior*. Com a contagem a partir do
+zero isso passou a acusar dois casos legítimos — na conta demo "hoje" é R$ 0,00,
+igual ao primeiro quadro da contagem por coincidência; e subindo de 0 até o
+total novo, a contagem **atravessa** o total antigo quando ele é menor.
+
+O que separa afirmação de passagem não é o valor, é a **permanência**: número
+herdado fica parado enquanto ninguém o corrige; número de passagem muda no
+quadro seguinte. A sonda passou a reprovar sequências de 4 quadros ou mais
+(~65ms, tempo de leitura) com o valor antigo sob o rótulo novo, e continua
+imprimindo o total bruto para nada ficar escondido atrás do critério.
 
 ## Lição de 28/08/2026: medição em conta demo não representa a conta dela
 
