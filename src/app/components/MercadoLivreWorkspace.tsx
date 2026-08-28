@@ -511,7 +511,7 @@ function Dashboard({ overview, syncStatus, periodoLabel, connectionId }: { overv
 
 
 function Panel({ title, href, linkLabel, children }: { title: string; href: string; linkLabel: string; children: React.ReactNode }) {
-  return <div className="work-panel border-t border-[var(--line-strong)] py-5"><div className="mb-3 flex items-center justify-between border-b border-[var(--line)] pb-3"><h2 className="text-[13px] font-semibold text-[var(--ink-soft)]">{title}</h2><Link href={href} className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:gap-1.5 hover:text-blue-700">{linkLabel}<span aria-hidden="true">→</span></Link></div>{children}</div>;
+  return <div className="work-panel border-t border-[var(--line-strong)] py-5"><div className="mb-3 flex items-center justify-between border-b border-[var(--line)] pb-3"><h2 className="text-[13px] font-semibold text-[var(--ink-soft)]">{title}</h2><Link href={href} className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--acao)] hover:gap-1.5 hover:opacity-80">{linkLabel}<span aria-hidden="true">→</span></Link></div>{children}</div>;
 }
 
 function Empty({ children }: { children: React.ReactNode }) {

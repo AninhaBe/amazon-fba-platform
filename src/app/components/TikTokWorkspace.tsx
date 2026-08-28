@@ -456,7 +456,7 @@ export function TikTokWorkspace() {
             </ul>}
           </section>
           <section className="tiktok-detail-panel" aria-labelledby="tiktok-catalog-title">
-            <div className="mb-3 flex flex-wrap items-start justify-between gap-3"><div><h2 id="tiktok-catalog-title" className="text-sm font-semibold uppercase tracking-wide text-[var(--ink-muted)]">Catálogo e estoque</h2><p className="mt-1 text-xs text-[var(--ink-muted)]">Quantidade disponível informada pelo catálogo da TikTok Shop.</p></div><Link className="min-h-10 rounded-lg px-3 py-2 text-sm font-semibold text-sky-700 transition-[background-color,color] hover:bg-sky-50 active:scale-[0.96]" href={tiktokProductsHref(selectedConnectionId)}>Gerenciar custos <span aria-hidden="true">→</span></Link></div>
+            <div className="mb-3 flex flex-wrap items-start justify-between gap-3"><div><h2 id="tiktok-catalog-title" className="text-sm font-semibold uppercase tracking-wide text-[var(--ink-muted)]">Catálogo e estoque</h2><p className="mt-1 text-xs text-[var(--ink-muted)]">Quantidade disponível informada pelo catálogo da TikTok Shop.</p></div><Link className="min-h-10 rounded-lg px-3 py-2 text-sm font-semibold text-[var(--acao)] transition-[background-color,color] hover:bg-[var(--brand-soft)] active:scale-[0.96]" href={tiktokProductsHref(selectedConnectionId)}>Gerenciar custos <span aria-hidden="true">→</span></Link></div>
             {!data.catalog?.length ? <EmptyState compact title="Nenhum produto sincronizado" /> : <ul className="divide-y divide-[var(--line)]">
               {data.catalog.slice(0, 8).map((product) => <li key={`${product.id}:${product.sku || ""}`} className="flex items-center justify-between gap-4 py-3 text-sm"><span className="min-w-0"><strong className="block truncate" title={product.title}>{product.title}</strong><small className="text-[var(--ink-muted)]">{product.sku || "Sem SKU"} · {product.status}</small></span><span className={`shrink-0 font-semibold tabular-nums ${product.availableQty === 0 ? "text-red-600" : "text-[var(--ink-soft)]"}`}>{product.availableQty} un.</span></li>)}
             </ul>}
@@ -543,7 +543,7 @@ function PendenciaNotice({ title, pendencias }: { title: string; pendencias: Tik
         {pendencias.map((item) => (
           <li key={item.key}>
             <span className="tabular-nums">{item.text}</span>
-            {item.action ? <> · <Link href={item.action.href} className="font-semibold text-sky-700 underline-offset-2 hover:underline">{item.action.label} <span aria-hidden="true">→</span></Link></> : null}
+            {item.action ? <> · <Link href={item.action.href} className="font-semibold text-[var(--acao)] underline-offset-2 hover:underline">{item.action.label} <span aria-hidden="true">→</span></Link></> : null}
           </li>
         ))}
       </ul>
@@ -563,7 +563,7 @@ function AvisoDeSyncInterrompido({ phase, syncError, onRetry, reconnectHref }: {
         <strong>Autorização da loja expirou</strong>
         <p>
           A sincronização parou e os números abaixo podem estar defasados.{" "}
-          <Link className="text-blue-600 underline" href={reconnectHref}>Reconectar loja <span aria-hidden="true">→</span></Link>
+          <Link className="text-[var(--acao)] underline" href={reconnectHref}>Reconectar loja <span aria-hidden="true">→</span></Link>
         </p>
       </aside>
     );
@@ -574,7 +574,7 @@ function AvisoDeSyncInterrompido({ phase, syncError, onRetry, reconnectHref }: {
       <strong>{detalhe.title}</strong>
       <p>
         {detalhe.description}
-        {detalhe.retryable !== false && <>{" "}<button type="button" className="text-blue-600 underline" onClick={onRetry}>Tentar novamente</button></>}
+        {detalhe.retryable !== false && <>{" "}<button type="button" className="text-[var(--acao)] underline" onClick={onRetry}>Tentar novamente</button></>}
       </p>
     </aside>
   );

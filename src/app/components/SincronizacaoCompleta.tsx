@@ -70,7 +70,7 @@ export function SincronizacaoCompleta({ connectionId, status, coveredFrom }: {
       <button
         type="button"
         onClick={dispensar}
-        className="font-semibold text-sky-700 underline-offset-2 hover:underline"
+        className="font-semibold text-[var(--acao)] underline-offset-2 hover:underline"
       >
         Entendi
       </button>

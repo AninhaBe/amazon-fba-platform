@@ -165,7 +165,7 @@ export function CustomizableMetricGrid({
                   onClick={() => toggleHidden(id)}
                   aria-pressed={!isHidden}
                   aria-label={isHidden ? `Mostrar ${widget.label}` : `Ocultar ${widget.label}`}
-                  className={`icon-hit-area ${isHidden ? "text-[var(--ink-muted)] hover:text-[var(--ink-soft)]" : "text-blue-600 hover:text-blue-700"}`}
+                  className={`icon-hit-area ${isHidden ? "text-[var(--ink-muted)] hover:text-[var(--ink-soft)]" : "text-[var(--acao)] hover:opacity-80"}`}
                 >
                   {isHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>

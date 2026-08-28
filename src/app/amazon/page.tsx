@@ -1074,7 +1074,7 @@ function Panel({
         <h2 className="text-[13px] font-semibold text-[var(--ink-soft)]">{title}</h2>
         <Link
           href={href}
-          className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:gap-1.5 hover:text-blue-700"
+          className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--acao)] hover:gap-1.5 hover:opacity-80"
         >
           {linkLabel}
           <span aria-hidden>→</span>

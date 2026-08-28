@@ -170,6 +170,19 @@ function useNexoResumo(props: BriefingLeadProps): string | null {
 
 export function BriefingLead(props: BriefingLeadProps) {
   const { acoes = [], loading } = props;
+  // ORDEM POR SEVERIDADE, com a semantica que o proprio tipo ja define:
+  // `alerta` = dinheiro parado ou venda perdida; `pendencia` = cadastro
+  // faltando. Tres acoes empilhadas com o mesmo peso e lista sem hierarquia —
+  // a mesma doenca das faixas. O sort e ESTAVEL, entao a ordem que o canal
+  // escolheu dentro de cada tom continua valendo.
+  const ordenadas = [...acoes].sort(
+    (a, b) => (a.tone === "alerta" ? 0 : 1) - (b.tone === "alerta" ? 0 : 1)
+  );
+  // A Shopee pode emitir 6 (3 dela + 3 da saude da conta) e o ML 4. Acima de
+  // tres, o resto vai para um "Mais N" — nenhuma acao e removida, so deixa de
+  // competir de igual para igual com as mais graves.
+  const acoesPrincipais = ordenadas.slice(0, 3);
+  const acoesRestantes = ordenadas.slice(3);
   // Chamado sempre (regra dos hooks), antes de qualquer return.
   const narracao = useNexoResumo(props);
 
@@ -202,7 +215,7 @@ export function BriefingLead(props: BriefingLeadProps) {
 
       {acoes.length > 0 && (
         <ul className="briefing-acoes" aria-label="O que precisa da sua atenção">
-          {acoes.map((a) => (
+          {acoesPrincipais.map((a) => (
             <li key={a.href + a.label}>
               <Link href={a.href} className={`briefing-acao${a.tone === "alerta" ? " is-alerta" : ""}`}>
                 <span className="briefing-acao-marca" aria-hidden="true" />
@@ -211,6 +224,26 @@ export function BriefingLead(props: BriefingLeadProps) {
               </Link>
             </li>
           ))}
+          {acoesRestantes.length > 0 && (
+            <li>
+              <details className="briefing-acoes-mais">
+                <summary>
+                  Mais {acoesRestantes.length} {acoesRestantes.length === 1 ? "ação" : "ações"}
+                </summary>
+                <ul>
+                  {acoesRestantes.map((a) => (
+                    <li key={a.href + a.label}>
+                      <Link href={a.href} className={`briefing-acao${a.tone === "alerta" ? " is-alerta" : ""}`}>
+                        <span className="briefing-acao-marca" aria-hidden="true" />
+                        <span className="briefing-acao-label">{a.label}</span>
+                        <ArrowRight className="briefing-acao-seta" aria-hidden />
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            </li>
+          )}
         </ul>
       )}
     </div>

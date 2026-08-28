@@ -407,7 +407,7 @@ function ShopeeDemoNotice({ connectHref, compacto = false }: { connectHref?: str
       <p className="base-de-data" role="note">
         Os pedidos, produtos e valores desta tela são sintéticos. Nenhuma loja Shopee real está autorizada neste workspace.
         {connectHref && (
-          <> <Link className="font-semibold text-sky-700 underline-offset-2 hover:underline" href={connectHref}>Conectar loja real <span aria-hidden="true">→</span></Link></>
+          <> <Link className="font-semibold text-[var(--acao)] underline-offset-2 hover:underline" href={connectHref}>Conectar loja real <span aria-hidden="true">→</span></Link></>
         )}
       </p>
     );
@@ -558,7 +558,7 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
                   {overview.notasPendentes!.motivos.some((item) => item.motivo != null) && (
                     <> Motivo informado pela Shopee: {overview.notasPendentes!.motivos.filter((item) => item.motivo != null).map((item) => `${item.motivo} (${item.pedidos})`).join("; ")}.</>
                   )}{" "}
-                  <Link href="/shopee/monitor" className="font-semibold text-sky-700 underline-offset-2 hover:underline">Ver pedidos <span aria-hidden="true">→</span></Link>
+                  <Link href="/shopee/monitor" className="font-semibold text-[var(--acao)] underline-offset-2 hover:underline">Ver pedidos <span aria-hidden="true">→</span></Link>
                 </p>
               </aside>
             )}
@@ -567,7 +567,7 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
                 <strong>Aguardando a sincronização</strong>
                 <p>
                   {ordersAwaitingCapture} pedido(s) do período aguardam captura pela sincronização do NEXO.{" "}
-                  <Link href="/shopee/monitor" className="font-semibold text-sky-700 underline-offset-2 hover:underline">Ver pedidos <span aria-hidden="true">→</span></Link>
+                  <Link href="/shopee/monitor" className="font-semibold text-[var(--acao)] underline-offset-2 hover:underline">Ver pedidos <span aria-hidden="true">→</span></Link>
                 </p>
               </aside>
             )}
@@ -676,7 +676,7 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
               {overview.profit.taxRate == null && <Link href={shopeeTaxRateHref(overview.account.id)} className="meli-financial-link">Cadastrar alíquota <span aria-hidden="true">→</span></Link>}
               {!overview.profit.feesComplete && (
                 <p className="text-xs leading-relaxed text-amber-700">
-                  {ordersAwaitingStatement > 0 ? `${ordersAwaitingStatement} venda(s) aguardam a postagem do extrato financeiro pela Shopee.` : "A Shopee ainda não postou o extrato financeiro de todas as vendas do período."} <Link href="/shopee/monitor" className="font-semibold text-sky-700 underline-offset-2 hover:underline">Ver no monitor <span aria-hidden="true">→</span></Link>
+                  {ordersAwaitingStatement > 0 ? `${ordersAwaitingStatement} venda(s) aguardam a postagem do extrato financeiro pela Shopee.` : "A Shopee ainda não postou o extrato financeiro de todas as vendas do período."} <Link href="/shopee/monitor" className="font-semibold text-[var(--acao)] underline-offset-2 hover:underline">Ver no monitor <span aria-hidden="true">→</span></Link>
                 </p>
               )}
               {overview.profit.unitsWithoutCost > 0 && (
@@ -762,7 +762,7 @@ function Panel({ title, href, linkLabel, children }: { title: string; href: stri
     <section className="shopee-detail-panel">
       <div className="mb-3 flex items-center justify-between border-b border-[var(--line)] pb-3">
         <h2 className="text-[13px] font-semibold text-[var(--ink-soft)]">{title}</h2>
-        <Link href={href} className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:gap-1.5 hover:text-blue-700">{linkLabel}<span aria-hidden="true">→</span></Link>
+        <Link href={href} className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--acao)] hover:gap-1.5 hover:opacity-80">{linkLabel}<span aria-hidden="true">→</span></Link>
       </div>
       {children}
     </section>

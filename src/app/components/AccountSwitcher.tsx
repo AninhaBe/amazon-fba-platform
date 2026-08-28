@@ -190,7 +190,7 @@ export function AccountSwitcher({ compact = false }: { compact?: boolean }) {
                 onClick={() => saveName(activeAccount.sellerId)}
                 disabled={saving}
                 aria-label="Salvar nome da conta"
-                className="text-xs font-semibold text-blue-600 hover:text-blue-700 disabled:opacity-50"
+                className="text-xs font-semibold text-[var(--acao)] hover:opacity-80 disabled:opacity-50"
               >
                 ok
               </button>
@@ -208,7 +208,7 @@ export function AccountSwitcher({ compact = false }: { compact?: boolean }) {
                   }}
                   title="Renomear conta"
                   aria-label="Renomear conta"
-                  className="icon-hit-area text-[var(--ink-muted)] hover:text-blue-600"
+                  className="icon-hit-area text-[var(--ink-muted)] hover:text-[var(--acao)]"
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-3.5 w-3.5">
                     <path d="M12 20h9" strokeLinecap="round" />

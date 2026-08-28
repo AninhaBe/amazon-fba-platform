@@ -5420,8 +5420,15 @@ summary:hover { background: var(--paper-soft); }
 .briefing-acao-marca { width: 6px; height: 6px; flex: none; border-radius: 999px; background: var(--warning); }
 .briefing-acao.is-alerta .briefing-acao-marca { background: var(--danger); }
 .briefing-acao-label { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.briefing-acao-seta { width: 14px; height: 14px; flex: none; color: var(--ink-faint); }
-.briefing-acao:hover .briefing-acao-seta { color: var(--ink-muted); }
+/* A seta e a AFORDANCIA da fileira: era --ink-faint, quase invisivel, e a
+   fileira lia como lista de itens em vez de lista de acoes. Ganha o token de
+   acao; o rotulo segue --ink de proposito — tres linhas azuis seria o mesmo
+   grito das faixas que acabamos de desmontar. */
+.briefing-acao-seta { width: 14px; height: 14px; flex: none; color: var(--acao); }
+.briefing-acao:hover .briefing-acao-label { color: var(--acao); }
+.briefing-acoes-mais > summary { display: flex; min-height: var(--control-h-lg); align-items: center; padding-inline: 10px; color: var(--acao); font-size: 12px; font-weight: var(--weight-semibold); cursor: pointer; list-style: none; }
+.briefing-acoes-mais > summary::-webkit-details-marker { display: none; }
+.briefing-acoes-mais > ul { display: flex; flex-direction: column; gap: 2px; list-style: none; margin: 0; padding: 0; }
 
 .briefing-lead.is-loading { flex-direction: column; gap: 8px; }
 .briefing-lead-skeleton {
