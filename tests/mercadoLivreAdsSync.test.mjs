@@ -46,13 +46,44 @@ test("a verificação de sanidade da própria fonte: anúncios têm que bater co
   assert.equal(ok.confere, true);
   assert.equal(ok.cliquesDiferenca, 0);
   assert.equal(ok.gastoDiferenca, 0);
+  assert.equal(ok.houveDivergencia, false, "bateu exato: nada a registrar");
   // Sem deduplicar, a conferência DENUNCIA — que é o ponto dela.
   const torto = conferirContraCampanha(MEDIDO_NA_CONTA_REAL, { clicks: 92, cost: 29.62 });
   assert.equal(torto.confere, false);
   assert.equal(torto.cliquesDiferenca, 24);
   assert.equal(torto.gastoDiferenca, 6.88);
-  // Centavo de arredondamento não é divergência.
-  assert.equal(conferirContraCampanha(unicos, { clicks: 92, cost: 29.61 }).confere, true);
+  assert.equal(torto.gastoDiferencaPct, 23.228, "23% — quatrocentas vezes acima da tolerância");
+});
+
+test("a tolerância aceita a fonte se movendo, mas NÃO em silêncio", () => {
+  // O caso REAL do primeiro ciclo em produção: +2 cliques e +R$0,52 sobre
+  // 1.364 cliques e R$814,87 — a fonte viva mexendo entre as duas chamadas.
+  const anuncios = [{ item_id: "A", campaign_id: 1, metrics: { clicks: 1364, cost: 814.87 } }];
+  const c = conferirContraCampanha(anuncios, { clicks: 1362, cost: 814.35 });
+  assert.equal(c.confere, true, "0,06% cabe na faixa: alarme que grita todo ciclo vira ruído ignorado");
+  // ⚠️ Mas a divergência É registrada — tolerância silenciosa esconde tendência.
+  assert.equal(c.houveDivergencia, true);
+  assert.equal(c.gastoDiferencaPct, 0.064, "o percentual é o número que revela piora ao longo do tempo");
+});
+
+test("a faixa é proporcional: 1% do total ou 3 cliques, o que for maior", () => {
+  // Conta pequena: o piso de 3 cliques protege quem tem pouco volume.
+  const pequena = conferirContraCampanha(
+    [{ item_id: "A", campaign_id: 1, metrics: { clicks: 13, cost: 10.05 } }],
+    { clicks: 10, cost: 10 },
+  );
+  assert.equal(pequena.confere, true, "3 cliques de diferença em conta pequena ainda cabe");
+  const pequenaDemais = conferirContraCampanha(
+    [{ item_id: "A", campaign_id: 1, metrics: { clicks: 14, cost: 10 } }],
+    { clicks: 10, cost: 10 },
+  );
+  assert.equal(pequenaDemais.confere, false, "4 cliques já estoura o piso");
+  // Conta grande: 1% manda, e a duplicata de 23% continua sendo pega.
+  const duplicataGrande = conferirContraCampanha(
+    [{ item_id: "A", campaign_id: 1, metrics: { clicks: 1230, cost: 1230 } }],
+    { clicks: 1000, cost: 1000 },
+  );
+  assert.equal(duplicataGrande.confere, false);
 });
 
 test("divergência é LOGADA, nunca corrigida em silêncio — dinheiro que não fecha precisa de gente", async () => {

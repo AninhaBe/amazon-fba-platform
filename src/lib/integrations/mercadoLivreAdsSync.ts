@@ -66,25 +66,65 @@ export function deduplicarAnuncios(anuncios: AnuncioPads[]): AnuncioPads[] {
 
 /**
  * A verificação de sanidade que a própria fonte oferece: a soma dos anúncios
- * TEM que bater com o total das campanhas. Divergência = duplicata que escapou.
- * Devolve a diferença (0 quando bate) para quem chama decidir — nunca corrige
- * silenciosamente um número de dinheiro.
+ * TEM que bater com o total das campanhas. Divergência grande = duplicata que
+ * escapou. Nunca corrige silenciosamente um número de dinheiro — quem chama
+ * decide o que fazer.
+ *
+ * ⚠️ POR QUE A TOLERÂNCIA NÃO É ZERO, e por que apertá-la NÃO melhora a
+ * qualidade (medido em produção em 28/08/2026):
+ *
+ * As duas listas vêm de DUAS CHAMADAS a uma fonte VIVA. Um clique que entra
+ * entre elas já produz diferença — foi exatamente o que aconteceu no primeiro
+ * ciclo real: +2 cliques e +R$ 0,52 sobre 1.364 cliques e R$ 814,87, ou seja
+ * 0,06%. Com igualdade exata, o alarme dispararia quase todo ciclo, e alarme
+ * que grita sempre vira ruído ignorado — o oposto do que ele existe para fazer.
+ *
+ * A faixa continua pegando o caso REAL com folga enorme: a duplicata que o
+ * Delta mediu inflava o gasto em 23%, quatrocentas vezes acima deste limite.
+ * Chamar os endpoints em sequência foi descartado: custa latência e não garante
+ * nada, porque a fonte não para de se mover.
  */
+export const TOLERANCIA_PERCENTUAL = 0.01;
+export const TOLERANCIA_CLIQUES = 3;
+
+export interface Conferencia {
+  /** Dentro da faixa aceitável? */
+  confere: boolean;
+  cliquesDiferenca: number;
+  gastoDiferenca: number;
+  /** Divergência do gasto em % do total — é o número que revela TENDÊNCIA. */
+  gastoDiferencaPct: number;
+  /** Houve diferença, mesmo dentro da faixa? Decide o registro em nível baixo. */
+  houveDivergencia: boolean;
+}
+
 export function conferirContraCampanha(
   anuncios: AnuncioPads[],
   totalDeCampanhas: { clicks: number; cost: number },
-): { confere: boolean; cliquesDiferenca: number; gastoDiferenca: number } {
+): Conferencia {
   const cliques = anuncios.reduce((soma, a) => soma + (a.metrics?.clicks ?? 0), 0);
   const gasto = anuncios.reduce((soma, a) => soma + (a.metrics?.cost ?? 0), 0);
   const cliquesDiferenca = cliques - totalDeCampanhas.clicks;
-  // Centavo de arredondamento não é divergência; qualquer coisa acima é.
   // `+ 0` normaliza o `-0` que a subtração de floats produz: "menos zero" num
   // relatório de dinheiro confunde quem lê e quebra comparação com `0`.
   const gastoDiferenca = +(gasto - totalDeCampanhas.cost).toFixed(2) + 0;
+  const gastoDiferencaPct = totalDeCampanhas.cost > 0
+    ? +((Math.abs(gastoDiferenca) / totalDeCampanhas.cost) * 100).toFixed(3)
+    : 0;
+
+  const limiteDeCliques = Math.max(TOLERANCIA_CLIQUES, Math.ceil(totalDeCampanhas.clicks * TOLERANCIA_PERCENTUAL));
+  const limiteDeGasto = Math.max(0.01, +(totalDeCampanhas.cost * TOLERANCIA_PERCENTUAL).toFixed(2));
+
   return {
-    confere: cliquesDiferenca === 0 && Math.abs(gastoDiferenca) <= 0.01,
+    confere: Math.abs(cliquesDiferenca) <= limiteDeCliques && Math.abs(gastoDiferenca) <= limiteDeGasto,
     cliquesDiferenca,
     gastoDiferenca,
+    gastoDiferencaPct,
+    // ⚠️ Diferente de `confere`: existe para o registro em nível baixo. Tolerância
+    // SILENCIOSA esconde tendência — se a divergência sair de 0,06% para 0,7% e
+    // ficar lá, é um defeito nascendo DENTRO da faixa aceita, e ninguém veria.
+    // Com o registro, a pergunta "está piorando?" tem resposta.
+    houveDivergencia: cliquesDiferenca !== 0 || Math.abs(gastoDiferenca) > 0.01,
   };
 }
 
@@ -196,14 +236,23 @@ export async function coletarAdsDoMercadoLivre(
     { clicks: 0, cost: 0 },
   );
   const sanidade = conferirContraCampanha(unicos, totalDeCampanhas);
+  const desvio =
+    `cliques ${sanidade.cliquesDiferenca >= 0 ? "+" : ""}${sanidade.cliquesDiferenca}, ` +
+    `gasto ${sanidade.gastoDiferenca >= 0 ? "+" : ""}${sanidade.gastoDiferenca} (${sanidade.gastoDiferencaPct}%)`;
   if (!sanidade.confere) {
     // Log, não conserto: um número de dinheiro que não fecha precisa de gente
     // olhando, e gravar torto é pior que gravar e avisar.
     console.error(
       `[ml-ads] conexao=${connection.id} dia=${dia}: soma dos anuncios NAO bate com as campanhas ` +
-      `(cliques ${sanidade.cliquesDiferenca >= 0 ? "+" : ""}${sanidade.cliquesDiferenca}, ` +
-      `gasto ${sanidade.gastoDiferenca >= 0 ? "+" : ""}${sanidade.gastoDiferenca}) — provavel duplicata nao tratada`,
+      `(${desvio}) — acima da tolerancia, provavel duplicata nao tratada`,
     );
+  } else if (sanidade.houveDivergencia) {
+    // ⚠️ DENTRO DA TOLERÂNCIA, MAS NÃO EM SILÊNCIO (exigência do cérebro,
+    // 28/08/2026): tolerância silenciosa esconde TENDÊNCIA. Se a divergência
+    // subir de 0,06% para 0,7% e ficar lá, é defeito nascendo dentro da faixa
+    // aceita — e sem este registro ninguém veria. Nível baixo de propósito: é
+    // material para a pergunta "está piorando?", não um alarme.
+    console.info(`[ml-ads] conexao=${connection.id} dia=${dia}: divergencia dentro da tolerancia (${desvio})`);
   }
 
   // A moeda é fixa em BRL dentro do gravador: o PADS que consumimos é do site
