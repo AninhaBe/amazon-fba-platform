@@ -85,6 +85,34 @@ versao_na_maquina() {
 VERSAO_ANTES="$(versao_na_maquina)"
 [ -n "$VERSAO_ANTES" ] && echo "versao rodando agora: $VERSAO_ANTES"
 
+# ── ARVORE LIMPA, CONFERIDA AGORA ──────────────────────────────────────────
+#
+# ⚠️ 'fly deploy' monta a imagem lendo a arvore no momento DELE, nao no momento
+# em que alguem conferiu o 'git status'. Em 28/08/2026 a arvore estava limpa
+# quando o deploy foi disparado e SUJA quando o Docker leu: outro agente salvou
+# no meio, e 92 linhas nao commitadas dele foram publicadas sem autorizacao.
+#
+# A licao e a mesma do "release criado nao e release no ar", virada do avesso:
+# ESTADO CONFERIDO NAO E ESTADO NO MOMENTO DO USO. Por isso a conferencia mora
+# aqui, colada no 'fly deploy', e nao na cabeca de quem chamou o script.
+SUJO="$(git status --porcelain 2>/dev/null || true)"
+if [ -n "$SUJO" ]; then
+  echo ""
+  echo "ABORTADO: a arvore nao esta limpa, e o 'fly deploy' publica a ARVORE, nao o commit."
+  echo ""
+  echo "$SUJO"
+  echo ""
+  echo "O QUE FAZER:"
+  echo "  - arquivo seu:            commite ou 'git stash push -- <arquivo>' antes de subir"
+  echo "  - arquivo de outro agente: PEÇA para ele commitar ou dar stash. Nao mexa no"
+  echo "                             trabalho alheio para ganhar tempo, e nao publique"
+  echo "                             o que voce nao tem autorizacao para publicar."
+  echo ""
+  echo "Depois rode este script de novo. Ele confere a arvore OUTRA VEZ, aqui mesmo."
+  exit 1
+fi
+echo "ok: arvore limpa conferida agora, colada no deploy"
+
 set +e
 fly deploy "$MODO" "${APP_ARGS[@]:-}" \
   --build-arg NEXT_PUBLIC_SUPABASE_URL="$SUPABASE_URL" \

@@ -272,6 +272,42 @@ fly machine list -a nexo      # estado das máquinas
 Release criado, build concluído e health 200 **não provam** que o código novo está
 rodando — o health passa igual na versão antiga.
 
+### ⚠️ As três mordidas de 28/08/2026, e a lição comum
+
+Em um único dia o caminho de deploy falhou três vezes, por causas diferentes.
+Ficam juntas aqui de propósito: separadas, cada uma parece azar; juntas, mostram
+o padrão.
+
+| # | O que aconteceu | Causa |
+|---|---|---|
+| 1 | Reportei "no ar" o que **não estava**: a `v145` ficou presa em `running`, a máquina seguiu na anterior, e o lease preso fez o deploy seguinte falhar | Confiei no release criado, não na versão da máquina |
+| 2 | A defesa criada para o item 1 **quebrou o próprio deploy**, duas vezes: `set -o pipefail` + SIGPIPE do `head` matou o script antes do `fly deploy`; depois `"${APP_ARGS[@]:-}"` com array vazio passou string vazia ao `fly status`, que respondeu texto de uso em vez de JSON | A defesa não foi exercitada nos dois caminhos (com e sem argumentos) |
+| 3 | A árvore estava **limpa quando o deploy foi disparado e suja quando o Docker leu**: outro agente salvou no meio, e 92 linhas não commitadas dele foram publicadas sem autorização | Conferência feita minutos antes do uso |
+
+**A lição comum: _estado conferido não é estado no momento do uso._**
+
+É a irmã de *"release criado não é release no ar"*. Nos dois casos alguém olha
+um estado, tira uma conclusão, e o mundo muda entre o olhar e o uso. A defesa é
+sempre a mesma forma: **mover a conferência para colada no uso**, não deixá-la
+na cabeça de quem chamou.
+
+- Item 1 → o script lê a versão **na máquina**, antes e depois, e falha alto.
+- Item 3 → o script confere `git status --porcelain` **imediatamente antes** do
+  `fly deploy`, e aborta dizendo o que fazer:
+
+  ```
+  ABORTADO: a arvore nao esta limpa, e o 'fly deploy' publica a ARVORE, nao o commit.
+    - arquivo seu:             commite ou 'git stash push -- <arquivo>' antes de subir
+    - arquivo de outro agente: PEÇA para ele commitar ou dar stash.
+  ```
+
+  A mensagem diz **o que fazer** porque quem vai lê-la é um agente no meio de uma
+  tarefa, não alguém sentado lendo documentação.
+
+📌 O item 2 tem uma lição própria, que vale para qualquer trava: **defesa também
+é código, e código não exercitado quebra o que deveria proteger.** Uma trava que
+só roda no caminho feliz é um passivo com cara de proteção.
+
 ---
 
 ## 8. O piloto — e o que ele precisa provar
