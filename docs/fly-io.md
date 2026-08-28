@@ -239,6 +239,39 @@ fly secrets set DATABASE_URL=... LWA_CLIENT_SECRET=...
 credenciais do Supabase vazias — o app funciona, o health check passa, e só a tela de login
 denuncia. O script existe para isso.
 
+### ⚠️ "Release criado" NÃO é "release no ar" (incidente de 28/08/2026)
+
+**O que aconteceu.** Um deploy foi disparado, o comando saiu sem erro visível, e a entrega
+foi reportada como estando em produção. Não estava: o release **v145** ficou 26 minutos em
+`running`, **nunca aplicou**, e ainda segurou o **lease** da máquina — o que fez o deploy
+seguinte falhar com `lease currently held by ... expires at ...`. Enquanto isso, a máquina
+seguia rodando a versão **anterior (144)**, e uma correção de produção passou uma hora
+sendo dada como resolvida sem estar. O sintoma que denunciou foi indireto: um segundo
+deploy falhando por lease preso.
+
+**Como o Fly deixa isso invisível:** `fly releases` mostra o release com status `running`,
+que parece "em andamento" e não "travado"; e o comando de deploy pode retornar antes de a
+máquina assumir. **A fonte de verdade é a máquina, não o release** — `fly status` mostra a
+versão que ela realmente roda (campo `fly_release_version` no `--json`).
+
+**A defesa, que agora está no script.** `scripts/fly-deploy.sh` lê a versão ANTES do
+deploy e, depois dele, fica até 5 minutos conferindo se a máquina assumiu uma versão
+**maior**. Se não assumir, o script **falha com código diferente de zero** e diz, com todas
+as letras, para não reportar a entrega como no ar. Também trata o caso do lease preso, com
+a instrução de esperar o horário de expiração informado pelo próprio Fly e repetir.
+
+**Comandos de conferência manual**, quando for preciso investigar:
+
+```bash
+fly status -a nexo            # a VERSÃO QUE A MÁQUINA RODA (é o que vale)
+fly releases -a nexo          # histórico; 'running' por muito tempo = preso
+fly machine list -a nexo      # estado das máquinas
+```
+
+📌 **A regra que fica:** afirmar "está no ar" exige ter visto a versão nova na máquina.
+Release criado, build concluído e health 200 **não provam** que o código novo está
+rodando — o health passa igual na versão antiga.
+
 ---
 
 ## 8. O piloto — e o que ele precisa provar
