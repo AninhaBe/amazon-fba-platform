@@ -39,7 +39,6 @@ import {
   fencedShopeeExternalRead,
   nextShopeeEscrowOffset,
   nextShopeeOrderWindow,
-  SHOPEE_ESCROW_MARK_SQL,
   validateShopeeCatalogSnapshot,
   validateShopeeOrderBatch,
   type ShopeeFailurePhase,
@@ -441,11 +440,15 @@ async function syncMissingEscrow(
   cursorOffset: number,
   assertOwnership: () => Promise<string>
 ): Promise<{ attempted: number; failed: number; nextOffset: number }> {
+  // Liquidação agora vive em coluna (ADR-026 R2); o fallback ao raw cobre as
+  // linhas antigas até o backfill concluir e o namespace `_sellercore` morrer.
+  const NAO_LIQUIDADO = `NOT (o.financial_settled
+        OR COALESCE((o.raw #>> '{_sellercore,shopeeEscrowSettled}')::boolean, false))`;
   const [countRow] = await dbQuery<{ total: number }>(
     `SELECT COUNT(*)::int AS total FROM workspace_channel_orders o
       WHERE o.workspace_id=$1 AND o.provider=$2 AND o.connection_id=$3
         AND o.status IN ('paid','shipped','delivered')
-        AND COALESCE(o.raw #>> '{_sellercore,shopeeEscrowSettled}', 'false') <> 'true'`,
+        AND ${NAO_LIQUIDADO}`,
     [currentWorkspaceId(), PROVIDER, connection.id]
   );
   const total = countRow?.total ?? 0;
@@ -456,7 +459,7 @@ async function syncMissingEscrow(
        FROM workspace_channel_orders o
       WHERE o.workspace_id = $1 AND o.provider = $2 AND o.connection_id = $3
         AND o.status IN ('paid', 'shipped', 'delivered')
-        AND COALESCE(o.raw #>> '{_sellercore,shopeeEscrowSettled}', 'false') <> 'true'
+        AND ${NAO_LIQUIDADO}
       ORDER BY o.occurred_at, o.external_order_id
       LIMIT $4 OFFSET $5`,
     [currentWorkspaceId(), PROVIDER, connection.id, ESCROW_BATCH_SIZE, offset]
@@ -490,20 +493,26 @@ async function syncMissingEscrow(
             [normalizeShopeeOrder(order, { escrow })],
             query,
           );
+          // Conclusão do produto em COLUNAS (ADR-026 R2): o raw fica imutável,
+          // só com o que a Shopee mandou — nada de `_sellercore` novo.
           await query(
             `UPDATE workspace_channel_orders
-                SET raw = ${SHOPEE_ESCROW_MARK_SQL}
-                  || jsonb_build_object('_sellercore', ((${SHOPEE_ESCROW_MARK_SQL}) -> '_sellercore')
-                    || jsonb_build_object('financialEvidence', $5::jsonb)),
+                SET financial_settled = true,
+                    evidence_fees = $5, evidence_seller_shipping = $6, evidence_ads = $7,
+                    evidence_taxes_withheld = $8, evidence_refunds = $9,
                     synced_at = now()
-              WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3 AND external_order_id=$4`,
-            [currentWorkspaceId(), PROVIDER, connection.id, row.external_order_id, JSON.stringify({
-              fees: ["commission_fee", "service_fee", "seller_transaction_fee"].every((field) => Object.hasOwn(escrow.order_income!, field)),
-              sellerShipping: ["actual_shipping_fee", "reverse_shipping_fee"].every((field) => Object.hasOwn(escrow.order_income!, field)),
-              ads: ["campaign_fee", "order_ams_commission_fee"].every((field) => Object.hasOwn(escrow.order_income!, field)),
-              taxesWithheld: ["escrow_tax", "final_escrow_product_gst"].every((field) => Object.hasOwn(escrow.order_income!, field)),
-              refunds: Object.hasOwn(escrow.order_income!, "seller_return_refund"),
-            })],
+              WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3 AND external_order_id=$4
+                -- ADR-022: não regrava linha que já está idêntica.
+                AND (financial_settled, evidence_fees, evidence_seller_shipping,
+                     evidence_ads, evidence_taxes_withheld, evidence_refunds)
+                    IS DISTINCT FROM (true, $5, $6, $7, $8, $9)`,
+            [currentWorkspaceId(), PROVIDER, connection.id, row.external_order_id,
+              ["commission_fee", "service_fee", "seller_transaction_fee"].every((field) => Object.hasOwn(escrow.order_income!, field)),
+              ["actual_shipping_fee", "reverse_shipping_fee"].every((field) => Object.hasOwn(escrow.order_income!, field)),
+              ["campaign_fee", "order_ams_commission_fee"].every((field) => Object.hasOwn(escrow.order_income!, field)),
+              ["escrow_tax", "final_escrow_product_gst"].every((field) => Object.hasOwn(escrow.order_income!, field)),
+              Object.hasOwn(escrow.order_income!, "seller_return_refund"),
+            ],
           );
         },
       );

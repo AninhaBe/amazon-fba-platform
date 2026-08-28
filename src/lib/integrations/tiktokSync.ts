@@ -36,7 +36,6 @@ import {
   requireTiktokLeaseRow,
   TiktokLeaseLostError,
   tiktokSeedSyncWindow,
-  TIKTOK_STATEMENT_MARK_SQL,
   TIKTOK_SYNC_WINDOW_DAYS,
   validateTiktokOrderBatch,
 } from "./tiktokSyncControl";
@@ -212,7 +211,8 @@ async function getSyncRow(connectionId: string): Promise<SyncRow | undefined> {
               WHERE o.workspace_id = sync.workspace_id AND o.provider = sync.provider
                 AND o.connection_id = sync.connection_id
                 AND o.status IN ('paid', 'shipped', 'delivered')
-                AND COALESCE((o.raw #>> '{_sellercore,statementSettled}')::boolean, false) = false) AS financial_backlog
+                AND NOT (o.financial_settled
+                  OR COALESCE((o.raw #>> '{_sellercore,statementSettled}')::boolean, false))) AS financial_backlog
        FROM workspace_marketplace_syncs sync
       WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
     [currentWorkspaceId(), PROVIDER, connectionId]
@@ -430,20 +430,10 @@ async function saveOrderWindow(
         { provider: PROVIDER, connectionId },
         pedidos.map((pedido) => normalizeTiktokOrder(pedido)), query
       );
-      await query(
-        // Só grava quem ainda NÃO tem a marca (ADR-022). Sem este filtro, o
-        // COALESCE regravava o mesmo valor em cada pedido do lote a cada ciclo —
-        // e com 12 mil pedidos do TikTok isso sozinho respondia pela maior parte
-        // do churn que sobrou em workspace_channel_orders depois da Frente 1.1.
-        `UPDATE workspace_channel_orders
-            SET raw=COALESCE(raw,'{}'::jsonb) || jsonb_build_object('_sellercore',
-              COALESCE(raw->'_sellercore','{}'::jsonb)
-              || jsonb_build_object('statementSettled',false))
-          WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3
-            AND external_order_id=ANY($4::text[])
-            AND raw#>>'{_sellercore,statementSettled}' IS NULL`,
-        [currentWorkspaceId(), PROVIDER, connectionId, pedidos.map((pedido) => String(pedido.id))]
-      );
+      // A inicialização `statementSettled:false` no raw morreu com a ADR-026
+      // R2: a coluna `financial_settled` nasce false por DEFAULT — pedido novo
+      // já vem "não liquidado" sem nenhuma escrita extra (e sem o churn que
+      // essa marcação causava antes do filtro da ADR-022).
     });
     gravados += pedidos.length;
   }
@@ -466,7 +456,8 @@ async function syncMissingStatements(
     `SELECT COUNT(*)::int AS total FROM workspace_channel_orders o
       WHERE o.workspace_id=$1 AND o.provider=$2 AND o.connection_id=$3
         AND o.status IN ('paid','shipped','delivered')
-        AND COALESCE((o.raw #>> '{_sellercore,statementSettled}')::boolean, false) = false`,
+        AND NOT (o.financial_settled
+          OR COALESCE((o.raw #>> '{_sellercore,statementSettled}')::boolean, false))`,
     [currentWorkspaceId(), PROVIDER, connectionId]
   );
   const total = countRow?.total ?? 0;
@@ -477,19 +468,28 @@ async function syncMissingStatements(
   // temporal sobre milhares de pedidos (que fazia o cron quase nunca convergir).
   const candidates = await dbQuery<{ external_order_id: string; occurred_at: string; last_attempt_at: string | null; last_outcome: "pending" | "retryable_error" | null }>(
     `WITH candidates AS (
+      -- Colunas primeiro (ADR-026 R2); o fallback ao raw cobre linhas antigas
+      -- até o backfill concluir.
       SELECT o.external_order_id, o.occurred_at,
-            NULLIF(o.raw #>> '{_sellercore,statementLastAttemptAt}', '') AS last_attempt_at,
-            NULLIF(o.raw #>> '{_sellercore,statementLastOutcome}', '') AS last_outcome,
+            COALESCE(o.settlement_attempt_at,
+              NULLIF(o.raw #>> '{_sellercore,statementLastAttemptAt}', '')::timestamptz) AS last_attempt_at,
+            COALESCE(o.settlement_outcome,
+              NULLIF(o.raw #>> '{_sellercore,statementLastOutcome}', '')) AS last_outcome,
             ROW_NUMBER() OVER (PARTITION BY o.occurred_at >= now() - interval '30 days'
-              ORDER BY NULLIF(o.raw #>> '{_sellercore,statementLastAttemptAt}', '')::timestamptz ASC NULLS FIRST,
+              ORDER BY COALESCE(o.settlement_attempt_at,
+                NULLIF(o.raw #>> '{_sellercore,statementLastAttemptAt}', '')::timestamptz) ASC NULLS FIRST,
                        o.occurred_at ASC, o.external_order_id) AS class_rank
        FROM workspace_channel_orders o
       WHERE o.workspace_id = $1 AND o.provider = $2 AND o.connection_id = $3
         AND o.status IN ('paid', 'shipped', 'delivered')
-        AND COALESCE((o.raw #>> '{_sellercore,statementSettled}')::boolean, false) = false
-        AND (NULLIF(o.raw #>> '{_sellercore,statementLastAttemptAt}', '') IS NULL
-          OR NULLIF(o.raw #>> '{_sellercore,statementLastAttemptAt}', '')::timestamptz
-             + CASE WHEN o.raw #>> '{_sellercore,statementLastOutcome}' = 'pending'
+        AND NOT (o.financial_settled
+          OR COALESCE((o.raw #>> '{_sellercore,statementSettled}')::boolean, false))
+        AND (COALESCE(o.settlement_attempt_at,
+              NULLIF(o.raw #>> '{_sellercore,statementLastAttemptAt}', '')::timestamptz) IS NULL
+          OR COALESCE(o.settlement_attempt_at,
+              NULLIF(o.raw #>> '{_sellercore,statementLastAttemptAt}', '')::timestamptz)
+             + CASE WHEN COALESCE(o.settlement_outcome,
+                      o.raw #>> '{_sellercore,statementLastOutcome}') = 'pending'
                     THEN interval '6 hours' ELSE interval '15 minutes' END <= now())
     ) SELECT external_order_id, occurred_at, last_attempt_at, last_outcome
         FROM candidates WHERE class_rank <= 100`,
@@ -530,7 +530,8 @@ async function syncMissingStatements(
               AND NOT EXISTS (SELECT 1 FROM workspace_channel_orders o
                 WHERE o.workspace_id=f.workspace_id AND o.provider=f.provider
                   AND o.connection_id=f.connection_id AND o.external_order_id=f.external_order_id
-                  AND COALESCE((o.raw #>> '{_sellercore,statementSettled}')::boolean,false))`,
+                  AND (o.financial_settled
+                    OR COALESCE((o.raw #>> '{_sellercore,statementSettled}')::boolean,false)))`,
           [currentWorkspaceId(), PROVIDER, connectionId, linha.external_order_id]
           );
           await markStatementAttempt(query, connectionId, linha.external_order_id, "pending");
@@ -545,9 +546,9 @@ async function syncMissingStatements(
       validateTiktokOrderBatch([linha.external_order_id], detalhes);
       const [pedido] = detalhes;
       const token = await assertOwnership();
-      // Metadata interna é gravada separadamente do payload normalizado. O
-      // canonicalStore remove `_sellercore` de todo raw de entrada para que o
-      // marketplace nunca consiga injetar ou sobrescrever esse namespace.
+      // Conclusão do produto em COLUNAS (ADR-026 R2): o raw fica imutável, só
+      // com o que o TikTok mandou. O canonicalStore segue removendo
+      // `_sellercore` de todo raw de entrada — o marketplace nunca injeta nada.
       await withLeaseFence(connectionId, token, async (query) => {
         await saveCanonicalOrders(
           { provider: PROVIDER, connectionId },
@@ -555,19 +556,20 @@ async function syncMissingStatements(
         );
         await query(
         `UPDATE workspace_channel_orders
-            SET raw = ${TIKTOK_STATEMENT_MARK_SQL}
-              || jsonb_build_object('_sellercore', ((${TIKTOK_STATEMENT_MARK_SQL}) -> '_sellercore')
-                || jsonb_build_object('financialEvidence', $5::jsonb)), synced_at = now()
-          WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3 AND external_order_id=$4`,
-        [currentWorkspaceId(), PROVIDER, connectionId, linha.external_order_id, JSON.stringify({
-          fees: Object.hasOwn(settledStatement, "fee_and_tax_amount"),
-          sellerShipping: Object.hasOwn(settledStatement, "shipping_cost_amount"),
-          // O endpoint atual não separa estas categorias. Ausência de evidência
-          // permanece desconhecida, mesmo quando o extrato está liquidado.
-          ads: false,
-          taxesWithheld: false,
-          refunds: false,
-        })]
+            SET financial_settled = true,
+                evidence_fees = $5, evidence_seller_shipping = $6,
+                -- O endpoint atual não separa estas categorias. Ausência de
+                -- evidência permanece desconhecida, mesmo com extrato liquidado.
+                evidence_ads = false, evidence_taxes_withheld = false, evidence_refunds = false,
+                synced_at = now()
+          WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3 AND external_order_id=$4
+            -- ADR-022: não regrava linha que já está idêntica.
+            AND (financial_settled, evidence_fees, evidence_seller_shipping,
+                 evidence_ads, evidence_taxes_withheld, evidence_refunds)
+                IS DISTINCT FROM (true, $5, $6, false, false, false)`,
+        [currentWorkspaceId(), PROVIDER, connectionId, linha.external_order_id,
+          Object.hasOwn(settledStatement, "fee_and_tax_amount"),
+          Object.hasOwn(settledStatement, "shipping_cost_amount")]
         );
         await markStatementAttempt(query, connectionId, linha.external_order_id, "settled");
       });
@@ -596,11 +598,10 @@ async function markStatementAttempt(
   orderId: string,
   outcome: "pending" | "settled" | "retryable_error"
 ): Promise<void> {
+  // Contabilidade de tentativa em coluna (ADR-026 R2) — o raw não é tocado.
   await query(
     `UPDATE workspace_channel_orders
-        SET raw=COALESCE(raw,'{}'::jsonb) || jsonb_build_object('_sellercore',
-          COALESCE(raw->'_sellercore','{}'::jsonb) || jsonb_build_object(
-            'statementLastAttemptAt', clock_timestamp(), 'statementLastOutcome', $5::text))
+        SET settlement_attempt_at = clock_timestamp(), settlement_outcome = $5
       WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3 AND external_order_id=$4`,
     [currentWorkspaceId(), PROVIDER, connectionId, orderId, outcome]
   );

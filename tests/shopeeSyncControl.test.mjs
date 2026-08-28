@@ -5,7 +5,6 @@ import {
   nextShopeeEscrowOffset,
   nextShopeeOrderWindow,
   ownsShopeeLease,
-  shopeeEscrowSettled,
   decodeShopeeSyncFailure,
   encodeShopeeSyncFailure,
   fencedShopeeExternalRead,
@@ -91,8 +90,6 @@ test("janela de pedidos avança para trás até o alvo e conclui ao alcançá-lo
   );
 });
 
-test("settlement depende de marcador explícito, não da presença de fees", () => {
-  assert.equal(shopeeEscrowSettled({ fees: [{ amount: 10 }] }), false);
-  assert.equal(shopeeEscrowSettled({ _sellercore: { shopeeEscrowSettled: false } }), false);
-  assert.equal(shopeeEscrowSettled({ _sellercore: { shopeeEscrowSettled: true } }), true);
-});
+// O helper shopeeEscrowSettled(raw) morreu com a ADR-026 R2: a liquidação
+// virou a coluna financial_settled (o marcador explícito continua sendo a
+// regra — agora tipado pelo schema, não por parsing de JSONB).

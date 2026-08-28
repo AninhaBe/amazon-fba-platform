@@ -456,13 +456,12 @@ async function seedTiktokRepasses(workspaceId, connectionId, agora = new Date())
 /**
  * MARCA DE EXTRATO NO PEDIDO — o que `saveCanonicalOrders` recusa a gravar.
  *
- * `stripReservedCanonicalMetadata` apaga `_sellercore` de qualquer raw que chega
- * de fora: o bloco reservado so e escrito pela plataforma. Por isso a marca vai
- * num UPDATE proprio, com o MESMO merge jsonb que o sync real usa
- * (`TIKTOK_STATEMENT_MARK_SQL` em tiktokSyncControl.ts) — sem apagar nada que ja
- * esteja no bloco.
+ * Desde a ADR-026 R2, a conclusao do produto vive em COLUNAS
+ * (`financial_settled` + `evidence_*`), nao mais em `raw._sellercore` — o mesmo
+ * caminho do sync real (tiktokSync.ts). O raw da demo fica so com o payload
+ * sintetico do canal.
  *
- * Sem ela, `financial_backlog` conta TODO pedido de receita da conexao e
+ * Sem a marca, `financial_backlog` conta TODO pedido de receita da conexao e
  * `deriveTiktokSyncPhase` derruba a fase para "partial": o dashboard mostra
  * "BR · Sincronizando" e "Sincronizacao em andamento" em cima de total oficial.
  * Pedido `pending` fica de fora de proposito — ele e o retido, e nao esta em
@@ -474,12 +473,9 @@ async function marcarExtratoDaDemo(workspaceId, connectionId, orders) {
   if (!ids.length) return 0;
   const marcados = await dbQuery(
     `UPDATE workspace_channel_orders
-        SET raw = COALESCE(raw,'{}'::jsonb) || jsonb_build_object('_sellercore',
-              COALESCE(raw->'_sellercore','{}'::jsonb) || jsonb_build_object(
-                'statementSettled', true,
-                'financialEvidence', jsonb_build_object(
-                  'fees', true, 'sellerShipping', true, 'ads', true,
-                  'taxesWithheld', true, 'refunds', true)))
+        SET financial_settled = true,
+            evidence_fees = true, evidence_seller_shipping = true, evidence_ads = true,
+            evidence_taxes_withheld = true, evidence_refunds = true
       WHERE workspace_id=$1 AND provider='tiktok_shop' AND connection_id=$2
         AND external_order_id = ANY($3::text[])
       RETURNING 1`,

@@ -66,7 +66,7 @@ const CONSULTA = `WITH pedido AS (
          o.occurred_at,
          o.currency AS order_currency,
          o.buyer_shipping,
-         COALESCE((o.raw #>> '{_sellercore,statementSettled}')::boolean, false) AS extrato_liquidado
+         (o.financial_settled OR COALESCE((o.raw #>> '{_sellercore,statementSettled}')::boolean, false)) AS extrato_liquidado
     FROM workspace_channel_orders o
    WHERE o.workspace_id = $1 AND o.provider = $2 AND o.connection_id = $3
      AND o.occurred_at BETWEEN $4 AND $5

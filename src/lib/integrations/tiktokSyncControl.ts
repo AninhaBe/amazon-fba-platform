@@ -113,10 +113,6 @@ export function validateTiktokOrderBatch(
   }
 }
 
-/** Cria o namespace pai quando ausente e preserva outros metadados internos. */
-export const TIKTOK_STATEMENT_MARK_SQL = `COALESCE(raw, '{}'::jsonb)
-  || jsonb_build_object(
-    '_sellercore',
-    COALESCE(raw -> '_sellercore', '{}'::jsonb)
-      || jsonb_build_object('statementSettled', true)
-  )`;
+// TIKTOK_STATEMENT_MARK_SQL morreu com a ADR-026 R2: liquidação e evidência
+// viraram colunas de workspace_channel_orders — estado do produto nunca mais
+// vive dentro do raw.

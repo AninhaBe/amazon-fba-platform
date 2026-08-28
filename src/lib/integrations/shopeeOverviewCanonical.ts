@@ -337,13 +337,15 @@ export async function getShopeeOverviewFromCanonical(
       ),
       query<DetailedLineRow>(
         `WITH detailed AS (
+           -- Colunas primeiro (ADR-026 R2); o fallback ao raw cobre as linhas
+           -- antigas até o backfill concluir e o namespace _sellercore morrer.
            SELECT external_order_id, occurred_at, provider_status, currency, gross, buyer_shipping, fulfillment,
-                  COALESCE((raw #>> '{_sellercore,financialEvidence,fees}')::boolean, false) AS fees_known,
-                  COALESCE((raw #>> '{_sellercore,financialEvidence,sellerShipping}')::boolean, false) AS shipping_known,
-                  COALESCE((raw #>> '{_sellercore,financialEvidence,ads}')::boolean, false) AS ads_known,
-                  COALESCE((raw #>> '{_sellercore,financialEvidence,taxesWithheld}')::boolean, false) AS taxes_withheld_known,
-                  COALESCE((raw #>> '{_sellercore,financialEvidence,refunds}')::boolean, false) AS refunds_known,
-                  COALESCE(raw #>> '{_sellercore,shopeeEscrowSettled}', 'false') = 'true' AS financial_settled
+                  (evidence_fees OR COALESCE((raw #>> '{_sellercore,financialEvidence,fees}')::boolean, false)) AS fees_known,
+                  (evidence_seller_shipping OR COALESCE((raw #>> '{_sellercore,financialEvidence,sellerShipping}')::boolean, false)) AS shipping_known,
+                  (evidence_ads OR COALESCE((raw #>> '{_sellercore,financialEvidence,ads}')::boolean, false)) AS ads_known,
+                  (evidence_taxes_withheld OR COALESCE((raw #>> '{_sellercore,financialEvidence,taxesWithheld}')::boolean, false)) AS taxes_withheld_known,
+                  (evidence_refunds OR COALESCE((raw #>> '{_sellercore,financialEvidence,refunds}')::boolean, false)) AS refunds_known,
+                  (financial_settled OR COALESCE(raw #>> '{_sellercore,shopeeEscrowSettled}', 'false') = 'true') AS financial_settled
              FROM workspace_channel_orders
             WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
               AND occurred_at >= $4 AND occurred_at <= $5 AND status = ANY($6::text[])
@@ -392,9 +394,11 @@ export async function getShopeeOverviewFromCanonical(
       options.costs ?? getCosts(),
       query<AggRow>(
         `WITH scoped AS (
+           -- Colunas primeiro (ADR-026 R2); fallback ao raw até o backfill.
            SELECT o.gross, o.buyer_shipping,
-                  COALESCE(o.raw #>> '{_sellercore,shopeeEscrowSettled}', 'false') = 'true'
-                    OR COALESCE(o.raw #>> '{_sellercore,statementSettled}', 'false') = 'true'
+                  (o.financial_settled
+                    OR COALESCE(o.raw #>> '{_sellercore,shopeeEscrowSettled}', 'false') = 'true'
+                    OR COALESCE(o.raw #>> '{_sellercore,statementSettled}', 'false') = 'true')
                     AS financial_settled,
                   EXISTS (SELECT 1 FROM workspace_channel_order_items i
                            WHERE i.workspace_id = o.workspace_id AND i.provider = o.provider
@@ -410,11 +414,11 @@ export async function getShopeeOverviewFromCanonical(
                   ,(SELECT SUM(f.amount) FROM workspace_channel_order_fees f WHERE f.workspace_id=o.workspace_id AND f.provider=o.provider AND f.connection_id=o.connection_id AND f.external_order_id=o.external_order_id AND f.fee_type='ads') AS ads
                   ,(SELECT SUM(f.amount) FROM workspace_channel_order_fees f WHERE f.workspace_id=o.workspace_id AND f.provider=o.provider AND f.connection_id=o.connection_id AND f.external_order_id=o.external_order_id AND f.fee_type='taxes_withheld') AS taxes_withheld
                   ,(SELECT SUM(f.amount) FROM workspace_channel_order_fees f WHERE f.workspace_id=o.workspace_id AND f.provider=o.provider AND f.connection_id=o.connection_id AND f.external_order_id=o.external_order_id AND f.fee_type='refund') AS refunds
-                  ,COALESCE((o.raw #>> '{_sellercore,financialEvidence,fees}')::boolean, false) AS fees_known
-                  ,COALESCE((o.raw #>> '{_sellercore,financialEvidence,sellerShipping}')::boolean, false) AS shipping_known
-                  ,COALESCE((o.raw #>> '{_sellercore,financialEvidence,ads}')::boolean, false) AS ads_known
-                  ,COALESCE((o.raw #>> '{_sellercore,financialEvidence,taxesWithheld}')::boolean, false) AS taxes_withheld_known
-                  ,COALESCE((o.raw #>> '{_sellercore,financialEvidence,refunds}')::boolean, false) AS refunds_known
+                  ,(o.evidence_fees OR COALESCE((o.raw #>> '{_sellercore,financialEvidence,fees}')::boolean, false)) AS fees_known
+                  ,(o.evidence_seller_shipping OR COALESCE((o.raw #>> '{_sellercore,financialEvidence,sellerShipping}')::boolean, false)) AS shipping_known
+                  ,(o.evidence_ads OR COALESCE((o.raw #>> '{_sellercore,financialEvidence,ads}')::boolean, false)) AS ads_known
+                  ,(o.evidence_taxes_withheld OR COALESCE((o.raw #>> '{_sellercore,financialEvidence,taxesWithheld}')::boolean, false)) AS taxes_withheld_known
+                  ,(o.evidence_refunds OR COALESCE((o.raw #>> '{_sellercore,financialEvidence,refunds}')::boolean, false)) AS refunds_known
              FROM workspace_channel_orders o
             WHERE o.workspace_id = $1 AND o.provider = $2 AND o.connection_id = $3
               AND o.occurred_at >= $4 AND o.occurred_at <= $5 AND o.status = ANY($6::text[])

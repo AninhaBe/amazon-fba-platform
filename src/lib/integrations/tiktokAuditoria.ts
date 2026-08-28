@@ -109,7 +109,7 @@ export interface PedidoAuditavelTiktok {
   declarado: LadoDoFrete;
   /** Frete que o demonstrativo de pagamento debitou. */
   cobrado: LadoDoFrete;
-  /** `raw._sellercore.statementSettled`: o extrato do pedido já fechou. */
+  /** Coluna `financial_settled` (ADR-026 R2; fallback ao raw legado): o extrato do pedido já fechou. */
   extratoLiquidado: boolean;
   /** Lançamentos liquidados (`NOT is_estimated`, tipo `ORDER`) que somaram `cobrado`. */
   lancamentosLiquidados: number;

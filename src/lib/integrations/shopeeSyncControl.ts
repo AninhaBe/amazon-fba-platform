@@ -11,12 +11,8 @@ export function nextShopeeEscrowOffset(offset: number, attempted: number, total:
   return (Math.max(0, offset) + Math.max(0, attempted)) % total;
 }
 
-export function shopeeEscrowSettled(raw: unknown): boolean {
-  if (!raw || typeof raw !== "object") return false;
-  const metadata = (raw as { _sellercore?: unknown })._sellercore;
-  return Boolean(metadata && typeof metadata === "object"
-    && (metadata as { shopeeEscrowSettled?: unknown }).shopeeEscrowSettled === true);
-}
+// shopeeEscrowSettled(raw) morreu com a ADR-026 R2: a liquidação virou a
+// coluna `financial_settled` — estado do produto nunca mais vive no raw.
 
 export type ShopeeFailurePhase = "retryable_error" | "reauth_required" | "terminal_error";
 const FAILURE_PREFIX: Record<Exclude<ShopeeFailurePhase, "retryable_error">, string> = {
@@ -129,12 +125,4 @@ export async function fencedShopeeExternalRead<T>(
   return result;
 }
 
-/** Merge cria tanto o namespace pai quanto a flag e preserva outros metadados internos. */
-export const SHOPEE_ESCROW_MARK_SQL = `
-  COALESCE(raw, '{}'::jsonb)
-  || jsonb_build_object(
-       '_sellercore',
-       COALESCE(raw -> '_sellercore', '{}'::jsonb)
-       || jsonb_build_object('shopeeEscrowSettled', true)
-     )
-`.trim();
+// SHOPEE_ESCROW_MARK_SQL morreu com a ADR-026 R2 — ver a nota acima.

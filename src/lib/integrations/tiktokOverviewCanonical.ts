@@ -64,17 +64,17 @@ export async function getTiktokOverviewFromCanonical(connection: IntegrationConn
   const [syncRows, orders, items, products, costs, backlogRows, ledgerSnapshot] = await Promise.all([
     dbQuery<SyncRow>(`SELECT covered_from, covered_to FROM workspace_marketplace_syncs WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3`, params.slice(0, 3)),
     dbQuery<OrderRow>(`SELECT o.external_order_id, o.status, o.occurred_at, o.gross, o.buyer_shipping, o.currency,
-      COALESCE((o.raw #>> '{_sellercore,statementSettled}')::boolean, false) AS statement_settled,
+      (o.financial_settled OR COALESCE((o.raw #>> '{_sellercore,statementSettled}')::boolean, false)) AS statement_settled,
       (SELECT SUM(f.amount) FROM workspace_channel_order_fees f WHERE f.workspace_id=o.workspace_id AND f.provider=o.provider AND f.connection_id=o.connection_id AND f.external_order_id=o.external_order_id AND f.fee_type IN ('commission','payment','other')) AS fees,
       (SELECT SUM(f.amount) FROM workspace_channel_order_fees f WHERE f.workspace_id=o.workspace_id AND f.provider=o.provider AND f.connection_id=o.connection_id AND f.external_order_id=o.external_order_id AND f.fee_type IN ('shipping_seller','fulfillment')) AS seller_shipping,
       (SELECT SUM(f.amount) FROM workspace_channel_order_fees f WHERE f.workspace_id=o.workspace_id AND f.provider=o.provider AND f.connection_id=o.connection_id AND f.external_order_id=o.external_order_id AND f.fee_type='ads') AS ads,
       (SELECT SUM(f.amount) FROM workspace_channel_order_fees f WHERE f.workspace_id=o.workspace_id AND f.provider=o.provider AND f.connection_id=o.connection_id AND f.external_order_id=o.external_order_id AND f.fee_type='taxes_withheld') AS taxes_withheld,
       (SELECT SUM(f.amount) FROM workspace_channel_order_fees f WHERE f.workspace_id=o.workspace_id AND f.provider=o.provider AND f.connection_id=o.connection_id AND f.external_order_id=o.external_order_id AND f.fee_type='refund') AS refunds,
-      COALESCE((o.raw #>> '{_sellercore,financialEvidence,fees}')::boolean, false) AS fees_known,
-      COALESCE((o.raw #>> '{_sellercore,financialEvidence,sellerShipping}')::boolean, false) AS seller_shipping_known,
-      COALESCE((o.raw #>> '{_sellercore,financialEvidence,ads}')::boolean, false) AS ads_known,
-      COALESCE((o.raw #>> '{_sellercore,financialEvidence,taxesWithheld}')::boolean, false) AS taxes_withheld_known,
-      COALESCE((o.raw #>> '{_sellercore,financialEvidence,refunds}')::boolean, false) AS refunds_known
+      (o.evidence_fees OR COALESCE((o.raw #>> '{_sellercore,financialEvidence,fees}')::boolean, false)) AS fees_known,
+      (o.evidence_seller_shipping OR COALESCE((o.raw #>> '{_sellercore,financialEvidence,sellerShipping}')::boolean, false)) AS seller_shipping_known,
+      (o.evidence_ads OR COALESCE((o.raw #>> '{_sellercore,financialEvidence,ads}')::boolean, false)) AS ads_known,
+      (o.evidence_taxes_withheld OR COALESCE((o.raw #>> '{_sellercore,financialEvidence,taxesWithheld}')::boolean, false)) AS taxes_withheld_known,
+      (o.evidence_refunds OR COALESCE((o.raw #>> '{_sellercore,financialEvidence,refunds}')::boolean, false)) AS refunds_known
       FROM workspace_channel_orders o WHERE o.workspace_id=$1 AND o.provider=$2 AND o.connection_id=$3 AND o.occurred_at >= $4 AND o.occurred_at <= $5 AND o.status=ANY($6::text[]) ORDER BY o.occurred_at DESC,o.external_order_id DESC`, [...params, [...REVENUE_STATUSES]]),
     dbQuery<ItemRow>(`SELECT i.external_order_id, i.external_product_id, i.sku, i.title, i.qty, i.unit_price, i.promotion_discount FROM workspace_channel_order_items i JOIN workspace_channel_orders o ON o.workspace_id=i.workspace_id AND o.provider=i.provider AND o.connection_id=i.connection_id AND o.external_order_id=i.external_order_id WHERE i.workspace_id=$1 AND i.provider=$2 AND i.connection_id=$3 AND o.occurred_at >= $4 AND o.occurred_at <= $5 AND o.status=ANY($6::text[])`, [...params, [...REVENUE_STATUSES]]),
     dbQuery<ProductRow>(`SELECT external_product_id, sku, title, status, price, currency, available_qty
@@ -82,7 +82,7 @@ export async function getTiktokOverviewFromCanonical(connection: IntegrationConn
       ORDER BY status='active' DESC, title, sku`, params.slice(0, 3)),
     getCosts(),
     dbQuery<{ applicable: number; pending: number }>(`SELECT COUNT(*)::int AS applicable,
-      COUNT(*) FILTER (WHERE COALESCE((o.raw #>> '{_sellercore,statementSettled}')::boolean,false)=false)::int AS pending
+      COUNT(*) FILTER (WHERE NOT (o.financial_settled OR COALESCE((o.raw #>> '{_sellercore,statementSettled}')::boolean,false)))::int AS pending
       FROM workspace_channel_orders o WHERE o.workspace_id=$1 AND o.provider=$2 AND o.connection_id=$3
         AND o.status=ANY($4::text[]) AND (o.occurred_at < $5 OR o.occurred_at > $6)`,
       [params[0], params[1], params[2], [...REVENUE_STATUSES], period.from, period.to]),

@@ -63,11 +63,11 @@ test("todo upsert de caminho quente pula linha que não mudou", () => {
 // outras quatro tabelas já tinham chegado a zero.
 const UPDATE_DIRETO_PERMITIDO = [
   // Registro de tentativa: grava clock_timestamp() de propósito, muda sempre.
-  // Que o log de tentativa more na linha do PEDIDO é questionável, mas mudar
-  // isso é decisão de desenho, não desperdício — fica fora desta frente.
-  "statementLastAttemptAt",
-  // Marca de evidência financeira: grava conteúdo novo vindo do extrato.
-  "financialEvidence",
+  // Desde a ADR-026 R2 mora na coluna settlement_attempt_at (antes era
+  // raw._sellercore.statementLastAttemptAt). Que o log de tentativa more na
+  // linha do PEDIDO é questionável, mas mudar isso é decisão de desenho, não
+  // desperdício — fica fora desta frente.
+  "settlement_attempt_at = clock_timestamp()",
 ];
 
 test("UPDATE direto em tabela canônica não regrava linha igual", () => {
