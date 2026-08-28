@@ -1,5 +1,4 @@
 import { invalidateByKeyPart } from "./cache";
-import { invalidateMercadoLivreOverviewSnapshots } from "./integrations/mercadoLivreOverviewCache";
 
 /**
  * Chaves de cache cujo resultado embute o custo cadastrado. Trocar o custo de um
@@ -31,8 +30,9 @@ const CHAVES_COM_CUSTO = [
  */
 export async function invalidateCostDerivedCaches(): Promise<void> {
   invalidateByKeyPart(...CHAVES_COM_CUSTO);
-  // Snapshot em banco do ML — não vive no cache de memória.
-  await invalidateMercadoLivreOverviewSnapshots();
+  // O snapshot em banco do ML saiu daqui em 28/08/2026: o materializer foi
+  // desligado (plano da migração canônica, passo 4) e ninguém mais lê a tabela
+  // — a invalidação era só write amplification (3,0 M de updates em 12 linhas).
 }
 
 /** Exportado para teste: a lista precisa acompanhar quem passa a usar custo. */

@@ -10,7 +10,6 @@ import {
   type MercadoLivreShipmentCosts,
 } from "./mercadoLivre";
 import type { MercadoLivreNotification } from "./mercadoLivreNotification";
-import { invalidateMercadoLivreOverviewSnapshots } from "./mercadoLivreOverviewCache";
 import type { IntegrationConnection } from "./types";
 import {
   canonicalShipmentCosts,
@@ -285,7 +284,6 @@ export async function processMercadoLivreEvent(event: QueuedMercadoLivreEvent): 
   try {
     await processResource(row);
     await runWithWorkspace(row.workspace_id, async () => {
-      await invalidateMercadoLivreOverviewSnapshots(row.connection_id);
       await dbQuery(
         `UPDATE workspace_marketplace_syncs
             SET last_success_at = now(), updated_at = now()

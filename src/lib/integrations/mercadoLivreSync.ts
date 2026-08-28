@@ -9,7 +9,6 @@ import {
   type MercadoLivrePeriod,
   type MercadoLivreShipmentCosts,
 } from "./mercadoLivre";
-import { invalidateMercadoLivreOverviewSnapshots } from "./mercadoLivreOverviewCache";
 import {
   canonicalShipmentCosts,
   normalizeMercadoLivreOrder,
@@ -318,7 +317,6 @@ async function syncMissingShipmentCosts(connection: IntegrationConnection): Prom
 
 export async function runMercadoLivreSyncStep(
   connection: IntegrationConnection,
-  invalidateSnapshot = true,
   prepareSync = true
 ): Promise<MercadoLivreSyncStatus> {
   if (!hasDb()) return publicStatus();
@@ -436,7 +434,6 @@ export async function runMercadoLivreSyncStep(
       [workspaceId, PROVIDER, connection.id, error instanceof Error ? error.message : "Falha ao sincronizar Mercado Livre.", ownershipToken]
     );
   }
-  if (invalidateSnapshot) await invalidateMercadoLivreOverviewSnapshots(connection.id);
   return publicStatus(await getSyncRow(connection.id));
 }
 
@@ -472,7 +469,6 @@ export async function reverifyMercadoLivreOrders(
       WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
     [currentWorkspaceId(), PROVIDER, connection.id, nextTo]
   );
-  await invalidateMercadoLivreOverviewSnapshots(connection.id);
   return { from: from.toISOString(), to: to.toISOString(), orders: orders.length };
 }
 
@@ -511,12 +507,9 @@ export async function runMercadoLivreSyncBatch(
   let status = await requestMercadoLivreSync(connection.id);
   for (let step = 0; step < maxSteps; step += 1) {
     if (status.status === "complete" || status.status === "error" || status.status === "unavailable") break;
-    status = await runMercadoLivreSyncStep(connection, false, false);
+    status = await runMercadoLivreSyncStep(connection, false);
     if (status.busy) break;
   }
-  // Não apaga os snapshots a cada lote do histórico. Eles expiram sozinhos em
-  // dois minutos e carregam o status atual da sincronização separadamente.
-  // Webhooks, custos e sincronizações manuais continuam invalidando imediatamente.
   return status;
 }
 
