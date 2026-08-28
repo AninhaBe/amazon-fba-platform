@@ -337,14 +337,24 @@ async function validConnection(connection: IntegrationConnection): Promise<Integ
   return connection;
 }
 
-export async function mercadoLivreFetch<T>(connection: IntegrationConnection, resource: string): Promise<T> {
+/**
+ * `extras` existe para a API de Product Ads (PADS), que EXIGE cabeçalho de
+ * versão e usa grafias diferentes por rota: `Api-Version: 1` em
+ * `/advertising/advertisers` e `api-version: 2` no resto. Sem ele, a resposta é
+ * 404 — medido pelo Delta em 28/08/2026. Nenhuma chamada existente muda.
+ */
+export async function mercadoLivreFetch<T>(
+  connection: IntegrationConnection,
+  resource: string,
+  extras?: Record<string, string>,
+): Promise<T> {
   let current = await validConnection(connection);
   let refreshed = false;
   for (let attempt = 0; attempt < 3; attempt++) {
     let response: Response;
     try {
       response = await fetch(`${API_BASE}${resource}`, {
-        headers: { Authorization: `Bearer ${current.accessToken}`, Accept: "application/json" },
+        headers: { Authorization: `Bearer ${current.accessToken}`, Accept: "application/json", ...extras },
         cache: "no-store",
         signal: AbortSignal.timeout(10_000),
       });

@@ -4,6 +4,7 @@ import {
   runScheduledMercadoLivreSync,
 } from "@/lib/integrations/mercadoLivreScheduler";
 import { retomarEventosPresosMercadoLivre } from "@/lib/integrations/mercadoLivreWebhook";
+import { runScheduledMercadoLivreAds } from "@/lib/integrations/mercadoLivreAdsScheduler";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,11 +34,20 @@ export async function GET(req: NextRequest) {
   } catch {
     /* varredura é best-effort — uma falha aqui não quebra o cron */
   }
+  // Product Ads: síncrono (sem o vaivém da Amazon) e complementar — anúncio que
+  // falha não pode derrubar a ingestão de pedidos, que é o que paga a conta.
+  let ads: Awaited<ReturnType<typeof runScheduledMercadoLivreAds>> = [];
+  try {
+    ads = await runScheduledMercadoLivreAds();
+  } catch {
+    /* idem: best-effort */
+  }
   return NextResponse.json({
     ok: true,
     processed: results.length,
     reverified: reverify.length,
     eventosRetomados,
+    ads,
     durationMs: Math.round(performance.now() - startedAt),
     results,
     reverify,
