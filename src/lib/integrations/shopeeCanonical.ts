@@ -44,7 +44,9 @@ export interface ShopeeOrderDetail {
   item_list?: ShopeeOrderItem[];
   package_list?: Array<{ shipping_carrier?: string; logistics_status?: string }>;
   fulfillment_flag?: string;
-  invoice_data?: unknown;
+  /** [BR] Status da NF-e no detalhe do pedido (`pending` | `valid`); o motivo
+   * só vem em pronto-para-enviar com nota pendente. */
+  invoice_data?: { status?: string; pending_reason?: string } | null;
 }
 
 /** Bloco `order_income` de v2.payment.get_escrow_detail. */
@@ -119,6 +121,16 @@ export function sanitizeShopeeOrder(order: ShopeeOrderDetail): Record<string, un
       shipping_carrier: pkg.shipping_carrier,
       logistics_status: pkg.logistics_status,
     })),
+    // NF-e: SÓ status + motivo — metadado operacional do canal, não documento
+    // fiscal nem dado de comprador (a regra do allowlist continua valendo).
+    // ⚠️ RETENÇÃO (condição registrada pelo cérebro em 28/08/2026): o dashboard
+    // lê estes campos de `raw`. Quando o expurgo de payload do ADR-026/R2-b for
+    // desenhado, eles precisam (a) ficar fora do expurgo enquanto o pedido
+    // estiver com nota pendente, ou (b) migrar para coluna nesse dia.
+    invoice_data: order.invoice_data == null ? undefined : {
+      status: order.invoice_data.status,
+      pending_reason: order.invoice_data.pending_reason,
+    },
   })) as Record<string, unknown>;
 }
 

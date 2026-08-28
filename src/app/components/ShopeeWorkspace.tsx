@@ -55,6 +55,7 @@ interface Overview {
     currency: string;
     revenueCoverage: { capturedOrders: number; totalOrders: number; complete: boolean };
   };
+  notasPendentes?: { pedidos: number; motivos: Array<{ motivo: string | null; pedidos: number }> };
   profit: {
     fees: number | null; ads: number | null; taxesWithheld: number | null; refunds: number | null;
     cogs: number | null; taxes: number | null; taxRate: number | null;
@@ -499,6 +500,19 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
       {ordersAwaitingCapture > 0 && (
         <div role="status" className="integration-message is-error">
           {ordersAwaitingCapture} pedido(s) do período aguardam captura pela sincronização do NEXO. <Link href="/shopee/monitor" className="font-semibold text-sky-700 underline-offset-2 hover:underline">Ver pedidos <span aria-hidden="true">→</span></Link>
+        </div>
+      )}
+
+      {/* NF-e pendente trava o ENVIO na Shopee (regra de 29/07/2026) — decisão
+          da Ana em 28/08/2026: pendência com número e link, nunca invisível. O
+          motivo só aparece quando a Shopee o mandou; ausência não vira texto. */}
+      {(overview.notasPendentes?.pedidos ?? 0) > 0 && (
+        <div role="status" className="integration-message is-error">
+          {overview.notasPendentes!.pedidos} pedido(s) aguardando NF-e — a Shopee bloqueia o envio até a nota ser validada.
+          {overview.notasPendentes!.motivos.some((item) => item.motivo != null) && (
+            <> Motivo informado pela Shopee: {overview.notasPendentes!.motivos.filter((item) => item.motivo != null).map((item) => `${item.motivo} (${item.pedidos})`).join("; ")}.</>
+          )}{" "}
+          <Link href="/shopee/monitor" className="font-semibold text-sky-700 underline-offset-2 hover:underline">Ver pedidos <span aria-hidden="true">→</span></Link>
         </div>
       )}
 

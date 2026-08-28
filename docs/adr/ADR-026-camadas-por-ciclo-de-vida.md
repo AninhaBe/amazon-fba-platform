@@ -39,3 +39,12 @@ Nenhum está no horizonte medido (crescimento atual: ~4,9 MB/dia, 85% de um úni
 - ➕ A direção fica gravada: próxima pessoa não guarda estado em `raw` nem propõe warehouse por reflexo.
 - ➖ Disciplina sem enforcement de ferramenta; mitigado pela regra 2 ser verificável em review (grep por `_sellercore`/jsonb_set em raw) e pelo strip de `stripReservedCanonicalMetadata` (`src/lib/integrations/canonicalMetadata.ts`) passar a rejeitar em vez de preservar, ao fim da R2.
 - ➖ Reprocessar pedido com bronze expurgado exige rebuscar na API do canal (aceito na ADR-016; janela de N dias cobre o uso real).
+
+## Condições registradas para o desenho do expurgo (R2-b/retenção)
+
+- **NF-e da Shopee lê `raw` (28/08/2026, condição do cérebro):** a faixa "pedido
+  aguardando NF-e" lê `raw->invoice_data` (`status`/`pending_reason`, mantidos
+  pelo sub-allowlist de `sanitizeShopeeOrder`). Quando o expurgo do bronze for
+  desenhado, esses campos precisam **(a)** ficar fora do expurgo enquanto o
+  pedido estiver com nota pendente, ou **(b)** migrar para coluna nesse dia —
+  senão o expurgo apaga uma pendência operacional viva da tela.

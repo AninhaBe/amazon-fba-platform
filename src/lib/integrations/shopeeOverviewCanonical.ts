@@ -181,6 +181,12 @@ export interface ShopeeOverview {
     currency: string;
     revenueCoverage: { capturedOrders: number; totalOrders: number; complete: boolean };
   };
+  /**
+   * Pedidos com NF-e pendente AGORA (sem recorte de período — pendência
+   * operacional). `motivo` é o `pending_reason` cru da Shopee; null quando ela
+   * não mandou (o campo só vem em pronto-para-enviar) — nunca inventado.
+   */
+  notasPendentes: { pedidos: number; motivos: Array<{ motivo: string | null; pedidos: number }> };
   profit: {
     fees: number | null;
     ads: number | null;
@@ -293,7 +299,7 @@ export async function getShopeeOverviewFromCanonical(
   // Sem sync e sem pedido no período: a UI mostra o estado de conexão, não zeros.
   if (!syncRow || (!syncRow.products_synced_at && (totals?.total_orders ?? 0) === 0)) return null;
 
-  const [dailyRows, recentRows, productTotalsRows, lineRows, catalogRows, costs, aggRows, cogsRows] =
+  const [dailyRows, recentRows, productTotalsRows, lineRows, catalogRows, costs, aggRows, cogsRows, invoiceRows] =
     await Promise.all([
       query<DailyRow>(
         `SELECT to_char(o.occurred_at AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD') AS date,
@@ -452,6 +458,22 @@ export async function getShopeeOverviewFromCanonical(
           GROUP BY i.external_product_id, i.sku,
                    to_char(o.occurred_at AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD')`,
         [...scopeParams(workspaceId, connection.id, period, provider), REVENUE]
+      ),
+      // NF-e pendente AGORA — pendência operacional, não métrica: de propósito
+      // SEM filtro de período (nota travada trava o envio hoje, não importa o
+      // recorte da tela). O motivo é o texto cru da Shopee quando ela o manda;
+      // ausente vira null, nunca texto inventado. Só pedidos vivos ('paid'):
+      // cancelado/entregue não tem envio a destravar.
+      query<{ motivo: string | null; pedidos: number }>(
+        `SELECT NULLIF(TRIM(raw #>> '{invoice_data,pending_reason}'), '') AS motivo,
+                COUNT(*)::int AS pedidos
+           FROM workspace_channel_orders
+          WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
+            AND status = 'paid'
+            AND raw #>> '{invoice_data,status}' = 'pending'
+          GROUP BY 1
+          ORDER BY pedidos DESC`,
+        [workspaceId, provider, connection.id]
       ),
     ]);
 
@@ -672,6 +694,10 @@ export async function getShopeeOverviewFromCanonical(
       lastSaleAt: totals.last_sale_at ? new Date(totals.last_sale_at).toISOString() : null,
       currency,
       revenueCoverage: { capturedOrders: totals.total_orders, totalOrders: totals.total_orders, complete: periodCovered },
+    },
+    notasPendentes: {
+      pedidos: invoiceRows.reduce((total, row) => total + row.pedidos, 0),
+      motivos: invoiceRows.map((row) => ({ motivo: row.motivo, pedidos: row.pedidos })),
     },
     profit: {
       fees,

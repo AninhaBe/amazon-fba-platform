@@ -404,6 +404,10 @@ export async function getShopeeOrderDetail(
       "pay_time",
       "update_time",
       "package_list",
+      // [BR] Status da NF-e (anúncio de 29/07/2026 — ver docs/api-shopee.md):
+      // campo opcional SÓ vem se pedido aqui. Sem ele, pedido travado por nota
+      // é invisível para a vendedora.
+      "invoice_data",
     ].join(","),
   }));
   return { order_list: requireShopeeArray(raw.order_list) };
