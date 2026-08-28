@@ -81,6 +81,18 @@
   --positive-soft: oklch(0.956 0.027 160);
   --warning: oklch(0.575 0.126 72);
   --danger: oklch(0.545 0.17 27);
+  /* Pares de STATUS. `--positive`/`--positive-soft` ja existiam nesse formato;
+     os outros tres faltavam, e por isso metade dos chips do produto usava
+     Tailwind cru (`bg-red-100 text-red-700`) enquanto a outra metade da MESMA
+     estrutura usava token — visto em `estoque/page.tsx:27-33`, e repetido no
+     monitor e na curva ABC. O `-soft` segue a mesma receita do positivo:
+     lightness 0.956 e chroma 0.027 no matiz do par. */
+  --danger-soft: oklch(0.956 0.027 27);
+  --warning-soft: oklch(0.956 0.027 72);
+  /* `--info` = estado que nao e erro nem sucesso (excesso de estoque, transacao
+     neutra). Nao e matiz nova: e o azul do proprio sistema, o mesmo de --acao. */
+  --info: var(--amazon-dark);
+  --info-soft: oklch(0.956 0.027 249);
   /* Papel ACAO (regra de enfase, 28/08/2026): o unico texto corrido que ganha
      cor alem de alerta. NAO e cor nova — aponta para o azul que o produto ja
      usa. Existe porque hoje o MESMO link de acao aparece como `text-sky-700`,

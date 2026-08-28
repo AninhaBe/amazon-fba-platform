@@ -26,10 +26,10 @@ interface RadarRow {
 
 const STATUS_META: Record<StockStatus, { label: string; dot: string; chip: string }> = {
   out: { label: "Esgotado", dot: "bg-[var(--ink)]", chip: "bg-[var(--ink-08)] text-[var(--ink)]" },
-  critical: { label: "Repor já", dot: "bg-red-500", chip: "bg-red-100 text-red-700" },
-  low: { label: "Repor em breve", dot: "bg-amber-500", chip: "bg-amber-100 text-amber-700" },
-  ok: { label: "Ok", dot: "bg-emerald-500", chip: "bg-emerald-100 text-emerald-700" },
-  overstock: { label: "Excesso", dot: "bg-sky-500", chip: "bg-sky-100 text-sky-700" },
+  critical: { label: "Repor já", dot: "bg-[var(--danger)]", chip: "bg-[var(--danger-soft)] text-[var(--danger)]" },
+  low: { label: "Repor em breve", dot: "bg-[var(--warning)]", chip: "bg-[var(--warning-soft)] text-[var(--warning)]" },
+  ok: { label: "Ok", dot: "bg-[var(--positive)]", chip: "bg-[var(--positive-soft)] text-[var(--positive)]" },
+  overstock: { label: "Excesso", dot: "bg-[var(--info)]", chip: "bg-[var(--info-soft)] text-[var(--info)]" },
   idle: { label: "Sem venda", dot: "bg-[var(--ink-32)]", chip: "bg-[var(--ink-05)] text-[var(--ink-muted)]" },
 };
 

@@ -406,9 +406,9 @@ function MonitorPage({ secaoInicial }: { secaoInicial: MonitorSection }) {
                         <td className="px-4 py-3">
                           <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                             transaction.status === "RELEASED"
-                              ? "bg-emerald-100 text-emerald-700"
+                              ? "bg-[var(--positive-soft)] text-[var(--positive)]"
                               : transaction.status === "DEFERRED"
-                                ? "bg-amber-100 text-amber-700"
+                                ? "bg-[var(--warning-soft)] text-[var(--warning)]"
                                 : "bg-[var(--ink-05)] text-[var(--ink-soft)]"
                           }`}>
                             {transaction.status === "RELEASED"

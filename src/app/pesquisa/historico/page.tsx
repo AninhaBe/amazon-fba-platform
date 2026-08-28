@@ -416,7 +416,7 @@ export default function HistoricoPage() {
               {query.trim()
                 ? `${visible.length} de ${items.length} anúncio(s)`
                 : `${items.length} anúncio(s) acompanhado(s)`}
-              {atualizando && <span className="ml-2 text-xs text-blue-500">· atualizando posições…</span>}
+              {atualizando && <span className="ml-2 text-xs text-[var(--ink-muted)]">· atualizando posições…</span>}
             </p>
           </div>
           <div className="flex gap-1 rounded-lg border border-[var(--line-strong)] bg-white p-1 text-xs">

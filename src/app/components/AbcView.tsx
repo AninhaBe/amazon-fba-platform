@@ -43,9 +43,9 @@ interface AbcRequestState {
 }
 
 const QUAD: Record<Quadrant, { label: string; sub: string; act: string; info: string; dot: string; tag: string }> = {
-  motor: { label: "Prioritários", sub: "alto giro · alta margem", act: "Proteger e garantir estoque", info: "<b>Seus melhores produtos:</b> giram bem e ainda deixam boa margem. São o motor do lucro — priorize estoque e posição, e nunca deixe faltar.", dot: "bg-emerald-500", tag: "bg-emerald-50 text-emerald-700" },
-  vamp: { label: "Baixa margem", sub: "alto giro · baixa margem", act: "Rever preço ou frete grátis", info: "<b>Vendem muito, mas sobra pouco</b> por unidade. Costumam esconder frete grátis assumido ou preço apertado. Pequenos ajustes aqui rendem muito no total.", dot: "bg-red-500", tag: "bg-red-50 text-red-600" },
-  joia: { label: "Potenciais", sub: "baixo giro · alta margem", act: "Investir: anúncio, ads, estoque", info: "<b>Margem alta, mas vendem pouco.</b> Têm espaço para crescer — vale investir em anúncio, ads ou preço mais competitivo sem perder rentabilidade.", dot: "bg-blue-600", tag: "bg-blue-50 text-[var(--acao)]" },
+  motor: { label: "Prioritários", sub: "alto giro · alta margem", act: "Proteger e garantir estoque", info: "<b>Seus melhores produtos:</b> giram bem e ainda deixam boa margem. São o motor do lucro — priorize estoque e posição, e nunca deixe faltar.", dot: "bg-[var(--positive)]", tag: "bg-[var(--positive-soft)] text-[var(--positive)]" },
+  vamp: { label: "Baixa margem", sub: "alto giro · baixa margem", act: "Rever preço ou frete grátis", info: "<b>Vendem muito, mas sobra pouco</b> por unidade. Costumam esconder frete grátis assumido ou preço apertado. Pequenos ajustes aqui rendem muito no total.", dot: "bg-[var(--danger)]", tag: "bg-[var(--danger-soft)] text-[var(--danger)]" },
+  joia: { label: "Potenciais", sub: "baixo giro · alta margem", act: "Investir: anúncio, ads, estoque", info: "<b>Margem alta, mas vendem pouco.</b> Têm espaço para crescer — vale investir em anúncio, ads ou preço mais competitivo sem perder rentabilidade.", dot: "bg-[var(--info)]", tag: "bg-[var(--info-soft)] text-[var(--info)]" },
   morto: { label: "Marginais", sub: "baixo giro · baixa margem", act: "Avaliar descontinuar", info: "<b>Vendem pouco e lucram pouco.</b> Consomem estoque, capital e atenção com pouco retorno. Candidatos a revisão de preço ou descontinuação.", dot: "bg-[var(--ink-32)]", tag: "bg-[var(--ink-05)] text-[var(--ink-muted)]" },
 };
 const QUAD_ORDER: Quadrant[] = ["motor", "vamp", "joia", "morto"];
@@ -234,7 +234,7 @@ function Results({ data, quad, setQuad, costsHref }: { data: Abc; quad: Quadrant
               <tbody>
                 {shown.map((p) => {
                   const q = p.quadrant ? QUAD[p.quadrant] : null;
-                  const clsColor = p.profitClass === "A" ? "bg-emerald-50 text-emerald-700" : p.profitClass === "B" ? "bg-amber-50 text-amber-700" : "bg-[var(--ink-05)] text-[var(--ink-muted)]";
+                  const clsColor = p.profitClass === "A" ? "bg-[var(--positive-soft)] text-[var(--positive)]" : p.profitClass === "B" ? "bg-[var(--warning-soft)] text-[var(--warning)]" : "bg-[var(--ink-05)] text-[var(--ink-muted)]";
                   const neg = p.contribution != null && p.contribution < 0;
                   const marginStatus = marginTone(p.marginPct);
                   return (
