@@ -228,6 +228,44 @@ não tinham tarifa conciliada), então provava apenas que `null = null`. A prova
 valer ao amostrar pedidos que **têm** tarifa: 659 valores reais de dinheiro comparados.
 **Amostra sem o fenômeno não prova nada.**
 
+## Lição de 28/08/2026: o esqueleto escondia uma mentira
+
+Quando o cache de período entrou nos quatro canais, a dona relatou o oposto do
+esperado: *"deveria ser instantâneo no clique"*, e mandou print do dashboard da
+Amazon com **R$ 325,91 (o total de "hoje") embaixo do rótulo "7 dias"**.
+
+Duas hipóteses foram levantadas — que o cache tinha quebrado, e que ele nunca
+cobrira aquele caso. **As duas foram refutadas por medição**: o cache acerta
+(clique em período já visto pinta em ~60ms, contra ~800ms no frio, medianas de 3
+rodadas alternadas).
+
+A causa era outra e mais velha que o cache: o `AnimatedNumber` anima o valor
+exibido **do número anterior até o novo** em 550ms. Enquanto havia esqueleto na
+troca de período, ninguém via — o esqueleto cobria a contagem. Ao ficar rápido,
+o esqueleto sumiu e a contagem ficou exposta: no primeiro quadro depois do
+clique, a tela mostra o número do período ANTERIOR sob o rótulo do período NOVO.
+
+Amostragem da tela a cada 100ms, produção, conta demo:
+
+| canal | 1º quadro sem esqueleto | o que ele mostrava |
+|---|---|---|
+| Amazon, período já visto | 65ms | o valor de "hoje", sob "7 dias" |
+| Mercado Livre, período já visto | 74ms | idem |
+| Shopee e TikTok, **até no frio** | 40–42ms | idem, sem esqueleto nenhum |
+
+### O que fica como regra
+
+1. **Otimizar expõe o que a lentidão escondia.** Um defeito de correção pode
+   viver anos atrás de um esqueleto. Ao remover a espera, meça **o que a tela
+   mostra durante a transição**, não só quando ela termina — a pergunta não é
+   "quanto tempo levou", é "o que estava escrito ali enquanto levava".
+2. **Amostre a transição, não o estado final.** A medição que achou isto foi um
+   loop de 100ms registrando *rótulo do botão + valor exibido + há esqueleto?*.
+   Medir só o tempo até pintar teria dado "melhorou" e fechado o caso.
+3. **Animação entre valores é afirmação.** Contar de um número a outro é honesto
+   quando o MESMO recorte recebe dado novo; quando o recorte muda, os quadros
+   intermediários afirmam números que não pertencem a recorte nenhum.
+
 ## Ordem de execução
 
 1. **Rota agregadora** `/api/amazon/dashboard` lendo do canônico (o que der do canônico

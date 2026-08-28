@@ -141,8 +141,6 @@ export function ShopeeWorkspace() {
   const previousPeriod = useRef(period.query);
   const [status, setStatus] = useState<ProviderStatus | null>(null);
   const [overview, setOverview] = useState<Overview | null>(null);
-  // De qual LOJA e o que esta pintado agora — ver a guarda abaixo.
-  const lojaNaTela = useRef<string | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
@@ -220,16 +218,16 @@ export function ShopeeWorkspace() {
     // Pinta o periodo ja visto ANTES de buscar. A resposta nova sobrescreve
     // quando chegar — o cache nunca fica na tela como se fosse o dado fresco.
     const emCache = periodCache.get(chave);
-    const anterior = lojaNaTela.current;
-    lojaNaTela.current = selected.id;
     // O repaint sai do corpo do efeito por um timeout de 0, como no
     // `MercadoLivreWorkspace`: setState sincrono aqui e cascata de render
     // (`react-hooks/set-state-in-effect`). O padrao ja existia; so segui.
     const pintar = window.setTimeout(() => {
-      // ⚠️ Trocar de loja com cache vazio deixaria os numeros da loja ANTERIOR
-      // na tela enquanto a nova carrega. Numero de outra loja e pior que
-      // espera: some na hora e volta o carregamento.
-      if (anterior && anterior !== selected.id && !emCache) {
+      // ⚠️ Sem dado do periodo pedido, a tela NAO pode continuar exibindo o
+      // periodo anterior — medido em 28/08/2026: aos 40ms o rotulo ja dizia
+      // "7 dias" e o numero ainda era o de "hoje". Numero sob rotulo que nao
+      // corresponde e a tela mentindo; some e volta o carregamento. Vale
+      // igual para troca de LOJA, pelo mesmo motivo.
+      if (!emCache) {
         setOverview(null);
         setSync(null);
         setUpdatedAt(null);
@@ -667,10 +665,10 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
           este canal so tem base pedido — nada aqui pode dizer "conciliado". */}
       <BaseDeData base="pedido" />
       <section className="metric-grid shopee-dashboard-metrics" aria-label="Resumo financeiro Shopee">
-        <Metric label="Faturamento" value={<AnimatedNumber id="shopee-dash-revenue" value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={`${overview.metrics.paidOrders} pedido(s) no período`} trend={getRevenueTrend(overview.dailySales)} />
+        <Metric label="Faturamento" value={<AnimatedNumber periodo={`${overview.period.from}|${overview.period.to}`} id="shopee-dash-revenue" value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={`${overview.metrics.paidOrders} pedido(s) no período`} trend={getRevenueTrend(overview.dailySales)} />
         <Metric label="Taxas" value={overview.profit.fees == null ? "—" : money(overview.profit.fees, overview.metrics.currency)} sub={overview.profit.feesComplete ? "extrato financeiro processado" : "aguardando fechamento do extrato financeiro"} />
         <Metric label="Custo dos produtos" value={overview.profit.cogs == null ? "—" : money(overview.profit.cogs, overview.metrics.currency)} sub={costsIncomplete ? `${overview.profit.unitsWithoutCost} unidade(s) sem custo` : "custos cadastrados"} tone={costsIncomplete ? "warn" : "default"} />
-        <Metric label={resultIncomplete ? "Resultado processado" : "Lucro estimado"} value={resultIncomplete || overview.profit.estimatedProfit == null ? "—" : <AnimatedNumber id="shopee-dash-profit" value={overview.profit.estimatedProfit} format={(amount) => money(amount, overview.metrics.currency)} />} sub={resultIncomplete ? `${profitCoverage.processedOrders} de ${profitCoverage.paidOrders} vendas` : comSemImposto("após todos os custos", semAliquota)} tone={resultIncomplete || overview.profit.estimatedProfit == null ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
+        <Metric label={resultIncomplete ? "Resultado processado" : "Lucro estimado"} value={resultIncomplete || overview.profit.estimatedProfit == null ? "—" : <AnimatedNumber periodo={`${overview.period.from}|${overview.period.to}`} id="shopee-dash-profit" value={overview.profit.estimatedProfit} format={(amount) => money(amount, overview.metrics.currency)} />} sub={resultIncomplete ? `${profitCoverage.processedOrders} de ${profitCoverage.paidOrders} vendas` : comSemImposto("após todos os custos", semAliquota)} tone={resultIncomplete || overview.profit.estimatedProfit == null ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
         <Metric label="Margem" value={resultIncomplete || overview.profit.marginPct == null ? "—" : percent(overview.profit.marginPct)} sub={resultIncomplete ? "aguardando conciliação completa" : comSemImposto("sobre o faturamento", semAliquota)} tone={resultIncomplete ? "default" : marginMetricTone(overview.profit.marginPct)} />
       </section>
 

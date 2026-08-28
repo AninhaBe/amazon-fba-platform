@@ -87,7 +87,7 @@ export function TikTokWorkspace() {
   }, [router, searchParams]);
   const period = useDashboardPeriod(searchParams.toString(), updatePeriodUrl);
   const [provider, setProvider] = useState<ProviderStatus | null>(null);
-  const [overviewState, setOverviewState] = useState<{ connectionId: string; data: TiktokOverviewResponse; em: number } | null>(null);
+  const [overviewState, setOverviewState] = useState<{ connectionId: string; periodo: string; data: TiktokOverviewResponse; em: number } | null>(null);
   const [errorState, setErrorState] = useState<{ connectionId: string | null; message: string } | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [costsOpen, setCostsOpen] = useState(false);
@@ -136,7 +136,7 @@ export function TikTokWorkspace() {
     // sobrescreve, entao numero velho nunca fica passando por novo.
     // Mesmo motivo do ML e da Shopee: o repaint do cache sai do corpo do efeito.
     const pintar = emCache
-      ? window.setTimeout(() => setOverviewState({ connectionId: selectedConnectionId, data: emCache, em: Date.now() }), 0)
+      ? window.setTimeout(() => setOverviewState({ connectionId: selectedConnectionId, periodo: period.query, data: emCache, em: Date.now() }), 0)
       : undefined;
     (async () => {
       try {
@@ -146,7 +146,7 @@ export function TikTokWorkspace() {
         if (!response.ok) throw new Error(response.status >= 500 ? "A TikTok Shop está temporariamente indisponível." : (connectionError || "Não foi possível carregar esta loja. Tente novamente ou gerencie as conexões."));
         if (!cancelled) {
           periodCache.set(chave, body);
-          setOverviewState({ connectionId: selectedConnectionId, data: body, em: Date.now() });
+          setOverviewState({ connectionId: selectedConnectionId, periodo: period.query, data: body, em: Date.now() });
         }
       } catch (cause) {
         // Falha ao revalidar um periodo que ja esta na tela nao apaga o que
@@ -166,7 +166,12 @@ export function TikTokWorkspace() {
   const selector = provider && provider.connections.length > 1 && selectedConnectionId
     ? <StoreSelector connections={provider.connections} selectedId={selectedConnectionId} onChange={selectConnection} />
     : null;
-  const data = overviewState?.connectionId === selectedConnectionId ? overviewState.data : null;
+  // Alem da conexao, o PERIODO tem de bater: com dado de outro periodo na mao a
+  // tela exibiria numero sob rotulo que nao corresponde (medido em 28/08/2026,
+  // aos 42ms). `null` aqui vira carregamento, que e a verdade naquele instante.
+  const data = overviewState?.connectionId === selectedConnectionId && overviewState.periodo === period.query
+    ? overviewState.data
+    : null;
   const error = errorState && (errorState.connectionId === null || errorState.connectionId === selectedConnectionId)
     ? errorState.message
     : null;

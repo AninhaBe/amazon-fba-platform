@@ -397,10 +397,10 @@ function Dashboard({ overview, syncStatus, periodoLabel, connectionId }: { overv
         proprio canal) — e sempre pela data do pedido. */}
     <BaseDeData base="pedido" />
     <section className="metric-grid ml-dashboard-metric-grid" aria-label="Resumo financeiro Mercado Livre">
-      <Metric label="Faturamento" value={<AnimatedNumber id="ml-dash-revenue" value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={`${overview.metrics.paidOrders} aprovadas + ${overview.metrics.cancelledOrders} canceladas`} trend={getRevenueTrend(overview.dailySales)} />
+      <Metric label="Faturamento" value={<AnimatedNumber periodo={`${overview.period.from}|${overview.period.to}`} id="ml-dash-revenue" value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={`${overview.metrics.paidOrders} aprovadas + ${overview.metrics.cancelledOrders} canceladas`} trend={getRevenueTrend(overview.dailySales)} />
       <Metric label="Taxas" value={money(overview.profit.fees, overview.metrics.currency)} sub={`${profitCoverage.processedOrders} venda(s) processada(s)`} />
       <Metric label="Custo dos produtos" value={money(overview.profit.cogs, overview.metrics.currency)} sub={overview.profit.unitsWithoutCost > 0 ? `${overview.profit.unitsWithoutCost} unidade(s) sem custo` : "custos cadastrados"} tone={overview.profit.unitsWithoutCost > 0 ? "warn" : "default"} />
-      <Metric label={resultIncomplete ? "Resultado processado" : "Lucro estimado"} value={<AnimatedNumber id="ml-dash-profit" value={overview.profit.estimatedProfit} format={(amount) => money(amount, overview.metrics.currency)} />} sub={resultIncomplete ? `${profitCoverage.processedOrders} de ${profitCoverage.paidOrders} vendas` : comSemImposto("após todos os custos", semAliquota)} tone={resultIncomplete ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
+      <Metric label={resultIncomplete ? "Resultado processado" : "Lucro estimado"} value={<AnimatedNumber periodo={`${overview.period.from}|${overview.period.to}`} id="ml-dash-profit" value={overview.profit.estimatedProfit} format={(amount) => money(amount, overview.metrics.currency)} />} sub={resultIncomplete ? `${profitCoverage.processedOrders} de ${profitCoverage.paidOrders} vendas` : comSemImposto("após todos os custos", semAliquota)} tone={resultIncomplete ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
       <Metric label="Margem" value={resultParcial ? "—" : percent(overview.profit.marginPct)} sub={margemSub} tone={resultParcial ? "default" : marginMetricTone(overview.profit.marginPct)} />
     </section>
 
@@ -599,7 +599,7 @@ function Monitor({ overview, secaoInicial }: { overview: Overview; secaoInicial:
         {
           id: "vendas-brutas",
           label: "Vendas brutas",
-          node: <Metric label="Vendas brutas" value={<AnimatedNumber id="ml-monitor-revenue" value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={`${overview.metrics.paidOrders} aprovadas + ${overview.metrics.cancelledOrders} canceladas`} />,
+          node: <Metric label="Vendas brutas" value={<AnimatedNumber periodo={`${overview.period.from}|${overview.period.to}`} id="ml-monitor-revenue" value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={`${overview.metrics.paidOrders} aprovadas + ${overview.metrics.cancelledOrders} canceladas`} />,
         },
         {
           id: "canceladas",
