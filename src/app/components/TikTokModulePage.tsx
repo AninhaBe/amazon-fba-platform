@@ -11,12 +11,14 @@ import { TIKTOK_CATALOG_STATUSES } from "@/lib/integrations/tiktokModuleContract
 import { rotuloConciliacao, rotuloStatusPedido, rotuloStatusProduto } from "./statusDeExibicao";
 import { BaseDeData } from "./BaseDeData";
 import { EstadoDoSync } from "./EstadoDoSync";
+import { CustomizableMetricGrid } from "./CustomizableMetricGrid";
+import { Metric } from "./Metric";
 
 type Kind="monitor"|"finance"|"catalog"|"inventory"|"costs"|"abc";
 type Connection={id:string;displayName?:string;externalAccountId?:string};
 type ProviderIssue={status:"attention";code:"OWNERSHIP_CONFLICT"|"PROVIDER_READ_FAILED";message:string};
 type FinanceCoverage={status?:"complete"|"partial"|"blocked";terminal?:boolean;from?:string;to?:string;source?:"statement_ledger"|"per_order_fallback"|"schema_blocked";estimatesIncluded?:false;rejected?:number};
-type Payload={items?:Record<string,unknown>[];costs?:Record<string,unknown>[];availability?:string;page?:{limit:number;offset:number;total:number|null;hasMore:boolean};coverage?:FinanceCoverage|null;profitSubset?:{reason?:string};code?:string;error?:string};
+type Payload={items?:Record<string,unknown>[];costs?:Record<string,unknown>[];availability?:string;page?:{limit:number;offset:number;total:number|null;hasMore:boolean};coverage?:FinanceCoverage|null;profitSubset?:{reason?:string};summary?:{confirmados:number;receita:number;conciliados:number;aguardandoExtrato:number;currency:string};code?:string;error?:string};
 const config:Record<Kind,{title:string;subtitle:string;endpoint:string;period:boolean}>={monitor:{title:"Monitor da conta",subtitle:"Pedidos e estado de conciliação, sem dados pessoais do comprador.",endpoint:"monitor",period:true},finance:{title:"Financeiro",subtitle:"Transações finais do ledger e cobertura dos extratos, sem estimativas.",endpoint:"finance",period:true},catalog:{title:"Anúncios",subtitle:"Catálogo publicado e variações em modo somente leitura.",endpoint:"catalog",period:false},inventory:{title:"Radar de estoque",subtitle:"Cobertura e risco de ruptura, sem projetar quando falta base de venda.",endpoint:"inventory",period:true},costs:{title:"Produtos",subtitle:"Custos por SKU exclusivos desta loja TikTok Shop.",endpoint:"costs",period:false},abc:{title:"Curva ABC",subtitle:"Receita por produto e participação acumulada no período.",endpoint:"abc",period:true}};
 const text=(v:unknown)=>v==null||v===""?"—":String(v);
 
@@ -50,10 +52,10 @@ function Filters({kind,sp,update}:{kind:Kind;sp:URLSearchParams;update:(v:Record
   </form>
 }
 function ModuleContent({kind,body,sp,update,connectionId,retry}:{kind:Kind;body:Payload;sp:URLSearchParams;update:(v:Record<string,string|null>)=>void;connectionId:string;retry:()=>void}) {
+  if(kind==="monitor")return <MonitorContent body={body} sp={sp} update={update} connectionId={connectionId} retry={retry}/>;
   const rows=(kind==="costs"?body.costs:body.items)??[];
   return <section className="channel-module-content" aria-live="polite">
     <ChannelModuleSummary kind={kind} rows={rows} total={body.page?.total}/>
-    {kind==="monitor"&&<EstadoDoSync provider="tiktok_shop" connectionId={connectionId}/>}
     <Filters kind={kind} sp={sp} update={update}/>
     {kind==="abc"&&<aside className="channel-module-notice is-warning"><strong>Lucro indisponível por SKU</strong><p>{body.profitSubset?.reason||"O contrato atual não permite atribuir lucro por produto com segurança."}</p></aside>}
     {kind==="abc"&&rows.length>0&&<TikTokAbcInsights rows={rows}/>}
@@ -62,6 +64,77 @@ function ModuleContent({kind,body,sp,update,connectionId,retry}:{kind:Kind;body:
     {!rows.length?<EmptyState compact title="Nenhum resultado" description={kind==="finance"?"Não há transações finais para esta loja e período.":"Não há dados para os filtros e o período selecionados."}/>:<DataTable kind={kind} rows={rows} retry={retry} connectionId={sp.get("connection_id")??""}/>} 
     {body.page&&<nav aria-label="Paginação" className="listing-pagination channel-module-pagination"><p>{body.page.total==null?`${rows.length} transação(ões) nesta página`:`${body.page.total} resultado(s)`}</p><div><button disabled={body.page.offset===0} onClick={()=>update({offset:String(Math.max(0,body.page!.offset-body.page!.limit))})}>Anterior</button><button disabled={!body.page.hasMore} onClick={()=>update({offset:String(body.page!.offset+body.page!.limit)})}>Próxima</button></div></nav>}
   </section>
+}
+
+/**
+ * Monitor da conta elevado ao padrão da Amazon (E2 do Monitor Unificado,
+ * 28/08/2026): base de data → cards do período → abas. As VIRTUDES do canal
+ * ficam: filtros de servidor exatos (pedido/SKU/status), paginação de servidor
+ * e a coluna Conciliação — a aba Pedidos é a tabela de sempre. A aba Transações
+ * REUSA o extrato do módulo /financeiro (mesmos componentes, mesma rota), sem
+ * duplicar tabela. Hierarquia (premissa): cards são métrica, não aviso — nada
+ * aqui nasce com peso de alarme.
+ */
+function MonitorContent({body,sp,update,connectionId,retry}:{body:Payload;sp:URLSearchParams;update:(v:Record<string,string|null>)=>void;connectionId:string;retry:()=>void}) {
+  const rows=body.items??[];
+  // Deep-link como na Amazon (?secao=transacoes); depois a troca é local.
+  const [secao,setSecao]=useState<"pedidos"|"transacoes">(sp.get("secao")==="transacoes"?"transacoes":"pedidos");
+  const s=body.summary;
+  return <section className="channel-module-content" aria-live="polite">
+    {/* Mesmo nome de página do monitor da Amazon, base DIFERENTE: lá o número é
+        por data do lançamento do repasse; aqui é por data do pedido. */}
+    <BaseDeData base="pedido" />
+    <EstadoDoSync provider="tiktok_shop" connectionId={connectionId}/>
+    {s&&<CustomizableMetricGrid
+      viewKey="tiktok-monitor"
+      ariaLabel="Resumo do monitor TikTok Shop"
+      gridClassName="metric-grid monitor-metric-grid"
+      widgets={[
+        {id:"receita",label:"Receita do período",node:<Metric label="Receita do período" value={moduleMoney(s.receita,s.currency)} sub={`${s.confirmados} pedido(s) confirmado(s)`}/>},
+        {id:"pedidos",label:"Pedidos confirmados",node:<Metric label="Pedidos confirmados" value={String(s.confirmados)} sub="pagos, enviados ou entregues"/>},
+        {id:"conciliados",label:"Com extrato postado",node:<Metric label="Com extrato postado" value={String(s.conciliados)} sub="valor final confirmado pelo ledger"/>},
+        // Extrato chega atrasado por natureza — contagem informativa, não alarme.
+        {id:"aguardando",label:"Aguardando extrato",node:<Metric label="Aguardando extrato" value={String(s.aguardandoExtrato)} sub="a TikTok ainda não postou o valor final"/>},
+      ]}
+    />}
+    <nav className="monitor-section-tabs" aria-label="Visões do monitor">
+      {([["pedidos","Pedidos"],["transacoes","Transações"]] as Array<["pedidos"|"transacoes",string]>).map(([key,label])=>
+        <button key={key} type="button" aria-current={secao===key?"page":undefined} onClick={()=>setSecao(key)}>{label}</button>)}
+    </nav>
+    {secao==="pedidos"&&<>
+      <ChannelModuleSummary kind="monitor" rows={rows} total={body.page?.total}/>
+      <Filters kind="monitor" sp={sp} update={update}/>
+      {!rows.length?<EmptyState compact title="Nenhum resultado" description="Não há dados para os filtros e o período selecionados."/>:<DataTable kind="monitor" rows={rows} retry={retry} connectionId={sp.get("connection_id")??""}/>}
+      {body.page&&<nav aria-label="Paginação" className="listing-pagination channel-module-pagination"><p>{body.page.total==null?`${rows.length} pedido(s) nesta página`:`${body.page.total} resultado(s)`}</p><div><button disabled={body.page.offset===0} onClick={()=>update({offset:String(Math.max(0,body.page!.offset-body.page!.limit))})}>Anterior</button><button disabled={!body.page.hasMore} onClick={()=>update({offset:String(body.page!.offset+body.page!.limit)})}>Próxima</button></div></nav>}
+    </>}
+    {/* key = remonta quando período/loja mudam, zerando a paginação local. */}
+    {secao==="transacoes"&&<TransacoesDoMonitor key={moduleApiQuery(sp.toString(),connectionId,"finance")} sp={sp} connectionId={connectionId}/>}
+  </section>;
+}
+
+/**
+ * Aba Transações do monitor: o MESMO extrato do módulo /financeiro, pela mesma
+ * rota e com os mesmos componentes (BaseDeData pedido-extrato, painel de
+ * cobertura, tabela finance). Paginação local à aba — o `offset` da URL
+ * pertence à aba Pedidos.
+ */
+function TransacoesDoMonitor({sp,connectionId}:{sp:URLSearchParams;connectionId:string}) {
+  const [offset,setOffset]=useState(0);
+  const [body,setBody]=useState<Payload|null>(null);
+  const [error,setError]=useState("");
+  const query=useMemo(()=>{const q=new URLSearchParams(moduleApiQuery(sp.toString(),connectionId,"finance"));q.set("offset",String(offset));return q.toString()},[sp,connectionId,offset]);
+  useEffect(()=>{let live=true;fetch(`/api/integrations/tiktok/finance?${query}`,{cache:"no-store"}).then(async r=>{const b=await r.json();if(!r.ok)throw new Error(moduleError(b.code)||b.error||"Não foi possível carregar as transações.");return b}).then(b=>{if(live){setBody(b);setError("")}}).catch(e=>live&&setError(e instanceof Error?e.message:"Não foi possível carregar as transações."));return()=>{live=false}},[query]);
+  if(error)return <EmptyState kind="permission" title="Não foi possível carregar as transações" description={error}/>;
+  if(!body)return <DashboardSkeleton/>;
+  if(body.availability==="BLOCKED")return <EmptyState kind="permission" title="Financeiro aguardando estrutura de dados" description="O ledger financeiro ainda não está disponível neste ambiente. Nenhum valor foi estimado ou convertido em zero."/>;
+  if(body.availability==="NOT_AVAILABLE")return <EmptyState title="Dados ainda indisponíveis" description="A conexão existe, mas este conjunto de dados ainda não foi materializado."/>;
+  const rows=body.items??[];
+  return <>
+    <BaseDeData base="pedido-extrato" prefixo="Transações" />
+    {body.coverage&&<FinanceCoveragePanel coverage={body.coverage}/>}
+    {!rows.length?<EmptyState compact title="Nenhum resultado" description="Não há transações finais para esta loja e período."/>:<DataTable kind="finance" rows={rows} retry={()=>setOffset((v)=>v)} connectionId={connectionId}/>}
+    {body.page&&<nav aria-label="Paginação" className="listing-pagination channel-module-pagination"><p>{body.page.total==null?`${rows.length} transação(ões) nesta página`:`${body.page.total} resultado(s)`}</p><div><button disabled={offset===0} onClick={()=>setOffset(Math.max(0,offset-body.page!.limit))}>Anterior</button><button disabled={!body.page.hasMore} onClick={()=>setOffset(offset+body.page!.limit)}>Próxima</button></div></nav>}
+  </>;
 }
 
 function TikTokAbcInsights({rows}:{rows:Record<string,unknown>[]}) {

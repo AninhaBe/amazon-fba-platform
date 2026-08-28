@@ -106,7 +106,9 @@ test("os quatro monitores renderizam o estado do sync (Shopee/TikTok só na aba 
     ["../src/app/monitor/page.tsx", /<EstadoDoSync provider="amazon" \/>/],
     ["../src/app/components/MercadoLivreWorkspace.tsx", /<EstadoDoSync provider="mercado_livre" \/>/],
     ["../src/app/components/ShopeeModulePage.tsx", /kind==="monitor"&&<EstadoDoSync provider="shopee"/],
-    ["../src/app/components/TikTokModulePage.tsx", /kind==="monitor"&&<EstadoDoSync provider="tiktok_shop"/],
+    // E2 (28/08/2026): o monitor virou componente próprio (MonitorContent),
+    // que só renderiza para kind=monitor — o gate mudou de forma, não de fato.
+    ["../src/app/components/TikTokModulePage.tsx", /<EstadoDoSync provider="tiktok_shop"/],
   ];
   for (const [arquivo, padrao] of monitores) {
     const fonte = await readFile(new URL(arquivo, import.meta.url), "utf8");
