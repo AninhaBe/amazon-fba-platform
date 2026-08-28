@@ -122,7 +122,12 @@ export function mercadoLivreCostEntry(
   const legacy = costs[`mercado_livre:${connectionId}:${productId}`];
   if (legacy) return legacy;
   if (!sku) return undefined;
-  return Object.values(costs).find((entry) => entry.sku === sku && entry.id.startsWith(`mercado_livre:${connectionId}:`));
+  // ⚠️ Mesma trava da Shopee (ADR-029): a varredura de resgate fica DENTRO do
+  // sub-namespace `sku:`. Aceitar entrada de `item:` aqui faria a variação
+  // herdar o custo do anúncio sem confirmação — a porta lateral que anularia a
+  // decisão de "sugestão a confirmar". O ML ainda não expande variações, mas a
+  // trava entra junto para as duas não divergirem.
+  return Object.values(costs).find((entry) => entry.sku === sku && entry.id.startsWith(`mercado_livre:${connectionId}:sku:`));
 }
 
 /**

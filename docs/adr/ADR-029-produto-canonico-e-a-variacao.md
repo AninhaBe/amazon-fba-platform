@@ -109,12 +109,64 @@ canônico grava uma linha por variação, no padrão que o TikTok já usa:
 
 Anúncio sem variação continua exatamente como está — uma linha, sem sufixo.
 
+### 🚨 A mudança é INDIVISÍVEL (condição de atomicidade — achado do Delta)
+
+Hoje, na Shopee, o join catálogo × venda casa **41 de 41** porque **os dois lados
+usam o `item_id` base**. Se o catálogo virar id composto e o item de pedido
+continuar com o id base, **41/41 vira 0/41** — e o radar de estoque, que já casa
+mal (6 de 372), passa a não casar **nada**.
+
+Portanto vão juntos, no mesmo lote:
+
+1. catálogo por variação;
+2. `external_product_id` **composto no item de pedido**;
+3. backfill dos 22.935 itens.
+
+**Meia entrega aqui é pior que o estado atual.**
+
+Para não nascer um terceiro dialeto de id, o composto sai de um helper único —
+`variantProductId(base, variantId)` — com o mesmo separador que o TikTok já usa
+(`<base>::sku:<variantId>`). O Delta confirmou por medição que no TikTok os dois
+lados gravam o composto (43/43 casando), que era a dúvida que sustentava a
+alternativa de PK ampliada.
+
+**Forma da chave: id composto em `external_product_id`, não coluna nova na PK.**
+PK ampliada obrigaria propagar `variation_id` na *chave* dos itens, e a ADR-022
+registra mexer em PK como o maior risco da camada física.
+
 ### As três perguntas que o cérebro mandou responder
 
 #### 1. O custo já cadastrado num anúncio multi-variação vai para onde?
 
-**Recomendação: (b) vira sugestão a confirmar.** E há um argumento estrutural
-além do bom senso — o esquema de chave **já separa os dois mundos**:
+**Decisão: (b) vira sugestão a confirmar — com as duas condições abaixo, que são
+parte da decisão e não detalhe de implementação.**
+
+O Delta tentou furar o (b) a pedido do cérebro e achou **duas portas laterais**
+que anulariam o argumento inteiro. Nenhuma dispara hoje; as duas estão *a uma
+linha de distância*. **Decisão que depende de ninguém escrever essa linha não é
+decisão, é sorte** — por isso elas moram aqui.
+
+> **CONDIÇÃO 1 — a chave de custo da variação usa o ID COMPOSTO, nunca o id base
+> do anúncio.**
+> Se a variação sem `model_sku` cair no fallback `item:<anúncio>`, ela **herda o
+> custo do anúncio em silêncio**: o (b) degrada para (a) invisível, e justamente
+> nos **77% do catálogo que não têm SKU no nível do item**. Com o id composto, o
+> fallback `item:` aponta para a variação, não para o anúncio.
+
+> **CONDIÇÃO 2 — a varredura de resgate por texto de SKU fica dentro do
+> sub-namespace `sku:`.**
+> `shopeeCostEntry` (e o equivalente do ML), quando a chave exata falha, varre os
+> custos procurando `sku` igual. A varredura aceitava qualquer entrada da mesma
+> conexão — inclusive uma de `item:` que carregasse o campo `sku`. Seria herança
+> de custo sem confirmação **pela porta ao lado da que o argumento tranca**.
+
+✅ As duas foram fechadas em 28/08/2026, antes da implementação do resto, e estão
+travadas em `tests/custoDaVariacao.test.mjs` — o teste falha se alguém usar o id
+base ou reabrir a varredura entre sub-namespaces. A mudança é neutra hoje (o
+Delta mediu: nenhuma das duas dispara), o que a torna barata agora e cara depois.
+
+E há um argumento estrutural além do bom senso — o esquema de chave **já separa
+os dois mundos**:
 
 ```
 shopeeCostId(conn, productId, sku) =
@@ -147,7 +199,14 @@ Por que não as outras:
 
 ⚠️ **Escopo real da migração nesta loja: 2 registros.** O problema é **pequeno em
 dado e grande em regra** — a regra precisa estar certa antes de haver volume, não
-depois. É por isso que este item está no ADR e não num script.
+depois.
+
+📌 **E os 2 registros não são teoria.** Um deles é um custo de **R$ 2,40** num
+anúncio com **2.631 vendas**. É o caso que decide entre as três opções: (c)
+jogaria fora um número que ela cadastrou à mão e que vale para o produto que mais
+vende; (a) o replicaria para todas as variações daquele anúncio sem ninguém
+conferir se as variações custam o mesmo. **(b) preserva o trabalho e não afirma
+nada** — a tela pergunta a quais variações ele se aplica. É por isso que este item está no ADR e não num script.
 
 #### 2. `order_items` só tem o SKU textual, não o `model_id`
 
@@ -159,19 +218,30 @@ identidade da variação viaja hoje **só pelo texto do SKU**.
 Medido: **9 itens de 22.500** (1 anúncio) têm SKU vazio — 0,04%. Então amarrar
 por texto funciona para 99,96% do histórico.
 
-Proposta:
+Decisão, com o parecer do Delta já incorporado:
 
-- **Daqui para frente**, gravar também o identificador da variação
-  (`model_id` na Shopee, `sku.id` no TikTok) numa coluna própria, porque é a
-  chave estável: o vendedor pode **renomear** um `model_sku` e, no dia em que
-  fizer isso, o histórico amarrado por texto se parte em silêncio.
-- **Para o histórico**, a amarração continua por SKU textual — é o que existe.
-- Os 9 itens sem SKU ficam **sem variação atribuída**, e a linha do anúncio os
-  mostra como o que são. **Nunca vão para uma variação escolhida por proximidade**
-  e nunca viram zero.
+- **Coluna `model_id` nova**, `nullable` sem default — no Postgres isso é
+  **metadata-only**: instantâneo, sem reescrita da tabela e sem bloat. Custo de
+  armazenamento medido: ~12 bytes por linha preenchida, ~430 KB somando Shopee e
+  TikTok. É a chave **estável**: o vendedor pode **renomear** um `model_sku`, e
+  nesse dia o histórico amarrado por texto se parte em silêncio.
+- **Sem índice em `model_id`** — manter os updates elegíveis a HOT.
+- **O custo real não é a coluna, é o backfill**: 22.935 linhas, numa tabela com
+  `fillfactor 100` (não pegou o 90 da 0015) e 21,5 MB de índices — a mesma
+  receita do backfill da R2, que inflou 37 MB. Plano: `SET fillfactor=90`
+  **antes**, backfill em lotes com contagem, re-medição depois.
+- **O backfill é possível, medido:** o `raw` do pedido Shopee traz `model_id` no
+  `item_list` em **22.314 de 22.738** pedidos. Os 424 sem `item_list` ficam
+  `null` — honesto, não zero.
+- **Impacto em particionamento e índices (ADR-022): zero.** `model_id` não entra
+  na PK — a identidade da linha segue sendo `line_no`.
+- Os 9 itens sem SKU ficam **sem variação atribuída**. **Nunca vão para uma
+  variação escolhida por proximidade** e nunca viram zero.
 
-Esta é a parte que mais precisa da revisão do Delta: coluna nova em tabela
-grande, e a decisão entre coluna e chave composta.
+⚠️ **PRAZO (ADR-026): o backfill precisa acontecer ANTES de qualquer retenção de
+bronze da Shopee.** A fonte do backfill é o `raw`, que é bronze descartável — se
+o expurgo passar primeiro, o dado que permite reconstruir a variação some. É a
+mesma classe do achado da NF-e.
 
 #### 3. Impacto em quem hoje conta "produto"
 
@@ -180,7 +250,7 @@ grande, e a decisão entre coluna e chave composta.
 | **Curva ABC** | **Já está certa e melhora sozinha.** `readShopeeAbc` agrupa por `i.external_product_id, i.sku` — lê dos *itens de pedido*, que já têm o `model_sku`. Ela é, hoje, o único lugar que enxerga a variação. |
 | **Radar de estoque / inventário** | **É o segundo defeito grave, e ninguém tinha visto.** `readShopeeInventory` casa catálogo com vendas pela chave `productId + "\0" + sku`. Como o catálogo tem SKU vazio e a venda tem `model_sku`, **a junção falha**. Medido: só **6 das 372** linhas do catálogo casam com alguma venda, e **32 anúncios que venderam** aparecem com `unitsSold = 0` → "Sem base de venda". O aviso que hoje está na tela (*"estoque por variação/modelo não está disponível"*) descreve o sintoma; este ADR remove a causa. |
 | **Custo / margem / lucro** | É o motivo do ADR. Passa a existir custo por variação. |
-| **Full / fulfillment** | `fulfillment` é coluna da linha de produto. Se a linha vira a variação, o valor precisa ser resolvido **por variação**. Na Shopee ele é `null` hoje. **Não afirmo o caso do ML** — é um dos pontos que quero que o Delta confirme antes de eu implementar. |
+| **Full / fulfillment** | **Respondido pelo Delta, com medição:** no ML o Full é **do anúncio, não da variação** — `shipping.logistic_type` vem no nível do item (medido em 6 de 11 anúncios da conta: 3 `drop_off`, 3 `fulfillment`), e a variação carrega quantidade e `seller_custom_field`, não tipo logístico. Então a variação **herda** o fulfillment do anúncio, e isso é fiel, não é fabricar dado. *Ressalva do próprio Delta, que fica registrada: ele não observou um objeto `variations` real — os 11 anúncios dela têm `variations = 0` —, então a afirmação vem da estrutura observada + doc interna. A certeza total custa uma chamada num anúncio com grade, que hoje não existe na conta.* |
 | **Contagens de catálogo na tela** | "372 anúncios" passa a ser "N variações". O número **cresce** e a comparação com o painel do marketplace muda. A tela precisa dizer qual dos dois está contando, senão a dona vê um número novo sem explicação. |
 
 ## Consequências
@@ -200,17 +270,41 @@ grande, e a decisão entre coluna e chave composta.
   Volume ainda pequeno, mas o custo de escrita do sync sobe.
 - A tela muda de forma: onde havia um anúncio, aparecem várias linhas. É o que a
   dona pediu, mas é mudança visível e precisa de aviso.
-- O `get_model_list` da Shopee já é chamado no sync (uma chamada por anúncio com
-  variação) — **não há chamada nova**, só uso do que já vem.
+- ⚠️ **Correção factual do Delta a uma afirmação minha:** eu escrevi que "não há
+  chamada nova". Isso vale para o **sync corrente** (o `get_model_list` já é
+  chamado por anúncio com variação), mas **não** para a população inicial: o
+  `raw` do catálogo Shopee **não guarda as variações** — as chaves reais são
+  `has_model, image, item_id, item_name, item_sku, item_status, price_info,
+  stock_info_v2`. Popular o catálogo exige varrer os **98 anúncios com
+  `has_model`** chamando `get_model_list`. **Barato, não gratuito** — entra no
+  plano para não virar surpresa.
 - Enquanto o ML não expandir variações, ele fica com a granularidade antiga.
   Precisa entrar na mesma frente ou ficar registrado como pendência explícita.
 
+## Ordem de execução (indivisível — ver a condição de atomicidade)
+
+1. `SET fillfactor=90` em `workspace_channel_order_items` **antes** do backfill.
+2. `ADD COLUMN model_id` nullable, sem default, sem índice.
+3. Varrer os 98 anúncios com `has_model` (`get_model_list`) e popular o catálogo
+   por variação, com `external_product_id` composto via `variantProductId()`.
+4. Passar o item de pedido a gravar o composto, e **backfillar os 22.935 itens**
+   a partir do `raw` — **antes de qualquer retenção de bronze da Shopee**.
+5. Re-medição do Delta (bloat, buffers, o join catálogo × venda voltando a casar).
+6. A ordenação por volume de vendas entra **neste mesmo lote**, nunca antes — ver
+   a tabela dos 74% acima.
+
 ## Pendente antes de implementar
 
-1. Revisão do Delta: coluna de `model_id` em `order_items`, forma da chave
-   composta em `workspace_channel_products`, e o caso `fulfillment`/Full do ML.
-2. Portão do cérebro sobre a resposta (b) para o custo existente.
+1. ✅ Revisão do Delta — recebida e incorporada (parecer em
+   `G:/sc-temp/frente-L-parecer-adr029.md`).
+2. Portão final do cérebro.
 3. Definição da Vitrine para a linha da variação na tela (sufixo, agrupamento
    visual sob o anúncio pai).
-4. A ordenação por volume de vendas sai **junto**, nunca antes — ver a tabela dos
-   74% acima.
+
+## Lateral, para ficha própria
+
+O Delta registrou de passagem: **a Amazon tem a mesma classe de furo por outra
+causa** — 79 ids vendidos, dos quais só 4 existem no catálogo (que tem 8 linhas).
+Não é variação; é catálogo incompleto. Não entra neste ADR, mas não pode se
+perder: é a terceira vez em dois dias que um número da Amazon vem de um lugar que
+não é o que se supunha.

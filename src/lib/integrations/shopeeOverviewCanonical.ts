@@ -143,8 +143,18 @@ function shopeeCostEntry(
   const preferred = costs[`${namespace}:${connectionId}:${sku ? `sku:${sku}` : `item:${productId}`}`];
   if (preferred) return preferred;
   if (!sku) return undefined;
+  // ⚠️ A varredura de resgate fica DENTRO do sub-namespace `sku:`.
+  //
+  // Antes ela aceitava qualquer entrada da mesma conexão, inclusive uma de
+  // `item:` (custo do ANÚNCIO) que carregasse o campo `sku`. Hoje isso não
+  // dispara — custo de anúncio sem SKU é gravado sem o campo —, mas está a uma
+  // linha de distância, e essa linha anularia a decisão do ADR-029: o custo do
+  // anúncio seria HERDADO por uma variação sem ninguém confirmar, que é
+  // exatamente o que "sugestão a confirmar" existe para impedir.
+  //
+  // Decisão que depende de ninguém escrever uma linha não é decisão, é sorte.
   return Object.values(costs).find(
-    (entry) => entry.sku === sku && entry.id.startsWith(`${namespace}:${connectionId}:`)
+    (entry) => entry.sku === sku && entry.id.startsWith(`${namespace}:${connectionId}:sku:`)
   );
 }
 
