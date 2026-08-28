@@ -524,7 +524,19 @@ colidirem. Junto veio um conserto no auto-resolve da reconciliação: a chave
 passou de "tipo" para **(tipo, canal) de detector que rodou até o fim** — antes,
 um detector que lançava ainda auto-resolvia os próprios insights, e com tipos
 compartilhados a falha de um canal resolveria os insights abertos do outro.
-**Shopee e TikTok ficam para ordens seguintes.**
+**Fase 2 — Shopee e TikTok prontos (27/08, aguardando deploy):** os quatro
+canais têm os três detectores. Especificidades respeitadas, não contornadas:
+o contrato canônico de **Shopee e TikTok declara que lucro por SKU não é
+derivável com segurança** (curva ABC com `profitAvailable: false`) — a margem
+desses dois é avaliada **no nível da loja**, e só quando a autoridade do canal
+permite (Shopee: `estimatedProfit` não-nulo = período coberto + escrow + todos
+os componentes; TikTok: `profit` não-nulo = ledger LIQUIDADO cobrindo o período,
+via `applyTiktokLedgerAuthority` já dentro do overview canônico). Alíquota
+ausente = margem não avaliada com pendência **por loja**. Ruptura usa a
+classificação compartilhada (`classificarCobertura`) nos quatro; velocidade sai
+de um helper único sobre o canônico (`unidadesPorSku`), com o conjunto de
+status de venda de cada canal por parâmetro. Fila financeira do TikTok
+intocada (travado por teste). Fingerprints por loja/conta nos quatro.
 
 ---
 

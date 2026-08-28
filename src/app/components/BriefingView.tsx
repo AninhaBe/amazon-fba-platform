@@ -35,7 +35,7 @@ interface Insight {
   actionHref?: string;
 }
 
-const CHANNEL: Record<string, string> = { amazon: "Amazon", mercado_livre: "Mercado Livre" };
+const CHANNEL: Record<string, string> = { amazon: "Amazon", mercado_livre: "Mercado Livre", shopee: "Shopee", tiktok_shop: "TikTok Shop" };
 const TYPE_LABEL: Record<string, string> = { ruptura: "Ruptura de estoque", velocidade: "Queda de vendas", margem: "Margem apertada" };
 const EVIDENCE_LABEL: Record<string, string> = {
   disponivel: "Disponível",
@@ -97,10 +97,12 @@ export function BriefingView({ canal }: { canal?: BriefingCanal }) {
   // daquele canal. Alimenta o NEXO para raciocinar sobre a história do dinheiro.
   const [canais, setCanais] = useState<ChannelSnapshot[] | null>(null);
 
-  // Detecção automática existe só onde há detector implementado
-  // (hoje: Amazon e Mercado Livre; Shopee e TikTok chegam por ordem própria).
+  // Detecção automática existe só onde há detector implementado — hoje, os
+  // quatro canais. O portão continua existindo para um canal futuro nascer
+  // honesto ("nenhuma prioridade detectada ainda") em vez de fingir análise.
+  const CANAIS_COM_DETECTOR = ["amazon", "mercado_livre", "shopee", "tiktok_shop"];
   const provider = canal?.provider ?? null;
-  const temDetector = provider == null || provider === "amazon" || provider === "mercado_livre";
+  const temDetector = provider == null || CANAIS_COM_DETECTOR.includes(provider);
   const escopoNarracao = provider ?? "geral";
 
   const load = useCallback(async (analyze = false) => {
@@ -396,7 +398,7 @@ export function BriefingView({ canal }: { canal?: BriefingCanal }) {
           </section>
 
           <p className="briefing-method-note">
-            Detectores ativos na Amazon e no Mercado Livre: ruptura, queda de vendas e margem. A análise é determinística e recalculada diariamente junto com a sincronização.
+            Detectores ativos nos quatro canais: ruptura, queda de vendas e margem — na Shopee e no TikTok a margem é avaliada no nível da loja, porque o canal não permite lucro por SKU com segurança. A análise é determinística e recalculada diariamente junto com a sincronização.
           </p>
         </>
       )}
