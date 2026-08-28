@@ -41,6 +41,18 @@ export function SincronizacaoCompleta({ connectionId, status, coveredFrom }: {
     });
   }, [chave, coveredFrom, status]);
 
+  // Some sozinho depois de 12s. Isto aqui e COMEMORACAO de um evento que
+  // acabou de acontecer, nao um estado permanente da tela — e estava ocupando
+  // uma faixa de largura total no topo dos quatro dashboards ate alguem clicar
+  // em "Dispensar". Quem clicar continua nao vendo nunca mais (o dismiss em
+  // localStorage segue igual); quem nao clicar deixa de carregar a faixa para
+  // sempre. Nada e removido: o aviso aparece e da tempo de ler.
+  useEffect(() => {
+    if (!visivel) return;
+    const relogio = setTimeout(() => setVisivel(false), 12_000);
+    return () => clearTimeout(relogio);
+  }, [visivel]);
+
   if (status !== "complete" || !coveredFrom || !visivel) return null;
 
   const dispensar = () => {

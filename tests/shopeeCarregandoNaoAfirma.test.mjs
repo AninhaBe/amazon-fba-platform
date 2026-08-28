@@ -10,11 +10,18 @@ import test from "node:test";
 
 test("Shopee: alerta de captura só dispara com contagem real, nunca por cobertura de data com zero", async () => {
   const tela = await readFile(new URL("../src/app/components/ShopeeWorkspace.tsx", import.meta.url), "utf8");
-  // O alerta vermelho é armado pela contagem (> 0), não pelo flag de cobertura
-  // por data — capturedOrders == totalOrders por construção fazia a subtração
-  // ser sempre zero e a faixa virar alarme falso.
-  assert.match(tela, /\{ordersAwaitingCapture > 0 && \([\s\S]{0,200}integration-message is-error/);
-  assert.doesNotMatch(tela, /revenueCoverage\.complete && \([\s\S]{0,200}integration-message is-error/);
+  // O alerta é armado pela CONTAGEM (> 0), não pelo flag de cobertura por data —
+  // capturedOrders == totalOrders por construção fazia a subtração ser sempre
+  // zero e a faixa virar alarme falso.
+  //
+  // A classe deixou de ser `integration-message is-error` em 28/08/2026: a
+  // pendência saiu de bloco solto e entrou no agrupador de pendências
+  // (hierarquia de avisos). O que este teste protege nunca foi a classe — é
+  // QUEM arma o alerta. A asserção passou a olhar a condição, que é a regra.
+  assert.match(tela, /\{ordersAwaitingCapture > 0 && \([\s\S]{0,200}channel-module-notice/);
+  assert.doesNotMatch(tela, /revenueCoverage\.complete && \([\s\S]{0,200}(integration-message is-error|channel-module-notice)/);
+  // E a contagem continua sendo a única coisa que decide se a pendência existe.
+  assert.match(tela, /ordersAwaitingCapture > 0 \|\| \(overview\.notasPendentes\?\.pedidos \?\? 0\) > 0/);
 });
 
 test("Shopee: sem resposta do overview renderiza carregamento antes de qualquer afirmação de vazio", async () => {

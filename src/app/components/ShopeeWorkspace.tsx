@@ -22,7 +22,7 @@ import { buildFinancialComposition, FinancialSummaryPanel } from "./FinancialSum
 import { brDate, brTime } from "@/lib/datetime";
 import { coberturaDoPeriodo } from "@/lib/coberturaPeriodo";
 import { SincronizacaoCompleta } from "./SincronizacaoCompleta";
-import { FlaskConical } from "lucide-react";
+import { ChevronDown, FlaskConical } from "lucide-react";
 import type { ProfitabilityLine } from "@/lib/profitability";
 import type { ShopeeSyncStatus } from "@/lib/integrations/shopeeSync";
 import { SHOPEE_CATALOG_CAPABILITIES } from "@/lib/integrations/shopeeCapabilities";
@@ -40,7 +40,7 @@ import { marginMetricTone } from "@/lib/marginTone";
 import { comSemImposto } from "@/lib/semImposto";
 import { rotuloStatusShopee } from "./statusDeExibicao";
 import { shopeeTaxRateHref } from "./ShopeeSettingsModel";
-import { BaseDeData } from "./BaseDeData";
+import { BaseDeData, ProgressoDaImportacao } from "./BaseDeData";
 
 interface Overview {
   account: { id: string; name: string; region: string };
@@ -379,7 +379,7 @@ export function ShopeeWorkspace() {
         action={status.connections.length > 1 && <label className="channel-store-selector">Loja<select aria-label="Loja Shopee" value={status.connections.find((item)=>item.id===searchParams.get("connection_id"))?.id??status.connections[0]?.id} onChange={(event)=>{const next=new URLSearchParams(searchParams.toString());next.set("connection_id",event.target.value);next.set("offset","0");router.push(`/shopee?${next}`,{scroll:false})}}>{status.connections.map((item)=><option key={item.id} value={item.id}>{item.displayName||item.externalAccountId||item.id}</option>)}</select></label>}
       />}
     >
-      {status.demo && <ShopeeDemoNotice connectHref={status.configured ? status.connectHref : undefined} />}
+      {status.demo && <ShopeeDemoNotice connectHref={status.configured ? status.connectHref : undefined} compacto />}
       <Dashboard
         overview={overview}
         sync={sync}
@@ -394,7 +394,24 @@ export function ShopeeWorkspace() {
   );
 }
 
-function ShopeeDemoNotice({ connectHref }: { connectHref?: string }) {
+/**
+ * `compacto` existe porque o MESMO aviso tem dois papeis. Numa tela vazia ou de
+ * erro ele e o conteudo principal e merece o bloco inteiro. No dashboard cheio
+ * ele e uma faixa constante que nunca muda de estado — e o cabecalho ja diz
+ * "Visao de demonstracao / Dados sinteticos" logo acima. Ali vira linha
+ * discreta, sem perder o link de conectar loja real.
+ */
+function ShopeeDemoNotice({ connectHref, compacto = false }: { connectHref?: string; compacto?: boolean }) {
+  if (compacto) {
+    return (
+      <p className="base-de-data" role="note">
+        Os pedidos, produtos e valores desta tela são sintéticos. Nenhuma loja Shopee real está autorizada neste workspace.
+        {connectHref && (
+          <> <Link className="font-semibold text-sky-700 underline-offset-2 hover:underline" href={connectHref}>Conectar loja real <span aria-hidden="true">→</span></Link></>
+        )}
+      </p>
+    );
+  }
   return (
     <aside className="channel-module-notice is-warning shopee-demo-notice" aria-labelledby="shopee-demo-title">
       <div className="flex gap-3">
@@ -514,35 +531,59 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
           em 27/08/2026 ("0 pedido(s) aguardam captura"). O caso de cobertura
           por data já é coberto pela faixa honesta "os números abaixo cobrem a
           partir de DD/MM" acima. */}
-      {ordersAwaitingCapture > 0 && (
-        <div role="status" className="integration-message is-error">
-          {ordersAwaitingCapture} pedido(s) do período aguardam captura pela sincronização do NEXO. <Link href="/shopee/monitor" className="font-semibold text-sky-700 underline-offset-2 hover:underline">Ver pedidos <span aria-hidden="true">→</span></Link>
-        </div>
+      {/* Duas pendencias que eram DOIS blocos vermelhos de largura total, um
+          debaixo do outro, viraram UM agrupador colapsado — o mesmo padrao que
+          o TikTok ja usa em producao (`tiktok-attention-summary`). Nenhum texto
+          mudou: numero, motivo informado pela Shopee e link continuam iguais,
+          agora dentro do bloco em vez de gritando lado a lado. Separados por
+          DONO DA ESPERA, como no TikTok. */}
+      {(ordersAwaitingCapture > 0 || (overview.notasPendentes?.pedidos ?? 0) > 0) && (
+        <details className="pendencias-agrupadas">
+          <summary>
+            <span>
+              <strong>
+                {(ordersAwaitingCapture > 0 ? 1 : 0) + ((overview.notasPendentes?.pedidos ?? 0) > 0 ? 1 : 0)}
+                {(ordersAwaitingCapture > 0 ? 1 : 0) + ((overview.notasPendentes?.pedidos ?? 0) > 0 ? 1 : 0) === 1 ? " pendência" : " pendências"} no período
+              </strong>
+              <small>Abra para separar o que depende de você do que depende da Shopee.</small>
+            </span>
+            <ChevronDown aria-hidden="true" />
+          </summary>
+          <div className="pendencias-agrupadas-detalhe">
+            {(overview.notasPendentes?.pedidos ?? 0) > 0 && (
+              <aside className="channel-module-notice is-warning" role="status">
+                <strong>Falta você resolver</strong>
+                <p>
+                  {overview.notasPendentes!.pedidos} pedido(s) aguardando NF-e — a Shopee bloqueia o envio até a nota ser validada.
+                  {overview.notasPendentes!.motivos.some((item) => item.motivo != null) && (
+                    <> Motivo informado pela Shopee: {overview.notasPendentes!.motivos.filter((item) => item.motivo != null).map((item) => `${item.motivo} (${item.pedidos})`).join("; ")}.</>
+                  )}{" "}
+                  <Link href="/shopee/monitor" className="font-semibold text-sky-700 underline-offset-2 hover:underline">Ver pedidos <span aria-hidden="true">→</span></Link>
+                </p>
+              </aside>
+            )}
+            {ordersAwaitingCapture > 0 && (
+              <aside className="channel-module-notice is-warning" role="status">
+                <strong>Aguardando a sincronização</strong>
+                <p>
+                  {ordersAwaitingCapture} pedido(s) do período aguardam captura pela sincronização do NEXO.{" "}
+                  <Link href="/shopee/monitor" className="font-semibold text-sky-700 underline-offset-2 hover:underline">Ver pedidos <span aria-hidden="true">→</span></Link>
+                </p>
+              </aside>
+            )}
+          </div>
+        </details>
       )}
 
-      {/* NF-e pendente trava o ENVIO na Shopee (regra de 29/07/2026) — decisão
-          da Ana em 28/08/2026: pendência com número e link, nunca invisível. O
-          motivo só aparece quando a Shopee o mandou; ausência não vira texto. */}
-      {(overview.notasPendentes?.pedidos ?? 0) > 0 && (
-        <div role="status" className="integration-message is-error">
-          {overview.notasPendentes!.pedidos} pedido(s) aguardando NF-e — a Shopee bloqueia o envio até a nota ser validada.
-          {overview.notasPendentes!.motivos.some((item) => item.motivo != null) && (
-            <> Motivo informado pela Shopee: {overview.notasPendentes!.motivos.filter((item) => item.motivo != null).map((item) => `${item.motivo} (${item.pedidos})`).join("; ")}.</>
-          )}{" "}
-          <Link href="/shopee/monitor" className="font-semibold text-sky-700 underline-offset-2 hover:underline">Ver pedidos <span aria-hidden="true">→</span></Link>
-        </div>
-      )}
-
-      {sync?.phase === "syncing" && <div role="status" className="integration-message">Sincronização do NEXO em andamento: {sync.processedOrders} pedido(s) processado(s) ({sync.progress}%). <Link href="/shopee/monitor" className="font-semibold text-sky-700 underline-offset-2 hover:underline">Acompanhar no monitor <span aria-hidden="true">→</span></Link></div>}
-
-      {cobertura && !cobertura.periodoCoberto && cobertura.cobreDesde && (
-        <div role="status" className="integration-message">
-          Os números abaixo cobrem a partir de {brDate(new Date(cobertura.cobreDesde))}
-          {cobertura.emImportacao
-            ? <> — o início do período ainda está sendo importado ({sync?.processedOrders ?? 0} pedido(s) já importado(s)).</>
-            : <> — o histórico importado começa aí.</>}
-        </div>
-      )}
+      {/* Mesma fusao feita no ML e na Amazon: as duas faixas de PROGRESSO
+          viraram uma linha discreta, colada na faixa de metricas. Toda frase
+          antiga sobrevive, nas mesmas condicoes. */}
+      <ProgressoDaImportacao
+        progresso={sync?.phase === "syncing" ? sync.progress : null}
+        cobreDesde={cobertura && !cobertura.periodoCoberto ? cobertura.cobreDesde : null}
+        emImportacao={cobertura?.emImportacao}
+        pedidosImportados={sync?.processedOrders}
+      />
 
       {sync && (
         <SincronizacaoCompleta
@@ -552,10 +593,13 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
         />
       )}
 
+      {/* Era caixa azul de largura total para uma constante de capacidade que
+          NUNCA muda de estado — o tipo de aviso que ensina a ignorar a regiao
+          inteira. Mesmo texto, agora linha discreta ao lado da base de data. */}
       {!SHOPEE_CATALOG_CAPABILITIES.models && (
-        <div role="status" className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
+        <p className="base-de-data" role="note">
           As quantidades são agregadas por anúncio — o detalhamento por variação ainda não está disponível nesta integração.
-        </div>
+        </p>
       )}
 
       {/* Go Live da Shopee ainda nao saiu: nao ha repasse observado, entao
