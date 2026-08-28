@@ -64,6 +64,17 @@ interface ProviderStatus {
 const TIKTOK_PRIMARY_FINANCIAL_KEYS = new Set(["revenue", "fees", "cogs", "profit", "marginPct"]);
 
 const MANAGE_CONNECTIONS = "/integracoes";
+/**
+ * Mesmo `periodCache` do Mercado Livre, da Amazon e da Shopee: periodo ja visto
+ * pinta no primeiro paint, revalidacao em segundo plano. O TikTok tambem estava
+ * de fora — trocar Hoje/7/15/30 refazia a busca com a tela vazia mesmo em
+ * periodo ja aberto.
+ *
+ * ⚠️ A chave inclui a LOJA: cache de periodo sem `connectionId` misturaria
+ * numeros de lojas diferentes no seletor. Escopo de modulo; reload limpa tudo.
+ */
+const periodCache = new Map<string, TiktokOverviewResponse>();
+
 
 export function TikTokWorkspace() {
   const router = useRouter();
@@ -119,18 +130,31 @@ export function TikTokWorkspace() {
   useEffect(() => {
     if (!selectedConnectionId) return;
     let cancelled = false;
+    const chave = `${selectedConnectionId}:${period.query}`;
+    const emCache = periodCache.get(chave);
+    // Pinta o que ja foi visto e revalida por baixo; a resposta nova
+    // sobrescreve, entao numero velho nunca fica passando por novo.
+    // Mesmo motivo do ML e da Shopee: o repaint do cache sai do corpo do efeito.
+    const pintar = emCache
+      ? window.setTimeout(() => setOverviewState({ connectionId: selectedConnectionId, data: emCache, em: Date.now() }), 0)
+      : undefined;
     (async () => {
       try {
         const response = await fetch(`/api/integrations/tiktok/overview?${tiktokOverviewQuery(period.query, selectedConnectionId)}`, { cache: "no-store" });
         const body = await response.json();
         const connectionError = tiktokConnectionError(body.code);
         if (!response.ok) throw new Error(response.status >= 500 ? "A TikTok Shop está temporariamente indisponível." : (connectionError || "Não foi possível carregar esta loja. Tente novamente ou gerencie as conexões."));
-        if (!cancelled) setOverviewState({ connectionId: selectedConnectionId, data: body, em: Date.now() });
+        if (!cancelled) {
+          periodCache.set(chave, body);
+          setOverviewState({ connectionId: selectedConnectionId, data: body, em: Date.now() });
+        }
       } catch (cause) {
-        if (!cancelled) setErrorState({ connectionId: selectedConnectionId, message: cause instanceof Error ? cause.message : "Não foi possível carregar a TikTok Shop." });
+        // Falha ao revalidar um periodo que ja esta na tela nao apaga o que
+        // a pessoa esta lendo — mesma regra dos outros tres canais.
+        if (!cancelled && !emCache) setErrorState({ connectionId: selectedConnectionId, message: cause instanceof Error ? cause.message : "Não foi possível carregar a TikTok Shop." });
       }
     })();
-    return () => { cancelled = true; };
+    return () => { cancelled = true; if (pintar) window.clearTimeout(pintar); };
   }, [attempt, period.query, selectedConnectionId]);
 
   const selectConnection = useCallback((connectionId: string) => {

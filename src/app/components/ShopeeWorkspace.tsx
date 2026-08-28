@@ -107,6 +107,33 @@ function percent(value: number) {
 // liam o mesmo pedido de dois jeitos.
 const orderStatus = rotuloStatusShopee;
 
+interface PeriodoEmCache {
+  overview: Overview;
+  sync: ShopeeSyncStatus | null;
+  updatedAt: Date;
+}
+
+/**
+ * Mesmo padrao do `periodCache` do Mercado Livre e do `dashCache` da Amazon: o
+ * periodo ja visto pinta no primeiro paint e a revalidacao corre em segundo
+ * plano. A Shopee tinha ficado de fora, e por isso trocar Hoje/7/15/30 aqui
+ * parecia mais lento que nos outros canais mesmo em periodo ja aberto.
+ *
+ * ⚠️ A CHAVE INCLUI A LOJA. Cache de periodo sem `connection_id` misturaria
+ * numeros de lojas diferentes ao trocar no seletor — seria pior que a lentidao
+ * que ele resolve. `offset` entra pelo mesmo motivo: a pagina de detalhamento
+ * faz parte do que foi buscado.
+ *
+ * Escopo de modulo: sobrevive a navegacao entre canais. Um reload limpa tudo —
+ * o cache nunca e a fonte da verdade, so evita a tela em branco enquanto a
+ * resposta nova nao chega.
+ */
+const periodCache = new Map<string, PeriodoEmCache>();
+
+function chaveDoPeriodo(connectionId: string, periodQuery: string, offset: string) {
+  return `${connectionId}:${periodQuery}:${offset}`;
+}
+
 export function ShopeeWorkspace() {
   const period = useDashboardPeriod();
   const router = useRouter();
@@ -114,6 +141,8 @@ export function ShopeeWorkspace() {
   const previousPeriod = useRef(period.query);
   const [status, setStatus] = useState<ProviderStatus | null>(null);
   const [overview, setOverview] = useState<Overview | null>(null);
+  // De qual LOJA e o que esta pintado agora — ver a guarda abaixo.
+  const lojaNaTela = useRef<string | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
@@ -183,16 +212,43 @@ export function ShopeeWorkspace() {
   useEffect(() => {
     if (!status?.connected) return;
     let cancelled = false;
+    const requested = searchParams.get("connection_id");
+    const selected = status.connections.find((connection) => connection.id === requested) ?? status.connections[0];
+    if (!selected) return;
+    const offset = searchParams.get("offset") ?? "0";
+    const chave = chaveDoPeriodo(selected.id, period.query, offset);
+    // Pinta o periodo ja visto ANTES de buscar. A resposta nova sobrescreve
+    // quando chegar — o cache nunca fica na tela como se fosse o dado fresco.
+    const emCache = periodCache.get(chave);
+    const anterior = lojaNaTela.current;
+    lojaNaTela.current = selected.id;
+    // O repaint sai do corpo do efeito por um timeout de 0, como no
+    // `MercadoLivreWorkspace`: setState sincrono aqui e cascata de render
+    // (`react-hooks/set-state-in-effect`). O padrao ja existia; so segui.
+    const pintar = window.setTimeout(() => {
+      // ⚠️ Trocar de loja com cache vazio deixaria os numeros da loja ANTERIOR
+      // na tela enquanto a nova carrega. Numero de outra loja e pior que
+      // espera: some na hora e volta o carregamento.
+      if (anterior && anterior !== selected.id && !emCache) {
+        setOverview(null);
+        setSync(null);
+        setUpdatedAt(null);
+      }
+      if (emCache) {
+        setOverview(emCache.overview);
+        setSync(emCache.sync);
+        setUpdatedAt(emCache.updatedAt);
+        setPending(false);
+        setError(null);
+      }
+    }, 0);
     (async () => {
       try {
         setError(null);
-        const requested = searchParams.get("connection_id");
-        const selected = status.connections.find((connection) => connection.id === requested) ?? status.connections[0];
-        if (!selected) return;
         const query = new URLSearchParams(period.query);
         query.set("connection_id", selected.id);
         query.set("limit", "100");
-        query.set("offset", searchParams.get("offset") ?? "0");
+        query.set("offset", offset);
         const response = await fetch(`/api/integrations/shopee/overview?${query}`, { cache: "no-store" });
         const data = await response.json() as OverviewResponse & { error?: string };
         if (cancelled) return;
@@ -201,16 +257,21 @@ export function ShopeeWorkspace() {
         if (data.pending) {
           setPending(true);
           setOverview(null);
+          periodCache.delete(chave);
         } else {
           setPending(false);
           setOverview(data.overview ?? null);
-          setUpdatedAt(new Date());
+          const quando = new Date();
+          setUpdatedAt(quando);
+          if (data.overview) periodCache.set(chave, { overview: data.overview, sync: data.sync, updatedAt: quando });
         }
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Erro ao carregar.");
+        // Falha na revalidacao de um periodo que ja esta na tela nao apaga o
+        // que a pessoa esta lendo — mesma regra do Mercado Livre.
+        if (!cancelled && !emCache) setError(err instanceof Error ? err.message : "Erro ao carregar.");
       }
     })();
-    return () => { cancelled = true; };
+    return () => { cancelled = true; window.clearTimeout(pintar); };
   }, [status, period.query, retryKey, searchParams, syncPoll]);
 
   // Enquanto a primeira sincronização roda, a tela se atualiza sozinha — o
