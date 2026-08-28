@@ -172,19 +172,34 @@ export async function ensureShopeeSyncState(connectionId: string): Promise<Shope
   return publicStatus(await ensureSyncRow(connectionId));
 }
 
-/** Reabre a janela recente quando os dados já estão velhos. */
+/**
+ * Reabre a janela recente quando os dados já estão velhos.
+ *
+ * A reabertura é INCREMENTAL (espelho do requestMercadoLivreSync — correção de
+ * 28/08/2026): o alvo estreita para o trecho ainda não coberto, com 1 dia de
+ * sobreposição para mutação tardia. Sem estreitar target_from, a máquina de
+ * janelas — que só completa quando o cursor alcança target_from — re-caminhava
+ * a história INTEIRA a cada reabertura: loja com ~22k pedidos vivia em
+ * 'pending' (a tela de primeira sync engolia o dashboard cheio) e
+ * processed_orders somava a loja inteira por passada. covered_from segue
+ * preservado pelo LEAST do fechamento de janela, então a cobertura exibida não
+ * encolhe.
+ */
 export async function requestShopeeSync(connectionId: string): Promise<ShopeeSyncStatus> {
   const row = await ensureSyncRow(connectionId);
   const lastSuccess = row.last_success_at ? new Date(row.last_success_at).getTime() : 0;
   if (row.status === "complete" && Date.now() - lastSuccess > FRESH_FOR_MS) {
     const now = new Date();
     const coveredTo = row.covered_to ? new Date(row.covered_to) : new Date(row.target_to);
-    const cursorFrom = new Date(Math.max(coveredTo.getTime() - DAY, now.getTime() - WINDOW_DAYS * DAY));
+    // Nunca ALARGA o alvo: se a cobertura recua além do target_from original,
+    // o original prevalece.
+    const targetFrom = new Date(Math.max(new Date(row.target_from).getTime(), coveredTo.getTime() - DAY));
+    const cursorFrom = new Date(Math.max(targetFrom.getTime(), now.getTime() - WINDOW_DAYS * DAY));
     await dbQuery(
       `UPDATE workspace_marketplace_syncs
-          SET status = 'pending', target_to = $4, cursor_from = $5, cursor_to = $4, updated_at = now()
+          SET status = 'pending', target_from = $6, target_to = $4, cursor_from = $5, cursor_to = $4, updated_at = now()
         WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
-      [currentWorkspaceId(), PROVIDER, connectionId, now, cursorFrom]
+      [currentWorkspaceId(), PROVIDER, connectionId, now, cursorFrom, targetFrom]
     );
     return publicStatus(await getSyncRow(connectionId));
   }

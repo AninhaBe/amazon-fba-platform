@@ -317,7 +317,13 @@ export function ShopeeWorkspace() {
     );
   }
 
-  if (sync && sync.phase !== "ready" && (pending || !overview || sync.phase !== "syncing")) {
+  // REGRA DE PRODUTO (28/08/2026, correção da regressão da UTILEIRA): a tela
+  // cheia de sincronização SÓ aparece quando não há pedido nenhum para mostrar
+  // (pending || !overview). Com overview presente, o dashboard SEMPRE renderiza
+  // — o progresso vive nas faixas internas de cobertura. Antes, a fase 'idle'
+  // (status pending entre passos do cron) tomava a tela inteira de uma loja com
+  // 22 mil pedidos e o dashboard cheio sumia atrás de "Importando...".
+  if (sync && sync.phase !== "ready" && (pending || !overview)) {
     const state = shopeeSyncContent(sync.phase);
     const detail = sync.error?.message || state.description;
     const action = state.action === "refresh"

@@ -255,13 +255,20 @@ export async function requestTiktokSync(connectionId: string): Promise<TiktokSyn
   if (row.status === "complete" && Date.now() - lastSuccess > FRESH_FOR_MS) {
     const now = new Date();
     const coveredTo = row.covered_to ? new Date(row.covered_to) : new Date(row.target_to);
-    const cursorFrom = new Date(Math.max(coveredTo.getTime() - DAY, now.getTime() - WINDOW_DAYS * DAY));
+    // Reabertura INCREMENTAL (espelho do ML, mesma correção da Shopee em
+    // 28/08/2026): sem estreitar target_from, a máquina re-caminhava a história
+    // inteira a cada reabertura — 'pending' eterno e processed_orders inflado.
+    // covered_from segue preservado pelo LEAST do fechamento de janela. O
+    // reprocesso deliberado da história continua existindo à parte, no
+    // requestTiktokFullReprocess.
+    const targetFrom = new Date(Math.max(new Date(row.target_from).getTime(), coveredTo.getTime() - DAY));
+    const cursorFrom = new Date(Math.max(targetFrom.getTime(), now.getTime() - WINDOW_DAYS * DAY));
     await dbQuery(
       `UPDATE workspace_marketplace_syncs
-          SET status = 'pending', target_to = $4, cursor_from = $5, cursor_to = $4,
+          SET status = 'pending', target_from = $6, target_to = $4, cursor_from = $5, cursor_to = $4,
               cursor_token = NULL, updated_at = now()
         WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
-      [currentWorkspaceId(), PROVIDER, connectionId, now, cursorFrom]
+      [currentWorkspaceId(), PROVIDER, connectionId, now, cursorFrom, targetFrom]
     );
     return publicStatus(await getSyncRow(connectionId));
   }
