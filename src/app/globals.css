@@ -81,6 +81,12 @@
   --positive-soft: oklch(0.956 0.027 160);
   --warning: oklch(0.575 0.126 72);
   --danger: oklch(0.545 0.17 27);
+  /* Papel ACAO (regra de enfase, 28/08/2026): o unico texto corrido que ganha
+     cor alem de alerta. NAO e cor nova — aponta para o azul que o produto ja
+     usa. Existe porque hoje o MESMO link de acao aparece como `text-sky-700`,
+     `text-blue-600` e `meli-primary-action`, tres tratamentos crus do Tailwind
+     fora do sistema de tokens, que ninguem consegue mudar num lugar so. */
+  --acao: var(--amazon-dark);
   /* Elevacao. Nao existe `border` no sistema: o contorno e a ULTIMA camada da
      sombra, um anel de 1px a 5%. E isso que faz contorno e sombra subirem
      juntos como uma coisa so quando o elemento eleva — com `border` separado,
@@ -699,6 +705,20 @@ button[class*="bg-blue-"]:hover, a[class*="bg-blue-"]:hover { background: var(--
 
 /* Saúde da conta Shopee: definição curta sob o nome da métrica e o bloco
    colapsado "Como a Shopee avalia sua loja" (explicações da doc oficial). */
+/* Enfase por PAPEL, nao por decoracao (ver a regra de 28/08/2026). `texto-acao`
+   e o unico tratamento colorido de texto corrido: marca o que a pessoa pode
+   FAZER. Contexto, definicao e fonte seguem em --ink-muted de proposito — se
+   tudo ganha cor, nada e lido, que era o problema das faixas empilhadas.
+   A cor nunca vem sozinha: o texto sempre nomeia a acao ("O que fazer:"). */
+.texto-acao { display: block; margin-block-start: 3px; max-width: 52ch; color: var(--acao); font-size: 12px; line-height: 16px; text-wrap: pretty; }
+.texto-acao strong { font-weight: var(--weight-semibold); }
+/* Linha reprovada: a marca fica na LINHA, nao so no chip da ultima coluna —
+   quem varre a tabela pela esquerda nao precisa chegar ate a direita para ver
+   que ha problema. O chip "Reprovada" continua, entao a cor nunca e o unico
+   sinal. */
+.channel-module-table tbody tr.is-reprovada > td:first-child { box-shadow: inset 3px 0 0 var(--danger); }
+.channel-module-table tbody tr.is-reprovada > td { background: color-mix(in oklch, var(--danger) 4%, transparent); }
+
 .shopee-saude-definicao { display: block; margin-block-start: 2px; max-width: 52ch; color: var(--ink-muted); font-size: 11px; line-height: 15px; text-wrap: pretty; }
 .shopee-saude-explicacao summary { cursor: pointer; }
 .shopee-saude-explicacao p { margin-block-start: 6px; max-width: 92ch; }

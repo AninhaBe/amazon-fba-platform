@@ -177,7 +177,7 @@ function Conteudo({ saude, agoraMs }: { saude: ShopeeSaudeDaConta; agoraMs: numb
               <thead><tr><th scope="col">Métrica</th><th scope="col">Atual</th><th scope="col">Período anterior</th><th scope="col">Alvo</th><th scope="col">Situação</th></tr></thead>
               <tbody>
                 {metricas.map((metrica) => (
-                  <tr key={metrica.nome}>
+                  <tr key={metrica.nome} className={metrica.situacao === "reprovada" ? "is-reprovada" : undefined}>
                     <td>
                       {NOME_DA_METRICA[metrica.nome] ?? metrica.nome}
                       {/* Definição só quando a doc oficial define (mapa com
@@ -185,8 +185,12 @@ function Conteudo({ saude, agoraMs }: { saude: ShopeeSaudeDaConta; agoraMs: numb
                       {EXPLICACAO_DA_METRICA[metrica.nome] && (
                         <small className="shopee-saude-definicao">{EXPLICACAO_DA_METRICA[metrica.nome].definicao}</small>
                       )}
+                      {/* Estava na MESMA classe da definicao — cinza de 11px — e
+                          por isso lia como rodape. E o unico texto da linha que
+                          pede acao; ganha o tratamento de acao (`texto-acao`),
+                          nao o de fonte. */}
                       {metrica.situacao === "reprovada" && EXPLICACAO_DA_METRICA[metrica.nome]?.oQueFazer && (
-                        <small className="shopee-saude-definicao"><strong>O que fazer:</strong> {EXPLICACAO_DA_METRICA[metrica.nome].oQueFazer}</small>
+                        <small className="texto-acao"><strong>O que fazer:</strong> {EXPLICACAO_DA_METRICA[metrica.nome].oQueFazer}</small>
                       )}
                     </td>
                     <td className="tabular-nums">{valor(metrica, "valorAtual")}</td>
