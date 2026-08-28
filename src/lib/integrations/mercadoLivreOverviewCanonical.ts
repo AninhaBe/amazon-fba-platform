@@ -530,6 +530,12 @@ export async function getMercadoLivreOverviewFromCanonical(
         };
       }),
     profitabilityLines,
+    // Lista cheia no teto = houve corte (os N mais recentes); abaixo do teto,
+    // tudo que existia entrou e não há o que avisar.
+    profitabilityScope: {
+      detailedOrders: linesByOrder.size,
+      completePeriod: linesByOrder.size < DETAILED_ORDER_LIMIT,
+    },
     recentOrders: recentRows.map((row) => ({
       id: row.external_order_id,
       packId: row.pack_id,

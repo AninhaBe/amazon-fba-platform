@@ -783,6 +783,16 @@ export interface MercadoLivrePeriod {
   label: string;
 }
 
+/**
+ * O que a lista de rentabilidade mostra: o teto de detalhamento do canônico
+ * corta a LISTA, nunca os agregados — quando corta, a tela precisa dizer
+ * (mesma frase da referência Amazon do monitor).
+ */
+export interface MercadoLivreProfitabilityScope {
+  detailedOrders: number;
+  completePeriod: boolean;
+}
+
 export interface MercadoLivreOverviewSource {
   user: MercadoLivreUser;
   productsData: Awaited<ReturnType<typeof getMercadoLivreProducts>>;
@@ -1061,6 +1071,9 @@ export async function getMercadoLivreOverview(
         };
       }),
     profitabilityLines,
+    // O caminho legado monta as linhas do que buscou ao vivo e não conhece o
+    // teto de detalhamento do canônico; null = sem frase de escopo na tela.
+    profitabilityScope: null as MercadoLivreProfitabilityScope | null,
     recentOrders: orders.slice(0, 10).map((order) => ({
       id: String(order.id),
       packId: order.pack_id ? String(order.pack_id) : null,

@@ -40,6 +40,13 @@ const MERCADO_LIVRE_TAX_RATE_HREF = "/mercado-livre/produtos#mercado-livre-aliqu
 /** As três abas do monitor — as mesmas da Amazon. */
 type SecaoDoMonitor = "composition" | "transactions" | "profitability";
 
+// Mesma frase do monitor da Amazon: quando o teto de detalhamento corta a
+// lista, diz O QUE está sendo exibido — sem adjetivo que se desculpe.
+function fraseDeEscopo(scope?: { detailedOrders: number; completePeriod: boolean } | null): string | undefined {
+  if (!scope || scope.completePeriod) return undefined;
+  return `Exibindo os ${scope.detailedOrders} pedidos mais recentes. Os totais financeiros acima consideram o período completo.`;
+}
+
 interface Overview {
   account: { id: string; nickname: string; siteId: string; };
   period: { from: string; to: string; label: string; };
@@ -49,6 +56,7 @@ interface Overview {
   topProducts: Array<{ id: string; sku: string | null; title: string; units: number; revenue: number; cost: number; contribution: number; complete: boolean; marginPct: number | null; }>;
   stockRadar: Array<{ id: string; sku: string | null; title: string; thumbnail: string | null; availableQuantity: number; unitsSold: number; calculationDays: number; daysRemaining: number | null; status: StockStatus; }>;
   profitabilityLines: ProfitabilityLine[];
+  profitabilityScope?: { detailedOrders: number; completePeriod: boolean } | null;
   recentOrders: Array<{ id: string; packId: string | null; status: string; createdAt: string; total: number; currency: string; items: number; }>;
 }
 
@@ -494,7 +502,7 @@ function Dashboard({ overview, syncStatus, periodoLabel, connectionId }: { overv
         respondendo o que o lucro sozinho deixa no ar — "então cadê?". */}
     <MercadoLivreSaldo />
 
-    <OrderProfitabilityTable lines={overview.profitabilityLines} />
+    <OrderProfitabilityTable lines={overview.profitabilityLines} scopeNote={fraseDeEscopo(overview.profitabilityScope)} />
 
     {/* No desktop a sidebar já cobre estes atalhos; no mobile a nav é scroll
         horizontal e os cartões ajudam. */}
@@ -652,6 +660,6 @@ function Monitor({ overview, secaoInicial }: { overview: Overview; secaoInicial:
       </p>
     )}
     </section>}
-    {section === "profitability" && <OrderProfitabilityTable lines={overview.profitabilityLines} />}
+    {section === "profitability" && <OrderProfitabilityTable lines={overview.profitabilityLines} scopeNote={fraseDeEscopo(overview.profitabilityScope)} />}
   </div>;
 }
