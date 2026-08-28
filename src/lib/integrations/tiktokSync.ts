@@ -560,6 +560,11 @@ async function syncMissingStatements(
                 evidence_fees = $5, evidence_seller_shipping = $6,
                 -- O endpoint atual não separa estas categorias. Ausência de
                 -- evidência permanece desconhecida, mesmo com extrato liquidado.
+                -- ⚠️ CONDIÇÃO DA R2-b (revisão do Delta, 28/08/2026): antes de
+                -- extinguir o raw/fallback, estas três trocam para preservar o
+                -- valor existente (evidence_ads = workspace_channel_orders.evidence_ads,
+                -- etc.) — 219 pedidos têm true de um escritor antigo, e o
+                -- rebaixamento true→false precisa ser impossível por construção.
                 evidence_ads = false, evidence_taxes_withheld = false, evidence_refunds = false,
                 synced_at = now()
           WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3 AND external_order_id=$4
