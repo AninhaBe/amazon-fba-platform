@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { RevenueChart, type DailyPoint } from "../components/RevenueChart";
 import { PageHeader, pageIcons } from "../components/PageHeader";
@@ -231,7 +231,17 @@ const dashCache = new Map<string, DashSnapshot>();
 // alguem acrescentasse um campo. Aqui guarda-se a resposta e reusa-se o MESMO
 // mapeamento que a tela ja usa.
 const payloadDoPeriodo = new Map<string, DashboardPayload>();
-let productsCache: ProductRow[] | null = null;
+// ⚠️ O CACHE DE PRODUTOS CARREGA A CONTA JUNTO.
+//
+// Ele sobrevive a navegacao como os outros, e por isso precisa dizer de quem
+// ele e. Guardar so as linhas repetiria, com outra roupa, o defeito de
+// 28/08/2026 (numero de um recorte sob o rotulo de outro): trocar de conta
+// Amazon e continuar vendo os produtos da anterior e a mesma mentira, so que
+// pior — ali era um periodo, aqui seria outra loja.
+//
+// `conta: null` = buscado antes de a conta ser conhecida (a resposta e a da
+// sessao, que e a mesma). Assim que o payload revela a conta, ela e anotada.
+let productsCache: { conta: string | null; linhas: ProductRow[] } | null = null;
 
 /**
  * A legenda do cartão de Faturamento.
@@ -267,7 +277,7 @@ export default function Dashboard() {
   const [ordersBruto, setOrders] = useState<OrdersData | null>(initialDash?.orders ?? null);
   const [profitBruto, setProfit] = useState<ProfitData | null>(initialDash?.profit ?? null);
   const [radarBruto, setRadar] = useState<RadarRow[]>(initialDash?.radar ?? []);
-  const [products, setProducts] = useState<ProductRow[]>(productsCache ?? []);
+  const [products, setProducts] = useState<ProductRow[]>(productsCache?.linhas ?? []);
   const [salesBruto, setSales] = useState<SalesSeries | null>(initialDash?.sales ?? null);
   const [topBruto, setTop] = useState<TopProduct[]>(initialDash?.top ?? []);
   const [profitabilityBruto, setProfitability] = useState<ProfitabilityLine[]>(initialDash?.profitability ?? []);
@@ -465,18 +475,89 @@ export default function Dashboard() {
       }
     });
 
-    // Produtos e top produtos usam o relatório da Amazon (lento) — carregam em separado.
-    if (!productsCache) Promise.resolve().then(() => active && setProductsLoading(true));
-    safe<ProductRow[]>(`/api/products`, (v) => { productsCache = v; setProducts(v); }, (d) => (d as { products: ProductRow[] }).products, "produtos").finally(
-      () => active && setProductsLoading(false)
-    );
-    // Saldo NÃO leva `periodQuery`: é o estado de agora, não do período escolhido.
-    safe<SaldoData | null>(`/api/amazon/balance`, (v) => setSaldo(v), (d) => d as SaldoData | null, "saldo");
-
     return () => {
       active = false;
     };
   }, [periodQuery]);
+
+  // ⚠️ ESTE EFEITO NAO OLHA O PERIODO — DE PROPOSITO, E ISSO E O CONSERTO.
+  //
+  // Medido em producao em 28/08/2026: trocar de periodo na Amazon disparava
+  // TRES requisicoes (produtos, saldo e o briefing da central) enquanto ML,
+  // Shopee e TikTok disparavam duas. E o dashboard, que e o unico que depende
+  // do periodo, nem estava entre elas — o aquecimento ja o tinha. Ou seja: a
+  // Amazon era a mais lenta a trocar de periodo pagando por dado que NAO MUDA
+  // com o periodo. `/api/amazon/balance` e o saldo de agora e `/api/products`
+  // nem periodo tem na pergunta; os dois eram refeitos a cada clique so porque
+  // moravam num efeito com `[periodQuery]` na dependencia.
+  //
+  // O que muda o resultado destes dois e a CONTA, entao e nela que eles ouvem.
+  const contaAtual = cobertura?.sync.connectionId ?? null;
+  const contaDosExtras = useRef<string | null | undefined>(undefined);
+
+  // ⚠️ TROCA DE CONTA LIMPA A LISTA ANTES DE PINTAR — mesmo padrao (e mesmo
+  // motivo) do ajuste de estado no `AnimatedNumber`.
+  //
+  // Sem isto, trocar a conta Amazon deixaria os produtos da loja anterior na
+  // tela ate a nova resposta chegar. Seria trocar um desperdicio por uma
+  // mentira, e uma pior que a de hoje: la era o numero de outro PERIODO, aqui
+  // seriam os produtos de outra LOJA. Ajustar durante o render acontece antes
+  // da pintura, entao nao sobra quadro com a lista alheia.
+  //
+  // Só a troca entre contas CONHECIDAS limpa: `null -> conta` e a primeira vez
+  // que o payload revela quem e, e a lista que esta na tela ja e dela.
+  const [contaDosProdutos, setContaDosProdutos] = useState(contaAtual);
+  if (contaAtual !== contaDosProdutos) {
+    setContaDosProdutos(contaAtual);
+    if (contaAtual !== null && contaDosProdutos !== null) {
+      setProducts([]);
+      setProductsLoading(true);
+    }
+  }
+  useEffect(() => {
+    // `undefined` = ainda nao buscamos nesta montagem. `null` = buscamos antes
+    // de a conta ser conhecida. Sabendo a conta pela primeira vez NAO se busca
+    // de novo: a resposta que ja veio e dela. So conta DIFERENTE refaz.
+    const primeira = contaDosExtras.current === undefined;
+    const trocouDeConta = !primeira && contaAtual !== null && contaDosExtras.current !== null
+      && contaDosExtras.current !== contaAtual;
+    if (!primeira && !trocouDeConta) {
+      if (contaAtual !== null) contaDosExtras.current = contaAtual;
+      return;
+    }
+    contaDosExtras.current = contaAtual;
+    // Conta nova invalida o que estava em cache: e de outra loja.
+    if (trocouDeConta) productsCache = null;
+
+    let active = true;
+    const falhas: string[] = [];
+    const buscar = <T,>(url: string, set: (v: T) => void, pick: (d: unknown) => T, nome: string) =>
+      fetch(url)
+        .then((r) => readJson(r).then((d) => ({ ok: r.ok, d })))
+        .then(({ ok, d }) => {
+          if (!ok) throw new Error((d as { error?: string })?.error || nome);
+          if (active) set(pick(d));
+        })
+        .catch(() => { falhas.push(nome); });
+
+    // Produtos usam o relatório da Amazon (lento) — carregam em separado.
+    // O cache agora decide o FETCH, não só o esqueleto: antes ele existia,
+    // guardava a resposta e mesmo assim a tela pedia de novo toda troca.
+    // Cache da MESMA conta: nao ha o que buscar nem o que pintar. O estado ja
+    // nasceu dele na montagem (`useState(productsCache?.linhas ?? [])`), entao
+    // repintar aqui seria estado sincronizado por efeito — o padrao que a
+    // licao de hoje mandou eliminar.
+    if (!productsCache || productsCache.conta !== contaAtual) {
+      void buscar<ProductRow[]>(`/api/products`, (v) => { productsCache = { conta: contaAtual, linhas: v }; setProducts(v); },
+        (d) => (d as { products: ProductRow[] }).products, "produtos")
+        .finally(() => { if (active) setProductsLoading(false); });
+    }
+    // Saldo NÃO leva `periodQuery`: é o estado de agora, não do período escolhido.
+    void buscar<SaldoData | null>(`/api/amazon/balance`, (v) => setSaldo(v), (d) => d as SaldoData | null, "saldo")
+      .then(() => { if (active && falhas.length) setErrors((atuais) => [...new Set([...atuais, ...falhas])]); });
+
+    return () => { active = false; };
+  }, [contaAtual]);
 
   const currency = profit?.finance.currency || orders?.metrics.currency || "BRL";
   const critical = radar.filter((r) => r.status === "critical" || r.status === "out");
