@@ -270,17 +270,85 @@ async function processResource(row: EventRow) {
   });
 }
 
+/** Tentativas antes de desistir de um evento — a marcação terminal fica com o motivo. */
+const MAX_EVENT_ATTEMPTS = 5;
+/** `processing` mais velho que isto é worker morto: nenhum passo legítimo dura tanto. */
+const PROCESSING_STALE_MINUTES = 15;
+
+/**
+ * Varredura dos eventos presos: `processing` órfão (worker que morreu no meio)
+ * e `error` retryável que nenhuma reentrega do ML vai destravar — o ML não
+ * reenvia notificação antiga, então sem esta varredura o evento fica zumbi
+ * para sempre (ADR-016 preserva; nada retomava). Lotes pequenos, no cron do
+ * ML, depois do sync. Reprocessar é idempotente: só upserts por chave externa.
+ */
+export async function retomarEventosPresosMercadoLivre(limit = 10): Promise<number> {
+  const presos = await dbQuery<{ workspace_id: string; connection_id: string; event_key: string }>(
+    `SELECT workspace_id, connection_id, event_key
+       FROM workspace_marketplace_events
+      WHERE provider = $1
+        AND ((status = 'processing'
+              AND (processing_at IS NULL OR processing_at < now() - interval '${PROCESSING_STALE_MINUTES} minutes'))
+          OR (status = 'error' AND attempts <= $2
+              AND (last_error IS NULL OR last_error NOT LIKE '[TERMINAL]%')))
+      ORDER BY received_at
+      LIMIT $3`,
+    [PROVIDER, MAX_EVENT_ATTEMPTS, limit]
+  );
+  let retomados = 0;
+  for (const preso of presos) {
+    try {
+      await processMercadoLivreEvent({
+        workspaceId: preso.workspace_id,
+        connectionId: preso.connection_id,
+        eventKey: preso.event_key,
+      });
+      retomados++;
+    } catch (error) {
+      // A falha já ficou gravada no próprio evento; a próxima varredura decide
+      // entre nova tentativa e desistência terminal.
+      console.error("[webhook-ml] retomada falhou", {
+        eventKey: preso.event_key,
+        reason: error instanceof Error ? error.message : "Erro desconhecido",
+      });
+    }
+  }
+  return retomados;
+}
+
 export async function processMercadoLivreEvent(event: QueuedMercadoLivreEvent): Promise<void> {
-  const rows = await dbQuery<EventRow>(
+  const rows = await dbQuery<EventRow & { attempts: number }>(
     `UPDATE workspace_marketplace_events
         SET status = 'processing', processing_at = now(), attempts = attempts + 1, last_error = NULL
       WHERE workspace_id = $1 AND provider = $2 AND event_key = $3
-        AND status IN ('pending', 'error')
-      RETURNING workspace_id, connection_id, event_key, topic, resource`,
+        AND (status IN ('pending', 'error')
+          -- Retomada de zumbi: claim que morreu no meio (crash/restart) deixava
+          -- o evento em 'processing' PARA SEMPRE — nada o reclamava (34 presos
+          -- de 21/07 a 15/08, medidos em 28/08/2026). Um 'processing' velho é
+          -- worker morto; reprocessar é seguro porque toda escrita a jusante é
+          -- upsert idempotente por chave externa (nada cobra nem paga em dobro).
+          OR (status = 'processing'
+              AND (processing_at IS NULL OR processing_at < now() - interval '${PROCESSING_STALE_MINUTES} minutes')))
+      RETURNING workspace_id, connection_id, event_key, topic, resource, attempts`,
     [event.workspaceId, PROVIDER, event.eventKey]
   );
   const row = rows[0];
   if (!row) return;
+  if (row.attempts > MAX_EVENT_ATTEMPTS) {
+    // Desistência com rastro: o evento nunca some em silêncio, vira terminal
+    // com o motivo — e o log diz qual recurso ficou para investigação manual.
+    console.error("[webhook-ml] evento desistido apos tentativas maximas", {
+      eventKey: row.event_key, topic: row.topic, resource: row.resource, attempts: row.attempts,
+    });
+    await dbQuery(
+      `UPDATE workspace_marketplace_events
+          SET status = 'error', processing_at = NULL,
+              last_error = '[TERMINAL] desistido após ' || attempts || ' tentativas'
+        WHERE workspace_id = $1 AND provider = $2 AND event_key = $3`,
+      [row.workspace_id, PROVIDER, row.event_key]
+    );
+    return;
+  }
   try {
     await processResource(row);
     await runWithWorkspace(row.workspace_id, async () => {

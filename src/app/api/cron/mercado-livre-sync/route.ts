@@ -3,6 +3,7 @@ import {
   runScheduledMercadoLivreReverify,
   runScheduledMercadoLivreSync,
 } from "@/lib/integrations/mercadoLivreScheduler";
+import { retomarEventosPresosMercadoLivre } from "@/lib/integrations/mercadoLivreWebhook";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,10 +24,20 @@ export async function GET(req: NextRequest) {
   } catch {
     /* reverify é best-effort — uma falha aqui não quebra o cron */
   }
+  // Eventos de webhook presos (processing órfão / error retryável): o ML não
+  // reenvia notificação antiga, então a varredura é o único caminho de volta.
+  // Best-effort, como o reverify.
+  let eventosRetomados = 0;
+  try {
+    eventosRetomados = await retomarEventosPresosMercadoLivre();
+  } catch {
+    /* varredura é best-effort — uma falha aqui não quebra o cron */
+  }
   return NextResponse.json({
     ok: true,
     processed: results.length,
     reverified: reverify.length,
+    eventosRetomados,
     durationMs: Math.round(performance.now() - startedAt),
     results,
     reverify,
