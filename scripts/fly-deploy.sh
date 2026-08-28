@@ -60,9 +60,23 @@ echo "ok: URL (${#SUPABASE_URL} chars) e KEY (${#SUPABASE_KEY} chars) lidas de $
 if [ -n "$CRISP_ID" ]; then echo "ok: CRISP_WEBSITE_ID presente (widget ativo no build)"; else echo "ok: CRISP_WEBSITE_ID ausente (widget dormente)"; fi
 echo "build: $MODO"
 
+# Le a versao que a MAQUINA roda — a unica fonte de verdade sobre o que esta no ar.
+#
+# ⚠️ ISOLADA NUMA FUNCAO COM '|| true' de proposito: 'set -o pipefail' somado ao
+# SIGPIPE que o 'head' provoca no 'grep' derruba o script inteiro. Foi o que
+# aconteceu no PRIMEIRO uso desta defesa (28/08/2026): a conferencia criada para
+# impedir deploy silencioso acabou impedindo o proprio deploy, e o script morreu
+# antes de chamar o 'fly deploy'. Falha aqui devolve vazio; quem chama decide.
+versao_na_maquina() {
+  fly status "${APP_ARGS[@]:-}" --json 2>/dev/null \
+    | tr ',' '\n' \
+    | grep -m1 fly_release_version \
+    | grep -o '[0-9][0-9]*' \
+    || true
+}
+
 # A versao ANTES do deploy, para saber o que precisa mudar depois dele.
-VERSAO_ANTES="$(fly status "${APP_ARGS[@]:-}" --json 2>/dev/null \
-  |  grep -o '"fly_release_version":[[:space:]]*"[0-9]*"' | head -1 | grep -o '[0-9]*$')"
+VERSAO_ANTES="$(versao_na_maquina)"
 [ -n "$VERSAO_ANTES" ] && echo "versao rodando agora: $VERSAO_ANTES"
 
 set +e
@@ -100,8 +114,7 @@ echo
 echo "conferindo se a maquina realmente assumiu a versao nova..."
 VERSAO_AGORA=""
 for _ in $(seq 1 30); do
-  VERSAO_AGORA="$(fly status "${APP_ARGS[@]:-}" --json 2>/dev/null \
-    |  grep -o '"fly_release_version":[[:space:]]*"[0-9]*"' | head -1 | grep -o '[0-9]*$')"
+  VERSAO_AGORA="$(versao_na_maquina)"
   # Sem versao anterior conhecida, basta ler alguma; com ela, exigimos avanco.
   if [ -n "$VERSAO_AGORA" ] && { [ -z "$VERSAO_ANTES" ] || [ "$VERSAO_AGORA" -gt "$VERSAO_ANTES" ]; }; then
     break
