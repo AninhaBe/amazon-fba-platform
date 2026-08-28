@@ -70,12 +70,35 @@ token novo a cada refresh e serializa chamadas concorrentes.
 | Causa | Evita? |
 |---|---|
 | Refresh token rotativo (mesma lógica do ML) | Sim — já tratado |
-| **Autorização da loja vence em até 365 dias** | Não, mas dá para avisar antes |
+| **Autorização da loja vence em 7–365 dias** (prazo escolhido na autorização) | Não, mas dá para **ler a data** e avisar antes |
+| **Partner Key expira em 180 dias** — trava o app INTEIRO | Não; reset é manual no console |
 | Vendedor revoga no Seller Centre | Não |
 
-O vencimento em 365 dias é peculiar: mesmo com tudo funcionando, a conexão
-morre na data. A data da autorização é guardada em `metadata.authorizedAt` no
-callback, justamente para permitir o aviso.
+**Os relógios da Shopee, um a um** (fatos do e-mail de onboarding do Open
+Platform, registrados em 28/08/2026):
+
+- **`access_token` dura 4 horas; `refresh_token` dura 30 dias** e é rotativo —
+  cada refresh devolve um par novo e invalida o anterior (já tratado no adapter,
+  mesma lógica do ML).
+- **Autorização POR LOJA: 7 a 365 dias**, prazo escolhido no fluxo de
+  autorização. Não é "365 fixo": a janela pode nascer bem mais curta. A data da
+  autorização fica em `metadata.authorizedAt` no callback, e — melhor — **a
+  expiração é legível pela API**: `/api/v2/shop/get_shop_info` devolve
+  `auth_time` e `expire_time` da autorização vigente. Nosso adapter
+  (`getShopeeShopInfo`, `src/lib/integrations/shopee.ts`) já chama o endpoint
+  mas ainda não lê esses campos — **candidato direto ao aviso no painel**
+  (backlog item 2), sem depender de data anotada por nós.
+- **Partner Key: 180 dias de vida.** A nossa vale até **04/02/2027**. Não há
+  renovação automática: o reset é **manual**, no console (App List → reset da
+  key), e chave expirada = **todas** as chamadas bloqueadas, de todas as lojas.
+  Na troca há uma **janela de transição de 72 horas** em que a key antiga e a
+  nova funcionam juntas — é o prazo para trocar o segredo no ambiente sem
+  downtime. O reset **não invalida as autorizações das lojas**: só a assinatura
+  muda, os vendedores não precisam reautorizar.
+
+O vencimento por prazo é peculiar: mesmo com tudo funcionando, a conexão morre
+na data — e a Partner Key morre por cima, derrubando o app inteiro. São dois
+relógios independentes; o aviso precisa olhar os dois.
 
 ### TikTok Shop
 
@@ -109,8 +132,11 @@ convite de novo.
 1. **Avisar antes de quebrar.** O cron já roda a cada 5 min; quando marcar uma
    conexão como `disconnected`, exibir isso na central e em `/integracoes` — hoje
    o aviso só aparece ao abrir a tela do canal.
-2. **Alerta de vencimento da Shopee**: avisar a 30 dias de completar 365 dias
-   desde `authorizedAt`, enquanto ainda dá para reautorizar sem interrupção.
+2. **Alerta de vencimento da Shopee**: ler `expire_time` do
+   `get_shop_info` (a autorização é de 7–365 dias, não 365 fixo) e avisar com
+   30 dias de antecedência, enquanto ainda dá para reautorizar sem interrupção.
+   Segundo relógio no mesmo alerta: a **Partner Key** (180 dias; a atual vence
+   em 04/02/2027, reset manual no console com janela de 72h).
 3. **Amazon: migrar para self-authorization** nas contas próprias — é o método
    que a Amazon indica para app privado e não depende de publicação.
 4. **Destravar o Solution Provider Portal** — sem ele a Amazon nunca vira canal
