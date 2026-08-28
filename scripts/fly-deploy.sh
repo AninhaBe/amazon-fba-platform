@@ -67,8 +67,14 @@ echo "build: $MODO"
 # aconteceu no PRIMEIRO uso desta defesa (28/08/2026): a conferencia criada para
 # impedir deploy silencioso acabou impedindo o proprio deploy, e o script morreu
 # antes de chamar o 'fly deploy'. Falha aqui devolve vazio; quem chama decide.
+#
+# ⚠️ E SEM "${APP_ARGS[@]:-}": com o array VAZIO (o caso padrao, que usa o
+# fly.toml), essa expansao passa uma STRING VAZIA como argumento, e o
+# 'fly status' responde com o texto de uso em vez do JSON — a leitura voltava
+# vazia e a conferencia acusava "versao desconhecida" num deploy que tinha
+# funcionado. Aqui expandimos so quando ha algo, com '+'.
 versao_na_maquina() {
-  fly status "${APP_ARGS[@]:-}" --json 2>/dev/null \
+  fly status ${APP_ARGS[@]+"${APP_ARGS[@]}"} --json 2>/dev/null \
     | tr ',' '\n' \
     | grep -m1 fly_release_version \
     | grep -o '[0-9][0-9]*' \
