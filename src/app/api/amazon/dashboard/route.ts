@@ -12,6 +12,7 @@ import { runAmazonSyncBatch } from "@/lib/integrations/amazonSync";
 import { getDailySales } from "@/lib/sales";
 import { defaultMarketplaceId } from "@/lib/spapi";
 import { adsEstaConectado, anunciosNoPeriodo } from "@/lib/integrations/amazonAdsSync";
+import { anunciosPorProdutoNoPeriodo, cruzarComMargem } from "@/lib/integrations/amazonAdsPorProduto";
 
 // Frescor aceitável antes de buscar de novo ao abrir a tela.
 //
@@ -70,11 +71,14 @@ interface BillingRow {
  * 25/08/2026: relatório de hoje voltou com R$ 17,53 em 105s).
  */
 async function adsDoPeriodo(workspaceId: string, period: { startISO: string; endISO: string }) {
-  const [resumo, conectado] = await Promise.all([
+  const [resumo, conectado, porProduto] = await Promise.all([
     anunciosNoPeriodo(period.startISO, period.endISO),
     adsEstaConectado(),
+    // Por SKU anunciado (migration 0016): é o que permite cruzar com a margem
+    // real e dizer "paga para vender". Lê só do banco, como o resumo.
+    anunciosPorProdutoNoPeriodo(period.startISO, period.endISO).catch(() => []),
   ]);
-  if (!conectado) return { conectado: false, janela: null, resumo: null };
+  if (!conectado) return { conectado: false, janela: null, resumo: null, porProduto: [] };
 
   const emBrasilia = (ms: number) => new Date(ms - 3 * 60 * 60_000).toISOString().slice(0, 10);
   const hoje = emBrasilia(Date.now());
@@ -91,6 +95,7 @@ async function adsDoPeriodo(workspaceId: string, period: { startISO: string; end
     // o gasto de hoje é real, mas cresce até a meia-noite e a venda atribuída
     // entra depois. Sem isso o ACOS de "Hoje" pareceria catastrófico às 9h.
     janela: { inicioDia, esperadoAte, incluiHoje: fimDoPeriodo >= hoje },
+    porProduto,
     resumo: resumo && {
       cost: resumo.cost,
       sales: resumo.sales,
@@ -382,6 +387,12 @@ export async function GET(req: NextRequest) {
         ads: ads?.resumo ?? null,
         adsJanela: ads?.janela ?? null,
         adsConectado: ads?.conectado ?? false,
+        // Por SKU anunciado, já cruzado com a margem real de cada produto — o
+        // canal não tem a segunda metade, e é ela que vira o veredito.
+        adsPorProduto: cruzarComMargem(
+          ads?.porProduto ?? [],
+          canonical.topProducts.map((produto) => ({ sku: produto.sku, marginPct: produto.marginPct })),
+        ),
         profitabilityLines: canonical.profitabilityLines,
         profitabilityScope: canonical.profitabilityScope,
         recentOrders: canonical.recentOrders,

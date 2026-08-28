@@ -57,6 +57,53 @@ interface LinhaDoRelatorio {
   sales30d?: number;
 }
 
+/**
+ * Relatório por PRODUTO ANUNCIADO (`spAdvertisedProduct`).
+ *
+ * ⚠️ A JANELA É OUTRA: aqui a Amazon entrega atribuição de 14 dias por clique
+ * (`*Clicks14d`), enquanto o relatório de campanha usa 30 dias (`sales30d`).
+ * Somar os dois, ou comparar produto com campanha, exige saber disso — está
+ * registrado na migration 0016 e em docs/amazon-ads.md.
+ *
+ * ACOS e ROAS vêm PRONTOS da fonte e são gravados como vieram: recalcular a
+ * partir de cost/sales daria um número diferente do painel da Amazon (janelas
+ * distintas), e a vendedora veria dois ACOS para a mesma campanha.
+ */
+interface LinhaDoRelatorioDeProduto {
+  date?: string;
+  campaignId?: string | number;
+  campaignName?: string;
+  advertisedAsin?: string;
+  advertisedSku?: string;
+  impressions?: number;
+  clicks?: number;
+  cost?: number;
+  purchases14d?: number;
+  sales14d?: number;
+  acosClicks14d?: number;
+  roasClicks14d?: number;
+}
+
+/** Os dois relatórios do ciclo. `spCampaigns` já existia; produto entrou em 28/08/2026. */
+export const TIPOS_DE_RELATORIO = ["spCampaigns", "spAdvertisedProduct"] as const;
+export type TipoDeRelatorio = (typeof TIPOS_DE_RELATORIO)[number];
+
+/** Colunas pedidas por tipo — o que a fonte precisa devolver para cada tabela. */
+const COLUNAS: Record<TipoDeRelatorio, string[]> = {
+  spCampaigns: ["date", "campaignId", "campaignName", "impressions", "clicks", "cost", "purchases30d", "sales30d"],
+  spAdvertisedProduct: [
+    "date", "campaignId", "campaignName", "advertisedAsin", "advertisedSku",
+    "impressions", "clicks", "cost", "purchases14d", "sales14d",
+    // As métricas da FONTE — o motivo desta entrega existir.
+    "acosClicks14d", "roasClicks14d",
+  ],
+};
+
+const GROUP_BY: Record<TipoDeRelatorio, string[]> = {
+  spCampaigns: ["campaign"],
+  spAdvertisedProduct: ["advertiser"],
+};
+
 async function cabecalhos(): Promise<{ headers: Record<string, string>; connectionId: string } | null> {
   const cred = await getAdsCredentials();
   if (!cred?.refreshToken || !cred.profileId) return null;
@@ -75,14 +122,16 @@ async function cabecalhos(): Promise<{ headers: Record<string, string>; connecti
  * Pede um relatório novo, se não houver nenhum em voo.
  * Devolve o `reportId` criado, ou `null` quando não havia o que fazer.
  */
-export async function pedirRelatorioDeAnuncios(dias = 30): Promise<string | null> {
+export async function pedirRelatorioDeAnuncios(dias = 30, tipo: TipoDeRelatorio = "spCampaigns"): Promise<string | null> {
   const ctx = await cabecalhos();
   if (!ctx) return null;
 
+  // A vaga de pendente é POR TIPO (migration 0016): sem isso, um relatório de
+  // produto travado seguraria a fila do de campanha — e vice-versa.
   const pendentes = await dbQuery<{ n: string }>(
     `SELECT COUNT(*)::text AS n FROM workspace_ad_reports
-      WHERE workspace_id=$1 AND provider=$2 AND status='pending'`,
-    [currentWorkspaceId(), PROVIDER],
+      WHERE workspace_id=$1 AND provider=$2 AND report_type=$3 AND status='pending'`,
+    [currentWorkspaceId(), PROVIDER, tipo],
   );
   if (Number(pendentes[0]?.n ?? 0) >= MAX_PENDENTES) return null;
 
@@ -91,16 +140,16 @@ export async function pedirRelatorioDeAnuncios(dias = 30): Promise<string | null
     method: "POST",
     headers: { ...ctx.headers, "content-type": "application/vnd.createasyncreportrequest.v3+json" },
     body: JSON.stringify({
-      name: `nexo-${inicio}-${fim}`,
+      name: `nexo-${tipo}-${inicio}-${fim}`,
       startDate: inicio,
       endDate: fim,
       configuration: {
         adProduct: "SPONSORED_PRODUCTS",
         // `date` no groupBy é o que dá granularidade diária — sem ele o
         // relatório volta somado e a tela não consegue filtrar 7/15/30 dias.
-        groupBy: ["campaign"],
-        columns: ["date", "campaignId", "campaignName", "impressions", "clicks", "cost", "purchases30d", "sales30d"],
-        reportTypeId: "spCampaigns",
+        groupBy: GROUP_BY[tipo],
+        columns: COLUNAS[tipo],
+        reportTypeId: tipo,
         timeUnit: "DAILY",
         format: "GZIP_JSON",
       },
@@ -115,10 +164,10 @@ export async function pedirRelatorioDeAnuncios(dias = 30): Promise<string | null
 
   await dbQuery(
     `INSERT INTO workspace_ad_reports
-       (workspace_id,provider,connection_id,report_id,start_date,end_date,status)
-     VALUES ($1,$2,$3,$4,$5,$6,'pending')
+       (workspace_id,provider,connection_id,report_id,start_date,end_date,status,report_type)
+     VALUES ($1,$2,$3,$4,$5,$6,'pending',$7)
      ON CONFLICT (workspace_id,provider,connection_id,report_id) DO NOTHING`,
-    [currentWorkspaceId(), PROVIDER, ctx.connectionId, corpo.reportId, inicio, fim],
+    [currentWorkspaceId(), PROVIDER, ctx.connectionId, corpo.reportId, inicio, fim, tipo],
   );
   return corpo.reportId;
 }
@@ -131,8 +180,8 @@ export async function colherRelatoriosDeAnuncios(): Promise<number> {
   const ctx = await cabecalhos();
   if (!ctx) return 0;
 
-  const pendentes = await dbQuery<{ report_id: string; connection_id: string }>(
-    `SELECT report_id, connection_id FROM workspace_ad_reports
+  const pendentes = await dbQuery<{ report_id: string; connection_id: string; report_type: TipoDeRelatorio }>(
+    `SELECT report_id, connection_id, report_type FROM workspace_ad_reports
       WHERE workspace_id=$1 AND provider=$2 AND status='pending'
       ORDER BY requested_at LIMIT 5`,
     [currentWorkspaceId(), PROVIDER],
@@ -155,8 +204,15 @@ export async function colherRelatoriosDeAnuncios(): Promise<number> {
 
     const gz = Buffer.from(await (await fetch(st.url)).arrayBuffer());
     const { gunzipSync } = await import("node:zlib");
-    const linhas = JSON.parse(gunzipSync(gz).toString("utf8")) as LinhaDoRelatorio[];
+    const cru = JSON.parse(gunzipSync(gz).toString("utf8")) as unknown[];
 
+    if (p.report_type === "spAdvertisedProduct") {
+      gravadas += await gravarMetricasDeProduto(cru as LinhaDoRelatorioDeProduto[], p.connection_id);
+      await marcar(p.report_id, p.connection_id, "completed", null);
+      continue;
+    }
+
+    const linhas = cru as LinhaDoRelatorio[];
     for (const l of linhas) {
       if (!l.date || l.campaignId == null) continue;
       await dbQuery(
@@ -178,6 +234,62 @@ export async function colherRelatoriosDeAnuncios(): Promise<number> {
       gravadas += 1;
     }
     await marcar(p.report_id, p.connection_id, "completed", null);
+  }
+  return gravadas;
+}
+
+/**
+ * Grava as linhas do relatório por produto anunciado.
+ *
+ * ⚠️ GUARDA ANTI-REGRAVAÇÃO (ADR-022, ponto 4 da revisão da migration 0016): o
+ * relatório da Amazon REPETE os dias anteriores a cada colheita, e o dia
+ * corrente é recolhido ~24×/dia. Sem o `WHERE ... IS DISTINCT FROM`, cada ciclo
+ * reescreveria todas as linhas do período com valores idênticos — o defeito do
+ * materializer legado (3 milhões de updates em 12 linhas) que a ADR-026 existe
+ * para impedir.
+ */
+async function gravarMetricasDeProduto(linhas: LinhaDoRelatorioDeProduto[], connectionId: string): Promise<number> {
+  let gravadas = 0;
+  for (const l of linhas) {
+    // Sem dia ou sem produto a linha não tem chave — descartar é mais honesto
+    // que inventar um identificador.
+    if (!l.date || l.campaignId == null || !l.advertisedAsin) continue;
+    await dbQuery(
+      `INSERT INTO workspace_ad_product_metrics
+         (workspace_id,provider,connection_id,day,campaign_id,product_id,sku,product_title,
+          impressions,clicks,cost,purchases,sales,acos,roas,currency,extra_metrics,synced_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,now())
+       ON CONFLICT (workspace_id,provider,connection_id,day,campaign_id,product_id,sku)
+       DO UPDATE SET product_title=EXCLUDED.product_title,
+                     impressions=EXCLUDED.impressions, clicks=EXCLUDED.clicks,
+                     cost=EXCLUDED.cost, purchases=EXCLUDED.purchases,
+                     sales=EXCLUDED.sales, acos=EXCLUDED.acos, roas=EXCLUDED.roas,
+                     currency=EXCLUDED.currency, extra_metrics=EXCLUDED.extra_metrics,
+                     synced_at=now()
+        WHERE (workspace_ad_product_metrics.product_title, workspace_ad_product_metrics.impressions,
+               workspace_ad_product_metrics.clicks, workspace_ad_product_metrics.cost,
+               workspace_ad_product_metrics.purchases, workspace_ad_product_metrics.sales,
+               workspace_ad_product_metrics.acos, workspace_ad_product_metrics.roas,
+               workspace_ad_product_metrics.currency, workspace_ad_product_metrics.extra_metrics)
+              IS DISTINCT FROM
+              (EXCLUDED.product_title, EXCLUDED.impressions, EXCLUDED.clicks, EXCLUDED.cost,
+               EXCLUDED.purchases, EXCLUDED.sales, EXCLUDED.acos, EXCLUDED.roas,
+               EXCLUDED.currency, EXCLUDED.extra_metrics)`,
+      [
+        currentWorkspaceId(), PROVIDER, connectionId, l.date, String(l.campaignId),
+        String(l.advertisedAsin), l.advertisedSku ?? "", l.campaignName ?? null,
+        l.impressions ?? 0, l.clicks ?? 0, l.cost ?? 0, l.purchases14d ?? 0, l.sales14d ?? 0,
+        // Métricas da FONTE: ausente vira null, nunca zero — "sem clique no dia"
+        // não é "ACOS de 0%".
+        l.acosClicks14d ?? null, l.roasClicks14d ?? null,
+        // A conta do Ads é do perfil BR; se um dia houver perfil em outra moeda,
+        // ela vem por linha e não some com esta.
+        "BRL",
+        // A janela que a fonte usou, para quem comparar canais depois saber.
+        JSON.stringify({ attribution_window: "clicks14d" }),
+      ],
+    );
+    gravadas += 1;
   }
   return gravadas;
 }
@@ -320,7 +432,9 @@ export async function runScheduledAdsSync(): Promise<number> {
     try {
       gravadas += await runWithWorkspace(dono.workspace_id, async () => {
         const colhidas = await colherRelatoriosDeAnuncios();
-        await pedirRelatorioDeAnuncios(30);
+        // Os DOIS relatórios do ciclo, cada um com sua vaga de pendente (0016):
+        // campanha responde "quanto gastei", produto responde "em quê".
+        for (const tipo of TIPOS_DE_RELATORIO) await pedirRelatorioDeAnuncios(30, tipo);
         return colhidas;
       });
     } catch (error) {

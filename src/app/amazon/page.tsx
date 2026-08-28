@@ -11,9 +11,10 @@ import { EmptyState } from "../components/EmptyState";
 import { DashboardPeriodFilter, useDashboardPeriod } from "../components/DashboardPeriodFilter";
 import type { OperationPendingItem } from "../components/OperationPending";
 import { Metric as Kpi, CompactMetric, getRevenueTrend } from "../components/Metric";
-import { amazonFinancialCards, type AmazonAdsInput } from "./amazonFinancialCards";
+import { amazonFinancialCards, diasSemAnuncio, type AmazonAdsInput } from "./amazonFinancialCards";
 import { AnimatedNumber } from "../components/AnimatedNumber";
 import { OrderProfitabilityTable } from "../components/OrderProfitabilityTable";
+import { AnunciosPorProduto, type AnuncioDeProduto } from "../components/AnunciosPorProduto";
 import { ConnectionBroken, isBrokenConnection } from "../components/ConnectionBroken";
 import { TopProductsRanking } from "../components/TopProductsRanking";
 import { buildFinancialComposition, FinancialSummaryPanel } from "../components/FinancialSummaryPanel";
@@ -30,6 +31,23 @@ import { marginMetricTone } from "@/lib/marginTone";
 interface ProfitabilityScope {
   processedOrders: number;
   completePeriod: boolean;
+}
+
+/**
+ * "Anúncio contabilizado até DD/MM — faltam N dias", a MESMA frase do card.
+ *
+ * Ela precisa aparecer também na tabela por produto: quem lê a tabela pode não
+ * ter lido o card, e sem isso um SKU parece ter gastado menos do que gastou
+ * (ajuste pedido pelo cérebro em 28/08/2026).
+ */
+function janelaDoAnuncio(
+  ads: AmazonAdsInput | null | undefined,
+  janela: { esperadoAte: string } | null | undefined,
+): string | null {
+  if (!ads?.ateDia || !janela?.esperadoAte) return null;
+  const faltam = diasSemAnuncio(ads.ateDia, janela.esperadoAte);
+  if (faltam <= 0) return null;
+  return `Anúncio contabilizado até ${brDate(new Date(`${ads.ateDia}T12:00:00-03:00`))} — falta${faltam > 1 ? "m" : ""} ${faltam} dia${faltam > 1 ? "s" : ""}`;
 }
 
 function scopeSentence(scope?: ProfitabilityScope): string | undefined {
@@ -87,6 +105,8 @@ interface ProfitData {
   adsJanela?: { inicioDia: string; esperadoAte: string; incluiHoje?: boolean } | null;
   /** Ha conta de anuncio conectada? Separa "nao anuncia" de "nao sei quanto gastou". */
   adsConectado?: boolean;
+  /** Por SKU anunciado, ja cruzado com a margem real (frente de Ads, 28/08/2026). */
+  adsPorProduto?: AnuncioDeProduto[];
 }
 interface SaldoData {
   currency: string;
@@ -179,6 +199,8 @@ interface DashboardPayload {
   ads?: AmazonAdsInput | null;
   adsJanela?: { inicioDia: string; esperadoAte: string; incluiHoje?: boolean } | null;
   adsConectado?: boolean;
+  /** Por SKU anunciado, já cruzado com a margem real (frente de Ads, 28/08/2026). */
+  adsPorProduto?: AnuncioDeProduto[];
   finance: ProfitData["finance"];
   profitabilityLines: ProfitabilityLine[];
   profitabilityScope?: ProfitabilityScope;
@@ -350,6 +372,7 @@ export default function Dashboard() {
         ads: payload.ads ?? null,
         adsJanela: payload.adsJanela ?? null,
         adsConectado: payload.adsConectado ?? false,
+        adsPorProduto: payload.adsPorProduto ?? [],
       };
       // O gráfico se chama "pedidos recebidos", então tem de contar pedido
       // recebido — incluindo o que ainda está `pending`. A série canônica só tem
@@ -911,6 +934,16 @@ export default function Dashboard() {
           )}
         </Panel>
       </div>
+
+      {/* Anúncio contra margem real — o cruzamento que nenhum painel de canal
+          faz, porque só nós temos o custo do produto e as tarifas. Só aparece
+          com conta de Ads conectada: sem ela, a seção seria uma promessa vazia. */}
+      {profit?.adsConectado && (
+        <AnunciosPorProduto
+          linhas={profit.adsPorProduto ?? []}
+          contabilizadoAte={janelaDoAnuncio(profit.ads, profit.adsJanela)}
+        />
+      )}
 
       {/* Rentabilidade por venda — a mesma visão do monitor, direto no dashboard. */}
       <OrderProfitabilityTable

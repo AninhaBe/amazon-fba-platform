@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { PageHeader, pageIcons } from "../components/PageHeader";
 import { TableLoading } from "../components/LoadingState";
 import { EmptyState } from "../components/EmptyState";
@@ -25,11 +26,28 @@ function money(v: number) {
 
 const PAGE_SIZE = 30;
 
+/**
+ * `?q=` abre a página já filtrada num SKU — é o que faz o link "custo não
+ * cadastrado" do painel de anúncios cair NO produto certo, em vez de jogar a
+ * pessoa numa lista de centenas para procurar à mão (28/08/2026).
+ *
+ * Lido por `useSearchParams`, que exige fronteira de Suspense — a mesma razão
+ * pela qual o monitor e o workspace do ML são exportados embrulhados.
+ */
 export default function ProdutosPage() {
+  return (
+    <Suspense fallback={null}>
+      <ProdutosPageInterna />
+    </Suspense>
+  );
+}
+
+function ProdutosPageInterna() {
+  const buscaInicial = useSearchParams().get("q") ?? "";
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(buscaInicial);
   const [costFilter, setCostFilter] = useState<"all" | "missing" | "complete">("all");
   const [sort, setSort] = useState<"title" | "stock" | "cost">("title");
   const [draftCosts, setDraftCosts] = useState<Record<string, string>>({});
