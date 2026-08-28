@@ -123,6 +123,14 @@ test("mapeia status do ML para o canônico", () => {
   assert.equal(canonicalOrderStatus(baseOrder({ status: "cancelled" })), "cancelled");
   assert.equal(canonicalOrderStatus(baseOrder({ status: "invalid" })), "cancelled");
   assert.equal(canonicalOrderStatus(baseOrder({ status: "algum_status_novo" })), "pending");
+  // Reembolso PARCIAL mantém o pedido na base de faturamento (canonical-schema:
+  // "Status único") — mapeá-lo para pending excluía R$ 2.213 de receita real de
+  // 34 pedidos (bug A5, medido em produção em 28/08/2026).
+  assert.equal(canonicalOrderStatus(baseOrder({ status: "partially_refunded" })), "paid");
+  assert.equal(
+    canonicalOrderStatus(baseOrder({ status: "partially_refunded", tags: ["delivered"] })),
+    "delivered"
+  );
   assert.equal(
     canonicalOrderStatus(baseOrder({ status: "paid", tags: ["delivered"] })),
     "delivered"

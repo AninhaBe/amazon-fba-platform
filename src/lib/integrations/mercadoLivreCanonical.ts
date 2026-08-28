@@ -17,6 +17,11 @@ import type {
 const STATUS_MAP: Record<string, CanonicalOrderStatus> = {
   paid: "paid",
   partially_paid: "paid",
+  // Reembolso PARCIAL não muda o estágio do pedido (docs/canonical-schema.md:
+  // "Status único"): a receita aconteceu e o estorno entra como fee `refund`.
+  // Sem esta linha o pedido caía no default `pending` e R$ 2.213 de receita
+  // real de 34 pedidos ficavam FORA do faturamento (medido em 28/08/2026).
+  partially_refunded: "paid",
   confirmed: "pending",
   payment_required: "pending",
   payment_in_process: "pending",
