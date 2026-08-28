@@ -297,6 +297,42 @@ velho, nem com esqueleto piscando —, e o cache continua pintando na hora.
    quando o MESMO recorte recebe dado novo; quando o recorte muda, os quadros
    intermediários afirmam números que não pertencem a recorte nenhum.
 
+## Lição de 28/08/2026: medição em conta demo não representa a conta dela
+
+Todas as medições de troca de período tinham sido feitas na **conta demo** —
+lojas "Demonstração", ~200 pedidos. A dona continuou relatando lentidão. A
+medição na conta real explica por quê:
+
+| Conexão | pedidos | 30 dias · frio | 30 dias · quente |
+|---|---:|---:|---:|
+| Loja Demo Shopee | 212 | 120ms | **104ms** |
+| Loja Demo ML | 187 | 95ms | **82ms** |
+| Loja Demo Amazon | 132 | 115ms | **82ms** |
+| UTILEIRA (Shopee) | 22.292 | 1436ms | **1457ms** |
+| CRYSTALFANCY (ML) | 38.943 | 925ms | **690ms** |
+
+**14 a 17 vezes mais lento na conta real**, e a Shopee estoura o orçamento de 1s
+deste ADR em regime quente — o pior caso, porque não há cache frio para culpar.
+
+Repare também que o custo **cresce com o período**: na UTILEIRA, "hoje" custa
+133ms e "30 dias" custa 1457ms. Na demo os quatro períodos custam o mesmo
+(~80-100ms), porque a tabela inteira cabe em qualquer recorte. Ou seja: a conta
+demo não só é mais rápida — ela **esconde a variável que importa**.
+
+Duas regras que ficam:
+
+1. **Toda medição de performance diz em qual conta foi feita.** Um número sem
+   essa etiqueta não é comparável com nenhum outro, e induz a conclusão errada
+   com a aparência de rigor.
+2. **Conta demo serve para provar que funciona, nunca para provar que é rápido.**
+   Volume é a variável; medir sem ela é medir outra coisa.
+
+📌 Consequência para o aquecimento sequencial: se a tela busca os outros três
+períodos em fila depois da primeira pintura, o custo do aquecimento é a **soma**,
+não a média. Medido na UTILEIRA: abrindo em "hoje", o aquecimento só termina
+**2,6 segundos** depois. Quem clicar antes disso espera igual — o pré-carregamento
+não ajuda quem chegou primeiro.
+
 ## Ordem de execução
 
 1. **Rota agregadora** `/api/amazon/dashboard` lendo do canônico (o que der do canônico

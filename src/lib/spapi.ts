@@ -30,21 +30,42 @@ export type SpApiErrorCode =
   | "AMAZON_ERROR"; // fallback
 
 export class SpApiError extends Error {
+  // ⚠️ Campos declarados e atribuídos à mão, NÃO como parameter properties
+  // (`constructor(public code: ...)`). O strip-only do Node — que roda os
+  // testes e as sondas — recusa parameter property, e como este erro está na
+  // base da cadeia de imports da Amazon, um único `public` aqui torna todo o
+  // módulo de overview impossível de carregar fora do build. Mesma correção já
+  // feita em `authErrors.ts`.
+  readonly code: SpApiErrorCode;
+  readonly status: number;
+  readonly retryable: boolean;
+  /** Mensagem amigável, exibível para a equipe. */
+  readonly userMessage: string;
+  /** Endpoint chamado (ex.: /orders/v0/orders). */
+  readonly endpoint: string;
+  /** Detalhe técnico cru da Amazon — só para log, nunca para a UI. */
+  readonly technicalDetail: string;
+  /** x-amzn-RequestId da Amazon, útil para abrir caso no suporte. */
+  readonly amazonRequestId?: string;
+
   constructor(
-    public code: SpApiErrorCode,
-    public status: number,
-    public retryable: boolean,
-    /** Mensagem amigável, exibível para a equipe. */
-    public userMessage: string,
-    /** Endpoint chamado (ex.: /orders/v0/orders). */
-    public endpoint: string,
-    /** Detalhe técnico cru da Amazon — só para log, nunca para a UI. */
-    public technicalDetail: string,
-    /** x-amzn-RequestId da Amazon, útil para abrir caso no suporte. */
-    public amazonRequestId?: string
+    code: SpApiErrorCode,
+    status: number,
+    retryable: boolean,
+    userMessage: string,
+    endpoint: string,
+    technicalDetail: string,
+    amazonRequestId?: string
   ) {
     super(userMessage);
     this.name = "SpApiError";
+    this.code = code;
+    this.status = status;
+    this.retryable = retryable;
+    this.userMessage = userMessage;
+    this.endpoint = endpoint;
+    this.technicalDetail = technicalDetail;
+    this.amazonRequestId = amazonRequestId;
   }
 }
 

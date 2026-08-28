@@ -643,6 +643,66 @@ passa igual na versão velha.
 
 ---
 
+## 16. Primeira pintura e troca de período — medido na conta real (28/08/2026)
+
+### O que foi medido, e em qual conta
+
+⚠️ **Toda medição anterior de troca de período foi feita na conta demo.** A conta
+real é 14 a 17 vezes mais lenta e faz o custo crescer com o período — a demo
+esconde exatamente a variável que importa. Números e regra em
+[ADR-017](./adr/ADR-017-orcamento-de-1s-e-leitura-agregada.md#lição-de-28082026-medição-em-conta-demo-não-representa-a-conta-dela).
+
+A sonda é `scripts/overview-timing-probe.mjs` (somente leitura; roda o código
+real de overview contra o banco de produção, com rodadas alternadas frio/quente).
+
+| Conexão (workspace) | pedidos | hoje | 7 dias | 15 dias | 30 dias |
+|---|---:|---:|---:|---:|---:|
+| **UTILEIRA** · Shopee (`22ae3d9d`) | 22.292 | 133ms | 383ms | 767ms | **1457ms** |
+| **CRYSTALFANCY** · ML (`22ae3d9d`) | 38.943 | 160ms | 198ms | 410ms | **690ms** |
+| NEXAHUBBRASIL · ML (`1803d1fe`) | 192 | ~65ms | 184ms | 65ms | 52ms |
+| Lojas Demo (`6c877b36`) | ~200 | ~80ms | ~80ms | ~80ms | ~90ms |
+
+(medianas de 3 rodadas quentes alternadas; RTT desta máquina até o banco ~17ms,
+embutido em cada consulta — no Fly, que fica na mesma metrópole do banco, a
+gordura é menor)
+
+### O aquecimento sequencial custa segundos, não milissegundos
+
+Depois da primeira pintura, a tela busca os outros três períodos **em fila**. O
+custo é a soma:
+
+| Conexão | abrindo em "hoje" | em "7 dias" | em "15 dias" | em "30 dias" |
+|---|---:|---:|---:|---:|
+| UTILEIRA · Shopee | **2,6s** | 2,4s | 2,0s | 1,3s |
+| CRYSTALFANCY · ML | 1,3s | 1,3s | 1,0s | 0,8s |
+
+**Conclusão:** na Shopee real, quem clicar num outro período nos primeiros ~2,6s
+espera igual — o pré-carregamento ainda não chegou nele. E o pior caso não é
+cache frio: "30 dias" custa 1457ms **quente**, estourando o orçamento de 1s.
+
+### Achados colaterais que mudam a premissa
+
+1. **A Amazon não tem conexão ativa em nenhum workspace real.** Só existem linhas
+   `connected` para as lojas demo. Os 22.005 pedidos da Amazon estão no canônico,
+   mas a rota resolve a conexão antes de ler — então hoje o dashboard da Amazon
+   não está lento, está **desconectado** (consistente com o token revogado). O
+   custo de leitura dela só será comparável ao da UTILEIRA depois de reconectar.
+2. **O pooler do Supabase está em modo `session` com `pool_size: 15`.** Duas
+   sondas em paralelo (10 conexões cada, `db.ts` `max: 10`) derrubaram a segunda
+   com `EMAXCONNSESSION`. Com uma máquina no Fly sobra folga; **durante um deploy,
+   máquina velha e nova coexistem e somam 20 > 15**. É a mesma família do
+   `"timeout exceeded when trying to connect"` da §15 e merece decisão própria.
+
+### Pendências nomeadas (não bloqueiam pintura, mas são sinal)
+
+- **`/api/central/briefing` é chamado duas vezes por canal** na abertura.
+- **POST de 12,4s no TikTok** — não bloqueia a pintura, mas 12 segundos de
+  narração indicam outra coisa acontecendo.
+- **`/integrations/shopee/connect` levando 1.372ms** no meio da cascata —
+  adiado por decisão do cérebro ("entender depois, não agora").
+
+---
+
 ## Bloqueado por terceiros
 
 - **Solution Provider Portal (Amazon)** — candidatura travada, caso `21250777631`. Sem
