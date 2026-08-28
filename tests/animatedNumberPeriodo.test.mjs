@@ -19,6 +19,7 @@ const TELAS_COM_PERIODO = [
   "src/app/amazon/page.tsx",
   "src/app/components/MercadoLivreWorkspace.tsx",
   "src/app/components/ShopeeWorkspace.tsx",
+  "src/app/components/TikTokWorkspace.tsx",
   "src/app/page.tsx",
 ];
 

@@ -7,6 +7,7 @@ import { ChevronDown } from "lucide-react";
 import { DashboardPeriodFilter, useDashboardPeriod } from "./DashboardPeriodFilter";
 import { EmptyState } from "./EmptyState";
 import { DashboardSkeleton } from "./LoadingState";
+import { AnimatedNumber } from "./AnimatedNumber";
 import { CompactMetric, Flow, FlowExpandable, Metric } from "./Metric";
 import { PageHeader } from "./PageHeader";
 import { RevenueChart } from "./RevenueChart";
@@ -63,6 +64,10 @@ interface ProviderStatus {
 }
 
 const TIKTOK_PRIMARY_FINANCIAL_KEYS = new Set(["revenue", "fees", "cogs", "profit", "marginPct"]);
+// Os dois números que contam na troca de período, iguais aos outros três canais
+// (ver `AnimatedNumber`). Ficou de fora até 28/08/2026 só porque a TikTok
+// entregava o card já formatado em string — o valor cru sempre esteve ao lado.
+const TIKTOK_CARDS_ANIMADOS = new Set(["revenue", "profit"]);
 
 const MANAGE_CONNECTIONS = "/integracoes";
 /**
@@ -290,6 +295,14 @@ export function TikTokWorkspace() {
   const pedidosCancelados = porStatus.filter((i) => i.status === "cancelled").reduce((t, i) => t + i.orders, 0);
   const pedidosAguardando = Math.max(0, (data.orders ?? 0) - pedidosConfirmados - pedidosCancelados);
   const formatMoney = (value: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(value);
+  // ⚠️ NÚMERO DESCONHECIDO NÃO ANIMA. O card já nasce "—" quando o valor é nulo
+  // ou a cobertura do componente não fechou; contar até um número nesse caso
+  // seria afirmar movimento sobre nada — a mesma mentira do valor de outro
+  // período, só que em outra forma. Sem número, o traço fica parado.
+  const valorDoCard = (card: { key: string; raw: number | null; value: string }) =>
+    TIKTOK_CARDS_ANIMADOS.has(card.key) && card.raw != null && card.value !== "—"
+      ? <AnimatedNumber id={`tiktok-dash-${card.key}`} value={card.raw} format={formatMoney} periodo={chaveAtual ?? undefined} />
+      : card.value;
   return (
     <IntegrationDashboardFrame
       className="channel-dashboard tiktok-dashboard-page"
@@ -389,7 +402,7 @@ export function TikTokWorkspace() {
             os valores que vem do extrato oficial entram por data do pedido. */}
         <BaseDeData base="pedido-extrato" />
         <section className="metric-grid tiktok-dashboard-metrics" aria-label="Resumo financeiro da TikTok Shop">
-          {primaryCards.map((card) => <Metric key={card.key} label={card.label} value={card.value} sub={card.context} tone={card.key === "marginPct" ? marginMetricTone(card.raw) : card.key === "profit" && card.raw != null ? card.raw > 0 ? "positive" : card.raw < 0 ? "danger" : "default" : "default"} />)}
+          {primaryCards.map((card) => <Metric key={card.key} label={card.label} value={valorDoCard(card)} sub={card.context} tone={card.key === "marginPct" ? marginMetricTone(card.raw) : card.key === "profit" && card.raw != null ? card.raw > 0 ? "positive" : card.raw < 0 ? "danger" : "default" : "default"} />)}
         </section>
         <section className="secondary-metrics" aria-label="Indicadores operacionais TikTok Shop">
           <CompactMetric label="Pedidos feitos" value={`${formatMoney(capturedRevenue)} · ${(data.orders ?? 0).toLocaleString("pt-BR")}`} info="Valor capturado nos pedidos e quantidade total recebida no período." />

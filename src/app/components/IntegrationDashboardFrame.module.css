@@ -12,41 +12,62 @@
   padding: 7px 12px !important;
 }
 
-/* O faturamento combina rótulo, dica e tendência na mesma linha. Com oito
-   indicadores na faixa da Amazon, 16px de cada lado tiravam justamente o
-   espaço necessário para a palavra inteira e o navegador mostrava
-   "Faturam…". A densidade continua igual; apenas devolvemos largura útil ao
-   conteúdo e impedimos o selo de quebrar em duas linhas. */
+/* O SELO DE VARIAÇÃO FICA NA LINHA DO RÓTULO — pedido dela em 28/08/2026, que
+   marcou no print exatamente esse lugar: rótulo e selo na primeira linha, valor
+   logo abaixo, sem nada entre o título e o número.
+   
+   Antes, um `@container (max-width: 185px)` empilhava o selo sempre que a célula
+   ficava estreita, para o nome do indicador não virar "Faturam…". O limiar fixo
+   era grosso demais: na faixa de oito KPIs da Amazon a célula mede 124–204px
+   entre 1280 e 1920, então o selo descia SEMPRE, mesmo quando sobrava espaço.
+   
+   Agora quem decide é o encaixe real, não um número chutado: a linha pode
+   quebrar, e o rótulo não encolhe abaixo da própria palavra. Cabendo, os dois
+   dividem a primeira linha; não cabendo, quem desce é o SELO — o nome do
+   indicador nunca é sacrificado por reticências. */
 .root :global(.metric-head:has(.revenue-trend)) {
-  gap: 6px;
+  flex-wrap: wrap;
+  gap: 4px 6px;
 }
 
+.root :global(.metric-head:has(.revenue-trend) .metric-label) {
+  min-width: min-content;
+}
+
+/* Sem reticências aqui: o recorte de `.metric-label-text` existe para rótulo
+   longo em cartão largo. Neste bloco quem cede espaço é o selo, então o texto
+   quebra em palavras inteiras em vez de ser cortado. */
+.root :global(.metric-head:has(.revenue-trend) .metric-label-text) {
+  overflow: visible;
+  white-space: normal;
+  text-overflow: clip;
+  text-wrap: pretty;
+}
+
+/* O selo ocupa o mínimo que dá para ler: cada pixel que ele devolve é um pixel
+   a mais de chance de caber na linha do rótulo. Texto, seta e cor são os
+   mesmos — só o respiro em volta encolheu. */
 .root :global(.revenue-trend) {
   flex: 0 0 auto;
-  padding-inline: 7px;
+  padding-inline: 5px;
+  gap: 3px;
   white-space: nowrap;
 }
 
-/* Em telas intermediárias os oito KPIs continuam na mesma faixa, mas cada
-   célula pode ficar estreita. Nesse caso o selo desce inteiro — o nome do
-   indicador nunca é sacrificado por reticências. */
+/* Célula muito estreita: o texto do rótulo quebra em palavras inteiras em vez
+   de truncar.
+   
+   ⚠️ O `width: 100%` no rótulo saiu daqui em 28/08/2026. Ele forçava o rótulo a
+   ocupar a linha inteira, então o selo descia SEMPRE que a célula media 185px ou
+   menos — inclusive quando os dois cabiam lado a lado (no ML a 1280px sobravam
+   23px). Quem decide agora é o encaixe: o selo só desce quando de fato não cabe. */
 @container (max-width: 185px) {
-  .root :global(.metric-label) {
-    width: 100%;
-  }
-
   .root :global(.metric-label-text) {
     overflow: visible;
     white-space: normal;
     text-overflow: clip;
     line-height: 16px;
     text-wrap: pretty;
-  }
-
-  .root :global(.metric-head:has(.revenue-trend)) {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 3px;
   }
 }
 
@@ -66,12 +87,6 @@
 }
 
 @media (max-width: 600px) {
-  .root :global(.metric-head:has(.revenue-trend)) {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 5px;
-  }
-
   .root :global(.metric-head:has(.revenue-trend) .metric-label) {
     width: 100%;
     overflow: visible;
