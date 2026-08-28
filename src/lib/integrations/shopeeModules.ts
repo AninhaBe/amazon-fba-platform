@@ -7,6 +7,7 @@ import { invalidateCostDerivedCaches } from "../costInvalidation";
 import type { IntegrationConnection } from "./types";
 import { shopeeAbcClass, shopeePageRequest, shopeePeriodRequest, ShopeeModuleError } from "./shopeeModuleContract";
 import { withShopeeIntegrationWriteFence } from "./shopeeWriteFence";
+import { escolherConexaoPadrao } from "./conexaoPadrao";
 
 const PROVIDER = "shopee";
 type Row = Record<string, unknown>;
@@ -17,8 +18,13 @@ export async function requireShopeeConnection(params: URLSearchParams): Promise<
 }
 
 export function selectShopeeConnection(connections: IntegrationConnection[], requested?: string | null): IntegrationConnection {
-  const connected = connections.filter((item) => item.provider === PROVIDER && item.status === "connected");
-  const connection = requested ? connected.find((item) => item.id === requested) : connected[0];
+  // ⚠️ A escolha vem de `escolherConexaoPadrao`, a MESMA função que o seletor da
+  // tela usa. Ter duas cópias da regra (era o caso até 28/08/2026) é como o
+  // servidor acaba pintando a loja A enquanto o seletor diz loja B.
+  const connection = escolherConexaoPadrao(
+    connections.filter((item) => item.provider === PROVIDER),
+    requested,
+  );
   if (!connection) {
     throw new ShopeeModuleError(404, "CONNECTION_NOT_FOUND", "Nenhuma loja Shopee conectada.");
   }

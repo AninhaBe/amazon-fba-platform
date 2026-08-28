@@ -18,6 +18,7 @@ import { IntegrationDashboardFrame } from "./IntegrationDashboardFrame";
 import { ConnectionBroken } from "./ConnectionBroken";
 import { ChannelConnectionEmpty } from "./ChannelConnectionEmpty";
 import { CompactMetric, Flow, FlowExpandable, Metric, getRevenueTrend } from "./Metric";
+import { escolherConexaoPadrao } from "@/lib/integrations/conexaoPadrao";
 import { buildFinancialComposition, FinancialSummaryPanel } from "./FinancialSummaryPanel";
 import { brDate, brTime } from "@/lib/datetime";
 import { coberturaDoPeriodo } from "@/lib/coberturaPeriodo";
@@ -162,8 +163,10 @@ export function ShopeeWorkspace() {
   useEffect(() => {
     if (!status?.connections.length) return;
     const requested = searchParams.get("connection_id");
-    const selected = status.connections.find((connection) => connection.id === requested) ?? status.connections[0];
-    if (requested === selected.id) return;
+    // A MESMA função que o servidor usa para resolver a loja padrão. Duas
+    // cópias da regra é como o seletor acaba discordando do dado exibido.
+    const selected = escolherConexaoPadrao(status.connections, requested);
+    if (!selected || requested === selected.id) return;
     const next = new URLSearchParams(searchParams.toString());
     next.set("connection_id", selected.id);
     next.set("offset", "0");
@@ -266,39 +269,60 @@ export function ShopeeWorkspace() {
   }, [retryKey]);
 
   useEffect(() => {
-    if (!status?.connected) return;
     let cancelled = false;
     const requested = searchParams.get("connection_id");
-    const selected = status.connections.find((connection) => connection.id === requested) ?? status.connections[0];
-    if (!selected) return;
+    // ⚠️ ABERTURA SEM ESPERAR O /api/integrations (28/08/2026).
+    //
+    // Antes, este efeito só rodava depois que o status chegava — e o status
+    // existia só para descobrir QUAL loja pedir. Eram dois RTTs em série: ~500ms
+    // para saber a loja, ~600ms para buscar o dado, e o primeiro número da tela
+    // aparecia em ~1,7s (medido em produção, acima do orçamento do ADR-017).
+    //
+    // Agora, quando ninguém escolheu loja ainda, pedimos o overview SEM
+    // `connection_id` e o SERVIDOR resolve a padrão — com a MESMA regra do
+    // seletor (`escolherConexaoPadrao`), e devolvendo qual resolveu. A verdade
+    // sobre a loja exibida passa a ser a resposta, nunca uma suposição daqui.
+    const selected = status ? escolherConexaoPadrao(status.connections, requested) : null;
+    // Sem loja E com o status já carregado = não há o que buscar. Com o status
+    // ainda em voo, seguimos: o servidor sabe escolher.
+    if (!selected && status) return;
     const offset = searchParams.get("offset") ?? "0";
-    const chave = chaveDoPeriodo(selected.id, period.query, offset);
+    // Sem id conhecido ainda, a chave sai da resposta (`selectedConnectionId`).
+    const chave = selected ? chaveDoPeriodo(selected.id, period.query, offset) : null;
     // Pinta o periodo ja visto ANTES de buscar. A resposta nova sobrescreve
     // quando chegar — o cache nunca fica na tela como se fosse o dado fresco.
     // Se ja ha dado deste periodo, falha de revalidacao nao apaga a tela.
-    const emCache = periodCache.get(chave);
+    const emCache = chave ? periodCache.get(chave) : undefined;
     (async () => {
       try {
         setError(null);
         const query = new URLSearchParams(period.query);
-        query.set("connection_id", selected.id);
+        // Sem loja escolhida, NÃO mandamos `connection_id`: é o servidor que
+        // resolve a padrão e devolve qual foi.
+        if (selected) query.set("connection_id", selected.id);
         query.set("limit", "100");
         query.set("offset", offset);
         const response = await fetch(`/api/integrations/shopee/overview?${query}`, { cache: "no-store" });
         const data = await response.json() as OverviewResponse & { error?: string };
         if (cancelled) return;
         if (!response.ok) throw new Error(data.error || "Erro ao carregar a Shopee.");
+        // ⚠️ A loja EXIBIDA é a que o servidor resolveu, não a que supomos aqui.
+        // Sem isso, a tela poderia pintar o número da loja A e o seletor, ao
+        // chegar, dizer loja B — a mesma classe de defeito do número sob o
+        // rótulo errado, só que com loja, e num app multi-loja é pior.
+        const idExibido = data.selectedConnectionId ?? selected?.id ?? null;
+        const chaveFinal = idExibido ? chaveDoPeriodo(idExibido, period.query, offset) : null;
         setSyncBruto(data.sync);
         if (data.pending) {
           setPending(true);
           setCarregado(null);
-          periodCache.delete(chave);
+          if (chaveFinal) periodCache.delete(chaveFinal);
         } else {
           setPending(false);
           const quando = new Date();
-          if (data.overview) {
-            periodCache.set(chave, { overview: data.overview, sync: data.sync, updatedAt: quando });
-            setCarregado({ chave, overview: data.overview, sync: data.sync, updatedAt: quando });
+          if (data.overview && chaveFinal) {
+            periodCache.set(chaveFinal, { overview: data.overview, sync: data.sync, updatedAt: quando });
+            setCarregado({ chave: chaveFinal, overview: data.overview, sync: data.sync, updatedAt: quando });
           } else {
             setCarregado(null);
           }
