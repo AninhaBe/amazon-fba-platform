@@ -45,6 +45,26 @@ export async function runScheduledMercadoLivreSync(
         AND (
           (sync.status IN ('pending', 'syncing')
             AND (sync.lease_until IS NULL OR sync.lease_until < now()))
+          -- ERRO TRANSITÓRIO VOLTA A SER CANDIDATO (28/08/2026).
+          --
+          -- Sem esta cláusula, status='error' era ESTADO TERMINAL DE FATO: o
+          -- scheduler só elegia pending/syncing/complete, então um timeout de
+          -- banco às 11:34 prendeu a conta real da vendedora por 7h30 — o token
+          -- venceu junto (o refresh só acontece dentro do passo de sync) e
+          -- ninguém foi avisado. Vale para qualquer cliente que pegue um 5xx.
+          --
+          -- ⚠️ Estado terminal só pode ser terminal quando o MOTIVO é terminal
+          -- (mesma regra do claim órfão do webhook): erro de autorização NÃO
+          -- entra em loop de retry. Aqui isso já está garantido SEM olhar o
+          -- texto do erro — diferente da Shopee, que carimba prefixos em
+          -- last_error, o ML persiste integration.status='disconnected' no
+          -- próprio refresh recusado (mercadoLivre.ts, ChannelAuthExpiredError),
+          -- e o predicado integration.status = 'connected' lá em cima já tira
+          -- essas conexões do lote. Filtrar por prefixo aqui seria decorativo:
+          -- o ML grava a mensagem crua do erro, sem marcador nenhum.
+          OR (sync.status = 'error'
+            AND sync.updated_at < now() - interval '15 minutes'
+            AND (sync.lease_until IS NULL OR sync.lease_until < now()))
           -- A janela vem de FRESH_FOR_MS (mercadoLivreSync.ts), não de um literal
           -- daqui: os dois portões PRECISAM casar, e um literal solto foi o que
           -- deixou este canal 6h atrás dos outros até 23/08/2026.
