@@ -91,6 +91,25 @@ A Ana não tem — quem tem é o sócio, e a loja dele será a primeira conexão
   `actual_shipping_fee→shipping_seller`/`fulfillment`. Preservar o código original em
   `provider_fee_code`.
 
+## Account Health: códigos observados (espelho do mapa em código)
+
+O mapa que a tela lê é `src/lib/integrations/shopeeAccountHealthMapa.ts` — este bloco é o
+espelho documentado, com as fontes. **Código sem fonte não é mapeado**: a tela mostra
+"código N da Shopee" (regra do desenho aprovado em 28/08/2026). Fonte "sonda 28/08/2026" =
+observado nas chamadas reais à loja `275804987` (a doc oficial do open.shopee.com não é
+acessível fora do console).
+
+| Campo | Valores mapeados | Fonte |
+|---|---|---|
+| `overall_performance.rating` | 1 Ruim · 2 Precisa melhorar · 3 Boa · 4 Excelente | Tiers do Account Health do Seller Centre; rating 2 conferido contra a loja real com 3 métricas reprovadas |
+| `metric_type` | 1 Envio · 2 Anúncios · 3 Atendimento | Sonda 28/08/2026 — agrupamento dos `metric_name` bate com os grupos `*_failed` do `overall_performance` |
+| `unit` | 1 número · 2 percentual · 4 dia(s) | Sonda 28/08/2026 — 2 acompanha as taxas, 1 os números puros, 4 o tempo de preparo |
+| `punishment_status` (parâmetro **obrigatório** de `get_punishment_history`) | 1 vigentes · 2 encerradas | Sonda 28/08/2026 — status=1 devolveu as vigentes (0), status=2 o histórico (12) |
+| `punishment_type` (107, 108, 2008…), `reason`, `violation_type`, `reason` de `get_listings_with_issues` (3, −999) | **sem mapa** | Sem fonte acessível — ao obter a doc oficial, mapear aqui e no código com data |
+
+`order_limit` ("95", "80") é autodescritivo: teto de pedidos em N% — a tela escreve
+"Limite de pedidos em N%".
+
 ## Webhooks (opcional na v1)
 
 Shopee tem *Push Mechanism* (partner push) para mudanças de pedido — requer configurar a
@@ -145,6 +164,29 @@ nem observação de payload real Shopee.
 Mesma convenção dos docs da Amazon e do ML: mudanças de comportamento da API observadas
 na prática entram aqui, com data. Enquanto o canal não for implementado, a lista fica
 vazia — ao implementar, re-validar tudo marcado com ⚠️ e registrar o que divergir.
+
+- **2026-08-28 — account_health sondado na loja real (base da tela Saúde da conta).**
+  Seis chamadas reais, dentro do runtime de produção:
+  - `get_shop_performance` → **200**: `overall_performance` (rating 1–4 + contadores
+    `*_failed` por grupo) e `metric_list` com 17 métricas, cada uma com
+    `current_period`/`last_period`/`target{value, comparator}` — a situação é calculável
+    pelo comparador da própria API. Métricas de violação vieram com `current_period: null`
+    (null de verdade, não zero).
+  - `shop_penalty` → **403 `api_suspended`** ("Permission denied. This API is currently
+    offline or the request path is incorrect"): o snapshot consolidado de pontos/punições
+    vigentes NÃO está disponível à categoria ERP. O total vigente de pontos não é afirmável.
+  - `get_punishment_history` → **exige `punishment_status`** (400 PARAMS_ERROR sem ele);
+    com 1 devolve vigentes, com 2 o histórico (12 punições na loja, `order_limit` "95"/"80").
+  - `get_penalty_point_history` → 200 (2 lançamentos, `violation_type` 5 e 8).
+  - `get_late_orders` → 200 (`total_count` 0).
+  - `get_listings_with_issues` → 200 (4 itens, `reason` 3 e −999 — códigos sem mapa).
+
+- **2026-08-28 — [BR] `invoice_data` só vem se PEDIDO em `response_optional_fields`.**
+  Confirmado na prática ao implementar a faixa de NF-e: o campo anunciado em 29/07 não
+  chega por padrão — entrou na lista de campos opcionais do nosso `get_order_detail` e
+  passou a vir (1.750 pedidos com o campo nas primeiras horas). O `sanitizeShopeeOrder`
+  guarda só `{status, pending_reason}` (sub-allowlist; condição de retenção registrada no
+  ADR-026).
 
 - **2026-08-27 — primeira loja real conectada: duas divergências no catálogo, ambas
   medidas em produção.** A loja `275804987` autorizou o app e a primeira varredura

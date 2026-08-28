@@ -8,6 +8,7 @@ import {
   Box,
   Calculator,
   ChevronDown,
+  HeartPulse,
   History,
   LayoutDashboard,
   Gauge,
@@ -72,6 +73,7 @@ const icons = {
   search: <Search {...iconProps} />,
   history: <History {...iconProps} />,
   briefing: <Lightbulb {...iconProps} />,
+  health: <HeartPulse {...iconProps} />,
 };
 
 // Briefing por canal + global na Visão geral — decisão da Ana em 27/08/2026,
@@ -184,6 +186,7 @@ const navigation: Record<WorkspaceId, NavGroup[]> = {
         { href: "/shopee", label: "Dashboard", desc: "Visão do canal", icon: icons.dashboard, exact: true },
         briefingDoCanal("/shopee"),
         { href: "/shopee/monitor", label: "Monitor da conta", desc: "Pedidos e financeiro", icon: icons.monitor },
+        { href: "/shopee/saude", label: "Saúde da conta", desc: "Nota, métricas e punições", icon: icons.health },
       ],
     },
     { title: "Catálogo", tone: "emerald", items: [

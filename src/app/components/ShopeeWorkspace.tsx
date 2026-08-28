@@ -33,6 +33,8 @@ import {
   shopeeTaxLabel,
   type ShopeeProviderIssue,
 } from "./ShopeeWorkspaceModel";
+import { acoesDeSaude } from "@/lib/integrations/shopeeAccountHealthMapa";
+import type { ShopeeSaudeDaConta } from "@/lib/integrations/shopeeAccountHealth";
 import type { PublicIntegrationConnection } from "@/lib/integrations/types";
 import { marginMetricTone } from "@/lib/marginTone";
 import { comSemImposto } from "@/lib/semImposto";
@@ -413,6 +415,18 @@ function ShopeeDemoNotice({ connectHref }: { connectHref?: string }) {
 
 function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overview; sync: ShopeeSyncStatus | null; onPage: (offset: number) => void; periodoLabel: string }) {
   const [costsOpen, setCostsOpen] = useState(false);
+  // Saúde da conta é acessória aqui: alimenta as ações do BriefingLead com
+  // número e o-que-fazer. Falha de leitura (ou demo) = sem ação — degradação
+  // limpa, nunca alarme inventado.
+  const [saude, setSaude] = useState<ShopeeSaudeDaConta | null>(null);
+  useEffect(() => {
+    let live = true;
+    fetch(`/api/integrations/shopee/saude?connection_id=${encodeURIComponent(`shopee:${overview.account.id}`)}`, { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((body) => { if (live && body?.availability === "AVAILABLE" && body.saude) setSaude(body.saude); })
+      .catch(() => { /* sem saúde, sem ação */ });
+    return () => { live = false; };
+  }, [overview.account.id]);
   // Período do filtro vs. histórico já importado (frente K): mês ainda não
   // importado nunca vira cards zerados — "não vendeu" e "não importei" são
   // fatos diferentes.
@@ -488,6 +502,9 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
           ...(critical.length > 0
             ? [{ label: `${critical.length} produto(s) em estoque crítico`, href: "/shopee/estoque", tone: "alerta" as const }]
             : []),
+          // Saúde da conta: número + o que fazer (a métrica mais distante do
+          // alvo, com valor e alvo da própria Shopee).
+          ...acoesDeSaude(saude),
         ]}
       />
 
