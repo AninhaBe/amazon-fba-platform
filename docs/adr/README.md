@@ -60,6 +60,9 @@ O que ganhamos, o que abrimos mão, o que passa a ser obrigatório respeitar.
 | [ADR-023](./ADR-023-notificacoes-da-amazon.md) | Notificações da Amazon por SQS, consumidas pelo agendador que já existe (custo zero no volume atual) | Proposto |
 | [ADR-024](./ADR-024-tela-de-administracao.md) | Uma única rota (`/admin`) lê entre workspaces, com allowlist de e-mail no servidor e só dado agregado | Aceito |
 | [ADR-025](./ADR-025-anuncio-entra-no-lucro.md) | Anúncio é custo e entra no lucro; métricas de Ads em tabela própria, fora do canônico e agnóstica de canal | Aceito |
+| [ADR-026](./ADR-026-camadas-por-ciclo-de-vida.md) | Camadas por ciclo de vida — bronze é retenção, não schema; estado do produto vive em colunas | Aceito |
+| [ADR-027](./ADR-027-tarifa-estimada-ate-a-liquidacao.md) | Tarifa estimada pela Product Fees API ocupa o lugar da real até a liquidação, marcada na tela e com a pontaria medida | Aceito |
+| [ADR-028](./ADR-028-modo-do-pooler-e-teto-de-conexoes.md) | Modo do pooler e o teto real de conexões: `session` com `pool_size 15` já falha hoje; proposta é `transaction` | Proposto |
 
 **Índice completo em 16/08/2026** — 14 ADRs, todos listados. Ao criar um ADR novo,
 adicione a linha aqui na mesma hora; este índice já ficou 8 ADRs atrás uma vez.

@@ -1,6 +1,9 @@
 # ADR-027: Tarifa estimada ocupa o lugar da real até o pedido liquidar
 
-- **Status:** Proposto — aguardando portão do cérebro e revisão de dado do Delta
+- **Status:** **Aceito** em 28/08/2026 — a fonte (Product Fees API, em vez de
+  tabela mantida por nós) e o modo de falha obrigatório foram aprovados no
+  portão. Falta a revisão de dado do Delta (previsto vs. real no schema) e a
+  marca visual da Vitrine antes de implementar.
 - **Data:** 2026-08-28
 - **Escopo desta volta:** **canal Amazon apenas.** Replicar para ML/Shopee/TikTok
   só depois que a pontaria estiver medida (ver "Acompanhamento de pontaria").
@@ -139,9 +142,10 @@ produto é um problema diferente de um erro espalhado).
   A implementação precisa respeitar rate limit e não pode atrasar a ingestão —
   falha na estimativa não pode falhar o pedido.
 - A regra "não extrapolar" do `AGENTS.md` deixa de valer sem qualificação e
-  passa a valer com o limite escrito acima. **`AGENTS.md` precisa apontar para
-  este ADR** quando ele for aceito, senão a próxima pessoa lê a regra antiga e
-  desfaz isto de boa-fé.
+  passa a valer com o limite escrito acima. ✅ **Feito em 28/08/2026:** a regra
+  no `AGENTS.md` continua valendo e ganhou a exceção nomeada apontando para
+  este ADR — número publicado pela fonte, marcado na tela; média histórica nossa
+  segue proibida.
 
 ## Alternativas descartadas
 

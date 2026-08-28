@@ -89,7 +89,12 @@ Três regras que atravessam o código todo e não são negociáveis sem ADR:
   ("não houve frete"). Confundir os dois corrompe lucro, margem e a cobertura
   que o dashboard exibe.
 - **Não extrapolar.** Enquanto tarifas e fretes não estiverem completos, o painel
-  mostra só o que foi capturado — nunca projeta o resto.
+  mostra só o que foi capturado — nunca projeta o resto. **Exceção nomeada
+  ([ADR-027](docs/adr/ADR-027-tarifa-estimada-ate-a-liquidacao.md)):** número
+  **publicado pela própria fonte** (a tabela de tarifas da Amazon, via Product
+  Fees API) pode ocupar o lugar do oficial enquanto ele não chega, **marcado na
+  tela** e substituído na liquidação. Média histórica calculada por nós continua
+  proibida — é isso que a regra sempre quis impedir.
 - **Nunca escrever "parcial" na tela.** A palavra explica ao vendedor uma coisa que
   ele já sabe (o que ele cadastrou e o que não cadastrou) e não diz o que fazer.
   Diga **o que falta, com número e link**: "3 unidades sem custo cadastrado →",
