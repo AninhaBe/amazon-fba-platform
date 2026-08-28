@@ -538,6 +538,50 @@ de um helper único sobre o canônico (`unidadesPorSku`), com o conjunto de
 status de venda de cada canal por parâmetro. Fila financeira do TikTok
 intocada (travado por teste). Fingerprints por loja/conta nos quatro.
 
+### 14. Monitor Unificado — **concluído em 28/08, v134→v142**
+
+Decisão da Ana: o **monitor da Amazon é A referência** e os outros três se
+alinham a ele. Fechado em quatro etapas, cada uma pelo portão do cérebro:
+
+- **E0 (v134)** — alerta de saturação do sync nos 4 monitores: linha discreta
+  "Sincronizado há X min" e aviso âmbar quando a defasagem passa de **3× o
+  ciclo** do canal (2min ML/Amazon, 10min Shopee/TikTok — `saturacaoDoSync.ts`,
+  rota `/api/sync-estado`). **Silêncio em primeira sincronização é obrigatório
+  e travado por teste** (sem `covered_from` ou `last_success_at`, nada aparece).
+- **E1 (v135)** — ML contra a referência: o teto de 1000 pedidos detalhados
+  passou a ser **comunicado** na tabela de rentabilidade (mesma frase da
+  Amazon); o caminho legado declara `null`, nunca escopo inventado.
+- **E2 (v141)** — TikTok elevado de tabela plana para cards+abas: 4 cards do
+  período (receita, confirmados, com/sem extrato — régua de liquidação
+  coluna-primeiro do ADR-026) e abas **Pedidos | Transações**, com a aba
+  Transações **reusando** o extrato do `/financeiro` (mesma rota e componentes,
+  paginação local à aba).
+- **E3 (v142)** — Shopee, a maior: cards + abas **Composição | Pedidos**;
+  Composição reusa o `FinancialSummaryPanel` do dashboard (cascata com escrow);
+  **primeira busca do canal** (servidor, dentro da query paginada do canônico,
+  com paginação honesta sob filtro — conta o universo filtrado); **período
+  personalizado deixou de ser descartado** no contrato do módulo (`from`/`to`
+  aditivos, de carona para inventário e ABC).
+
+**O que ficou de fora por semântica, de propósito (não é lacuna):** as virtudes
+próprias de cada canal foram preservadas e **travadas por teste** — filtros de
+servidor exatos e paginação de servidor no TikTok, coluna Conciliação, extrato
+Mercado Pago como "Transações" do ML (base pedido). A Shopee **não tem aba
+Transações**: o extrato do canal não está implementado e aba vazia seria mentira
+(omissão honesta; o caminho — `get_escrow_list`/`wallet_transaction_list` — é
+frente própria aguardando decisão da Ana). `OrderProfitabilityTable` **não foi
+adaptado para modo servidor** em nenhuma etapa; se a Rentabilidade entrar no
+monitor de TikTok/Shopee um dia, exige testes dos dois modos (destaque do plano).
+Tudo nasceu dentro da hierarquia de avisos (cards são métrica, não aviso).
+
+**⚠️ Pendência técnica nomeada — régua `resultIncomplete` duplicada (Shopee):**
+o monitor (`ShopeeModulePage.tsx`, `ShopeeMonitorContent`) replica a expressão
+do dashboard (`ShopeeWorkspace.tsx`) que decide quando o lucro pode ser
+afirmado. Dois lugares calculando dinheiro é como começa divergência. Quando a
+Vitrine liberar o `ShopeeWorkspace.tsx` (frente de hierarquia), unificar num
+helper único (candidato: `ShopeeWorkspaceModel`, puro) **com teste provando que
+dashboard e monitor dizem o mesmo**. Ordem registrada pelo cérebro em 28/08.
+
 ---
 
 ## Bloqueado por terceiros
