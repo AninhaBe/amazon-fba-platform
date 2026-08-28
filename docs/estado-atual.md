@@ -582,6 +582,65 @@ Vitrine liberar o `ShopeeWorkspace.tsx` (frente de hierarquia), unificar num
 helper único (candidato: `ShopeeWorkspaceModel`, puro) **com teste provando que
 dashboard e monitor dizem o mesmo**. Ordem registrada pelo cérebro em 28/08.
 
+### 15. Sync do ML parado 9h — as **três camadas** do mesmo defeito (28/08)
+
+*Caso didático. Se você está vendo "timeout" num sync e chegou aqui procurando,
+comece pelo item 3 — foi o que ninguém suspeitou.*
+
+**O sintoma:** a conexão real do Mercado Livre da vendedora (`648425194`) ficou
+`status='error'` das 11:34 às 20:11, com `last_error = "timeout exceeded when
+trying to connect"`. O token expirou junto às 16:54 — **consequência, não
+causa**: o refresh do ML só acontece dentro do passo de sync, e o passo não
+rodava. A conexão do outro vendedor, no mesmo cron, sincronizava normalmente.
+
+**As três camadas, cada uma produzindo o MESMO sintoma:**
+
+1. **O scheduler não elegia conexão em `error`.** O predicado só considerava
+   `pending`/`syncing`/`complete` — um erro transitório (timeout, 5xx) prendia a
+   conexão para sempre. Corrigido com reeleição após backoff de 15 min
+   (`mercadoLivreScheduler.ts`). **Auditoria dos 4 canais: só o ML tinha o
+   buraco** — Shopee reelege após 5 min excluindo reauth/terminal por prefixo,
+   TikTok tem `error` na mesma lista de `pending`, Amazon reelege após 30 min.
+2. **O batch saía antes do primeiro passo.** Mesmo eleita, `runMercadoLivreSyncBatch`
+   dava `break` quando o status era `error` — ela entrava e saía sem tocar em
+   nada. A prova foi o `updated_at` congelado em 11:34 por 8 horas: se o passo
+   tivesse rodado, o claim de lease (primeira escrita) o teria movido. Shopee e
+   Amazon já faziam certo (a primeira roda o passo fora do laço; a segunda tem
+   `if (step === 0)` explícito) e viraram o modelo.
+3. **A causa raiz não era o canal: era o POOL DA APLICAÇÃO.** "timeout exceeded
+   when trying to connect" é a mensagem do pool `pg` quando
+   `connectionTimeoutMillis` estoura — **não** um erro do Mercado Livre. Medido
+   para descartar o óbvio: o servidor tinha folga (17 conexões de 60, 1 ativa),
+   então a contenção era local — `max: 5` na aplicação, com o cron disparando os
+   quatro canais em paralelo e cada passo abrindo várias queries. Subido para
+   10 (`src/lib/db.ts`), medido depois: 24 de 60 no servidor, timeout sumiu.
+
+**Desfecho:** `status='complete'`, `last_error` NULL, e **o token renovou
+sozinho dentro do passo** — nenhum refresh manual foi feito, porque o refresh
+token do ML é rotativo e queimá-lo à mão é estrago que não se desfaz.
+
+📌 **O que a próxima pessoa economiza:** "timeout" no `last_error` de um sync
+**não** significa que o marketplace está lento. Antes de culpar o canal:
+(a) confira se a mensagem é do driver do banco; (b) meça as conexões no servidor
+**e** o `max` do pool da aplicação; (c) veja se o `updated_at` avança — se está
+congelado, o passo nem começou, e o problema está acima dele.
+
+📌 **A instrumentação que faltava** entrou junto: o passo do ML agora carrega um
+rótulo de etapa (`inicio`/`produtos`/`buscar-pedidos`/`salvar-pedidos`/
+`avancar-janela`/`custos-de-frete`) que vai para o log **com stack** e entra no
+próprio `last_error` como prefixo — `[buscar-pedidos] timeout...`. O diagnóstico
+custou horas porque o erro ia só para a coluna, sem log: os logs de produção não
+mostravam absolutamente nada.
+
+⚠️ **E um erro de método que vale mais que o bug:** a correção da camada 2 foi
+reportada como "no ar" quando **não estava** — o release `v145` ficou preso em
+`running`, nunca aplicou, e a máquina seguiu na versão anterior. O sinal lido
+(`updated_at` mexendo) tinha outra causa (o `reverify` do mesmo cron). A defesa
+está em `scripts/fly-deploy.sh` e documentada em
+[`fly-io.md`](./fly-io.md#️-release-criado-não-é-release-no-ar-incidente-de-28082026):
+**afirmar "está no ar" exige ter visto a versão nova na máquina** — health 200
+passa igual na versão velha.
+
 ---
 
 ## Bloqueado por terceiros

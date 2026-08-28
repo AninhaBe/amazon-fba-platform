@@ -48,3 +48,12 @@ Nenhum está no horizonte medido (crescimento atual: ~4,9 MB/dia, 85% de um úni
   desenhado, esses campos precisam **(a)** ficar fora do expurgo enquanto o
   pedido estiver com nota pendente, ou **(b)** migrar para coluna nesse dia —
   senão o expurgo apaga uma pendência operacional viva da tela.
+
+  ⚠️ **O modo de falha é silencioso e parece boa notícia** (medido pelo Delta em
+  28/08/2026, ao conferir o índice parcial da migration 0017): com o `raw`
+  expurgado, a consulta não falha — ela devolve **zero notas pendentes**, e a
+  tela lê isso como "está tudo em dia". É o mesmo padrão do `acos = 0` que o ML
+  devolve quando não houve venda: **ausência virando boa notícia**. Não há
+  violação da regra 2 aqui (`invoice_data` é dado que a Shopee entrega, não
+  conclusão nossa), mas a dependência precisa ser resolvida *antes* do expurgo,
+  não depois.
