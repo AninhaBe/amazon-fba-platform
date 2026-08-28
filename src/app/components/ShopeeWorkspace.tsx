@@ -483,7 +483,13 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
         ]}
       />
 
-      {!overview.metrics.revenueCoverage.complete && (
+      {/* Alerta vermelho só com contagem REAL: disparar por cobertura de data
+          exibindo uma subtração que é zero por construção (capturedOrders ==
+          totalOrders, ambos do canônico) era alarme falso — visto em produção
+          em 27/08/2026 ("0 pedido(s) aguardam captura"). O caso de cobertura
+          por data já é coberto pela faixa honesta "os números abaixo cobrem a
+          partir de DD/MM" acima. */}
+      {ordersAwaitingCapture > 0 && (
         <div role="status" className="integration-message is-error">
           {ordersAwaitingCapture} pedido(s) do período aguardam captura pela sincronização do NEXO. <Link href="/shopee/monitor" className="font-semibold text-sky-700 underline-offset-2 hover:underline">Ver pedidos <span aria-hidden="true">→</span></Link>
         </div>

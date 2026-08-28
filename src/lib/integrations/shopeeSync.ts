@@ -604,9 +604,15 @@ export async function runShopeeSyncStep(
         [workspaceId, PROVIDER, connection.id, saved, ownershipToken]
       );
     } else {
+      // LEAST: covered_from guarda o ponto mais antigo JÁ coberto. Sem isso, o
+      // re-walk pós-reopen (que re-caminha as janelas do presente ao alvo)
+      // ENCOLHIA a cobertura para a janela recém-fechada — e a tela dizia que o
+      // histórico começava ontem numa loja com o mês inteiro capturado. Mesmo
+      // desenho do tiktokSync.
       await dbQuery(
         `UPDATE workspace_marketplace_syncs
-            SET status = 'pending', covered_from = $4, covered_to = COALESCE(covered_to, target_to),
+            SET status = 'pending', covered_from = LEAST(COALESCE(covered_from, $4), $4),
+                covered_to = COALESCE(covered_to, target_to),
                 cursor_from = $5, cursor_to = $6, processed_orders = processed_orders + $7,
                 lease_until = NULL, last_error = NULL, last_success_at = now(), updated_at = now()
           WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3

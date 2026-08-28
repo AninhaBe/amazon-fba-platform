@@ -407,9 +407,12 @@ export async function runMercadoLivreSyncStep(
           [workspaceId, PROVIDER, connection.id, orders.length, ownershipToken]
         );
       } else {
+        // LEAST: covered_from guarda o ponto mais antigo JÁ coberto — o
+        // re-walk pós-reopen não pode encolher a cobertura para a janela
+        // recém-fechada. Mesmo desenho do tiktokSync.
         await dbQuery(
           `UPDATE workspace_marketplace_syncs
-              SET status = 'pending', covered_from = $4,
+              SET status = 'pending', covered_from = LEAST(COALESCE(covered_from, $4), $4),
                   covered_to = COALESCE(covered_to, target_to), cursor_from = $5, cursor_to = $6,
                   cursor_offset = 0, processed_orders = processed_orders + $7,
                   lease_until = NULL, last_error = NULL, last_success_at = now(), updated_at = now()

@@ -8,6 +8,15 @@ import test from "node:test";
 // sincronizados" por um instante numa loja com 10 mil pedidos, porque o bloco
 // de estado vazio renderizava entre o status das integrações e o overview.
 
+test("Shopee: alerta de captura só dispara com contagem real, nunca por cobertura de data com zero", async () => {
+  const tela = await readFile(new URL("../src/app/components/ShopeeWorkspace.tsx", import.meta.url), "utf8");
+  // O alerta vermelho é armado pela contagem (> 0), não pelo flag de cobertura
+  // por data — capturedOrders == totalOrders por construção fazia a subtração
+  // ser sempre zero e a faixa virar alarme falso.
+  assert.match(tela, /\{ordersAwaitingCapture > 0 && \([\s\S]{0,200}integration-message is-error/);
+  assert.doesNotMatch(tela, /revenueCoverage\.complete && \([\s\S]{0,200}integration-message is-error/);
+});
+
 test("Shopee: sem resposta do overview renderiza carregamento antes de qualquer afirmação de vazio", async () => {
   const tela = await readFile(new URL("../src/app/components/ShopeeWorkspace.tsx", import.meta.url), "utf8");
   const gateCarregando = tela.indexOf("if (!sync && !overview && !pending) {");
