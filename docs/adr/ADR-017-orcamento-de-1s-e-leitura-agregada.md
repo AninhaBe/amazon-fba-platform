@@ -253,6 +253,37 @@ Amostragem da tela a cada 100ms, produção, conta demo:
 | Mercado Livre, período já visto | 74ms | idem |
 | Shopee e TikTok, **até no frio** | 40–42ms | idem, sem esqueleto nenhum |
 
+### Armadilha de método: amostragem não prova critério de quadro
+
+A primeira sonda amostrava a tela **a cada 100ms** e deu **PASSA** para três dos
+quatro canais. Estava errada por construção: com o cache pintando em ~60ms, as
+janelas em que a tela mostrava o número do período anterior duravam **5ms a
+52ms** — mais curtas que o intervalo de amostragem, e portanto invisíveis para
+ela. A sonda reescrita, gravando **quadro a quadro** com `requestAnimationFrame`
+dentro da própria página, encontrou as três falhas na mesma execução.
+
+> **Critério por quadro exige medição por quadro.** Se o requisito é "nenhum
+> quadro pode mostrar X", amostrar em intervalo fixo mede outra coisa — e o
+> resultado é uma vitória falsa, que é pior que nenhuma medição, porque fecha o
+> caso.
+
+Vale para qualquer verificação de transição: o instrumento precisa ter resolução
+maior que o fenômeno. Antes de reportar "passou", pergunte qual é a menor janela
+que aquele instrumento conseguiria ver.
+
+### O conserto: derivar no render, não sincronizar por efeito
+
+As três telas que falharam repintavam o cache **por efeito** (`setTimeout(…,0)`
+ou microtask, receita usada para não cair no `react-hooks/set-state-in-effect`).
+O rótulo do período muda no mesmo instante do clique; o repaint chega alguns
+quadros depois — e o vão entre os dois é a janela da mentira.
+
+O TikTok passava porque lá o dado exibido era **condicionado ao período** em vez
+de sincronizado. Foi esse o padrão adotado nos quatro: o valor exibido é
+**derivado durante o render** (`cache.get(períodoSelecionado) ?? estado, se o
+período bater ?? null`). Assim não existe quadro intermediário — nem com o dado
+velho, nem com esqueleto piscando —, e o cache continua pintando na hora.
+
 ### O que fica como regra
 
 1. **Otimizar expõe o que a lentidão escondia.** Um defeito de correção pode

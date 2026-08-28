@@ -252,14 +252,17 @@ function legendaFaturamento(
 export default function Dashboard() {
   const period = useDashboardPeriod();
   const [initialDash] = useState(() => dashCache.get(period.query));
-  const [loading, setLoading] = useState(!initialDash);
-  const [orders, setOrders] = useState<OrdersData | null>(initialDash?.orders ?? null);
-  const [profit, setProfit] = useState<ProfitData | null>(initialDash?.profit ?? null);
-  const [radar, setRadar] = useState<RadarRow[]>(initialDash?.radar ?? []);
+  const [loadingBruto, setLoading] = useState(!initialDash);
+  // De qual periodo sao as fatias em `*Bruto`. Sem isto nao da para saber, no
+  // render, se o que esta na mao pertence ao periodo selecionado.
+  const [periodoCarregado, setPeriodoCarregado] = useState<string | null>(initialDash ? period.query : null);
+  const [ordersBruto, setOrders] = useState<OrdersData | null>(initialDash?.orders ?? null);
+  const [profitBruto, setProfit] = useState<ProfitData | null>(initialDash?.profit ?? null);
+  const [radarBruto, setRadar] = useState<RadarRow[]>(initialDash?.radar ?? []);
   const [products, setProducts] = useState<ProductRow[]>(productsCache ?? []);
-  const [sales, setSales] = useState<SalesSeries | null>(initialDash?.sales ?? null);
-  const [top, setTop] = useState<TopProduct[]>(initialDash?.top ?? []);
-  const [profitability, setProfitability] = useState<ProfitabilityLine[]>(initialDash?.profitability ?? []);
+  const [salesBruto, setSales] = useState<SalesSeries | null>(initialDash?.sales ?? null);
+  const [topBruto, setTop] = useState<TopProduct[]>(initialDash?.top ?? []);
+  const [profitabilityBruto, setProfitability] = useState<ProfitabilityLine[]>(initialDash?.profitability ?? []);
   // Cobertura da conciliação: quantos pedidos pagos já viraram linhas conciliadas.
   // É o que permite à seção "Financeiro conciliado" DIZER que está parcial em vez
   // de exibir um número menor que o faturamento sem explicação (20/08/2026).
@@ -274,9 +277,9 @@ export default function Dashboard() {
   // Canceladas entram no bruto (ADR-020); mostrar à parte é o que impede o número
   // de parecer inflado sem explicação — o ML já fazia, a Amazon não tinha.
   const [canceladas, setCanceladas] = useState<{ revenue: number | null; orders: number; ordersWithValue?: number; ordersEstimated?: number } | null>(null);
-  const [profitabilityScope, setProfitabilityScope] = useState<ProfitabilityScope | undefined>(initialDash?.profitabilityScope);
+  const [profitabilityScopeBruto, setProfitabilityScope] = useState<ProfitabilityScope | undefined>(initialDash?.profitabilityScope);
   const [saldo, setSaldo] = useState<SaldoData | null>(null);
-  const [profitabilityLoading, setProfitabilityLoading] = useState(!initialDash);
+  const [profitabilityLoadingBruto, setProfitabilityLoading] = useState(!initialDash);
   const [productsLoading, setProductsLoading] = useState(!productsCache);
   const [errors, setErrors] = useState<string[]>([]);
   const [brokenConnection, setBrokenConnection] = useState<string | null>(null);
@@ -285,31 +288,39 @@ export default function Dashboard() {
     periodo: { from: string; to: string };
     sync: { connectionId: string; coveredFrom: string | null; coveredTo: string | null; status: string | null; processedOrders: number };
   } | null>(null);
-  const [updatedAt, setUpdatedAt] = useState<Date | null>(initialDash?.updatedAt ?? null);
+  const [updatedAtBruto, setUpdatedAt] = useState<Date | null>(initialDash?.updatedAt ?? null);
 
   const periodQuery = period.query;
+
+  // ⚠️ DERIVADO NO RENDER (mesma nota do ML, da Shopee e do TikTok).
+  //
+  // Medido em 28/08/2026 na v149: o repaint do cache saia por microtask, e nos
+  // 5 quadros seguintes ao clique o botao ja dizia "7 dias" enquanto os numeros
+  // ainda eram os de "hoje" (72ms a 124ms). Derivar aqui elimina o VAO: no
+  // mesmo render em que o periodo muda, o que a tela le ja e daquele periodo —
+  // do cache quando ha, vazio quando nao. Nunca o do periodo anterior.
+  const cacheDoPeriodo = dashCache.get(periodQuery);
+  const naMao = periodoCarregado === periodQuery;
+  const orders = naMao ? ordersBruto : cacheDoPeriodo?.orders ?? null;
+  const profit = naMao ? profitBruto : cacheDoPeriodo?.profit ?? null;
+  const radar = naMao ? radarBruto : cacheDoPeriodo?.radar ?? [];
+  const sales = naMao ? salesBruto : cacheDoPeriodo?.sales ?? null;
+  const top = naMao ? topBruto : cacheDoPeriodo?.top ?? [];
+  const profitability = naMao ? profitabilityBruto : cacheDoPeriodo?.profitability ?? [];
+  const profitabilityScope = naMao ? profitabilityScopeBruto : cacheDoPeriodo?.profitabilityScope;
+  const updatedAt = naMao ? updatedAtBruto : cacheDoPeriodo?.updatedAt ?? null;
+  // Carregando = nao ha NADA daquele periodo na mao. Derivado pelo mesmo motivo
+  // dos valores: o estado chegava um quadro depois do rotulo.
+  const temDoPeriodo = naMao || !!cacheDoPeriodo;
+  const loading = temDoPeriodo ? loadingBruto && !cacheDoPeriodo : true;
+  const profitabilityLoading = temDoPeriodo ? profitabilityLoadingBruto && !cacheDoPeriodo : true;
 
   useEffect(() => {
     let active = true;
     const cached = dashCache.get(periodQuery);
-    Promise.resolve().then(() => {
-      if (!active) return;
-      if (cached) {
-        setOrders(cached.orders);
-        setProfit(cached.profit);
-        setRadar(cached.radar);
-        setSales(cached.sales);
-        setTop(cached.top);
-        setProfitability(cached.profitability);
-        setProfitabilityScope(cached.profitabilityScope);
-        setProfitabilityLoading(false);
-        setUpdatedAt(cached.updatedAt);
-        setLoading(false);
-      } else {
-        setLoading(true);
-        setProfitabilityLoading(true);
-      }
-    });
+    // Nada de repintar do cache aqui, e nada de sinalizar carregamento por
+    // estado: as duas coisas sao DERIVADAS no render. Sincronizar por efeito e
+    // o que abria o vao de quadros com o dado do periodo anterior.
     const next: Omit<DashSnapshot, "updatedAt"> = {
       orders: cached?.orders ?? null,
       profit: cached?.profit ?? null,
@@ -319,7 +330,12 @@ export default function Dashboard() {
       profitability: cached?.profitability ?? [],
       profitabilityScope: cached?.profitabilityScope,
     };
-    const store = () => dashCache.set(periodQuery, { ...next, updatedAt: new Date() });
+    const store = () => {
+      dashCache.set(periodQuery, { ...next, updatedAt: new Date() });
+      // Marca de QUAL periodo sao as fatias em `*Bruto`. Sem isto o render nao
+      // consegue distinguir "dado deste periodo" de "dado que sobrou do anterior".
+      setPeriodoCarregado(periodQuery);
+    };
     const errs: string[] = [];
     // Guarda o motivo de autorização à parte: ele merece tratamento próprio
     // (reconectar), e não entra na lista genérica de "não carregou".

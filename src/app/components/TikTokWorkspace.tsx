@@ -134,10 +134,6 @@ export function TikTokWorkspace() {
     const emCache = periodCache.get(chave);
     // Pinta o que ja foi visto e revalida por baixo; a resposta nova
     // sobrescreve, entao numero velho nunca fica passando por novo.
-    // Mesmo motivo do ML e da Shopee: o repaint do cache sai do corpo do efeito.
-    const pintar = emCache
-      ? window.setTimeout(() => setOverviewState({ connectionId: selectedConnectionId, periodo: period.query, data: emCache, em: Date.now() }), 0)
-      : undefined;
     (async () => {
       try {
         const response = await fetch(`/api/integrations/tiktok/overview?${tiktokOverviewQuery(period.query, selectedConnectionId)}`, { cache: "no-store" });
@@ -154,7 +150,7 @@ export function TikTokWorkspace() {
         if (!cancelled && !emCache) setErrorState({ connectionId: selectedConnectionId, message: cause instanceof Error ? cause.message : "Não foi possível carregar a TikTok Shop." });
       }
     })();
-    return () => { cancelled = true; if (pintar) window.clearTimeout(pintar); };
+    return () => { cancelled = true; };
   }, [attempt, period.query, selectedConnectionId]);
 
   const selectConnection = useCallback((connectionId: string) => {
@@ -166,12 +162,14 @@ export function TikTokWorkspace() {
   const selector = provider && provider.connections.length > 1 && selectedConnectionId
     ? <StoreSelector connections={provider.connections} selectedId={selectedConnectionId} onChange={selectConnection} />
     : null;
-  // Alem da conexao, o PERIODO tem de bater: com dado de outro periodo na mao a
-  // tela exibiria numero sob rotulo que nao corresponde (medido em 28/08/2026,
-  // aos 42ms). `null` aqui vira carregamento, que e a verdade naquele instante.
-  const data = overviewState?.connectionId === selectedConnectionId && overviewState.periodo === period.query
+  // ⚠️ DERIVADO NO RENDER, nao sincronizado por efeito. Assim nao existe quadro
+  // intermediario: no mesmo render em que o periodo muda, o valor exibido ja e
+  // o daquele periodo (do cache, quando ha) ou `null`. Nunca o do anterior.
+  const chaveAtual = selectedConnectionId ? `${selectedConnectionId}:${period.query}` : null;
+  const doEstado = overviewState?.connectionId === selectedConnectionId && overviewState.periodo === period.query
     ? overviewState.data
     : null;
+  const data = doEstado ?? (chaveAtual ? periodCache.get(chaveAtual) ?? null : null);
   const error = errorState && (errorState.connectionId === null || errorState.connectionId === selectedConnectionId)
     ? errorState.message
     : null;

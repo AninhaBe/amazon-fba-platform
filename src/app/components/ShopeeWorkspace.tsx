@@ -140,12 +140,13 @@ export function ShopeeWorkspace() {
   const searchParams = useSearchParams();
   const previousPeriod = useRef(period.query);
   const [status, setStatus] = useState<ProviderStatus | null>(null);
-  const [overview, setOverview] = useState<Overview | null>(null);
+  const [carregado, setCarregado] = useState<{ chave: string; overview: Overview; sync: ShopeeSyncStatus | null; updatedAt: Date } | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [retryKey, setRetryKey] = useState(0);
-  const [sync, setSync] = useState<ShopeeSyncStatus | null>(null);
+  // Bruto = ultima resposta, usada pela polling da 1a sincronizacao. O que a
+  // TELA le e `sync`, derivado abaixo e sempre do periodo exibido.
+  const [syncBruto, setSyncBruto] = useState<ShopeeSyncStatus | null>(null);
   const [syncPoll, setSyncPoll] = useState(0);
 
   useEffect(() => {
@@ -168,12 +169,35 @@ export function ShopeeWorkspace() {
     router.replace(`/shopee?${next}`, { scroll: false });
   }, [router, searchParams, status]);
 
+  // ⚠️ O DADO EXIBIDO E DERIVADO NO RENDER, nao sincronizado por efeito.
+  //
+  // Medido em 28/08/2026 na v149: com o repaint saindo por `setTimeout(0)`,
+  // existiam de 2 a 5 quadros em que o botao ja dizia "7 dias" e os numeros
+  // ainda eram os de "hoje" — a tela afirmando um valor que nao e daquele
+  // periodo. Derivar aqui elimina o VAO em vez de tapa-lo com esqueleto: no
+  // mesmo render em que o periodo muda, o valor exibido ja e o daquele periodo
+  // (do cache, quando ha) ou `null` (carregamento honesto, quando nao ha).
+  // Nunca o do periodo anterior.
+  const chaveAtual = status?.connections.length
+    ? chaveDoPeriodo(
+        (status.connections.find((c) => c.id === searchParams.get("connection_id")) ?? status.connections[0]).id,
+        period.query,
+        searchParams.get("offset") ?? "0",
+      )
+    : null;
+  const exibido = chaveAtual
+    ? (carregado?.chave === chaveAtual ? carregado : periodCache.get(chaveAtual) ?? null)
+    : null;
+  const overview = exibido?.overview ?? null;
+  const sync = exibido?.sync ?? syncBruto;
+  const updatedAt = exibido?.updatedAt ?? null;
+
   function retry() {
     setError(null);
     setPending(false);
-    setOverview(null);
+    setCarregado(null);
     setStatus(null);
-    setSync(null);
+    setSyncBruto(null);
     setRetryKey((key) => key + 1);
   }
 
@@ -217,29 +241,8 @@ export function ShopeeWorkspace() {
     const chave = chaveDoPeriodo(selected.id, period.query, offset);
     // Pinta o periodo ja visto ANTES de buscar. A resposta nova sobrescreve
     // quando chegar — o cache nunca fica na tela como se fosse o dado fresco.
+    // Se ja ha dado deste periodo, falha de revalidacao nao apaga a tela.
     const emCache = periodCache.get(chave);
-    // O repaint sai do corpo do efeito por um timeout de 0, como no
-    // `MercadoLivreWorkspace`: setState sincrono aqui e cascata de render
-    // (`react-hooks/set-state-in-effect`). O padrao ja existia; so segui.
-    const pintar = window.setTimeout(() => {
-      // ⚠️ Sem dado do periodo pedido, a tela NAO pode continuar exibindo o
-      // periodo anterior — medido em 28/08/2026: aos 40ms o rotulo ja dizia
-      // "7 dias" e o numero ainda era o de "hoje". Numero sob rotulo que nao
-      // corresponde e a tela mentindo; some e volta o carregamento. Vale
-      // igual para troca de LOJA, pelo mesmo motivo.
-      if (!emCache) {
-        setOverview(null);
-        setSync(null);
-        setUpdatedAt(null);
-      }
-      if (emCache) {
-        setOverview(emCache.overview);
-        setSync(emCache.sync);
-        setUpdatedAt(emCache.updatedAt);
-        setPending(false);
-        setError(null);
-      }
-    }, 0);
     (async () => {
       try {
         setError(null);
@@ -251,17 +254,20 @@ export function ShopeeWorkspace() {
         const data = await response.json() as OverviewResponse & { error?: string };
         if (cancelled) return;
         if (!response.ok) throw new Error(data.error || "Erro ao carregar a Shopee.");
-        setSync(data.sync);
+        setSyncBruto(data.sync);
         if (data.pending) {
           setPending(true);
-          setOverview(null);
+          setCarregado(null);
           periodCache.delete(chave);
         } else {
           setPending(false);
-          setOverview(data.overview ?? null);
           const quando = new Date();
-          setUpdatedAt(quando);
-          if (data.overview) periodCache.set(chave, { overview: data.overview, sync: data.sync, updatedAt: quando });
+          if (data.overview) {
+            periodCache.set(chave, { overview: data.overview, sync: data.sync, updatedAt: quando });
+            setCarregado({ chave, overview: data.overview, sync: data.sync, updatedAt: quando });
+          } else {
+            setCarregado(null);
+          }
         }
       } catch (err) {
         // Falha na revalidacao de um periodo que ja esta na tela nao apaga o
@@ -269,7 +275,7 @@ export function ShopeeWorkspace() {
         if (!cancelled && !emCache) setError(err instanceof Error ? err.message : "Erro ao carregar.");
       }
     })();
-    return () => { cancelled = true; window.clearTimeout(pintar); };
+    return () => { cancelled = true; };
   }, [status, period.query, retryKey, searchParams, syncPoll]);
 
   // Enquanto a primeira sincronização roda, a tela se atualiza sozinha — o

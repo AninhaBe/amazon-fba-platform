@@ -140,13 +140,16 @@ function MercadoLivreWorkspaceInterno({ view }: { view: keyof typeof views }) {
   // Ao voltar de outro canal, o período já visto renderiza no primeiro paint
   // (sem flash de skeleton); a revalidação segue em segundo plano.
   const [initialCached] = useState(() => periodCache.get(`${view}:${period.query}`));
-  const [overview, setOverview] = useState<Overview | null>(initialCached?.overview ?? null);
+  const [carregado, setCarregado] = useState<{ chave: string; overview: Overview } | null>(
+    initialCached ? { chave: `${view}:${period.query}`, overview: initialCached.overview } : null);
   const [loading, setLoading] = useState(!initialCached);
   const [error, setError] = useState<string | null>(null);
   const [brokenConnection, setBrokenConnection] = useState<string | null>(null);
   const [connectionPresent, setConnectionPresent] = useState(!!initialCached);
-  const [updatedAt, setUpdatedAt] = useState<Date | null>(initialCached?.updatedAt ?? null);
-  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(initialCached?.syncStatus ?? null);
+  const [updatedAtBruto, setUpdatedAtBruto] = useState<Date | null>(initialCached?.updatedAt ?? null);
+  // Bruto = ultima resposta (alimenta o efeito). A TELA le `syncStatus`,
+  // derivado abaixo e sempre do periodo exibido.
+  const [syncStatusBruto, setSyncStatusBruto] = useState<SyncStatus | null>(initialCached?.syncStatus ?? null);
   const [connectionId, setConnectionId] = useState<string | null>(null);
   const [retryKey, setRetryKey] = useState(0);
   const page = views[view];
@@ -158,15 +161,7 @@ function MercadoLivreWorkspaceInterno({ view }: { view: keyof typeof views }) {
     const wait = (milliseconds: number) => new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds));
     const pollingDelay = (attempt: number) => Math.min(5_000, 1_500 + Math.max(0, attempt - 1) * 500);
     const timer = window.setTimeout(() => {
-      if (cached) {
-        setOverview(cached.overview);
-        setSyncStatus(cached.syncStatus);
-        setUpdatedAt(cached.updatedAt);
-        setConnectionPresent(true);
-        setLoading(false);
-      } else {
-        setLoading(true);
-      }
+      if (!cached) setLoading(true);
       setError(null);
       void (async () => {
         let attempts = 0;
@@ -195,7 +190,7 @@ function MercadoLivreWorkspaceInterno({ view }: { view: keyof typeof views }) {
             setConnectionPresent(true);
             setConnectionId(String(data.connectionId));
           }
-          if (data.sync) setSyncStatus(data.sync as SyncStatus);
+          if (data.sync) setSyncStatusBruto(data.sync as SyncStatus);
           if (data.overview) {
             const nextOverview = data.overview as Overview;
             const nextSync = data.sync ? data.sync as SyncStatus : null;
@@ -205,8 +200,8 @@ function MercadoLivreWorkspaceInterno({ view }: { view: keyof typeof views }) {
               syncStatus: nextSync,
               updatedAt: nextUpdatedAt,
             });
-            setOverview(nextOverview);
-            setUpdatedAt(nextUpdatedAt);
+            setCarregado({ chave: cacheKey, overview: nextOverview });
+            setUpdatedAtBruto(nextUpdatedAt);
             setLoading(false);
             break;
           }
@@ -237,6 +232,15 @@ function MercadoLivreWorkspaceInterno({ view }: { view: keyof typeof views }) {
       controller.abort();
     };
   }, [period.query, retryKey, view]);
+
+  // ⚠️ DERIVADO NO RENDER (ver a mesma nota na Shopee e no TikTok): no mesmo
+  // render em que o periodo muda, o valor exibido ja e o daquele periodo — do
+  // cache quando ha, `null` quando nao. Nunca sobra quadro com o dado anterior.
+  const chaveAtual = `${view}:${period.query}`;
+  const emCache = periodCache.get(chaveAtual);
+  const overview = (carregado?.chave === chaveAtual ? carregado.overview : null) ?? emCache?.overview ?? null;
+  const syncStatus = (carregado?.chave === chaveAtual ? syncStatusBruto : null) ?? emCache?.syncStatus ?? syncStatusBruto;
+  const updatedAt = (carregado?.chave === chaveAtual ? updatedAtBruto : null) ?? emCache?.updatedAt ?? null;
 
   return (
     <IntegrationDashboardFrame
