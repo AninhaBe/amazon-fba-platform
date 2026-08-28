@@ -1099,7 +1099,7 @@ function QuickLink({ href, label, desc }: { href: string; label: string; desc: s
         <p className="text-sm font-semibold text-[var(--ink)]">{label}</p>
         <p className="text-xs text-[var(--ink-muted)]">{desc}</p>
       </div>
-      <span className="text-[var(--ink-faint)] transition-[transform,color] group-hover:translate-x-0.5 group-hover:text-blue-500">
+      <span className="text-[var(--ink-faint)] transition-[transform,color] group-hover:translate-x-0.5 group-hover:text-[var(--acao)]">
         →
       </span>
     </Link>

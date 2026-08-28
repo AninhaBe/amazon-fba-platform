@@ -213,7 +213,7 @@ export default function CalculatorPage() {
               type="button"
               onClick={() => fetchPrice()}
               disabled={fetchingPrice}
-              className="whitespace-nowrap rounded-lg border border-blue-600 px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 disabled:opacity-50"
+              className="whitespace-nowrap rounded-lg border border-[var(--acao)] px-4 py-2 text-sm font-medium text-[var(--acao)] hover:bg-[var(--brand-soft)] disabled:opacity-50"
             >
               {fetchingPrice ? "Buscando…" : "Buscar preço"}
             </button>
@@ -282,7 +282,7 @@ export default function CalculatorPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-lg bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            className="w-full rounded-lg bg-[var(--acao)] px-4 py-2 font-medium text-white hover:opacity-90 disabled:opacity-50"
           >
             {loading ? "Calculando…" : "Comparar logísticas"}
           </button>

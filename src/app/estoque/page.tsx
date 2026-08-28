@@ -104,7 +104,7 @@ export default function EstoquePage() {
       {error && (
         <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           <p>{error}</p>
-          <button type="button" onClick={() => void load(days)} className="mt-3 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white">
+          <button type="button" onClick={() => void load(days)} className="mt-3 rounded-lg bg-[var(--acao)] px-3.5 py-2 text-xs font-semibold text-white">
             Tentar novamente
           </button>
         </div>

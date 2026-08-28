@@ -129,7 +129,7 @@ function Ajuda({ texto }: { texto: string }) {
       role="img"
       aria-label={texto}
       title={texto}
-      className="ml-1 inline-flex cursor-help align-middle text-[var(--ink-muted)] hover:text-blue-600 focus:text-blue-600 focus:outline-none"
+      className="ml-1 inline-flex cursor-help align-middle text-[var(--ink-muted)] hover:text-[var(--acao)] focus:text-[var(--acao)] focus:outline-none"
     >
       <Info className="h-3.5 w-3.5" strokeWidth={2.2} aria-hidden />
     </span>
@@ -380,7 +380,7 @@ export default function HistoricoPage() {
             <Link
               key={t}
               href={`/amazon/pesquisa?q=${encodeURIComponent(t)}`}
-              className="rounded-full border border-[var(--line-strong)] bg-white px-3 py-1 text-xs font-medium text-[var(--ink-soft)] hover:border-blue-400 hover:text-blue-600"
+              className="rounded-full border border-[var(--line-strong)] bg-white px-3 py-1 text-xs font-medium text-[var(--ink-soft)] hover:border-[var(--acao)] hover:text-[var(--acao)]"
             >
               {t}
             </Link>
@@ -391,7 +391,7 @@ export default function HistoricoPage() {
       {error && (
         <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           <p>{error}</p>
-          <button type="button" onClick={() => void load()} className="mt-3 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white">
+          <button type="button" onClick={() => void load()} className="mt-3 rounded-lg bg-[var(--acao)] px-3.5 py-2 text-xs font-semibold text-white">
             Tentar novamente
           </button>
         </div>
@@ -536,7 +536,7 @@ export default function HistoricoPage() {
                     title="Nada acompanhado ainda"
                     description="Faça uma pesquisa: todo anúncio que aparecer entra nesta lista e passa a ser fotografado diariamente."
                     action={
-                      <Link href="/amazon/pesquisa" className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+                      <Link href="/amazon/pesquisa" className="rounded-lg bg-[var(--acao)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90">
                         Pesquisar agora
                       </Link>
                     }
@@ -554,7 +554,7 @@ export default function HistoricoPage() {
                       <button
                         type="button"
                         onClick={() => setQuery("")}
-                        className="rounded-lg border border-[var(--line-strong)] px-4 py-2 text-sm font-semibold text-[var(--ink-soft)] hover:border-blue-400 hover:text-blue-600"
+                        className="rounded-lg border border-[var(--line-strong)] px-4 py-2 text-sm font-semibold text-[var(--ink-soft)] hover:border-[var(--acao)] hover:text-[var(--acao)]"
                       >
                         Limpar busca
                       </button>
@@ -660,7 +660,7 @@ export default function HistoricoPage() {
                         href={`https://www.amazon.com.br/dp/${p.asin}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="whitespace-nowrap rounded-md border border-[var(--line-strong)] px-2.5 py-1 text-xs font-medium text-[var(--ink-soft)] hover:border-blue-400 hover:text-blue-600"
+                        className="whitespace-nowrap rounded-md border border-[var(--line-strong)] px-2.5 py-1 text-xs font-medium text-[var(--ink-soft)] hover:border-[var(--acao)] hover:text-[var(--acao)]"
                       >
                         abrir ↗
                       </a>

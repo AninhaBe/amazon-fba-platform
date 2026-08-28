@@ -189,7 +189,7 @@ export default function PesquisaPage() {
             Busque qualquer termo como na Amazon e veja, de <strong>todos</strong> os anúncios,
             quando cada um foi criado e sua posição de vendas atual. Marque <strong>monitorar</strong>
             nos que interessam e eles passam a ser fotografados todo dia no{" "}
-            <Link href="/amazon/pesquisa/historico" className="font-medium text-blue-600 hover:underline">histórico</Link>.
+            <Link href="/amazon/pesquisa/historico" className="font-medium text-[var(--acao)] hover:underline">histórico</Link>.
           </>
         }
         action={
@@ -212,7 +212,7 @@ export default function PesquisaPage() {
         <button
           type="submit"
           disabled={loading}
-          className="rounded-lg bg-blue-600 px-6 py-2.5 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          className="rounded-lg bg-[var(--acao)] px-6 py-2.5 font-medium text-white hover:opacity-90 disabled:opacity-50"
         >
           {loading ? "Buscando…" : "Pesquisar"}
         </button>
@@ -220,7 +220,7 @@ export default function PesquisaPage() {
 
       <details className="group research-explainer">
         <summary className="flex cursor-pointer items-center gap-2 px-4 py-3 font-medium text-[var(--ink-soft)] marker:content-['']">
-          <span className="text-blue-600 transition-transform group-open:rotate-90">▶</span>
+          <span className="text-[var(--acao)] transition-transform group-open:rotate-90">▶</span>
           Entenda as colunas: por que “Anúncio criado” e “Idade da linha” diferem?
         </summary>
         <div className="space-y-3 border-t border-[var(--line-strong)] px-4 py-3 text-[var(--ink-soft)]">
@@ -262,7 +262,7 @@ export default function PesquisaPage() {
       {error && (
         <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           <p>{error}</p>
-          <button type="button" onClick={() => void search(searchedQuery || q)} className="mt-3 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white">
+          <button type="button" onClick={() => void search(searchedQuery || q)} className="mt-3 rounded-lg bg-[var(--acao)] px-3.5 py-2 text-xs font-semibold text-white">
             Tentar novamente
           </button>
         </div>
@@ -278,7 +278,7 @@ export default function PesquisaPage() {
               type="button"
               onClick={() => void search(searchedQuery)}
               disabled={loading}
-              className="rounded-lg border border-[var(--line-strong)] bg-white px-3 py-2 text-xs font-medium text-[var(--ink-soft)] hover:border-blue-400 hover:text-blue-600 disabled:opacity-50"
+              className="rounded-lg border border-[var(--line-strong)] bg-white px-3 py-2 text-xs font-medium text-[var(--ink-soft)] hover:border-[var(--acao)] hover:text-[var(--acao)] disabled:opacity-50"
             >
               {loading ? "Atualizando…" : "Atualizar resultados"}
             </button>
@@ -290,7 +290,7 @@ export default function PesquisaPage() {
               className={`rounded-lg border px-3 py-2 text-xs font-medium ${
                 somenteFba
                   ? "border-blue-500 bg-blue-50 text-blue-700"
-                  : "border-[var(--line-strong)] bg-white text-[var(--ink-soft)] hover:border-blue-400 hover:text-blue-600"
+                  : "border-[var(--line-strong)] bg-white text-[var(--ink-soft)] hover:border-[var(--acao)] hover:text-[var(--acao)]"
               }`}
             >
               {somenteFba ? "✓ " : ""}Somente FBA

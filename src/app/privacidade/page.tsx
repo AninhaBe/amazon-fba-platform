@@ -49,7 +49,7 @@ export default function PrivacidadePage() {
             O NEXO é um serviço de gestão de operações multicanal para vendedores de
             marketplaces, operado por <strong>66.106.202 ANA BEATRIZ DE OLIVEIRA</strong> (CNPJ
             66.106.202/0001-20). Contato de privacidade:{" "}
-            <a className="text-blue-600 underline" href="mailto:contato.anabeatrizoliver@gmail.com">
+            <a className="text-[var(--acao)] underline" href="mailto:contato.anabeatrizoliver@gmail.com">
               contato.anabeatrizoliver@gmail.com
             </a>
             . A encarregada pelo tratamento de dados pessoais (DPO) é Ana Beatriz de Oliveira.
@@ -150,7 +150,7 @@ export default function PrivacidadePage() {
           <p>
             Você pode solicitar confirmação de tratamento, acesso, correção, portabilidade,
             informação sobre compartilhamento, revogação de consentimento e exclusão pelo e-mail{" "}
-            <a className="text-blue-600 underline" href="mailto:contato.anabeatrizoliver@gmail.com">
+            <a className="text-[var(--acao)] underline" href="mailto:contato.anabeatrizoliver@gmail.com">
               contato.anabeatrizoliver@gmail.com
             </a>
             . Confirmamos a identidade de quem solicita e respondemos nos prazos da legislação
