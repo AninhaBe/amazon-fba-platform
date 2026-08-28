@@ -735,6 +735,13 @@ button[class*="bg-blue-"]:hover, a[class*="bg-blue-"]:hover { background: var(--
 .shopee-saude-explicacao summary { cursor: pointer; }
 .shopee-saude-explicacao p { margin-block-start: 6px; max-width: 92ch; }
 
+/* Entrada do numero quando o RECORTE muda (ver AnimatedNumber). Curta de
+   proposito: ~180ms nao atrasa a leitura e a troca segue parecendo instantanea.
+   inline-block porque translate nao se aplica a caixa inline. */
+.numero-animado { display: inline-block; animation: numero-entra 180ms var(--ease, cubic-bezier(.2,0,0,1)) both; }
+@keyframes numero-entra { from { opacity: 0; translate: 0 4px; } to { opacity: 1; translate: none; } }
+@media (prefers-reduced-motion: reduce) { .numero-animado { animation: none; } }
+
 .metric-label {
   display: flex;
   min-width: 0;

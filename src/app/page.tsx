@@ -3,6 +3,11 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AnimatedNumber } from "./components/AnimatedNumber";
+
+// A central nao tem seletor de periodo: e sempre a mesma janela. Declarar isso
+// mantem a animacao honesta (mesmo recorte, valor novo chegando) em vez de
+// perde-la por omissao.
+const PERIODO_DA_CENTRAL = "central:30d";
 import { PageHeader, pageIcons } from "./components/PageHeader";
 import { DashboardSkeleton } from "./components/LoadingState";
 import { MarketplaceIcon } from "./components/MarketplaceIcon";
@@ -215,7 +220,7 @@ export default function OverviewDashboard() {
         <section className="metric-grid central-summary-band" aria-label="Indicadores consolidados">
           <Metric
             label="Faturamento conhecido"
-            value={<AnimatedNumber id="central-revenue" value={totals.revenue} format={(amount) => money(amount)} />}
+            value={<AnimatedNumber periodo={PERIODO_DA_CENTRAL} id="central-revenue" value={totals.revenue} format={(amount) => money(amount)} />}
             sub={tendenciaTotal.deltaPct == null
               ? "Soma dos canais com dados"
               : `${tendenciaTotal.deltaPct >= 0 ? "▲" : "▼"} ${percent(Math.abs(tendenciaTotal.deltaPct))} vs. semana anterior`}
@@ -223,7 +228,7 @@ export default function OverviewDashboard() {
           />
           <Metric
             label="Lucro conhecido"
-            value={totals.profitSources ? <AnimatedNumber id="central-profit" value={totals.profit} format={(amount) => money(amount)} /> : "—"}
+            value={totals.profitSources ? <AnimatedNumber periodo={PERIODO_DA_CENTRAL} id="central-profit" value={totals.profit} format={(amount) => money(amount)} /> : "—"}
             sub={`${totals.profitSources} de ${totals.connected} canais com cálculo`}
             tone={!totals.profitSources ? "default" : totals.profit > 0 ? "positive" : totals.profit < 0 ? "danger" : "default"}
           />

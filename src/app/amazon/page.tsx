@@ -612,7 +612,7 @@ export default function Dashboard() {
                   tone={card.tone}
                   loading={loading}
                   value={card.raw != null
-                    ? <AnimatedNumber id="amz-profit" value={card.raw} format={(amount) => money(amount, currency)} />
+                    ? <AnimatedNumber periodo={cobertura ? `${cobertura.periodo.from}|${cobertura.periodo.to}` : undefined} id="amz-profit" value={card.raw} format={(amount) => money(amount, currency)} />
                     : card.value}
                   // O texto explicativo saiu de baixo do número e foi para o
                   // "i", a pedido dela em 24/08/2026: "todos esses textos que
@@ -628,7 +628,7 @@ export default function Dashboard() {
                   key={card.key}
                   label={card.label}
                   value={loading ? "…" : card.key === "revenue" && (faturamento || card.raw != null)
-                    ? <AnimatedNumber id="amz-revenue" value={faturamento?.revenue ?? card.raw ?? 0} format={(amount) => money(amount, currency)} />
+                    ? <AnimatedNumber periodo={cobertura ? `${cobertura.periodo.from}|${cobertura.periodo.to}` : undefined} id="amz-revenue" value={faturamento?.revenue ?? card.raw ?? 0} format={(amount) => money(amount, currency)} />
                     : card.value}
                   // TUDO que explicava o número embaixo dele agora mora no "i".
                   // O card mostra rótulo e valor; a explicação aparece ao passar

@@ -63,10 +63,23 @@ export function AnimatedNumber({ id, value, format, periodo }: {
       if (id !== undefined) lastValueById.set(id, { valor: current, periodo });
     };
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const trocouDePeriodo = periodoRef.current !== periodo;
+    // ⚠️ ANIMAR EXIGE PROVA DE QUE O RECORTE E O MESMO.
+    //
+    // A Amazon falhou na medicao de 28/08/2026 justamente por depender da
+    // disciplina de quem usa: ela nao passava `periodo`, e como no caminho com
+    // cache nao ha esqueleto o componente NAO desmonta — o valor anterior
+    // sobrevive na propria instancia e a animacao partia dele. O default
+    // anterior so protegia a remontagem.
+    //
+    // Agora a regra e uma so: anima somente quando o chamador DECLARA o periodo
+    // e ele nao mudou. Sem declaracao nao da para saber se o valor novo e do
+    // mesmo recorte, e na duvida vale o seguro — animacao e enfeite, numero de
+    // outro periodo e defeito. Quem esquecer a prop perde a animacao, nunca
+    // ganha um numero errado.
+    const mesmoPeriodo = periodo !== undefined && periodoRef.current === periodo;
     periodoRef.current = periodo;
     const from = displayedRef.current;
-    if (reduceMotion || trocouDePeriodo || from === value) {
+    if (reduceMotion || !mesmoPeriodo || from === value) {
       displayedRef.current = value;
       remember(value);
       setDisplayed(value);
@@ -85,5 +98,16 @@ export function AnimatedNumber({ id, value, format, periodo }: {
     return () => cancelAnimationFrame(frameRef.current);
   }, [value, id, periodo]);
 
-  return <>{format(displayed)}</>;
+  // TROCA DE PERIODO TEM MOVIMENTO, SO NAO TEM MENTIRA.
+  //
+  // A Ana notou a v148 e disse que o ML "muda cruzao": tirar a contagem deixou
+  // a troca seca. O problema nunca foi o movimento — era a contagem PASSAR por
+  // numeros que nao pertencem ao periodo novo (cada quadro daqueles afirma um
+  // valor falso). Entao o valor novo aparece inteiro, de uma vez, e o que anima
+  // e a ENTRADA dele.
+  //
+  // `key={periodo}`: ao trocar de recorte o span remonta e a animacao de
+  // entrada roda de novo. No mesmo recorte nao ha remontagem, entao a contagem
+  // de 550ms segue como sempre — que e o efeito honesto e o que ela gosta.
+  return <span className="numero-animado" key={periodo}>{format(displayed)}</span>;
 }
