@@ -697,6 +697,12 @@ button[class*="bg-blue-"]:hover, a[class*="bg-blue-"]:hover { background: var(--
 .estado-do-sync strong { color: var(--ink-soft); font-weight: var(--weight-semibold); }
 .estado-do-sync-alerta { margin-block: 2px 10px; }
 
+/* Saúde da conta Shopee: definição curta sob o nome da métrica e o bloco
+   colapsado "Como a Shopee avalia sua loja" (explicações da doc oficial). */
+.shopee-saude-definicao { display: block; margin-block-start: 2px; max-width: 52ch; color: var(--ink-muted); font-size: 11px; line-height: 15px; text-wrap: pretty; }
+.shopee-saude-explicacao summary { cursor: pointer; }
+.shopee-saude-explicacao p { margin-block-start: 6px; max-width: 92ch; }
+
 .metric-label {
   display: flex;
   min-width: 0;

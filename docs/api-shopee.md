@@ -110,6 +110,18 @@ acessível fora do console).
 `order_limit` ("95", "80") é autodescritivo: teto de pedidos em N% — a tela escreve
 "Limite de pedidos em N%".
 
+**Definições das métricas (as linhas explicativas da tela):** a fonte é o **Centro de
+Educação do Vendedor** (`seller.shopee.com.br/edu`) e a Central de Ajuda
+(`help.shopee.com.br`) — a doc do open platform exige login e não serve de fonte citável.
+Cada entrada de `EXPLICACAO_DA_METRICA` no mapa carrega a URL do artigo e a data de
+leitura. 10 das 17 métricas têm definição oficial citável; as 6 de violação de anúncio
+**não** têm definição pública e ficam sem linha na tela (e a própria API as devolve com
+`current_period: null`, então aparecem como "—" — ausência coerente). Consequências
+detalhadas de pontos de penalidade (faixas, trimestre) só existem em blog de terceiro e
+**não** entraram. Próximo a mexer aqui: não refazer a busca — os artigos-chave são
+2805 (TEA), 16320/3280 (TNE), 2713 (taxa de resposta), 2787 (classificação), 19542
+(tempo de preparo), 18878/3289 (pré-encomenda), 7955/18432 (sistema de pontos).
+
 ## Webhooks (opcional na v1)
 
 Shopee tem *Push Mechanism* (partner push) para mudanças de pedido — requer configurar a

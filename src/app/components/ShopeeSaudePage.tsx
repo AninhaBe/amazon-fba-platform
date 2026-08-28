@@ -12,6 +12,7 @@ import { shopeeModuleHref } from "./ShopeeModulesModel";
 import { shopeeProviderIssueContent, type ShopeeProviderIssue } from "./ShopeeWorkspaceModel";
 import { brDate } from "@/lib/datetime";
 import {
+  EXPLICACAO_DA_METRICA,
   GRUPO_DA_METRICA,
   NOME_DA_METRICA,
   NOTA_GERAL,
@@ -142,6 +143,21 @@ function Conteudo({ saude, agoraMs }: { saude: ShopeeSaudeDaConta; agoraMs: numb
         </p>
       )}
 
+      {/* Colapsado por padrão (pedido da Ana, 28/08/2026): explicação não pode
+          virar parede de texto na frente do dado — a lição da hierarquia. */}
+      <details className="channel-module-notice shopee-saude-explicacao">
+        <summary><strong>Como a Shopee avalia sua loja</strong></summary>
+        <p>
+          A Shopee dá à loja uma nota geral de 1 a 4, calculada sobre três grupos de métricas:
+          Envio, Anúncios e Atendimento. O alvo de cada métrica (a coluna &quot;Alvo&quot;) é definido
+          pela própria Shopee, não pelo NEXO — a coluna &quot;Situação&quot; apenas compara o seu valor
+          com o alvo deles. Violações das regras também geram pontos de penalidade, e pontos
+          acumulados podem resultar em punições à loja (é o Sistema de Pontos de Penalidade do
+          vendedor); as punições vigentes e o histórico aparecem mais abaixo. As definições de
+          cada métrica vêm do Centro de Educação do Vendedor da Shopee.
+        </p>
+      </details>
+
       <header className="shopee-saude-nota">
         <div>
           <p className="section-kicker">Nota geral da Shopee</p>
@@ -162,7 +178,17 @@ function Conteudo({ saude, agoraMs }: { saude: ShopeeSaudeDaConta; agoraMs: numb
               <tbody>
                 {metricas.map((metrica) => (
                   <tr key={metrica.nome}>
-                    <td>{NOME_DA_METRICA[metrica.nome] ?? metrica.nome}</td>
+                    <td>
+                      {NOME_DA_METRICA[metrica.nome] ?? metrica.nome}
+                      {/* Definição só quando a doc oficial define (mapa com
+                          fonte); métrica sem definição citável fica sem linha. */}
+                      {EXPLICACAO_DA_METRICA[metrica.nome] && (
+                        <small className="shopee-saude-definicao">{EXPLICACAO_DA_METRICA[metrica.nome].definicao}</small>
+                      )}
+                      {metrica.situacao === "reprovada" && EXPLICACAO_DA_METRICA[metrica.nome]?.oQueFazer && (
+                        <small className="shopee-saude-definicao"><strong>O que fazer:</strong> {EXPLICACAO_DA_METRICA[metrica.nome].oQueFazer}</small>
+                      )}
+                    </td>
                     <td className="tabular-nums">{valor(metrica, "valorAtual")}</td>
                     <td className="tabular-nums">{valor(metrica, "valorAnterior")}</td>
                     <td className="tabular-nums">{metrica.alvo == null ? "—" : `${metrica.comparador ?? ""} ${valor(metrica, "alvo")}`}</td>

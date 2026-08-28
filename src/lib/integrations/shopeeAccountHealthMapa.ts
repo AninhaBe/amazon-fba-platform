@@ -81,6 +81,69 @@ export const PUNICAO_ENCERRADA = 2;
 // "código N da Shopee". Ao conseguir a doc oficial, o mapa entra aqui e no
 // espelho do docs/api-shopee.md com a fonte datada.
 
+export interface ExplicacaoDaMetrica {
+  /** O que a métrica mede, em linguagem de gente — texto ancorado na doc. */
+  definicao: string;
+  /** Ação concreta quando reprovada — só existe se a doc a indica. */
+  oQueFazer?: string;
+  /** URL do artigo oficial + data de leitura. */
+  fonte: string;
+}
+
+/**
+ * Explicações por métrica (pedido da Ana, 28/08/2026). FONTE OBRIGATÓRIA:
+ * Centro de Educação do Vendedor / Central de Ajuda da Shopee (a doc do open
+ * platform não é acessível fora do console) — cada entrada cita o artigo e a
+ * data de leitura. Métrica sem definição pública citável NÃO entra (é o caso
+ * das 6 de violação de anúncio): a linha fica ausente na tela, nunca inventada.
+ */
+export const EXPLICACAO_DA_METRICA: Record<string, ExplicacaoDaMetrica> = {
+  late_shipment_rate: {
+    definicao: "Percentual dos pedidos enviados com atraso nos últimos 7 dias.",
+    oQueFazer: "Poste os pedidos dentro do prazo de envio (DTS) de cada pedido.",
+    fonte: "seller.shopee.com.br/edu/article/2805 (lido em 28/08/2026)",
+  },
+  non_fulfillment_rate: {
+    definicao: "Percentual dos pedidos cancelados ou devolvidos por responsabilidade do vendedor nos últimos 7 dias.",
+    fonte: "seller.shopee.com.br/edu/article/16320 e /3280 (lidos em 28/08/2026)",
+  },
+  cancellation_rate: {
+    definicao: "Parte da taxa de não conclusão: pedidos cancelados por responsabilidade do vendedor.",
+    fonte: "seller.shopee.com.br/edu/article/16320 (lido em 28/08/2026)",
+  },
+  return_refund_rate: {
+    definicao: "Parte da taxa de não conclusão: pedidos devolvidos ou reembolsados por responsabilidade do vendedor.",
+    fonte: "seller.shopee.com.br/edu/article/16320 (lido em 28/08/2026)",
+  },
+  response_rate: {
+    definicao: "Proporção das mensagens novas do chat que você respondeu; Perguntas Frequentes e respostas automáticas não contam.",
+    oQueFazer: "Responda as mensagens do chat em até 12 horas.",
+    fonte: "seller.shopee.com.br/edu/article/2713 e help.shopee.com.br artigo 129713 (lidos em 28/08/2026)",
+  },
+  shop_rating: {
+    definicao: "Média de todas as avaliações (1 a 5 estrelas) dos produtos da loja.",
+    fonte: "seller.shopee.com.br/edu/article/2787 (lido em 28/08/2026)",
+  },
+  pre_order_listing_rate: {
+    definicao: "Percentual dos anúncios da loja marcados como pré-encomenda (prazo de envio de 3 a 15 dias úteis).",
+    fonte: "seller.shopee.com.br/edu/article/18878 e /3289 (lidos em 28/08/2026)",
+  },
+  the_amount_of_pre_order_listing: {
+    definicao: "Quantidade de anúncios pré-encomenda ativos na loja.",
+    fonte: "seller.shopee.com.br/edu/article/3289 (lido em 28/08/2026)",
+  },
+  saturday_shipment_rate: {
+    definicao: "Percentual dos pedidos pendentes enviados aos sábados — critério do programa Vendedor Indicado (régua de 20%).",
+    oQueFazer: "Programe postagens também aos sábados.",
+    fonte: "Centro de Educação do Vendedor, programa Vendedor Indicado (lido em 28/08/2026)",
+  },
+  avg_preparation_time_ps: {
+    definicao: "Média, em dias corridos, do tempo entre o pagamento e o pacote escaneado para envio, nos pedidos dos últimos 30 dias; pré-encomendas ficam fora do cálculo.",
+    oQueFazer: "Reduza o tempo entre o pagamento e a postagem do pacote.",
+    fonte: "seller.shopee.com.br/edu/article/19542 (lido em 28/08/2026)",
+  },
+};
+
 /** Rótulo de um código: o mapeado, ou a forma honesta de dizer que não sabemos. */
 export function rotuloDeCodigo(mapa: Record<number, string>, codigo: number): string {
   return mapa[codigo] ?? `código ${codigo} da Shopee`;

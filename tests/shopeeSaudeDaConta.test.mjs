@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { acoesDeSaude, rotuloDeCodigo, situacaoDaMetrica, NOTA_GERAL, GRUPO_DA_METRICA } from "../src/lib/integrations/shopeeAccountHealthMapa.ts";
+import { acoesDeSaude, rotuloDeCodigo, situacaoDaMetrica, EXPLICACAO_DA_METRICA, NOTA_GERAL, GRUPO_DA_METRICA } from "../src/lib/integrations/shopeeAccountHealthMapa.ts";
 
 // Saúde da conta Shopee (desenho aprovado em 28/08/2026, sondado na loja real
 // antes de codar). As regras duras desta tela, travadas aqui:
@@ -83,6 +83,34 @@ test("o dashboard usa as ações de saúde e a nav aponta para a página", async
   assert.match(workspace, /\.\.\.acoesDeSaude\(saude\)/);
   const nav = await readFile(new URL("../src/app/components/Nav.tsx", import.meta.url), "utf8");
   assert.match(nav, /href: "\/shopee\/saude", label: "Saúde da conta"/);
+});
+
+test("explicações: toda definição tem fonte citável e datada; violações ficam SEM linha", () => {
+  const entradas = Object.entries(EXPLICACAO_DA_METRICA);
+  assert.ok(entradas.length >= 10, "10 métricas com definição oficial");
+  for (const [nome, explicacao] of entradas) {
+    assert.ok(explicacao.definicao.length > 20, `${nome} tem definição de verdade`);
+    assert.match(explicacao.fonte, /lido/, `${nome} cita a data de leitura`);
+    assert.match(explicacao.fonte, /seller\.shopee|Centro de Educação|help\.shopee/, `${nome} aponta fonte oficial`);
+  }
+  // As 6 métricas de violação NÃO têm definição pública citável — linha ausente,
+  // nunca inventada (e a API as manda com current_period null: "—" coerente).
+  for (const violacao of ["severe_listing_violations", "other_listing_violations", "prohibited_listings", "counterfeit_ip_infringement", "spam_listings", "pqr_products"]) {
+    assert.equal(EXPLICACAO_DA_METRICA[violacao], undefined, `${violacao} sem definição inventada`);
+  }
+  // O "o que fazer" da reprovada real é a regra que a doc publica (12 horas).
+  assert.match(EXPLICACAO_DA_METRICA.response_rate.oQueFazer, /12 horas/);
+});
+
+test("a página explica sem virar parede de texto: bloco colapsado por padrão e definição vinda do mapa", async () => {
+  const fonte = await readFile(new URL("../src/app/components/ShopeeSaudePage.tsx", import.meta.url), "utf8");
+  assert.match(fonte, /<details className="channel-module-notice shopee-saude-explicacao">/);
+  assert.doesNotMatch(fonte, /<details[^>]*\bopen\b/, "colapsado por padrão — lição da hierarquia");
+  assert.match(fonte, /Como a Shopee avalia sua loja/);
+  assert.match(fonte, /alvo[^<]*é definido\s*pela própria Shopee/i);
+  // Definição e o-que-fazer saem do MAPA (fonte única), nunca texto solto na página.
+  assert.match(fonte, /EXPLICACAO_DA_METRICA\[metrica\.nome\]\.definicao/);
+  assert.match(fonte, /metrica\.situacao === "reprovada" && EXPLICACAO_DA_METRICA\[metrica\.nome\]\?\.oQueFazer/);
 });
 
 test("o mapa de códigos tem espelho documentado com fonte", async () => {
