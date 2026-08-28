@@ -1,3 +1,5 @@
+import { brDate } from "@/lib/datetime";
+
 /**
  * Qual data cada número usa.
  *
@@ -53,4 +55,56 @@ export function BaseDeData({ base, prefixo = "Valores" }: { base: Base; prefixo?
 export function explicacaoDaBase(base: Base): string {
   const { titulo, explica } = TEXTO[base];
   return `Contado ${titulo}: ${explica}.`;
+}
+
+/**
+ * Progresso da importação e alcance do histórico — UMA linha, não duas faixas.
+ *
+ * Hoje o dashboard empilha dois blocos de largura total que dizem partes da
+ * mesma frase: o `sync-chip` ("Histórico: N% importado") e a
+ * `integration-message` ("Os números abaixo cobrem a partir de DD/MM"). Dois
+ * avisos de PROGRESSO com o peso visual de alarme, um debaixo do outro, antes
+ * do primeiro número — parte do acúmulo que a Ana apontou em 28/08/2026.
+ *
+ * Nada foi removido: toda frase que existia continua aqui, e cada uma aparece
+ * exatamente na mesma condição de antes. O que muda é que elas ocupam uma linha
+ * discreta em vez de duas caixas, e ficam coladas na faixa de métricas que
+ * explicam. A barra fina do progresso sobrevive — ela comunica em 88px o que o
+ * texto levava uma faixa inteira para dizer.
+ */
+export function ProgressoDaImportacao({ progresso, cobreDesde, emImportacao, pedidosImportados }: {
+  /** `null` quando o backfill terminou ou o canal não informa. */
+  progresso?: number | null;
+  /** Data em que o histórico importado começa; `null` quando cobre o período. */
+  cobreDesde?: string | null;
+  emImportacao?: boolean;
+  pedidosImportados?: number | null;
+}) {
+  const temProgresso = typeof progresso === "number";
+  if (!temProgresso && !cobreDesde) return null;
+
+  const importados = pedidosImportados ?? 0;
+  return (
+    <p className="base-de-data progresso-da-importacao" role="status">
+      {temProgresso && (
+        <span className="sync-chip-track" aria-hidden="true">
+          <i style={{ width: `${progresso}%` }} />
+        </span>
+      )}
+      <span>
+        {temProgresso && <>Histórico <strong>{progresso}% importado</strong></>}
+        {temProgresso && cobreDesde && " — "}
+        {cobreDesde && (
+          <>
+            os números abaixo cobrem a partir de <strong>{brDate(new Date(cobreDesde))}</strong>
+            {emImportacao
+              ? <> ({importados.toLocaleString("pt-BR")} pedido(s) já importado(s))</>
+              : <> — o histórico importado começa aí</>}
+          </>
+        )}
+        {temProgresso && !cobreDesde && <> — os números abaixo já estão disponíveis</>}
+        .
+      </span>
+    </p>
+  );
 }

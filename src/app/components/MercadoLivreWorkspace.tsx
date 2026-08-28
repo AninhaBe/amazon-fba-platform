@@ -32,7 +32,7 @@ import { NexoDoDia } from "./NexoDoDia";
 import { IntegrationDashboardFrame } from "./IntegrationDashboardFrame";
 import { marginMetricTone } from "@/lib/marginTone";
 import { comSemImposto } from "@/lib/semImposto";
-import { BaseDeData } from "./BaseDeData";
+import { BaseDeData, ProgressoDaImportacao } from "./BaseDeData";
 import { EstadoDoSync } from "./EstadoDoSync";
 
 const MERCADO_LIVRE_TAX_RATE_HREF = "/mercado-livre/produtos#mercado-livre-aliquota";
@@ -375,22 +375,6 @@ function Dashboard({ overview, syncStatus, periodoLabel, connectionId }: { overv
       ]}
     />
 
-    {syncStatus && syncStatus.status !== "complete" && syncStatus.status !== "unavailable" && (
-      <div className="sync-chip" role="status">
-        <span className="sync-chip-track" aria-hidden="true"><i style={{ width: `${syncStatus.progress}%` }} /></span>
-        <p>Histórico: {syncStatus.progress}% importado — os dados abaixo já estão disponíveis.</p>
-      </div>
-    )}
-
-    {!cobertura.periodoCoberto && cobertura.cobreDesde && (
-      <div role="status" className="integration-message">
-        Os números abaixo cobrem a partir de {brDate(new Date(cobertura.cobreDesde))}
-        {cobertura.emImportacao
-          ? <> — o início do período ainda está sendo importado ({syncStatus?.processedOrders ?? 0} pedido(s) já importado(s)).</>
-          : <> — o histórico importado começa aí.</>}
-      </div>
-    )}
-
     {connectionId && syncStatus && (
       <SincronizacaoCompleta
         connectionId={connectionId}
@@ -399,6 +383,16 @@ function Dashboard({ overview, syncStatus, periodoLabel, connectionId }: { overv
       />
     )}
 
+    {/* Duas faixas de largura total viraram UMA linha discreta: as duas diziam
+        partes da mesma frase (quanto ja importou / ate onde alcanca) com peso
+        de alarme, empilhadas antes do primeiro numero. Toda frase antiga
+        sobrevive, nas mesmas condicoes — ver `ProgressoDaImportacao`. */}
+    <ProgressoDaImportacao
+      progresso={syncStatus && syncStatus.status !== "complete" && syncStatus.status !== "unavailable" ? syncStatus.progress : null}
+      cobreDesde={cobertura.periodoCoberto ? null : cobertura.cobreDesde}
+      emImportacao={cobertura.emImportacao}
+      pedidosImportados={syncStatus?.processedOrders}
+    />
     {/* Faturamento do ML conta aprovadas + canceladas, sem frete (regra do
         proprio canal) — e sempre pela data do pedido. */}
     <BaseDeData base="pedido" />

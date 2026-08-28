@@ -42,7 +42,7 @@ import { brDate, brTime } from "@/lib/datetime";
 import { coberturaDoPeriodo } from "@/lib/coberturaPeriodo";
 import { SincronizacaoCompleta } from "../components/SincronizacaoCompleta";
 import { readJson } from "../../lib/readJson";
-import { BaseDeData } from "../components/BaseDeData";
+import { BaseDeData, ProgressoDaImportacao } from "../components/BaseDeData";
 
 // Faixa de cima: o que resume o RESULTADO. Anuncio entrou aqui em 25/08/2026
 // porque virou componente do lucro — deixa-lo so na composicao la embaixo
@@ -545,15 +545,6 @@ export default function Dashboard() {
         </div>
       )}
 
-      {coberturaHistorico && !coberturaHistorico.periodoCoberto && coberturaHistorico.cobreDesde && (
-        <div role="status" className="integration-message">
-          Os números abaixo cobrem a partir de {brDate(new Date(coberturaHistorico.cobreDesde))}
-          {coberturaHistorico.emImportacao
-            ? <> — o início do período ainda está sendo importado ({cobertura?.sync.processedOrders ?? 0} pedido(s) já importado(s)).</>
-            : <> — o histórico importado começa aí.</>}
-        </div>
-      )}
-
       {cobertura && (
         <SincronizacaoCompleta
           connectionId={cobertura.sync.connectionId}
@@ -646,6 +637,14 @@ export default function Dashboard() {
       {/* O dashboard conta pela data do PEDIDO; o monitor, pela data do
           LANÇAMENTO. Sem esta linha as duas telas exibiam "hoje" com valores
           diferentes e nenhuma dizia por quê. */}
+      {/* Era faixa de largura total para um aviso de PROGRESSO; virou a mesma
+          linha discreta do ML, colada na faixa de metricas que ela explica.
+          Texto e condicao identicos aos de antes. */}
+      <ProgressoDaImportacao
+        cobreDesde={coberturaHistorico && !coberturaHistorico.periodoCoberto ? coberturaHistorico.cobreDesde : null}
+        emImportacao={coberturaHistorico?.emImportacao}
+        pedidosImportados={cobertura?.sync.processedOrders}
+      />
       <BaseDeData base="pedido" />
 
       {/* Indicadores de contexto: uma faixa, não uma segunda parede de cartões. */}

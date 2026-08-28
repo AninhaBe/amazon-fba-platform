@@ -688,6 +688,7 @@ button[class*="bg-blue-"]:hover, a[class*="bg-blue-"]:hover { background: var(--
 /* Linha que diz qual data o bloco usa. Discreta de proposito: ela responde uma
    duvida ("qual numero e o que"), nao disputa atencao com o numero. */
 .base-de-data { max-width: 92ch; margin-block: 2px 10px; color: var(--ink-muted); font-size: 12px; line-height: 16px; text-wrap: pretty; }
+.progresso-da-importacao { display: flex; align-items: center; gap: 10px; }
 .base-de-data strong { color: var(--ink-soft); font-weight: var(--weight-semibold); }
 
 /* Estado do sync (Monitor Unificado E0): linha discreta irmã da .base-de-data;
