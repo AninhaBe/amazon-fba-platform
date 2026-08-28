@@ -506,7 +506,22 @@ export async function runMercadoLivreSyncBatch(
 ): Promise<MercadoLivreSyncStatus> {
   let status = await requestMercadoLivreSync(connection.id);
   for (let step = 0; step < maxSteps; step += 1) {
-    if (status.status === "complete" || status.status === "error" || status.status === "unavailable") break;
+    // ⚠️ SEGUNDA CAMADA DO MESMO DEFEITO (28/08/2026): `error` interrompia o
+    // laço ANTES do primeiro passo, então uma conexão em erro nunca tentava de
+    // novo — nem depois de o scheduler voltar a elegê-la. Foi o que manteve a
+    // conta real da vendedora parada mesmo após a correção do scheduler: ela
+    // era escolhida, entrava aqui, e saía sem tocar em nada (o `updated_at`
+    // ficou congelado em 11:34 por 8 horas, provando que o passo nunca rodou).
+    //
+    // Shopee e Amazon já faziam certo — a Shopee roda o primeiro passo
+    // incondicionalmente e só o laço olha o status; a Amazon tem um
+    // `if (step === 0)` explícito para o mesmo fim. Aqui vale a mesma regra:
+    // o primeiro passo é a TENTATIVA de retomada; o break governa as
+    // iterações seguintes. Se falhar de novo, o passo grava `error` com
+    // `updated_at` novo e o backoff de 15 min do scheduler evita o loop
+    // apertado.
+    const terminal = status.status === "complete" || status.status === "unavailable";
+    if (terminal || (status.status === "error" && step > 0)) break;
     status = await runMercadoLivreSyncStep(connection, false);
     if (status.busy) break;
   }

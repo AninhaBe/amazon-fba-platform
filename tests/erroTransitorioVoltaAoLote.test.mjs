@@ -31,6 +31,28 @@ test("erro de AUTORIZAÇÃO não entra em loop de retry — no ML, pela porta do
   assert.match(adapter, /ChannelAuthExpiredError/);
 });
 
+test("o batch do ML TENTA o primeiro passo mesmo em erro — a segunda camada do defeito", async () => {
+  const fonte = await readFile(new URL("../src/lib/integrations/mercadoLivreSync.ts", import.meta.url), "utf8");
+  const batch = fonte.slice(fonte.indexOf("export async function runMercadoLivreSyncBatch"));
+  // O break só vale para 'error' a partir da SEGUNDA iteração: o primeiro passo
+  // é a tentativa de retomada. Sem isso, o scheduler elegia e o batch saía sem
+  // tocar em nada (updated_at congelado por 8h, medido em produção).
+  assert.match(batch, /if \(terminal \|\| \(status\.status === "error" && step > 0\)\) break/);
+  // complete e unavailable continuam interrompendo de imediato.
+  assert.match(batch, /const terminal = status\.status === "complete" \|\| status\.status === "unavailable"/);
+  assert.doesNotMatch(batch.slice(0, batch.indexOf("runMercadoLivreSyncStep")),
+    /status\.status === "error"\) break/, "erro não pode voltar a interromper antes do primeiro passo");
+});
+
+test("Shopee e Amazon já rodavam o primeiro passo — é de onde veio o desenho", async () => {
+  const shopee = await readFile(new URL("../src/lib/integrations/shopeeSync.ts", import.meta.url), "utf8");
+  const batchShopee = shopee.slice(shopee.indexOf("export async function runShopeeSyncBatch"));
+  // Primeiro passo fora do laço = incondicional.
+  assert.match(batchShopee, /let status = await runShopeeSyncStep\([\s\S]{0,120}\);\s*\n\s*while/);
+  const amazon = await readFile(new URL("../src/lib/integrations/amazonSync.ts", import.meta.url), "utf8");
+  assert.match(amazon, /if \(step === 0\) await runAmazonSyncStep\(account, forcarJanela\)/);
+});
+
 test("os outros três canais já tratavam erro transitório — e cada um do seu jeito", async () => {
   // Shopee: reelege com backoff de 5 min e EXCLUI reauth/terminal por prefixo
   // carimbado em last_error (o canal carimba; o ML não).
