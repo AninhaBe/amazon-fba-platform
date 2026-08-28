@@ -31,12 +31,15 @@ COPY . .
 
 ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+# Opcional: sem valor o widget do Crisp fica dormente (nenhum script carrega).
+ARG NEXT_PUBLIC_CRISP_WEBSITE_ID
 # Carimbo da versao: com ele o Next detecta version skew e recarrega sozinho
 # a aba de quem ja estava com o produto aberto. Passar o SHA do commit:
 #   --build-arg DEPLOYMENT_VERSION=$(git rev-parse --short HEAD)
 ARG DEPLOYMENT_VERSION
 ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY \
+    NEXT_PUBLIC_CRISP_WEBSITE_ID=$NEXT_PUBLIC_CRISP_WEBSITE_ID \
     DEPLOYMENT_VERSION=$DEPLOYMENT_VERSION \
     BUILD_STANDALONE=1 \
     NEXT_TELEMETRY_DISABLED=1

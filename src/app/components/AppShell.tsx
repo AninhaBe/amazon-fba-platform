@@ -11,6 +11,7 @@ import { NavLinks } from "./Nav";
 import { SidebarNexo } from "./SidebarNexo";
 import { workspaceFromPath } from "@/lib/integrations/workspaces";
 import { LogoutButton } from "./LogoutButton";
+import { CrispChat } from "./CrispChat";
 import { TrialNotice } from "./TrialNotice";
 import { NexoOnboarding } from "./NexoOnboarding";
 import { ShellTopbar } from "./ShellTopbar";
@@ -84,6 +85,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         />
         <TrialNotice />
         <NexoOnboarding />
+        {/* Suporte via Crisp — só aqui, DEPOIS do early-return das rotas
+            públicas: landing/login/privacidade nunca carregam o script. */}
+        <CrispChat />
         {/* Sem `max-w` e sem padding grande: a referência deixa o conteúdo
             crescer com a tela e usa 24px de respiro lateral. O container de
             1500px centralizado deixava faixa morta dos dois lados em monitor

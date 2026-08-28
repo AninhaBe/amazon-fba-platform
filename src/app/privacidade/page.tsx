@@ -88,7 +88,10 @@ export default function PrivacidadePage() {
           <p>
             Apenas com os provedores necessários para operar o serviço: <strong>Supabase</strong>{" "}
             (autenticação e banco de dados), <strong>Fly.io</strong> (hospedagem da aplicação),{" "}
-            <strong>Google</strong> (geração do texto explicativo do NEXO — ver a seção 5) e os{" "}
+            <strong>Google</strong> (geração do texto explicativo do NEXO — ver a seção 5),{" "}
+            <strong>Crisp</strong> (chat de suporte dentro do painel — recebe apenas seu nome e
+            e-mail para identificar a conversa, com servidores na União Europeia e acordo de
+            processamento de dados) e os{" "}
             <strong>marketplaces autorizados por você</strong> (Amazon, Mercado Livre, Shopee e
             TikTok Shop). Não vendemos nem alugamos dados pessoais.
           </p>
