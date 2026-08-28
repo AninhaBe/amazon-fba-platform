@@ -10,6 +10,7 @@ import { moduleApiQuery, moduleConnectionHref, moduleError, moduleHref, moduleMo
 import { TIKTOK_CATALOG_STATUSES } from "@/lib/integrations/tiktokModuleContract";
 import { rotuloConciliacao, rotuloStatusPedido, rotuloStatusProduto } from "./statusDeExibicao";
 import { BaseDeData } from "./BaseDeData";
+import { EstadoDoSync } from "./EstadoDoSync";
 
 type Kind="monitor"|"finance"|"catalog"|"inventory"|"costs"|"abc";
 type Connection={id:string;displayName?:string;externalAccountId?:string};
@@ -31,7 +32,7 @@ export function TikTokModulePage({kind}:{kind:Kind}) { const cfg=config[kind], r
   return <div className={`channel-module-page analysis-page channel-module-${kind}`}>
     {cfg.period&&<DashboardPeriodFilter {...period.filterProps}/>}
     <PageHeader eyebrow="TikTok Shop" title={cfg.title} subtitle={cfg.subtitle} action={selected&&connections&&<label className="channel-store-selector">Loja<select aria-label="Loja TikTok Shop" value={selected.id} onChange={e=>router.push(moduleConnectionHref(location.pathname,sp.toString(),e.target.value),{scroll:false})}>{connections.map(c=><option key={c.id} value={c.id}>{c.displayName||c.externalAccountId||c.id}</option>)}</select></label>}/>
-    {!connections&&!error?<DashboardSkeleton/>:providerIssue?<EmptyState kind="permission" title={providerIssue.code==="OWNERSHIP_CONFLICT"?"Conexão TikTok protegida":"Canal TikTok requer atenção"} description={providerIssue.message} action={<Link className="meli-primary-action" href="/integracoes">Gerenciar conexões</Link>}/>:connections?.length===0?<ChannelConnectionEmpty channel="TikTok Shop" description="Conecte uma loja para acessar este módulo." action={<Link className="meli-primary-action" href="/integracoes">Gerenciar conexões</Link>}/>:error?<EmptyState kind="permission" title="Não foi possível carregar" description={error} action={<button className="meli-primary-action min-h-11" onClick={retry}>Tentar novamente</button>}/>:!body?<DashboardSkeleton/>:body.availability==="BLOCKED"?<EmptyState kind="permission" title="Financeiro aguardando estrutura de dados" description="O ledger financeiro ainda não está disponível neste ambiente. Nenhum valor foi estimado ou convertido em zero."/>:body.availability==="NOT_AVAILABLE"?<EmptyState title="Dados ainda indisponíveis" description="A conexão existe, mas este conjunto de dados ainda não foi materializado."/>:<ModuleContent kind={kind} body={body} sp={sp} update={update} retry={retry}/>}</div>;
+    {!connections&&!error?<DashboardSkeleton/>:providerIssue?<EmptyState kind="permission" title={providerIssue.code==="OWNERSHIP_CONFLICT"?"Conexão TikTok protegida":"Canal TikTok requer atenção"} description={providerIssue.message} action={<Link className="meli-primary-action" href="/integracoes">Gerenciar conexões</Link>}/>:connections?.length===0?<ChannelConnectionEmpty channel="TikTok Shop" description="Conecte uma loja para acessar este módulo." action={<Link className="meli-primary-action" href="/integracoes">Gerenciar conexões</Link>}/>:error?<EmptyState kind="permission" title="Não foi possível carregar" description={error} action={<button className="meli-primary-action min-h-11" onClick={retry}>Tentar novamente</button>}/>:!body?<DashboardSkeleton/>:body.availability==="BLOCKED"?<EmptyState kind="permission" title="Financeiro aguardando estrutura de dados" description="O ledger financeiro ainda não está disponível neste ambiente. Nenhum valor foi estimado ou convertido em zero."/>:body.availability==="NOT_AVAILABLE"?<EmptyState title="Dados ainda indisponíveis" description="A conexão existe, mas este conjunto de dados ainda não foi materializado."/>:<ModuleContent kind={kind} body={body} sp={sp} update={update} connectionId={selected!.id} retry={retry}/>}</div>;
 }
 
 function Filters({kind,sp,update}:{kind:Kind;sp:URLSearchParams;update:(v:Record<string,string|null>)=>void}) {
@@ -48,10 +49,11 @@ function Filters({kind,sp,update}:{kind:Kind;sp:URLSearchParams;update:(v:Record
     {["monitor","catalog","inventory","costs"].includes(kind)&&<button className="listing-refresh" type="submit">Aplicar filtros</button>}
   </form>
 }
-function ModuleContent({kind,body,sp,update,retry}:{kind:Kind;body:Payload;sp:URLSearchParams;update:(v:Record<string,string|null>)=>void;retry:()=>void}) {
+function ModuleContent({kind,body,sp,update,connectionId,retry}:{kind:Kind;body:Payload;sp:URLSearchParams;update:(v:Record<string,string|null>)=>void;connectionId:string;retry:()=>void}) {
   const rows=(kind==="costs"?body.costs:body.items)??[];
   return <section className="channel-module-content" aria-live="polite">
     <ChannelModuleSummary kind={kind} rows={rows} total={body.page?.total}/>
+    {kind==="monitor"&&<EstadoDoSync provider="tiktok_shop" connectionId={connectionId}/>}
     <Filters kind={kind} sp={sp} update={update}/>
     {kind==="abc"&&<aside className="channel-module-notice is-warning"><strong>Lucro indisponível por SKU</strong><p>{body.profitSubset?.reason||"O contrato atual não permite atribuir lucro por produto com segurança."}</p></aside>}
     {kind==="abc"&&rows.length>0&&<TikTokAbcInsights rows={rows}/>}

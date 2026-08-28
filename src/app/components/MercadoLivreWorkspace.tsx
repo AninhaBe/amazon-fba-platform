@@ -33,6 +33,7 @@ import { IntegrationDashboardFrame } from "./IntegrationDashboardFrame";
 import { marginMetricTone } from "@/lib/marginTone";
 import { comSemImposto } from "@/lib/semImposto";
 import { BaseDeData } from "./BaseDeData";
+import { EstadoDoSync } from "./EstadoDoSync";
 
 const MERCADO_LIVRE_TAX_RATE_HREF = "/mercado-livre/produtos#mercado-livre-aliquota";
 
@@ -587,6 +588,7 @@ function Monitor({ overview, secaoInicial }: { overview: Overview; secaoInicial:
         por data do lancamento do repasse, aqui e por data do pedido. Sem dizer
         isso, "Monitor da conta" parece a mesma coisa nos dois canais. */}
     <BaseDeData base="pedido" />
+    <EstadoDoSync provider="mercado_livre" />
     <CustomizableMetricGrid
       viewKey="mercado-livre-monitor"
       ariaLabel="Resumo do monitor Mercado Livre"

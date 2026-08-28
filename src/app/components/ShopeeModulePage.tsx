@@ -8,6 +8,7 @@ import { PageHeader } from "./PageHeader";
 import { DashboardPeriodFilter, useDashboardPeriod } from "./DashboardPeriodFilter";
 import { ChannelModuleSummary } from "./ChannelModuleSummary";
 import { ChannelConnectionEmpty } from "./ChannelConnectionEmpty";
+import { EstadoDoSync } from "./EstadoDoSync";
 import { SHOPEE_MODULES, shopeeModuleError, shopeeModuleHref, shopeeModuleQuery, type ShopeeModuleKind } from "./ShopeeModulesModel";
 import { parseShopeeTaxRateDraft, SHOPEE_TAX_RATE_ANCHOR, shopeeSettingsPath } from "./ShopeeSettingsModel";
 import { shopeeProviderIssueContent, type ShopeeProviderIssue } from "./ShopeeWorkspaceModel";
@@ -45,7 +46,8 @@ function Content({kind,body,params,update,connectionId,retry}:{kind:ShopeeModule
   const rows=(kind==="monitor"?body.orders:body.items)??[], [search,setSearch]=useState(params.get("q")??""), coverage=body.coverage??body.profit?.coverage;
   return <section className="channel-module-content" aria-live="polite">
     <ChannelModuleSummary kind={kind} rows={rows} total={body.page?.total}/>
-    {kind==="costs"&&<ShopeeTaxRateEditor key={connectionId} connectionId={connectionId}/>} 
+    {kind==="monitor"&&<EstadoDoSync provider="shopee" connectionId={connectionId}/>}
+    {kind==="costs"&&<ShopeeTaxRateEditor key={connectionId} connectionId={connectionId}/>}
     {coverage&&!coverage.complete&&<aside role="status" className="channel-module-notice is-warning"><strong>Ainda sincronizando</strong><p>Foram processados {show(coverage.capturedOrders??coverage.processedOrders)} de {show(coverage.totalOrders??coverage.paidOrders)} pedidos. Os valores não representam o período completo.</p></aside>}
     {kind==="inventory"&&<aside className="channel-module-notice">Quantidades agregadas por anúncio. Estoque por variação/modelo não está disponível.</aside>}
     {kind==="abc"&&<aside className="channel-module-notice is-warning"><strong>Lucro por SKU indisponível</strong><p>{body.profitSubset?.reason||"O contrato atual não permite atribuir lucro por produto com segurança."}</p></aside>}

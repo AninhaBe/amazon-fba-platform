@@ -690,6 +690,12 @@ button[class*="bg-blue-"]:hover, a[class*="bg-blue-"]:hover { background: var(--
 .base-de-data { max-width: 92ch; margin-block: 2px 10px; color: var(--ink-muted); font-size: 12px; line-height: 16px; text-wrap: pretty; }
 .base-de-data strong { color: var(--ink-soft); font-weight: var(--weight-semibold); }
 
+/* Estado do sync (Monitor Unificado E0): linha discreta irmã da .base-de-data;
+   o alerta de atraso reaproveita .channel-module-notice.is-warning. */
+.estado-do-sync { margin-block: -6px 10px; color: var(--ink-muted); font-size: 12px; line-height: 16px; }
+.estado-do-sync strong { color: var(--ink-soft); font-weight: var(--weight-semibold); }
+.estado-do-sync-alerta { margin-block: 2px 10px; }
+
 .metric-label {
   display: flex;
   min-width: 0;

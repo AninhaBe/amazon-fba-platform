@@ -14,6 +14,7 @@ import { readJson } from "@/lib/readJson";
 import { brDate } from "@/lib/datetime";
 import { marginMetricTone } from "@/lib/marginTone";
 import { BaseDeData } from "../components/BaseDeData";
+import { EstadoDoSync } from "../components/EstadoDoSync";
 
 interface FinanceSummary {
   currency: string;
@@ -228,6 +229,7 @@ function MonitorPage({ secaoInicial }: { secaoInicial: MonitorSection }) {
           {/* O dashboard da Amazon conta por data do pedido; aqui e por data do
               lancamento do repasse. Mesma frase nos quatro canais. */}
           <BaseDeData base="lancamento" />
+          <EstadoDoSync provider="amazon" />
           <CustomizableMetricGrid
             viewKey="amazon-monitor"
             ariaLabel="Resumo financeiro Amazon"
