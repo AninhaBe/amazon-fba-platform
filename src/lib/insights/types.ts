@@ -26,5 +26,7 @@ export interface Insight extends InsightCandidate {
 // Um detector é uma função pura determinística: dados → candidatos.
 export interface Detector {
   type: string;
+  /** Canal cujos insights este detector emite — a unidade do auto-resolve. */
+  provider: string;
   run(): Promise<InsightCandidate[]>;
 }

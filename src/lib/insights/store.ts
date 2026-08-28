@@ -68,7 +68,7 @@ async function updateExisting(ws: string, c: InsightCandidate, status: InsightSt
  * - sumiu (dos tipos que rodaram) → auto-resolve;
  * - dispensado/adiado/resolvido só reabrem se piorou de severidade.
  */
-export async function reconcile(candidates: InsightCandidate[], ranTypes: string[]): Promise<void> {
+export async function reconcile(candidates: InsightCandidate[], ranKeys: ReadonlySet<string>): Promise<void> {
   const ws = optionalWorkspaceId();
   if (!ws) return;
   const existing = await dbQuery<Row>(`SELECT * FROM workspace_insights WHERE workspace_id=$1`, [ws]);
@@ -94,9 +94,9 @@ export async function reconcile(candidates: InsightCandidate[], ranTypes: string
     await updateExisting(ws, c, status, reset);
   }
 
-  // Auto-resolve: abertos dos tipos que rodaram e não apareceram mais.
+  // Auto-resolve: abertos cujo detector (tipo + canal) RODOU e não os viu mais.
   const gone = existing.filter(
-    (r) => ranTypes.includes(r.type) && !candIds.has(r.id) && (r.status === "novo" || r.status === "adiado")
+    (r) => ranKeys.has(`${r.type}:${r.provider}`) && !candIds.has(r.id) && (r.status === "novo" || r.status === "adiado")
   );
   for (const r of gone) {
     await dbQuery(`UPDATE workspace_insights SET status='resolvido', updated_at=now() WHERE workspace_id=$1 AND id=$2`, [ws, r.id]);

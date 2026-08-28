@@ -14,6 +14,7 @@ function shortDate(d: Date) {
 
 export const rupturaDetector: Detector = {
   type: TYPE,
+  provider: "amazon",
   async run(): Promise<InsightCandidate[]> {
     const radar = await getStockRadar(periodFromDays(30));
     const candidates: InsightCandidate[] = [];

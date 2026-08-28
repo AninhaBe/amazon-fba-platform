@@ -17,6 +17,7 @@ function ymd(daysAgo: number): string {
 
 export const velocidadeDetector: Detector = {
   type: TYPE,
+  provider: "amazon",
   async run(): Promise<InsightCandidate[]> {
     const [current, previous, products] = await Promise.all([
       getSalesVelocity({ period: periodFromDays(7) }),

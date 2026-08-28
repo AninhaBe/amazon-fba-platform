@@ -97,9 +97,10 @@ export function BriefingView({ canal }: { canal?: BriefingCanal }) {
   // daquele canal. Alimenta o NEXO para raciocinar sobre a história do dinheiro.
   const [canais, setCanais] = useState<ChannelSnapshot[] | null>(null);
 
-  // Detecção automática existe só onde há detector implementado (hoje: Amazon).
+  // Detecção automática existe só onde há detector implementado
+  // (hoje: Amazon e Mercado Livre; Shopee e TikTok chegam por ordem própria).
   const provider = canal?.provider ?? null;
-  const temDetector = provider == null || provider === "amazon";
+  const temDetector = provider == null || provider === "amazon" || provider === "mercado_livre";
   const escopoNarracao = provider ?? "geral";
 
   const load = useCallback(async (analyze = false) => {
@@ -395,7 +396,7 @@ export function BriefingView({ canal }: { canal?: BriefingCanal }) {
           </section>
 
           <p className="briefing-method-note">
-            Detectores ativos na Amazon: ruptura, queda de vendas e margem. A análise é determinística e recalculada diariamente junto com a sincronização.
+            Detectores ativos na Amazon e no Mercado Livre: ruptura, queda de vendas e margem. A análise é determinística e recalculada diariamente junto com a sincronização.
           </p>
         </>
       )}

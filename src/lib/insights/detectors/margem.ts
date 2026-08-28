@@ -12,6 +12,7 @@ const MIN_REVENUE = 50; // ignora SKUs com receita irrisória no período (ruíd
 
 export const margemDetector: Detector = {
   type: TYPE,
+  provider: "amazon",
   async run(): Promise<InsightCandidate[]> {
     const result = await getAmazonProfitability(periodFromDays(30));
     const bySku = new Map<string, { name: string; revenue: number; contribution: number; units: number }>();

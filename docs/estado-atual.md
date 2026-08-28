@@ -512,9 +512,19 @@ alias do global. Canal **sem detector** mostra o estado honesto ("nenhuma
 prioridade detectada ainda para este canal"), nunca "tudo sob controle" — os
 detectores (ruptura, queda de vendas, margem) hoje só cobrem a Amazon.
 
-**Fase 2 (próxima, por ordem):** reimplementar os 3 detectores por canal,
-começando pelo **Mercado Livre** (replicar = reimplementar com o canônico de
-cada um); Shopee e TikTok em ordens seguintes.
+**Fase 2 — Mercado Livre pronto (27/08, aguardando deploy):** os 3 detectores
+reimplementados com o canônico do ML — ruptura via `stockRadar` do overview
+(mesma classificação compartilhada da Amazon), velocidade via SQL canônico (7d
+vs 7d anteriores, só vendas aprovadas, mesmos limiares) e margem via curva ABC
+(que já aplica `contribution: null` sem custo). Regras do canal respeitadas:
+**alíquota ausente = nenhuma margem avaliada** — vira uma pendência "Monitorar"
+apontando o cadastro, nunca margem calculada sem imposto. Fingerprints carregam
+a conta (`externalAccountId`) para dois vendedores ML no mesmo workspace não
+colidirem. Junto veio um conserto no auto-resolve da reconciliação: a chave
+passou de "tipo" para **(tipo, canal) de detector que rodou até o fim** — antes,
+um detector que lançava ainda auto-resolvia os próprios insights, e com tipos
+compartilhados a falha de um canal resolveria os insights abertos do outro.
+**Shopee e TikTok ficam para ordens seguintes.**
 
 ---
 
