@@ -243,6 +243,13 @@ export interface CanonicalOverviewOptions {
   costs?: Awaited<ReturnType<typeof getCosts>>;
   workspaceId?: string;
   detailPage?: { limit: number; offset: number };
+  /**
+   * Busca do monitor (E3, 28/08/2026): filtra a LISTA detalhada por pedido,
+   * SKU ou título, no servidor — busca só na página carregada seria mentira
+   * com paginação de servidor. Vazio = sem filtro (comportamento original);
+   * não afeta agregados, cards nem o dashboard.
+   */
+  detailQuery?: string;
   /** Injeção explícita para testes; produção lê workspace_settings por conexão. */
   taxRate?: unknown;
 }
@@ -269,6 +276,8 @@ export async function getShopeeOverviewFromCanonical(
     || !Number.isInteger(detailPage.offset) || detailPage.offset < 0) {
     throw new RangeError("Paginação do detalhe financeiro inválida.");
   }
+  const detailQuery = (options.detailQuery ?? "").trim();
+  if (detailQuery.length > 120) throw new RangeError("Busca do detalhe muito longa.");
 
   const [configuredTaxRate, syncRows, totalsRows] = await Promise.all([
     configuredTaxRatePromise,
@@ -360,6 +369,14 @@ export async function getShopeeOverviewFromCanonical(
                              AND di.provider = workspace_channel_orders.provider
                              AND di.connection_id = workspace_channel_orders.connection_id
                              AND di.external_order_id = workspace_channel_orders.external_order_id)
+              -- Busca do monitor (E3): pedido, SKU ou título, no servidor.
+              AND ($9 = '' OR external_order_id ILIKE '%'||$9||'%' OR EXISTS (
+                    SELECT 1 FROM workspace_channel_order_items qi
+                     WHERE qi.workspace_id = workspace_channel_orders.workspace_id
+                       AND qi.provider = workspace_channel_orders.provider
+                       AND qi.connection_id = workspace_channel_orders.connection_id
+                       AND qi.external_order_id = workspace_channel_orders.external_order_id
+                       AND (qi.sku ILIKE '%'||$9||'%' OR qi.title ILIKE '%'||$9||'%')))
             ORDER BY occurred_at DESC
             LIMIT $7 OFFSET $8
          )
@@ -389,7 +406,7 @@ export async function getShopeeOverviewFromCanonical(
            LEFT JOIN LATERAL (SELECT SUM(amount) AS amount FROM workspace_channel_order_fees f WHERE f.workspace_id=$1 AND f.provider=$2 AND f.connection_id=$3 AND f.external_order_id=d.external_order_id AND f.fee_type='taxes_withheld') ft ON true
            LEFT JOIN LATERAL (SELECT SUM(amount) AS amount FROM workspace_channel_order_fees f WHERE f.workspace_id=$1 AND f.provider=$2 AND f.connection_id=$3 AND f.external_order_id=d.external_order_id AND f.fee_type='refund') fr ON true
           ORDER BY d.occurred_at DESC, d.external_order_id, i.line_no`,
-        [...scopeParams(workspaceId, connection.id, period, provider), REVENUE, detailPage.limit, detailPage.offset]
+        [...scopeParams(workspaceId, connection.id, period, provider), REVENUE, detailPage.limit, detailPage.offset, detailQuery]
       ),
       query<CatalogRow>(
         `SELECT external_product_id, sku, title, status, price, available_qty, thumbnail, permalink, synced_at
@@ -480,6 +497,31 @@ export async function getShopeeOverviewFromCanonical(
   const taxRate = configuredTaxRate;
   const currency = totals.currency ?? "BRL";
   const revenue = Number(totals.paid_revenue ?? 0);
+
+  // Com busca ativa, o universo da paginação é o conjunto FILTRADO — hasMore
+  // contra o total sem filtro afirmaria uma próxima página que não existe.
+  let universoDetalhe: number | null = null;
+  if (detailQuery) {
+    const [contagem] = await query<{ total: number }>(
+      `SELECT COUNT(*)::int AS total FROM workspace_channel_orders
+        WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
+          AND occurred_at >= $4 AND occurred_at <= $5 AND status = ANY($6::text[])
+          AND EXISTS (SELECT 1 FROM workspace_channel_order_items di
+                       WHERE di.workspace_id = workspace_channel_orders.workspace_id
+                         AND di.provider = workspace_channel_orders.provider
+                         AND di.connection_id = workspace_channel_orders.connection_id
+                         AND di.external_order_id = workspace_channel_orders.external_order_id)
+          AND (external_order_id ILIKE '%'||$7||'%' OR EXISTS (
+                SELECT 1 FROM workspace_channel_order_items qi
+                 WHERE qi.workspace_id = workspace_channel_orders.workspace_id
+                   AND qi.provider = workspace_channel_orders.provider
+                   AND qi.connection_id = workspace_channel_orders.connection_id
+                   AND qi.external_order_id = workspace_channel_orders.external_order_id
+                   AND (qi.sku ILIKE '%'||$7||'%' OR qi.title ILIKE '%'||$7||'%')))`,
+      [...scopeParams(workspaceId, connection.id, period, provider), REVENUE, detailQuery]
+    );
+    universoDetalhe = contagem?.total ?? 0;
+  }
 
   const productTotals = new Map<string, {
     id: string; sku: string | null; title: string; units: number; revenue: number;
@@ -740,10 +782,10 @@ export async function getShopeeOverviewFromCanonical(
     profitabilityPage: {
       limit: detailPage.limit,
       offset: detailPage.offset,
-      totalOrders: ordersProcessed,
+      totalOrders: universoDetalhe ?? ordersProcessed,
       returnedOrders: linesByOrder.size,
-      hasMore: detailPage.offset + linesByOrder.size < ordersProcessed,
-      complete: detailPage.offset === 0 && linesByOrder.size >= ordersProcessed,
+      hasMore: detailPage.offset + linesByOrder.size < (universoDetalhe ?? ordersProcessed),
+      complete: detailPage.offset === 0 && linesByOrder.size >= (universoDetalhe ?? ordersProcessed),
     },
     recentOrders: recentRows.map((row) => ({
       id: row.external_order_id,

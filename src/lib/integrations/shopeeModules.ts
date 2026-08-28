@@ -46,11 +46,16 @@ export async function readShopeeInventory(connection: IntegrationConnection, par
 
 export async function readShopeeFinance(connection: IntegrationConnection, params: URLSearchParams) {
   const period = shopeePeriodRequest(params), page = shopeePageRequest(params);
-  const overview = await getShopeeOverviewFromCanonical(connection, period, { detailPage: page });
+  // Busca do monitor (E3): pedido, SKU ou título — filtrada no servidor, junto
+  // da paginação, para nunca buscar só na página carregada.
+  const q = (params.get("q") ?? "").trim();
+  if (q.length > 120) throw new ShopeeModuleError(400, "INVALID_FILTER", "Busca muito longa.");
+  const overview = await getShopeeOverviewFromCanonical(connection, period, { detailPage: page, detailQuery: q });
   if (!overview) return { availability: "NOT_AVAILABLE" as const, profit: null, orders: [], page: { ...page, total: 0, hasMore: false, complete: true } };
   return {
     availability: "AVAILABLE" as const,
     period: overview.period,
+    currency: overview.metrics.currency,
     profit: overview.profit,
     orders: overview.profitabilityLines,
     page: {

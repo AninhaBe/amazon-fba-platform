@@ -10,19 +10,26 @@ export const SHOPEE_MODULES = {
 
 export function shopeeModuleQuery(source: string, connectionId: string, kind: ShopeeModuleKind) {
   const input = new URLSearchParams(source), output = new URLSearchParams({ connection_id: connectionId });
-  if (["catalog", "inventory", "costs"].includes(kind)) {
+  // E3 (28/08/2026): o monitor ganhou busca de servidor — q entra também nele.
+  if (["monitor", "catalog", "inventory", "costs"].includes(kind)) {
     const q = input.get("q"); if (q) output.set("q", q);
   }
   if (kind !== "abc") {
     for (const key of ["limit", "offset"]) { const value = input.get(key); if (value) output.set(key, value); }
   }
-  if (["monitor", "inventory", "abc"].includes(kind)) output.set("days", input.get("days") ?? "30");
+  if (["monitor", "inventory", "abc"].includes(kind)) {
+    // Período personalizado deixou de ser descartado (E3): com from+to na URL,
+    // eles é que definem o período; days fica de fallback.
+    const from = input.get("from"), to = input.get("to");
+    if (from && to) { output.set("from", from); output.set("to", to); }
+    else output.set("days", input.get("days") ?? "30");
+  }
   return output.toString();
 }
 
 export function shopeeModuleHref(path: string, source: string, connectionId: string) {
   const input = new URLSearchParams(source), output = new URLSearchParams({ connection_id: connectionId });
-  for (const key of ["q", "days", "limit", "offset"]) input.getAll(key).forEach(value => output.append(key, value));
+  for (const key of ["q", "days", "from", "to", "limit", "offset"]) input.getAll(key).forEach(value => output.append(key, value));
   return `${path}?${output}`;
 }
 

@@ -105,7 +105,9 @@ test("os quatro monitores renderizam o estado do sync (Shopee/TikTok só na aba 
   const monitores = [
     ["../src/app/monitor/page.tsx", /<EstadoDoSync provider="amazon" \/>/],
     ["../src/app/components/MercadoLivreWorkspace.tsx", /<EstadoDoSync provider="mercado_livre" \/>/],
-    ["../src/app/components/ShopeeModulePage.tsx", /kind==="monitor"&&<EstadoDoSync provider="shopee"/],
+    // E3 (28/08/2026): o monitor virou componente próprio (ShopeeMonitorContent),
+    // que só renderiza para kind=monitor — o gate mudou de forma, não de fato.
+    ["../src/app/components/ShopeeModulePage.tsx", /<EstadoDoSync provider="shopee" connectionId=\{connectionId\}\/>/],
     // E2 (28/08/2026): o monitor virou componente próprio (MonitorContent),
     // que só renderiza para kind=monitor — o gate mudou de forma, não de fato.
     ["../src/app/components/TikTokModulePage.tsx", /<EstadoDoSync provider="tiktok_shop"/],
