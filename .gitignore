@@ -75,3 +75,6 @@ bash.exe.stackdump
 
 # Logs do dev server local
 .nexo-dev.*.log
+
+# Estado local do canvas Maestri (nunca commitar)
+.maestri/
