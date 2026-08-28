@@ -13,12 +13,13 @@ import { BaseDeData } from "./BaseDeData";
 import { EstadoDoSync } from "./EstadoDoSync";
 import { CustomizableMetricGrid } from "./CustomizableMetricGrid";
 import { Metric } from "./Metric";
+import { AvisoDeOcultos, FiltroDeAtividade } from "./FiltroDeAtividade";
 
 type Kind="monitor"|"finance"|"catalog"|"inventory"|"costs"|"abc";
 type Connection={id:string;displayName?:string;externalAccountId?:string};
 type ProviderIssue={status:"attention";code:"OWNERSHIP_CONFLICT"|"PROVIDER_READ_FAILED";message:string};
 type FinanceCoverage={status?:"complete"|"partial"|"blocked";terminal?:boolean;from?:string;to?:string;source?:"statement_ledger"|"per_order_fallback"|"schema_blocked";estimatesIncluded?:false;rejected?:number};
-type Payload={items?:Record<string,unknown>[];costs?:Record<string,unknown>[];availability?:string;page?:{limit:number;offset:number;total:number|null;hasMore:boolean};coverage?:FinanceCoverage|null;profitSubset?:{reason?:string};summary?:{confirmados:number;receita:number;conciliados:number;aguardandoExtrato:number;currency:string};code?:string;error?:string};
+type Payload={items?:Record<string,unknown>[];costs?:Record<string,unknown>[];availability?:string;atividade?:"ativos"|"inativos"|"todos";ocultados?:number;totalNoCanal?:number;page?:{limit:number;offset:number;total:number|null;hasMore:boolean};coverage?:FinanceCoverage|null;profitSubset?:{reason?:string};summary?:{confirmados:number;receita:number;conciliados:number;aguardandoExtrato:number;currency:string};code?:string;error?:string};
 const config:Record<Kind,{title:string;subtitle:string;endpoint:string;period:boolean}>={monitor:{title:"Monitor da conta",subtitle:"Pedidos e estado de conciliação, sem dados pessoais do comprador.",endpoint:"monitor",period:true},finance:{title:"Financeiro",subtitle:"Transações finais do ledger e cobertura dos extratos, sem estimativas.",endpoint:"finance",period:true},catalog:{title:"Anúncios",subtitle:"Catálogo publicado e variações em modo somente leitura.",endpoint:"catalog",period:false},inventory:{title:"Radar de estoque",subtitle:"Cobertura e risco de ruptura, sem projetar quando falta base de venda.",endpoint:"inventory",period:true},costs:{title:"Produtos",subtitle:"Custos por SKU exclusivos desta loja TikTok Shop.",endpoint:"costs",period:false},abc:{title:"Curva ABC",subtitle:"Receita por produto e participação acumulada no período.",endpoint:"abc",period:true}};
 const text=(v:unknown)=>v==null||v===""?"—":String(v);
 
@@ -48,6 +49,10 @@ function Filters({kind,sp,update}:{kind:Kind;sp:URLSearchParams;update:(v:Record
     {kind==="monitor"&&<><label><span>Pedido</span><input value={orderId} onChange={e=>setOrderId(e.target.value)} placeholder="ID exato do pedido"/></label><label><span>SKU</span><input value={sku} onChange={e=>setSku(e.target.value)} placeholder="SKU exato"/></label></>}
     {["monitor","catalog"].includes(kind)&&<label><span>Status</span><select value={status} onChange={e=>update({status:e.target.value||null})}><option value="">Todos</option>{(kind==="monitor"?["pending","paid","shipped","delivered","cancelled"]:TIKTOK_CATALOG_STATUSES).map(value=><option key={value} value={value}>{kind==="monitor"?rotuloStatusPedido(value):rotuloStatusProduto(value)}</option>)}</select></label>}
     {kind==="inventory"&&<label><span>Situação</span><select value={sp.get("filter")??""} onChange={e=>update({filter:e.target.value||null})}><option value="">Todos</option><option value="out">Sem estoque</option><option value="low">Estoque baixo</option><option value="no_sales">Sem vendas</option></select></label>}
+    {/* Só onde a pessoa cadastra custo: é ali que o inativo atrapalha. No
+        catálogo o seletor de Status acima já cobre, e dois seletores de status
+        na mesma barra confundiriam. */}
+    {kind==="costs"&&<FiltroDeAtividade atual={(sp.get("atividade")??"ativos") as "ativos"|"inativos"|"todos"} onChange={valor=>update({atividade:valor==="ativos"?null:valor,offset:null})}/>}
     {["monitor","catalog","inventory","costs"].includes(kind)&&<button className="listing-refresh" type="submit">Aplicar filtros</button>}
   </form>
 }
@@ -56,6 +61,7 @@ function ModuleContent({kind,body,sp,update,connectionId,retry}:{kind:Kind;body:
   const rows=(kind==="costs"?body.costs:body.items)??[];
   return <section className="channel-module-content" aria-live="polite">
     <ChannelModuleSummary kind={kind} rows={rows} total={body.page?.total}/>
+    {kind==="costs"&&<AvisoDeOcultos ocultados={body.ocultados} atividade={body.atividade} verTodos={()=>update({atividade:"todos",offset:null})}/>}
     <Filters kind={kind} sp={sp} update={update}/>
     {kind==="abc"&&<aside className="channel-module-notice is-warning"><strong>Lucro indisponível por SKU</strong><p>{body.profitSubset?.reason||"O contrato atual não permite atribuir lucro por produto com segurança."}</p></aside>}
     {kind==="abc"&&rows.length>0&&<TikTokAbcInsights rows={rows}/>}

@@ -7,6 +7,7 @@ import { parseTiktokConnectionId, tiktokConnectionId } from "./tiktokContract";
 import type { IntegrationConnection } from "./types";
 import { pageMetadata, pageRequest, periodRequest, TIKTOK_CATALOG_STATUSES, TiktokModuleError } from "./tiktokModuleContract";
 import { isFinancialSchemaMissing } from "./tiktokFinancialLedger";
+import { filtroDeAtividadeRequest, ocultadosPeloFiltro, STATUS_ATIVO } from "./filtroDeAtividade";
 export { pageRequest, periodRequest, TiktokModuleError, type PageRequest } from "./tiktokModuleContract";
 /* Database rows are converted at the boundary below; pg returns runtime-shaped records. */
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -84,11 +85,24 @@ export async function readMonitor(connection: IntegrationConnection, params: URL
 }
 
 export async function readCatalog(connection: IntegrationConnection, params: URLSearchParams) {
-  const page=pageRequest(params), q=queryText(params), state=statuses(params,new Set(TIKTOK_CATALOG_STATUSES));
+  const page=pageRequest(params), q=queryText(params);
+  // Filtro de status explícito continua mandando; quando ele não vem, o padrão
+  // passa a ser só os ativos (85 inativos para 15 ativos nesta loja). Ver
+  // `filtroDeAtividade.ts` — o inativo não some, deixa de ser o padrão.
+  const explicitos=statuses(params,new Set(TIKTOK_CATALOG_STATUSES));
+  const atividade=filtroDeAtividadeRequest(params);
+  const state=explicitos.length?explicitos
+    :atividade==="ativos"?[STATUS_ATIVO]
+    :atividade==="inativos"?TIKTOK_CATALOG_STATUSES.filter(s=>s!==STATUS_ATIVO)
+    :[];
   if (!hasDb()) return {items:[],page:{...page,total:0,hasMore:false},availability:"NOT_AVAILABLE" as const};
   const rows=await dbQuery<any>(`SELECT external_product_id,sku,title,status,provider_status,price,currency,available_qty,synced_at,COUNT(*) OVER()::int total FROM workspace_channel_products WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3 AND ($4='' OR title ILIKE '%'||$4||'%' OR sku ILIKE '%'||$4||'%' OR external_product_id ILIKE '%'||$4||'%') AND (cardinality($5::text[])=0 OR status=ANY($5::text[])) ORDER BY title,COALESCE(sku,''),external_product_id LIMIT $6 OFFSET $7`,[currentWorkspaceId(),PROVIDER,connection.id,q,state,page.limit,page.offset]);
   const items=rows.map((r:any)=>({productId:r.external_product_id,variationId:r.external_product_id,sku:r.sku,title:r.title,status:r.status,providerStatus:r.provider_status,price:r.price==null?null:Number(r.price),currency:r.currency,availableQty:r.available_qty==null?null:Number(r.available_qty),updatedAt:new Date(r.synced_at).toISOString()})); const total=rows[0]?.total??0;
-  return {items,page:{...page,total,hasMore:page.offset+items.length<total},availability:"AVAILABLE" as const};
+  // Quantos o filtro deixou de fora — sem este número a tela esconderia calada.
+  const totalNoCanal=state.length===0?total:Number((await dbQuery<any>(
+    `SELECT COUNT(*)::int total FROM workspace_channel_products WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3 AND ($4='' OR title ILIKE '%'||$4||'%' OR sku ILIKE '%'||$4||'%' OR external_product_id ILIKE '%'||$4||'%')`,
+    [currentWorkspaceId(),PROVIDER,connection.id,q]))[0]?.total??0);
+  return {items,page:{...page,total,hasMore:page.offset+items.length<total},atividade,totalNoCanal,ocultados:ocultadosPeloFiltro(totalNoCanal,total),availability:"AVAILABLE" as const};
 }
 
 export async function readFinance(connection: IntegrationConnection, params: URLSearchParams) {

@@ -8,6 +8,7 @@ import type { IntegrationConnection } from "./types";
 import { shopeeAbcClass, shopeePageRequest, shopeePeriodRequest, ShopeeModuleError } from "./shopeeModuleContract";
 import { withShopeeIntegrationWriteFence } from "./shopeeWriteFence";
 import { escolherConexaoPadrao } from "./conexaoPadrao";
+import { condicaoDeAtividade, filtroDeAtividadeRequest, ocultadosPeloFiltro, STATUS_ATIVO } from "./filtroDeAtividade";
 
 const PROVIDER = "shopee";
 type Row = Record<string, unknown>;
@@ -34,11 +35,21 @@ export function selectShopeeConnection(connections: IntegrationConnection[], req
 export async function readShopeeCatalog(connection: IntegrationConnection, params: URLSearchParams) {
   const page = shopeePageRequest(params), q = (params.get("q") ?? "").trim();
   if (q.length > 120) throw new ShopeeModuleError(400, "INVALID_SEARCH", "Busca muito longa.");
-  if (!hasDb()) return { items: [], page: { ...page, total: 0, hasMore: false }, availability: "NOT_AVAILABLE" as const };
-  const rows = await dbQuery<Row>(`SELECT external_product_id,sku,title,status,provider_status,price,currency,available_qty,thumbnail,permalink,synced_at,COUNT(*) OVER()::int total FROM workspace_channel_products WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3 AND ($4='' OR title ILIKE '%'||$4||'%' OR COALESCE(sku,'') ILIKE '%'||$4||'%' OR external_product_id ILIKE '%'||$4||'%') ORDER BY title,COALESCE(sku,''),external_product_id LIMIT $5 OFFSET $6`, [currentWorkspaceId(), PROVIDER, connection.id, q, page.limit, page.offset]);
+  // Anúncio inativo sai da frente por padrão — 265 de 372 nesta loja. Ver
+  // `filtroDeAtividade.ts`: o inativo não some, só deixa de ser o padrão.
+  const atividade = filtroDeAtividadeRequest(params);
+  if (!hasDb()) return { items: [], page: { ...page, total: 0, hasMore: false }, atividade, totalNoCanal: 0, ocultados: 0, availability: "NOT_AVAILABLE" as const };
+  const escopo = [currentWorkspaceId(), PROVIDER, connection.id];
+  const rows = await dbQuery<Row>(`SELECT external_product_id,sku,title,status,provider_status,price,currency,available_qty,thumbnail,permalink,synced_at,COUNT(*) OVER()::int total FROM workspace_channel_products WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3 AND ($4='' OR title ILIKE '%'||$4||'%' OR COALESCE(sku,'') ILIKE '%'||$4||'%' OR external_product_id ILIKE '%'||$4||'%')${condicaoDeAtividade("status", 7, atividade)} ORDER BY title,COALESCE(sku,''),external_product_id LIMIT $5 OFFSET $6`, atividade === "todos" ? [...escopo, q, page.limit, page.offset] : [...escopo, q, page.limit, page.offset, STATUS_ATIVO]);
   const items = rows.map(r => ({ productId: String(r.external_product_id), sku: r.sku == null ? null : String(r.sku), title: String(r.title), status: String(r.status), providerStatus: String(r.provider_status), price: r.price == null ? null : Number(r.price), currency: String(r.currency), availableQty: r.available_qty == null ? null : Number(r.available_qty), thumbnail: r.thumbnail == null ? null : String(r.thumbnail), permalink: r.permalink == null ? null : String(r.permalink), updatedAt: new Date(String(r.synced_at)).toISOString() }));
   const total = Number(rows[0]?.total ?? 0);
-  return { items, page: { ...page, total, hasMore: page.offset + items.length < total }, availability: "AVAILABLE" as const };
+  // O total do canal (sem o filtro, com a busca) é o que permite dizer QUANTOS
+  // ficaram de fora. Sem esse número a tela esconderia sem avisar.
+  const totalNoCanal = atividade === "todos" ? total : Number((await dbQuery<Row>(
+    `SELECT COUNT(*)::int total FROM workspace_channel_products WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3 AND ($4='' OR title ILIKE '%'||$4||'%' OR COALESCE(sku,'') ILIKE '%'||$4||'%' OR external_product_id ILIKE '%'||$4||'%')`,
+    [...escopo, q]
+  ))[0]?.total ?? 0);
+  return { items, page: { ...page, total, hasMore: page.offset + items.length < total }, atividade, totalNoCanal, ocultados: ocultadosPeloFiltro(totalNoCanal, total), availability: "AVAILABLE" as const };
 }
 
 export async function readShopeeInventory(connection: IntegrationConnection, params: URLSearchParams) {

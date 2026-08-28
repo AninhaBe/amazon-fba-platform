@@ -6,6 +6,8 @@ import { PageHeader, pageIcons } from "../../components/PageHeader";
 import { TableLoading } from "../../components/LoadingState";
 import { Pagination } from "../../components/Pagination";
 import { useAnchoredField } from "../../components/useAnchoredField";
+import { AvisoDeOcultos, FiltroDeAtividade } from "../../components/FiltroDeAtividade";
+import type { FiltroDeAtividade as FiltroDeAtividadeValor } from "@/lib/integrations/filtroDeAtividade";
 
 const PAGE_SIZE = 30;
 export const MERCADO_LIVRE_TAX_RATE_ANCHOR = "mercado-livre-aliquota";
@@ -38,16 +40,21 @@ export default function MercadoLivreProdutosPage() {
   const [taxState, setTaxState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [taxError, setTaxError] = useState<string | null>(null);
   const [costFilter, setCostFilter] = useState<"all" | "missing" | "complete">("all");
+  // Padrão "ativos": medido em 28/08/2026 nesta conta, 365 pausados para 26
+  // ativos. Ver `filtroDeAtividade.ts` — o inativo continua a um clique.
+  const [atividade, setAtividade] = useState<FiltroDeAtividadeValor>("ativos");
+  const [ocultados, setOcultados] = useState(0);
   const [page, setPage] = useState(1);
   const taxInputRef = useAnchoredField(MERCADO_LIVRE_TAX_RATE_ANCHOR);
 
   useEffect(() => {
     const controller = new AbortController();
     void Promise.all([
-      fetch("/api/integrations/mercado-livre/products", { cache: "no-store", signal: controller.signal }).then(async (response) => {
+      fetch(`/api/integrations/mercado-livre/products?atividade=${atividade}`, { cache: "no-store", signal: controller.signal }).then(async (response) => {
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "Não foi possível carregar os produtos.");
         setProducts(data.products);
+        setOcultados(Number(data.ocultados ?? 0));
         setDraftCosts(Object.fromEntries(data.products.map((product: Product) => [product.costId, product.cost == null ? "" : String(product.cost)])));
       }),
       fetch("/api/integrations/mercado-livre/settings", { cache: "no-store", signal: controller.signal }).then(async (response) => {
@@ -63,7 +70,9 @@ export default function MercadoLivreProdutosPage() {
       if (!controller.signal.aborted) setLoading(false);
     });
     return () => controller.abort();
-  }, []);
+    // `atividade` entra nas dependências: trocar o recorte busca de novo no
+    // servidor. Filtrar no cliente contaria errado o "N no recorte".
+  }, [atividade]);
 
   async function saveCost(product: Product, cost: number) {
     const previous = product.cost;
@@ -176,8 +185,10 @@ export default function MercadoLivreProdutosPage() {
     {!loading && products.length > 0 && <section className="listing-controls cols-3" aria-label="Filtros dos produtos">
       <label className="listing-search"><span className="sr-only">Buscar produto</span><input value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="Buscar produto, SKU ou código" /></label>
       <select value={costFilter} onChange={(event) => { setCostFilter(event.target.value as typeof costFilter); setPage(1); }} aria-label="Filtrar cobertura de custo"><option value="all">Todos os custos</option><option value="missing">Sem custo</option><option value="complete">Com custo</option></select>
+      <FiltroDeAtividade atual={atividade} onChange={(valor) => { setAtividade(valor); setPage(1); }} />
       <span className="listing-filter-context">{visibleProducts.length} no recorte</span>
     </section>}
+    {!loading && <AvisoDeOcultos ocultados={ocultados} atividade={atividade} verTodos={() => { setAtividade("todos"); setPage(1); }} />}
 
     <section className="listing-table-shell product-table-shell" aria-labelledby="ml-product-results">
       <header><div><p className="section-kicker">Base de custos</p><h2 id="ml-product-results">{loading ? "Carregando produtos" : `${visibleProducts.length} ${visibleProducts.length === 1 ? "produto encontrado" : "produtos encontrados"}`}</h2></div><p>{withCost} de {products.length} com custo cadastrado</p></header>
