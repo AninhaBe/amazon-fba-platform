@@ -170,9 +170,13 @@ export function TikTokWorkspace() {
   if (!data) return <WorkspaceFrame action={selector}><DashboardSkeleton /></WorkspaceFrame>;
 
   const syncPhase = data.sync.phase;
+  // REGRA DE PRODUTO (28/08/2026, a mesma validada na Shopee): erro de sync com
+  // overview cheio NÃO esconde o dashboard — vira banner interno. O takeover de
+  // tela só existe quando não há dado nenhum para mostrar.
+  const temDado = Boolean(data.overview && data.coverage);
   if (syncPhase === "first_sync") return <SyncState phase={syncPhase} onRetry={retry} headerAction={selector} />;
-  if (syncPhase === "retryable_error") return <SyncState phase={syncPhase} onRetry={retry} headerAction={selector} syncError={data.sync.error} />;
-  if (syncPhase === "reauth_required") return <SyncState phase={syncPhase} reconnectHref={provider.connectHref || "/api/tiktok/login"} headerAction={selector} />;
+  if (syncPhase === "retryable_error" && !temDado) return <SyncState phase={syncPhase} onRetry={retry} headerAction={selector} syncError={data.sync.error} />;
+  if (syncPhase === "reauth_required" && !temDado) return <SyncState phase={syncPhase} reconnectHref={provider.connectHref || "/api/tiktok/login"} headerAction={selector} />;
   if (syncPhase === "unavailable") return <SyncState phase={syncPhase} onRetry={retry} headerAction={selector} />;
   if (!data.overview || !data.coverage) return <SyncState phase="first_sync" onRetry={retry} headerAction={selector} />;
 
@@ -242,9 +246,20 @@ export function TikTokWorkspace() {
     <IntegrationDashboardFrame
       className="channel-dashboard tiktok-dashboard-page"
       period={<DashboardPeriodFilter {...period.filterProps} />}
-      header={<PageHeader eyebrow="TikTok Shop" title={data.connection.name} subtitle={`${data.connection.region} · ${phase === "ready" ? "Dados sincronizados" : "Sincronizando"}`} action={selector} />}
+      header={<PageHeader eyebrow="TikTok Shop" title={data.connection.name} subtitle={`${data.connection.region} · ${phase === "ready" ? "Dados sincronizados" : phase === "retryable_error" || phase === "reauth_required" ? "Sincronização interrompida" : "Sincronizando"}`} action={selector} />}
     >
       <div className="dashboard-sections integration-dashboard-sections tiktok-dashboard-body">
+        {/* Sync interrompido com dado na tela: banner, nunca takeover — os
+            números continuam visíveis (podem estar defasados) e a ação de
+            destravar mora aqui. */}
+        {(syncPhase === "retryable_error" || syncPhase === "reauth_required") && (
+          <AvisoDeSyncInterrompido
+            phase={syncPhase}
+            syncError={data.sync.error}
+            onRetry={retry}
+            reconnectHref={provider.connectHref || "/api/tiktok/login"}
+          />
+        )}
         {/* A MESMA leitura do NEXO dos outros canais — uma narracao por dia por
         workspace, nao uma por canal. So aparece se ja estiver escrita. */}
         <NexoDoDia />
@@ -527,6 +542,35 @@ function PendenciaNotice({ title, pendencias }: { title: string; pendencias: Tik
           </li>
         ))}
       </ul>
+    </aside>
+  );
+}
+
+/**
+ * Banner interno para sync interrompido COM dashboard cheio atrás (regra de
+ * produto de 28/08/2026, a mesma da Shopee): erro não engole a tela — os
+ * números seguem visíveis e a ação de destravar fica no aviso.
+ */
+function AvisoDeSyncInterrompido({ phase, syncError, onRetry, reconnectHref }: { phase: "retryable_error" | "reauth_required"; syncError?: TiktokOverviewResponse["sync"]["error"]; onRetry: () => void; reconnectHref: string }) {
+  if (phase === "reauth_required") {
+    return (
+      <aside role="alert" className="channel-module-notice is-warning">
+        <strong>Autorização da loja expirou</strong>
+        <p>
+          A sincronização parou e os números abaixo podem estar defasados.{" "}
+          <Link className="text-blue-600 underline" href={reconnectHref}>Reconectar loja <span aria-hidden="true">→</span></Link>
+        </p>
+      </aside>
+    );
+  }
+  const detalhe = tiktokSyncErrorContent(syncError ?? null);
+  return (
+    <aside role="alert" className="channel-module-notice is-warning">
+      <strong>{detalhe.title}</strong>
+      <p>
+        {detalhe.description}
+        {detalhe.retryable !== false && <>{" "}<button type="button" className="text-blue-600 underline" onClick={onRetry}>Tentar novamente</button></>}
+      </p>
     </aside>
   );
 }
