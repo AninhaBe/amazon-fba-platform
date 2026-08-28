@@ -5537,7 +5537,13 @@ summary:hover { background: var(--paper-soft); }
 .tiktok-operations-disclosure[open] > summary svg { rotate: 180deg; }
 .tiktok-attention-summary > summary::before,
 .pendencias-agrupadas > summary::before { content: ""; width: 7px; height: 7px; flex: none; border-radius: 999px; background: var(--warning); }
-.tiktok-attention-summary > summary > span { margin-inline-end: auto; }
+/* `space-between` no summary espalha os TRES itens (bolinha, texto, chevron):
+   sem este `auto`, o texto vai parar no meio, com um vazio enorme depois da
+   bolinha. Foi o que a Ana viu na Shopee em 28/08/2026 — o alias herdou o
+   `space-between` mas nao esta regra, que e justamente a que cola o texto no
+   marcador e empurra so o chevron para a direita. */
+.tiktok-attention-summary > summary > span,
+.pendencias-agrupadas > summary > span { margin-inline-end: auto; }
 .tiktok-attention-details,
 .pendencias-agrupadas-detalhe { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); border-block-start: 1px solid var(--ink-08); }
 .tiktok-attention-details .channel-module-notice,

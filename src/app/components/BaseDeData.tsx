@@ -97,8 +97,11 @@ export function ProgressoDaImportacao({ progresso, cobreDesde, emImportacao, ped
         {cobreDesde && (
           <>
             os números abaixo cobrem a partir de <strong>{brDate(new Date(cobreDesde))}</strong>
+            {/* As duas clausulas dizem coisas DIFERENTES e as duas continuam:
+                "ainda esta sendo importado" = vem mais historico; "comeca ai" =
+                nao vem. Colapsar na contagem apagava essa distincao. */}
             {emImportacao
-              ? <> ({importados.toLocaleString("pt-BR")} pedido(s) já importado(s))</>
+              ? <> — o início do período ainda está sendo importado ({importados.toLocaleString("pt-BR")} pedido(s) já importado(s))</>
               : <> — o histórico importado começa aí</>}
           </>
         )}

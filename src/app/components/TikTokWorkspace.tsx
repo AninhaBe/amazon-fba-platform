@@ -24,7 +24,7 @@ import { brDate } from "@/lib/datetime";
 import { coberturaDoPeriodo, periodoDaQuery } from "@/lib/coberturaPeriodo";
 import { SincronizacaoCompleta } from "./SincronizacaoCompleta";
 import { marginMetricTone } from "@/lib/marginTone";
-import { BaseDeData } from "./BaseDeData";
+import { BaseDeData, ProgressoDaImportacao } from "./BaseDeData";
 import {
   coverageDescription,
   effectiveTiktokDashboardPhase,
@@ -289,14 +289,6 @@ export function TikTokWorkspace() {
               : []
           }
         />
-        {coberturaHistorico && !coberturaHistorico.periodoCoberto && coberturaHistorico.cobreDesde && (
-          <div role="status" className="integration-message">
-            Os números abaixo cobrem a partir de {brDate(new Date(coberturaHistorico.cobreDesde))}
-            {coberturaHistorico.emImportacao
-              ? <> — o início do período ainda está sendo importado ({data.sync.processedOrders} pedido(s) já importado(s)).</>
-              : <> — o histórico importado começa aí.</>}
-          </div>
-        )}
         <SincronizacaoCompleta
           connectionId={data.connection.id}
           status={data.sync.status}
@@ -304,7 +296,12 @@ export function TikTokWorkspace() {
         />
 
         {financialBlocked ? (
-          <StatusNotice title="Financeiro indisponível neste ambiente">A estrutura do ledger financeiro ainda não está disponível. Vendas e catálogo continuam visíveis, mas taxas e resultado permanecem desconhecidos; nenhum valor foi convertido em zero.</StatusNotice>
+          /* Estado do AMBIENTE, nao pendencia da vendedora e nao acao de
+             ninguem: nao muda enquanto o ledger nao existir. Vira linha, mesmo
+             texto, colada nos numeros que ela qualifica. */
+          <p className="base-de-data" role="status">
+            Financeiro indisponível neste ambiente: a estrutura do ledger financeiro ainda não está disponível. Vendas e catálogo continuam visíveis, mas taxas e resultado permanecem desconhecidos; nenhum valor foi convertido em zero.
+          </p>
         ) : (
           <>
             {/* Primeiro o que ela resolve hoje; depois o que só a TikTok resolve.
@@ -325,10 +322,21 @@ export function TikTokWorkspace() {
               </details>
             )}
             {phase === "partial" && pendencias.length === 0 && (
-              <StatusNotice title="Sincronização em andamento">Os números aparecem somente quando cada componente está completo. Nenhum é apresentado como definitivo antes disso.</StatusNotice>
+              /* Progresso com peso de alarme virou linha discreta: mesmo texto,
+                 mesma condicao, agora junto do numero que ele explica. */
+              <p className="base-de-data" role="status">
+                Sincronização em andamento: os números aparecem somente quando cada componente está completo. Nenhum é apresentado como definitivo antes disso.
+              </p>
             )}
           </>
         )}
+        {/* Mesma linha unica dos outros tres canais: o que era faixa de
+            largura total agora e contexto colado na faixa de metricas. */}
+        <ProgressoDaImportacao
+          cobreDesde={coberturaHistorico && !coberturaHistorico.periodoCoberto ? coberturaHistorico.cobreDesde : null}
+          emImportacao={coberturaHistorico?.emImportacao}
+          pedidosImportados={data.sync.processedOrders}
+        />
         {/* Vale para a faixa E para o painel de composicao abaixo dela: mesmo
             os valores que vem do extrato oficial entram por data do pedido. */}
         <BaseDeData base="pedido-extrato" />
@@ -521,9 +529,6 @@ function RetryButton({ onClick }: { onClick: () => void }) {
   return <button type="button" onClick={onClick} className="meli-primary-action min-h-11 active:scale-[0.96] transition-transform">Tentar novamente</button>;
 }
 
-function StatusNotice({ title, children }: { title: string; children: React.ReactNode }) {
-  return <aside className="channel-module-notice is-warning" role="status"><strong>{title}</strong><p>{children}</p></aside>;
-}
 
 /**
  * A pendência diz o que falta, com número, e só oferece link quando existe algo
