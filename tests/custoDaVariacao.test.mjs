@@ -11,6 +11,23 @@ import test from "node:test";
 // ⚠️ Decisão que depende de ninguém escrever uma linha não é decisão, é sorte.
 // Estes testes são a linha que ninguém escreve sem quebrar a suíte.
 
+// ⚠️ TODO NO LOTE DA IMPLEMENTAÇÃO DO ADR-029 — a PORTA 1 vira teste DE
+// COMPORTAMENTO, e este aqui deixa de bastar.
+//
+// Reparo do Delta em 28/08/2026, e ele está certo: o teste abaixo afirma o
+// FORMATO da chave e o precedente do TikTok, mas NÃO afirma o que a Condição 1
+// exige de fato — que o `productId` que CHEGA ao `shopeeCostId`, numa linha de
+// variação, seja o composto. Se alguém implementar o catálogo por variação
+// passando o id BASE, estes testes continuam verdes e a porta reabre em
+// silêncio. Hoje isso é intestável: o código que passaria o id ainda não existe.
+//
+// A asserção que realmente tranca, para escrever quando ele existir:
+//   dado um custo gravado em `item:<anúncio>` e uma linha de catálogo de
+//   variação SEM `model_sku`, a busca de custo tem que devolver UNDEFINED —
+//   nunca herdar o custo do anúncio.
+//
+// Enquanto isso não existe, o que está abaixo documenta a intenção. O risco de
+// deixar assim sem dizer é o pior tipo: sensação de cobertura.
 test("PORTA 1: a chave de custo da variação usa o id COMPOSTO, nunca o id base do anúncio", async () => {
   const fonte = await readFile(new URL("../src/lib/integrations/shopeeOverviewCanonical.ts", import.meta.url), "utf8");
   // A chave só tem dois formatos: `sku:<sku>` quando há SKU, `item:<produto>` quando não há.
