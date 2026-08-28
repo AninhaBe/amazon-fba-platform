@@ -12,7 +12,7 @@ import { DashboardPeriodFilter, useDashboardPeriod } from "../components/Dashboa
 import type { OperationPendingItem } from "../components/OperationPending";
 import { Metric as Kpi, CompactMetric, getRevenueTrend } from "../components/Metric";
 import { amazonFinancialCards, diasSemAnuncio, type AmazonAdsInput } from "./amazonFinancialCards";
-import { AnimatedNumber } from "../components/AnimatedNumber";
+import { AnimatedNumber, identidadeDePeriodo } from "../components/AnimatedNumber";
 import { OrderProfitabilityTable } from "../components/OrderProfitabilityTable";
 import { AnunciosPorProduto, type AnuncioDeProduto } from "../components/AnunciosPorProduto";
 import { ConnectionBroken, isBrokenConnection } from "../components/ConnectionBroken";
@@ -660,7 +660,7 @@ export default function Dashboard() {
                   tone={card.tone}
                   loading={loading}
                   value={card.raw != null
-                    ? <AnimatedNumber periodo={cobertura ? `${cobertura.periodo.from}|${cobertura.periodo.to}` : undefined} id="amz-profit" value={card.raw} format={(amount) => money(amount, currency)} />
+                    ? <AnimatedNumber periodo={cobertura ? identidadeDePeriodo(cobertura.periodo.from, cobertura.periodo.to) : undefined} id="amz-profit" value={card.raw} format={(amount) => money(amount, currency)} />
                     : card.value}
                   // O texto explicativo saiu de baixo do número e foi para o
                   // "i", a pedido dela em 24/08/2026: "todos esses textos que
@@ -676,7 +676,7 @@ export default function Dashboard() {
                   key={card.key}
                   label={card.label}
                   value={loading ? "…" : card.key === "revenue" && (faturamento || card.raw != null)
-                    ? <AnimatedNumber periodo={cobertura ? `${cobertura.periodo.from}|${cobertura.periodo.to}` : undefined} id="amz-revenue" value={faturamento?.revenue ?? card.raw ?? 0} format={(amount) => money(amount, currency)} />
+                    ? <AnimatedNumber periodo={cobertura ? identidadeDePeriodo(cobertura.periodo.from, cobertura.periodo.to) : undefined} id="amz-revenue" value={faturamento?.revenue ?? card.raw ?? 0} format={(amount) => money(amount, currency)} />
                     : card.value}
                   // TUDO que explicava o número embaixo dele agora mora no "i".
                   // O card mostra rótulo e valor; a explicação aparece ao passar

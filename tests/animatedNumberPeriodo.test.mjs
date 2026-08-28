@@ -26,15 +26,29 @@ async function ler(caminho) {
   return readFile(new URL(`../${caminho}`, import.meta.url), "utf8");
 }
 
-test("AnimatedNumber so anima com o periodo declarado e inalterado", async () => {
+test("a contagem nunca parte do valor de OUTRO periodo", async () => {
   const fonte = await ler("src/app/components/AnimatedNumber.tsx");
-  // Sem `periodo` declarado nao ha como saber se o valor novo e do mesmo
-  // recorte — e na duvida nao se anima.
+  // Esta e a linha inteira do conserto: `from` so pode ser o numero anterior
+  // quando o recorte e o mesmo. Trocou de recorte, parte do ZERO — zero nao e
+  // total de periodo nenhum, entao nenhum quadro afirma valor alheio.
+  assert.match(fonte, /const from = trocou \? 0 : displayedRef\.current;/);
   assert.match(fonte, /periodo !== undefined && periodoRef\.current === periodo/);
-  // O caminho que pinta direto tem de incluir o caso "recorte diferente".
-  assert.match(fonte, /if \(reduceMotion \|\| !mesmoPeriodo \|\| from === value\)/);
-  // A memoria entre montagens tambem exige o mesmo periodo.
+  // Sem `periodo` declarado nao da para saber de que recorte o valor e: pinta
+  // direto. Esse e o default seguro, e ele nao pode sumir.
+  assert.match(fonte, /if \(reduceMotion \|\| \(!mesmoPeriodo && !trocou\) \|\| from === value\)/);
+  // A memoria entre montagens (caminho com esqueleto) segue a mesma regra.
   assert.match(fonte, /periodo !== undefined && lembrado\?\.periodo === periodo/);
+  assert.match(fonte, /const seed = trocaDeRecorte \? 0 :/);
+});
+
+test("o primeiro quadro da troca e zero, nao o valor que estava na tela", async () => {
+  const fonte = await ler("src/app/components/AnimatedNumber.tsx");
+  // O ajuste no render acontece ANTES da pintura. Se alguem trocar este `0`
+  // pelo valor anterior, volta o defeito de 28/08/2026 (numero de "hoje" sob o
+  // rotulo "7 dias"); se trocar pelo valor NOVO, some a contagem que a dona do
+  // produto pediu de volta. As duas regressoes caem aqui.
+  const bloco = fonte.slice(fonte.indexOf("if (periodo !== periodoAnterior)"), fonte.indexOf("useEffect("));
+  assert.match(bloco, /setDisplayed\(0\);/);
 });
 
 test("toda tela que usa AnimatedNumber declara o periodo do numero", async () => {
@@ -65,6 +79,15 @@ test("a identidade do periodo e string derivada, nunca objeto novo por render", 
         /^\s*\{|^\s*\[/,
         `${caminho}: a identidade do periodo precisa ser string comparavel por valor, nao objeto/array.`
       );
+      // E precisa ser ESTAVEL dentro do mesmo recorte. O `to` que as rotas de
+      // overview devolvem e "agora", com milissegundos: interpolado cru, a
+      // resposta do cache e a da revalidacao viram periodos diferentes e a
+      // contagem reinicia do zero no meio. Use `identidadeDePeriodo`.
+      assert.doesNotMatch(
+        valor,
+        /\$\{[^}]*\.to\}/,
+        `${caminho}: nao interpole o \`to\` cru na identidade do periodo — ele muda a cada resposta.`
+      );
     }
   }
 });
@@ -84,15 +107,21 @@ test("o ajuste no render compara por valor e nao pode virar loop", async () => {
   assert.doesNotMatch(bloco, /Ref\.current\s*=/, "refs nao podem ser tocados durante o render");
 });
 
-test("a contagem no MESMO periodo e a animacao de entrada continuam existindo", async () => {
+test("uma duracao e uma curva so, para os dois casos de contagem", async () => {
   const fonte = await ler("src/app/components/AnimatedNumber.tsx");
-  // A contagem so sai quando o RECORTE muda. Dentro do mesmo periodo ela e o
-  // efeito que a dona do produto pediu de volta em 28/08/2026 — some daqui e
-  // some da tela.
+  // Mesmo periodo e troca de periodo usam a MESMA animacao. Uma segunda curva
+  // aqui faria a troca parecer outro efeito, e nao e isso que foi pedido.
   assert.match(fonte, /requestAnimationFrame\(step\)/);
-  assert.match(fonte, /DURATION_MS = 550/);
+  assert.equal(fonte.match(/DURATION_MS = 550/g)?.length, 1);
+  assert.equal(fonte.match(/const startedAt = performance\.now\(\)/g)?.length, 1);
   assert.match(fonte, /easeOutCubic/);
-  // A entrada (fade + subida) depende da chave no span; sem ela a troca volta
-  // a ser seca, que foi a reclamacao anterior.
-  assert.match(fonte, /className="numero-animado" key=\{periodo\}/);
+  // prefers-reduced-motion continua saindo antes de qualquer quadro animado.
+  assert.match(fonte, /matchMedia\("\(prefers-reduced-motion: reduce\)"\)/);
+  // A entrada (fade + subida) NAO pode voltar a remontar o span a cada troca:
+  // o fade de 180ms esconderia o comeco da contagem de 550ms.
+  // Olha o JSX, nao o comentario: o proprio comentario explica por que a chave
+  // saiu, entao procurar o texto no arquivo inteiro sempre acharia.
+  const jsx = /return <span[^>]*>/.exec(fonte)?.[0] ?? "";
+  assert.match(jsx, /className="numero-animado"/);
+  assert.doesNotMatch(jsx, /key=/);
 });

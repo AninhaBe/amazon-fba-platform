@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 
-// Rola o número do valor exibido até o novo em ~550ms (ease-out). Na primeira
-// aparição mostra o valor real de imediato (sem contar do zero — em valores
-// altos a contagem parecia bug); anima quando o valor muda (troca de período).
-// Sob prefers-reduced-motion o valor final aparece de imediato.
+// Rola o número até o valor novo em ~550ms (ease-out). Na primeira aparição
+// mostra o valor real de imediato — contar do zero na estreia, em valor alto,
+// parecia bug. Depois disso todo valor novo é contado: do número anterior
+// quando o período é o mesmo, do zero quando o período muda.
+// Sob prefers-reduced-motion o valor final aparece de imediato, sem movimento.
 //
 // `id` (opcional) guarda o último valor exibido por instância num escopo de
 // módulo. Ao trocar de período um skeleton pisca e o componente desmonta/remonta;
@@ -13,21 +14,40 @@ import { useEffect, useRef, useState } from "react";
 // parte do valor anterior — sem precisar manter conteúdo pesado montado durante
 // o loading.
 //
-// ⚠️ `periodo`: TROCA DE PERÍODO NÃO ANIMA.
+// ⚠️ `periodo`: TROCA DE PERÍODO CONTA A PARTIR DO ZERO.
 //
 // Medido em produção em 28/08/2026: no caminho com cache (sem skeleton), o
 // primeiro quadro depois do clique mostrava o valor do período ANTERIOR sob o
 // rótulo do período NOVO — a Ana mandou print com R$ 325,91 de "hoje" embaixo
-// de "7 dias". A contagem de 550ms não era lentidão: era a tela afirmando um
-// número que não é daquele período.
+// de "7 dias". O defeito nunca foi o movimento: era a tela AFIRMAR um número
+// que pertence a outro recorte. Número real, plausível e parado se confunde
+// com verdade.
 //
-// A animação continua onde ela é honesta: quando o MESMO período recebe valor
-// novo (revalidação, dado chegando), contar comunica "isto mudou". Quando o
-// período muda, o valor aparece direto.
+// Zero não se confunde com nada: não é o total de recorte nenhum, e sobe na
+// frente da pessoa — o movimento diz sozinho que é animação, não afirmação.
+// Então a troca de período volta a ter contagem, só que partindo de zero, com
+// a MESMA duração e a mesma curva da contagem de sempre.
 //
 // A identidade vem por PROP, não por heurística: adivinhar "mudou muito, deve
 // ser outro período" erraria nos dois sentidos — dois períodos com o mesmo
 // total não animariam, e uma venda grande no mesmo período pareceria troca.
+
+/**
+ * Identidade estável de um recorte, a partir do período que a API devolve.
+ *
+ * ⚠️ Não use `to` cru. Medido em 28/08/2026: as rotas de overview devolvem
+ * `to` = agora, com milissegundos (`2026-08-28T22:24:40.014Z`). Duas respostas
+ * do MESMO recorte — a do cache e a da revalidação que chega logo atrás —
+ * carregam `to` diferente, e para o componente isso parecia troca de período:
+ * a contagem reiniciava do zero no meio, e sob `prefers-reduced-motion` dava
+ * um piscar de R$ 0,00 sem movimento nenhum para explicá-lo.
+ *
+ * O dia basta para separar os recortes que existem (os presets são janelas de
+ * dias inteiros) e é igual entre as duas respostas.
+ */
+export function identidadeDePeriodo(from: string, to: string): string {
+  return `${from}|${to.slice(0, 10)}`;
+}
 
 const DURATION_MS = 550;
 const lastValueById = new Map<string, { valor: number; periodo: string | undefined }>();
@@ -47,12 +67,17 @@ export function AnimatedNumber({ id, value, format, periodo }: {
   periodo?: string;
 }) {
   const lembrado = id !== undefined ? lastValueById.get(id) : undefined;
+  // Troca de RECORTE (ha memoria deste id, de outro periodo) comeca do zero e
+  // conta ate o valor novo. Primeira aparicao (sem memoria) continua entrando
+  // direto: contar do zero na estreia parecia bug em valor alto, e isso ja
+  // estava decidido antes.
+  const trocaDeRecorte = lembrado !== undefined && periodo !== undefined && lembrado.periodo !== periodo;
   // Semente só vale se for comprovadamente do MESMO período. Sem `periodo`, o
   // componente NÃO herda valor entre montagens — o padrão é o seguro: quem não
   // declara o período nunca anima a partir do número de outro. Dentro de uma
   // mesma montagem a animação segue normal (é o caso honesto: mesmo período,
   // valor novo chegando).
-  const seed = periodo !== undefined && lembrado?.periodo === periodo ? lembrado.valor : value;
+  const seed = trocaDeRecorte ? 0 : periodo !== undefined && lembrado?.periodo === periodo ? lembrado.valor : value;
   const [displayed, setDisplayed] = useState(seed);
   const displayedRef = useRef(seed);
   const periodoRef = useRef(periodo);
@@ -81,10 +106,13 @@ export function AnimatedNumber({ id, value, format, periodo }: {
     setPeriodoAnterior(periodo);
     // O React re-renderiza antes de pintar: nao sobra quadro com o valor do
     // recorte anterior.
-    setDisplayed(value);
+    // ZERO, nao o valor novo: e o primeiro quadro da contagem. O que nao pode
+    // aparecer aqui e o valor REAL do periodo anterior — numero plausivel e
+    // parado, que se confunde com verdade. Zero em movimento nao se confunde:
+    // ele sobe na frente da pessoa e nunca foi o total de recorte nenhum.
+    setDisplayed(0);
     // Os refs NAO sao tocados aqui: `react-hooks/refs` proibe acessa-los no
-    // render, e nao e preciso — o efeito abaixo ja detecta a troca de periodo
-    // (`mesmoPeriodo` falso), pinta direto e ressincroniza os dois.
+    // render. O efeito abaixo detecta a troca e conta a partir do zero.
   }
 
   useEffect(() => {
@@ -92,23 +120,25 @@ export function AnimatedNumber({ id, value, format, periodo }: {
       if (id !== undefined) lastValueById.set(id, { valor: current, periodo });
     };
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    // ⚠️ ANIMAR EXIGE PROVA DE QUE O RECORTE E O MESMO.
+    // ⚠️ ANIMAR A PARTIR DO NÚMERO ANTERIOR EXIGE PROVA DE QUE O RECORTE É O
+    // MESMO — e só isso.
     //
-    // A Amazon falhou na medicao de 28/08/2026 justamente por depender da
-    // disciplina de quem usa: ela nao passava `periodo`, e como no caminho com
-    // cache nao ha esqueleto o componente NAO desmonta — o valor anterior
-    // sobrevive na propria instancia e a animacao partia dele. O default
-    // anterior so protegia a remontagem.
+    // A Amazon falhou na medição de 28/08/2026 justamente por depender da
+    // disciplina de quem usa: ela não passava `periodo`, e como no caminho com
+    // cache não há esqueleto o componente NÃO desmonta — o valor anterior
+    // sobrevive na própria instância e a contagem partia dele.
     //
-    // Agora a regra e uma so: anima somente quando o chamador DECLARA o periodo
-    // e ele nao mudou. Sem declaracao nao da para saber se o valor novo e do
-    // mesmo recorte, e na duvida vale o seguro — animacao e enfeite, numero de
-    // outro periodo e defeito. Quem esquecer a prop perde a animacao, nunca
-    // ganha um numero errado.
+    // Três caminhos, um critério: mesmo período conta de onde estava (valor novo
+    // chegando é mudança real); período declarado e diferente conta do zero; sem
+    // `periodo` declarado, pinta direto. Quem esquecer a prop perde o efeito,
+    // nunca ganha um número de outro recorte.
     const mesmoPeriodo = periodo !== undefined && periodoRef.current === periodo;
+    const trocou = periodoRef.current !== periodo;
     periodoRef.current = periodo;
-    const from = displayedRef.current;
-    if (reduceMotion || !mesmoPeriodo || from === value) {
+    // Recorte novo conta do zero; mesmo recorte conta de onde estava. Uma
+    // duracao e uma curva so — nao existe segunda animacao aqui.
+    const from = trocou ? 0 : displayedRef.current;
+    if (reduceMotion || (!mesmoPeriodo && !trocou) || from === value) {
       displayedRef.current = value;
       remember(value);
       setDisplayed(value);
@@ -127,16 +157,17 @@ export function AnimatedNumber({ id, value, format, periodo }: {
     return () => cancelAnimationFrame(frameRef.current);
   }, [value, id, periodo]);
 
-  // TROCA DE PERIODO TEM MOVIMENTO, SO NAO TEM MENTIRA.
+  // SEM `key={periodo}` — DE PROPÓSITO, E ISSO MUDOU EM 28/08/2026.
   //
-  // A Ana notou a v148 e disse que o ML "muda cruzao": tirar a contagem deixou
-  // a troca seca. O problema nunca foi o movimento — era a contagem PASSAR por
-  // numeros que nao pertencem ao periodo novo (cada quadro daqueles afirma um
-  // valor falso). Entao o valor novo aparece inteiro, de uma vez, e o que anima
-  // e a ENTRADA dele.
+  // A chave existia para remontar o span e refazer a animação de entrada
+  // (`numero-entra`: 180ms de fade + 4px de subida) a cada troca de recorte.
+  // Medido em produção: ela DISPARAVA mesmo — remontagem aos 62–77ms, opacidade
+  // saindo de 0,00 — mas era sutil demais perto da contagem de 550ms que a dona
+  // do produto conhecia, e por isso ela dizia que "o efeito não voltou".
   //
-  // `key={periodo}`: ao trocar de recorte o span remonta e a animacao de
-  // entrada roda de novo. No mesmo recorte nao ha remontagem, entao a contagem
-  // de 550ms segue como sempre — que e o efeito honesto e o que ela gosta.
-  return <span className="numero-animado" key={periodo}>{format(displayed)}</span>;
+  // Agora que a troca conta de zero até o valor, a entrada passaria a ATRAPALHAR:
+  // o fade esconderia justamente o começo da contagem. Uma situação, um
+  // movimento. A entrada continua no CSS e roda onde ela é a única coisa que
+  // acontece: a primeira aparição do número, depois do esqueleto.
+  return <span className="numero-animado">{format(displayed)}</span>;
 }
