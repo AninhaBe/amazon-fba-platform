@@ -303,6 +303,19 @@ export function ShopeeWorkspace() {
     );
   }
 
+  // A resposta do overview ainda não chegou: enquanto busca, é CARREGAMENTO —
+  // nunca uma afirmação de ausência de dado. Sem este gate, entre o status das
+  // integrações chegar e o overview responder, a tela afirmava "Ainda sem dados
+  // sincronizados" por um instante numa loja com 10 mil pedidos (27/08/2026).
+  // Toda resposta do overview traz `sync`, então sync nulo = ainda buscando.
+  if (!sync && !overview && !pending) {
+    return (
+      <ShopeeFrame>
+        <DashboardSkeleton />
+      </ShopeeFrame>
+    );
+  }
+
   if (sync && sync.phase !== "ready" && (pending || !overview || sync.phase !== "syncing")) {
     const state = shopeeSyncContent(sync.phase);
     const detail = sync.error?.message || state.description;
