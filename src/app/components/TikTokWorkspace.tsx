@@ -25,6 +25,7 @@ import { coberturaDoPeriodo, periodoDaQuery } from "@/lib/coberturaPeriodo";
 import { SincronizacaoCompleta } from "./SincronizacaoCompleta";
 import { marginMetricTone } from "@/lib/marginTone";
 import { BaseDeData, ProgressoDaImportacao } from "./BaseDeData";
+import { usePrefetchDePeriodos } from "./prefetchDePeriodos";
 import {
   coverageDescription,
   effectiveTiktokDashboardPhase,
@@ -122,6 +123,19 @@ export function TikTokWorkspace() {
     router.replace(tiktokPageHref(searchParams.toString(), selectedConnectionId), { scroll: false });
   }, [provider, requestedConnectionId, router, searchParams, selectedConnectionId]);
 
+  // Aquecimento dos periodos padrao — mesmas tres regras do helper: depois da
+  // primeira pintura, sequencial, e so o que falta. Escreve so no periodCache.
+  const jaTemPeriodo = useCallback(
+    (q: string) => periodCache.has(`${selectedConnectionId}:${q}`),
+    [selectedConnectionId],
+  );
+  const buscarPeriodo = useCallback(async (q: string, signal: AbortSignal) => {
+    if (!selectedConnectionId) return;
+    const resposta = await fetch(`/api/integrations/tiktok/overview?${tiktokOverviewQuery(q, selectedConnectionId)}`, { cache: "no-store", signal });
+    if (!resposta.ok) return;
+    periodCache.set(`${selectedConnectionId}:${q}`, await resposta.json());
+  }, [selectedConnectionId]);
+
   const retry = useCallback(() => {
     setErrorState(null);
     setAttempt((value) => value + 1);
@@ -170,6 +184,13 @@ export function TikTokWorkspace() {
     ? overviewState.data
     : null;
   const data = doEstado ?? (chaveAtual ? periodCache.get(chaveAtual) ?? null : null);
+  usePrefetchDePeriodos({
+    ativo: !!data && !!selectedConnectionId,
+    atual: period.query,
+    escopo: selectedConnectionId ?? "",
+    jaTem: jaTemPeriodo,
+    buscar: buscarPeriodo,
+  });
   const error = errorState && (errorState.connectionId === null || errorState.connectionId === selectedConnectionId)
     ? errorState.message
     : null;

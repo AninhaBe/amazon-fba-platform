@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatedNumber } from "./AnimatedNumber";
 import { EmptyState } from "./EmptyState";
@@ -41,6 +41,7 @@ import { comSemImposto } from "@/lib/semImposto";
 import { rotuloStatusShopee } from "./statusDeExibicao";
 import { shopeeTaxRateHref } from "./ShopeeSettingsModel";
 import { BaseDeData, ProgressoDaImportacao } from "./BaseDeData";
+import { usePrefetchDePeriodos } from "./prefetchDePeriodos";
 
 interface Overview {
   account: { id: string; name: string; region: string };
@@ -191,6 +192,39 @@ export function ShopeeWorkspace() {
   const overview = exibido?.overview ?? null;
   const sync = exibido?.sync ?? syncBruto;
   const updatedAt = exibido?.updatedAt ?? null;
+
+  // Aquece os outros periodos padrao depois da primeira pintura, um por vez.
+  // So escreve no `periodCache`; a tela continua derivando do periodo
+  // selecionado, entao nada aquecido aparece sob rotulo errado.
+  const lojaAtual = status?.connections.length
+    ? (status.connections.find((c) => c.id === searchParams.get("connection_id")) ?? status.connections[0]).id
+    : "";
+  const offsetAtual = searchParams.get("offset") ?? "0";
+  const jaTemPeriodo = useCallback(
+    (q: string) => periodCache.has(chaveDoPeriodo(lojaAtual, q, offsetAtual)),
+    [lojaAtual, offsetAtual],
+  );
+  const buscarPeriodo = useCallback(async (q: string, signal: AbortSignal) => {
+    const query = new URLSearchParams(q);
+    query.set("connection_id", lojaAtual);
+    query.set("limit", "100");
+    query.set("offset", offsetAtual);
+    const resposta = await fetch(`/api/integrations/shopee/overview?${query}`, { cache: "no-store", signal });
+    if (!resposta.ok) return;
+    const corpo = await resposta.json() as OverviewResponse;
+    if (corpo.pending || !corpo.overview) return;
+    periodCache.set(chaveDoPeriodo(lojaAtual, q, offsetAtual), {
+      overview: corpo.overview, sync: corpo.sync, updatedAt: new Date(),
+    });
+  }, [lojaAtual, offsetAtual]);
+  usePrefetchDePeriodos({
+    // So depois de a tela ter algo — aquecer nao disputa com a primeira pintura.
+    ativo: !!overview && !!lojaAtual,
+    atual: period.query,
+    escopo: lojaAtual,
+    jaTem: jaTemPeriodo,
+    buscar: buscarPeriodo,
+  });
 
   function retry() {
     setError(null);

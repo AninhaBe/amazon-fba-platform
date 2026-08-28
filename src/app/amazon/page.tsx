@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { RevenueChart, type DailyPoint } from "../components/RevenueChart";
 import { PageHeader, pageIcons } from "../components/PageHeader";
@@ -58,6 +58,7 @@ function scopeSentence(scope?: ProfitabilityScope): string | undefined {
 import type { ProfitabilityLine } from "@/lib/profitability";
 import { brDate, brTime } from "@/lib/datetime";
 import { coberturaDoPeriodo } from "@/lib/coberturaPeriodo";
+import { usePrefetchDePeriodos } from "../components/prefetchDePeriodos";
 import { SincronizacaoCompleta } from "../components/SincronizacaoCompleta";
 import { readJson } from "../../lib/readJson";
 import { BaseDeData, ProgressoDaImportacao } from "../components/BaseDeData";
@@ -223,6 +224,13 @@ interface DashSnapshot {
 // Escopo de módulo: sobrevive à navegação entre canais. Ao voltar, o período
 // já visto renderiza no primeiro paint e a revalidação roda em segundo plano.
 const dashCache = new Map<string, DashSnapshot>();
+
+// Payload CRU por periodo, so para o aquecimento. De proposito nao guarda o
+// snapshot montado: o mapeamento payload -> tela e campo a campo (ver a nota
+// em `profit`), e uma segunda copia dele derivaria da primeira no dia em que
+// alguem acrescentasse um campo. Aqui guarda-se a resposta e reusa-se o MESMO
+// mapeamento que a tela ja usa.
+const payloadDoPeriodo = new Map<string, DashboardPayload>();
 let productsCache: ProductRow[] | null = null;
 
 /**
@@ -292,6 +300,16 @@ export default function Dashboard() {
 
   const periodQuery = period.query;
 
+  // Aquecimento dos periodos padrao: depois da pintura, sequencial, so o que
+  // falta. Guarda o payload cru; a troca de periodo passa a aplica-lo direto.
+  const jaTemPeriodo = useCallback((q: string) => payloadDoPeriodo.has(q) || dashCache.has(q), []);
+  const buscarPeriodo = useCallback(async (q: string, signal: AbortSignal) => {
+    const resposta = await fetch(`/api/amazon/dashboard?${q}`, { signal });
+    if (!resposta.ok) return;
+    payloadDoPeriodo.set(q, await resposta.json() as DashboardPayload);
+  }, []);
+
+
   // ⚠️ DERIVADO NO RENDER (mesma nota do ML, da Shopee e do TikTok).
   //
   // Medido em 28/08/2026 na v149: o repaint do cache saia por microtask, e nos
@@ -314,6 +332,13 @@ export default function Dashboard() {
   const temDoPeriodo = naMao || !!cacheDoPeriodo;
   const loading = temDoPeriodo ? loadingBruto && !cacheDoPeriodo : true;
   const profitabilityLoading = temDoPeriodo ? profitabilityLoadingBruto && !cacheDoPeriodo : true;
+  usePrefetchDePeriodos({
+    ativo: !loading && !!orders,
+    atual: periodQuery,
+    escopo: "amazon",
+    jaTem: jaTemPeriodo,
+    buscar: buscarPeriodo,
+  });
 
   useEffect(() => {
     let active = true;
@@ -361,7 +386,7 @@ export default function Dashboard() {
     // Uma tela = uma chamada (ADR-017): a rota agregadora devolve pedidos,
     // financeiro, vendas, estoque, top e rentabilidade num payload só, lido do
     // banco canônico — a SP-API saiu do caminho interativo.
-    safe<DashboardPayload>(`/api/amazon/dashboard?${periodQuery}`, (payload) => {
+    const aplicarPayload = (payload: DashboardPayload) => {
       const orders: OrdersData = {
         metrics: {
           totalOrders: payload.metrics.totalOrders,
@@ -422,7 +447,14 @@ export default function Dashboard() {
       setCanceladas(payload.cancelled ?? null);
       setCobertura(payload.period && payload.sync ? { periodo: payload.period, sync: payload.sync } : null);
       next.profitabilityScope = payload.profitabilityScope; setProfitabilityScope(payload.profitabilityScope);
-    }, (d) => d as DashboardPayload, "dashboard").then(() => {
+    };
+    // Se o aquecimento ja trouxe este periodo, aplica o payload guardado em vez
+    // de ir de novo ao servidor — mesmo mapeamento, sem espera.
+    const jaAquecido = payloadDoPeriodo.get(periodQuery);
+    const dashboardPronto = jaAquecido
+      ? Promise.resolve().then(() => { if (active) aplicarPayload(jaAquecido); })
+      : safe<DashboardPayload>(`/api/amazon/dashboard?${periodQuery}`, aplicarPayload, (d) => d as DashboardPayload, "dashboard");
+    dashboardPronto.then(() => {
       if (active) {
         setErrors(errs);
         setBrokenConnection(broken);

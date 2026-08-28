@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AnimatedNumber } from "./AnimatedNumber";
 import { EmptyState } from "./EmptyState";
@@ -34,6 +34,7 @@ import { marginMetricTone } from "@/lib/marginTone";
 import { comSemImposto } from "@/lib/semImposto";
 import { BaseDeData, ProgressoDaImportacao } from "./BaseDeData";
 import { EstadoDoSync } from "./EstadoDoSync";
+import { usePrefetchDePeriodos } from "./prefetchDePeriodos";
 
 const MERCADO_LIVRE_TAX_RATE_HREF = "/mercado-livre/produtos#mercado-livre-aliquota";
 
@@ -241,6 +242,29 @@ function MercadoLivreWorkspaceInterno({ view }: { view: keyof typeof views }) {
   const overview = (carregado?.chave === chaveAtual ? carregado.overview : null) ?? emCache?.overview ?? null;
   const syncStatus = (carregado?.chave === chaveAtual ? syncStatusBruto : null) ?? emCache?.syncStatus ?? syncStatusBruto;
   const updatedAt = (carregado?.chave === chaveAtual ? updatedAtBruto : null) ?? emCache?.updatedAt ?? null;
+
+  // Aquecimento dos periodos padrao (depois da pintura, sequencial, so o que
+  // falta). Escreve so no `periodCache`; a derivacao acima garante que nada
+  // aquecido apareca sob rotulo de outro periodo.
+  const jaTemPeriodo = useCallback((q: string) => periodCache.has(`${view}:${q}`), [view]);
+  const buscarPeriodo = useCallback(async (q: string, signal: AbortSignal) => {
+    const resposta = await fetch(`/api/integrations/mercado-livre/overview?${q}&view=${view}`, { cache: "no-store", signal });
+    if (!resposta.ok) return;
+    const corpo = await resposta.json();
+    if (!corpo?.overview) return;
+    periodCache.set(`${view}:${q}`, {
+      overview: corpo.overview as Overview,
+      syncStatus: (corpo.sync ?? null) as SyncStatus | null,
+      updatedAt: corpo.updatedAt ? new Date(corpo.updatedAt) : new Date(),
+    });
+  }, [view]);
+  usePrefetchDePeriodos({
+    ativo: !!overview && !!connectionId,
+    atual: period.query,
+    escopo: connectionId ?? "",
+    jaTem: jaTemPeriodo,
+    buscar: buscarPeriodo,
+  });
 
   return (
     <IntegrationDashboardFrame
