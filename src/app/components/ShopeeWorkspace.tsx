@@ -38,6 +38,7 @@ import { marginMetricTone } from "@/lib/marginTone";
 import { comSemImposto } from "@/lib/semImposto";
 import { rotuloStatusShopee } from "./statusDeExibicao";
 import { shopeeTaxRateHref } from "./ShopeeSettingsModel";
+import { BaseDeData } from "./BaseDeData";
 
 interface Overview {
   account: { id: string; name: string; region: string };
@@ -520,6 +521,9 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
         </div>
       )}
 
+      {/* Go Live da Shopee ainda nao saiu: nao ha repasse observado, entao
+          este canal so tem base pedido — nada aqui pode dizer "conciliado". */}
+      <BaseDeData base="pedido" />
       <section className="metric-grid shopee-dashboard-metrics" aria-label="Resumo financeiro Shopee">
         <Metric label="Faturamento" value={<AnimatedNumber id="shopee-dash-revenue" value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={`${overview.metrics.paidOrders} pedido(s) no período`} trend={getRevenueTrend(overview.dailySales)} />
         <Metric label="Taxas" value={overview.profit.fees == null ? "—" : money(overview.profit.fees, overview.metrics.currency)} sub={overview.profit.feesComplete ? "extrato financeiro processado" : "aguardando fechamento do extrato financeiro"} />

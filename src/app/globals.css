@@ -685,6 +685,11 @@ button[class*="bg-blue-"]:hover, a[class*="bg-blue-"]:hover { background: var(--
    de cima ficou com bolinha em todo card e nada ao passar o mouse; a de baixo
    funcionava porque `.compact-metric p` não recorta nada. Achado em 25/08/2026.
    Se precisar de reticências, é em `.metric-label-text`. */
+/* Linha que diz qual data o bloco usa. Discreta de proposito: ela responde uma
+   duvida ("qual numero e o que"), nao disputa atencao com o numero. */
+.base-de-data { max-width: 92ch; margin-block: 2px 10px; color: var(--ink-muted); font-size: 12px; line-height: 16px; text-wrap: pretty; }
+.base-de-data strong { color: var(--ink-soft); font-weight: var(--weight-semibold); }
+
 .metric-label {
   display: flex;
   min-width: 0;

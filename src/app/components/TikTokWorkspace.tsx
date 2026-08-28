@@ -24,6 +24,7 @@ import { brDate } from "@/lib/datetime";
 import { coberturaDoPeriodo, periodoDaQuery } from "@/lib/coberturaPeriodo";
 import { SincronizacaoCompleta } from "./SincronizacaoCompleta";
 import { marginMetricTone } from "@/lib/marginTone";
+import { BaseDeData } from "./BaseDeData";
 import {
   coverageDescription,
   effectiveTiktokDashboardPhase,
@@ -313,6 +314,9 @@ export function TikTokWorkspace() {
             )}
           </>
         )}
+        {/* Vale para a faixa E para o painel de composicao abaixo dela: mesmo
+            os valores que vem do extrato oficial entram por data do pedido. */}
+        <BaseDeData base="pedido-extrato" />
         <section className="metric-grid tiktok-dashboard-metrics" aria-label="Resumo financeiro da TikTok Shop">
           {primaryCards.map((card) => <Metric key={card.key} label={card.label} value={card.value} sub={card.context} tone={card.key === "marginPct" ? marginMetricTone(card.raw) : card.key === "profit" && card.raw != null ? card.raw > 0 ? "positive" : card.raw < 0 ? "danger" : "default" : "default"} />)}
         </section>

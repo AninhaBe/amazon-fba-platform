@@ -42,6 +42,7 @@ import { brDate, brTime } from "@/lib/datetime";
 import { coberturaDoPeriodo } from "@/lib/coberturaPeriodo";
 import { SincronizacaoCompleta } from "../components/SincronizacaoCompleta";
 import { readJson } from "../../lib/readJson";
+import { BaseDeData } from "../components/BaseDeData";
 
 // Faixa de cima: o que resume o RESULTADO. Anuncio entrou aqui em 25/08/2026
 // porque virou componente do lucro — deixa-lo so na composicao la embaixo
@@ -642,6 +643,10 @@ export default function Dashboard() {
           </div>
         );
       })()}
+      {/* O dashboard conta pela data do PEDIDO; o monitor, pela data do
+          LANÇAMENTO. Sem esta linha as duas telas exibiam "hoje" com valores
+          diferentes e nenhuma dizia por quê. */}
+      <BaseDeData base="pedido" />
 
       {/* Indicadores de contexto: uma faixa, não uma segunda parede de cartões. */}
       <div className="secondary-metrics" aria-label="Indicadores complementares">

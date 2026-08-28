@@ -13,6 +13,7 @@ import type { ProfitabilityLine } from "@/lib/profitability";
 import { readJson } from "@/lib/readJson";
 import { brDate } from "@/lib/datetime";
 import { marginMetricTone } from "@/lib/marginTone";
+import { BaseDeData } from "../components/BaseDeData";
 
 interface FinanceSummary {
   currency: string;
@@ -224,6 +225,9 @@ function MonitorPage({ secaoInicial }: { secaoInicial: MonitorSection }) {
               Nenhum evento financeiro no período. Os valores serão preenchidos quando houver vendas conciliadas.
             </div>
           )}
+          {/* O dashboard da Amazon conta por data do pedido; aqui e por data do
+              lancamento do repasse. Mesma frase nos quatro canais. */}
+          <BaseDeData base="lancamento" />
           <CustomizableMetricGrid
             viewKey="amazon-monitor"
             ariaLabel="Resumo financeiro Amazon"

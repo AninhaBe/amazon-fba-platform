@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { readJson } from "../../lib/readJson";
 import type { SaldoTiktok } from "@/lib/integrations/tiktokSaldo";
+import { BaseDeData } from "./BaseDeData";
 
 interface RespostaSaldo {
   saldo: SaldoTiktok | null;
@@ -102,6 +103,9 @@ export function TikTokSaldo({ connectionId }: { connectionId?: string }) {
         </h2>
       </div>
 
+      {/* Unico bloco do canal que usa data de evento: o TikTok informa o
+          `paid_time` do repasse. Todo o resto da tela e data do pedido. */}
+      {!semMovimento && <BaseDeData base="lancamento" prefixo="Liberações" />}
       {semMovimento ? (
         <p className="saldo-nota">
           Nenhuma movimentação financeira sincronizada para esta loja até agora. O saldo aparece assim que a

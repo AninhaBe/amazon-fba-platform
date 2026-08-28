@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { brDate } from "@/lib/datetime";
 import { readJson } from "../../lib/readJson";
+import { BaseDeData } from "./BaseDeData";
 
 interface Saldo {
   currency: string;
@@ -145,6 +146,7 @@ export function MercadoLivreSaldo({
       <div>
         <p className="section-kicker">Saldo no Mercado Livre</p>
         <h2 id="saldo-ml-title" className="mt-1 text-lg font-semibold text-[var(--ink)]">Quando o dinheiro cai</h2>
+        <BaseDeData base="lancamento" prefixo="Liberações" />
       </div>
       <div className="saldo-grid">
         <div className="saldo-card">

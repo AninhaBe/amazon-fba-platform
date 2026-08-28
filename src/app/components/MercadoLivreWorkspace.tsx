@@ -32,6 +32,7 @@ import { NexoDoDia } from "./NexoDoDia";
 import { IntegrationDashboardFrame } from "./IntegrationDashboardFrame";
 import { marginMetricTone } from "@/lib/marginTone";
 import { comSemImposto } from "@/lib/semImposto";
+import { BaseDeData } from "./BaseDeData";
 
 const MERCADO_LIVRE_TAX_RATE_HREF = "/mercado-livre/produtos#mercado-livre-aliquota";
 
@@ -389,6 +390,9 @@ function Dashboard({ overview, syncStatus, periodoLabel, connectionId }: { overv
       />
     )}
 
+    {/* Faturamento do ML conta aprovadas + canceladas, sem frete (regra do
+        proprio canal) — e sempre pela data do pedido. */}
+    <BaseDeData base="pedido" />
     <section className="metric-grid ml-dashboard-metric-grid" aria-label="Resumo financeiro Mercado Livre">
       <Metric label="Faturamento" value={<AnimatedNumber id="ml-dash-revenue" value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={`${overview.metrics.paidOrders} aprovadas + ${overview.metrics.cancelledOrders} canceladas`} trend={getRevenueTrend(overview.dailySales)} />
       <Metric label="Taxas" value={money(overview.profit.fees, overview.metrics.currency)} sub={`${profitCoverage.processedOrders} venda(s) processada(s)`} />
@@ -579,6 +583,10 @@ function Monitor({ overview, secaoInicial }: { overview: Overview; secaoInicial:
   // `useSearchParams`, dentro da fronteira de Suspense lá em cima.
   const [section, setSection] = useState<SecaoDoMonitor>(secaoInicial);
   return <div className="ml-monitor-body">
+    {/* Mesmo nome de pagina do monitor da Amazon, base DIFERENTE: la o numero e
+        por data do lancamento do repasse, aqui e por data do pedido. Sem dizer
+        isso, "Monitor da conta" parece a mesma coisa nos dois canais. */}
+    <BaseDeData base="pedido" />
     <CustomizableMetricGrid
       viewKey="mercado-livre-monitor"
       ariaLabel="Resumo do monitor Mercado Livre"

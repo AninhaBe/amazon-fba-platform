@@ -9,6 +9,7 @@ import { ChannelConnectionEmpty } from "./ChannelConnectionEmpty";
 import { moduleApiQuery, moduleConnectionHref, moduleError, moduleHref, moduleMoney, updatedModuleQuery } from "./TikTokModulesModel";
 import { TIKTOK_CATALOG_STATUSES } from "@/lib/integrations/tiktokModuleContract";
 import { rotuloConciliacao, rotuloStatusPedido, rotuloStatusProduto } from "./statusDeExibicao";
+import { BaseDeData } from "./BaseDeData";
 
 type Kind="monitor"|"finance"|"catalog"|"inventory"|"costs"|"abc";
 type Connection={id:string;displayName?:string;externalAccountId?:string};
@@ -54,6 +55,7 @@ function ModuleContent({kind,body,sp,update,retry}:{kind:Kind;body:Payload;sp:UR
     <Filters kind={kind} sp={sp} update={update}/>
     {kind==="abc"&&<aside className="channel-module-notice is-warning"><strong>Lucro indisponível por SKU</strong><p>{body.profitSubset?.reason||"O contrato atual não permite atribuir lucro por produto com segurança."}</p></aside>}
     {kind==="abc"&&rows.length>0&&<TikTokAbcInsights rows={rows}/>}
+    {kind==="finance"&&<BaseDeData base="pedido-extrato" prefixo="Transações" />}
     {kind==="finance"&&body.coverage&&<FinanceCoveragePanel coverage={body.coverage}/>} 
     {!rows.length?<EmptyState compact title="Nenhum resultado" description={kind==="finance"?"Não há transações finais para esta loja e período.":"Não há dados para os filtros e o período selecionados."}/>:<DataTable kind={kind} rows={rows} retry={retry} connectionId={sp.get("connection_id")??""}/>} 
     {body.page&&<nav aria-label="Paginação" className="listing-pagination channel-module-pagination"><p>{body.page.total==null?`${rows.length} transação(ões) nesta página`:`${body.page.total} resultado(s)`}</p><div><button disabled={body.page.offset===0} onClick={()=>update({offset:String(Math.max(0,body.page!.offset-body.page!.limit))})}>Anterior</button><button disabled={!body.page.hasMore} onClick={()=>update({offset:String(body.page!.offset+body.page!.limit)})}>Próxima</button></div></nav>}
