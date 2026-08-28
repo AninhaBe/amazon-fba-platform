@@ -50,21 +50,48 @@ const VISIVEIS = 8;
 export function AnunciosPorProduto({
   linhas,
   contabilizadoAte,
+  canal = "Amazon",
+  baseDeProdutos = "/produtos",
 }: {
   linhas: AnuncioDeProduto[];
   /** "Anúncio contabilizado até DD/MM — faltam N dias", quando a janela não fechou. */
   contabilizadoAte?: string | null;
+  /** De onde vêm ACOS e ROAS. O painel é o mesmo nos canais; a origem muda. */
+  canal?: string;
+  /**
+   * Onde se cadastra custo NESTE canal — cada um tem sua página, e o custo é
+   * por (canal, SKU). Mandar a pessoa para a página do canal errado seria pior
+   * que não linkar: ela cadastraria o custo no lugar que não afeta esta tela.
+   */
+  baseDeProdutos?: string;
 }) {
   const [verTodos, setVerTodos] = useState(false);
-  if (!linhas.length) {
+
+  // ⚠️ TRÊS ESTADOS DE VAZIO, e eles NÃO significam a mesma coisa (28/08/2026).
+  //
+  // Um vazio genérico faria a vendedora ler defeito nosso onde há fato dela. O
+  // caso que motivou: a conta de Mercado Livre da dona tem 10 anúncios
+  // cadastrados e R$ 0,00 de gasto — anúncio existe, mas não veicula. Dizer
+  // "nenhum produto anunciado" ali seria falso; dizer "carregando" seria pior.
+  const semLinha = linhas.length === 0;
+  const tudoZerado = !semLinha && linhas.every((linha) => linha.cost <= 0 && linha.clicks <= 0 && linha.impressions <= 0);
+  if (semLinha || tudoZerado) {
     return (
       <section className="listing-table-shell channel-module-table-shell" aria-labelledby="ads-produto-titulo">
         <header><div><p className="section-kicker">Anúncios por produto</p><h2 id="ads-produto-titulo">Resultado por SKU anunciado</h2></div></header>
-        <EmptyState
-          compact
-          title="Nenhum produto anunciado no período"
-          description="Quando houver campanha ativa, cada SKU aparece aqui com o ACOS da Amazon ao lado da margem real do produto."
-        />
+        {tudoZerado ? (
+          <EmptyState
+            compact
+            title="Anúncios sem veiculação no período"
+            description={`Há ${linhas.length} anúncio(s) cadastrado(s) nesta conta, mas nenhum recebeu impressão ou clique no período — não houve gasto. Ative ou ajuste as campanhas no ${canal} para elas voltarem a aparecer aqui.`}
+          />
+        ) : (
+          <EmptyState
+            compact
+            title="Nenhum dado de anúncio no período"
+            description={`A sincronização ainda não trouxe métricas de anúncio para este período. Quando trouxer, cada SKU aparece aqui com o ACOS do ${canal} ao lado da margem real do produto.`}
+          />
+        )}
       </section>
     );
   }
@@ -99,9 +126,10 @@ export function AnunciosPorProduto({
               <th scope="col">Gasto</th>
               <th scope="col">Vendas atribuídas</th>
               {/* Os rótulos de origem são o que evita a leitura de "o NEXO
-                  diverge da Amazon": um lado é dela, o outro é nosso. */}
-              <th scope="col">ACOS <small>da Amazon</small></th>
-              <th scope="col">ROAS <small>da Amazon</small></th>
+                  diverge do painel do canal": um lado é dele, o outro é nosso.
+                  Por isso o nome do canal entra aqui, e não fica fixo. */}
+              <th scope="col">ACOS <small>d{canal === "Amazon" ? "a" : "o"} {canal}</small></th>
+              <th scope="col">ROAS <small>d{canal === "Amazon" ? "a" : "o"} {canal}</small></th>
               <th scope="col">Margem real <small>do NEXO: custo + tarifas</small></th>
               <th scope="col">Veredito</th>
             </tr>
@@ -128,7 +156,7 @@ export function AnunciosPorProduto({
                   <span className={`stock-status ${classeDoVeredito(veredito.situacao)}`}>{veredito.frase}</span>
                   {veredito.situacao === "margem-desconhecida" && linha.margemRealPct == null ? (
                     // Pendência com dono e link: cai NO produto, não na lista inteira.
-                    <Link className="block text-xs" href={`/produtos?q=${encodeURIComponent(linha.sku ?? linha.productId)}`}>
+                    <Link className="block text-xs" href={`${baseDeProdutos}?q=${encodeURIComponent(linha.sku ?? linha.productId)}`}>
                       Custo não cadastrado — cadastrar este produto <span aria-hidden="true">→</span>
                     </Link>
                   ) : veredito.acao ? (

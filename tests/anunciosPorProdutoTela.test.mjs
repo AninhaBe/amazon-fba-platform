@@ -36,8 +36,8 @@ test("ACOS/ROAS agregados são média PONDERADA e só com venda — nunca soma d
 test("ajuste 1: 'margem desconhecida' vira pendência com link para AQUELE SKU", async () => {
   const tela = await readFile(new URL("../src/app/components/AnunciosPorProduto.tsx", import.meta.url), "utf8");
   assert.match(tela, /Custo não cadastrado — cadastrar este produto/);
-  assert.match(tela, /href=\{`\/produtos\?q=\$\{encodeURIComponent\(linha\.sku \?\? linha\.productId\)\}`\}/,
-    "o link cai no produto, não na lista inteira");
+  assert.match(tela, /href=\{`\$\{baseDeProdutos\}\?q=\$\{encodeURIComponent\(linha\.sku \?\? linha\.productId\)\}`\}/,
+    "o link cai no produto, não na lista inteira — e na página de custo DO CANAL");
   // E a página de produtos precisa saber ler esse parâmetro.
   const produtos = await readFile(new URL("../src/app/produtos/page.tsx", import.meta.url), "utf8");
   assert.match(produtos, /useSearchParams\(\)\.get\("q"\)/);
@@ -60,11 +60,42 @@ test("ajuste 3: a janela do gasto aparece NA TABELA, não só no card", async ()
   assert.match(tela, /quem lê\s*\n?\s*a tabela pode não ter lido o card/);
 });
 
-test("os rótulos de origem ficam: ACOS/ROAS da Amazon, margem do NEXO", async () => {
+test("os rótulos de origem ficam — e agora dizem O CANAL, porque o painel é o mesmo nos dois", async () => {
   const tela = await readFile(new URL("../src/app/components/AnunciosPorProduto.tsx", import.meta.url), "utf8");
-  assert.match(tela, /ACOS <small>da Amazon<\/small>/);
-  assert.match(tela, /ROAS <small>da Amazon<\/small>/);
+  // O nome do canal entra no rótulo; a margem continua sendo nossa em todos.
+  assert.match(tela, /ACOS <small>d\{canal === "Amazon" \? "a" : "o"\} \{canal\}<\/small>/);
+  assert.match(tela, /ROAS <small>d\{canal === "Amazon" \? "a" : "o"\} \{canal\}<\/small>/);
   assert.match(tela, /Margem real <small>do NEXO: custo \+ tarifas<\/small>/);
+  // E o padrão continua sendo Amazon, para a tela que já existia não mudar.
+  assert.match(tela, /canal = "Amazon"/);
+  assert.match(tela, /baseDeProdutos = "\/produtos"/);
+});
+
+test("TRÊS estados de vazio, porque eles não significam a mesma coisa", async () => {
+  const tela = await readFile(new URL("../src/app/components/AnunciosPorProduto.tsx", import.meta.url), "utf8");
+  // (3) O caso REAL da conta da vendedora: anúncios cadastrados, zero veiculação.
+  assert.match(tela, /const tudoZerado = !semLinha && linhas\.every\(\(linha\) => linha\.cost <= 0 && linha\.clicks <= 0 && linha\.impressions <= 0\)/);
+  assert.match(tela, /title="Anúncios sem veiculação no período"/);
+  assert.match(tela, /nenhum recebeu impressão ou clique no período — não houve gasto/);
+  // (2) Conectada, mas o sync ainda não trouxe métrica: é outra frase.
+  assert.match(tela, /title="Nenhum dado de anúncio no período"/);
+  assert.match(tela, /A sincronização ainda não trouxe métricas/);
+  // O motivo de existirem três, escrito para quem mexer depois.
+  assert.match(tela, /eles NÃO significam a mesma coisa/);
+});
+
+test("o ML usa o MESMO painel, com a origem e a página de custo do canal", async () => {
+  const ml = await readFile(new URL("../src/app/components/MercadoLivreWorkspace.tsx", import.meta.url), "utf8");
+  assert.match(ml, /canal="Mercado Livre"/);
+  assert.match(ml, /baseDeProdutos="\/mercado-livre\/produtos"/,
+    "custo é por (canal, SKU): mandar para a página do canal errado seria pior que não linkar");
+  // Conta que não anuncia não ganha seção vazia no dashboard.
+  assert.match(ml, /\(overview\.adsPorProduto\?\.length \?\? 0\) > 0 &&/);
+  // A leitura no servidor é a mesma, parametrizada por provider.
+  const leitura = await readFile(new URL("../src/lib/integrations/amazonAdsPorProduto.ts", import.meta.url), "utf8");
+  assert.match(leitura, /provider = "amazon"/, "o padrão preserva a chamada da Amazon");
+  const rota = await readFile(new URL("../src/app/api/integrations/mercado-livre/overview/route.ts", import.meta.url), "utf8");
+  assert.match(rota, /anunciosPorProdutoNoPeriodo\([\s\S]{0,80}"mercado_livre"\)/);
 });
 
 test("zero da fonte não vira '0%' na tela: sem pedido atribuído, mostra —", async () => {

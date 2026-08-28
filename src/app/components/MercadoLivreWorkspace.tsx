@@ -34,6 +34,7 @@ import { marginMetricTone } from "@/lib/marginTone";
 import { comSemImposto } from "@/lib/semImposto";
 import { BaseDeData, ProgressoDaImportacao } from "./BaseDeData";
 import { EstadoDoSync } from "./EstadoDoSync";
+import { AnunciosPorProduto, type AnuncioDeProduto } from "./AnunciosPorProduto";
 import { usePrefetchDePeriodos } from "./prefetchDePeriodos";
 
 const MERCADO_LIVRE_TAX_RATE_HREF = "/mercado-livre/produtos#mercado-livre-aliquota";
@@ -58,6 +59,8 @@ interface Overview {
   stockRadar: Array<{ id: string; sku: string | null; title: string; thumbnail: string | null; availableQuantity: number; unitsSold: number; calculationDays: number; daysRemaining: number | null; status: StockStatus; }>;
   profitabilityLines: ProfitabilityLine[];
   profitabilityScope?: { detailedOrders: number; completePeriod: boolean } | null;
+  /** Product Ads por SKU, já cruzado com a margem real (frente de Ads, 28/08/2026). */
+  adsPorProduto?: AnuncioDeProduto[];
   recentOrders: Array<{ id: string; packId: string | null; status: string; createdAt: string; total: number; currency: string; items: number; }>;
 }
 
@@ -193,7 +196,9 @@ function MercadoLivreWorkspaceInterno({ view }: { view: keyof typeof views }) {
           }
           if (data.sync) setSyncStatusBruto(data.sync as SyncStatus);
           if (data.overview) {
-            const nextOverview = data.overview as Overview;
+            // Anúncio por produto viaja no mesmo payload (uma tela, uma chamada
+            // — ADR-017), então entra no overview em vez de virar estado à parte.
+            const nextOverview = { ...(data.overview as Overview), adsPorProduto: (data.adsPorProduto ?? []) as AnuncioDeProduto[] };
             const nextSync = data.sync ? data.sync as SyncStatus : null;
             const nextUpdatedAt = data.updatedAt ? new Date(data.updatedAt) : new Date();
             periodCache.set(cacheKey, {
@@ -523,6 +528,17 @@ function Dashboard({ overview, syncStatus, periodoLabel, connectionId }: { overv
     {/* Mesma posição do bloco da Amazon: logo depois da conversa sobre dinheiro,
         respondendo o que o lucro sozinho deixa no ar — "então cadê?". */}
     <MercadoLivreSaldo />
+
+    {/* Product Ads contra a margem real — mesmo painel da Amazon, parametrizado.
+        Só aparece quando há anúncio coletado: conta que não anuncia não ganha
+        seção vazia. Os três estados de vazio moram dentro do componente. */}
+    {(overview.adsPorProduto?.length ?? 0) > 0 && (
+      <AnunciosPorProduto
+        linhas={overview.adsPorProduto ?? []}
+        canal="Mercado Livre"
+        baseDeProdutos="/mercado-livre/produtos"
+      />
+    )}
 
     <OrderProfitabilityTable lines={overview.profitabilityLines} scopeNote={fraseDeEscopo(overview.profitabilityScope)} />
 

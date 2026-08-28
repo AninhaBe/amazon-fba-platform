@@ -7,6 +7,7 @@ import { requestMercadoLivreSync, runMercadoLivreSyncBatch } from "@/lib/integra
 import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
 import { hasDb } from "@/lib/db";
 import { currentWorkspaceId, runWithWorkspace } from "@/lib/workspaceScope";
+import { anunciosPorProdutoNoPeriodo, cruzarComMargem } from "@/lib/integrations/amazonAdsPorProduto";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -105,9 +106,17 @@ export async function GET(req: NextRequest) {
       }
       // Dashboard e monitor mostram a rentabilidade por venda; só o estoque dispensa as linhas.
       if (view === "estoque") overview.profitabilityLines = [];
+      // Anúncio por produto (Product Ads), cruzado com a margem real de cada
+      // SKU. Mesma leitura da Amazon, parametrizada por canal — a tabela da
+      // migration 0016 é agnóstica. Só no dashboard: o estoque não usa.
+      const adsPorProduto = view === "estoque" ? [] : cruzarComMargem(
+        await anunciosPorProdutoNoPeriodo(period.from.toISOString(), period.to.toISOString(), "mercado_livre").catch(() => []),
+        overview.topProducts.map((produto) => ({ sku: produto.sku ?? produto.id, marginPct: produto.marginPct })),
+      );
       const response = timedJson({
         connectionId: connection.id,
         overview,
+        adsPorProduto,
         sync,
         updatedAt: sync.lastSuccessAt || new Date().toISOString(),
         cached: false,

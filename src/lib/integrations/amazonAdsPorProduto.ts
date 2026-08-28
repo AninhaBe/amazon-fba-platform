@@ -15,8 +15,6 @@ import { currentWorkspaceId } from "../workspaceScope";
  * caso (medido no PADS do ML em 28/08/2026) e `0` leria como desempenho ótimo.
  */
 
-const PROVIDER = "amazon";
-
 export interface AdsProdutoLinha {
   productId: string;
   sku: string | null;
@@ -31,9 +29,15 @@ export interface AdsProdutoLinha {
   currency: string;
 }
 
+/**
+ * `provider` é parâmetro porque a leitura é a MESMA nos canais — a tabela da
+ * migration 0016 nasceu agnóstica, e o Mercado Livre grava nela com
+ * `provider='mercado_livre'`. Só a origem do dado muda; a conta não.
+ */
 export async function anunciosPorProdutoNoPeriodo(
   inicioISO: string,
   fimISO: string,
+  provider = "amazon",
 ): Promise<AdsProdutoLinha[]> {
   if (!hasDb()) return [];
   const rows = await dbQuery<{
@@ -64,7 +68,7 @@ export async function anunciosPorProdutoNoPeriodo(
                     AND ($4::timestamptz AT TIME ZONE 'America/Sao_Paulo')::date
       GROUP BY product_id, NULLIF(sku, '')
       ORDER BY SUM(cost) DESC`,
-    [currentWorkspaceId(), PROVIDER, inicioISO, fimISO],
+    [currentWorkspaceId(), provider, inicioISO, fimISO],
   );
 
   return rows.map((row) => ({
