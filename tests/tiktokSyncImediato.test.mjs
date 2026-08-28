@@ -4,86 +4,61 @@ import test from "node:test";
 
 import {
   nextTiktokOrderWindow,
-  tiktokHistoryDays,
   tiktokSeedSyncWindow,
 } from "../src/lib/integrations/tiktokSyncControl.ts";
+import { inicioDoMesVigente } from "../src/lib/integrations/inicioDoMes.ts";
 
 const DAY = 86_400_000;
-const now = 1_700_000_000_000;
 
-// Frente K (27/08/2026): conectar a loja dispara o sync na hora, com a janela
-// recente primeiro. Mesmos guardas da Shopee e do ML (shopeeSyncImediato,
-// mercadoLivreSyncImediato).
+// Frente K (27/08/2026): conectar a loja dispara o sync na hora. O alvo de
+// conta nova é o MÊS VIGENTE (decisão da Ana, 27/08/2026) — sem aprofundamento
+// retroativo em background.
 
-test("semente única: alvo imediato de 30 dias e cursor na janela de 15 dias", () => {
-  const seed = tiktokSeedSyncWindow(now);
-  assert.equal(seed.targetFromMs, now - 30 * DAY);
-  assert.equal(seed.cursorFromMs, now - 15 * DAY);
+test("semente única: alvo no início do mês vigente e cursor na janela de 15 dias", () => {
+  const meio = new Date("2026-09-17T12:00:00-03:00").getTime();
+  const seed = tiktokSeedSyncWindow(meio);
+  assert.equal(seed.targetFromMs, new Date("2026-09-01T00:00:00-03:00").getTime());
+  assert.equal(seed.cursorFromMs, meio - 15 * DAY);
 });
 
-test("alvo total é configurável, com piso no alvo imediato e default de 60 dias", () => {
-  assert.equal(tiktokHistoryDays(undefined), 60);
-  assert.equal(tiktokHistoryDays("366"), 366);
-  assert.equal(tiktokHistoryDays("15"), 60, "abaixo do alvo imediato cai no default");
-  assert.equal(tiktokHistoryDays("abc"), 60);
+test("conta conectada no dia 1º do mês nasce com janela mínima válida", () => {
+  const inicio = new Date("2026-09-01T00:01:00-03:00").getTime();
+  const seed = tiktokSeedSyncWindow(inicio);
+  assert.equal(seed.targetFromMs, new Date("2026-09-01T00:00:00-03:00").getTime());
+  // O cursor não pode nascer antes do alvo nem depois do agora.
+  assert.equal(seed.cursorFromMs, seed.targetFromMs);
+  assert.ok(seed.cursorFromMs <= inicio);
+  // E o fechamento imediato dessa janela mínima conclui, sem quebrar.
+  assert.deepEqual(
+    nextTiktokOrderWindow({ windowFromMs: seed.targetFromMs, targetFromMs: seed.targetFromMs, windowMs: 15 * DAY }),
+    { kind: "complete" }
+  );
 });
 
-test("janela de pedidos avança para trás até o alvo imediato", () => {
+test("janela de pedidos avança para trás até o alvo e conclui ao alcançá-lo", () => {
+  const now = 1_700_000_000_000;
   const move = nextTiktokOrderWindow({
     windowFromMs: now - 15 * DAY,
-    targetFromMs: now - 30 * DAY,
-    coveredFromMs: null,
-    historyFloorMs: now - 60 * DAY,
+    targetFromMs: now - 27 * DAY,
     windowMs: 15 * DAY,
-    toleranceMs: DAY,
   });
-  assert.deepEqual(move, { kind: "advance", nextToMs: now - 15 * DAY, nextFromMs: now - 30 * DAY });
+  assert.deepEqual(move, { kind: "advance", nextToMs: now - 15 * DAY, nextFromMs: now - 27 * DAY });
+  assert.deepEqual(
+    nextTiktokOrderWindow({ windowFromMs: now - 27 * DAY, targetFromMs: now - 27 * DAY, windowMs: 15 * DAY }),
+    { kind: "complete" }
+  );
 });
 
-test("alvo imediato coberto estende o alvo até o histórico completo (fase 2)", () => {
-  const move = nextTiktokOrderWindow({
-    windowFromMs: now - 30 * DAY,
-    targetFromMs: now - 30 * DAY,
-    coveredFromMs: now - 15 * DAY,
-    historyFloorMs: now - 60 * DAY,
-    windowMs: 15 * DAY,
-    toleranceMs: DAY,
-  });
-  assert.deepEqual(move, {
-    kind: "extend",
-    targetFromMs: now - 60 * DAY,
-    nextToMs: now - 30 * DAY,
-    nextFromMs: now - 45 * DAY,
-  });
-});
-
-test("loja com histórico completo fecha em complete — reabertura incremental não redispara o backfill", () => {
-  const move = nextTiktokOrderWindow({
-    windowFromMs: now - 61 * DAY,
-    targetFromMs: now - 61 * DAY,
-    coveredFromMs: now - 61 * DAY,
-    historyFloorMs: now - 60 * DAY,
-    windowMs: 15 * DAY,
-    toleranceMs: DAY,
-  });
-  assert.deepEqual(move, { kind: "complete" });
-});
-
-test("subir o alvo configurado aprofunda a partir do ponto mais antigo coberto", () => {
-  const move = nextTiktokOrderWindow({
-    windowFromMs: now - 2 * 60_000,
-    targetFromMs: now - 2 * 60_000,
-    coveredFromMs: now - 60 * DAY,
-    historyFloorMs: now - 366 * DAY,
-    windowMs: 15 * DAY,
-    toleranceMs: DAY,
-  });
-  assert.deepEqual(move, {
-    kind: "extend",
-    targetFromMs: now - 366 * DAY,
-    nextToMs: now - 60 * DAY,
-    nextFromMs: now - 75 * DAY,
-  });
+test("início do mês vigente respeita o fuso de Brasília, inclusive na virada", () => {
+  // 01/09 01:00 UTC ainda é 31/08 22:00 em Brasília — o mês vigente é agosto.
+  assert.equal(
+    inicioDoMesVigente(new Date("2026-09-01T01:00:00Z")).toISOString(),
+    new Date("2026-08-01T00:00:00-03:00").toISOString()
+  );
+  assert.equal(
+    inicioDoMesVigente(new Date("2026-09-01T03:00:00Z")).toISOString(),
+    new Date("2026-09-01T00:00:00-03:00").toISOString()
+  );
 });
 
 test("callback do TikTok dispara o sync na hora, fora do caminho do redirect", async () => {
@@ -101,7 +76,7 @@ test("scheduler prioriza loja que nunca fechou uma janela (primeira sincronizaç
   assert.match(scheduler, /sync\.connection_id IS NULL OR sync\.covered_from IS NULL THEN 0/);
 });
 
-test("a semente do sync vem de um lugar só — sem literais de 60d/15d duplicados", async () => {
+test("a semente do sync vem de um lugar só — sem literais duplicados nem knob de fase 2", async () => {
   const [store, sync] = await Promise.all([
     readFile(new URL("../src/lib/tiktokStore.ts", import.meta.url), "utf8"),
     readFile(new URL("../src/lib/integrations/tiktokSync.ts", import.meta.url), "utf8"),
@@ -109,4 +84,5 @@ test("a semente do sync vem de um lugar só — sem literais de 60d/15d duplicad
   assert.match(store, /tiktokSeedSyncWindow\(/);
   assert.match(sync, /tiktokSeedSyncWindow\(/);
   assert.doesNotMatch(store, /60 \* 86_400_000/, "o alvo do seed não pode voltar a ser literal no store");
+  assert.doesNotMatch(sync, /TIKTOK_HISTORY_DAYS/, "o knob de fase 2 foi descartado (decisão da Ana, 27/08/2026)");
 });

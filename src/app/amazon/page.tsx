@@ -558,7 +558,6 @@ export default function Dashboard() {
           connectionId={cobertura.sync.connectionId}
           status={cobertura.sync.status}
           coveredFrom={cobertura.sync.coveredFrom}
-          coveredTo={cobertura.sync.coveredTo}
         />
       )}
 

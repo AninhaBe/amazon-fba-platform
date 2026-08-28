@@ -470,23 +470,25 @@ O que está em produção, por release:
 | v123 | **Fencing por token na Amazon** (espelho do ML): todos os checkpoints do passo + guarda no reopen — os 4 canais agora têm a mesma proteção |
 | v124 | **Aviso "sua loja está 100% sincronizada — histórico de N meses completo"** nos 4 canais (`SincronizacaoCompleta.tsx`); dismiss por localStorage (não acompanha entre dispositivos — trade-off aceito e documentado no componente) |
 
-Mecânica comum (reimplementada canal a canal, não copiada): o alvo do backfill nasce em
-**30 dias** e, ao fechar, **estende sozinho** até o histórico completo nas mesmas janelas
-retomáveis. A extensão olha o ponto mais antigo **coberto** (`covered_from`), nunca o
-alvo — no ML e na Amazon o reopen incremental estreita o alvo, e basear a extensão nele
-redispararia o backfill inteiro a cada ciclo (travado por teste nos 4).
+**⚠️ Regra de histórico DECIDIDA pela Ana na noite de 27/08 (confirmada em dois canais,
+substitui a fase dupla que saiu nas releases acima):** conta nova importa **o mês
+vigente** — quem conecta no dia 17 vê os 17 dias do mês até ali, e daí em diante o
+histórico cresce para frente com a loja sincronizando. Volumetria baixa para quem conecta
+no começo do mês é **o esperado**, decisão dela. A fase 2 (aprofundamento retroativo em
+background) e os knobs `*_HISTORY_DAYS` foram **descartados** — o código saiu do repo (o
+git guarda, se um dia um plano com retroativo precisar ressuscitar). O helper é
+`src/lib/integrations/inicioDoMes.ts` (fuso de Brasília), semente única por canal.
+**Conexões existentes não foram tocadas**: o alvo já gravado delas segue valendo até
+completar (travado por guarda de fonte nos 4 seeds).
 
-**Condicionado à decisão do Supabase (com a Ana):**
-
-- Estender TikTok/Shopee de 60 dias para 12 meses: **pronto** — é setar
-  `TIKTOK_HISTORY_DAYS`/`SHOPEE_HISTORY_DAYS` (env, sem deploy); conexões já completas
-  aprofundam sozinhas no ciclo seguinte.
-- Ajustar o re-walk do reopen na Shopee/TikTok (estreitar o alvo ao reabrir, como
-  ML/Amazon fazem) — hoje cada reabertura re-caminha as janelas até o alvo; com 60 dias
-  são ~4 janelas, com 12 meses seriam ~25 por ciclo. Decidir junto com a extensão.
-- 📌 Medição de 27/08 para essa decisão: banco em **466 MB** (abaixo do teto de 500; era
-  526 em 15/08), sendo **~90% do workspace do sócio** — existe caminho alternativo ao
-  upgrade via curadoria desse dado (decisão de produto, não tomada).
+**Consequências da regra:** comparativos com meses anteriores nunca existirão para conta
+nova (não há dado retroativo — as telas mostram "o histórico importado começa em DD/MM",
+nunca zero); o aviso de conclusão passou a dizer **"histórico desde DD/MM completo"**,
+com dismiss único por conexão (sem meses na chave — o histórico cresce para frente e o
+aviso não deve voltar); a decisão do Supabase **deixou de ter o backfill de 12 meses
+pendurado nela** — vira só uma decisão de capacidade (banco em **466 MB** de 500 em
+27/08, ~90% no workspace do sócio; o re-walk do reopen na Shopee/TikTok segue ~4 janelas
+por ciclo e deixou de ter motivo para crescer).
 
 **Pendências registradas:** (a) a verificação de ponta a ponta real (conectar loja nova →
 dado na tela em 1–2 min) fica para a **próxima conexão real** — a Shopee do sócio

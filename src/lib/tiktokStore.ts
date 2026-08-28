@@ -165,7 +165,7 @@ export async function saveTiktokAuthorization(
 ): Promise<void> {
   const workspaceId = currentWorkspaceId();
   const now = new Date();
-  // Semente única com o tiktokSync (fase 1 de 30 dias; fase 2 estende no passo).
+  // Semente única com o tiktokSync: conta nova importa o mês vigente.
   const seed = tiktokSeedSyncWindow(now.getTime());
   const targetFrom = new Date(seed.targetFromMs).toISOString();
   const cursorFrom = new Date(seed.cursorFromMs).toISOString();

@@ -492,7 +492,6 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
           connectionId={`shopee:${overview.account.id}`}
           status={sync.status}
           coveredFrom={sync.coveredFrom}
-          coveredTo={sync.coveredTo}
         />
       )}
 

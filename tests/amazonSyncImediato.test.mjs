@@ -10,47 +10,24 @@ const now = 1_700_000_000_000;
 // Frente K (27/08/2026): conectar a conta dispara o sync na hora, com a janela
 // recente primeiro. Mesmos guardas dos outros três canais (*SyncImediato).
 
-test("janela de pedidos avança para trás até o alvo imediato", () => {
+test("janela de pedidos avança para trás até o alvo e conclui ao alcançá-lo", () => {
   const move = nextAmazonOrderWindow({
     windowFromMs: now - 7 * DAY,
-    targetFromMs: now - 30 * DAY,
-    coveredFromMs: null,
-    historyFloorMs: now - 366 * DAY,
+    targetFromMs: now - 27 * DAY,
     windowMs: 7 * DAY,
-    toleranceMs: DAY,
   });
   assert.deepEqual(move, { kind: "advance", nextToMs: now - 7 * DAY, nextFromMs: now - 14 * DAY });
+  assert.deepEqual(
+    nextAmazonOrderWindow({ windowFromMs: now - 27 * DAY, targetFromMs: now - 27 * DAY, windowMs: 7 * DAY }),
+    { kind: "complete" }
+  );
 });
 
-test("alvo imediato coberto estende o alvo até o histórico completo (fase 2)", () => {
-  const move = nextAmazonOrderWindow({
-    windowFromMs: now - 30 * DAY,
-    targetFromMs: now - 30 * DAY,
-    coveredFromMs: now - 23 * DAY,
-    historyFloorMs: now - 366 * DAY,
-    windowMs: 7 * DAY,
-    toleranceMs: DAY,
-  });
-  assert.deepEqual(move, {
-    kind: "extend",
-    targetFromMs: now - 366 * DAY,
-    coveredFromMs: now - 30 * DAY,
-    nextToMs: now - 30 * DAY,
-    nextFromMs: now - 37 * DAY,
-  });
-});
-
-test("reabertura com histórico já coberto fecha em complete — não redispara o backfill", () => {
-  // O requestAmazonSync estreita o alvo ao reabrir (target_from = covered_to),
-  // então o alvo recente é rotina; só o covered_from antigo impede a extensão
-  // de redisparar o backfill inteiro a cada reabertura.
+test("reabertura incremental (alvo estreitado pelo covered_to) fecha em complete sem redisparar backfill", () => {
   const move = nextAmazonOrderWindow({
     windowFromMs: now - 2 * 60_000,
     targetFromMs: now - 2 * 60_000,
-    coveredFromMs: now - 366 * DAY,
-    historyFloorMs: now - 366 * DAY,
     windowMs: 7 * DAY,
-    toleranceMs: DAY,
   });
   assert.deepEqual(move, { kind: "complete" });
 });
@@ -89,9 +66,11 @@ test("checkpoints do sync são cercados pelo token do lease (fencing)", async ()
   assert.match(reopenBody, /lease_until IS NULL OR lease_until < now\(\)/);
 });
 
-test("seed nasce com o alvo imediato de 30 dias e o alvo total é configurável", async () => {
+test("seed de conta nova é o mês vigente e conta antiga não é reaberta pela regra", async () => {
   const sync = await readFile(new URL("../src/lib/integrations/amazonSync.ts", import.meta.url), "utf8");
-  assert.match(sync, /const RECENT_DAYS = 30/);
-  assert.match(sync, /Math\.min\(RECENT_DAYS, HISTORY_DAYS\) \* DAY/);
-  assert.match(sync, /AMAZON_HISTORY_DAYS/);
+  assert.match(sync, /inicioDoMesVigente\(now\)/);
+  // Conexão existente segue com o alvo já gravado: o seed só insere quando a
+  // linha não existe.
+  assert.match(sync, /ON CONFLICT \(workspace_id, provider, connection_id\) DO NOTHING/);
+  assert.doesNotMatch(sync, /AMAZON_HISTORY_DAYS/, "o knob de fase 2 foi descartado (decisão da Ana, 27/08/2026)");
 });

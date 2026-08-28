@@ -22,11 +22,13 @@ test("scheduler prioriza conta que nunca fechou uma janela (primeira sincroniza�
   assert.match(scheduler, /WHEN sync\.covered_from IS NULL THEN 0/);
 });
 
-test("seed nasce com o alvo imediato de 30 dias e o alvo total é configurável", async () => {
+test("seed de conta nova é o mês vigente e conta antiga não é reaberta pela regra", async () => {
   const sync = await readFile(new URL("../src/lib/integrations/mercadoLivreSync.ts", import.meta.url), "utf8");
-  assert.match(sync, /const RECENT_DAYS = 30/);
-  assert.match(sync, /Math\.min\(RECENT_DAYS, HISTORY_DAYS\) \* DAY/);
-  assert.match(sync, /MERCADO_LIVRE_HISTORY_DAYS/);
+  assert.match(sync, /inicioDoMesVigente\(now\)/);
+  // Conexão existente segue com o alvo já gravado: o seed só insere quando a
+  // linha não existe.
+  assert.match(sync, /ON CONFLICT \(workspace_id, provider, connection_id\) DO NOTHING/);
+  assert.doesNotMatch(sync, /MERCADO_LIVRE_HISTORY_DAYS/, "o knob de fase 2 foi descartado (decisão da Ana, 27/08/2026)");
 });
 
 test("checkpoints do sync são cercados pelo token do lease (fencing)", async () => {

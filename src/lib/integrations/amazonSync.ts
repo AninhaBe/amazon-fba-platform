@@ -17,6 +17,7 @@ import {
   type OrderItemsApplication,
 } from "./canonicalStore";
 import { AmazonLeaseLostError, nextAmazonOrderWindow } from "./amazonSyncControl";
+import { inicioDoMesVigente } from "./inicioDoMes";
 
 // Sincronização da Amazon para o modelo canônico (fase 5, etapa Orders —
 // docs/canonical-schema.md). Mesmo desenho do Mercado Livre: janela de
@@ -29,18 +30,8 @@ import { AmazonLeaseLostError, nextAmazonOrderWindow } from "./amazonSyncControl
 
 const PROVIDER = "amazon";
 const DAY = 86_400_000;
-/** Fase 1 do backfill: a janela que o vendedor vê primeiro, minutos após conectar. */
-const RECENT_DAYS = 30;
-// Fase 2: alvo total do histórico. `AMAZON_HISTORY_DAYS` permite mudar o alvo
-// sem deploy de código.
-const HISTORY_DAYS = historyDaysConfigurados();
 const WINDOW_DAYS = 7;
 const PAGE_SIZE = 100;
-
-function historyDaysConfigurados(): number {
-  const dias = Number(process.env.AMAZON_HISTORY_DAYS ?? "");
-  return Number.isFinite(dias) && dias >= RECENT_DAYS ? dias : 366;
-}
 // 20 → 40 em 20/08: com 930 pedidos sem itens na conta grande, 20/passo dava
 // ~320/h e a conciliação levaria o dia. O teto real é o rate limit da
 // getOrderItems (0,5 req/s, burst 30) — 40 por passo continua com folga porque
@@ -106,9 +97,11 @@ async function ensureSyncRow(connectionId: string): Promise<SyncRow> {
   const existing = await getSyncRow(connectionId);
   if (existing) return existing;
   const now = syncHorizon();
-  // O alvo nasce curto (fase 1) para o dashboard encher em minutos; ao fechá-lo,
-  // o passo estende o alvo até HISTORY_DAYS e segue em background (fase 2).
-  const targetFrom = new Date(now.getTime() - Math.min(RECENT_DAYS, HISTORY_DAYS) * DAY);
+  // Conta nova importa o MÊS VIGENTE (decisão da Ana, 27/08/2026): quem conecta
+  // no dia 17 vê os 17 dias do mês; dali em diante o histórico cresce para
+  // frente. Sem aprofundamento retroativo em background. Conta antiga não é
+  // tocada: este INSERT só cria a linha quando ela não existe.
+  const targetFrom = inicioDoMesVigente(now);
   const cursorFrom = new Date(Math.max(targetFrom.getTime(), now.getTime() - WINDOW_DAYS * DAY));
   await dbQuery(
     `INSERT INTO workspace_marketplace_syncs
@@ -427,10 +420,7 @@ export async function runAmazonSyncStep(account: AccountCtx, forcarJanela = fals
       const move = nextAmazonOrderWindow({
         windowFromMs: from.getTime(),
         targetFromMs: targetFrom.getTime(),
-        coveredFromMs: row.covered_from ? new Date(row.covered_from).getTime() : null,
-        historyFloorMs: Date.now() - HISTORY_DAYS * DAY,
         windowMs: WINDOW_DAYS * DAY,
-        toleranceMs: DAY,
       });
       if (move.kind === "complete") {
         await dbQuery(
@@ -441,21 +431,6 @@ export async function runAmazonSyncStep(account: AccountCtx, forcarJanela = fals
             WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
               AND lease_until::text = $5 AND lease_until > now()`,
           [workspaceId, PROVIDER, connectionId, page.orders.length, ownershipToken]
-        );
-      } else if (move.kind === "extend") {
-        // Fase 2: o alvo imediato (30 dias) fechou; estende o alvo até o
-        // histórico completo e continua o backfill nas mesmas janelas.
-        await dbQuery(
-          `UPDATE workspace_marketplace_syncs
-              SET status = 'pending', target_from = $4, covered_from = $5,
-                  covered_to = COALESCE(covered_to, target_to),
-                  cursor_from = $6, cursor_to = $7, cursor_token = NULL,
-                  processed_orders = processed_orders + $8,
-                  lease_until = NULL, last_error = NULL, last_success_at = now(), updated_at = now()
-            WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
-              AND lease_until::text = $9 AND lease_until > now()`,
-          [workspaceId, PROVIDER, connectionId, new Date(move.targetFromMs), new Date(move.coveredFromMs),
-            new Date(move.nextFromMs), new Date(move.nextToMs), page.orders.length, ownershipToken]
         );
       } else {
         await dbQuery(

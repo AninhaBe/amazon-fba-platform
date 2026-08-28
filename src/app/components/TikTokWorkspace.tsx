@@ -285,7 +285,6 @@ export function TikTokWorkspace() {
           connectionId={data.connection.id}
           status={data.sync.status}
           coveredFrom={data.sync.coveredFrom}
-          coveredTo={data.sync.coveredTo}
         />
 
         {financialBlocked ? (

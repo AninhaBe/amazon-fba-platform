@@ -386,7 +386,6 @@ function Dashboard({ overview, syncStatus, periodoLabel, connectionId }: { overv
         connectionId={connectionId}
         status={syncStatus.status}
         coveredFrom={syncStatus.coveredFrom}
-        coveredTo={syncStatus.coveredTo}
       />
     )}
 

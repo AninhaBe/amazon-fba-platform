@@ -29,9 +29,11 @@ test("primeiro sync ingere pedidos antes do sweep de catálogo, sem interromper 
   assert.match(sync, /if \(productsDue && !primeiraJanelaPendente\)/);
 });
 
-test("seed nasce com o alvo imediato de 30 dias e o alvo total é configurável", async () => {
+test("seed de conta nova é o mês vigente e conta antiga não é reaberta pela regra", async () => {
   const sync = await readFile(new URL("../src/lib/integrations/shopeeSync.ts", import.meta.url), "utf8");
-  assert.match(sync, /const RECENT_DAYS = 30/);
-  assert.match(sync, /Math\.min\(RECENT_DAYS, HISTORY_DAYS\) \* DAY/);
-  assert.match(sync, /SHOPEE_HISTORY_DAYS/);
+  assert.match(sync, /inicioDoMesVigente\(now\)/);
+  // Conexão existente segue com o alvo já gravado: o seed só insere quando a
+  // linha não existe.
+  assert.match(sync, /ON CONFLICT \(workspace_id, provider, connection_id\) DO NOTHING/);
+  assert.doesNotMatch(sync, /SHOPEE_HISTORY_DAYS/, "o knob de fase 2 foi descartado (decisão da Ana, 27/08/2026)");
 });

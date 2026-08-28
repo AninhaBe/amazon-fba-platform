@@ -1,27 +1,18 @@
+import { inicioDoMesVigente } from "./inicioDoMes";
+
 const DAY = 86_400_000;
 
-/** Fase 1 do backfill: a janela que o vendedor vê primeiro, minutos após conectar. */
-export const TIKTOK_RECENT_DAYS = 30;
 /** Janela do cursor de pedidos (15 dias mantém a resposta pequena e o passo curto). */
 export const TIKTOK_SYNC_WINDOW_DAYS = 15;
 
 /**
- * Fase 2: alvo total do histórico. 60 dias até segunda ordem — a extensão para
- * 12 meses depende da decisão de custo do banco. `TIKTOK_HISTORY_DAYS` permite
- * mudar o alvo sem deploy de código.
- */
-export function tiktokHistoryDays(raw: string | undefined = process.env.TIKTOK_HISTORY_DAYS): number {
-  const dias = Number(raw ?? "");
-  return Number.isFinite(dias) && dias >= TIKTOK_RECENT_DAYS ? dias : 60;
-}
-
-/**
  * Semente ÚNICA do estado de sync — usada pelo callback (tiktokStore) e pelo
- * ensureSyncRow (tiktokSync). Antes eram dois literais soltos de 60d/15d que
- * podiam divergir em silêncio.
+ * ensureSyncRow (tiktokSync). Antes eram dois literais soltos que podiam
+ * divergir em silêncio. O alvo de conta nova é o mês vigente (decisão da Ana,
+ * 27/08/2026) — sem aprofundamento retroativo em background.
  */
 export function tiktokSeedSyncWindow(nowMs: number): { targetFromMs: number; cursorFromMs: number } {
-  const targetFromMs = nowMs - Math.min(TIKTOK_RECENT_DAYS, tiktokHistoryDays()) * DAY;
+  const targetFromMs = inicioDoMesVigente(new Date(nowMs)).getTime();
   return {
     targetFromMs,
     cursorFromMs: Math.max(targetFromMs, nowMs - TIKTOK_SYNC_WINDOW_DAYS * DAY),
@@ -30,24 +21,16 @@ export function tiktokSeedSyncWindow(nowMs: number): { targetFromMs: number; cur
 
 export type TiktokOrderWindowAdvance =
   | { kind: "complete" }
-  | { kind: "advance"; nextFromMs: number; nextToMs: number }
-  | { kind: "extend"; targetFromMs: number; nextFromMs: number; nextToMs: number };
+  | { kind: "advance"; nextFromMs: number; nextToMs: number };
 
 /**
- * Decide o próximo movimento da janela de pedidos ao fechar uma janela.
- * Fase 1 termina quando o cursor alcança o alvo imediato (30 dias); se o ponto
- * mais antigo já coberto ainda não alcança o histórico completo, o alvo é
- * estendido para trás ("extend") e o backfill continua nas mesmas janelas.
- * A extensão olha o ponto mais antigo COBERTO (não o alvo), então uma loja com
- * histórico completo nunca reabre por engano.
+ * Decide o próximo movimento da janela de pedidos ao fechar uma janela: anda
+ * para trás até o alvo e conclui ao alcançá-lo.
  */
 export function nextTiktokOrderWindow(input: {
   windowFromMs: number;
   targetFromMs: number;
-  coveredFromMs: number | null;
-  historyFloorMs: number;
   windowMs: number;
-  toleranceMs: number;
 }): TiktokOrderWindowAdvance {
   if (input.windowFromMs > input.targetFromMs) {
     const nextToMs = input.windowFromMs;
@@ -55,15 +38,6 @@ export function nextTiktokOrderWindow(input: {
       kind: "advance",
       nextToMs,
       nextFromMs: Math.max(input.targetFromMs, nextToMs - input.windowMs),
-    };
-  }
-  const oldestCoveredMs = Math.min(input.windowFromMs, input.coveredFromMs ?? Number.POSITIVE_INFINITY);
-  if (oldestCoveredMs > input.historyFloorMs + input.toleranceMs) {
-    return {
-      kind: "extend",
-      targetFromMs: input.historyFloorMs,
-      nextToMs: oldestCoveredMs,
-      nextFromMs: Math.max(input.historyFloorMs, oldestCoveredMs - input.windowMs),
     };
   }
   return { kind: "complete" };
