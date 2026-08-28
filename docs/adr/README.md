@@ -63,6 +63,7 @@ O que ganhamos, o que abrimos mão, o que passa a ser obrigatório respeitar.
 | [ADR-026](./ADR-026-camadas-por-ciclo-de-vida.md) | Camadas por ciclo de vida — bronze é retenção, não schema; estado do produto vive em colunas | Aceito |
 | [ADR-027](./ADR-027-tarifa-estimada-ate-a-liquidacao.md) | Tarifa estimada pela Product Fees API ocupa o lugar da real até a liquidação, marcada na tela e com a pontaria medida | Aceito |
 | [ADR-028](./ADR-028-modo-do-pooler-e-teto-de-conexoes.md) | Modo do pooler e o teto real de conexões: `session` com `pool_size 15` já falha hoje; proposta é `transaction` | Proposto |
+| [ADR-029](./ADR-029-produto-canonico-e-a-variacao.md) | O produto canônico é a variação, não o anúncio — o custo se prende onde a venda acontece (TikTok já faz assim) | Proposto |
 
 **Índice completo em 16/08/2026** — 14 ADRs, todos listados. Ao criar um ADR novo,
 adicione a linha aqui na mesma hora; este índice já ficou 8 ADRs atrás uma vez.
