@@ -496,6 +496,26 @@ pós-Go Live é o candidato natural; **não simular**; (b) o 503 do dashboard da
 quando não há canônico nenhum mantém a mensagem genérica — item de fila normal, fora
 desta frente.
 
+### 13. Briefing por canal — **fase 1 pronta em 27/08 (aguardando deploy)**
+
+*Verificado em 27/08.* Decisão da Ana (27/08, com prints), **revendo a decisão de
+23/08** que tinha padronizado um Briefing único global nos 4 canais: a entrada
+"Briefing" da lateral de um canal levava ao briefing global e trocava o contexto
+para "Todos os canais" — palavras dela: *"deveria ser da sua própria integração"*.
+
+**Fase 1 (pronta):** uma implementação (`BriefingView`) em duas apresentações —
+sem canal é o briefing global da Visão geral; com canal, a rota
+`/{canal}/briefing` escopa insights (por `provider`), financeiro e narração do
+NEXO (o `/api/central/briefing` já aceitava `escopo`) e mantém o seletor de
+contexto no canal (contexto vem do pathname). O `/amazon/briefing` deixou de ser
+alias do global. Canal **sem detector** mostra o estado honesto ("nenhuma
+prioridade detectada ainda para este canal"), nunca "tudo sob controle" — os
+detectores (ruptura, queda de vendas, margem) hoje só cobrem a Amazon.
+
+**Fase 2 (próxima, por ordem):** reimplementar os 3 detectores por canal,
+começando pelo **Mercado Livre** (replicar = reimplementar com o canônico de
+cada um); Shopee e TikTok em ordens seguintes.
+
 ---
 
 ## Bloqueado por terceiros

@@ -74,23 +74,29 @@ const icons = {
   briefing: <Lightbulb {...iconProps} />,
 };
 
-// O Briefing é UM só, cross-channel, e a mesma entrada aparece em todo canal.
-//
-// Antes ele existia só na barra da Amazon — e nem era um briefing da Amazon:
-// `src/app/amazon/briefing/page.tsx` é um `export { default }` da página global.
-// Ou seja, a Amazon tinha um atalho duplicado para o briefing de todo mundo, e o
-// Mercado Livre não tinha atalho nenhum. Parecia recurso exclusivo de um canal e
-// era acidente de rota (visto em 23/08/2026).
-//
-// ⚠️ Isto NÃO deixa o canal sem leitura própria: o `BriefingLead` do dashboard de
-// cada canal já traz o NEXO falando daquele canal. A divisão é essa e é estável —
-// Dashboard = o canal; Briefing = a operação inteira.
-const BRIEFING: NavItem = {
+// Briefing por canal + global na Visão geral — decisão da Ana em 27/08/2026,
+// REVENDO a de 23/08 (que tinha padronizado uma entrada única global nos 4
+// canais; na época o /amazon/briefing era só re-export acidental da página
+// global). Palavras dela: o Briefing do canal "deveria ser da sua própria
+// integração" — a entrada lateral de um canal não pode tirar a pessoa do
+// contexto do canal. A implementação é UMA (`BriefingView`), parametrizada
+// pelo canal; a rota /{canal}/briefing mantém o seletor de contexto no canal
+// porque o contexto vem do pathname.
+const BRIEFING_GLOBAL: NavItem = {
   href: "/briefing",
   label: "Briefing",
   desc: "Prioridades de todos os canais",
   icon: icons.briefing,
 };
+
+function briefingDoCanal(base: string): NavItem {
+  return {
+    href: `${base}/briefing`,
+    label: "Briefing",
+    desc: "Prioridades deste canal",
+    icon: icons.briefing,
+  };
+}
 
 const navigation: Record<WorkspaceId, NavGroup[]> = {
   overview: [
@@ -98,7 +104,7 @@ const navigation: Record<WorkspaceId, NavGroup[]> = {
       tone: "slate",
       items: [
         { href: "/", label: "Visão geral", desc: "Todos os canais", icon: icons.dashboard, exact: true },
-        BRIEFING,
+        BRIEFING_GLOBAL,
         { href: "/integracoes", label: "Integrações", desc: "Contas e canais", icon: icons.integrations },
       ],
     },
@@ -109,7 +115,7 @@ const navigation: Record<WorkspaceId, NavGroup[]> = {
       tone: "sky",
       items: [
         { href: "/amazon", label: "Dashboard", desc: "Visão do canal", icon: icons.dashboard, exact: true },
-        BRIEFING,
+        briefingDoCanal("/amazon"),
         { href: "/amazon/monitor", label: "Monitor da conta", desc: "Pedidos e financeiro", icon: icons.monitor },
       ],
     },
@@ -147,7 +153,7 @@ const navigation: Record<WorkspaceId, NavGroup[]> = {
       tone: "sky",
       items: [
         { href: "/mercado-livre", label: "Dashboard", desc: "Visão do canal", icon: icons.dashboard, exact: true },
-        BRIEFING,
+        briefingDoCanal("/mercado-livre"),
         { href: "/mercado-livre/monitor", label: "Monitor da conta", desc: "Pedidos e financeiro", icon: icons.monitor },
         { href: "/mercado-livre/auditoria", label: "Pedidos a revisar", desc: "Frete cobrado × declarado", icon: icons.monitor },
       ],
@@ -176,7 +182,7 @@ const navigation: Record<WorkspaceId, NavGroup[]> = {
       tone: "sky",
       items: [
         { href: "/shopee", label: "Dashboard", desc: "Visão do canal", icon: icons.dashboard, exact: true },
-        BRIEFING,
+        briefingDoCanal("/shopee"),
         { href: "/shopee/monitor", label: "Monitor da conta", desc: "Pedidos e financeiro", icon: icons.monitor },
       ],
     },
@@ -197,7 +203,7 @@ const navigation: Record<WorkspaceId, NavGroup[]> = {
       tone: "sky",
       items: [
         { href: "/tiktok", label: "Dashboard", desc: "Visão do canal", icon: icons.dashboard, exact: true },
-        BRIEFING,
+        briefingDoCanal("/tiktok"),
         { href: "/tiktok/monitor", label: "Monitor da conta", desc: "Pedidos e conciliação", icon: icons.monitor },
         { href: "/tiktok/auditoria", label: "Pedidos a revisar", desc: "Frete cobrado × declarado", icon: icons.monitor },
         { href: "/tiktok/financeiro", label: "Financeiro", desc: "Transações e cobertura", icon: icons.performance },
