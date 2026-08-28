@@ -58,6 +58,35 @@ export function AnimatedNumber({ id, value, format, periodo }: {
   const periodoRef = useRef(periodo);
   const frameRef = useRef(0);
 
+  // ⚠️ AJUSTE DE ESTADO DURANTE O RENDER — padrao documentado do React
+  // ("adjusting state when a prop changes"), e aqui ele NAO e otimizacao: e
+  // correcao.
+  //
+  // Medido na v150 em 28/08/2026: sobravam exatamente DOIS quadros com o numero
+  // do periodo anterior sob o rotulo novo, e so nos canais que usam este
+  // componente (3 de 3 falhavam; o TikTok, que nao usa, passava). A causa e que
+  // `displayed` e estado e quem o corrigia era um `useEffect` — efeito roda
+  // DEPOIS da pintura, entao o primeiro paint ainda mostrava o valor velho.
+  //
+  // O `key={periodo}` la embaixo nao resolve isto: chave identifica o span na
+  // lista de filhos do PAI, nao remonta este componente, entao o estado
+  // sobrevive. Ela serve para a animacao de entrada, e so.
+  //
+  // Comparacao por VALOR e estrita: `periodo` e string derivada (ex.: "de|ate").
+  // Se alguem passar objeto, cada render cria referencia nova, a guarda nunca
+  // fecha e isto vira loop — por isso o tipo e `string | undefined` e ha teste
+  // travando que as telas passem string.
+  const [periodoAnterior, setPeriodoAnterior] = useState(periodo);
+  if (periodo !== periodoAnterior) {
+    setPeriodoAnterior(periodo);
+    // O React re-renderiza antes de pintar: nao sobra quadro com o valor do
+    // recorte anterior.
+    setDisplayed(value);
+    // Os refs NAO sao tocados aqui: `react-hooks/refs` proibe acessa-los no
+    // render, e nao e preciso — o efeito abaixo ja detecta a troca de periodo
+    // (`mesmoPeriodo` falso), pinta direto e ressincroniza os dois.
+  }
+
   useEffect(() => {
     const remember = (current: number) => {
       if (id !== undefined) lastValueById.set(id, { valor: current, periodo });

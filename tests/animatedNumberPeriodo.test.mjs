@@ -68,3 +68,31 @@ test("a identidade do periodo e string derivada, nunca objeto novo por render", 
     }
   }
 });
+
+test("o ajuste no render compara por valor e nao pode virar loop", async () => {
+  const fonte = await ler("src/app/components/AnimatedNumber.tsx");
+  // Padrao documentado do React: ajustar estado durante o render quando a prop
+  // muda. So e seguro com comparacao ESTRITA de valor — `periodo` e string
+  // derivada. Objeto/array cria referencia nova a cada render, a guarda nunca
+  // fecha e o componente re-renderiza para sempre.
+  assert.match(fonte, /if \(periodo !== periodoAnterior\) \{/);
+  assert.match(fonte, /setPeriodoAnterior\(periodo\);/);
+  // O tipo e o que impede objeto de entrar em primeiro lugar.
+  assert.match(fonte, /periodo\?: string;/);
+  // E refs continuam fora do render (`react-hooks/refs`).
+  const bloco = fonte.slice(fonte.indexOf("if (periodo !== periodoAnterior)"), fonte.indexOf("useEffect("));
+  assert.doesNotMatch(bloco, /Ref\.current\s*=/, "refs nao podem ser tocados durante o render");
+});
+
+test("a contagem no MESMO periodo e a animacao de entrada continuam existindo", async () => {
+  const fonte = await ler("src/app/components/AnimatedNumber.tsx");
+  // A contagem so sai quando o RECORTE muda. Dentro do mesmo periodo ela e o
+  // efeito que a dona do produto pediu de volta em 28/08/2026 — some daqui e
+  // some da tela.
+  assert.match(fonte, /requestAnimationFrame\(step\)/);
+  assert.match(fonte, /DURATION_MS = 550/);
+  assert.match(fonte, /easeOutCubic/);
+  // A entrada (fade + subida) depende da chave no span; sem ela a troca volta
+  // a ser seca, que foi a reclamacao anterior.
+  assert.match(fonte, /className="numero-animado" key=\{periodo\}/);
+});
