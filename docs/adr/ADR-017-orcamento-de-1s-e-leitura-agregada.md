@@ -205,6 +205,29 @@ pré-agregação já está desenhada.
 📌 **Lição da noite:** typecheck roda ANTES do commit, sempre — um comentário SQL com
 crase dentro de template literal chegou a ser commitado quebrado (`c26246a`→`5c63ac8`).
 
+## Como medir A/B sem enganar a si mesmo (28/08/2026)
+
+⚠️ **Comparação A/B alterna as rodadas, sempre.** Ao otimizar a consulta de detalhe da
+Shopee, medi a versão velha e depois a nova, na mesma execução, e reportei "953ms → 52ms,
+18× mais rápido". **O número estava errado a favor da minha própria entrega:** a velha
+rodou com cache do Postgres frio e a nova aproveitou os buffers que a velha acabara de
+aquecer. Repetindo em três rodadas alternadas, o resultado honesto foi **50ms vs 46ms** —
+o ganho real existe, mas em **cache frio** (a primeira abertura do dia), não no regime
+quente que a medição enviesada sugeria.
+
+Duas regras que ficam:
+
+1. **Alternar e repetir**: rode A, B, A, B… pelo menos três vezes e compare **medianas**.
+   Uma execução única mede o estado do cache, não a consulta.
+2. **Medição de cache frio é outra medição, e vale à parte** — é o que a pessoa sente ao
+   abrir a tela pela primeira vez no dia. Reporte as duas, sem misturar.
+
+📌 Vale também para prova de equivalência: a primeira amostra que usei para provar que a
+consulta nova dava os mesmos valores era **inteiramente nula** (os pedidos recentes ainda
+não tinham tarifa conciliada), então provava apenas que `null = null`. A prova só passou a
+valer ao amostrar pedidos que **têm** tarifa: 659 valores reais de dinheiro comparados.
+**Amostra sem o fenômeno não prova nada.**
+
 ## Ordem de execução
 
 1. **Rota agregadora** `/api/amazon/dashboard` lendo do canônico (o que der do canônico

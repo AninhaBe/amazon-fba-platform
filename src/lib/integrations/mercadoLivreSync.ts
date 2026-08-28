@@ -354,14 +354,21 @@ export async function runMercadoLivreSyncStep(
     return ownershipToken;
   };
 
+  // Onde o passo está agora. Só um rótulo curto: entra no log e no `last_error`
+  // quando algo estoura, para o diagnóstico não depender de adivinhação.
+  let etapaAtual = "inicio";
   try {
     const productsDue = !row.products_synced_at || Date.now() - new Date(row.products_synced_at).getTime() > 6 * 60 * 60_000;
-    if (productsDue) await syncProducts(connection, assertOwnership);
+    if (productsDue) {
+      etapaAtual = "produtos";
+      await syncProducts(connection, assertOwnership);
+    }
 
     const from = new Date(row.cursor_from);
     const to = new Date(row.cursor_to);
     const offset = row.cursor_offset;
     const accountId = encodeURIComponent(connection.externalAccountId);
+    etapaAtual = "buscar-pedidos";
     const page = await mercadoLivreFetch<{ paging?: { total?: number }; results?: MercadoLivreOrder[] }>(
       connection,
       // sort=date_asc é ESTÁVEL para paginação por offset: pedidos novos entram no
@@ -372,9 +379,11 @@ export async function runMercadoLivreSyncStep(
     );
     const orders = page.results ?? [];
     const total = page.paging?.total ?? orders.length;
+    etapaAtual = "salvar-pedidos";
     await assertOwnership();
     await saveOrders(connection, orders);
 
+    etapaAtual = "avancar-janela";
     const pageComplete = offset + orders.length >= total || orders.length < PAGE_SIZE;
     const targetFrom = new Date(row.target_from);
     await assertOwnership();
@@ -422,8 +431,20 @@ export async function runMercadoLivreSyncStep(
     }
     // Frete é uma conciliação complementar. Processamos poucos registros por
     // passo, depois de salvar e avançar os pedidos, sem bloquear o faturamento.
+    etapaAtual = "custos-de-frete";
     await syncMissingShipmentCosts(connection);
   } catch (error) {
+    // INSTRUMENTAÇÃO (28/08/2026): o erro ia só para `last_error`, sem log —
+    // por isso a conexão da vendedora ficou 8h parada com "timeout exceeded
+    // when trying to connect" e os logs de produção não mostravam NADA. Sem
+    // saber em que etapa estourou, o diagnóstico vira adivinhação.
+    //
+    // Não loga dado de negócio: só canal, conexão, etapa e a mensagem do erro.
+    const mensagem = error instanceof Error ? error.message : "Falha ao sincronizar Mercado Livre.";
+    console.error(
+      `[ml-sync] conexao=${connection.id} etapa=${etapaAtual} falhou: ${mensagem}`,
+      error instanceof Error && error.stack ? error.stack.split("\n").slice(0, 4).join(" | ") : "",
+    );
     // O token cerca também a falha: worker que perdeu o lease não sobrescreve o
     // estado do dono novo com 'error' (o UPDATE simplesmente não casa).
     await dbQuery(
@@ -431,7 +452,9 @@ export async function runMercadoLivreSyncStep(
           SET status = 'error', lease_until = NULL, last_error = $4, updated_at = now()
         WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
           AND lease_until::text = $5`,
-      [workspaceId, PROVIDER, connection.id, error instanceof Error ? error.message : "Falha ao sincronizar Mercado Livre.", ownershipToken]
+      // A etapa entra no last_error: quem abrir a tabela vê onde parou, não só
+      // que parou.
+      [workspaceId, PROVIDER, connection.id, `[${etapaAtual}] ${mensagem}`, ownershipToken]
     );
   }
   return publicStatus(await getSyncRow(connection.id));

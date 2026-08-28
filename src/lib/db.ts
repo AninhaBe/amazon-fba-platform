@@ -25,7 +25,16 @@ function getPool(): Pool {
       ssl: { rejectUnauthorized: false },
       // Cada instância serverless pode criar seu próprio pool. Mantê-lo pequeno
       // evita multiplicar conexões no Supavisor quando a Vercel escala a aplicação.
-      max: process.env.VERCEL ? 2 : 5,
+      //
+      // 5 → 10 em 28/08/2026, MEDIDO e não no chute: a conexão real do Mercado
+      // Livre da vendedora passou 8h em `error` com "timeout exceeded when
+      // trying to connect" — que é o erro DESTE pool quando
+      // `connectionTimeoutMillis` estoura, não do marketplace. O servidor tinha
+      // folga (17 conexões de 60 no Postgres, só 1 ativa), então a contenção
+      // era aqui: o cron dispara os quatro canais em paralelo e cada passo de
+      // sync abre várias queries — não cabe em 5 slots. 10 continua conservador
+      // (bem abaixo do teto do servidor) e é reversível numa linha.
+      max: process.env.VERCEL ? 2 : 10,
       idleTimeoutMillis: 10_000,
       connectionTimeoutMillis: 10_000,
     });
