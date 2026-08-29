@@ -3,6 +3,7 @@ import { currentWorkspaceId } from "../workspaceScope";
 import { runWithAccount, type AccountCtx } from "../accountContext";
 import { getOrder, getOrders, getOrderItems } from "../orders";
 import { getOrderFinancialsFromTransactions } from "../transactions";
+import { SpApiError } from "../spapi";
 import { periodFromRange } from "../period";
 import {
   normalizeAmazonOrderHeader,
@@ -160,6 +161,46 @@ async function requestAmazonSync(connectionId: string, forcar = false): Promise<
   return (await getSyncRow(connectionId))!;
 }
 
+/**
+ * A DESISTÊNCIA DEIXA RASTRO — e é só isso que esta função faz.
+ *
+ * ⚠️ Os três `catch` deste arquivo engoliam o erro em silêncio. Medido em
+ * produção em 29/08/2026: `/finances/2024-06-19/transactions` recusa **~20% das
+ * chamadas** (62, 57 e 64 erros em três horas seguidas), todas 429, e o log da
+ * SP-API mostra a mesma chamada indo a `tentativa: 4` — como `maxRetries = 3`,
+ * a quarta não retenta, ela lança. O `catch` então abandonava o lote inteiro de
+ * tarifas sem uma linha em lugar nenhum.
+ *
+ * O resultado disso está no banco: **22.347 pedidos da Amazon, 22.347 sem
+ * carimbo de tentativa, 0 liquidados** — a mesma armadilha que matou o escrow
+ * da Shopee em silêncio depois de meses funcionando.
+ *
+ * ⚠️ ISTO NÃO MUDA COMPORTAMENTO. Não muda quando chama, nem quantas vezes, nem
+ * o que grava: o `return`/`break` de cada chamador continua exatamente onde
+ * estava. Só torna visível um erro que hoje some. O carimbo de tentativa por
+ * pedido — a correção de verdade — é desenho, e está no ADR da conciliação como
+ * passo próprio; enquanto ele não sai, cada erro engolido aqui é dado
+ * financeiro dela sumindo sem rastro.
+ *
+ * `amazonRequestId` vai junto de propósito: é o que a Amazon pede para abrir
+ * caso no suporte, e sem ele a recusa é irrespondível.
+ *
+ * Exportada para o teste: o valor dela É o que ela escreve, então o teste tem
+ * que ler a linha, e não confiar que ela existe.
+ */
+export function registrarDesistencia(etapa: string, erro: unknown, contexto: Record<string, unknown>): void {
+  const spapi = erro instanceof SpApiError ? erro : null;
+  console.warn("[amazon-sync] etapa abandonada", {
+    etapa,
+    motivo: spapi?.code ?? (erro instanceof Error ? erro.name : "DESCONHECIDO"),
+    status: spapi?.status ?? null,
+    endpoint: spapi?.endpoint ?? null,
+    amazonRequestId: spapi?.amazonRequestId ?? null,
+    detalhe: erro instanceof Error ? erro.message : String(erro),
+    ...contexto,
+  });
+}
+
 // Conciliação de itens: pedidos com receita e sem linhas, mais recentes antes.
 async function syncMissingOrderItems(connectionId: string): Promise<void> {
   const rows = await dbQuery<{ external_order_id: string }>(
@@ -187,8 +228,14 @@ async function syncMissingOrderItems(connectionId: string): Promise<void> {
           buyerShipping: normalized.buyerShipping,
         });
       }
-    } catch {
+    } catch (erro) {
       // Rate limit ou pedido indisponível: a próxima passada tenta de novo.
+      registrarDesistencia("itens-do-pedido", erro, {
+        connectionId,
+        pedido: row.external_order_id,
+        pedidosNoLote: rows.length,
+        conciliadosAntesDeParar: applications.length,
+      });
       break;
     }
   }
@@ -226,8 +273,18 @@ async function syncMissingOrderFees(connectionId: string): Promise<void> {
   let financials: Record<string, { fees: number; refunds: number; currency: string }>;
   try {
     financials = await getOrderFinancialsFromTransactions(periodFromRange(ymd(oldest), ymd(new Date())));
-  } catch {
+  } catch (erro) {
     // Rate limit / indisponibilidade: tenta na próxima passada.
+    //
+    // ⚠️ ESTE é o que sangra dado financeiro: o lote inteiro fica sem tarifa, e
+    // "a próxima passada" bate no mesmo 429. É a causa medida da cobertura de
+    // 27% da Amazon.
+    registrarDesistencia("tarifas-pela-transactions", erro, {
+      connectionId,
+      pedidosSemTarifa: rows.length,
+      janelaDe: ymd(oldest),
+      janelaAte: ymd(new Date()),
+    });
     return;
   }
 
@@ -295,9 +352,15 @@ async function reverifyPendingById(connectionId: string): Promise<void> {
     try {
       const pedido = await getOrder(row.external_order_id);
       if (pedido) atualizados.push(normalizeAmazonOrderHeader(pedido));
-    } catch {
+    } catch (erro) {
       // Rate limit ou pedido indisponível: para o lote e tenta na próxima
       // passada. Insistir aqui só queima cota.
+      registrarDesistencia("reverificacao-de-pedido", erro, {
+        connectionId,
+        pedido: row.external_order_id,
+        pedidosNoLote: rows.length,
+        reverificadosAntesDeParar: atualizados.length,
+      });
       break;
     }
   }
