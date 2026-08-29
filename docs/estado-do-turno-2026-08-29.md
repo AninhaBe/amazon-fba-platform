@@ -1,73 +1,87 @@
-# Estado do turno — 29/08/2026, 12:31Z (backend)
+# Estado do turno — 29/08/2026, 15:00Z (backend)
 
-Escrito para sobreviver ao reinício do meu contexto. Ordem: o que está no ar,
-o que está pendente, e o que **não** deve ser feito sem entender antes.
+Foto do que está no ar, do que ficou pendente **com nome**, e do que precisa da
+Ana. Escrito para sobreviver a um reinício de contexto.
 
 ## No ar agora
 
-- **v180** na máquina (`fly status`, não `fly releases`) desde 13:08:14Z.
-- **Scheduler DESLIGADO** (`INTERNAL_SCHEDULER=0`) desde **12:23:52Z**, por ordem
-  do cérebro: a dona não conseguia usar o app e o sync competia com ela.
-- **Coletor de métricas desligado** (`METRICS_PORT=-1`) desde ~02:59Z.
-- Canais configurados em `SCHEDULER_CANAIS=shopee-sync,mercado-livre-sync,tiktok-sync,amazon-sync`
-  (sem efeito enquanto o scheduler estiver desligado).
+- **v191** na máquina (`fly status`, nunca a lista de releases).
+- **Quatro canais sincronizando**: shopee 3 min, ML 5 min, amazon 10 min,
+  tiktok 10 min. A Shopee voltou às **14:26:05Z** com o contador zerado para ela.
+- **Coletor de métricas antigo desligado** (`METRICS_PORT=-1`) desde ~02:59Z.
 
-## O que subiu nesta madrugada/manhã
+## O que mudou hoje, por frente
 
-| Commit | O quê |
+| Frente | O quê |
 |---|---|
-| `0ddc01d` | **Uma renovação de sessão em voo por vez** entre requisições (`supabase/renovacaoUnica.ts`) — conserto do 409 que trancou a dona para fora |
-| `09ff22a` | **Erro de sistema para de culpar a usuária** nas três telas (login, TikTok, isolamento) |
-| `3cc74c6` | Pools separados (usuário 8 / fundo 3) + intervalo por canal medido — ADR-030 |
-| `1803543` | Varredura cobre evento `pending` velho + a rede de segurança se anuncia |
-| `9790f9a` | Raspagem de métricas não empilha |
-| `0a5c722` | `statement_timeout` de 120s por variável |
-| `900b775` | Middleware para de responder `/api/health` por atalho |
-| `56fb68e` | Health toca o banco e devolve 503 |
+| **Auth** | Uma renovação de sessão em voo por vez entre requisições — conserto do 409 que trancou a dona para fora |
+| **Erro honesto** | Login, TikTok (2 telas) e isolamento de provider param de culpar a usuária quando a falha é nossa (`INFRA_INDISPONIVEL`) |
+| **Liveness** | `/api/vivo` (não toca o banco) é o check do Fly; `/api/health` segue com 503 honesto |
+| **Pools** | Usuário 8 / fundo 5; os oito `after()` passaram a rodar como fundo, por porta única |
+| **Briefing** | Os três sinais de causa voltaram a existir; falha deixa rastro no log |
+| **Tela de produtos** | Venda se prende ao SKU e não ao id do anúncio — a ordenação por volume estava invertida |
+| **Escrow Shopee** | Não repete, não pula, carimba toda tentativa, não busca o que já tem; e não morre mais quando a ingestão termina |
+| **Contador** | `marketplace_api_calls` nos quatro canais, por endpoint e por hora (ADR-032) |
 
-## ⚠️ Pendências abertas, em ordem de gravidade
+## Números que valem como referência
 
-1. **A separação de pools pode ser meia-solução.** Hipótese do cérebro, ainda
-   **não derrubada nem confirmada**: os dois pools do app saem pelo **mesmo
-   Supavisor** (15 slots para o projeto inteiro). A separação impede o fundo de
-   roubar slot *no app*, mas não *no pooler*, que é um andar acima. Isso
-   explicaria por que voltou de manhã com carga real sem ter voltado às 4h com
-   carga mínima. **Se confirmado, é correção do ADR-030, não nota de rodapé.**
-2. **O `statement_timeout` de 120s não está limitando a ETAPA.** Duas evidências:
-   `tiktok-sync: HTTP 200 em 129s` e `shopee-sync: HTTP 200 em 170s`. Ou a etapa
-   é feita de muitas consultas curtas (e o teto por consulta protege muito menos
-   do que contamos), ou o teto não pega naquele caminho. **Descobrir qual — não
-   adivinhar.**
-3. **Pedido ao painel da Supabase:** o cérebro vai pedir à dona subir o
-   `pool_size` de **15 → 30**. `max_connections` é 60 e usava 21, então há folga
-   física. Falta minha leitura de risco.
-4. **O lote da variação (ADR-029) está NO AR sem o backfill.** Catálogo Shopee
-   com **739 linhas, 367 compostas**; itens de pedido com **401 de 22.589**
-   compostos. Join hoje: **83 de 85** casam. Aconteceu porque o commit foi para
-   a `main` e todo deploy posterior o levou. **Não desfazer sem análise** — o
-   cérebro pediu primeiro saber quais são os **2 casos que não casam**.
-5. **207+ eventos do ML em `pending`** drenando a 10 por ciclo — mas o scheduler
-   está desligado, então **não estão drenando agora**.
-6. **Alerta da Shopee** ("abnormal behavior") aberto contra o app — investigação
-   interrompida pela emergência do auth. O que já se sabe: `fencedShopeeExternalRead`
-   verifica o lease **antes** da chamada externa, então durante a queda do banco
-   provavelmente **não** houve chamada. Falta a contagem por endpoint/hora.
+- **Cobertura financeira**: ML 100% (37.775 pedidos), TikTok 96%, Amazon 27%
+  (mas é **horizonte**: 96% nos últimos 30 dias), Shopee 15% (**0,2%** nos
+  últimos 30 dias).
+- **Escrow desde as 14:26**: 60 tentativas, **60 liquidadas**, zero erro, zero
+  429. Pedidos com tarifa 3.012 → 3.072.
+- **Custo do contador**: 1.700 chamadas viram 34 linhas; descarga de 921ms no
+  pior caso; 48 kB.
+- **Carga da tela**: rota de overview do ML = 14 idas ao pool em 4 ondas.
+
+## ⚠️ Pendências abertas, com nome
+
+1. **Amazon não tem carimbo de tentativa.** `settlement_attempt_at` nulo em
+   20.156 pedidos — a mesma armadilha da Shopee, esperando.
+2. **Transactions API antes de junho/2026**: apurar se dá para buscar. Se der, é
+   backfill; se não der, a tela precisa dizer que esse histórico não existe para
+   nós, em vez de mostrar vazio.
+3. **62 erros em 1.545 chamadas da SP-API** (`/finances/2024-06-19/transactions`).
+   Provável 429 retentado com sucesso; agora toda recusa vira log, então a
+   próxima leitura é fato e não inferência.
+4. **A conciliação como passo próprio** (ADR-032, item 5). O que está no ar é o
+   remendo: um claim dentro de `runShopeeSyncStep`.
+5. **Tela de produtos em "todos"**: o total do SKU aparece repetido nas linhas
+   irmãs fechadas.
+6. **Desvio entre a nossa base e a fonte (Shopee)** nunca foi medido — decisão do
+   cérebro enquanto o alerta estiver aberto.
+7. **Backfill da ADR-029**: antes de prometer, verificar se o payload cru antigo
+   traz o `model_id`. Sem ele o backfill não recupera a variação da venda antiga.
+8. **ADR do zero fabricado** (`available_qty NOT NULL`, 435 de 739 anúncios da
+   Shopee). Escopo pedido: quantas telas leem `available_qty`, os três estados
+   que hoje viram zero, e o que a tela mostra em cada caso.
+9. **As 14 idas em 4 ondas**: `getCosts()` roda três vezes na mesma carga, e duas
+   ondas existem só por conveniência (early-return e cruzamento em JS).
+10. **`/api/central/briefing` é chamado duas vezes** por carga.
+
+## Precisa da Ana
+
+- **Segunda máquina no Fly.** Não maior — a mais. Com uma só, qualquer 503 vira
+  apagão no proxy e todo deploy nosso é uma queda para ela. Medido: 2% de CPU e
+  143 MB de 985 não pedem máquina maior.
+- **Console da Shopee**: qual endpoint e qual hora foram sinalizados no alerta.
+  Até saber, o escrow é **candidato forte**, não causa identificada.
+- **Ritmo do escrow**: a fila de 17 mil leva ~2,5 dias com o lote em 50. Se ela
+  precisar antes, dá para acelerar — mas concentrar chamada com a Shopee olhando
+  é o risco que a gente escolheu não correr sem ela saber.
 
 ## Não faça sem entender
 
-- **Não religue o scheduler** sem decidir *como* — a resposta provavelmente não é
-  "religar igual": é menos etapas simultâneas e etapa de fundo que não dure 170s.
-- **Não mexa na guarda de isolamento.** Ela fechar quando não consegue verificar
-  é o comportamento **certo**; o defeito era a mensagem, e já foi corrigido.
-- **Não afrouxe o `statement_timeout` por reflexo** se o sync começar a morrer:
-  escrita que precisa de mais de 2 minutos é problema por si só.
-
-## Lições do turno que ainda não estão escritas no ADR-017
-
-- **A décima:** quando o mesmo sintoma aparece em subsistemas que não se
-  conhecem, a causa não está em nenhum deles — está no **padrão que os chama**.
-  28 transações brigando por 15 slots; N renovações brigando por 1 refresh token.
-  O defeito é **a tela pedir N vezes o que precisava pedir uma**.
-- **As três telas eram um defeito só:** o tratamento de erro não separava "falha
-  nossa" de "problema dela" e, no escuro, escolhia sempre a versão que a culpa —
-  em dois casos oferecendo uma ação que piora.
+- **Não apague o claim de conciliação** de `runShopeeSyncStep` por cobertura de
+  teste baixa. Ele pode passar semanas sem disparar: é cinto de segurança, não
+  motor. O comentário no código explica.
+- **Não mexa na guarda de isolamento.** Fechar quando não consegue verificar é o
+  comportamento certo; o defeito era a mensagem, e já foi corrigido.
+- **Não afrouxe o `statement_timeout`** por reflexo: escrita que precisa de mais
+  de 2 minutos é problema por si só.
+- **Nenhum número de relógio vale como custo de consulta sem `EXPLAIN ANALYZE`
+  ao lado.** Tempo de parede mede o sistema; `Execution Time` mede a consulta.
+  A gente reordenou prioridade duas vezes hoje por confundir os dois.
+- **Sonda somente-leitura contra produção não é inofensiva.** Leitura que segura
+  slot compete igual, e uma consulta que queima os 120s do teto é um bloqueio.
+  Avise antes.
