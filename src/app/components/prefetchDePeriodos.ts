@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 /**
  * Aquece os períodos padrão em segundo plano, para a PRIMEIRA troca já ser
@@ -34,6 +34,16 @@ import { useEffect, useRef } from "react";
 /** Os quatro presets do filtro, na ordem em que o dashboard os oferece. */
 export const PERIODOS_PADRAO = ["days=today", "days=7", "days=15", "days=30"] as const;
 
+/**
+ * Espera antes de atender uma intenção.
+ *
+ * Passar o mouse pela faixa de botões varrendo a tela dispararia os quatro de
+ * uma vez. Com o atraso, cada botão novo SUBSTITUI o anterior e só o botão onde
+ * o ponteiro parou chega a buscar — movimento de passagem não vira rajada.
+ * Curto o bastante para não comer o intervalo entre passar o mouse e clicar.
+ */
+const ESPERA_DA_INTENCAO_MS = 120;
+
 export function usePrefetchDePeriodos({ ativo, atual, escopo, jaTem, buscar }: {
   /** `false` enquanto a tela não pintou, não há conexão, ou o sync inicial roda. */
   ativo: boolean;
@@ -47,6 +57,12 @@ export function usePrefetchDePeriodos({ ativo, atual, escopo, jaTem, buscar }: {
   // Um aquecimento por escopo por sessão. Sem isto, cada revalidação dispararia
   // a fila de novo.
   const feitos = useRef(new Set<string>());
+  // O que a fila de fundo e a intenção compartilham: nem uma nem outra busca
+  // duas vezes a mesma janela do mesmo escopo.
+  const emVoo = useRef(new Set<string>());
+  const intencao = useRef<{ timer: number; chave: string } | null>(null);
+  const contexto = useRef({ ativo, atual, escopo, jaTem, buscar });
+  contexto.current = { ativo, atual, escopo, jaTem, buscar };
 
   useEffect(() => {
     if (!ativo || !escopo || feitos.current.has(escopo)) return;
@@ -83,4 +99,36 @@ export function usePrefetchDePeriodos({ ativo, atual, escopo, jaTem, buscar }: {
       window.clearTimeout(agendar as number);
     };
   }, [ativo, atual, escopo, jaTem, buscar]);
+
+  // ⚠️ ADITIVO: a fila de fundo acima continua idêntica. Isto só ANTECIPA a
+  // janela que a pessoa está prestes a pedir; janela já aquecida não é buscada
+  // de novo, e uma intenção que não vira clique não custa nada além da busca
+  // que a fila faria de qualquer jeito.
+  const aquecerAgora = useCallback((periodo: string) => {
+    if (typeof window === "undefined") return;
+    if (intencao.current) window.clearTimeout(intencao.current.timer);
+    const timer = window.setTimeout(() => {
+      intencao.current = null;
+      const atualCtx = contexto.current;
+      if (!atualCtx.ativo || !atualCtx.escopo) return;
+      if (periodo === atualCtx.atual || atualCtx.jaTem(periodo)) return;
+      const chave = `${atualCtx.escopo}|${periodo}`;
+      if (emVoo.current.has(chave)) return;
+      emVoo.current.add(chave);
+      const controller = new AbortController();
+      void atualCtx.buscar(periodo, controller.signal)
+        .catch(() => {
+          // Antecipar é oportunista: falha aqui não vira erro de tela, porque o
+          // clique faz a busca de verdade e trata o erro lá.
+        })
+        .finally(() => { emVoo.current.delete(chave); });
+    }, ESPERA_DA_INTENCAO_MS);
+    intencao.current = { timer, chave: periodo };
+  }, []);
+
+  useEffect(() => () => {
+    if (intencao.current) window.clearTimeout(intencao.current.timer);
+  }, []);
+
+  return { aquecerAgora };
 }

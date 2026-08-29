@@ -4085,6 +4085,16 @@ summary:hover { background: var(--paper-soft); }
 .abc-product-status { display: inline-flex; flex: none; align-items: center; gap: 4px; border-radius: 999px; padding-inline: 6px; font-family: var(--font-sans); font-weight: var(--weight-medium); white-space: nowrap; }
 .abc-product-status i { width: 5px; height: 5px; flex: none; border-radius: 999px; background: currentcolor; }
 .abc-product-status.is-warning { background: color-mix(in oklch, var(--warning) 9%, var(--paper)); color: var(--warning); }
+/* ⚠️ A MARCA DO NUMERO INCOMPLETO MORA NA CELULA DELE.
+   Ela ficava embaixo do NOME do produto, enquanto o numero inflado aparecia em
+   verde e negrito duas colunas adiante, com a mesma cara de um numero completo
+   (achado em 28/08/2026). Quem varre a coluna de lucro para decidir nao via
+   diferenca. O sublinhado pontilhado marca o VALOR; a linha abaixo diz o que
+   falta, com quanto e com link — a cor nunca e o unico sinal. */
+.abc-valor-pendente { text-decoration: underline dotted var(--ink-32); text-underline-offset: 3px; }
+.abc-pendencia { display: block; margin-block-start: 2px; color: var(--acao); font-family: var(--font-sans); font-size: 11px; font-weight: var(--weight-medium); line-height: 15px; white-space: nowrap; }
+.abc-pendencia:hover { text-decoration: underline; }
+
 .abc-margin { display: inline-flex; min-width: 54px; justify-content: flex-end; border-radius: 999px; padding: 2px 7px; font-weight: var(--weight-semibold); line-height: 18px; }
 .abc-margin.is-danger { background: color-mix(in oklch, var(--danger) 8%, var(--paper)); color: var(--danger); }
 .abc-margin.is-warning { background: color-mix(in oklch, var(--warning) 9%, var(--paper)); color: var(--warning); }

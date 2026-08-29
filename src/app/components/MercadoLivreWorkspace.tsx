@@ -263,7 +263,7 @@ function MercadoLivreWorkspaceInterno({ view }: { view: keyof typeof views }) {
       updatedAt: corpo.updatedAt ? new Date(corpo.updatedAt) : new Date(),
     });
   }, [view]);
-  usePrefetchDePeriodos({
+  const { aquecerAgora } = usePrefetchDePeriodos({
     ativo: !!overview && !!connectionId,
     atual: period.query,
     escopo: connectionId ?? "",
@@ -277,6 +277,7 @@ function MercadoLivreWorkspaceInterno({ view }: { view: keyof typeof views }) {
       period={(view === "dashboard" || view === "monitor" || view === "estoque") ? (
         <DashboardPeriodFilter
           {...period.filterProps}
+          onIntent={aquecerAgora}
           meta={view === "dashboard" && updatedAt ? <>Atualizado às {brTime(updatedAt)}{overview?.metrics.lastSaleAt ? ` · última venda às ${brTime(overview.metrics.lastSaleAt, true)}` : ""}</> : undefined}
         />
       ) : undefined}

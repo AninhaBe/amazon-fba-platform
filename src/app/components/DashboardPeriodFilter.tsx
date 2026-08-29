@@ -78,7 +78,7 @@ export function useDashboardPeriod(initialQuery = "", onQueryChange?: (query: st
   };
 }
 
-export function DashboardPeriodFilter({ selected, from, to, error, onPreset, onCustom, onFrom, onTo, onApply, meta }: {
+export function DashboardPeriodFilter({ selected, from, to, error, onPreset, onCustom, onFrom, onTo, onApply, onIntent, meta }: {
   selected: DashboardPeriodOption;
   from: string;
   to: string;
@@ -88,6 +88,21 @@ export function DashboardPeriodFilter({ selected, from, to, error, onPreset, onC
   onFrom: (value: string) => void;
   onTo: (value: string) => void;
   onApply: () => void;
+  /**
+   * Avisa que a pessoa está PRESTES a escolher este período (ponteiro em cima
+   * ou foco pelo teclado), para o canal já ir buscar.
+   *
+   * Medido em produção em 28/08/2026: o aquecimento de fundo é sequencial e a
+   * última janela só ficava pronta aos ~3,8s. Quem clicava antes disso pagava
+   * a espera inteira — era o "hoje e 7 rápidos, 15 lento" que ela relatou.
+   * Avisar na intenção acerta exatamente o período que ela vai clicar, sem
+   * ninguém precisar adivinhar qual ela mais usa (não há telemetria de uso, e
+   * chutar seria dado inventado). São ~650ms por janela contra os 300–800ms
+   * entre passar o mouse e clicar.
+   *
+   * Opcional de propósito: tela que não passa nada continua exatamente igual.
+   */
+  onIntent?: (query: string) => void;
   meta?: ReactNode;
 }) {
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
@@ -110,7 +125,19 @@ export function DashboardPeriodFilter({ selected, from, to, error, onPreset, onC
     <div ref={sentinelRef} aria-hidden="true" className="dashboard-period-sentinel" />
     <section className={`dashboard-period-filter${stuck ? " is-stuck" : ""}`} aria-label="Período dos indicadores">
     <div className="dashboard-period-presets" role="group" aria-label="Períodos rápidos">
-      {options.map((option) => <button key={option.value} type="button" aria-pressed={selected === option.value} className={selected === option.value ? "is-active" : ""} onClick={() => onPreset(option.value)}>{option.label}</button>)}
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          aria-pressed={selected === option.value}
+          className={selected === option.value ? "is-active" : ""}
+          onClick={() => onPreset(option.value)}
+          onPointerEnter={() => onIntent?.(`days=${option.value}`)}
+          onFocus={() => onIntent?.(`days=${option.value}`)}
+        >
+          {option.label}
+        </button>
+      ))}
       <button type="button" aria-pressed={selected === "custom"} className={selected === "custom" ? "is-active" : ""} onClick={onCustom}>Personalizado</button>
     </div>
     {selected === "custom" && <div className="dashboard-custom-period">

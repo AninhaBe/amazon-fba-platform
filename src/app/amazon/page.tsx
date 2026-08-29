@@ -343,7 +343,7 @@ export default function Dashboard() {
   const temDoPeriodo = naMao || !!cacheDoPeriodo;
   const loading = temDoPeriodo ? loadingBruto && !cacheDoPeriodo : true;
   const profitabilityLoading = temDoPeriodo ? profitabilityLoadingBruto && !cacheDoPeriodo : true;
-  usePrefetchDePeriodos({
+  const { aquecerAgora } = usePrefetchDePeriodos({
     ativo: !loading && !!orders,
     atual: periodQuery,
     escopo: "amazon",
@@ -624,7 +624,7 @@ export default function Dashboard() {
     return (
       <IntegrationDashboardFrame
         className="dashboard-page amazon-dashboard"
-        period={<DashboardPeriodFilter {...period.filterProps} />}
+        period={<DashboardPeriodFilter {...period.filterProps} onIntent={aquecerAgora} />}
         header={<PageHeader
           eyebrow="Operação Amazon"
           title="Resumo financeiro"

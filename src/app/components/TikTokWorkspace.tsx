@@ -189,7 +189,7 @@ export function TikTokWorkspace() {
     ? overviewState.data
     : null;
   const data = doEstado ?? (chaveAtual ? periodCache.get(chaveAtual) ?? null : null);
-  usePrefetchDePeriodos({
+  const { aquecerAgora } = usePrefetchDePeriodos({
     ativo: !!data && !!selectedConnectionId,
     atual: period.query,
     escopo: selectedConnectionId ?? "",
@@ -248,7 +248,7 @@ export function TikTokWorkspace() {
     return (
       <IntegrationDashboardFrame
         className="channel-dashboard tiktok-dashboard-page"
-        period={<DashboardPeriodFilter {...period.filterProps} />}
+        period={<DashboardPeriodFilter {...period.filterProps} onIntent={aquecerAgora} />}
         header={<PageHeader eyebrow="TikTok Shop" title={data.connection.name} subtitle={data.connection.region} action={selector} />}
       >
         <EmptyState
@@ -306,7 +306,7 @@ export function TikTokWorkspace() {
   return (
     <IntegrationDashboardFrame
       className="channel-dashboard tiktok-dashboard-page"
-      period={<DashboardPeriodFilter {...period.filterProps} />}
+      period={<DashboardPeriodFilter {...period.filterProps} onIntent={aquecerAgora} />}
       header={<PageHeader eyebrow="TikTok Shop" title={data.connection.name} subtitle={`${data.connection.region} · ${phase === "ready" ? "Dados sincronizados" : phase === "retryable_error" || phase === "reauth_required" ? "Sincronização interrompida" : "Sincronizando"}`} action={selector} />}
     >
       <div className="dashboard-sections integration-dashboard-sections tiktok-dashboard-body">

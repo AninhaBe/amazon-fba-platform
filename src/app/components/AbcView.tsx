@@ -24,6 +24,17 @@ interface AbcProduct {
   contribution: number | null;
   marginPct: number | null;
   costMissing: boolean;
+  /**
+   * Parte do período que a plataforma ainda NÃO postou repasse.
+   *
+   * Opcionais porque a tela precisa continuar honesta se a resposta ainda for a
+   * antiga: sem os números, cai no `complete` de sempre e marca a célula sem
+   * dizer quanto — nunca finge que está tudo apurado.
+   */
+  receitaSemRepasse?: number;
+  pedidosSemRepasse?: number;
+  /** Receita com repasse postado: é a base da margem apurada. */
+  revenueApurada?: number;
   salesClass: AbcClass;
   profitClass: AbcClass | null;
   quadrant: Quadrant | null;
@@ -54,7 +65,33 @@ function money(value: number, currency = "BRL") {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(value);
 }
 
-export function AbcView({ endpoint, eyebrow, subtitle, costsHref }: { endpoint: string; eyebrow: string; subtitle: string; costsHref: string }) {
+/**
+ * Este produto tem venda que a plataforma ainda não postou repasse?
+ *
+ * ⚠️ `complete` sozinho não bastava — e é por isso que ele continua aqui como
+ * último recurso. Ele é um booleano por SKU (`bool_and` das vendas), então diz
+ * "falta alguma" sem dizer QUANTA: um produto com 9 de 10 repasses postados e
+ * outro com nenhum chegavam iguais na tela. Quando a resposta traz os números,
+ * é por eles que a tela fala; sem eles, marca a célula do mesmo jeito, porque
+ * calar seria pior que marcar sem o valor.
+ */
+function temPendencia(p: AbcProduct): boolean {
+  if (p.receitaSemRepasse != null) return p.receitaSemRepasse > 0;
+  if (p.pedidosSemRepasse != null) return p.pedidosSemRepasse > 0;
+  return !p.complete && !p.costMissing;
+}
+
+/** A frase da pendência, com número quando há número. */
+function frasePendencia(p: AbcProduct, currency: string): string {
+  const pedidos = p.pedidosSemRepasse;
+  const receita = p.receitaSemRepasse;
+  if (receita != null && pedidos != null) return `${money(receita, currency)} em ${pedidos} pedido${pedidos === 1 ? "" : "s"} sem repasse postado`;
+  if (receita != null) return `${money(receita, currency)} sem repasse postado`;
+  if (pedidos != null) return `${pedidos} pedido${pedidos === 1 ? "" : "s"} sem repasse postado`;
+  return "Sem repasse postado";
+}
+
+export function AbcView({ endpoint, eyebrow, subtitle, costsHref, ordersHref }: { endpoint: string; eyebrow: string; subtitle: string; costsHref: string; ordersHref: string }) {
   const [days, setDays] = useState(30);
   const requestKey = `${endpoint}:${days}`;
   const [request, setRequest] = useState<AbcRequestState>({ key: "", data: null, error: null });
@@ -108,16 +145,16 @@ export function AbcView({ endpoint, eyebrow, subtitle, costsHref }: { endpoint: 
       ) : !data || data.products.length === 0 ? (
         <EmptyState title="Sem vendas no período" description="Amplie o período ou aguarde a sincronização terminar." />
       ) : (
-        <Results data={data} quad={quad} setQuad={setQuad} costsHref={costsHref} />
+        <Results data={data} quad={quad} setQuad={setQuad} costsHref={costsHref} ordersHref={ordersHref} />
       )}
     </div>
   );
 }
 
-function Results({ data, quad, setQuad, costsHref }: { data: Abc; quad: Quadrant | null; setQuad: (q: Quadrant | null) => void; costsHref: string }) {
+function Results({ data, quad, setQuad, costsHref, ordersHref }: { data: Abc; quad: Quadrant | null; setQuad: (q: Quadrant | null) => void; costsHref: string; ordersHref: string }) {
   const { products, currency } = data;
 
-  const { totalProfit, skusMaking80, byQuadrant, classified, costMissing } = useMemo(() => {
+  const { totalProfit, skusMaking80, byQuadrant, classified, costMissing, semRepasse } = useMemo(() => {
     // Só produtos COM custo cadastrado entram no cálculo de lucro; os demais
     // ("custo pendente") não têm margem confiável e ficam de fora.
     const withCost = products.filter((p) => p.contribution != null);
@@ -132,7 +169,18 @@ function Results({ data, quad, setQuad, costsHref }: { data: Abc; quad: Quadrant
       motor: { count: 0, profit: 0 }, vamp: { count: 0, profit: 0 }, joia: { count: 0, profit: 0 }, morto: { count: 0, profit: 0 },
     };
     for (const p of products) { if (p.quadrant) { groups[p.quadrant].count++; groups[p.quadrant].profit += p.contribution ?? 0; } }
-    return { totalProfit: total, skusMaking80: count, byQuadrant: groups, classified: withCost.length, costMissing: missing };
+    // Agregado derivado dos proprios produtos: a faixa funciona mesmo se a
+    // resposta nao trouxer um total pronto, e nunca discorda das linhas.
+    const pendentes = products.filter((p) => temPendencia(p));
+    const pendencia = {
+      produtos: pendentes.length,
+      receita: pendentes.reduce((sum, p) => sum + (p.receitaSemRepasse ?? 0), 0),
+      pedidos: pendentes.reduce((sum, p) => sum + (p.pedidosSemRepasse ?? 0), 0),
+      // Quantos ficaram FORA do ranking por nao ter nenhum pedido apurado — sao
+      // os que hoje apareciam com margem cheia sem tarifa nenhuma.
+      foraDoRanking: pendentes.filter((p) => p.contribution == null && !p.costMissing).length,
+    };
+    return { totalProfit: total, skusMaking80: count, byQuadrant: groups, classified: withCost.length, costMissing: missing, semRepasse: pendencia };
   }, [products]);
 
   const shown = quad ? products.filter((p) => p.quadrant === quad) : products;
@@ -143,7 +191,7 @@ function Results({ data, quad, setQuad, costsHref }: { data: Abc; quad: Quadrant
         <p className="text-[15px] text-[var(--ink-soft)]">
           <b className="font-bold text-[var(--ink)]">{skusMaking80} SKU{skusMaking80 !== 1 ? "s" : ""}</b>{" "}
           ({Math.round((skusMaking80 / classified) * 100)}% dos classificados) fazem{" "}
-          <b className="font-bold text-[var(--ink)]">80% do seu lucro</b> no período.
+          <b className="font-bold text-[var(--ink)]">80% do lucro apurado</b> no período.
         </p>
       ) : (
         <p className="text-[15px] text-[var(--ink-soft)]">Nenhum produto com custo cadastrado — cadastre os custos para ver o lucro por produto.</p>
@@ -154,6 +202,26 @@ function Results({ data, quad, setQuad, costsHref }: { data: Abc; quad: Quadrant
           <span aria-hidden="true">⚠️</span>
           <span><b className="font-semibold">{costMissing} produto{costMissing !== 1 ? "s" : ""} sem custo cadastrado</b> — não entra{costMissing !== 1 ? "m" : ""} no cálculo de lucro até você cadastrar o custo.</span>
           <a href={costsHref} className="font-semibold text-amber-900 underline">Cadastrar custos →</a>
+        </div>
+      )}
+
+      {semRepasse.produtos > 0 && (
+        // Irma da faixa de custo faltando, e pelo mesmo motivo: a pendencia diz
+        // O QUE falta, com numero, dono da espera e link. Quem espera aqui e a
+        // plataforma, nao ela — e a frase precisa deixar isso claro, senao soa
+        // como cobranca de algo que ela deveria ter feito.
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-800">
+          <span aria-hidden="true">⚠️</span>
+          <span>
+            {semRepasse.receita > 0 ? (
+              <><b className="font-semibold">{money(semRepasse.receita, currency)} de receita ainda sem repasse postado</b> em {semRepasse.produtos} produto{semRepasse.produtos !== 1 ? "s" : ""}</>
+            ) : (
+              <><b className="font-semibold">{semRepasse.produtos} produto{semRepasse.produtos !== 1 ? "s" : ""} com venda sem repasse postado</b></>
+            )}
+            {" "}— o lucro apurado desses sobe conforme a plataforma posta
+            {semRepasse.foraDoRanking > 0 && <>, e {semRepasse.foraDoRanking} ainda não {semRepasse.foraDoRanking !== 1 ? "entram" : "entra"} na classificação por não ter nenhuma venda apurada</>}.
+          </span>
+          <a href={ordersHref} className="font-semibold text-amber-900 underline">Ver os pedidos →</a>
         </div>
       )}
 
@@ -216,7 +284,7 @@ function Results({ data, quad, setQuad, costsHref }: { data: Abc; quad: Quadrant
             <h2 className="text-[15px] font-bold text-[var(--ink)]">
               {quad ? `Produtos · ${QUAD[quad].label}` : `Produtos (${products.length})`}
             </h2>
-            <p className="mt-0.5 text-[12.5px] text-[var(--ink-muted)]">Classe A/B/C pela contribuição acumulada. Clique num quadrante para filtrar.</p>
+            <p className="mt-0.5 text-[12.5px] text-[var(--ink-muted)]">Classe A/B/C pela contribuição já apurada — só o que a plataforma postou entra na conta. Clique num quadrante para filtrar.</p>
           </div>
           <div className="overflow-x-auto">
             <table className="listing-table abc-table">
@@ -225,7 +293,10 @@ function Results({ data, quad, setQuad, costsHref }: { data: Abc; quad: Quadrant
                   <th className="text-left">Produto</th>
                   <th className="text-right">Un.</th>
                   <th className="text-right">Faturamento</th>
-                  <th className="text-right">Lucro</th>
+                  {/* ⚠️ "apurado" NAO e adorno. A coluna soma so o que a
+                      plataforma ja postou; sem renomear, o numero menor pareceria
+                      piora do produto em vez de mudanca de base. */}
+                  <th className="text-right">Lucro apurado</th>
                   <th className="text-right">Margem</th>
                   <th className="text-center">Classe</th>
                   <th className="text-left">Quadrante</th>
@@ -237,6 +308,7 @@ function Results({ data, quad, setQuad, costsHref }: { data: Abc; quad: Quadrant
                   const clsColor = p.profitClass === "A" ? "bg-[var(--positive-soft)] text-[var(--positive)]" : p.profitClass === "B" ? "bg-[var(--warning-soft)] text-[var(--warning)]" : "bg-[var(--ink-05)] text-[var(--ink-muted)]";
                   const neg = p.contribution != null && p.contribution < 0;
                   const marginStatus = marginTone(p.marginPct);
+                  const pendente = temPendencia(p);
                   return (
                     <tr key={p.sku || p.productId} className="[&_td]:border-b [&_td]:border-[var(--line)] [&_td]:px-3 [&_td]:py-2.5 [&_td]:tabular-nums hover:bg-[var(--ink-03)]">
                       <td className="!text-left">
@@ -244,20 +316,26 @@ function Results({ data, quad, setQuad, costsHref }: { data: Abc; quad: Quadrant
                           <strong className="truncate text-[13px] font-semibold" title={p.title}>{p.title}</strong>
                           <small className="abc-product-meta">
                             <span className="abc-product-sku">{p.sku || p.productId}</span>
-                            {!p.costMissing && !p.complete && (
-                              <span className="abc-product-status is-warning">
-                                <i aria-hidden="true" />
-                                Sem repasse postado
-                              </span>
-                            )}
                           </small>
                         </div>
                       </td>
                       <td className="text-right">{p.units}</td>
                       <td className="text-right">{money(p.revenue, currency)}</td>
-                      <td className={`text-right font-bold ${p.contribution == null ? "text-[var(--ink-faint)]" : neg ? "text-[var(--danger)]" : "text-[var(--positive)]"}`}>{p.contribution == null ? "—" : money(p.contribution, currency)}</td>
+                      {/* ⚠️ A MARCA MORA NA CELULA DO NUMERO AFETADO.
+                          Ela ficava embaixo do NOME, enquanto o numero inflado
+                          aparecia em verde e negrito duas colunas adiante, com a
+                          mesma cara de um numero completo. Quem varre a coluna de
+                          lucro para decidir nao via diferenca nenhuma. */}
+                      <td className={`text-right font-bold ${p.contribution == null ? "text-[var(--ink-faint)]" : neg ? "text-[var(--danger)]" : "text-[var(--positive)]"}`}>
+                        <span className={pendente ? "abc-valor-pendente" : undefined}>{p.contribution == null ? "—" : money(p.contribution, currency)}</span>
+                        {pendente && (
+                          <a className="abc-pendencia" href={ordersHref}>
+                            {frasePendencia(p, currency)} <span aria-hidden="true">→</span>
+                          </a>
+                        )}
+                      </td>
                       <td className="text-right">
-                        <span className={`abc-margin is-${marginStatus}`}>
+                        <span className={`abc-margin is-${marginStatus}${pendente ? " abc-valor-pendente" : ""}`}>
                           {p.marginPct == null ? "—" : `${p.marginPct.toFixed(1)}%`}
                         </span>
                       </td>
@@ -271,8 +349,14 @@ function Results({ data, quad, setQuad, costsHref }: { data: Abc; quad: Quadrant
                           <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[12px] font-bold ${q.tag}`}>
                             <span className={`h-1.5 w-1.5 rounded-sm ${q.dot}`} />{q.label}
                           </span>
-                        ) : (
+                        ) : p.costMissing ? (
                           <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-[12px] font-bold text-amber-700">Sem custo</span>
+                        ) : (
+                          // Fora do ranking por nao ter NENHUM pedido apurado. A
+                          // linha continua inteira na tabela — unidades, receita e
+                          // a pendencia acima: sair da classificacao nao pode
+                          // virar sumir da tela.
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-[12px] font-bold text-amber-700">Sem repasse</span>
                         )}
                       </td>
                     </tr>
@@ -287,7 +371,7 @@ function Results({ data, quad, setQuad, costsHref }: { data: Abc; quad: Quadrant
       {!data.covered && (
         <p className="flex gap-2 px-1 text-xs text-[var(--ink-muted)]">
           <span aria-hidden="true">ℹ️</span>
-          <span>Ainda sincronizando o período — alguns produtos aparecem sem repasse até o canal postar.</span>
+          <span>Ainda sincronizando o período — além do que falta de repasse acima, pode haver venda que ainda nem entrou.</span>
         </p>
       )}
     </div>

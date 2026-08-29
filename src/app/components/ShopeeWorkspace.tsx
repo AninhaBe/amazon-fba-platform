@@ -221,7 +221,7 @@ export function ShopeeWorkspace() {
       overview: corpo.overview, sync: corpo.sync, updatedAt: new Date(),
     });
   }, [lojaAtual, offsetAtual]);
-  usePrefetchDePeriodos({
+  const { aquecerAgora } = usePrefetchDePeriodos({
     // So depois de a tela ter algo — aquecer nao disputa com a primeira pintura.
     ativo: !!overview && !!lojaAtual,
     atual: period.query,
@@ -554,6 +554,7 @@ export function ShopeeWorkspace() {
       className="channel-dashboard shopee-dashboard-page"
       period={<DashboardPeriodFilter
         {...period.filterProps}
+        onIntent={aquecerAgora}
         meta={updatedAt ? <>Atualizado às {brTime(updatedAt)}{overview.metrics.lastSaleAt ? ` · última venda às ${brTime(overview.metrics.lastSaleAt, true)}` : ""}</> : undefined}
       />}
       header={<PageHeader
