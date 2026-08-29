@@ -66,7 +66,7 @@ interface Overview {
     cogs: number | null; taxes: number | null; taxRate: number | null;
     sellerShipping: number | null; buyerShipping: number | null; feesComplete: boolean;
     revenueProcessed: number;
-    coverage: { processedOrders: number; paidOrders: number; complete: boolean };
+    coverage: { processedOrders: number; paidOrders: number; ordersWithFees: number; complete: boolean };
     estimatedProfit: number | null; marginPct: number | null; unitsWithoutCost: number;
   };
   dailySales: DailyPoint[];
@@ -670,7 +670,12 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
   const resultIncomplete = !profitCoverage.complete || !overview.profit.feesComplete || costsIncomplete || overview.profit.fees == null || overview.profit.sellerShipping == null || overview.profit.ads == null || overview.profit.taxesWithheld == null || overview.profit.refunds == null || overview.profit.cogs == null || overview.profit.estimatedProfit == null || overview.profit.marginPct == null;
   const knownCosts = resultIncomplete ? null : overview.profit.fees! + overview.profit.sellerShipping! + overview.profit.ads! + overview.profit.taxesWithheld! + overview.profit.refunds! + overview.profit.cogs! + (overview.profit.taxes ?? 0);
   const ordersAwaitingCapture = Math.max(0, overview.metrics.revenueCoverage.totalOrders - overview.metrics.revenueCoverage.capturedOrders);
-  const ordersAwaitingStatement = Math.max(0, profitCoverage.paidOrders - profitCoverage.processedOrders);
+  // ⚠️ 29/08/2026 — ERA `paidOrders - processedOrders`, e os dois são o mesmo
+  // número: "processado" significa que o pedido entrou no canônico, não que a
+  // tarifa chegou. A conta dava ZERO em 9.849 vendas e a tela caía numa frase
+  // sem número — exatamente o que a regra da casa proíbe ("diga o que falta,
+  // com número e link"). O que falta é tarifa, então a conta é sobre tarifa.
+  const vendasSemTarifa = Math.max(0, profitCoverage.processedOrders - profitCoverage.ordersWithFees);
 
   return (
     <div className="dashboard-sections integration-dashboard-sections shopee-dashboard-body">
@@ -861,7 +866,20 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
               {overview.profit.taxRate == null && <Link href={shopeeTaxRateHref(overview.account.id)} className="meli-financial-link">Cadastrar alíquota <span aria-hidden="true">→</span></Link>}
               {!overview.profit.feesComplete && (
                 <p className="text-xs leading-relaxed text-amber-700">
-                  {ordersAwaitingStatement > 0 ? `${ordersAwaitingStatement} venda(s) aguardam a postagem do extrato financeiro pela Shopee.` : "A Shopee ainda não postou o extrato financeiro de todas as vendas do período."} <Link href="/shopee/monitor" className="font-semibold text-[var(--acao)] underline-offset-2 hover:underline">Ver no monitor <span aria-hidden="true">→</span></Link>
+                  {/* ⚠️ A frase NÃO ATRIBUI CAUSA, e isso é decisão, não descuido.
+                      A anterior dizia "a Shopee ainda não postou" — culpava o
+                      fornecedor dela por algo que em boa parte é nosso: o cursor
+                      do escrow pulava pedidos e `settlement_attempt_at` estava
+                      nulo em 20.162 de 20.162, então NÃO HÁ COMO SABER de quem é
+                      a espera. É o mesmo defeito das três telas da manhã com a
+                      fralda trocada: no escuro o sistema escolhe uma explicação,
+                      e nunca escolhe a si mesmo.
+                      Quando o carimbo tiver histórico, isto volta a distinguir —
+                      "a Shopee ainda não liberou" e "ainda não consultamos" —
+                      porque a ação dela é diferente em cada caso. */}
+                  {vendasSemTarifa > 0
+                    ? `${vendasSemTarifa} de ${profitCoverage.processedOrders} vendas do período ainda estão sem a tarifa da Shopee registrada — sem ela não dá para fechar o lucro.`
+                    : "Ainda falta a tarifa da Shopee de parte das vendas do período — sem ela não dá para fechar o lucro."} <Link href="/shopee/monitor" className="font-semibold text-[var(--acao)] underline-offset-2 hover:underline">Ver no monitor <span aria-hidden="true">→</span></Link>
                 </p>
               )}
               {overview.profit.unitsWithoutCost > 0 && (

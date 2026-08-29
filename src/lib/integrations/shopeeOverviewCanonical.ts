@@ -210,7 +210,21 @@ export interface ShopeeOverview {
     buyerShipping: number | null;
     feesComplete: boolean;
     revenueProcessed: number;
-    coverage: { processedOrders: number; paidOrders: number; complete: boolean };
+    coverage: {
+      processedOrders: number;
+      paidOrders: number;
+      /**
+       * Pedidos do período com tarifa da Shopee JÁ registrada.
+       *
+       * ⚠️ Existe porque a tela subtraía `paidOrders - processedOrders` para
+       * dizer quantas vendas faltavam — e "processado" quer dizer que o pedido
+       * entrou no canônico, NÃO que a tarifa dele chegou. Os dois eram 9.849 na
+       * loja real, a conta dava zero, e a tela caía numa frase sem número.
+       * Números certos, subtração respondendo pergunta que ninguém fez.
+       */
+      ordersWithFees: number;
+      complete: boolean;
+    };
     estimatedProfit: number | null;
     marginPct: number | null;
     unitsWithoutCost: number;
@@ -771,7 +785,12 @@ export async function getShopeeOverviewFromCanonical(
       buyerShipping,
       feesComplete: periodCovered && allKnown(ordersWithFees),
       revenueProcessed: processedRevenue,
-      coverage: { processedOrders: ordersProcessed, paidOrders: totals.paid_orders, complete: financialComplete },
+      coverage: {
+        processedOrders: ordersProcessed,
+        paidOrders: totals.paid_orders,
+        ordersWithFees,
+        complete: financialComplete,
+      },
       estimatedProfit,
       marginPct,
       unitsWithoutCost,

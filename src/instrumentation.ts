@@ -136,7 +136,12 @@ export async function register() {
     setInterval(() => void dispara("retencao"), RETENTION_INTERVAL_MS);
   }, 120_000);
 
-  console.log(`[scheduler] armado: syncs a cada ${SYNC_INTERVAL_MS / 60_000} min, retenção diária.`);
+  // ⚠️ NAO repetir o intervalo aqui. Esta linha dizia "syncs a cada 2 min" logo
+  // depois de o log ter listado os intervalos REAIS por canal (10, 5 e 10) —
+  // duas afirmacoes contraditorias, e a errada vinha por ultimo. Enquanto era
+  // so cosmetico passou; no dia em que a gente comecou a LER log para medir,
+  // virou armadilha. Quem quer o intervalo le as linhas por canal acima.
+  console.log("[scheduler] armado. Intervalo por canal listado acima; retenção diária.");
 
   // ---------------------------------------------------------------- métricas
   // Servidor HTTP mínimo numa porta INTERNA, só para o coletor do Fly (ADR-019).

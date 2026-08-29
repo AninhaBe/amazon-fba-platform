@@ -37,7 +37,6 @@ import {
   decodeShopeeSyncFailure,
   encodeShopeeSyncFailure,
   fencedShopeeExternalRead,
-  nextShopeeEscrowOffset,
   nextShopeeOrderWindow,
   validateShopeeCatalogSnapshot,
   validateShopeeOrderBatch,
@@ -60,6 +59,18 @@ const WINDOW_DAYS = ORDER_WINDOW_DAYS; // teto da própria API
 const FRESH_FOR_MS = 10 * 60_000;
 /** Pedidos por passo que buscam escrow — mantém o passo curto no cron. */
 const ESCROW_BATCH_SIZE = 20;
+
+/**
+ * Quanto tempo esperar antes de reperguntar o escrow do MESMO pedido.
+ *
+ * ⚠️ Sete dias é conservador de propósito, e o número vai poder ser escolhido
+ * com dado em vez de prudência assim que `settlement_attempt_at` tiver histórico
+ * — hoje ele está NULO em 20.162 de 20.162 pedidos, então ninguém sabe qual é a
+ * janela real de liberação da Shopee. A distribuição que temos está contaminada:
+ * pedido recente sem liquidação pode ser "a Shopee não liberou" ou "nunca
+ * perguntamos", e sem a marca não dá para distinguir.
+ */
+const REPERGUNTA_APOS_DIAS = Number(process.env.SHOPEE_REPERGUNTA_ESCROW_DIAS || 7);
 const CATALOG_PAGES_PER_STEP = 8;
 const CATALOG_STEP_BUDGET_MS = 12_000;
 
@@ -449,13 +460,51 @@ async function saveOrderWindow(
 }
 
 /**
+ * Marca que PERGUNTAMOS, com o desfecho. Escrita própria, fora da transação da
+ * liquidação: ela precisa sobreviver mesmo quando a liquidação não acontece —
+ * é justamente o caso "perguntamos e não havia" que hoje some.
+ */
+async function marcarTentativaDeEscrow(
+  connectionId: string,
+  externalOrderId: string,
+  desfecho: string
+): Promise<void> {
+  await dbQuery(
+    `UPDATE workspace_channel_orders
+        -- clock_timestamp() e nao now(): mesma forma que o TikTok ja usa, e
+        -- e o relogio real da tentativa, nao o inicio da transacao. Esta escrita
+        -- muda a linha SEMPRE, de proposito — o carimbo E o dado. Por isso ela
+        -- esta na lista de UPDATE direto permitido da ADR-022, ao lado da do
+        -- TikTok, em vez de ganhar um guard de "nao regrave o igual".
+        SET settlement_attempt_at = clock_timestamp(), settlement_outcome = $5
+      WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
+        AND external_order_id = $4`,
+    [currentWorkspaceId(), PROVIDER, connectionId, externalOrderId, desfecho]
+  );
+}
+
+/**
+ * O detalhe do pedido que já está gravado, quando ele serve.
+ *
+ * Só vale se for mesmo um detalhe — `item_list` é o que distingue a resposta de
+ * `get_order_detail` da linha resumida. Sem essa checagem a gente trocaria uma
+ * chamada a mais por um dado a menos, que é o pior dos dois.
+ */
+function detalheGuardado(raw: unknown): ShopeeOrderDetail | null {
+  if (!raw || typeof raw !== "object") return null;
+  const candidato = raw as { item_list?: unknown; order_sn?: unknown };
+  if (!Array.isArray(candidato.item_list) || candidato.item_list.length === 0) return null;
+  if (typeof candidato.order_sn !== "string") return null;
+  return candidato as unknown as ShopeeOrderDetail;
+}
+
+/**
  * Conciliação do escrow: pedidos com receita mas ainda sem tarifa gravada.
  * Roda depois dos pedidos, em lotes pequenos — a tarifa chega atrasada por
  * natureza (só fecha após o pagamento) e não pode travar o faturamento.
  */
 async function syncMissingEscrow(
   connection: IntegrationConnection,
-  cursorOffset: number,
   assertOwnership: () => Promise<string>
 ): Promise<{ attempted: number; failed: number; nextOffset: number }> {
   // Liquidação agora vive em coluna (ADR-026 R2); o fallback ao raw cobre as
@@ -471,32 +520,72 @@ async function syncMissingEscrow(
   );
   const total = countRow?.total ?? 0;
   if (!total) return { attempted: 0, failed: 0, nextOffset: 0 };
-  const offset = cursorOffset % total;
-  const pending = await dbQuery<{ external_order_id: string }>(
-    `SELECT o.external_order_id
+  // ⚠️ SEM OFFSET, e essa é a correção principal (29/08/2026).
+  //
+  // O cursor era uma POSIÇÃO numa lista FILTRADA que ENCOLHE conforme os
+  // pedidos liquidam. Duas consequências, e a segunda é a grave:
+  //   · repetia — ao dar a volta (`cursorOffset % total`), reperguntava os
+  //     mesmos pedidos, para sempre, inclusive os que a Shopee ainda não tem
+  //     como liquidar;
+  //   · PULAVA — quando a lista encolhe embaixo do offset, o pedido que estava
+  //     naquela posição nunca chega a ser perguntado. Buraco no dado financeiro
+  //     dela, e SILENCIOSO: pedido nunca perguntado não aparece como faltando.
+  //
+  // A ordenação por `settlement_attempt_at` (NULLS FIRST) se sustenta sozinha:
+  // quem nunca foi perguntado vem primeiro, depois quem foi perguntado há mais
+  // tempo. Não há posição para pular nem volta para repetir — a estrutura que
+  // produzia os dois defeitos deixou de existir.
+  const pending = await dbQuery<{ external_order_id: string; raw: unknown }>(
+    `SELECT o.external_order_id, o.raw
        FROM workspace_channel_orders o
       WHERE o.workspace_id = $1 AND o.provider = $2 AND o.connection_id = $3
         AND o.status IN ('paid', 'shipped', 'delivered')
         AND ${NAO_LIQUIDADO}
-      ORDER BY o.occurred_at, o.external_order_id
-      LIMIT $4 OFFSET $5`,
-    [currentWorkspaceId(), PROVIDER, connection.id, ESCROW_BATCH_SIZE, offset]
+        -- Não repergunta o mesmo pedido antes do intervalo: sem isto, pedido
+        -- que a Shopee nunca vai liquidar volta à fila em toda passagem.
+        AND (o.settlement_attempt_at IS NULL
+             OR o.settlement_attempt_at < now() - interval '${REPERGUNTA_APOS_DIAS} days')
+      ORDER BY o.settlement_attempt_at ASC NULLS FIRST, o.occurred_at, o.external_order_id
+      LIMIT $4`,
+    [currentWorkspaceId(), PROVIDER, connection.id, ESCROW_BATCH_SIZE]
   );
 
   let failed = 0;
   for (const row of pending) {
+    // ⚠️ TODA TENTATIVA DEIXA MARCA, inclusive a que volta vazia.
+    //
+    // Sem a marca não existe diferença entre "a Shopee não tem escrow deste
+    // pedido" e "nunca perguntamos" — e o sistema lê ausência de marca como
+    // ausência de fato, escolhendo sempre a interpretação errada. Foi o mesmo
+    // defeito do zero fabricado e do evento com zero tentativas, três vezes no
+    // mesmo dia, em lugares que não se conhecem.
+    //
+    // O carimbo vem ANTES da chamada, e é de propósito: se ela falhar no meio,
+    // a marca tem que existir mesmo assim, senão o pedido volta à fila na
+    // passagem seguinte e a repetição continua.
+    await marcarTentativaDeEscrow(connection.id, row.external_order_id, "tentado");
     try {
       const escrow = (await fencedShopeeExternalRead(
         assertOwnership,
         () => getShopeeEscrowDetail(connection, row.external_order_id)
       )) as ShopeeEscrowDetail;
-      if (!escrow?.order_income) continue;
-      const detail = await fencedShopeeExternalRead(
+      if (!escrow?.order_income) {
+        // Fato registrado, não silêncio: a Shopee respondeu e não havia escrow.
+        await marcarTentativaDeEscrow(connection.id, row.external_order_id, "sem_escrow");
+        continue;
+      }
+      // O detalhe do pedido JÁ ESTÁ no banco na maioria dos casos — foi ele que
+      // criou a linha. Buscar de novo era metade das chamadas deste passo, e a
+      // pergunta cuja resposta a gente já tinha.
+      const guardado = detalheGuardado(row.raw);
+      const order = guardado ?? ((await fencedShopeeExternalRead(
         assertOwnership,
         () => getShopeeOrderDetail(connection, [row.external_order_id])
-      );
-      const order = ((detail.order_list ?? []) as ShopeeOrderDetail[])[0];
-      if (!order) continue;
+      )).order_list as ShopeeOrderDetail[] | undefined)?.[0];
+      if (!order) {
+        await marcarTentativaDeEscrow(connection.id, row.external_order_id, "sem_detalhe");
+        continue;
+      }
       // Aqui não é best-effort: o marcador explícito só pode ser gravado se as
       // linhas financeiras tiverem sido persistidas atomicamente com sucesso.
       const ownershipToken = await assertOwnership();
@@ -535,14 +624,20 @@ async function syncMissingEscrow(
         },
       );
       if (!fenced.owned) throw new ShopeeLeaseLostError("Lease Shopee perdido antes de persistir escrow.");
+      await marcarTentativaDeEscrow(connection.id, row.external_order_id, "liquidado");
     } catch (error) {
       if (error instanceof ShopeeLeaseLostError) throw error;
-      // Escrow indisponível para este pedido (ainda não pago, ou erro pontual):
-      // segue para o próximo — a próxima passagem tenta de novo.
+      // Escrow indisponível para este pedido (ainda não pago, ou erro pontual).
+      // A marca da tentativa já foi gravada antes da chamada, então ele espera o
+      // intervalo em vez de voltar à fila na passagem seguinte.
+      await marcarTentativaDeEscrow(connection.id, row.external_order_id, "falhou").catch(() => {});
       failed++;
     }
   }
-  return { attempted: pending.length, failed, nextOffset: nextShopeeEscrowOffset(offset, pending.length, total) };
+  // `nextOffset` continua no contrato por compatibilidade com o chamador, mas
+  // não significa mais posição: a fila se ordena sozinha por quem foi
+  // perguntado há mais tempo. Ver o comentário do SELECT acima.
+  return { attempted: pending.length, failed, nextOffset: 0 };
 }
 
 export async function runShopeeSyncStep(
@@ -658,7 +753,10 @@ export async function runShopeeSyncStep(
     );
     if (!reacquired[0]) return publicStatus(await getSyncRow(connection.id), true);
     ownershipToken = reacquired[0].ownership_token;
-    const escrow = await syncMissingEscrow(connection, row.cursor_offset ?? 0, assertOwnership);
+    // Sem `cursorOffset`: a fila do escrow se ordena sozinha por quem nunca foi
+    // perguntado. O campo continua sendo gravado como 0 para não mudar o schema
+    // nesta frente — ele deixou de ter significado, não de existir.
+    const escrow = await syncMissingEscrow(connection, assertOwnership);
     await assertOwnership();
     const warning = escrow.failed > 0
       ? `Conciliação Shopee parcial: ${escrow.failed} de ${escrow.attempted} escrow(s) falharam e serão tentados novamente.`
