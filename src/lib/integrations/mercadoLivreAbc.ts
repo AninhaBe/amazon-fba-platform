@@ -23,7 +23,14 @@ export interface AbcProduct {
   sku: string | null;
   title: string;
   units: number;
+  /** Receita TOTAL do período. Fato — não muda com esta frente. */
   revenue: number;
+  /** Receita dos pedidos que JÁ têm repasse postado. Base da contribuição. */
+  revenueApurada: number;
+  /** Receita ainda sem repasse (dinheiro). Existe também para quem tem apurado. */
+  receitaSemRepasse: number;
+  /** Pedidos ainda sem repasse (contagem), para a frase da tela. */
+  pedidosSemRepasse: number;
   cost: number;
   fees: number;
   tax: number;
@@ -44,6 +51,8 @@ export interface MercadoLivreAbc {
   /** `null` quando a alíquota não foi configurada. */
   taxRate: number | null;
   products: AbcProduct[];
+  /** Quanto do período ainda não tem repasse — a faixa do topo da tela. */
+  semRepasse: { receita: number; produtos: number; produtosSemClasse: number };
 }
 
 interface Row {
@@ -55,6 +64,9 @@ interface Row {
   revenue: string;
   fees: string;
   fees_known: boolean;
+  qty_apurada: number;
+  revenue_apurada: string;
+  pedidos_sem_repasse: number;
 }
 interface SyncMetaRow { covered_from: Date | string | null; covered_to: Date | string | null }
 
@@ -118,7 +130,13 @@ async function computeAbc(connection: IntegrationConnection, period: MercadoLivr
               SUM(i.qty * i.unit_price) AS revenue,
               SUM(CASE WHEN orv.rev > 0 AND ofe.fee IS NOT NULL
                        THEN ofe.fee * (i.qty * i.unit_price) / orv.rev ELSE 0 END) AS fees,
-              bool_and(ofe.fee IS NOT NULL) AS fees_known
+              bool_and(ofe.fee IS NOT NULL) AS fees_known,
+              -- APURADO: só o que tem repasse postado. Idêntico ao gêmeo da
+              -- Amazon — a tarifa desconhecida somava ZERO acima enquanto a
+              -- receita entrava inteira, inflando a contribuição e a classe.
+              SUM(CASE WHEN ofe.fee IS NOT NULL THEN i.qty ELSE 0 END)::int AS qty_apurada,
+              SUM(CASE WHEN ofe.fee IS NOT NULL THEN i.qty * i.unit_price ELSE 0 END) AS revenue_apurada,
+              COUNT(DISTINCT CASE WHEN ofe.fee IS NULL THEN i.external_order_id END)::int AS pedidos_sem_repasse
          FROM workspace_channel_order_items i
          JOIN workspace_channel_orders o
            ON o.workspace_id = i.workspace_id AND o.provider = i.provider
@@ -139,11 +157,11 @@ async function computeAbc(connection: IntegrationConnection, period: MercadoLivr
   ]);
 
   // Acumula por SKU, resolvendo o custo por vigência a cada dia.
-  interface Acc { productId: string; sku: string | null; title: string; units: number; revenue: number; fees: number; cost: number; feesKnown: boolean; costKnown: boolean }
+  interface Acc { productId: string; sku: string | null; title: string; units: number; revenue: number; fees: number; cost: number; feesKnown: boolean; costKnown: boolean; revenueApurada: number; custoApurado: number; pedidosSemRepasse: number }
   const bySku = new Map<string, Acc>();
   for (const row of rows) {
     const key = row.sku || row.external_product_id;
-    const acc = bySku.get(key) ?? { productId: row.external_product_id, sku: row.sku, title: row.title, units: 0, revenue: 0, fees: 0, cost: 0, feesKnown: true, costKnown: true };
+    const acc = bySku.get(key) ?? { productId: row.external_product_id, sku: row.sku, title: row.title, units: 0, revenue: 0, fees: 0, cost: 0, feesKnown: true, costKnown: true, revenueApurada: 0, custoApurado: 0, pedidosSemRepasse: 0 };
     const entry = mercadoLivreCostEntry(costs, connection.id, row.external_product_id, row.sku);
     const unitCost = entry ? costAt(entry, new Date(`${row.day}T12:00:00-03:00`).toISOString()) : 0;
     acc.units += row.qty;
@@ -152,6 +170,10 @@ async function computeAbc(connection: IntegrationConnection, period: MercadoLivr
     if (unitCost > 0) acc.cost += unitCost * row.qty;
     else acc.costKnown = false;
     if (!row.fees_known) acc.feesKnown = false;
+    // O custo do APURADO acompanha as unidades apuradas — ver o gêmeo da Amazon.
+    acc.revenueApurada += Number(row.revenue_apurada ?? 0);
+    if (unitCost > 0) acc.custoApurado += unitCost * Number(row.qty_apurada ?? 0);
+    acc.pedidosSemRepasse += Number(row.pedidos_sem_repasse ?? 0);
     bySku.set(key, acc);
   }
 
@@ -159,19 +181,29 @@ async function computeAbc(connection: IntegrationConnection, period: MercadoLivr
     const costMissing = !acc.costKnown;
     // Sem alíquota o imposto é desconhecido; some da conta em vez de virar zero.
     const tax = taxRate == null ? 0 : acc.revenue * taxRate / 100;
+    // ⚠️ CLASSIFICAR PELO APURADO (29/08/2026) — ver o gêmeo da Amazon. O
+    // imposto do apurado acompanha a receita apurada, pela mesma razão do custo.
+    const semApurado = acc.revenueApurada <= 0;
+    const taxApurado = taxRate == null ? 0 : acc.revenueApurada * taxRate / 100;
     // Sem custo cadastrado não há margem confiável — não supomos zero.
-    const contribution = costMissing ? null : +(acc.revenue - acc.cost - acc.fees - tax).toFixed(2);
+    const contribution = costMissing || semApurado
+      ? null
+      : +(acc.revenueApurada - acc.custoApurado - acc.fees - taxApurado).toFixed(2);
     return {
       productId: acc.productId,
       sku: acc.sku,
       title: acc.title,
       units: acc.units,
       revenue: +acc.revenue.toFixed(2),
+      revenueApurada: +acc.revenueApurada.toFixed(2),
+      receitaSemRepasse: +(acc.revenue - acc.revenueApurada).toFixed(2),
+      pedidosSemRepasse: acc.pedidosSemRepasse,
       cost: +acc.cost.toFixed(2),
       fees: +acc.fees.toFixed(2),
       tax: +tax.toFixed(2),
       contribution,
-      marginPct: contribution != null && acc.revenue > 0 ? +(contribution / acc.revenue * 100).toFixed(2) : null,
+      // Divide pela APURADA — dividir pela total inverteria o erro em vez de corrigi-lo.
+      marginPct: contribution != null && acc.revenueApurada > 0 ? +(contribution / acc.revenueApurada * 100).toFixed(2) : null,
       costMissing,
       complete: acc.feesKnown && acc.costKnown,
       key: acc.sku || acc.productId,
@@ -200,7 +232,14 @@ async function computeAbc(connection: IntegrationConnection, period: MercadoLivr
   const coveredTo = syncRow?.covered_to ? new Date(syncRow.covered_to).getTime() : 0;
   const covered = coveredFrom <= period.from.getTime() && coveredTo + COVERAGE_TOLERANCE_MS >= period.to.getTime();
 
-  return { currency: "BRL", covered, taxRate, products };
+  // AGREGADO do período, para a faixa do topo. Sai da soma dos PRÓPRIOS
+  // produtos, então nunca discorda das linhas da tabela.
+  const semRepasse = {
+    receita: +products.reduce((s, p) => s + p.receitaSemRepasse, 0).toFixed(2),
+    produtos: products.filter((p) => p.receitaSemRepasse > 0).length,
+    produtosSemClasse: products.filter((p) => p.contribution == null).length,
+  };
+  return { currency: "BRL", covered, taxRate, products, semRepasse };
 }
 
 export function getMercadoLivreAbc(connection: IntegrationConnection, period: MercadoLivrePeriod): Promise<MercadoLivreAbc | null> {

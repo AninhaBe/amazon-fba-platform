@@ -25,11 +25,19 @@ interface AbcProduct {
   sku: string | null;
   title: string;
   units: number;
+  /** Receita TOTAL do período. Fato — não muda com esta frente. */
   revenue: number;
+  /** Receita dos pedidos que JÁ têm repasse postado. É a base da contribuição. */
+  revenueApurada: number;
+  /** Receita ainda sem repasse (dinheiro). Existe também para quem tem apurado. */
+  receitaSemRepasse: number;
+  /** Pedidos ainda sem repasse (contagem), para a frase da tela. */
+  pedidosSemRepasse: number;
   cost: number;
   fees: number;
   tax: number;
-  // Nulo quando o custo não está cadastrado — sem custo não supomos margem.
+  // Nulo quando o custo não está cadastrado OU quando nenhum pedido tem repasse
+  // postado — sem custo não supomos margem, e sem repasse não supomos tarifa.
   contribution: number | null;
   marginPct: number | null;
   costMissing: boolean;
@@ -43,10 +51,12 @@ export interface AmazonAbc {
   covered: boolean;
   taxRate: number;
   products: AbcProduct[];
+  /** Quanto do período ainda não tem repasse — a faixa do topo da tela. */
+  semRepasse: { receita: number; produtos: number; produtosSemClasse: number };
 }
 
 interface Period { from: Date; to: Date }
-interface Row { external_product_id: string; sku: string | null; title: string; day: string; qty: number; revenue: string; fees: string; fees_known: boolean }
+interface Row { external_product_id: string; sku: string | null; title: string; day: string; qty: number; revenue: string; fees: string; fees_known: boolean; qty_apurada: number; revenue_apurada: string; pedidos_sem_repasse: number }
 interface SyncMetaRow { covered_from: Date | string | null; covered_to: Date | string | null }
 
 function classify(entries: Array<{ key: string; value: number }>): Map<string, AbcClass> {
@@ -103,7 +113,13 @@ async function computeAbc(period: Period): Promise<AmazonAbc | null> {
               SUM(i.qty * i.unit_price) AS revenue,
               SUM(CASE WHEN orv.rev > 0 AND ofe.fee IS NOT NULL
                        THEN ofe.fee * (i.qty * i.unit_price) / orv.rev ELSE 0 END) AS fees,
-              bool_and(ofe.fee IS NOT NULL) AS fees_known
+              bool_and(ofe.fee IS NOT NULL) AS fees_known,
+              -- APURADO: só o que tem repasse postado. A tarifa desconhecida
+              -- somava ZERO acima enquanto a receita entrava inteira — e era
+              -- isso que inflava a contribuição e contaminava a classe A/B/C.
+              SUM(CASE WHEN ofe.fee IS NOT NULL THEN i.qty ELSE 0 END)::int AS qty_apurada,
+              SUM(CASE WHEN ofe.fee IS NOT NULL THEN i.qty * i.unit_price ELSE 0 END) AS revenue_apurada,
+              COUNT(DISTINCT CASE WHEN ofe.fee IS NULL THEN i.external_order_id END)::int AS pedidos_sem_repasse
          FROM workspace_channel_order_items i
          JOIN workspace_channel_orders o
            ON o.workspace_id = i.workspace_id AND o.provider = i.provider
@@ -128,16 +144,22 @@ async function computeAbc(period: Period): Promise<AmazonAbc | null> {
     return entry && entry.cost > 0 ? entry : null;
   };
 
-  interface Acc { productId: string; sku: string | null; title: string; units: number; revenue: number; fees: number; cost: number; feesKnown: boolean; costKnown: boolean }
+  interface Acc { productId: string; sku: string | null; title: string; units: number; revenue: number; fees: number; cost: number; feesKnown: boolean; costKnown: boolean; revenueApurada: number; custoApurado: number; pedidosSemRepasse: number }
   const bySku = new Map<string, Acc>();
   for (const row of rows) {
     const key = row.sku || row.external_product_id;
-    const acc = bySku.get(key) ?? { productId: row.external_product_id, sku: row.sku, title: row.title, units: 0, revenue: 0, fees: 0, cost: 0, feesKnown: true, costKnown: true };
+    const acc = bySku.get(key) ?? { productId: row.external_product_id, sku: row.sku, title: row.title, units: 0, revenue: 0, fees: 0, cost: 0, feesKnown: true, costKnown: true, revenueApurada: 0, custoApurado: 0, pedidosSemRepasse: 0 };
     const entry = costOf(row.sku, row.external_product_id);
     const unitCost = entry ? costAt(entry, new Date(`${row.day}T12:00:00-03:00`).toISOString()) : 0;
     acc.units += row.qty;
     acc.revenue += Number(row.revenue);
     acc.fees += Number(row.fees);
+    // O custo do APURADO acompanha as unidades apuradas — senão o custo inteiro
+    // entraria contra uma receita parcial e a margem sairia para baixo, que é
+    // trocar a superestimativa de hoje por uma subestimativa.
+    acc.revenueApurada += Number(row.revenue_apurada ?? 0);
+    if (unitCost > 0) acc.custoApurado += unitCost * Number(row.qty_apurada ?? 0);
+    acc.pedidosSemRepasse += Number(row.pedidos_sem_repasse ?? 0);
     if (unitCost > 0) acc.cost += unitCost * row.qty;
     else acc.costKnown = false;
     if (!row.fees_known) acc.feesKnown = false;
@@ -146,17 +168,40 @@ async function computeAbc(period: Period): Promise<AmazonAbc | null> {
 
   const partial = [...bySku.values()].map((acc) => {
     const costMissing = !acc.costKnown;
-    // Amazon: sem imposto do vendedor. Sem custo cadastrado, contribuição é nula.
-    const contribution = costMissing ? null : +(acc.revenue - acc.cost - acc.fees).toFixed(2);
+    // ⚠️ CLASSIFICAR PELO APURADO (29/08/2026). Antes a contribuição usava a
+    // receita TOTAL contra tarifas que valiam ZERO quando não postadas — lucro
+    // inflado, e a classe A/B/C sai dele: produto virava "A" por lhe FALTAREM
+    // tarifas. Medido em 12 meses: 50 de 71 produtos e 74% da receita afetados,
+    // e 18 sem nenhuma tarifa apareciam com margem cheia.
+    //
+    // Agora a contribuição só olha os pedidos com repasse postado, e é `null`
+    // quando nenhum tem. Amazon: sem imposto do vendedor.
+    const semApurado = acc.revenueApurada <= 0;
+    const contribution = costMissing || semApurado
+      ? null
+      : +(acc.revenueApurada - acc.custoApurado - acc.fees).toFixed(2);
     return {
       productId: acc.productId, sku: acc.sku, title: acc.title,
       units: acc.units,
+      // Receita TOTAL do período: continua sendo fato e não muda.
       revenue: +acc.revenue.toFixed(2),
+      // Receita que já tem repasse postado — é a base da contribuição acima.
+      revenueApurada: +acc.revenueApurada.toFixed(2),
+      // O que ficou de fora, em dinheiro e em pedidos. Existe TAMBÉM para quem
+      // tem venda apurada: é o único jeito de a tela dizer que um número verde
+      // é PISO, não total.
+      receitaSemRepasse: +(acc.revenue - acc.revenueApurada).toFixed(2),
+      pedidosSemRepasse: acc.pedidosSemRepasse,
       cost: +acc.cost.toFixed(2),
       fees: +acc.fees.toFixed(2),
       tax: 0,
       contribution,
-      marginPct: contribution != null && acc.revenue > 0 ? +(contribution / acc.revenue * 100).toFixed(2) : null,
+      // ⚠️ Divide pela receita APURADA, não pela total. Dividir pela total
+      // trocaria a superestimativa de hoje por uma subestimativa — o mesmo erro
+      // com o sinal invertido.
+      marginPct: contribution != null && acc.revenueApurada > 0
+        ? +(contribution / acc.revenueApurada * 100).toFixed(2)
+        : null,
       costMissing,
       complete: acc.feesKnown && acc.costKnown,
       key: acc.sku || acc.productId,
@@ -183,7 +228,14 @@ async function computeAbc(period: Period): Promise<AmazonAbc | null> {
   const coveredTo = syncRow?.covered_to ? new Date(syncRow.covered_to).getTime() : 0;
   const covered = coveredFrom <= period.from.getTime() && coveredTo + COVERAGE_TOLERANCE_MS >= period.to.getTime();
 
-  return { currency: "BRL", covered, taxRate: 0, products };
+  // AGREGADO do período, para a faixa do topo. Sai da soma dos PRÓPRIOS
+  // produtos, então nunca discorda das linhas da tabela.
+  const semRepasse = {
+    receita: +products.reduce((s, p) => s + p.receitaSemRepasse, 0).toFixed(2),
+    produtos: products.filter((p) => p.receitaSemRepasse > 0).length,
+    produtosSemClasse: products.filter((p) => p.contribution == null).length,
+  };
+  return { currency: "BRL", covered, taxRate: 0, products, semRepasse };
 }
 
 export function getAmazonAbc(period: Period): Promise<AmazonAbc | null> {

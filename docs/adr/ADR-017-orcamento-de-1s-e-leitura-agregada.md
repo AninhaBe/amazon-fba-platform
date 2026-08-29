@@ -413,6 +413,33 @@ Duas regras que ficam:
 2. **Conta demo serve para provar que funciona, nunca para provar que é rápido.**
    Volume é a variável; medir sem ela é medir outra coisa.
 
+### A consulta "funcionava" e entregava o oposto exato do pedido (29/08/2026)
+
+A dona pediu a página de produtos ordenada **do mais vendido para o menos**. A
+primeira versão entregou **os que não venderam no topo** — e a consulta não dava
+erro nenhum.
+
+```sql
+-- ERRADO: `ORDER BY x DESC` no Postgres é NULLS FIRST.
+ORDER BY v.unidades DESC                  -- quem não vendeu (NULL) vem primeiro
+-- CERTO:
+ORDER BY COALESCE(v.unidades,0) DESC      -- sem venda é 0, e 0 vai para o fim
+```
+
+O `COALESCE` **estava no `SELECT`** — a tela mostrava "0 unidades" corretamente.
+Só que **`COALESCE` no `SELECT` não ordena**: quem ordena é o `ORDER BY`, e ali o
+`NULL` do `LEFT JOIN LATERAL` continuava sendo `NULL`.
+
+📌 **Só apareceu porque a verificação foi feita contra a LOJA REAL antes de
+subir.** Na conta demo os 4 produtos têm zero vendas — a ordenação errada teria
+passado limpa, e a dona receberia exatamente o contrário do que pediu. É a mesma
+lição da medição em conta demo, aplicada a **correção** e não a performance:
+*demo prova que funciona, nunca que está certo.*
+
+⚠️ Vale para **qualquer ordenação futura** por métrica agregada: toda coluna que
+vem de `LEFT JOIN` pode ser `NULL`, e `NULL` em `ORDER BY ... DESC` vai para o
+topo. Ou `COALESCE` no `ORDER BY`, ou `NULLS LAST` explícito.
+
 📌 Consequência para o aquecimento sequencial: se a tela busca os outros três
 períodos em fila depois da primeira pintura, o custo do aquecimento é a **soma**,
 não a média. Medido na UTILEIRA: abrindo em "hoje", o aquecimento só termina
