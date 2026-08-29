@@ -14,6 +14,7 @@ import { EstadoDoSync } from "./EstadoDoSync";
 import { CustomizableMetricGrid } from "./CustomizableMetricGrid";
 import { Metric } from "./Metric";
 import { AvisoDeEstoqueNaoInformado, AvisoDeOcultos, FiltroDeAtividade } from "./FiltroDeAtividade";
+import { comCustoSalvo, custoExibido, custoValido, proximoEstado, ROTULO_DO_CUSTO, salvarCusto, type CustoSalvo, type EstadoDoCusto } from "./custoPorLinha";
 
 type Kind="monitor"|"finance"|"catalog"|"inventory"|"costs"|"abc";
 type Connection={id:string;displayName?:string;externalAccountId?:string};
@@ -35,7 +36,7 @@ export function TikTokModulePage({kind}:{kind:Kind}) { const cfg=config[kind], r
   return <div className={`channel-module-page analysis-page channel-module-${kind}`}>
     {cfg.period&&<DashboardPeriodFilter {...period.filterProps}/>}
     <PageHeader eyebrow="TikTok Shop" title={cfg.title} subtitle={cfg.subtitle} action={selected&&connections&&<label className="channel-store-selector">Loja<select aria-label="Loja TikTok Shop" value={selected.id} onChange={e=>router.push(moduleConnectionHref(location.pathname,sp.toString(),e.target.value),{scroll:false})}>{connections.map(c=><option key={c.id} value={c.id}>{c.displayName||c.externalAccountId||c.id}</option>)}</select></label>}/>
-    {!connections&&!error?<DashboardSkeleton/>:providerIssue?<EmptyState kind="permission" title={providerIssue.code==="INFRA_INDISPONIVEL"?"Instabilidade nossa, não da sua conexão":providerIssue.code==="OWNERSHIP_CONFLICT"?"Conexão TikTok protegida":"Canal TikTok requer atenção"} description={providerIssue.message} action={providerIssue.code==="INFRA_INDISPONIVEL"?undefined:<Link className="meli-primary-action" href="/integracoes">Gerenciar conexões</Link>}/>:connections?.length===0?<ChannelConnectionEmpty channel="TikTok Shop" description="Conecte uma loja para acessar este módulo." action={<Link className="meli-primary-action" href="/integracoes">Gerenciar conexões</Link>}/>:error?<EmptyState kind="permission" title="Não foi possível carregar" description={error} action={<button className="meli-primary-action min-h-11" onClick={retry}>Tentar novamente</button>}/>:!body?<DashboardSkeleton/>:body.availability==="BLOCKED"?<EmptyState kind="permission" title="Financeiro aguardando estrutura de dados" description="O ledger financeiro ainda não está disponível neste ambiente. Nenhum valor foi estimado ou convertido em zero."/>:body.availability==="NOT_AVAILABLE"?<EmptyState title="Dados ainda indisponíveis" description="A conexão existe, mas este conjunto de dados ainda não foi materializado."/>:<ModuleContent kind={kind} body={body} sp={sp} update={update} connectionId={selected!.id} retry={retry}/>}</div>;
+    {!connections&&!error?<DashboardSkeleton/>:providerIssue?<EmptyState kind="permission" title={providerIssue.code==="INFRA_INDISPONIVEL"?"Instabilidade nossa, não da sua conexão":providerIssue.code==="OWNERSHIP_CONFLICT"?"Conexão TikTok protegida":"Canal TikTok requer atenção"} description={providerIssue.message} action={providerIssue.code==="INFRA_INDISPONIVEL"?undefined:<Link className="meli-primary-action" href="/integracoes">Gerenciar conexões</Link>}/>:connections?.length===0?<ChannelConnectionEmpty channel="TikTok Shop" description="Conecte uma loja para acessar este módulo." action={<Link className="meli-primary-action" href="/integracoes">Gerenciar conexões</Link>}/>:error?<EmptyState kind="permission" title="Não foi possível carregar" description={error} action={<button className="meli-primary-action min-h-11" onClick={retry}>Tentar novamente</button>}/>:!body?<DashboardSkeleton/>:body.availability==="BLOCKED"?<EmptyState kind="permission" title="Financeiro aguardando estrutura de dados" description="O ledger financeiro ainda não está disponível neste ambiente. Nenhum valor foi estimado ou convertido em zero."/>:body.availability==="NOT_AVAILABLE"?<EmptyState title="Dados ainda indisponíveis" description="A conexão existe, mas este conjunto de dados ainda não foi materializado."/>:<ModuleContent kind={kind} body={body} sp={sp} update={update} connectionId={selected!.id}/>}</div>;
 }
 
 function Filters({kind,sp,update}:{kind:Kind;sp:URLSearchParams;update:(v:Record<string,string|null>)=>void}) {
@@ -56,8 +57,8 @@ function Filters({kind,sp,update}:{kind:Kind;sp:URLSearchParams;update:(v:Record
     {["monitor","catalog","inventory","costs"].includes(kind)&&<button className="listing-refresh" type="submit">Aplicar filtros</button>}
   </form>
 }
-function ModuleContent({kind,body,sp,update,connectionId,retry}:{kind:Kind;body:Payload;sp:URLSearchParams;update:(v:Record<string,string|null>)=>void;connectionId:string;retry:()=>void}) {
-  if(kind==="monitor")return <MonitorContent body={body} sp={sp} update={update} connectionId={connectionId} retry={retry}/>;
+function ModuleContent({kind,body,sp,update,connectionId}:{kind:Kind;body:Payload;sp:URLSearchParams;update:(v:Record<string,string|null>)=>void;connectionId:string}) {
+  if(kind==="monitor")return <MonitorContent body={body} sp={sp} update={update} connectionId={connectionId}/>;
   const rows=(kind==="costs"?body.costs:body.items)??[];
   return <section className="channel-module-content" aria-live="polite">
     <ChannelModuleSummary kind={kind} rows={rows} total={body.page?.total}/>
@@ -70,7 +71,7 @@ function ModuleContent({kind,body,sp,update,connectionId,retry}:{kind:Kind;body:
     {kind==="abc"&&rows.length>0&&<TikTokAbcInsights rows={rows}/>}
     {kind==="finance"&&<BaseDeData base="pedido-extrato" prefixo="Transações" />}
     {kind==="finance"&&body.coverage&&<FinanceCoveragePanel coverage={body.coverage}/>} 
-    {!rows.length?<EmptyState compact title="Nenhum resultado" description={kind==="finance"?"Não há transações finais para esta loja e período.":"Não há dados para os filtros e o período selecionados."}/>:<DataTable kind={kind} rows={rows} retry={retry} connectionId={sp.get("connection_id")??""}/>} 
+    {!rows.length?<EmptyState compact title="Nenhum resultado" description={kind==="finance"?"Não há transações finais para esta loja e período.":"Não há dados para os filtros e o período selecionados."}/>:<DataTable kind={kind} rows={rows} connectionId={sp.get("connection_id")??""}/>} 
     {body.page&&<nav aria-label="Paginação" className="listing-pagination channel-module-pagination"><p>{body.page.total==null?`${rows.length} transação(ões) nesta página`:`${body.page.total} resultado(s)`}</p><div><button disabled={body.page.offset===0} onClick={()=>update({offset:String(Math.max(0,body.page!.offset-body.page!.limit))})}>Anterior</button><button disabled={!body.page.hasMore} onClick={()=>update({offset:String(body.page!.offset+body.page!.limit)})}>Próxima</button></div></nav>}
   </section>
 }
@@ -84,7 +85,7 @@ function ModuleContent({kind,body,sp,update,connectionId,retry}:{kind:Kind;body:
  * duplicar tabela. Hierarquia (premissa): cards são métrica, não aviso — nada
  * aqui nasce com peso de alarme.
  */
-function MonitorContent({body,sp,update,connectionId,retry}:{body:Payload;sp:URLSearchParams;update:(v:Record<string,string|null>)=>void;connectionId:string;retry:()=>void}) {
+function MonitorContent({body,sp,update,connectionId}:{body:Payload;sp:URLSearchParams;update:(v:Record<string,string|null>)=>void;connectionId:string}) {
   const rows=body.items??[];
   // Deep-link como na Amazon (?secao=transacoes); depois a troca é local.
   const [secao,setSecao]=useState<"pedidos"|"transacoes">(sp.get("secao")==="transacoes"?"transacoes":"pedidos");
@@ -113,7 +114,7 @@ function MonitorContent({body,sp,update,connectionId,retry}:{body:Payload;sp:URL
     {secao==="pedidos"&&<>
       <ChannelModuleSummary kind="monitor" rows={rows} total={body.page?.total}/>
       <Filters kind="monitor" sp={sp} update={update}/>
-      {!rows.length?<EmptyState compact title="Nenhum resultado" description="Não há dados para os filtros e o período selecionados."/>:<DataTable kind="monitor" rows={rows} retry={retry} connectionId={sp.get("connection_id")??""}/>}
+      {!rows.length?<EmptyState compact title="Nenhum resultado" description="Não há dados para os filtros e o período selecionados."/>:<DataTable kind="monitor" rows={rows} connectionId={sp.get("connection_id")??""}/>}
       {body.page&&<nav aria-label="Paginação" className="listing-pagination channel-module-pagination"><p>{body.page.total==null?`${rows.length} pedido(s) nesta página`:`${body.page.total} resultado(s)`}</p><div><button disabled={body.page.offset===0} onClick={()=>update({offset:String(Math.max(0,body.page!.offset-body.page!.limit))})}>Anterior</button><button disabled={!body.page.hasMore} onClick={()=>update({offset:String(body.page!.offset+body.page!.limit)})}>Próxima</button></div></nav>}
     </>}
     {/* key = remonta quando período/loja mudam, zerando a paginação local. */}
@@ -141,7 +142,7 @@ function TransacoesDoMonitor({sp,connectionId}:{sp:URLSearchParams;connectionId:
   return <>
     <BaseDeData base="pedido-extrato" prefixo="Transações" />
     {body.coverage&&<FinanceCoveragePanel coverage={body.coverage}/>}
-    {!rows.length?<EmptyState compact title="Nenhum resultado" description="Não há transações finais para esta loja e período."/>:<DataTable kind="finance" rows={rows} retry={()=>setOffset((v)=>v)} connectionId={connectionId}/>}
+    {!rows.length?<EmptyState compact title="Nenhum resultado" description="Não há transações finais para esta loja e período."/>:<DataTable kind="finance" rows={rows} connectionId={connectionId}/>}
     {body.page&&<nav aria-label="Paginação" className="listing-pagination channel-module-pagination"><p>{body.page.total==null?`${rows.length} transação(ões) nesta página`:`${body.page.total} resultado(s)`}</p><div><button disabled={offset===0} onClick={()=>setOffset(Math.max(0,offset-body.page!.limit))}>Anterior</button><button disabled={!body.page.hasMore} onClick={()=>setOffset(offset+body.page!.limit)}>Próxima</button></div></nav>}
   </>;
 }
@@ -216,6 +217,40 @@ function TikTokAbcInsights({rows}:{rows:Record<string,unknown>[]}) {
   </section>
 }
 function FinanceCoveragePanel({coverage}:{coverage:FinanceCoverage}) { const complete=coverage.status==="complete"; const falhas=coverage.rejected??0; const source=coverage.source==="statement_ledger"?"Extratos oficiais":coverage.source==="per_order_fallback"?"Extrato por pedido":"Estrutura indisponível"; const date=(value?:string)=>value?new Intl.DateTimeFormat("pt-BR").format(new Date(value)):"—"; return <aside className={`channel-finance-coverage ${complete?"is-complete":"is-partial"}`} role="status"><div><div><strong>{complete?"Cobertura financeira completa":"Extrato oficial ainda não postado"}</strong><p>{complete?"A janela foi concluída pelo ledger de extratos.":"A lista traz as transações finais já postadas pela TikTok. O que ainda não veio não foi estimado nem virou zero."}</p></div><span>{source}</span></div><dl><div><dt>Janela</dt><dd>{date(coverage.from)} a {date(coverage.to)}</dd></div><div><dt>Terminal</dt><dd>{coverage.terminal?"Sim":"Não"}</dd></div></dl>{falhas>0&&<p className="channel-module-method">{falhas} tentativa(s) de leitura do extrato falharam em janelas de sincronização que tocam este período. O NEXO repete sozinho, com espera crescente entre as tentativas; o período acima fechou sem depender delas.</p>}</aside> }
-function DataTable({kind,rows,retry,connectionId}:{kind:Kind;rows:Record<string,unknown>[];retry:()=>void;connectionId:string}) { const columns:Record<Kind,[string,string][]>={monitor:[["orderId","Pedido"],["occurredAt","Data"],["status","Status"],["gross","Total"],["buyerShipping","Frete comprador"],["financialStatus","Conciliação"]],finance:[["transactionId","Transação"],["occurredAt","Data"],["type","Tipo"],["orderId","Pedido relacionado"],["revenue","Receita"],["adjustment","Ajuste"]],catalog:[["title","Produto"],["sku","SKU"],["status","Status"],["price","Preço"],["availableQty","Disponível"],["updatedAt","Atualizado"]],inventory:[["title","Produto"],["sku","SKU"],["availableQty","Disponível"],["unitsSold","Vendidas"],["averagePerDay","Média/dia"],["daysRemaining","Dias restantes"]],costs:[["title","Produto"],["sku","SKU"],["cost","Custo"]],abc:[["class","Classe"],["title","Produto"],["sku","SKU"],["revenue","Receita"],["revenueShare","Participação"],["profit","Lucro"]]}; const moneyKeys=new Set(["gross","buyerShipping","sellerShipping","revenue","adjustment","profit","price","cost"]); return <section className="listing-table-shell channel-module-table-shell" aria-labelledby={`tiktok-${kind}-table-title`}><header><div><p className="section-kicker">Registros</p><h2 id={`tiktok-${kind}-table-title`}>{config[kind].title}</h2></div><p>{rows.length} nesta página</p></header><div className="overflow-x-auto"><table className="listing-table channel-module-table"><caption className="sr-only">{config[kind].title}: resultados filtrados</caption><thead><tr>{columns[kind].map(([k,l])=><th scope="col" key={k}>{l}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={String(r.transactionId??r.orderId??r.productId??r.id??i)}>{columns[kind].map(([k])=><td className={moneyKeys.has(k)||typeof r[k]==="number"?"tabular-nums":""} key={k}>{kind==="costs"&&k==="cost"?<CostEditor row={r} connectionId={connectionId} onSaved={retry}/>:k==="daysRemaining"&&r[k]==null?"Sem base de venda":k==="profit"&&r[k]==null?"—":k==="revenueShare"&&r[k]!=null?`${text(r[k])}%`:k==="status"&&r[k]!=null?(kind==="monitor"?rotuloStatusPedido(String(r[k])):rotuloStatusProduto(String(r[k]))):k==="financialStatus"&&r[k]!=null?rotuloConciliacao(String(r[k])):moneyKeys.has(k)?moduleMoney(r[k],String(r.currency??"BRL")):k.endsWith("At")&&r[k]?new Intl.DateTimeFormat("pt-BR").format(new Date(String(r[k]))):text(r[k])}</td>)}</tr>)}</tbody></table></div>{kind==="costs"&&<p className="channel-module-method">Cada custo fica isolado por workspace, loja TikTok Shop e SKU. Custo desconhecido permanece “—”; zero só deve ser informado quando for um fato.</p>}{kind==="finance"&&<p className="channel-module-method">Somente campos sanitizados do ledger são exibidos. Dados pessoais e payloads brutos da TikTok Shop não fazem parte desta superfície.</p>}</section> }
+function DataTable({kind,rows,connectionId}:{kind:Kind;rows:Record<string,unknown>[];connectionId:string}) {
+  // Por ID DO CUSTO, nao por linha — ver a nota em `custoPorLinha`.
+  const [custosSalvos,setCustosSalvos]=useState<Record<string,number>>({}); const columns:Record<Kind,[string,string][]>={monitor:[["orderId","Pedido"],["occurredAt","Data"],["status","Status"],["gross","Total"],["buyerShipping","Frete comprador"],["financialStatus","Conciliação"]],finance:[["transactionId","Transação"],["occurredAt","Data"],["type","Tipo"],["orderId","Pedido relacionado"],["revenue","Receita"],["adjustment","Ajuste"]],catalog:[["title","Produto"],["sku","SKU"],["status","Status"],["price","Preço"],["availableQty","Disponível"],["updatedAt","Atualizado"]],inventory:[["title","Produto"],["sku","SKU"],["availableQty","Disponível"],["unitsSold","Vendidas"],["averagePerDay","Média/dia"],["daysRemaining","Dias restantes"]],costs:[["title","Produto"],["sku","SKU"],["cost","Custo"]],abc:[["class","Classe"],["title","Produto"],["sku","SKU"],["revenue","Receita"],["revenueShare","Participação"],["profit","Lucro"]]}; const moneyKeys=new Set(["gross","buyerShipping","sellerShipping","revenue","adjustment","profit","price","cost"]); return <section className="listing-table-shell channel-module-table-shell" aria-labelledby={`tiktok-${kind}-table-title`}><header><div><p className="section-kicker">Registros</p><h2 id={`tiktok-${kind}-table-title`}>{config[kind].title}</h2></div><p>{rows.length} nesta página</p></header><div className="overflow-x-auto"><table className="listing-table channel-module-table"><caption className="sr-only">{config[kind].title}: resultados filtrados</caption><thead><tr>{columns[kind].map(([k,l])=><th scope="col" key={k}>{l}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={String(r.transactionId??r.orderId??r.productId??r.id??i)}>{columns[kind].map(([k])=><td className={moneyKeys.has(k)||typeof r[k]==="number"?"tabular-nums":""} key={k}>{kind==="costs"&&k==="cost"?<CostEditor key={String(r.id)} row={{...r,cost:custoExibido(custosSalvos,r)}} connectionId={connectionId} onSaved={salvo=>setCustosSalvos(atual=>comCustoSalvo(atual,salvo.chave,salvo.valor))}/>:k==="daysRemaining"&&r[k]==null?"Sem base de venda":k==="profit"&&r[k]==null?"—":k==="revenueShare"&&r[k]!=null?`${text(r[k])}%`:k==="status"&&r[k]!=null?(kind==="monitor"?rotuloStatusPedido(String(r[k])):rotuloStatusProduto(String(r[k]))):k==="financialStatus"&&r[k]!=null?rotuloConciliacao(String(r[k])):moneyKeys.has(k)?moduleMoney(r[k],String(r.currency??"BRL")):k.endsWith("At")&&r[k]?new Intl.DateTimeFormat("pt-BR").format(new Date(String(r[k]))):text(r[k])}</td>)}</tr>)}</tbody></table></div>{kind==="costs"&&<p className="channel-module-method">Cada custo fica isolado por workspace, loja TikTok Shop e SKU. Custo desconhecido permanece “—”; zero só deve ser informado quando for um fato.</p>}{kind==="finance"&&<p className="channel-module-method">Somente campos sanitizados do ledger são exibidos. Dados pessoais e payloads brutos da TikTok Shop não fazem parte desta superfície.</p>}</section> }
 
-function CostEditor({row,connectionId,onSaved}:{row:Record<string,unknown>;connectionId:string;onSaved:()=>void}) { const [draft,setDraft]=useState(row.cost==null?"":String(row.cost)); const [state,setState]=useState<"idle"|"saving"|"error">("idle"); useEffect(()=>{queueMicrotask(()=>setDraft(row.cost==null?"":String(row.cost)))},[row.cost]); async function save(){const cost=Number(draft);if(draft.trim()===""||!Number.isFinite(cost)||cost<0){setState("error");return}setState("saving");try{const response=await fetch(`/api/integrations/tiktok/costs?${new URLSearchParams({connection_id:connectionId})}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({productId:row.productId,sku:row.sku??null,title:row.title,cost})});if(!response.ok)throw new Error();setState("idle");onSaved()}catch{setState("error")}} return <div className="channel-cost-editor"><label className="sr-only" htmlFor={`cost-${row.id}`}>Custo de {text(row.title)}</label><input id={`cost-${row.id}`} type="number" min="0" step="0.01" inputMode="decimal" value={draft} onChange={e=>{setDraft(e.target.value);setState("idle")}} placeholder="—" aria-invalid={state==="error"}/><button type="button" disabled={state==="saving"} onClick={save}>{state==="saving"?"Salvando…":"Salvar"}</button>{state==="error"&&<span className="sr-only" role="alert">Custo inválido ou falha ao salvar.</span>}</div> }
+/**
+ * ⚠️ SALVAR NAO RECARREGA A TELA — mesmo conserto da Shopee, mesmo motivo.
+ *
+ * Ate 29/08/2026 o `onSaved` era o `retry` do modulo: subia o contador de
+ * tentativa, o efeito zerava o payload e a tela inteira virava esqueleto. A
+ * dona do produto pediu "apenas digitar, salvar, sem ter nenhum carregamento".
+ * Agora o valor volta pela RESPOSTA do POST e o pai aplica o patch.
+ */
+function CostEditor({row,connectionId,onSaved}:{row:Record<string,unknown>;connectionId:string;onSaved:(salvo:CustoSalvo)=>void}) {
+  const [draft,setDraft]=useState(row.cost==null?"":String(row.cost));
+  const [state,setState]=useState<EstadoDoCusto>("idle");
+  useEffect(()=>{queueMicrotask(()=>setDraft(row.cost==null?"":String(row.cost)))},[row.cost]);
+  async function save(){
+    const cost=custoValido(draft);
+    if(cost===null){setState(proximoEstado(state,"invalido"));return}
+    setState(proximoEstado(state,"salvou"));
+    try{
+      const salvo=await salvarCusto({
+        url:`/api/integrations/tiktok/costs?${new URLSearchParams({connection_id:connectionId})}`,
+        corpo:{productId:row.productId,sku:row.sku??null,title:row.title,cost},
+        buscar:fetch,
+      });
+      setState(proximoEstado(state,"ok"));
+      onSaved(salvo);
+    }catch{setState(proximoEstado(state,"falhou"))}
+  }
+  const aviso=state==="invalido"?"Informe um custo válido: número maior ou igual a zero."
+    :state==="error"?`${ROTULO_DO_CUSTO.error}. Tente de novo.`
+      :state==="saving"?ROTULO_DO_CUSTO.saving
+        :state==="saved"?ROTULO_DO_CUSTO.saved
+          :row.cost==null?ROTULO_DO_CUSTO.pendente:"";
+  const falhou=state==="invalido"||state==="error";
+  return <div className="channel-cost-editor"><label className="sr-only" htmlFor={`cost-${row.id}`}>Custo de {text(row.title)}</label><input id={`cost-${row.id}`} type="number" min="0" step="0.01" inputMode="decimal" value={draft} onChange={e=>{setDraft(e.target.value);setState(proximoEstado(state,"editou"))}} placeholder="—" aria-invalid={falhou} aria-describedby={`cost-status-${row.id}`}/><button type="button" disabled={state==="saving"} onClick={save}>{state==="saving"?ROTULO_DO_CUSTO.saving:"Salvar"}</button><small id={`cost-status-${row.id}`} aria-live="polite" role={falhou?"alert":undefined} className={falhou?"is-error":undefined}>{aviso}</small></div> }

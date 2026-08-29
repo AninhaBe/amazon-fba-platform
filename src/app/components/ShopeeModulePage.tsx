@@ -7,6 +7,7 @@ import { DashboardSkeleton } from "./LoadingState";
 import { PageHeader } from "./PageHeader";
 import { DashboardPeriodFilter, useDashboardPeriod } from "./DashboardPeriodFilter";
 import { ChannelModuleSummary } from "./ChannelModuleSummary";
+import { comCustoSalvo, custoExibido, custoValido, proximoEstado, ROTULO_DO_CUSTO, salvarCusto, type CustoSalvo, type EstadoDoCusto } from "./custoPorLinha";
 import { ChannelConnectionEmpty } from "./ChannelConnectionEmpty";
 import { EstadoDoSync } from "./EstadoDoSync";
 import { SHOPEE_MODULES, shopeeModuleError, shopeeModuleHref, shopeeModuleQuery, type ShopeeModuleKind } from "./ShopeeModulesModel";
@@ -51,12 +52,12 @@ export function ShopeeModulePage({kind}:{kind:ShopeeModuleKind}) {
   return <div className={`channel-module-page analysis-page channel-module-${kind}`}>
     {cfg.period&&selected&&<DashboardPeriodFilter {...period.filterProps}/>}
     <PageHeader eyebrow="Shopee" title={cfg.title} subtitle={cfg.subtitle} action={selected&&connected&&<label className="channel-store-selector">Loja<select aria-label="Loja Shopee" value={selected.id} onChange={event=>router.push(shopeeModuleHref(location.pathname,params.toString(),event.target.value),{scroll:false})}>{connected.map(item=><option value={item.id} key={item.id}>{item.displayName||item.externalAccountId||item.id}</option>)}</select></label>}/>
-    {!connections&&!error?<DashboardSkeleton/>:issueContent?<EmptyState kind="permission" title={issueContent.title} description={issueContent.description} action={<Link href="/integracoes" className="meli-primary-action">{issueContent.actionLabel}</Link>}/>:!selected&&!error?(attention?<EmptyState kind="permission" title="Reconecte a loja Shopee" description="A autorização expirou ou foi interrompida. Reconecte para retomar a sincronização." action={<Link href="/integracoes" className="meli-primary-action">Gerenciar conexões</Link>}/>:<ChannelConnectionEmpty channel="Shopee" description="Conecte uma loja para acessar este módulo." action={<Link href="/integracoes" className="meli-primary-action">Gerenciar conexões</Link>}/>):error?<EmptyState kind="permission" title="Não foi possível carregar" description={error} action={<button type="button" className="meli-primary-action min-h-11 active:scale-[0.96] transition-transform" onClick={retry}>Tentar novamente</button>}/>:!payload?<DashboardSkeleton/>:payload.availability==="NOT_AVAILABLE"?<EmptyState title="Dados ainda indisponíveis" description="A loja está conectada, mas este conjunto ainda não foi materializado pela sincronização."/>:<Content kind={kind} body={payload} params={params} update={update} connectionId={selected!.id} retry={retry}/>}</div>;
+    {!connections&&!error?<DashboardSkeleton/>:issueContent?<EmptyState kind="permission" title={issueContent.title} description={issueContent.description} action={<Link href="/integracoes" className="meli-primary-action">{issueContent.actionLabel}</Link>}/>:!selected&&!error?(attention?<EmptyState kind="permission" title="Reconecte a loja Shopee" description="A autorização expirou ou foi interrompida. Reconecte para retomar a sincronização." action={<Link href="/integracoes" className="meli-primary-action">Gerenciar conexões</Link>}/>:<ChannelConnectionEmpty channel="Shopee" description="Conecte uma loja para acessar este módulo." action={<Link href="/integracoes" className="meli-primary-action">Gerenciar conexões</Link>}/>):error?<EmptyState kind="permission" title="Não foi possível carregar" description={error} action={<button type="button" className="meli-primary-action min-h-11 active:scale-[0.96] transition-transform" onClick={retry}>Tentar novamente</button>}/>:!payload?<DashboardSkeleton/>:payload.availability==="NOT_AVAILABLE"?<EmptyState title="Dados ainda indisponíveis" description="A loja está conectada, mas este conjunto ainda não foi materializado pela sincronização."/>:<Content kind={kind} body={payload} params={params} update={update} connectionId={selected!.id}/>}</div>;
 }
 
-function Content({kind,body,params,update,connectionId,retry}:{kind:ShopeeModuleKind;body:Payload;params:URLSearchParams;update:(v:Record<string,string|null>)=>void;connectionId:string;retry:()=>void}) {
+function Content({kind,body,params,update,connectionId}:{kind:ShopeeModuleKind;body:Payload;params:URLSearchParams;update:(v:Record<string,string|null>)=>void;connectionId:string}) {
   const [search,setSearch]=useState(params.get("q")??"");
-  if(kind==="monitor")return <ShopeeMonitorContent body={body} params={params} update={update} connectionId={connectionId} retry={retry}/>;
+  if(kind==="monitor")return <ShopeeMonitorContent body={body} params={params} update={update} connectionId={connectionId}/>;
   const rows=body.items??[], coverage=body.coverage??body.profit?.coverage;
   return <section className="channel-module-content" aria-live="polite">
     <ChannelModuleSummary kind={kind} rows={rows} total={body.page?.total}/>
@@ -70,7 +71,7 @@ function Content({kind,body,params,update,connectionId,retry}:{kind:ShopeeModule
         Antes estes anuncios vinham como estoque ZERO e a tela dizia "esgotado"
         sobre 435 dos 747 anuncios dela. */}
     {["catalog","inventory","costs"].includes(kind)&&<AvisoDeEstoqueNaoInformado anuncios={body.semEstoqueInformado?.anuncios} canal="Shopee" varreduraEm={body.semEstoqueInformado?.varreduraEm} verTodos={()=>update({atividade:"todos",offset:null})}/>}
-    {!rows.length?<EmptyState compact title="Nenhum resultado" description="Não há dados para os filtros e o período selecionados."/>:<Table kind={kind} rows={rows} connectionId={connectionId} retry={retry}/>} 
+    {!rows.length?<EmptyState compact title="Nenhum resultado" description="Não há dados para os filtros e o período selecionados."/>:<Table kind={kind} rows={rows} connectionId={connectionId} />} 
     {body.page&&<nav aria-label="Paginação" className="listing-pagination channel-module-pagination"><p role="status">Exibindo {body.page.total===0?0:body.page.offset+1}–{Math.min(body.page.offset+(body.page.returned??rows.length),body.page.total)} de {body.page.total} resultado(s). {body.page.complete===false||body.page.hasMore?"Há mais resultados; esta página não representa o conjunto completo.":"Cobertura completa."}</p><div><button disabled={!body.page.offset} onClick={()=>update({offset:String(Math.max(0,body.page!.offset-body.page!.limit))})}>Anterior</button><button disabled={!body.page.hasMore} onClick={()=>update({offset:String(body.page!.offset+body.page!.limit)})}>Próxima</button></div></nav>}
   </section>;
 }
@@ -83,7 +84,7 @@ function Content({kind,body,params,update,connectionId,retry}:{kind:ShopeeModule
  * Hierarquia como premissa: cards são métrica, não aviso; o único aviso aqui é
  * o de cobertura que JÁ existia, preservado dentro da aba Pedidos.
  */
-function ShopeeMonitorContent({body,params,update,connectionId,retry}:{body:Payload;params:URLSearchParams;update:(v:Record<string,string|null>)=>void;connectionId:string;retry:()=>void}) {
+function ShopeeMonitorContent({body,params,update,connectionId}:{body:Payload;params:URLSearchParams;update:(v:Record<string,string|null>)=>void;connectionId:string}) {
   const [search,setSearch]=useState(params.get("q")??"");
   const [costsOpen,setCostsOpen]=useState(false);
   // Deep-link como na Amazon (?secao=pedidos); depois a troca é local.
@@ -165,7 +166,7 @@ function ShopeeMonitorContent({body,params,update,connectionId,retry}:{body:Payl
       {coverage&&!coverage.complete&&<aside role="status" className="channel-module-notice is-warning"><strong>Ainda sincronizando</strong><p>Foram processados {show(coverage.capturedOrders??coverage.processedOrders)} de {show(coverage.totalOrders??coverage.paidOrders)} pedidos. Os valores não representam o período completo.</p></aside>}
       {/* Busca de SERVIDOR (E3): antes o monitor não tinha nenhuma. */}
       <form className="listing-controls channel-module-filters" onSubmit={(event:FormEvent)=>{event.preventDefault();update({q:search||null})}}><label className="listing-search"><span className="sr-only">Buscar</span><input value={search} maxLength={120} onChange={event=>setSearch(event.target.value)} placeholder="Pedido, SKU ou produto"/></label><button className="listing-refresh">Aplicar filtro</button></form>
-      {!rows.length?<EmptyState compact title="Nenhum resultado" description="Não há pedidos para a busca e o período selecionados."/>:<Table kind="monitor" rows={rows} connectionId={connectionId} retry={retry}/>}
+      {!rows.length?<EmptyState compact title="Nenhum resultado" description="Não há pedidos para a busca e o período selecionados."/>:<Table kind="monitor" rows={rows} connectionId={connectionId} />}
       {body.page&&<nav aria-label="Paginação" className="listing-pagination channel-module-pagination"><p role="status">Exibindo {body.page.total===0?0:body.page.offset+1}–{Math.min(body.page.offset+(body.page.returned??rows.length),body.page.total)} de {body.page.total} resultado(s). {body.page.complete===false||body.page.hasMore?"Há mais resultados; esta página não representa o conjunto completo.":"Cobertura completa."}</p><div><button disabled={!body.page.offset} onClick={()=>update({offset:String(Math.max(0,body.page!.offset-body.page!.limit))})}>Anterior</button><button disabled={!body.page.hasMore} onClick={()=>update({offset:String(body.page!.offset+body.page!.limit)})}>Próxima</button></div></nav>}
     </>}
   </section>;
@@ -240,10 +241,15 @@ function ShopeeTaxRateEditor({connectionId}:{connectionId:string}) {
   </form>;
 }
 
-function Table({kind,rows,connectionId,retry}:{kind:ShopeeModuleKind;rows:Record<string,unknown>[];connectionId:string;retry:()=>void}) {
+function Table({kind,rows,connectionId}:{kind:ShopeeModuleKind;rows:Record<string,unknown>[];connectionId:string}) {
+  // Custos salvos nesta sessao, por ID DO CUSTO — nao por linha. Um anuncio com
+  // variacoes mostra varias linhas que dividem o mesmo custo; a recarga
+  // atualizava todas sem querer, e um patch por linha deixaria as outras com o
+  // valor velho na tela. Ver `custoPorLinha`.
+  const [custosSalvos,setCustosSalvos]=useState<Record<string,number>>({});
   const columns:Record<ShopeeModuleKind,[string,string][]>= {monitor:[["orderId","Pedido"],["date","Data"],["status","Status"],["revenue","Receita"],["marketplaceFees","Taxas"],["contribution","Resultado"]],catalog:[["title","Produto"],["sku","SKU"],["status","Status"],["price","Preço"],["availableQty","Disponível"]],inventory:[["title","Produto"],["sku","SKU"],["availableQty","Disponível"],["unitsSold","Vendidas"],["averagePerDay","Média/dia"],["daysRemaining","Dias restantes"]],costs:[["title","Produto"],["sku","SKU"],["unidades30d","Vendidas (30 dias)"],["cost","Custo"]],abc:[["class","Classe"],["title","Produto"],["sku","SKU"],["revenue","Receita"],["revenueShare","Participação"],["profit","Lucro"]]};
   const currencyKeys=new Set(["revenue","marketplaceFees","contribution","price","cost","profit"]);
-  return <section className="listing-table-shell channel-module-table-shell" aria-labelledby={`shopee-${kind}-table-title`}><header><div><p className="section-kicker">Registros</p><h2 id={`shopee-${kind}-table-title`}>{SHOPEE_MODULES[kind].title}</h2></div><p>{rows.length} nesta página</p></header><div className="overflow-x-auto"><table className="listing-table channel-module-table"><caption className="sr-only">{SHOPEE_MODULES[kind].title}</caption><thead><tr>{columns[kind].map(([key,label])=><th scope="col" key={key}>{label}</th>)}</tr></thead><tbody>{rows.map((row,index)=><tr key={String(row.orderId??row.productId??row.id??index)}>{columns[kind].map(([key])=><td className="tabular-nums" key={key}>{kind==="costs"&&key==="cost"?<CostEditor row={row} connectionId={connectionId} retry={retry}/>:key==="unidades30d"?<VendidasEVariacoes unidades={Number(row.unidades30d??0)} variacoes={Number(row.variacoesVendidas??0)}/>:key==="daysRemaining"&&row[key]==null?"Sem base de venda":key==="revenueShare"&&row[key]!=null?`${show(row[key])}%`:key==="status"&&row[key]!=null?(kind==="monitor"?rotuloStatusShopee(String(row[key])):rotuloStatusProduto(String(row[key]))):currencyKeys.has(key)?money(row[key],String(row.currency??"BRL")):key.endsWith("At")&&row[key]?new Intl.DateTimeFormat("pt-BR").format(new Date(String(row[key]))):show(row[key])}</td>)}</tr>)}</tbody></table></div>{kind==="costs"&&<p className="channel-module-method">Custo desconhecido permanece “—”. Informe zero somente quando ele for um fato.</p>}</section>;
+  return <section className="listing-table-shell channel-module-table-shell" aria-labelledby={`shopee-${kind}-table-title`}><header><div><p className="section-kicker">Registros</p><h2 id={`shopee-${kind}-table-title`}>{SHOPEE_MODULES[kind].title}</h2></div><p>{rows.length} nesta página</p></header><div className="overflow-x-auto"><table className="listing-table channel-module-table"><caption className="sr-only">{SHOPEE_MODULES[kind].title}</caption><thead><tr>{columns[kind].map(([key,label])=><th scope="col" key={key}>{label}</th>)}</tr></thead><tbody>{rows.map((row,index)=><tr key={String(row.orderId??row.productId??row.id??index)}>{columns[kind].map(([key])=><td className="tabular-nums" key={key}>{kind==="costs"&&key==="cost"?<CostEditor key={String(row.id)} row={{...row,cost:custoExibido(custosSalvos,row)}} connectionId={connectionId} onSaved={salvo=>setCustosSalvos(atual=>comCustoSalvo(atual,salvo.chave,salvo.valor))}/>:key==="unidades30d"?<VendidasEVariacoes unidades={Number(row.unidades30d??0)} variacoes={Number(row.variacoesVendidas??0)}/>:key==="daysRemaining"&&row[key]==null?"Sem base de venda":key==="revenueShare"&&row[key]!=null?`${show(row[key])}%`:key==="status"&&row[key]!=null?(kind==="monitor"?rotuloStatusShopee(String(row[key])):rotuloStatusProduto(String(row[key]))):currencyKeys.has(key)?money(row[key],String(row.currency??"BRL")):key.endsWith("At")&&row[key]?new Intl.DateTimeFormat("pt-BR").format(new Date(String(row[key]))):show(row[key])}</td>)}</tr>)}</tbody></table></div>{kind==="costs"&&<p className="channel-module-method">Custo desconhecido permanece “—”. Informe zero somente quando ele for um fato.</p>}</section>;
 }
 
 /**
@@ -267,8 +273,40 @@ function VendidasEVariacoes({unidades,variacoes}:{unidades:number;variacoes:numb
   </>;
 }
 
-function CostEditor({row,connectionId,retry}:{row:Record<string,unknown>;connectionId:string;retry:()=>void}) {
-  const [draft,setDraft]=useState(row.cost==null?"":String(row.cost)),[state,setState]=useState<"idle"|"saving"|"error">("idle");
-  async function save(){const cost=Number(draft);if(!draft.trim()||!Number.isFinite(cost)||cost<0){setState("error");return}setState("saving");try{const response=await fetch(`/api/integrations/shopee/costs?${new URLSearchParams({connection_id:connectionId})}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({productId:row.productId,sku:row.sku??null,title:row.title,cost})});const body=await response.json();if(!response.ok)throw Error(shopeeModuleError(body.code)||body.error);setState("idle");retry()}catch{setState("error")}}
-  return <div className="channel-cost-editor"><label className="sr-only" htmlFor={`shopee-cost-${row.id}`}>Custo de {show(row.title)}</label><input id={`shopee-cost-${row.id}`} type="number" min="0" step="0.01" inputMode="decimal" value={draft} onChange={event=>{setDraft(event.target.value);setState("idle")}} aria-invalid={state==="error"} aria-describedby={state==="error"?`shopee-cost-error-${row.id}`:undefined} placeholder="—"/><button type="button" disabled={state==="saving"} onClick={save}>{state==="saving"?"Salvando…":"Salvar"}</button>{state==="error"&&<span id={`shopee-cost-error-${row.id}`} role="alert">Informe um custo válido ou tente novamente.</span>}</div>;
+/**
+ * ⚠️ SALVAR NAO RECARREGA A TELA.
+ *
+ * Ate 29/08/2026 este save terminava em `retry()`, que subia o contador de
+ * tentativa; o efeito do modulo zera o payload e a tela INTEIRA virava
+ * esqueleto. A dona do produto pediu o contrario, com estas palavras: "quero
+ * apenas digitar, salvar, sem ter nenhum carregamento a partir disso".
+ *
+ * Agora o valor volta pela RESPOSTA do proprio POST (uma requisicao, e so uma)
+ * e sobe para o pai, que aplica o patch na tabela. Ver `custoPorLinha`.
+ */
+function CostEditor({row,connectionId,onSaved}:{row:Record<string,unknown>;connectionId:string;onSaved:(salvo:CustoSalvo)=>void}) {
+  const [draft,setDraft]=useState(row.cost==null?"":String(row.cost)),[state,setState]=useState<EstadoDoCusto>("idle");
+  async function save(){
+    const cost=custoValido(draft);
+    if(cost===null){setState(proximoEstado(state,"invalido"));return}
+    setState(proximoEstado(state,"salvou"));
+    try{
+      const salvo=await salvarCusto({
+        url:`/api/integrations/shopee/costs?${new URLSearchParams({connection_id:connectionId})}`,
+        corpo:{productId:row.productId,sku:row.sku??null,title:row.title,cost},
+        buscar:fetch,
+      });
+      setState(proximoEstado(state,"ok"));
+      onSaved(salvo);
+    }catch{setState(proximoEstado(state,"falhou"))}
+  }
+  // Mensagens SEPARADAS: campo invalido e falha de rede pedem acoes diferentes,
+  // e a mesma frase para as duas escondia qual das duas aconteceu.
+  const aviso=state==="invalido"?"Informe um custo válido: número maior ou igual a zero."
+    :state==="error"?`${ROTULO_DO_CUSTO.error}. Tente de novo.`
+      :state==="saving"?ROTULO_DO_CUSTO.saving
+        :state==="saved"?ROTULO_DO_CUSTO.saved
+          :row.cost==null?ROTULO_DO_CUSTO.pendente:"";
+  const falhou=state==="invalido"||state==="error";
+  return <div className="channel-cost-editor"><label className="sr-only" htmlFor={`shopee-cost-${row.id}`}>Custo de {show(row.title)}</label><input id={`shopee-cost-${row.id}`} type="number" min="0" step="0.01" inputMode="decimal" value={draft} onChange={event=>{setDraft(event.target.value);setState(proximoEstado(state,"editou"))}} aria-invalid={falhou} aria-describedby={`shopee-cost-status-${row.id}`} placeholder="—"/><button type="button" disabled={state==="saving"} onClick={save}>{state==="saving"?ROTULO_DO_CUSTO.saving:"Salvar"}</button><small id={`shopee-cost-status-${row.id}`} aria-live="polite" role={falhou?"alert":undefined} className={falhou?"is-error":undefined}>{aviso}</small></div>;
 }

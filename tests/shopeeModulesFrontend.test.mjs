@@ -4,7 +4,27 @@ test("Shopee module query isolates the selected workspace connection",()=>{const
 test("Shopee links preserve only supported visible state",()=>{const url=new URL(shopeeModuleHref("/shopee/catalogo","q=x&days=7&unsafe=x","shopee:1"),"http://x");assert.equal(url.searchParams.get("connection_id"),"shopee:1");assert.equal(url.searchParams.get("q"),"x");assert.equal(url.searchParams.has("unsafe"),false)});
 test("Shopee connection and cost failures have explicit messages",()=>{assert.match(shopeeModuleError("CONNECTION_NOT_FOUND"),/workspace/);assert.match(shopeeModuleError("INVALID_COST"),/maior ou igual a zero/)});
 test("Shopee navigation exposes only implemented module routes",()=>{const nav=fs.readFileSync(new URL("../src/app/components/Nav.tsx",import.meta.url),"utf8");for(const route of ["/shopee/monitor","/shopee/catalogo","/shopee/produtos","/shopee/estoque","/shopee/abc"])assert.match(nav,new RegExp(route));for(const unsupported of ["/shopee/ads","/shopee/calculadora","/shopee/criar"])assert.doesNotMatch(nav,new RegExp(unsupported))});
-test("Shopee cost editor preserves unknown values and exposes inline errors",()=>{const ui=fs.readFileSync(new URL("../src/app/components/ShopeeModulePage.tsx",import.meta.url),"utf8");assert.match(ui,/row\.cost==null\?""/);assert.match(ui,/role="alert"/);assert.match(ui,/Custo desconhecido permanece/)});
+// ⚠️ 29/08/2026 — a assercao do `role="alert"` LITERAL saiu, e nao por
+// afrouxamento: o editor deixou de recarregar a tela ao salvar e o aviso passou
+// a ser um <small aria-live="polite"> que ESCALA para alerta so quando falha
+// (antes, o alerta existia sempre no fonte). Procurar a string literal
+// reprovaria o desenho novo sem provar nada sobre o comportamento — o mesmo
+// erro registrado no ADR-017. O que se trava agora e a intencao: existe um
+// campo de status anunciado, e a falha vira alerta.
+test("Shopee cost editor preserves unknown values and exposes inline errors",()=>{
+  const ui=fs.readFileSync(new URL("../src/app/components/ShopeeModulePage.tsx",import.meta.url),"utf8");
+  // O CostEditor fica DEPOIS da Table no arquivo, entao a fatia vai dele ate o
+  // fim — cortar em "function Table" dava intervalo negativo e string vazia,
+  // e uma assercao sobre string vazia reprova sem informar nada.
+  const inicio=ui.indexOf("function CostEditor");
+  assert.notEqual(inicio,-1,"nao achei o CostEditor");
+  const editor=ui.slice(inicio);
+  assert.match(ui,/row\.cost==null\?""/);
+  assert.match(editor,/aria-live="polite"/,"o estado do salvamento precisa ser anunciado");
+  assert.match(editor,/role=\{falhou\?"alert":undefined\}/,"a falha precisa escalar para alerta");
+  assert.match(editor,/aria-invalid=\{falhou\}/);
+  assert.match(ui,/Custo desconhecido permanece/);
+});
 test("Shopee monitor forwards pagination and states exact incomplete coverage",()=>{const query=new URLSearchParams(shopeeModuleQuery("days=15&limit=100&offset=900","shopee:1","monitor"));assert.equal(query.get("limit"),"100");assert.equal(query.get("offset"),"900");const ui=fs.readFileSync(new URL("../src/app/components/ShopeeModulePage.tsx",import.meta.url),"utf8");assert.match(ui,/Exibindo/);assert.match(ui,/não representa o conjunto completo/);assert.match(ui,/body\.page\.returned/)});
 test("Shopee dashboard selects connections and exposes profitability completeness",()=>{const ui=fs.readFileSync(new URL("../src/app/components/ShopeeWorkspace.tsx",import.meta.url),"utf8");assert.match(ui,/aria-label="Loja Shopee"/);assert.match(ui,/query\.set\("connection_id", selected\.id\)/);assert.match(ui,/profitabilityPage\.hasMore/);assert.match(ui,/Exibindo/);assert.match(ui,/next\.set\("offset", "0"\)/)});
 test("Shopee modules distinguish provider issue from a genuinely empty workspace",()=>{const ui=fs.readFileSync(new URL("../src/app/components/ShopeeModulePage.tsx",import.meta.url),"utf8");assert.match(ui,/setProviderIssue\(issue\)/);assert.match(ui,/setConnections\(issue\?\[\]/);assert.match(ui,/issueContent\?<EmptyState/);assert.match(ui,/href="\/integracoes"/);const issueBranch=ui.slice(ui.indexOf("issueContent?<EmptyState"),ui.indexOf(":!selected&&!error"));assert.doesNotMatch(issueBranch,/Conecte uma loja|Conectar loja/)});
