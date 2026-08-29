@@ -650,6 +650,81 @@ export async function runShopeeSyncStep(
   if (prepareSync) await requestShopeeSync(connection.id);
 
   const workspaceId = currentWorkspaceId();
+
+  // ⚠️ CONCILIAÇÃO COM O SYNC JÁ 'complete' (29/08/2026).
+  //
+  // O lease abaixo exige `status <> 'complete'`. Quando os pedidos alcançaram o
+  // presente e a linha virou 'complete', o passo inteiro passou a retornar em
+  // ZERO SEGUNDO — e o escrow, que roda no fim dele, deixou de existir. Com 17
+  // mil pedidos na fila e nenhum erro em lugar nenhum: o sistema entrou num
+  // estado estável e silencioso onde uma parte dele parou.
+  //
+  // SUCESSO DE UMA ETAPA VIROU CONDIÇÃO DE PARADA DE OUTRA. A mesma linha de
+  // status serve trabalhos de naturezas diferentes: a ingestão TERMINA, a
+  // conciliação financeira NÃO — ela é contínua por natureza. Um trabalho que
+  // acaba silenciou um que nunca acaba.
+  //
+  // Este claim é próprio e não toca o caminho normal: só pega o lease quando o
+  // sync está 'complete' E existe fila de escrow, roda a conciliação e devolve o
+  // 'complete'. É o remendo; o desenho certo é a conciliação virar passo
+  // independente do ciclo de ingestão (ADR).
+  const conciliacao = await dbQuery<{ ownership_token: string }>(
+    `UPDATE workspace_marketplace_syncs s
+        SET lease_until = now() + interval '5 minutes', updated_at = now()
+      WHERE s.workspace_id = $1 AND s.provider = $2 AND s.connection_id = $3
+        AND s.status = 'complete'
+        AND (s.lease_until IS NULL OR s.lease_until < now())
+        AND EXISTS (
+          SELECT 1 FROM workspace_channel_orders o
+           WHERE o.workspace_id = s.workspace_id AND o.provider = s.provider
+             AND o.connection_id = s.connection_id
+             AND o.status IN ('paid','shipped','delivered')
+             AND NOT (o.financial_settled
+                      OR COALESCE((o.raw #>> '{_sellercore,shopeeEscrowSettled}')::boolean, false))
+             AND (o.settlement_attempt_at IS NULL
+                  OR o.settlement_attempt_at < now() - interval '${REPERGUNTA_APOS_DIAS} days')
+        )
+      RETURNING lease_until::text AS ownership_token`,
+    [workspaceId, PROVIDER, connection.id]
+  );
+  if (conciliacao[0]) {
+    let tokenDaConciliacao = conciliacao[0].ownership_token;
+    const manterLease = async (): Promise<string> => {
+      const renovado = await dbQuery<{ ownership_token: string }>(
+        `UPDATE workspace_marketplace_syncs
+            SET lease_until = now() + interval '5 minutes', updated_at = now()
+          WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3
+            AND lease_until::text=$4 AND lease_until > now()
+          RETURNING lease_until::text AS ownership_token`,
+        [workspaceId, PROVIDER, connection.id, tokenDaConciliacao]
+      );
+      if (!renovado[0]) throw new ShopeeLeaseLostError("Lease Shopee perdido durante a conciliação.");
+      tokenDaConciliacao = renovado[0].ownership_token;
+      return tokenDaConciliacao;
+    };
+    try {
+      const resultado = await syncMissingEscrow(connection, manterLease);
+      console.info("[shopee] conciliação de escrow com o sync completo", {
+        tentados: resultado.attempted,
+        falharam: resultado.failed,
+      });
+    } catch (erro) {
+      // Falha aqui não pode marcar o sync inteiro como 'error': a ingestão está
+      // completa e correta. A conciliação tenta de novo no próximo ciclo.
+      console.error("[shopee] conciliação de escrow falhou", {
+        motivo: erro instanceof Error ? erro.message.slice(0, 200) : "erro desconhecido",
+      });
+    } finally {
+      await dbQuery(
+        `UPDATE workspace_marketplace_syncs
+            SET lease_until = NULL, updated_at = now()
+          WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3 AND lease_until::text=$4`,
+        [workspaceId, PROVIDER, connection.id, tokenDaConciliacao]
+      );
+    }
+    return publicStatus(await getSyncRow(connection.id));
+  }
+
   const leased = await dbQuery<SyncRow & { ownership_token: string }>(
     `UPDATE workspace_marketplace_syncs
         SET lease_until = now() + interval '5 minutes', status = 'syncing', updated_at = now()

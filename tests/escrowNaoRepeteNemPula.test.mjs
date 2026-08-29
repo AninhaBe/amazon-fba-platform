@@ -91,3 +91,26 @@ test("a tela conta tarifa, nao 'processado' — e nao atribui culpa", async () =
   assert.doesNotMatch(tela, /A Shopee ainda não postou o extrato/);
   assert.match(tela, /sem a tarifa da Shopee registrada/);
 });
+
+test("conciliacao roda mesmo com o sync 'complete' — sucesso de uma etapa nao pode parar outra", () => {
+  // 29/08/2026, a segunda causa. O lease normal exige `status <> 'complete'`.
+  // Quando os pedidos alcancaram o presente e a linha virou 'complete', o passo
+  // inteiro passou a retornar em ZERO SEGUNDO e o escrow — que roda no fim dele
+  // — deixou de existir, com 17 mil pedidos na fila e NENHUM erro em lugar
+  // nenhum. Nao parou a Shopee: paramos nos, porque terminamos outra coisa.
+  //
+  // A mesma linha de status serve trabalhos de naturezas diferentes: a ingestao
+  // TERMINA, a conciliacao financeira NAO. Um trabalho que acaba silenciou um
+  // que nunca acaba.
+  const claim = fonte.slice(fonte.indexOf("const conciliacao = await dbQuery"));
+  assert.ok(claim.length > 0, "sem claim proprio, a conciliacao volta a depender do ciclo de ingestao");
+  const consulta = claim.slice(0, claim.indexOf("RETURNING"));
+  assert.match(consulta, /s\.status = 'complete'/, "o claim existe justamente para o caso 'complete'");
+  assert.match(consulta, /EXISTS \(/, "so pega o lease se houver fila — senao vira lease a toa a cada ciclo");
+  assert.match(consulta, /settlement_attempt_at IS NULL/, "a fila do claim tem que ser a MESMA do passo");
+  // O claim nao pode marcar o sync como 'error': a ingestao esta completa e
+  // correta, e falha de conciliacao nao pode contaminar o estado dela.
+  const corpo = claim.slice(0, claim.indexOf("const leased = await dbQuery"));
+  assert.doesNotMatch(corpo, /status = 'error'/);
+  assert.match(corpo, /lease_until = NULL/, "o lease precisa ser devolvido mesmo em falha");
+});
