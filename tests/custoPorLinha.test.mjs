@@ -64,6 +64,23 @@ test("vazio e negativo nao sao custo; zero e um fato", () => {
   assert.equal(custoValido("12.5"), 12.5);
 });
 
+test("o botao de salvar nao e desabilitado enquanto salva", async () => {
+  // Medido em producao em 29/08/2026, quadro a quadro: com `disabled`, o foco ia
+  // para o <body> no QUADRO EXATO em que o botao era desabilitado (55ms) e nao
+  // voltava quando ele era reabilitado (538ms). Quem preenche a coluna pelo
+  // teclado perdia o lugar a cada custo — metade da queixa dela sobrevivia mesmo
+  // depois de a tela parar de recarregar. A protecao contra clique duplo passou
+  // para dentro do save.
+  const { readFile } = await import("node:fs/promises");
+  for (const caminho of ["src/app/components/ShopeeModulePage.tsx", "src/app/components/TikTokModulePage.tsx"]) {
+    const fonte = await readFile(new URL(`../${caminho}`, import.meta.url), "utf8");
+    const editor = fonte.slice(fonte.indexOf("function CostEditor"));
+    assert.ok(!editor.includes('disabled={state==="saving"}'), `${caminho}: desabilitar o botao rouba o foco de quem salvou`);
+    assert.ok(editor.includes('aria-busy={state==="saving"}'), `${caminho}: o estado precisa continuar anunciado`);
+    assert.ok(editor.includes('if(state==="saving")return;'), `${caminho}: sem o disabled, o clique duplo precisa ser barrado no save`);
+  }
+});
+
 test("as quatro telas falam a MESMA lingua para o mesmo estado", async () => {
   // Quatro vocabularios para o mesmo estado e divida que so aparece quando
   // alguem le as quatro juntas — e quem le as quatro juntas e a dona do produto.

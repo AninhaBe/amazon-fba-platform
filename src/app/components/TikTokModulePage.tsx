@@ -234,6 +234,8 @@ function CostEditor({row,connectionId,onSaved}:{row:Record<string,unknown>;conne
   const [state,setState]=useState<EstadoDoCusto>("idle");
   useEffect(()=>{queueMicrotask(()=>setDraft(row.cost==null?"":String(row.cost)))},[row.cost]);
   async function save(){
+    // Reentrada barrada aqui, e nao pelo `disabled` do botao — ver a nota abaixo.
+    if(state==="saving")return;
     const cost=custoValido(draft);
     if(cost===null){setState(proximoEstado(state,"invalido"));return}
     setState(proximoEstado(state,"salvou"));
@@ -253,4 +255,4 @@ function CostEditor({row,connectionId,onSaved}:{row:Record<string,unknown>;conne
         :state==="saved"?ROTULO_DO_CUSTO.saved
           :row.cost==null?ROTULO_DO_CUSTO.pendente:"";
   const falhou=state==="invalido"||state==="error";
-  return <div className="channel-cost-editor"><label className="sr-only" htmlFor={`cost-${row.id}`}>Custo de {text(row.title)}</label><input id={`cost-${row.id}`} type="number" min="0" step="0.01" inputMode="decimal" value={draft} onChange={e=>{setDraft(e.target.value);setState(proximoEstado(state,"editou"))}} placeholder="—" aria-invalid={falhou} aria-describedby={`cost-status-${row.id}`}/><button type="button" disabled={state==="saving"} onClick={save}>{state==="saving"?ROTULO_DO_CUSTO.saving:"Salvar"}</button><small id={`cost-status-${row.id}`} aria-live="polite" role={falhou?"alert":undefined} className={falhou?"is-error":undefined}>{aviso}</small></div> }
+  return <div className="channel-cost-editor"><label className="sr-only" htmlFor={`cost-${row.id}`}>Custo de {text(row.title)}</label><input id={`cost-${row.id}`} type="number" min="0" step="0.01" inputMode="decimal" value={draft} onChange={e=>{setDraft(e.target.value);setState(proximoEstado(state,"editou"))}} placeholder="—" aria-invalid={falhou} aria-describedby={`cost-status-${row.id}`}/><button type="button" aria-busy={state==="saving"} onClick={save}>{state==="saving"?ROTULO_DO_CUSTO.saving:"Salvar"}</button><small id={`cost-status-${row.id}`} aria-live="polite" role={falhou?"alert":undefined} className={falhou?"is-error":undefined}>{aviso}</small></div> }

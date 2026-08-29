@@ -283,10 +283,25 @@ function VendidasEVariacoes({unidades,variacoes}:{unidades:number;variacoes:numb
  *
  * Agora o valor volta pela RESPOSTA do proprio POST (uma requisicao, e so uma)
  * e sobe para o pai, que aplica o patch na tabela. Ver `custoPorLinha`.
+ *
+ * ⚠️ O BOTAO NAO E DESABILITADO ENQUANTO SALVA, e isso e deliberado.
+ *
+ * Medido em producao em 29/08/2026, quadro a quadro: com `disabled`, o foco ia
+ * para o <body> no QUADRO EXATO em que o botao era desabilitado (55ms) e nao
+ * voltava quando ele era reabilitado (538ms). O navegador tira o foco de
+ * elemento desabilitado, e quem preenche a coluna inteira pelo teclado perdia o
+ * lugar a cada custo salvo — metade da queixa continuava viva mesmo depois de a
+ * tela parar de recarregar.
+ *
+ * O que o `disabled` protegia era o clique duplo, e isso agora e barrado dentro
+ * do proprio `save`. O botao segue anunciando o estado por `aria-busy` e pelo
+ * rotulo, entao nada se perde para quem le a tela.
  */
 function CostEditor({row,connectionId,onSaved}:{row:Record<string,unknown>;connectionId:string;onSaved:(salvo:CustoSalvo)=>void}) {
   const [draft,setDraft]=useState(row.cost==null?"":String(row.cost)),[state,setState]=useState<EstadoDoCusto>("idle");
   async function save(){
+    // Reentrada barrada aqui, e nao pelo `disabled` do botao — ver a nota abaixo.
+    if(state==="saving")return;
     const cost=custoValido(draft);
     if(cost===null){setState(proximoEstado(state,"invalido"));return}
     setState(proximoEstado(state,"salvou"));
@@ -308,5 +323,5 @@ function CostEditor({row,connectionId,onSaved}:{row:Record<string,unknown>;conne
         :state==="saved"?ROTULO_DO_CUSTO.saved
           :row.cost==null?ROTULO_DO_CUSTO.pendente:"";
   const falhou=state==="invalido"||state==="error";
-  return <div className="channel-cost-editor"><label className="sr-only" htmlFor={`shopee-cost-${row.id}`}>Custo de {show(row.title)}</label><input id={`shopee-cost-${row.id}`} type="number" min="0" step="0.01" inputMode="decimal" value={draft} onChange={event=>{setDraft(event.target.value);setState(proximoEstado(state,"editou"))}} aria-invalid={falhou} aria-describedby={`shopee-cost-status-${row.id}`} placeholder="—"/><button type="button" disabled={state==="saving"} onClick={save}>{state==="saving"?ROTULO_DO_CUSTO.saving:"Salvar"}</button><small id={`shopee-cost-status-${row.id}`} aria-live="polite" role={falhou?"alert":undefined} className={falhou?"is-error":undefined}>{aviso}</small></div>;
+  return <div className="channel-cost-editor"><label className="sr-only" htmlFor={`shopee-cost-${row.id}`}>Custo de {show(row.title)}</label><input id={`shopee-cost-${row.id}`} type="number" min="0" step="0.01" inputMode="decimal" value={draft} onChange={event=>{setDraft(event.target.value);setState(proximoEstado(state,"editou"))}} aria-invalid={falhou} aria-describedby={`shopee-cost-status-${row.id}`} placeholder="—"/><button type="button" aria-busy={state==="saving"} onClick={save}>{state==="saving"?ROTULO_DO_CUSTO.saving:"Salvar"}</button><small id={`shopee-cost-status-${row.id}`} aria-live="polite" role={falhou?"alert":undefined} className={falhou?"is-error":undefined}>{aviso}</small></div>;
 }
