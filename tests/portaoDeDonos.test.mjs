@@ -83,3 +83,30 @@ test("a mensagem de bloqueio diz O QUE FAZER, nao so que barrou", () => {
   assert.match(texto, /cruza-areas: <motivo em uma frase>/);
   assert.match(texto, /docs\/donos-da-arvore\.md/);
 });
+
+test("arquivo SEM DONO junto nao faz a verificacao passar batido", () => {
+  // ⚠️ Sexto caso, pedido pelo cerebro antes de a gente depender da cerca: se a
+  // presenca de um arquivo nao mapeado fizesse o portao relaxar, o furo so
+  // apareceria no pior dia — commit grande, com doc e teste junto, que e
+  // exatamente a forma dos lotes reais.
+  const r = avaliarCommit({
+    arquivos: [
+      "src/lib/db.ts",                    // backend
+      "src/app/components/Nav.tsx",       // vitrine
+      "docs/adr/ADR-032.md",              // compartilhado
+      "tests/algum.test.mjs",             // compartilhado
+      "README.md",                        // sem regra nenhuma
+      "src/app/amazon/page.tsx",          // ponto cego declarado: fora do mapa
+    ],
+    mensagem: "feat: lote grande sem escape",
+    regras,
+  });
+  assert.equal(r.ok, false, "dois donos continuam cruzando, com ou sem arquivo neutro junto");
+  assert.deepEqual(r.donos, ["backend", "vitrine"]);
+  // E os neutros NAO aparecem na lista de invasores: apontar um .md como culpado
+  // seria mensagem que atrapalha em vez de ajudar.
+  const texto = mensagemDeBloqueio(r);
+  assert.doesNotMatch(texto, /README\.md/);
+  assert.doesNotMatch(texto, /ADR-032/);
+  assert.doesNotMatch(texto, /amazon\/page\.tsx/);
+});

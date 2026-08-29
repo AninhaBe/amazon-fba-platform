@@ -62,13 +62,59 @@ Para isso, a mensagem de commit precisa carregar uma linha:
 cruza-areas: <motivo em uma frase>
 ```
 
-O critério **não é urgência nem tamanho**. É atomicidade de contrato. Exemplo
-real: o lote da ADR-033 mudou `available_qty` para poder ser `null` — o leitor em
-`src/lib` e a tela em `src/app/components` tinham que subir juntos, senão existe
-um commit no meio em que a tela afirma estoque zero sobre o que ninguém informou.
+O critério **não é urgência nem tamanho**. São **dois motivos válidos**, e só
+estes dois:
+
+### 1. Contrato que precisa ser atômico
+
+Dividir produziria um commit intermediário em que a tela mente ou o código não
+compila. Exemplo real: o lote da ADR-033 mudou `available_qty` para poder ser
+`null` — o leitor em `src/lib` e a tela em `src/app/components` tinham que subir
+juntos, senão existe um commit no meio em que a tela afirma estoque zero sobre o
+que ninguém informou.
+
+> "Urgente" todo mundo acha que é. "Dividir deixaria um commit em que a tela
+> mente" é **verificável por quem lê depois** — e é por isso que este critério
+> não apodrece.
+
+### 2. Arquivo do outro dono aprovado explicitamente para você
+
+Quando o orquestrador aprova um trabalho que mora na área do outro. Acontece
+porque a fronteira do mapa é de **pasta**, e a de responsabilidade é de
+**assunto**: `FinancialSummaryPanel.tsx` mora em `components/` — área da Vitrine —
+mas a composição de um número é conta, não renderização.
+
+⚠️ **Este motivo existe para não virar contorno.** A alternativa seria uma lista
+de exceções por arquivo, que ninguém mantém, ou pedir para o outro dono mexer num
+assunto que não é dele — que é pior. Escrito aqui, o desvio fica auditável em vez
+de silencioso. *(Ressalva levantada pela Vitrine em 29/08/2026, ao revisar este
+mapa antes de ele valer.)*
 
 O escape custa uma frase e fica **auditável no histórico** — que é a diferença
 entre ele e uma allowlist muda.
+
+## O que este portão NÃO pega
+
+⚠️ **PONTO CEGO DECLARADO: as telas de canal.** `src/app/amazon/`,
+`src/app/mercado-livre/`, `src/app/shopee/` e `src/app/tiktok/` estão fora do
+mapa de propósito (ver a nota acima) — e a consequência é que **colisão naquelas
+quatro pastas não vai ser pega**.
+
+Foi aceito com o caso na mão: as duas colisões de 29/08 foram em
+`src/app/components/`, que **está** no mapa — a cerca teria pegado as duas. Se
+acontecer colisão nas telas de canal, a gente revisita com o caso real em vez de
+com hipótese.
+
+> **Instrumento que declara o próprio ponto cego é mais confiável que o que
+> promete cobrir tudo.**
+
+Ele olha o que está **staged**. As duas colisões de 29/08 nasceram de `git add`
+abrangente — e nesse caso o stage **já está contaminado** quando o portão olha.
+Ele barra, que é o certo, mas a pessoa descobre depois de ter varrido.
+
+Um aviso mais cedo, no `pre-commit` (*"você está encenando N arquivos que não
+estavam no seu último diff"*), pegaria antes. Fica registrado como melhoria
+possível, não como falta — *sugestão da Vitrine, 29/08/2026*.
 
 ## Como ligar
 
