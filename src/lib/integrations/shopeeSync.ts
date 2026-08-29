@@ -545,7 +545,8 @@ async function syncMissingEscrow(
   // A ordenação por `settlement_attempt_at` (NULLS FIRST) se sustenta sozinha:
   // quem nunca foi perguntado vem primeiro, depois quem foi perguntado há mais
   // tempo. Não há posição para pular nem volta para repetir — a estrutura que
-  // produzia os dois defeitos deixou de existir.
+  // produzia os dois defeitos deixou de existir. O desempate por data mudou de
+  // direção em 29/08/2026; o porquê está na própria consulta.
   const pending = await dbQuery<{ external_order_id: string; raw: unknown }>(
     `SELECT o.external_order_id, o.raw
        FROM workspace_channel_orders o
@@ -556,7 +557,34 @@ async function syncMissingEscrow(
         -- que a Shopee nunca vai liquidar volta à fila em toda passagem.
         AND (o.settlement_attempt_at IS NULL
              OR o.settlement_attempt_at < now() - interval '${REPERGUNTA_APOS_DIAS} days')
-      ORDER BY o.settlement_attempt_at ASC NULLS FIRST, o.occurred_at, o.external_order_id
+      -- ⚠️ RECENTE PRIMEIRO (occurred_at DESC). Aqui era occurred_at ASC — do
+      -- pedido mais antigo para o mais novo — e essa unica palavra fazia a tela
+      -- que a vendedora mais olha nunca ter margem.
+      --
+      -- MEDIDO CONTRA A LOJA REAL em 29/08/2026, 20 pedidos em quatro faixas de
+      -- idade: get_escrow_detail devolveu order_income COM VALOR em 20 de 20,
+      -- inclusive nos cinco pedidos do PROPRIO DIA, ainda "paid" e sem um
+      -- centavo repassado. Um deles: bruto 33,90 -> commission_fee 6,10,
+      -- service_fee 4,68, escrow_amount 23,12. A comissao saiu 18% cravado em
+      -- todas as amostras.
+      --
+      -- Ou seja: a Shopee informa a taxa no DIA DO PEDIDO. O diagnostico
+      -- anterior -- "a Shopee so libera depois de ~40 dias, logo a margem de
+      -- hoje nao existe" -- confundia LIQUIDACAO (o dinheiro cair) com
+      -- VISIBILIDADE DA TAXA (ela dizer quanto cobra). Sao coisas diferentes, e
+      -- so a segunda importa para a margem.
+      --
+      -- Com ASC, o pedido de hoje ficava no FIM de uma fila de ~16.700 itens a
+      -- ~250/hora: ~2,8 dias de espera, e ao chegar la ja havia mais 2,8 dias de
+      -- pedidos novos atras dele. A janela recente nao estava atrasada -- estava
+      -- FAMINTA POR CONSTRUCAO, para sempre.
+      --
+      -- ⚠️ O historico NAO passa fome com esta inversao: entram ~245 pedidos por
+      -- dia e o dreno faz ~6.000, entao sobra folga para continuar andando para
+      -- tras. A separacao em duas filas com orcamento proprio e a ADR-034 e vem
+      -- depois -- esta mudanca sobe SOZINHA para o antes-e-depois da cobertura
+      -- de 30 dias ser legivel.
+      ORDER BY o.settlement_attempt_at ASC NULLS FIRST, o.occurred_at DESC, o.external_order_id
       LIMIT $4`,
     [currentWorkspaceId(), PROVIDER, connection.id, ESCROW_BATCH_SIZE]
   );
