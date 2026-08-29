@@ -4,12 +4,15 @@ import path from "node:path";
 import { assertFinancialLedgerContract, financialLedgerContractHash, FINANCIAL_LEDGER_CONTRACT_SQL } from "../../scripts/migration-contracts.mjs";
 import { inspectFinancialLedgerContract } from "../../scripts/migration-safety.mjs";
 import { urlDoPoolDaAplicacao } from "./databaseUrl";
+import { ehFundo } from "./execucaoDeFundo";
 
 // Camada Postgres (Supabase). Quando DATABASE_URL está definido, os dados que
 // precisam persistir (contas conectadas + custos) vão para o banco; senão, os
 // stores caem no arquivo JSON local (dev sem banco continua funcionando).
 
 let pool: Pool | null = null;
+/** Pool separado do trabalho de fundo — ver `execucaoDeFundo.ts` e ADR-030. */
+let poolDeFundo: Pool | null = null;
 let schemaReady: Promise<void> | null = null;
 let financialLedgerSchemaReady: Promise<void> | null = null;
 
@@ -26,16 +29,27 @@ export function hasDb(): boolean {
  * um erro de digitação num script não pode virar autorização para abrir mais
  * conexões que a aplicação.
  */
-function maximoDoPool(): number {
-  const padrao = process.env.VERCEL ? 2 : 10;
-  const pedido = Number(process.env.DB_POOL_MAX);
+function maximoDoPool(padrao: number, variavel = "DB_POOL_MAX"): number {
+  const pedido = Number(process.env[variavel]);
   if (!Number.isInteger(pedido) || pedido < 1 || pedido > padrao) return padrao;
   return pedido;
 }
 
-function getPool(): Pool {
-  if (!pool) {
-    pool = new Pool({
+/**
+ * ⚠️ DOIS POOLS, e a assimetria e o ponto (ADR-030, incidente de 29/08/2026).
+ *
+ * USUARIO 8 / FUNDO 3. O fundo nao enxerga o pool do usuario, entao ele NAO
+ * CONSEGUE tomar o ultimo slot de quem esta esperando a tela — a fome fica
+ * impossivel por construcao e nao por sorte de escalonamento.
+ *
+ * Total 11 contra os 10 de antes: conservador de proposito, porque o teto de
+ * conexoes do tenant no pooler nao e conhecido. Sobem por variavel, sem deploy.
+ */
+const MAX_USUARIO = process.env.VERCEL ? 2 : 8;
+const MAX_FUNDO = process.env.VERCEL ? 1 : 3;
+
+function criarPool(max: number): Pool {
+  return new Pool({
       // Modo `transaction` (porta 6543) quando o destino é o pooler do Supabase.
       // No modo `session` o `pool_size: 15` é teto de CLIENTES e já não cabia o
       // `max` daqui. Ver `databaseUrl.ts` e ADR-028.
@@ -73,11 +87,18 @@ function getPool(): Pool {
       // NÃO se aplica às migrations: `migrate-cli.mjs` abre a própria conexão e
       // DDL longa é legítima lá.
       statement_timeout: Number(process.env.DB_STATEMENT_TIMEOUT_MS || 120_000),
-      max: maximoDoPool(),
-      idleTimeoutMillis: 10_000,
-      connectionTimeoutMillis: 10_000,
-    });
+      max,
+    idleTimeoutMillis: 10_000,
+    connectionTimeoutMillis: 10_000,
+  });
+}
+
+function getPool(): Pool {
+  if (ehFundo()) {
+    if (!poolDeFundo) poolDeFundo = criarPool(maximoDoPool(MAX_FUNDO, "DB_POOL_MAX_FUNDO"));
+    return poolDeFundo;
   }
+  if (!pool) pool = criarPool(maximoDoPool(MAX_USUARIO, "DB_POOL_MAX"));
   return pool;
 }
 

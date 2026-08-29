@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { expurgarEventosProcessados, RETENCAO_EVENTOS_DIAS } from "@/lib/retencao";
+import { runComoFundo } from "@/lib/execucaoDeFundo";
 
 // Expurgo de dados efêmeros — ver ADR-016.
 // Roda no cron do GitHub Actions, junto dos syncs.
@@ -22,6 +23,7 @@ export async function GET(req: NextRequest) {
       ? pedido
       : RETENCAO_EVENTOS_DIAS;
 
+  return runComoFundo(async () => {
   try {
     const resultado = await expurgarEventosProcessados(dias);
     // ADR-016, regra 4: nada de expurgo silencioso.
@@ -39,4 +41,5 @@ export async function GET(req: NextRequest) {
       { status: 500 }
     );
   }
+  });
 }

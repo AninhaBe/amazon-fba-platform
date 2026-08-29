@@ -35,6 +35,35 @@ export async function register() {
   // Fica registrado que isto é polling, não tempo real. O desenho de push está em
   // ADR-023, pronto para o dia em que o atraso incomodar mais que a infra nova.
   const SYNC_INTERVAL_MS = Number(process.env.SCHEDULER_SYNC_INTERVAL_MS || 2 * 60_000);
+
+  /**
+   * INTERVALO POR CANAL — medido, não arbitrado (29/08/2026).
+   *
+   * O intervalo era 2 minutos para os quatro. O ritmo real de chegada de pedido,
+   * em 7 dias de contas reais, é bem diferente entre eles:
+   *
+   * | canal | pedidos/hora | mediana entre pedidos |
+   * |---|---:|---:|
+   * | Shopee | 14,1 | 2,3 min |
+   * | Mercado Livre | 6,5 | 4,9 min |
+   * | TikTok | 2,8 | 11,3 min |
+   * | Amazon | 1,8 | **18,3 min** |
+   *
+   * Sincronizar a Amazon a cada 2 minutos com mediana de 18 significa que **9 de
+   * cada 10 ciclos batiam no banco para não achar nada** — pagávamos carga para
+   * descobrir que não havia novidade. E essa carga competia com a tela da dona:
+   * uma carga do dashboard pede 28 transações contra um pool de 10.
+   *
+   * O ML leva 5 e não 10 porque tem webhook: o urgente chega por lá.
+   */
+  const INTERVALO_POR_CANAL: Record<string, number> = {
+    "shopee-sync": Number(process.env.SCHEDULER_INTERVALO_SHOPEE_MS || 3 * 60_000),
+    "mercado-livre-sync": Number(process.env.SCHEDULER_INTERVALO_ML_MS || 5 * 60_000),
+    "tiktok-sync": Number(process.env.SCHEDULER_INTERVALO_TIKTOK_MS || 10 * 60_000),
+    "amazon-sync": Number(process.env.SCHEDULER_INTERVALO_AMAZON_MS || 10 * 60_000),
+  };
+  const intervaloDe = (rota: string) =>
+    process.env.SCHEDULER_SYNC_INTERVAL_MS ? SYNC_INTERVAL_MS : (INTERVALO_POR_CANAL[rota] ?? SYNC_INTERVAL_MS);
   const TODOS_OS_SYNCS = ["amazon-sync", "mercado-livre-sync", "shopee-sync", "tiktok-sync"];
   /**
    * Freio POR CANAL — `SCHEDULER_CANAIS=shopee-sync,amazon-sync`.
@@ -95,9 +124,11 @@ export async function register() {
   // Espera o servidor abrir a porta antes da primeira batida, e escalona os
   // canais (30s entre eles) para não disparar quatro syncs no mesmo segundo.
   SYNCS.forEach((rota, i) => {
+    const intervalo = intervaloDe(rota);
+    console.log(`[scheduler] ${rota}: a cada ${Math.round(intervalo / 60_000)} min`);
     setTimeout(() => {
       void dispara(rota);
-      setInterval(() => void dispara(rota), SYNC_INTERVAL_MS);
+      setInterval(() => void dispara(rota), intervalo);
     }, 15_000 + i * 30_000);
   });
   setTimeout(() => {
