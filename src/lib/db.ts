@@ -57,6 +57,22 @@ function getPool(): Pool {
       // script local contra produção não abre pool de 10. Foram duas sondas
       // minhas com `max: 10` que derrubaram uma na outra com EMAXCONNSESSION.
       // A aplicação não define a variável; quem define é o script, no topo dele.
+      // ⚠️ TETO DE TEMPO POR CONSULTA (29/08/2026). Duas indisponibilidades em
+      // 45 minutos, de fontes DIFERENTES — uma escrita de sync de 9 min e uma
+      // agregação de métricas de 112s com sete cópias empilhadas —, o mesmo
+      // mecanismo nas duas: em modo `transaction` a consulta prende o slot do
+      // pooler pela sua duração inteira, e sem teto ela prende para sempre.
+      //
+      // 120s é conservador de propósito: já vimos etapa de sync legítima levar
+      // 68s, e matar trabalho bom para consertar trabalho ruim trocaria um
+      // incidente barulhento por um silencioso, que é pior.
+      //
+      // Vem de variável para dar para afrouxar ou apertar SEM DEPLOY — num
+      // incidente, esperar 4 minutos de build é o que não se tem.
+      //
+      // NÃO se aplica às migrations: `migrate-cli.mjs` abre a própria conexão e
+      // DDL longa é legítima lá.
+      statement_timeout: Number(process.env.DB_STATEMENT_TIMEOUT_MS || 120_000),
       max: maximoDoPool(),
       idleTimeoutMillis: 10_000,
       connectionTimeoutMillis: 10_000,

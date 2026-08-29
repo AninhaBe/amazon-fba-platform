@@ -75,3 +75,16 @@ test("a regra de higiene está escrita no próprio script, não só no ADR", asy
   assert.match(sonda, /SCRIPT LOCAL CONTRA PRODUCAO NAO ABRE POOL/);
   assert.match(sonda, /process\.env\.DB_POOL_MAX = "3"/);
 });
+
+test("ha TETO DE TEMPO por consulta, por variavel, e ele nao vale para migrations", async () => {
+  const db = await readFile(new URL("../src/lib/db.ts", import.meta.url), "utf8");
+  // Duas indisponibilidades em 45 minutos (29/08/2026), fontes diferentes, mesmo
+  // mecanismo: em modo transaction a consulta prende o slot do pooler pela sua
+  // duracao inteira. Sem teto, ela prende para sempre.
+  assert.match(db, /statement_timeout: Number\(process\.env\.DB_STATEMENT_TIMEOUT_MS \|\| 120_000\)/);
+  // De variavel PORQUE num incidente nao se tem 4 minutos de build para afrouxar.
+  assert.match(db, /SEM DEPLOY/);
+  // Migrations abrem a propria conexao: DDL longa e legitima la.
+  const migr = await readFile(new URL("../scripts/migrate-cli.mjs", import.meta.url), "utf8");
+  assert.doesNotMatch(migr, /statement_timeout/);
+});
