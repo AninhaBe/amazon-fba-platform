@@ -5746,6 +5746,27 @@ summary:hover { background: var(--paper-soft); }
 .aliquotas-panel > header p:not(.section-kicker) { max-width: 72ch; margin-block-start: 5px; color: var(--ink-muted); font-size: 13px; line-height: 1.5; }
 .aliquotas-panel > header strong { color: var(--ink); font-weight: 700; }
 
+/* PAINEL RECOLHIDO (29/08/2026): com as alíquotas cadastradas, a Visão geral
+   exibia quatro campos de digitação que ninguém ia usar — a segunda das duas
+   faixas empilhadas no topo. Recolhido mostra o VALOR; aberto mostra o
+   formulário. O aberto ficou como era: só o caminho até ele mudou. */
+.aliquotas-cabecalho { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.aliquotas-alternar { flex-shrink: 0; min-height: 34px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); padding-inline: 14px; color: var(--ink); font-size: 12px; font-weight: 700; }
+.aliquotas-alternar:hover { background: var(--paper-soft); }
+
+.aliquotas-resumo { display: flex; flex-wrap: wrap; gap: 8px 10px; margin-block-start: 14px; }
+.aliquotas-resumo li { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--paper-soft); padding: 7px 12px; color: var(--ink-muted); font-size: 13px; }
+.aliquotas-resumo li b { color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+/* Sem alíquota não é zero: a linha fica marcada e o texto diz "sem alíquota",
+   nunca "0%" — que seria afirmar isenção no lugar de quem não respondeu. */
+.aliquotas-resumo li.is-pendente { border-style: dashed; border-color: var(--line-strong); }
+.aliquotas-resumo li.is-pendente b { color: var(--ink-muted); font-weight: 600; }
+.aliquotas-resumo li.is-lendo { border: 0; background: none; padding-inline: 0; }
+
+.aliquotas-pendencia { margin-block-start: 12px; color: var(--ink); font-size: 12.5px; line-height: 1.5; }
+
+.aliquotas-grid[hidden] { display: none; }
+
 .aliquotas-grid { display: grid; grid-template-columns: minmax(150px, auto) auto auto minmax(0, 1fr); gap: 10px 14px; margin-block-start: 18px; }
 .aliquota-linha { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; border-block-start: 1px solid var(--ink-08); padding-block-start: 10px; }
 .aliquota-linha:first-child { border-block-start: 0; padding-block-start: 0; }
@@ -5773,6 +5794,8 @@ summary:hover { background: var(--paper-soft); }
 @media (max-width: 720px) {
   /* Sem subgrid no estreito: cada linha vira um bloco, senão o campo de 86px e
      o botão dividiriam 320px com o nome do canal e nada caberia. */
+  /* No estreito o botao cai para baixo do titulo em vez de espremer o h2. */
+  .aliquotas-cabecalho { flex-wrap: wrap; }
   .aliquotas-grid { grid-template-columns: minmax(0, 1fr); }
   .aliquota-linha { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 10px; }
   .aliquota-canal, .aliquota-linha > small, .aliquota-vazio { grid-column: 1 / -1; }

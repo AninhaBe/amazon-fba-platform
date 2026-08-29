@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { MarketplaceIcon } from "./MarketplaceIcon";
 import { dicaDoImposto } from "@/lib/aliquota";
+import { aliquotaEmTexto, painelDeAliquotaAberto } from "./painelDeAliquota";
 
 /**
  * A alíquota de imposto dos QUATRO canais, numa tela só.
@@ -49,10 +50,30 @@ interface LinhaDeAliquota {
 
 const INICIAL: LinhaDeAliquota = { campo: "", salva: null, estado: "carregando", erro: null };
 
+/**
+ * `null` (nao cadastrada) e `0` (isencao declarada) NUNCA viram o mesmo texto.
+ * Este e o unico lugar do painel que traduz alíquota para leitura — o recolhido
+ * mostra o valor, e mostrar "0%" para quem nao cadastrou seria afirmar isencao.
+ */
 export function AliquotasPorCanal() {
   const [linhas, setLinhas] = useState<Record<string, LinhaDeAliquota>>(
     () => Object.fromEntries(CANAIS.map((c) => [c.id, INICIAL]))
   );
+
+  /**
+   * RECOLHIDO POR PADRAO, ABERTO QUANDO HA O QUE FAZER.
+   *
+   * Pedido dela (29/08/2026): o painel ocupava a Visao geral inteira com quatro
+   * campos de digitacao mesmo quando as quatro alíquotas ja estavam cadastradas
+   * — e era a segunda das duas faixas empilhadas no topo. Configuracao resolvida
+   * nao precisa de formulario aberto; precisa do VALOR a vista.
+   *
+   * `null` = ninguem clicou ainda, entao quem decide e o estado do dado:
+   * falta alíquota em algum canal conectado -> abre (a pendencia se mostra
+   * sozinha). Clique da pessoa passa a mandar, e nao e desfeito por releitura.
+   */
+  const [abertoPeloUsuario, setAbertoPeloUsuario] = useState<boolean | null>(null);
+  const corpoId = useId();
 
   const atualizar = useCallback((id: string, mudanca: Partial<LinhaDeAliquota>) => {
     setLinhas((atual) => ({ ...atual, [id]: { ...atual[id], ...mudanca } }));
@@ -118,22 +139,97 @@ export function AliquotasPorCanal() {
 
   const algumConectado = CANAIS.some((c) => linhas[c.id].estado !== "desconectado" && linhas[c.id].estado !== "carregando");
 
+  // Canais que a pessoa REALMENTE tem — canal nao conectado nao e pendencia de
+  // imposto, e contar ele diria "faltam 4" para quem conectou um.
+  const conectados = useMemo(
+    () => CANAIS.filter((c) => linhas[c.id].estado !== "desconectado" && linhas[c.id].estado !== "carregando"),
+    [linhas]
+  );
+  const lendo = CANAIS.some((c) => linhas[c.id].estado === "carregando");
+  // `salva == null` e o unico teste de pendencia: 0% e isencao DECLARADA e nao
+  // falta nada. Confundir os dois faria o painel cobrar quem ja respondeu.
+  const semAliquota = conectados.filter((c) => linhas[c.id].salva == null);
+  const aberto = painelDeAliquotaAberto({ abertoPeloUsuario, lendo, canaisSemAliquota: semAliquota.length });
+
   // `data-onboarding` liga este painel ao 4º passo do tour (NexoOnboarding).
   // Sem imposto cadastrado, lucro e margem do canal saem "—" ou otimistas — por
   // isso a configuração entrou no caminho de quem chega, e não só numa tela que
   // a pessoa precisaria descobrir sozinha.
   return (
-    <section className="aliquotas-panel" data-onboarding="tax-rates" aria-labelledby="aliquotas-title">
+    <section
+      className={`aliquotas-panel ${aberto ? "is-aberto" : "is-recolhido"}`}
+      data-onboarding="tax-rates"
+      aria-labelledby="aliquotas-title"
+    >
       <header>
-        <p className="section-kicker">Imposto sobre vendas</p>
-        <h2 id="aliquotas-title">Alíquota de cada canal</h2>
-        <p>
-          O percentual entra no lucro e na margem do canal onde foi cadastrado.{" "}
-          <strong>Cada canal tem a sua</strong> — cadastrar na Amazon não altera o Mercado Livre.
-        </p>
+        <div className="aliquotas-cabecalho">
+          <div>
+            <p className="section-kicker">Imposto sobre vendas</p>
+            <h2 id="aliquotas-title">Alíquota de cada canal</h2>
+          </div>
+          {/* O botao aparece SEMPRE que ha canal conectado, inclusive aberto:
+              quem abriu por pendencia precisa de uma saida, e quem abriu por
+              clique precisa desfazer o clique. */}
+          {algumConectado && (
+            <button
+              type="button"
+              className="aliquotas-alternar"
+              aria-expanded={aberto}
+              aria-controls={corpoId}
+              onClick={() => setAbertoPeloUsuario(!aberto)}
+            >
+              {aberto ? "Fechar" : "Editar alíquotas"}
+            </button>
+          )}
+        </div>
+
+        {/* RECOLHIDO: o valor a vista, canal por canal. Era isto que o painel
+            aberto escondia atras de quatro campos de digitacao — quem ja
+            cadastrou quer LER o numero, nao redigita-lo. */}
+        {!aberto && (
+          <ul className="aliquotas-resumo">
+            {lendo ? (
+              <li className="is-lendo">Lendo as alíquotas dos canais…</li>
+            ) : conectados.length === 0 ? (
+              // Tela sem dado mostra o estado real — nunca "0%", que afirmaria
+              // isencao para quem nem conectou canal.
+              <li className="is-lendo">Nenhum canal conectado ainda.</li>
+            ) : (
+              conectados.map((canal) => {
+                const salva = linhas[canal.id].salva;
+                return (
+                  <li key={canal.id} className={salva == null ? "is-pendente" : undefined}>
+                    <MarketplaceIcon provider={canal.id} />
+                    <span>{canal.nome}</span>
+                    <b>{aliquotaEmTexto(salva)}</b>
+                  </li>
+                );
+              })
+            )}
+          </ul>
+        )}
+
+        {/* A pendencia diz O QUE falta, com numero e com os nomes — nunca um
+            adjetivo que se desculpa. Fica visivel nos dois estados: recolhido
+            ela e o motivo de abrir, aberto ela e a lista do que preencher. */}
+        {!lendo && semAliquota.length > 0 && (
+          <p className="aliquotas-pendencia">
+            {semAliquota.length === 1
+              ? `1 canal sem alíquota cadastrada (${semAliquota[0].nome})`
+              : `${semAliquota.length} canais sem alíquota cadastrada (${semAliquota.map((c) => c.nome).join(", ")})`}
+            {" — "}o lucro desses canais sai sem imposto.
+          </p>
+        )}
+
+        {aberto && (
+          <p>
+            O percentual entra no lucro e na margem do canal onde foi cadastrado.{" "}
+            <strong>Cada canal tem a sua</strong> — cadastrar na Amazon não altera o Mercado Livre.
+          </p>
+        )}
       </header>
 
-      <div className="aliquotas-grid">
+      <div className="aliquotas-grid" id={corpoId} hidden={!aberto}>
         {CANAIS.map((canal) => {
           const linha = linhas[canal.id];
           const desconectado = linha.estado === "desconectado";
@@ -174,7 +270,7 @@ export function AliquotasPorCanal() {
         })}
       </div>
 
-      {algumConectado && (
+      {algumConectado && aberto && (
         <p className="aliquotas-rodape">
           Campo vazio limpa a alíquota e o lucro do canal volta a sair sem imposto.{" "}
           <strong>0% é isenção declarada</strong> — não é a mesma coisa que vazio.
