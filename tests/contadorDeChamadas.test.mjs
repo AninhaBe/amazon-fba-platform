@@ -75,3 +75,42 @@ test("a tabela tem prazo de validade — ADR-016", async () => {
   const cron = await readFile(new URL("../src/app/api/cron/retencao/route.ts", import.meta.url), "utf8");
   assert.match(cron, /expurgarChamadasAntigas\(\)/, "expurgo que ninguem chama nao e retencao, e intencao");
 });
+
+test("falha no expurgo do contador NAO derruba o expurgo de eventos", async () => {
+  // A diferenca entre um erro pequeno e voltar aos 172 MB que a tabela de
+  // eventos alcancou em 29 dias (ADR-016). A retencao de eventos e a que
+  // segurava o crescimento; a do contador e acessoria e nova.
+  const cron = await readFile(new URL("../src/app/api/cron/retencao/route.ts", import.meta.url), "utf8");
+  const expurgoEventos = cron.indexOf("expurgarEventosProcessados(dias)");
+  const expurgoChamadas = cron.indexOf("expurgarChamadasAntigas()");
+  assert.ok(expurgoEventos > -1 && expurgoChamadas > -1);
+  assert.ok(
+    expurgoEventos < expurgoChamadas,
+    "o expurgo que segura o crescimento roda PRIMEIRO — o acessorio nunca na frente do essencial"
+  );
+  // O `.catch` tem que estar preso a chamada do contador, nao ao bloco inteiro.
+  const trecho = cron.slice(expurgoChamadas, expurgoChamadas + 260);
+  assert.match(
+    trecho,
+    /expurgarChamadasAntigas\(\)\.catch\(/,
+    "sem catch proprio, uma falha do contador aborta o expurgo de eventos junto"
+  );
+  assert.match(trecho, /console\.error\("\[retencao\] expurgo do contador/);
+});
+
+test("a descarga NUNCA corre no pool de usuario, nem por acidente", async () => {
+  const fonte = await readFile(new URL("../src/lib/integrations/contadorDeChamadas.ts", import.meta.url), "utf8");
+  // Duas garantias, e as duas importam:
+  // 1. `registrarChamada` roda DENTRO de requisicao de usuario, e nao toca o
+  //    banco — so soma num Map e agenda um timer.
+  const registrar = fonte.slice(fonte.indexOf("export function registrarChamada"), fonte.indexOf("function agendarDescarga"));
+  assert.doesNotMatch(registrar, /dbQuery|await /, "registrar chamada nao pode tocar o banco: ela roda no caminho da tela");
+  // 2. A gravacao acontece so no timer, e envolvida em runComoFundo — entao
+  //    mesmo que alguem a chame de dentro de um handler, ela sai pelo pool de
+  //    fundo. A cerca e estrutural, nao depende de quem chama.
+  const descarga = fonte.slice(fonte.indexOf("export async function descarregar"));
+  assert.match(descarga, /await runComoFundo\(/, "a gravacao precisa estar dentro de runComoFundo");
+  const indiceQuery = descarga.indexOf("dbQuery");
+  const indiceFundo = descarga.indexOf("runComoFundo");
+  assert.ok(indiceFundo < indiceQuery, "nenhuma consulta pode ficar fora do runComoFundo");
+});
