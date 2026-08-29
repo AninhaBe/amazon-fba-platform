@@ -26,6 +26,7 @@ intervalo a outra pessoa começou a trabalhar.
 Casamento por **prefixo mais longo**. Um caminho sem dono é `compartilhado`.
 
 - `src/app/components/` → vitrine
+- `src/app/components/FinancialSummaryPanel.tsx` → compartilhado
 - `src/app/globals.css` → vitrine
 - `src/app/landing/` → vitrine
 - `src/app/landing-v2/` → vitrine
@@ -39,6 +40,10 @@ Casamento por **prefixo mais longo**. Um caminho sem dono é `compartilhado`.
 - `tests/` → compartilhado
 - `package.json` → compartilhado
 - `fly.toml` → backend
+
+⚠️ **`FinancialSummaryPanel.tsx` é compartilhado de propósito.** Ele mora na área
+da Vitrine, mas o que se mexe nele é a **composição de um número** — conta, não
+renderização. Território de dois donos vira linha no mapa, não exceção no commit.
 
 ⚠️ **`compartilhado` não cruza com ninguém.** Documentação e teste acompanham
 quem escreveu o código — barrar um commit por causa de um `.md` seria o tipo de
@@ -62,10 +67,8 @@ Para isso, a mensagem de commit precisa carregar uma linha:
 cruza-areas: <motivo em uma frase>
 ```
 
-O critério **não é urgência nem tamanho**. São **dois motivos válidos**, e só
-estes dois:
-
-### 1. Contrato que precisa ser atômico
+O critério **não é urgência nem tamanho**. É **um motivo só**: contrato que
+precisa ser atômico.
 
 Dividir produziria um commit intermediário em que a tela mente ou o código não
 compila. Exemplo real: o lote da ADR-033 mudou `available_qty` para poder ser
@@ -77,18 +80,26 @@ que ninguém informou.
 > mente" é **verificável por quem lê depois** — e é por isso que este critério
 > não apodrece.
 
-### 2. Arquivo do outro dono aprovado explicitamente para você
+### ⚠️ O que NÃO é motivo de escape
 
-Quando o orquestrador aprova um trabalho que mora na área do outro. Acontece
-porque a fronteira do mapa é de **pasta**, e a de responsabilidade é de
-**assunto**: `FinancialSummaryPanel.tsx` mora em `components/` — área da Vitrine —
-mas a composição de um número é conta, não renderização.
+**Permissão para tocar arquivo da área do outro.** Isso é questão de **dono**, e
+a resposta é o **mapa** — não o escape.
 
-⚠️ **Este motivo existe para não virar contorno.** A alternativa seria uma lista
-de exceções por arquivo, que ninguém mantém, ou pedir para o outro dono mexer num
-assunto que não é dele — que é pior. Escrito aqui, o desvio fica auditável em vez
-de silencioso. *(Ressalva levantada pela Vitrine em 29/08/2026, ao revisar este
-mapa antes de ele valer.)*
+A tentação é real e apareceu no primeiro uso: `FinancialSummaryPanel.tsx` mora em
+`components/` (Vitrine), mas a composição de um número é conta, não
+renderização. A saída certa foi **uma linha no mapa**, acima, e não uma frase no
+commit.
+
+> **O escape descreve o CÓDIGO, nunca a combinação entre pessoas.**
+
+Se ele aceitasse "combinei com fulano", em um mês alguém escreve
+`cruza-areas: a Vitrine deixou` e a cerca morreu — porque o critério teria
+virado **permissão** em vez de **atomicidade**. Permissão não é verificável por
+quem lê o histórico depois; "dividir deixaria um commit em que a tela mente" é.
+
+*(Distinção levantada pelo cerebro em 29/08/2026, antes do primeiro uso real —
+a ressalva original da Vitrine sobre este arquivo continua válida, e virou a
+linha do mapa.)*
 
 O escape custa uma frase e fica **auditável no histórico** — que é a diferença
 entre ele e uma allowlist muda.

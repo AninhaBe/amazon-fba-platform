@@ -11,7 +11,7 @@ import { EmptyState } from "../components/EmptyState";
 import { DashboardPeriodFilter, useDashboardPeriod } from "../components/DashboardPeriodFilter";
 import type { OperationPendingItem } from "../components/OperationPending";
 import { Metric as Kpi, CompactMetric, getRevenueTrend } from "../components/Metric";
-import { amazonFinancialCards, diasSemAnuncio, type AmazonAdsInput } from "./amazonFinancialCards";
+import { amazonFinancialCards, gastoComAnuncioDoPeriodo, diasSemAnuncio, type AmazonAdsInput } from "./amazonFinancialCards";
 import { AnimatedNumber, identidadeDePeriodo } from "../components/AnimatedNumber";
 import { buscaCompartilhada } from "../components/buscaCompartilhada";
 import { OrderProfitabilityTable } from "../components/OrderProfitabilityTable";
@@ -617,6 +617,20 @@ export default function Dashboard() {
   const cogs = profit?.cogs ?? 0;
   const missingCostUnits = profit?.unitsWithoutCost ?? 0;
   const costsIncomplete = missingCostUnits > 0;
+  // Fonte ÚNICA do gasto com anúncio: a mesma função que a faixa usa. Ver
+  // `gastoComAnuncioDoPeriodo` — a conta mora em um lugar só de propósito.
+  const anuncio = gastoComAnuncioDoPeriodo({
+    finance: profit?.finance ?? null,
+    ads: profit?.ads ?? null,
+    adsConectado: profit?.adsConectado ?? false,
+  });
+  const anuncioNoLucro = anuncio.gastoComAnuncio || null;
+  // Com Ads conectado e sem métrica, o gasto é desconhecido — e um lucro que
+  // assume zero de anúncio é o MESMO erro por outro caminho: o card diria "—" e
+  // o painel diria um número, de novo dois lucros na mesma tela.
+  const lucroComAnuncio = profit?.estimatedProfit == null || anuncio.desconhecido
+    ? null
+    : +(profit.estimatedProfit - (anuncioNoLucro ?? 0)).toFixed(2);
   /** Cupom resgatado pelo comprador — já abatido de `revenue` pela camada financeira. */
   const promocoes = profit?.finance.promotions ?? 0;
   // O financeiro vem das transações, que a Amazon posta na data de POSTAGEM —
@@ -967,7 +981,9 @@ export default function Dashboard() {
         </div>
 
         <FinancialSummaryPanel
-          complete={!costsIncomplete && conciliacao?.complete !== false}
+          // Anúncio desconhecido também deixa a composição incompleta: selo
+          // verde em cima de lucro "—" foi o par exato que enganou antes.
+          complete={!costsIncomplete && !anuncio.desconhecido && conciliacao?.complete !== false}
           labelledBy="amazon-financial-summary-title"
           description={(
             <>
@@ -987,8 +1003,20 @@ export default function Dashboard() {
             costs: [
               ...(profit?.finance.feeBreakdown ?? []).map((fee) => ({ id: fee.type, label: nomeDaTarifa(fee.type), value: fee.amount })),
               { id: "cogs", label: "Custo dos produtos", value: costsIncomplete ? null : profit?.cogs },
+              // ⚠️ ANÚNCIO ENTRA NA COMPOSIÇÃO (29/08/2026). Ele não é repasse da
+              // Amazon, e era por isso que estava fora — mas o painel não mostra
+              // "repasses", mostra COMO O FATURAMENTO VIRA LUCRO, e anúncio sai
+              // do bolso dela no meio desse caminho.
+              //
+              // Sem esta fatia a tela exibia DOIS números chamados lucro com
+              // sinais opostos: −R$ 35,61 na faixa e +R$ 365,53 aqui, e a
+              // diferença era a MAIOR despesa do período. Ver ADR-025.
+              { id: "ads", label: "Anúncios", value: anuncioNoLucro },
             ],
-            result: costsIncomplete ? null : profit?.estimatedProfit,
+            // O MESMO lucro da faixa, pela MESMA função. Duas cópias da conta
+            // foi o que deixou uma para trás quando a decisão dela de 25/08 foi
+            // aplicada só ao card.
+            result: costsIncomplete ? null : lucroComAnuncio,
           })}
           empty={!loading && !hasFinance ? (
             // Sem transação postada não há cascata: zerar receita, taxas e lucro
@@ -1018,27 +1046,49 @@ export default function Dashboard() {
                 <Flow key={t.type} label={nomeDaTarifa(t.type)} value={money(t.amount, currency)} detail muted />
               ))}
               <Flow label="Custo dos produtos" value={loading ? "…" : money(profit?.cogs ?? 0, currency)} muted sign="−" />
+              {/* ⚠️ A CASCATA TAMBÉM DESCONTA O ANÚNCIO (29/08/2026).
+                  Era a TERCEIRA cópia da conta de lucro na mesma tela: a faixa
+                  já descontava o Ads desde 25/08, a rosca passou a descontar
+                  hoje, e estas linhas ainda fechavam no número antigo — maior e
+                  positivo. Agora as três leem `lucroComAnuncio`, da mesma
+                  `gastoComAnuncioDoPeriodo`. */}
+              {!loading && (anuncioNoLucro != null || anuncio.desconhecido) && (
+                <Flow
+                  label="Anúncios"
+                  value={anuncio.desconhecido ? "—" : money(anuncioNoLucro ?? 0, currency)}
+                  muted
+                  sign="−"
+                />
+              )}
               <Flow
                 label={costsIncomplete ? "Repasse líquido" : "Lucro estimado"}
-                value={loading ? "…" : money(profit?.estimatedProfit ?? 0, currency)}
+                value={loading ? "…" : lucroComAnuncio == null ? "—" : money(lucroComAnuncio, currency)}
                 accent
-                tone={costsIncomplete || loading
+                tone={costsIncomplete || loading || lucroComAnuncio == null
                   ? "default"
-                  : (profit?.estimatedProfit ?? 0) > 0
+                  : lucroComAnuncio > 0
                     ? "positive"
-                    : (profit?.estimatedProfit ?? 0) < 0
+                    : lucroComAnuncio < 0
                       ? "danger"
                       : "default"}
                 sign="="
               />
-              {!loading && (profit?.finance.revenue ?? 0) > 0 && (
+              {/* Gasto de anúncio desconhecido não vira zero: sem ele, o lucro e
+                  a margem são "—" e a tela diz o que falta, com o link. */}
+              {!loading && anuncio.desconhecido && (
+                <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
+                  Falta a métrica de gasto do Amazon Ads deste período — lucro e margem entram quando ela sincronizar.{" "}
+                  <Link href="/ads" className="underline">Ver Ads</Link>
+                </p>
+              )}
+              {!loading && lucroComAnuncio != null && (profit?.finance.revenue ?? 0) > 0 && (
                 <Flow
                   label="Margem"
-                  value={`${(((profit?.estimatedProfit ?? 0) / (profit?.finance.revenue || 1)) * 100).toFixed(1).replace(".", ",")}%`}
+                  value={`${((lucroComAnuncio / (profit?.finance.revenue || 1)) * 100).toFixed(1).replace(".", ",")}%`}
                   accent
                   tone={costsIncomplete
                     ? "default"
-                    : marginMetricTone(((profit?.estimatedProfit ?? 0) / (profit?.finance.revenue || 1)) * 100)}
+                    : marginMetricTone((lucroComAnuncio / (profit?.finance.revenue || 1)) * 100)}
                 />
               )}
         </FinancialSummaryPanel>

@@ -121,6 +121,38 @@ const ANUNCIOS = (tipo: string) => /advertis|productads/i.test(tipo);
 const COMISSAO = (tipo: string) => /commission|referralfee/i.test(tipo);
 
 /**
+ * O gasto com anúncio que ENTRA no lucro do período — fonte única.
+ *
+ * ⚠️ Por que isto virou função exportada (29/08/2026): a decisão da vendedora de
+ * 25/08 — *"o card de lucro passa a descontar também o ads, isso é lucro real"* —
+ * foi aplicada ao CARD e não ao PAINEL. O painel ficou com a definição anterior,
+ * e a mesma tela passou a mostrar **dois números chamados lucro com sinais
+ * opostos**: −R$ 35,61 na faixa e +R$ 365,53 no painel, com selo verde de
+ * "Composição completa". A diferença era exatamente a maior despesa do período.
+ *
+ * Ela relatou o defeito uma vez, recebeu metade do conserto, e achou a outra
+ * metade quatro dias depois. Uma conta usada em dois lugares tem que morar em
+ * UM lugar — foi ter duas cópias que deixou uma para trás.
+ *
+ * ⚠️ A guarda do extrato continua aqui: se a Amazon postar anúncio como tarifa
+ * de pedido, o valor já saiu de `estimatedProfit` e descontar a Ads API por cima
+ * contaria o mesmo dinheiro duas vezes.
+ */
+export function gastoComAnuncioDoPeriodo(input: {
+  finance?: { feeBreakdown?: { type: string; amount: number }[] } | null;
+  ads?: AmazonAdsInput | null;
+  adsConectado?: boolean;
+}): { gastoComAnuncio: number; jaNoExtrato: boolean; desconhecido: boolean } {
+  const noExtrato = somaTipos(input.finance?.feeBreakdown, ANUNCIOS, input.finance != null);
+  const jaNoExtrato = (noExtrato ?? 0) > 0;
+  // Ads conectado e SEM metrica sincronizada: o gasto e DESCONHECIDO, nao zero.
+  // Isto mora aqui junto com o valor porque quem desconta o anuncio precisa
+  // saber que nao pode descontar — e antes so o card sabia.
+  const desconhecido = input.adsConectado === true && input.ads == null && !jaNoExtrato;
+  return { gastoComAnuncio: jaNoExtrato ? 0 : (input.ads?.cost ?? 0), jaNoExtrato, desconhecido };
+}
+
+/**
  * Tipo de tarifa ausente num período **conciliado** vale ZERO, não "não sei": a
  * Amazon já postou o extrato e simplesmente não cobrou aquilo. Tratar como
  * desconhecido fazia três dos doze cards exibirem "—" para sempre, sugerindo
@@ -193,12 +225,11 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
   // entra em `fees` e já saiu de `estimatedProfit`. Descontar a Ads API por cima
   // contaria o mesmo dinheiro duas vezes — daí a checagem, mesmo que hoje nenhum
   // tipo de tarifa case com o padrão.
-  const anuncioJaNoExtrato = (anuncios ?? 0) > 0;
-  const gastoComAnuncio = anuncioJaNoExtrato ? 0 : (input.ads?.cost ?? 0);
-
+  //
   // Com Ads conectado e SEM métrica sincronizada, o gasto é desconhecido — não
   // zero. Lucro, margem e ROI ficam "—" em vez de repetir o número otimista.
-  const anuncioDesconhecido = input.adsConectado === true && input.ads == null && !anuncioJaNoExtrato;
+  const { gastoComAnuncio, jaNoExtrato: anuncioJaNoExtrato, desconhecido: anuncioDesconhecido } =
+    gastoComAnuncioDoPeriodo(input);
 
   // O DIA DE HOJE EXISTE, MAS AINDA ESTÁ SOMANDO.
   //
