@@ -491,7 +491,31 @@ O perigo não é a falha; é a **passagem**. Quem for conferir num momento de ap
 ocioso conclui, **de boa-fé e com medição na mão**, que o problema não existe. A
 medição não mente — ela responde a pergunta errada.
 
-**A defesa: meça o que é CONSTANTE, não o SINTOMA.**
+**### ⚠️ A lição escrita não impede a repetição — só o procedimento impede
+
+Registro de um episódio do mesmo dia, porque ele é o argumento mais forte a favor
+de defesa **estrutural** contra defesa por **memória**:
+
+A armadilha "comparar cache frio com cache quente" foi escrita **neste ADR**, por
+mim, em 28/08/2026. **Horas depois**, medindo aquecimento sequencial contra
+paralelo, rodei os dois **no mesmo processo**, um em seguida do outro. Resultado:
+*1251ms contra 220ms — "o paralelo é 5× mais rápido"*. Era falso: o paralelo
+reusou o cache que o sequencial acabara de aquecer. Refeito com cada modo em
+**processo separado** e rodadas alternadas, o ganho real era de ~500ms (20%).
+
+Eu tinha escrito a lição, revisado a lição, e caí nela no mesmo dia.
+
+**Conclusão que vale para o repo inteiro, não só para medição:** lição escrita é
+documentação, não defesa. O que impede a repetição é o **procedimento** — aqui,
+"cada modo roda num processo novo", que torna a contaminação impossível em vez de
+depender de alguém lembrar. É a mesma forma das outras defesas do dia: a
+conferência de árvore limpa colada no `fly deploy`, a versão do prompt na chave
+do cache, o teste que lê a seção Decisão do ADR.
+
+Onde a correção depender de memória, ela vai falhar — inclusive com quem escreveu
+a regra.
+
+A defesa: meça o que é CONSTANTE, não o SINTOMA.**
 
 | | |
 |---|---|
