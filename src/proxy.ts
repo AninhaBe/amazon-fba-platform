@@ -13,10 +13,12 @@ const DOMINIO_CANONICO = process.env.CANONICAL_HOST || "nexoaihub.com.br";
 export function proxy(request: NextRequest) {
   const host = request.headers.get("host") ?? "";
   const ehFlyDev = host.endsWith(".fly.dev");
-  // `/api/health` fica de fora: é o health check do próprio Fly, que bate no
-  // .fly.dev e trataria um 308 como falha.
-  const ehHealth = request.nextUrl.pathname === "/api/health";
-  if (ehFlyDev && !ehHealth && DOMINIO_CANONICO) {
+  // Os dois endpoints de saúde ficam de fora: eles batem no .fly.dev e
+  // tratariam um 308 como falha. `/api/vivo` é o que o check do Fly usa
+  // (liveness); `/api/health` é readiness e continua existindo para nós.
+  const ehSaude =
+    request.nextUrl.pathname === "/api/health" || request.nextUrl.pathname === "/api/vivo";
+  if (ehFlyDev && !ehSaude && DOMINIO_CANONICO) {
     const destino = new URL(request.nextUrl.toString());
     destino.host = DOMINIO_CANONICO;
     destino.protocol = "https:";

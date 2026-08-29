@@ -27,11 +27,24 @@ primary_region = "gru"          # Sao Paulo — a razao de existir desta migraca
   auto_start_machines = true
   min_machines_running = 1
 
+  # ⚠️ LIVENESS, NAO READINESS — e a diferenca custou um apagao em 29/08/2026.
+  #
+  # Este check apontava para /api/health, que passou a devolver 503 quando o
+  # banco nao responde. Com UMA maquina so, 503 aqui nao degrada: o Fly marca a
+  # unica instancia como critical, o proxy fica sem candidato e devolve
+  # "could not find a good candidate within 40 attempts". Medido: requisicao de
+  # 19,29s com o banco respondendo em 360ms.
+  #
+  # /api/vivo so prova que o processo responde. Quem decide derrubar a maquina
+  # nao pode ser uma dependencia externa enquanto a maquina for uma so.
+  # /api/health continua existindo, com 503 honesto, para NOS sabermos do banco.
+  # Reavaliar quando existir uma segunda maquina: com failover, faz sentido o
+  # check voltar a considerar a dependencia.
   [[http_service.checks]]
     grace_period = "20s"        # o app sobe rapido, mas o primeiro render nao
     interval = "30s"
     method = "GET"
-    path = "/api/health"
+    path = "/api/vivo"
     timeout = "5s"
 
 # Métricas em formato Prometheus, coletadas pelo Fly a cada 15s e visíveis no

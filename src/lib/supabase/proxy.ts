@@ -13,6 +13,9 @@ const publicPaths = [
   "/recuperar-senha",
   "/auth/confirm",
   "/api/health",
+  // Liveness do Fly. Precisa responder sem sessão — check que leva 401 marca a
+  // máquina como critical, que é exatamente o apagão que ele deveria evitar.
+  "/api/vivo",
   // Todos os endpoints de cron: já se protegem com CRON_SECRET, então ficam
   // fora do login (o proxy do Supabase os barraria antes de checar o segredo).
   "/api/cron/",
