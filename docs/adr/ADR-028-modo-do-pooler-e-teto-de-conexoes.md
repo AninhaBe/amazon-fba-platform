@@ -152,6 +152,37 @@ E uma regra de higiene que independe da escolha: **script local contra produçã
 não abre pool de 10.** As sondas deste repo já usam `Client` único ou pool
 pequeno; a que estourou foi minha, com `max: 10`.
 
+## Executado em 28/08/2026 (v159) — e o que NÃO ficou provado
+
+A aplicação passou a usar o modo `transaction`. Verificação pós-deploy:
+
+- versão **159 confirmada na máquina** (não só o release), health 200;
+- **os 4 canais completaram ciclo de sync depois do deploy** (Amazon 0,0 min,
+  ML 1,5 e 1,8 min, Shopee 0,6 min, TikTok 7,9 min — este às 00:45, após o
+  deploy às 00:42:16Z), sem nenhum erro de conexão;
+- o Supavisor passou a manter **12** conexões de servidor, em vez das 15 fixas.
+
+⚠️ **O que a prova das "10 simultâneas" NÃO mostra.** Ela passou na porta nova
+(371ms) — **e também na antiga** (535ms), porque naquele momento o teto de 15
+não estava sendo disputado. Ela **não discrimina** e não deve ser citada como
+confirmação do ganho. O número que discrimina é o constante: **14 conexões de
+cliente na 5432 contra 30+ na 6543**.
+
+⚠️ **Limite explícito do que ficou provado.** Não é possível verificar, do lado
+do banco, **em qual porta a aplicação abriu o pool** — `pg_stat_activity` só
+enxerga o Supavisor. O que sustenta a decisão é o conjunto: mudança
+determinística, 9 testes, versão confirmada na máquina, 4 syncs completos e o
+Supavisor em 12 conexões em vez de 15 fixas (compatível com multiplexação, mas
+**sozinho não prova**). Quem ler isto no futuro não deve concluir que a porta em
+uso foi observada diretamente — não foi.
+
+📌 Um erro que aparece no monitoramento e **não** é deste deploy: a conexão
+`mercado_livre:demo` do workspace de demonstração está em `error` com *"sem
+refresh token"* há 33h. É conexão **demo, sem token por construção** — ruído, não
+dado real parado. As duas conexões reais de ML (NEXAHUBBRASIL e CRYSTALFANCY)
+estavam `complete` com sucesso de minutos atrás. Erro de pool teria outro texto
+(*"timeout exceeded when trying to connect"*).
+
 ## Pendente
 
 - Decisão do cérebro sobre A / B / C.

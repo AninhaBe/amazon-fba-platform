@@ -742,6 +742,42 @@ nada. Vale para tabela, para log, para timestamp e para print de tela.
 
 ---
 
+## 18. FRENTE PRÓPRIA: o catálogo da Amazon nunca foi sincronizado (28/08/2026)
+
+Achado lateral do Delta durante a revisão do ADR-029, medido e confirmado. **Não
+é o defeito de variação da Shopee** — é outra causa, no mesmo lugar da dor
+(o custo não se prende ao que vende).
+
+| Medida, no workspace real (`22ae3d9d`) | Valor |
+|---|---:|
+| Produtos Amazon em `workspace_channel_products` | **0** |
+| Ids de produto que **aparecem em venda** | **71** |
+| SKUs distintos vendidos | **71** |
+| `products_total` / `products_synced_at` no sync | **0** / **nunca** |
+
+O catálogo da Amazon **nunca rodou** nos três workspaces reais
+(`products_synced_at IS NULL`). Os únicos produtos Amazon no canônico são **4 em
+cada workspace de demonstração**.
+
+**Consequência:** tudo que depende de casar venda com catálogo na Amazon está
+sem base — cadastro de custo por produto, curva ABC por catálogo, radar de
+estoque. As vendas existem (22 mil pedidos, 20 mil itens, todos com SKU); o
+outro lado da junção é que está vazio.
+
+⚠️ **Terceira surpresa da Amazon em dois dias**, e as três têm a mesma forma —
+*o dado não está onde se supõe*:
+
+1. a conexão mora em `workspace_accounts`, não em `workspace_integrations` (§17);
+2. `orderMetrics` não é reproduzível pelo canônico porque a Amazon **omite** o
+   valor de pedido `Pending` (ver `api-amazon-sp-api.md`);
+3. o catálogo simplesmente **não existe** no canônico.
+
+**Ainda não investigado** — registrado por ordem do cérebro para não se perder no
+meio de outro ADR. Pergunta de partida: o passo de catálogo do sync da Amazon
+existe e nunca foi elegível, ou não existe?
+
+---
+
 ## Bloqueado por terceiros
 
 - **Solution Provider Portal (Amazon)** — candidatura travada, caso `21250777631`. Sem

@@ -450,6 +450,36 @@ conserto**, comparando o texto novo com o antigo lado a lado. Sem essa
 conferência a versão inflada teria ficado de pé — o que torna a verificação
 pós-entrega parte da entrega, não zelo opcional.
 
+## Defeito sob carga some na hora da investigação (28/08/2026)
+
+A lição mais reutilizável da noite, e ela explica por que **quase todo problema
+intermitente é subestimado**.
+
+O caso: abrir 10 conexões — o `max` que o próprio `db.ts` declara — falhou com
+`EMAXCONNSESSION` numa medição e **passou** noutra, horas depois. Nada mudou no
+código entre as duas. O que mudou foi **quem mais estava usando o pooler naquele
+instante**.
+
+O perigo não é a falha; é a **passagem**. Quem for conferir num momento de app
+ocioso conclui, **de boa-fé e com medição na mão**, que o problema não existe. A
+medição não mente — ela responde a pergunta errada.
+
+**A defesa: meça o que é CONSTANTE, não o SINTOMA.**
+
+| | |
+|---|---|
+| Sintoma (enganoso) | "as 10 simultâneas falham" — depende de carga concorrente |
+| Constante (decide) | "o teto de clientes é 14 num modo e 30+ no outro" — não depende de nada |
+
+O sintoma depende de uma condição que **você não controla no momento da medida**.
+A constante, não. Quando um defeito só aparece sob carga, procure a **grandeza
+estrutural** que o causa e meça ela — senão o resultado do teste passa a ser
+sorteado.
+
+📌 Corolário para reportar: um teste que passa nas **duas** alternativas não é
+evidência a favor de nenhuma. Vale dizer isso em voz alta ao entregar, porque
+"passou em 371ms" soa como confirmação e não é.
+
 ## ⚠️ Pendência nomeada: a ida repetida é MULETA, não só desperdício (28/08/2026)
 
 Achado da Vitrine, e ele muda como se olha performance de abertura em **qualquer**
