@@ -33,6 +33,18 @@ export async function GET(req: NextRequest) {
     let eventosRetomados = 0;
     try {
       eventosRetomados = await retomarEventosPresosMercadoLivre();
+      // ⚠️ A REDE DE SEGURANCA PRECISA CONTAR QUANTAS VEZES SALVOU O PRINCIPAL.
+      //
+      // Em 29/08/2026 havia 207 eventos parados ha TREZE HORAS e ninguem
+      // percebeu — porque esta varredura encobria a falha do push em silencio.
+      // Mecanismo de reserva que nao se anuncia vira anestesia: quanto melhor
+      // ele funciona, mais tempo o defeito principal fica escondido.
+      if (eventosRetomados > 0) {
+        console.warn(
+          `[ml] varredura retomou ${eventosRetomados} evento(s) preso(s) — ` +
+          "isso e o push falhando e sendo encoberto; investigar se repetir."
+        );
+      }
     } catch {
       /* varredura é best-effort — uma falha aqui não quebra o cron */
     }

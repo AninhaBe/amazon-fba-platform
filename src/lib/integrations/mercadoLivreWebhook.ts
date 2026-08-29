@@ -290,7 +290,24 @@ export async function retomarEventosPresosMercadoLivre(limit = 10): Promise<numb
         AND ((status = 'processing'
               AND (processing_at IS NULL OR processing_at < now() - interval '${PROCESSING_STALE_MINUTES} minutes'))
           OR (status = 'error' AND attempts <= $2
-              AND (last_error IS NULL OR last_error NOT LIKE '[TERMINAL]%')))
+              AND (last_error IS NULL OR last_error NOT LIKE '[TERMINAL]%'))
+          -- ⚠️ PENDING VELHO TAMBEM E EVENTO PRESO (29/08/2026).
+          --
+          -- A varredura cobria processing orfao e error, e deixava de fora
+          -- justamente o estado em que o evento NASCE. Evento inserido como
+          -- pending cujo processamento morreu ANTES de reivindicar (deploy,
+          -- queda, timeout) ficava invisivel para sempre: attempts = 0, sem
+          -- erro registrado, sem ninguem para retomar.
+          --
+          -- Medido: 207 eventos parados de 28/08 11:21 a 14:52 — TREZE HORAS —,
+          -- todos com attempts 0 e sem erro. Ninguem percebeu porque a varredura
+          -- periodica do sync encobria: o dado chegava pelo outro caminho.
+          -- Redundancia que mascara falha e pior que ausencia dela.
+          --
+          -- O mesmo teto de tempo do processing vale aqui: pending recente esta
+          -- sendo processado AGORA e nao pode ser roubado.
+          OR (status = 'pending'
+              AND received_at < now() - interval '${PROCESSING_STALE_MINUTES} minutes'))
       ORDER BY received_at
       LIMIT $3`,
     [PROVIDER, MAX_EVENT_ATTEMPTS, limit]
