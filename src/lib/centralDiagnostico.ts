@@ -51,11 +51,36 @@ interface LinhaRuptura {
 }
 
 /**
+ * Cada sinal falha SOZINHO e deixa rastro.
+ *
+ * ⚠️ Por que isto existe (29/08/2026): os três sinais eram `.catch(() => [])`.
+ * Degradar sem derrubar o briefing continua certo — o que estava errado era
+ * degradar **sem contar**. Medindo um a um descobrimos que o sinal 3 nunca tinha
+ * rodado UMA vez desde que foi escrito, por erro de SQL, e que o sinal 2 morria
+ * no teto de tempo quando o banco estava disputado. O briefing vinha narrando
+ * com um terço dos sinais e ninguém sabia, porque ninguém podia saber.
+ *
+ * Mesma família da rede de segurança que não conta quantas vezes salvou.
+ */
+async function sinalOuVazio<T>(nome: string, consulta: Promise<T[]>): Promise<T[]> {
+  try {
+    return await consulta;
+  } catch (error) {
+    console.error("[briefing] sinal de causa indisponível", {
+      sinal: nome,
+      motivo: error instanceof Error ? error.message.slice(0, 200) : "erro desconhecido",
+    });
+    return [];
+  }
+}
+
+/**
  * Coleta os sinais que explicam variação de faturamento. Todos filtrados pelo
  * workspace ativo — nunca mistura conta de terceiro.
  *
- * Falha aqui é silenciosa por desenho: sem diagnóstico o NEXO volta a narrar só
- * os números, que é o comportamento anterior. Nunca derruba o briefing.
+ * Falha de um sinal não derruba o briefing: sem diagnóstico o NEXO volta a
+ * narrar só os números, que é o comportamento anterior. Mas a falha vai para o
+ * log com nome e motivo — ver `sinalOuVazio`.
  */
 export async function coletarSinaisDeCausa(): Promise<SinalDeCausa[]> {
   const ws = currentWorkspaceId();
@@ -63,7 +88,7 @@ export async function coletarSinaisDeCausa(): Promise<SinalDeCausa[]> {
 
   const [anuncios, pararam, rupturas] = await Promise.all([
     // 1. Canal sem anúncio ativo — a causa mais direta de "parou de vender".
-    dbQuery<LinhaAnuncios>(
+    sinalOuVazio("anuncios-ativos", dbQuery<LinhaAnuncios>(
       `SELECT provider,
               COUNT(*)::text AS total,
               COUNT(*) FILTER (WHERE status = 'active')::text AS ativos
@@ -71,43 +96,79 @@ export async function coletarSinaisDeCausa(): Promise<SinalDeCausa[]> {
         WHERE workspace_id = $1
         GROUP BY provider`,
       [ws]
-    ).catch(() => []),
+    )),
 
     // 2. Produto que VENDIA e parou. Só entra quem tem histórico relevante (3+
     //    vendas): item de venda única parando não explica queda de faturamento.
-    dbQuery<LinhaParou>(
+    sinalOuVazio("produto-parou-de-vender", dbQuery<LinhaParou>(
+      // SKU vazio não é sinal: agrupar por '' junta produtos diferentes e o
+      // NEXO acabaria dizendo "o SKU  parou de vender".
       `SELECT o.provider, i.sku,
               COUNT(*)::text AS vendas,
               EXTRACT(DAY FROM now() - MAX(o.occurred_at))::int::text AS dias
          FROM workspace_channel_order_items i
          JOIN workspace_channel_orders o
-           USING (workspace_id, provider, connection_id, external_order_id)
-        WHERE o.workspace_id = $1 AND o.status <> 'cancelled'
+           ON o.workspace_id = i.workspace_id AND o.provider = i.provider
+          AND o.connection_id = i.connection_id
+          AND o.external_order_id = i.external_order_id
+        WHERE i.workspace_id = $1 AND o.status <> 'cancelled'
           AND o.occurred_at > now() - interval '90 days'
+          AND NULLIF(TRIM(i.sku), '') IS NOT NULL
         GROUP BY o.provider, i.sku
        HAVING COUNT(*) >= 3
           AND MAX(o.occurred_at) < now() - interval '5 days'
         ORDER BY COUNT(*) DESC
         LIMIT 6`,
       [ws]
-    ).catch(() => []),
+    )),
 
     // 3. Estoque zerado em produto que vendia — não vende porque não dá para comprar.
-    dbQuery<LinhaRuptura>(
-      `SELECT p.provider, p.sku, COUNT(i.*)::text AS vendas
-         FROM workspace_channel_products p
-         JOIN workspace_channel_order_items i
-           ON i.workspace_id = p.workspace_id AND i.provider = p.provider
-          AND i.connection_id = p.connection_id AND i.sku = p.sku
-         JOIN workspace_channel_orders o
-           USING (workspace_id, provider, connection_id, external_order_id)
-        WHERE p.workspace_id = $1 AND p.available_qty = 0
-          AND o.occurred_at > now() - interval '30 days' AND o.status <> 'cancelled'
-        GROUP BY p.provider, p.sku
-        ORDER BY COUNT(i.*) DESC
+    sinalOuVazio("ruptura-de-estoque", dbQuery<LinhaRuptura>(
+      // ⚠️ ESTA CONSULTA NUNCA RODOU até 29/08/2026. O `USING` vinha depois de um
+      // JOIN que já trazia `workspace_id`, e o Postgres recusava com "common
+      // column name workspace_id appears more than once in left table" — erro de
+      // PARSE, então nem plano ela chegava a ter. O `.catch(() => [])` engolia,
+      // e o sinal simplesmente não existia. Junção explícita agora, e o teste
+      // `centralDiagnostico.test.mjs` roda o SQL contra o banco justamente para
+      // que um erro de parse não possa mais passar por "sem sinal hoje".
+      // Conta a venda PRIMEIRO e só depois olha o estoque. Juntar produto com
+      // item por SKU antes de agregar multiplica a venda pelo número de anúncios
+      // que compartilham o SKU: medido em 29/08/2026, KIT2-ARR-G-CINZA_ML tem 2
+      // anúncios e saía com 1328 vendas quando o real são 664. Número inventado
+      // na cara da vendedora é pior que sinal ausente.
+      //
+      // "Estoque zerado" com vários anúncios no mesmo SKU só é ruptura se TODOS
+      // estiverem zerados — se um ainda tem estoque, dá para comprar.
+      `WITH vendas AS (
+         SELECT i.provider, i.connection_id, i.sku, COUNT(*)::int AS vendas
+           FROM workspace_channel_order_items i
+           JOIN workspace_channel_orders o
+             ON o.workspace_id = i.workspace_id AND o.provider = i.provider
+            AND o.connection_id = i.connection_id
+            AND o.external_order_id = i.external_order_id
+          WHERE i.workspace_id = $1 AND o.status <> 'cancelled'
+            AND o.occurred_at > now() - interval '30 days'
+            AND NULLIF(TRIM(i.sku), '') IS NOT NULL
+          GROUP BY i.provider, i.connection_id, i.sku
+       )
+       SELECT v.provider, v.sku, SUM(v.vendas)::text AS vendas
+         FROM vendas v
+        WHERE EXISTS (
+                SELECT 1 FROM workspace_channel_products p
+                 WHERE p.workspace_id = $1 AND p.provider = v.provider
+                   AND p.connection_id = v.connection_id AND p.sku = v.sku
+              )
+          AND NOT EXISTS (
+                SELECT 1 FROM workspace_channel_products p
+                 WHERE p.workspace_id = $1 AND p.provider = v.provider
+                   AND p.connection_id = v.connection_id AND p.sku = v.sku
+                   AND p.available_qty > 0
+              )
+        GROUP BY v.provider, v.sku
+        ORDER BY SUM(v.vendas) DESC
         LIMIT 5`,
       [ws]
-    ).catch(() => []),
+    )),
   ]);
 
   for (const linha of anuncios) {
