@@ -11,7 +11,7 @@ import { EmptyState } from "../components/EmptyState";
 import { DashboardPeriodFilter, useDashboardPeriod } from "../components/DashboardPeriodFilter";
 import type { OperationPendingItem } from "../components/OperationPending";
 import { Metric as Kpi, CompactMetric, getRevenueTrend } from "../components/Metric";
-import { amazonFinancialCards, gastoComAnuncioDoPeriodo, diasSemAnuncio, type AmazonAdsInput } from "./amazonFinancialCards";
+import { amazonFinancialCards, lucroDoPeriodo, diasSemAnuncio, type AmazonAdsInput } from "./amazonFinancialCards";
 import { AnimatedNumber, identidadeDePeriodo } from "../components/AnimatedNumber";
 import { buscaCompartilhada } from "../components/buscaCompartilhada";
 import { OrderProfitabilityTable } from "../components/OrderProfitabilityTable";
@@ -617,20 +617,22 @@ export default function Dashboard() {
   const cogs = profit?.cogs ?? 0;
   const missingCostUnits = profit?.unitsWithoutCost ?? 0;
   const costsIncomplete = missingCostUnits > 0;
-  // Fonte ÚNICA do gasto com anúncio: a mesma função que a faixa usa. Ver
-  // `gastoComAnuncioDoPeriodo` — a conta mora em um lugar só de propósito.
-  const anuncio = gastoComAnuncioDoPeriodo({
+  // FONTE ÚNICA do lucro desta tela — a MESMA função que a faixa de cards usa.
+  // A rosca de composição e a cascata escrita abaixo dela leem as duas daqui.
+  // Ver `lucroDoPeriodo`: três superfícies mostravam este número, e enquanto
+  // cada uma fazia a própria subtração, cada conserto alcançava só a cópia que
+  // alguém tinha visto.
+  const anuncio = lucroDoPeriodo({
     finance: profit?.finance ?? null,
     ads: profit?.ads ?? null,
     adsConectado: profit?.adsConectado ?? false,
+    estimatedProfit: profit?.estimatedProfit ?? null,
   });
   const anuncioNoLucro = anuncio.gastoComAnuncio || null;
-  // Com Ads conectado e sem métrica, o gasto é desconhecido — e um lucro que
-  // assume zero de anúncio é o MESMO erro por outro caminho: o card diria "—" e
-  // o painel diria um número, de novo dois lucros na mesma tela.
-  const lucroComAnuncio = profit?.estimatedProfit == null || anuncio.desconhecido
-    ? null
-    : +(profit.estimatedProfit - (anuncioNoLucro ?? 0)).toFixed(2);
+  // Sem subtração aqui, DE PROPÓSITO: com Ads conectado e sem métrica o gasto é
+  // desconhecido, e um lucro que assume zero de anúncio é o MESMO erro por outro
+  // caminho. Quem decide isso é `lucroDoPeriodo`, para o card e para a tela.
+  const lucroComAnuncio = anuncio.lucro;
   /** Cupom resgatado pelo comprador — já abatido de `revenue` pela camada financeira. */
   const promocoes = profit?.finance.promotions ?? 0;
   // O financeiro vem das transações, que a Amazon posta na data de POSTAGEM —
@@ -1050,8 +1052,8 @@ export default function Dashboard() {
                   Era a TERCEIRA cópia da conta de lucro na mesma tela: a faixa
                   já descontava o Ads desde 25/08, a rosca passou a descontar
                   hoje, e estas linhas ainda fechavam no número antigo — maior e
-                  positivo. Agora as três leem `lucroComAnuncio`, da mesma
-                  `gastoComAnuncioDoPeriodo`. */}
+                  positivo. Agora as três leem o MESMO `lucroDoPeriodo` —
+                  nenhuma delas refaz a subtração por conta própria. */}
               {!loading && (anuncioNoLucro != null || anuncio.desconhecido) && (
                 <Flow
                   label="Anúncios"

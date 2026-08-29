@@ -153,6 +153,37 @@ export function gastoComAnuncioDoPeriodo(input: {
 }
 
 /**
+ * O LUCRO DO PERÍODO — a conta inteira, e não só o gasto com anúncio.
+ *
+ * ⚠️ Por que esta função nasceu logo depois da de cima (29/08/2026): unificar o
+ * *gasto* deixou a *subtração* duplicada. O card fazia `estimatedProfit −
+ * gasto` aqui, e a tela refazia a mesma linha lá — duas contas que concordavam
+ * hoje e voltariam a divergir na primeira vez que alguém mexesse numa só.
+ *
+ * Era esse o padrão do defeito: o mesmo número morava em TRÊS superfícies da
+ * tela da Amazon (a faixa de cards, a rosca de composição e a cascata escrita
+ * abaixo dela), e cada conserto alcançava só a cópia que alguém tinha visto.
+ * Consertar onde a pessoa apontou conserta a CÓPIA, não a CONTA.
+ *
+ * As três leem daqui. Continua valendo `null` ≠ `0`: sem `estimatedProfit` ou
+ * com gasto de anúncio desconhecido, o lucro é `null` — nunca o número otimista
+ * que assume zero de anúncio.
+ */
+export function lucroDoPeriodo(input: {
+  finance?: { feeBreakdown?: { type: string; amount: number }[] } | null;
+  ads?: AmazonAdsInput | null;
+  adsConectado?: boolean;
+  estimatedProfit?: number | null;
+}): { lucro: number | null; gastoComAnuncio: number; jaNoExtrato: boolean; desconhecido: boolean } {
+  const anuncio = gastoComAnuncioDoPeriodo(input);
+  const lucro =
+    input.estimatedProfit == null || anuncio.desconhecido
+      ? null
+      : +(input.estimatedProfit - anuncio.gastoComAnuncio).toFixed(2);
+  return { lucro, ...anuncio };
+}
+
+/**
  * Tipo de tarifa ausente num período **conciliado** vale ZERO, não "não sei": a
  * Amazon já postou o extrato e simplesmente não cobrou aquilo. Tratar como
  * desconhecido fazia três dos doze cards exibirem "—" para sempre, sugerindo
@@ -228,8 +259,9 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
   //
   // Com Ads conectado e SEM métrica sincronizada, o gasto é desconhecido — não
   // zero. Lucro, margem e ROI ficam "—" em vez de repetir o número otimista.
-  const { gastoComAnuncio, jaNoExtrato: anuncioJaNoExtrato, desconhecido: anuncioDesconhecido } =
-    gastoComAnuncioDoPeriodo(input);
+  // A MESMA função que a rosca e a cascata da tela usam — ver `lucroDoPeriodo`.
+  const { gastoComAnuncio, jaNoExtrato: anuncioJaNoExtrato, desconhecido: anuncioDesconhecido, lucro: lucroReal } =
+    lucroDoPeriodo(input);
 
   // O DIA DE HOJE EXISTE, MAS AINDA ESTÁ SOMANDO.
   //
@@ -247,10 +279,10 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
 
   // Lucro, margem e ROI só existem se TODO componente de custo existir. Com SKU
   // sem custo cadastrado, o resultado seria otimista — e otimista sem aviso é mentira.
-  const resultadoValido = f != null && !custoIncompleto && !semRepassePostado && !anuncioDesconhecido;
-  const lucroReal = +(input.estimatedProfit - gastoComAnuncio).toFixed(2);
-  const margem = resultadoValido && f.revenue > 0 ? (lucroReal / f.revenue) * 100 : null;
-  const roi = resultadoValido && input.cogs > 0 ? (lucroReal / input.cogs) * 100 : null;
+  const resultadoValido =
+    f != null && !custoIncompleto && !semRepassePostado && !anuncioDesconhecido && lucroReal != null;
+  const margem = resultadoValido && lucroReal != null && f.revenue > 0 ? (lucroReal / f.revenue) * 100 : null;
+  const roi = resultadoValido && lucroReal != null && input.cogs > 0 ? (lucroReal / input.cogs) * 100 : null;
 
   // Dias do período sem métrica. Não extrapolamos o que falta (AGENTS.md): o
   // lucro desconta só o anúncio JÁ contabilizado, e o card diz até quando conta.
@@ -335,7 +367,7 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
     },
     {
       key: "profit", label: "Lucro",
-      ...(resultadoValido
+      ...(resultadoValido && lucroReal != null
         // Sem alíquota o lucro sai SEM imposto — e precisa dizer, senão parece
         // líquido de tudo e a pessoa decide preço com um número otimista.
         // Idem para anúncio: a composição fica escrita, componente por componente.
