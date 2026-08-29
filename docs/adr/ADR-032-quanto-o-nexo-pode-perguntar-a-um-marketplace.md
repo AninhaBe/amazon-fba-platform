@@ -106,6 +106,37 @@ retentativa tenta até três vezes e a plataforma conta cada tentativa — conta
 uma camada acima esconderia justamente as repetições, que é o que um alerta
 enxerga. O endpoint entra pelo **formato** (`/orders/:id`), nunca pelo valor.
 
+### 7. Teto publicado pela fonte se respeita NA ORIGEM, não na retentativa
+
+Quando o marketplace **publica** quanto aguenta, respeitar não é prudência
+nossa — é **obediência**. Prudência é julgamento, e julgamento se discute; um
+teto publicado não se discute, se cumpre. Se um ADR sobre rateio de chamadas não
+cobre *"a fonte disse quanto aguenta"*, ele não cobre nada.
+
+A regra: quem chama **espaça na origem** para caber no teto declarado. Retentar
+depois do 429 é rede de segurança para o imprevisto, **nunca** a estratégia de
+vazão. Paginação (`nextToken`, cursor, offset) é o caso perigoso, porque parece
+uma operação só e é um laço — cada página é uma pergunta.
+
+> ⚠️ **A regra nasceu de nos pegarmos fazendo o contrário.** Medido em produção
+> em 29/08/2026: `/finances/2024-06-19/transactions` devolvia o cabeçalho
+> `x-amzn-RateLimit-Limit: 0.5` — meia chamada por segundo — e a gente lia esse
+> número, **gravava no contador** e disparava a paginação em rajada contra ele.
+> Resultado: **~20% de recusa sustentada** (62, 57 e 64 erros em três horas
+> seguidas), todas 429, e **nenhum outro endpoint da Amazon com um único erro**
+> (`/orders/v0/orders` 0/206, `orderMetrics` 0/174, FBA 0/57).
+>
+> Pior: o orçamento de retentativa (`maxRetries = 3`) **estourava** — o log
+> mostra a mesma chamada indo a `tentativa: 4`, e a quarta lança. Não era 429
+> retentado com sucesso; era dado financeiro que **não chegava**.
+>
+> **Ler o teto e não obedecê-lo é a pior das combinações**: paga-se o custo de
+> medir e não se ganha o benefício de cumprir.
+
+O teto vem do cabeçalho quando a fonte manda (`x-amzn-RateLimit-Limit`), e do
+doc do canal quando não manda (`docs/api-*.md`). Onde o cabeçalho existir, ele
+ganha do doc — a fonte sabe do próprio limite mais do que a nossa anotação.
+
 ## Alternativas consideradas
 
 - **Só baixar a frequência do agendador.** Não resolve: o problema não era
@@ -131,8 +162,10 @@ enxerga. O endpoint entra pelo **formato** (`/orders/:id`), nunca pelo valor.
   fundo**.
 - **Passa a ser obrigatório**: canal novo nasce contando. Um canal de fora é o
   buraco onde o próximo alerta cai — por isso o teste exige os quatro.
-- **Fica em aberto**, com nome: a Amazon **também** não tem carimbo de tentativa;
-  a armadilha está lá esperando. E falta apurar se a Transactions API permite
+- **Confirmado, não mais em aberto**: a Amazon **também** não tem carimbo de
+  tentativa — medido em 29/08/2026, **22.347 pedidos, 22.347 sem carimbo, 0
+  liquidados**. A armadilha não estava esperando; já tinha fechado. O desenho
+  está em [ADR-034](./ADR-034-conciliacao-e-passo-proprio.md). E falta apurar se a Transactions API permite
   buscar antes de junho/2026 — se permitir é backfill de histórico; se não
   permitir, a resposta honesta é *"esse histórico não existe para nós"* e a tela
   precisa dizer isso em vez de mostrar vazio.
