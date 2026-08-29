@@ -104,6 +104,9 @@ export async function saveCanonicalOrders(
     external_order_id: order.externalOrderId,
     line_no: index + 1,
     external_product_id: item.externalProductId,
+    // ADR-029: identidade ESTAVEL da variacao. O `external_product_id` acima ja
+    // vem composto quando ha variacao; `model_id` sobrevive a renomeacao de SKU.
+    model_id: item.modelId ?? null,
     sku: item.sku,
     title: item.title,
     qty: item.qty,
@@ -164,6 +167,7 @@ export async function saveCanonicalOrders(
      items_payload AS (
        SELECT * FROM jsonb_to_recordset($5::jsonb) AS item(
          external_order_id text, line_no smallint, external_product_id text,
+         model_id text,
          sku text, title text, qty integer, unit_price numeric,
          list_price numeric, promotion_discount numeric, promotion_ids text
        )
@@ -171,23 +175,24 @@ export async function saveCanonicalOrders(
      upsert_items AS (
        INSERT INTO workspace_channel_order_items
          (workspace_id, provider, connection_id, external_order_id, line_no,
-          external_product_id, sku, title, qty, unit_price,
+          external_product_id, model_id, sku, title, qty, unit_price,
           list_price, promotion_discount, promotion_ids)
        SELECT $1, $2, $3, p.external_order_id, p.line_no,
-              p.external_product_id, p.sku, p.title, p.qty, p.unit_price,
+              p.external_product_id, p.model_id, p.sku, p.title, p.qty, p.unit_price,
               p.list_price, p.promotion_discount, p.promotion_ids
          FROM items_payload p
        ON CONFLICT (workspace_id, provider, connection_id, external_order_id, line_no) DO UPDATE SET
-         external_product_id = EXCLUDED.external_product_id, sku = EXCLUDED.sku,
+         external_product_id = EXCLUDED.external_product_id, model_id = EXCLUDED.model_id, sku = EXCLUDED.sku,
          title = EXCLUDED.title, qty = EXCLUDED.qty, unit_price = EXCLUDED.unit_price,
          list_price = EXCLUDED.list_price, promotion_discount = EXCLUDED.promotion_discount,
          promotion_ids = EXCLUDED.promotion_ids
-       WHERE (workspace_channel_order_items.external_product_id, workspace_channel_order_items.sku,
+       WHERE (workspace_channel_order_items.external_product_id, workspace_channel_order_items.model_id,
+              workspace_channel_order_items.sku,
               workspace_channel_order_items.title, workspace_channel_order_items.qty,
               workspace_channel_order_items.unit_price, workspace_channel_order_items.list_price,
               workspace_channel_order_items.promotion_discount, workspace_channel_order_items.promotion_ids)
          IS DISTINCT FROM
-             (EXCLUDED.external_product_id, EXCLUDED.sku,
+             (EXCLUDED.external_product_id, EXCLUDED.model_id, EXCLUDED.sku,
               EXCLUDED.title, EXCLUDED.qty, EXCLUDED.unit_price, EXCLUDED.list_price,
               EXCLUDED.promotion_discount, EXCLUDED.promotion_ids)
      ),
@@ -309,6 +314,9 @@ export async function applyCanonicalOrderItems(
     external_order_id: application.externalOrderId,
     line_no: index + 1,
     external_product_id: item.externalProductId,
+    // ADR-029: identidade ESTAVEL da variacao. O `external_product_id` acima ja
+    // vem composto quando ha variacao; `model_id` sobrevive a renomeacao de SKU.
+    model_id: item.modelId ?? null,
     sku: item.sku,
     title: item.title,
     qty: item.qty,
@@ -328,6 +336,7 @@ export async function applyCanonicalOrderItems(
     `WITH items_payload AS (
        SELECT * FROM jsonb_to_recordset($4::jsonb) AS item(
          external_order_id text, line_no smallint, external_product_id text,
+         model_id text,
          sku text, title text, qty integer, unit_price numeric,
          list_price numeric, promotion_discount numeric, promotion_ids text
        )
@@ -335,23 +344,24 @@ export async function applyCanonicalOrderItems(
      upsert_items AS (
        INSERT INTO workspace_channel_order_items
          (workspace_id, provider, connection_id, external_order_id, line_no,
-          external_product_id, sku, title, qty, unit_price,
+          external_product_id, model_id, sku, title, qty, unit_price,
           list_price, promotion_discount, promotion_ids)
        SELECT $1, $2, $3, p.external_order_id, p.line_no,
-              p.external_product_id, p.sku, p.title, p.qty, p.unit_price,
+              p.external_product_id, p.model_id, p.sku, p.title, p.qty, p.unit_price,
               p.list_price, p.promotion_discount, p.promotion_ids
          FROM items_payload p
        ON CONFLICT (workspace_id, provider, connection_id, external_order_id, line_no) DO UPDATE SET
-         external_product_id = EXCLUDED.external_product_id, sku = EXCLUDED.sku,
+         external_product_id = EXCLUDED.external_product_id, model_id = EXCLUDED.model_id, sku = EXCLUDED.sku,
          title = EXCLUDED.title, qty = EXCLUDED.qty, unit_price = EXCLUDED.unit_price,
          list_price = EXCLUDED.list_price, promotion_discount = EXCLUDED.promotion_discount,
          promotion_ids = EXCLUDED.promotion_ids
-       WHERE (workspace_channel_order_items.external_product_id, workspace_channel_order_items.sku,
+       WHERE (workspace_channel_order_items.external_product_id, workspace_channel_order_items.model_id,
+              workspace_channel_order_items.sku,
               workspace_channel_order_items.title, workspace_channel_order_items.qty,
               workspace_channel_order_items.unit_price, workspace_channel_order_items.list_price,
               workspace_channel_order_items.promotion_discount, workspace_channel_order_items.promotion_ids)
          IS DISTINCT FROM
-             (EXCLUDED.external_product_id, EXCLUDED.sku,
+             (EXCLUDED.external_product_id, EXCLUDED.model_id, EXCLUDED.sku,
               EXCLUDED.title, EXCLUDED.qty, EXCLUDED.unit_price, EXCLUDED.list_price,
               EXCLUDED.promotion_discount, EXCLUDED.promotion_ids)
      ),

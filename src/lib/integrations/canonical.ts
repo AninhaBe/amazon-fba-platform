@@ -37,7 +37,18 @@ export interface CanonicalFee {
 }
 
 export interface CanonicalOrderItem {
+  /**
+   * Id do produto no canal. Quando o canal tem variacao, vem COMPOSTO
+   * (`<anuncio>::sku:<variacao>`) — o mesmo formato do catalogo, senao a juncao
+   * catalogo x venda nao fecha. Ver `variantProductId.ts` e ADR-029.
+   */
   externalProductId: string;
+  /**
+   * Identificador da VARIACAO no canal (`model_id` na Shopee, `sku.id` no
+   * TikTok). `null` quando o canal nao tem variacao ou quando o pedido antigo
+   * nao trouxe o dado. E a chave ESTAVEL: `sku` textual o vendedor renomeia.
+   */
+  modelId?: string | null;
   /** seller_sku do canal; nunca assumir único entre canais. */
   sku: string | null;
   title: string;

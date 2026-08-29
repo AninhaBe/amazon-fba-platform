@@ -15,7 +15,7 @@ import {
 } from "./shopee";
 import {
   normalizeShopeeOrder,
-  normalizeShopeeProduct,
+  normalizeShopeeProducts,
   ShopeeItemForaDoSnapshot,
   type ShopeeEscrowDetail,
   type ShopeeModel,
@@ -261,7 +261,10 @@ async function persistCatalogPage(input: {
   const foraDoSnapshot: string[] = [];
   for (const product of input.products) {
     try {
-      normalized.push(normalizeShopeeProduct(product, input.modelsByItem?.get(String(product.item_id))));
+      // UMA LINHA POR VARIACAO (ADR-029): anuncio com `has_model` vira N linhas,
+      // anuncio simples continua sendo uma. `push(...)` porque o normalizador
+      // agora devolve lista.
+      normalized.push(...normalizeShopeeProducts(product, input.modelsByItem?.get(String(product.item_id))));
     } catch (error) {
       if (!(error instanceof ShopeeItemForaDoSnapshot)) throw error;
       foraDoSnapshot.push(`${error.itemId} (${error.valorCru})`);

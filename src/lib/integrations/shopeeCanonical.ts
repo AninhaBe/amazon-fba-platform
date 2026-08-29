@@ -5,6 +5,7 @@ import type {
   CanonicalOrderStatus,
   CanonicalProduct,
 } from "./canonical";
+import { tituloDaVariacao, variantProductId } from "./variantProductId";
 
 // Normalização Shopee → canônico (docs/canonical-schema.md).
 //
@@ -248,7 +249,17 @@ export function normalizeShopeeOrder(
     throw new Error(`Pedido Shopee ${order.order_sn} pago sem item_list; receita não pode ser inferida.`);
   }
   const items = (order.item_list ?? []).map((line) => ({
-    externalProductId: requiredIdentity(line.item_id, "item_id", order.order_sn),
+    // ⚠️ ID COMPOSTO quando a linha traz variação (ADR-029). Tem que ser o MESMO
+    // formato do catálogo: se um lado compõe e o outro não, o join catálogo ×
+    // venda vai de 41/41 para 0/41. Linha sem `model_id` mantém o id do anúncio,
+    // que é exatamente o que o catálogo grava para anúncio simples.
+    externalProductId: variantProductId(
+      requiredIdentity(line.item_id, "item_id", order.order_sn),
+      line.model_id == null ? null : String(line.model_id)
+    ),
+    // A chave ESTÁVEL da variação. O `sku` textual abaixo o vendedor renomeia;
+    // este não muda, e é o que amarra o histórico depois de uma renomeação.
+    modelId: line.model_id == null ? null : String(line.model_id),
     // model_sku é o SKU da variação; item_sku é o do anúncio pai.
     sku: line.model_sku || line.item_sku || null,
     title: [line.item_name, line.model_name].filter(Boolean).join(" - ") || String(line.item_id ?? ""),
@@ -368,6 +379,8 @@ const PRODUCT_STATUS_MAP: Record<string, CanonicalProduct["status"]> = {
 export interface ShopeeModel {
   model_id?: number;
   model_sku?: string;
+  /** Nome da variação ("Madeira Preta"). É o que torna a linha legível na tela. */
+  model_name?: string;
   price_info?: Array<{ current_price?: number; currency?: string }>;
   stock_info_v2?: { summary_info?: { total_available_stock?: number } };
 }
@@ -422,6 +435,63 @@ export function precoDoProdutoShopee(
     availableQty: estoque,
     currency: moeda || product.currency || "BRL",
   };
+}
+
+/**
+ * O catálogo canônico da Shopee — UMA LINHA POR VARIAÇÃO (ADR-029).
+ *
+ * ## Por que deixou de ser uma linha por anúncio
+ *
+ * Medido em 28/08/2026 na loja real: o catálogo tirava o SKU do nível do item
+ * (`item_sku`, vazio em 286 de 372 anúncios), enquanto o pedido já gravava o
+ * `model_sku` da variação. Resultado: **71 dos 76 SKUs que vendem não existiam
+ * no catálogo**, e o custo — que é chaveado por SKU — não tinha onde se prender.
+ * A dona viu isso como *"um anúncio com duas variações aparece como um produto,
+ * com um campo de custo"*.
+ *
+ * ⚠️ **Esta função sozinha quebra o join.** O `external_product_id` composto tem
+ * que entrar no CATÁLOGO e no ITEM DE PEDIDO no mesmo lote, com o backfill —
+ * senão o casamento catálogo × venda vai de 41/41 para 0/41. Ver a condição de
+ * atomicidade no ADR-029.
+ *
+ * Anúncio sem variação continua **exatamente** como estava: uma linha, id
+ * intacto, sem sufixo no título.
+ */
+export function normalizeShopeeProducts(
+  product: ShopeeProductItem,
+  models?: readonly ShopeeModel[]
+): CanonicalProduct[] {
+  const comVariacao = product.has_model === true && (models?.length ?? 0) > 0;
+  if (!comVariacao) return [normalizeShopeeProduct(product, models)];
+
+  const base = normalizeShopeeProduct(product, models);
+  const lista = models ?? [];
+  const linhas: CanonicalProduct[] = [];
+  for (const model of lista) {
+    const modelId = model.model_id == null ? "" : String(model.model_id);
+    // Variação sem identificador não vira linha: o id composto seria igual ao do
+    // anúncio e duas variações colidiriam numa só — pior que ficar de fora.
+    if (!modelId) continue;
+    const preco = numeroValido(model.price_info?.[0]?.current_price);
+    const estoque = numeroValido(model.stock_info_v2?.summary_info?.total_available_stock);
+    // Sem preço OU sem estoque a linha não pode ser afirmada. Ela fica de fora
+    // em vez de nascer com zero fabricado — as irmãs que têm dado continuam
+    // aparecendo, o que é melhor que derrubar o anúncio inteiro por uma delas.
+    if (preco == null || estoque == null) continue;
+    linhas.push({
+      ...base,
+      externalProductId: variantProductId(base.externalProductId, modelId),
+      sku: model.model_sku || product.item_sku || null,
+      title: tituloDaVariacao(base.title, model.model_name, model.model_sku, lista.length),
+      price: preco,
+      availableQty: estoque,
+      currency: model.price_info?.[0]?.currency ?? base.currency,
+    });
+  }
+  // Nenhuma variação utilizável: cai no comportamento antigo (uma linha do
+  // anúncio, com preço "a partir de" e estoque somado), que é o que a tela já
+  // sabe mostrar. Sumir o anúncio seria pior.
+  return linhas.length ? linhas : [base];
 }
 
 export function normalizeShopeeProduct(product: ShopeeProductItem, models?: readonly ShopeeModel[]): CanonicalProduct {
