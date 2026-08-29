@@ -119,13 +119,51 @@ export async function register() {
   try {
     const { createServer } = await import("node:http");
     const { coletarMetricas } = await import("./lib/metricas");
+    // ⚠️ RASPAGEM NÃO PODE EMPILHAR (incidente de 29/08/2026, segunda onda).
+    //
+    // Cada raspagem do coletor rodava a agregação de 30 dias de
+    // `workspace_channel_orders`. Quando ela passa a demorar mais que o
+    // intervalo de raspagem, as chamadas se acumulam: foram vistas **SETE
+    // cópias vivas**, a mais velha em 112s, cada uma segurando uma conexão do
+    // pool. O monitoramento derrubou o que ele existe para observar.
+    //
+    // Duas travas, e as duas são necessárias:
+    //  1. UMA COLETA POR VEZ: raspagem que chega com outra em voo recebe o
+    //     último corpo conhecido em vez de abrir consulta nova.
+    //  2. VALIDADE MÍNIMA: mesmo sozinha, não recoleta antes de `VALIDADE_MS`.
+    //     O coletor pode raspar de 15 em 15s; o custo não pode acompanhar.
+    const VALIDADE_MS = Number(process.env.METRICS_TTL_MS || 60_000);
+    let emVooDeColeta: Promise<string> | null = null;
+    let ultimoCorpo = "nexo_metricas_ok 0" + String.fromCharCode(10);
+    let colhidoEm = 0;
+
+    async function corpoDasMetricas(): Promise<string> {
+      const fresco = Date.now() - colhidoEm < VALIDADE_MS;
+      if (fresco) return ultimoCorpo;
+      if (emVooDeColeta) return ultimoCorpo; // já há uma coleta correndo
+      emVooDeColeta = coletarMetricas()
+        .then((corpo) => {
+          ultimoCorpo = corpo;
+          colhidoEm = Date.now();
+          return corpo;
+        })
+        .finally(() => { emVooDeColeta = null; });
+      // Não espera indefinidamente: raspagem que trava vira mais um cliente na
+      // fila do pool. Estourou o teto, devolve o último corpo conhecido.
+      const TETO_MS = Number(process.env.METRICS_TIMEOUT_MS || 5_000);
+      return Promise.race([
+        emVooDeColeta,
+        new Promise<string>((resolve) => setTimeout(() => resolve(ultimoCorpo), TETO_MS)),
+      ]);
+    }
+
     createServer(async (req, res) => {
       if (req.url?.split("?")[0] !== "/metrics") {
         res.writeHead(404).end();
         return;
       }
       try {
-        const corpo = await coletarMetricas();
+        const corpo = await corpoDasMetricas();
         res.writeHead(200, { "content-type": "text/plain; version=0.0.4" }).end(corpo);
       } catch {
         res.writeHead(200, { "content-type": "text/plain; version=0.0.4" }).end("nexo_metricas_ok 0" + String.fromCharCode(10));
