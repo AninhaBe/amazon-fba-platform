@@ -42,8 +42,24 @@ test("a ordenacao por volume e o PADRAO e a antiga continua disponivel", async (
   // ⚠️ A protecao que custou uma rodada de teste: ORDER BY x DESC no Postgres e
   // NULLS FIRST, entao sem COALESCE os anuncios SEM VENDA subiam ao topo — o
   // exato oposto do pedido. Este assert impede a regressao.
-  assert.match(servidor, /ORDER BY COALESCE\(v\.unidades,0\) DESC/);
+  assert.match(servidor, /ORDER BY unidades_30d DESC/);
   assert.doesNotMatch(servidor, /ORDER BY v\.unidades DESC/);
+  // A coluna que ordena e COALESCE'd na propria definicao, entao nao existe NULL
+  // para subir ao topo. A protecao mudou de lugar, nao sumiu.
+  assert.match(servidor, /COALESCE\(CASE WHEN NULLIF\(TRIM\(p\.sku\)[\s\S]*?\)::int unidades_30d/);
+
+  // ⚠️ 29/08/2026 — A VENDA SE PRENDE AO SKU, NAO AO ID DO ANUNCIO.
+  // Juntar por external_product_id quebrou quando o catalogo passou a ter uma
+  // linha por variacao com id composto: o item de pedido antigo tem o id BASE, e
+  // so 401 de 22.589 itens (1,8%) estavam no formato novo. MESA-INFANTIL-ROSA
+  // mostrava 13 unidades quando o real sao 576 — e como este numero ORDENA a
+  // tela, o TAPETE de 62 ficava acima da VERDE de 747.
+  assert.match(servidor, /LEFT JOIN por_sku s ON s\.sku = NULLIF\(TRIM\(p\.sku\),''\)/);
+  assert.doesNotMatch(
+    servidor,
+    /AND i\.external_product_id=p\.external_product_id/,
+    "juntar venda com anuncio por id volta a enxergar so 1,8% da venda do periodo"
+  );
   // A contagem sai do NOSSO canonico, nunca da Shopee, e so de venda que valeu.
   assert.match(servidor, /workspace_channel_order_items/);
   assert.match(servidor, /interval '30 days'/);

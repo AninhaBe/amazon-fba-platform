@@ -54,26 +54,60 @@ export async function readShopeeCatalog(connection: IntegrationConnection, param
   const ordem = ordenacao === "titulo"
     ? "ORDER BY p.title,COALESCE(p.sku,''),p.external_product_id"
     // ⚠️ COALESCE no ORDER BY, não só no SELECT. `ORDER BY x DESC` no Postgres
-    // é NULLS FIRST — e sem venda no período o LATERAL devolve NULL, então os
+    // é NULLS FIRST — e sem venda no período a junção devolve NULL, então os
     // anúncios que NÃO venderam iam para o TOPO, o exato oposto do pedido.
     // Pego ao rodar contra a loja real antes de subir; a consulta "funcionava".
-    : "ORDER BY COALESCE(v.unidades,0) DESC,p.title,p.external_product_id";
+    : "ORDER BY unidades_30d DESC,p.title,p.external_product_id";
   const rows = await dbQuery<Row>(
-    `SELECT p.external_product_id,p.sku,p.title,p.status,p.provider_status,p.price,p.currency,p.available_qty,p.thumbnail,p.permalink,p.synced_at,
-            COALESCE(v.unidades,0)::int unidades_30d, COALESCE(v.variacoes,0)::int variacoes_vendidas,
+    // ⚠️ A VENDA SE PRENDE AO SKU, NÃO AO ID DO ANÚNCIO (29/08/2026).
+    //
+    // Este número era juntado por `external_product_id`. Depois que o catálogo
+    // passou a ter uma linha por variação, com id composto (`123::sku:456`), a
+    // conta quebrou: o item de pedido antigo foi gravado com o id BASE. Medido
+    // na loja dela: 401 de 22.589 itens estão no formato novo — **1,8%**. Então
+    // a linha de variação enxergava só a ponta recente da venda.
+    //
+    // MESA-INFANTIL-ROSA mostrava 13 unidades quando o real são 576. E como
+    // este é o número que ORDENA a tela, a função central dela estava invertida:
+    // o pedido literal foi "os SKUs que eu preciso cadastrar custo no topo", e o
+    // TAPETE de 62 aparecia acima da VERDE de 747.
+    //
+    // O item de pedido antigo JÁ TEM o SKU certo gravado — então juntar por SKU
+    // acerta hoje, sem depender do backfill da ADR-029. E o SKU é a unidade
+    // certa para ESTA tela de qualquer forma: o custo é por SKU.
+    //
+    // Linha sem SKU (o "anúncio-pai" de um conjunto de variações; 96 na loja
+    // dela, todos `closed`) cai no id — cada linha continua afirmando um fato
+    // sobre si mesma, e essas ficam fora da lista padrão.
+    //
+    // Agregação em UMA passada, não um LATERAL por linha: sem índice em `sku`,
+    // o LATERAL varreria os itens uma vez por anúncio da página.
+    `WITH vendas AS (
+       SELECT i.external_product_id, NULLIF(TRIM(i.sku),'') sku, i.qty
+         FROM workspace_channel_order_items i
+         JOIN workspace_channel_orders o
+           ON o.workspace_id=i.workspace_id AND o.provider=i.provider
+          AND o.connection_id=i.connection_id AND o.external_order_id=i.external_order_id
+        WHERE i.workspace_id=$1 AND i.provider=$2 AND i.connection_id=$3
+          AND o.occurred_at > now() - interval '30 days'
+          AND o.status = ANY(ARRAY['paid','shipped','delivered'])
+     ), por_sku AS (
+       SELECT sku, SUM(qty)::int unidades FROM vendas WHERE sku IS NOT NULL GROUP BY sku
+     ), por_anuncio AS (
+       SELECT external_product_id, SUM(qty)::int unidades,
+              COUNT(DISTINCT sku)::int variacoes
+         FROM vendas GROUP BY external_product_id
+     )
+     SELECT p.external_product_id,p.sku,p.title,p.status,p.provider_status,p.price,p.currency,p.available_qty,p.thumbnail,p.permalink,p.synced_at,
+            COALESCE(CASE WHEN NULLIF(TRIM(p.sku),'') IS NOT NULL THEN s.unidades ELSE a.unidades END,0)::int unidades_30d,
+            -- "N variações neste anúncio" só faz sentido na linha que É o
+            -- anúncio inteiro. Na linha de uma variação, ela é uma só.
+            CASE WHEN NULLIF(TRIM(p.sku),'') IS NOT NULL THEN 0
+                 ELSE COALESCE(a.variacoes,0) END::int variacoes_vendidas,
             COUNT(*) OVER()::int total
        FROM workspace_channel_products p
-       LEFT JOIN LATERAL (
-         -- O número que ORDENA e que a tela mostra na linha. Conta o canônico,
-         -- nunca a Shopee. Uma passada por anúncio, com o mesmo escopo da linha.
-         SELECT SUM(i.qty)::int unidades, COUNT(DISTINCT NULLIF(TRIM(i.sku),''))::int variacoes
-           FROM workspace_channel_order_items i
-           JOIN workspace_channel_orders o USING(workspace_id,provider,connection_id,external_order_id)
-          WHERE i.workspace_id=p.workspace_id AND i.provider=p.provider AND i.connection_id=p.connection_id
-            AND i.external_product_id=p.external_product_id
-            AND o.occurred_at > now() - interval '30 days'
-            AND o.status = ANY(ARRAY['paid','shipped','delivered'])
-       ) v ON true
+       LEFT JOIN por_sku s ON s.sku = NULLIF(TRIM(p.sku),'')
+       LEFT JOIN por_anuncio a ON a.external_product_id = p.external_product_id
       WHERE p.workspace_id=$1 AND p.provider=$2 AND p.connection_id=$3
         AND ($4='' OR p.title ILIKE '%'||$4||'%' OR COALESCE(p.sku,'') ILIKE '%'||$4||'%' OR p.external_product_id ILIKE '%'||$4||'%')${condicaoDeAtividade("p.status", 7, atividade)}
       ${ordem} LIMIT $5 OFFSET $6`,
