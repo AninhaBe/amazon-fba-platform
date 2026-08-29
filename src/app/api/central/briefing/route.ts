@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
 import { currentWorkspaceId } from "@/lib/workspaceScope";
 import { cached } from "@/lib/cache";
-import { narrarBriefing, type SnapshotCentral, type ModoNarracao } from "@/lib/centralBriefing";
+import { narrarBriefing, VERSAO_DO_FORMATO, type SnapshotCentral, type ModoNarracao } from "@/lib/centralBriefing";
 import { coletarSinaisDeCausa } from "@/lib/centralDiagnostico";
 
 export const runtime = "nodejs";
@@ -50,8 +50,11 @@ function saudacaoDeBrasilia(): string {
 const ultimaNarracao = new Map<string, string>();
 const TETO_NARRACOES = 200;
 
-function chaveDoPonteiro(modo: string, escopo: string, saudacao: string, dia: string): string {
-  return `${currentWorkspaceId()}:${modo}:${escopo}:${saudacao}:${dia}`;
+function chaveDoPonteiro(modo: ModoNarracao, escopo: string, saudacao: string, dia: string): string {
+  // A versão do FORMATO entra aqui TAMBÉM. Sem isso o caminho rápido do GET
+  // continuaria entregando o texto da instrução antiga mesmo com o cache da
+  // geração já invalidado — o defeito voltaria pela porta de trás.
+  return `${currentWorkspaceId()}:v${VERSAO_DO_FORMATO[modo]}:${modo}:${escopo}:${saudacao}:${dia}`;
 }
 
 function guardarNarracao(chave: string, texto: string): void {
@@ -122,7 +125,9 @@ export async function POST(req: NextRequest) {
             .digest("hex")
             .slice(0, 12)
         : "";
-    const chave = `central-briefing:${modo}:${escopo}:${saudacao}:${currentWorkspaceId()}:${dia}${fatosHash}`;
+    // A versão do FORMATO entra na chave: texto cacheado é produto do prompt, e
+    // prompt novo não pode ser servido com resposta velha. Ver VERSAO_DO_FORMATO.
+    const chave = `central-briefing:v${VERSAO_DO_FORMATO[modo]}:${modo}:${escopo}:${saudacao}:${currentWorkspaceId()}:${dia}${fatosHash}`;
     // Só o texto real é cacheado. Resultado vazio (sem chave, erro transitório)
     // vira throw DENTRO do cache — o helper descacheia em erro, então a próxima
     // carga tenta de novo em vez de servir vazio o dia todo.

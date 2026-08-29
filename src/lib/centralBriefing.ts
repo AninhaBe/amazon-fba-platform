@@ -203,6 +203,33 @@ const SISTEMA = [
 
 export type ModoNarracao = "resumo" | "briefing";
 
+/**
+ * Versão da instrução de cada modo — entra na chave de cache da narração.
+ *
+ * ⚠️ POR QUE ISTO EXISTE (28/08/2026): o texto cacheado é PRODUTO do prompt.
+ * Quando o `FORMATO` muda, o texto guardado passa a ser resposta de uma
+ * pergunta que não se faz mais — e o cache diário serviria o texto velho por
+ * até um dia inteiro. Foi exatamente o caso: a correção que obriga a narração a
+ * declarar a janela subiu, e a manchete errada continuaria na tela da dona até
+ * a saudação virar.
+ *
+ * **Suba o número do modo que você mexeu, no mesmo commit em que mexer.** É a
+ * invalidação mais estreita possível: só as entradas daquele modo deixam de ser
+ * alcançáveis, e as dos outros modos ficam intactas. Nada é apagado — as
+ * entradas velhas simplesmente não são mais encontradas e morrem no TTL.
+ *
+ * Isto NÃO é invalidação automática por deploy (que seria mudança de
+ * comportamento e precisaria de ADR): um deploy que não mexa no prompt não
+ * invalida coisa nenhuma.
+ */
+export const VERSAO_DO_FORMATO: Record<ModoNarracao, number> = {
+  // v2: passou a exigir a janela ("nos últimos 30 dias") escrita antes de
+  // qualquer número, porque a tela tem seletor de período e a frase afirmava
+  // valores de outro recorte.
+  resumo: 2,
+  briefing: 1,
+};
+
 // A instrução de formato por modo. O sistema define a voz; isto define o tamanho
 // e a forma da saída.
 const FORMATO: Record<ModoNarracao, string> = {
