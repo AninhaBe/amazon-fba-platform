@@ -596,6 +596,138 @@ isto em segundos?"** — às 02:55, com a dona fora do ar, a única saída conhe
 era um deploy de 4 minutos. Freio de emergência por variável de ambiente é
 requisito de qualquer coisa que toque o banco, não luxo.
 
+## As seis lições de 29/08/2026 — e a regra que fecha todas elas
+
+Um dia com duas indisponibilidades, a dona trancada para fora, um alerta de
+plataforma e quatro telas com número errado. As lições abaixo têm ordem: a última
+é a que decide se as outras cinco valem alguma coisa.
+
+### 11. A causa não está em nenhum subsistema — está no padrão que os chama
+
+Na mesma madrugada: 28 transações brigando por um pool de 10, e N renovações de
+sessão brigando por 1 refresh token de uso único. Dois subsistemas que não se
+conhecem, com o mesmo sintoma.
+
+> **Quando o mesmo sintoma aparece em partes que não se conhecem, o defeito é a
+> tela pedir N vezes o que precisava pedir uma.**
+
+### 12. Uma proteção correta em isolado pode ser destrutiva no sistema onde foi instalada
+
+Às 2h da manhã o `/api/health` passou a devolver **503** quando o banco não
+responde. Isso é honesto e resolveu uma mentira real. Só que **a máquina é uma
+só**: 503 fazia o Fly marcar a única instância como *critical*, o proxy ficava
+sem candidato, e a requisição girava ~18s antes de entrar. Medido: health de
+**19,29s** com o banco respondendo em **360ms**, e de dentro da máquina o mesmo
+endpoint em **0–1ms**.
+
+> **A correção transformou soluço de banco em apagão.** Health check que reprova
+> por dependência é certo quando existe para onde fazer failover; com instância
+> única, é autoagressão. A diferença não está na proteção — está no que existe
+> ao redor dela.
+
+Consequência: `/api/vivo` (liveness, não toca o banco) é o que o Fly usa;
+`/api/health` continua reprovando com 503, porque a informação é verdadeira e é
+nossa. Quem decide derrubar a máquina não pode ser uma dependência externa.
+
+### 13. Conferir o NÚMERO não é conferir o SIGNIFICADO DA COLUNA
+
+O sinal de "ruptura de estoque" do briefing nunca tinha rodado (erro de parse no
+SQL). Consertado, testado **contra a conta real**, o número bateu com a apuração
+manual — 664, exato. E ainda assim o sinal era falso: `available_qty` é
+`NOT NULL`, então **três estados diferentes chegavam como o mesmo zero** — "a
+fonte disse zero", "a fonte não falou deste anúncio" (435 dos 739 anúncios da
+Shopee) e "nunca sincronizamos". Os cinco produtos que o NEXO ia anunciar como
+ruptura eram, em três casos, anúncios que a Shopee não devolveu no snapshot.
+
+> **Número certo, lido de coluna que quer dizer outra coisa, passa por todos os
+> testes, bate com o dado real, e mente.** Consertar consulta que nunca rodou é
+> escrever consulta nova — e consulta nova exige conferir o que a coluna
+> significa, não só se o total fecha.
+
+### 14. Um número pode estar certo, ser medido com rigor, e responder à pergunta errada
+
+Sobre o lote da variação eu reportei **"83 de 85 casam"**. Era verdade, e era a
+resposta para *"os itens já gravados no formato novo acham anúncio?"*. A pergunta
+que importava era o inverso — *"quanto da venda do período a linha de variação
+consegue enxergar?"* — e a resposta é **401 de 22.589: 1,8%**.
+
+Guarde o par: **83/85 contra 401/22.589**. O número errado era o mais
+confortável dos dois, e uma decisão de não reverter foi tomada com ele.
+
+> **Quando a medição calha de ser tranquilizadora, ninguém procura a outra
+> pergunta.**
+
+Da mesma família, no mesmo dia: `git grep applied` na saída do runner de
+migration devolveu cinco ocorrências — todas de migrations **anteriores**. O
+apply tinha sido BLOQUEADO. Ler a saída procurando a palavra que se quer
+encontrar. A defesa que funcionou foi conferir **no banco** se a tabela existia:
+confirmação no estado final, nunca na mensagem de sucesso.
+
+### 15. Quando o sistema não sabe a causa, ele não pode escolher uma
+
+Três telas de manhã diziam que a conexão **dela** tinha problema quando quem
+falhou fomos nós — e uma delas oferecia um botão de *mexer na conexão*, que
+podia queimar uma autorização intacta do TikTok em review. À tarde, a tela da
+Shopee dizia *"a Shopee ainda não postou o extrato"* quando boa parte era porque
+**nós nunca perguntamos** (`settlement_attempt_at` nulo em 20.162 de 20.162).
+
+De manhã o sistema culpou a usuária; à tarde culpou o fornecedor dela. Duas vezes
+no mesmo dia, em código sem relação.
+
+> **Isso não é coincidência, é viés: no escuro, o sistema escolhe uma explicação
+> — e a evidência de hoje diz que ele nunca escolherá a si mesmo.** Enquanto não
+> houver marca que distinga, a frase honesta não afirma nenhum dos dois lados.
+
+### 16. O sucesso de uma etapa pode ser a condição de parada de outra
+
+A conciliação de escrow da Shopee só rodava **enquanto o sync de pedidos tinha
+trabalho**. No dia em que a ingestão alcançou o presente e a linha de status
+virou `complete`, o passo inteiro passou a retornar em **zero segundo** e a
+conciliação deixou de existir — com **17 mil pedidos** na fila, **nenhuma
+exceção, nenhum log, nenhum alarme**. A única pista era uma data no dado: nada
+liquidado depois de 12/08.
+
+Aconteceu **duas vezes no mesmo dia**, na mesma linha de status: às 2h o sweep de
+catálogo, à tarde o escrow.
+
+> **Não parou o marketplace: paramos nós, e paramos porque terminamos outra
+> coisa.** Uma linha de status para trabalhos de naturezas diferentes faz um
+> trabalho que ACABA silenciar um que NUNCA acaba. E isso não produz erro:
+> produz silêncio.
+
+Irmã da rede de segurança que não conta quantas vezes salvou: **o perigo não está
+no que falha barulhento, está no que para quieto.**
+
+### A regra que fecha a seção
+
+Escrevi "não usar crase dentro de template literal" depois de errar isso três
+vezes numa semana. Na quarta vez, errei de novo — e o `tsc` passou **verde**,
+porque as crases estavam balanceadas e o TypeScript parseou como concatenação.
+Teria subido SQL corrompido com o typecheck limpo. Quem pegou foi um **teste**
+escrito depois da terceira vez.
+
+> **Lição anotada não impede repetição. Só a defesa executável impede.**
+
+Vale para tudo que está escrito acima: cada lição deste dia só conta se virou
+**teste, gate ou porta única**. As que ficarem só como texto, a gente repete.
+
+O que virou defesa em 29/08/2026:
+
+| Lição | Defesa executável |
+|---|---|
+| 11 | contador de checkouts do pool (`checkoutsDoPool`) e o mapa da carga da tela |
+| 12 | `/api/vivo` como liveness; `fly.toml` não aponta mais para readiness |
+| 13 | `tests/centralDiagnostico.test.mjs` — exige anúncio ATIVO e agregação antes do join |
+| 14 | — *(esta não tem defesa automatizável; é regra de método)* |
+| 15 | `tests/erroNaoCulpaAUsuaria.test.mjs` e `tests/escrowNaoRepeteNemPula.test.mjs` |
+| 16 | `tests/escrowNaoRepeteNemPula.test.mjs` — exige o claim próprio de conciliação |
+| crase | `tests/*` — nenhum comentário SQL usa crase dentro de template literal |
+| `after()` | `tests/afterEhSempreFundo.test.mjs` — proíbe importar `after` fora da porta única |
+| `workspace_id` | `tests/workspaceIdNaoDependeDeLembranca.test.mjs` — allowlist com motivo |
+
+A linha 14 está vazia de propósito, e isso é informação: **é a única lição do dia
+que continua dependendo de alguém lembrar.**
+
 ## ⚠️ Pendência nomeada: a ida repetida é MULETA, não só desperdício (28/08/2026)
 
 Achado da Vitrine, e ele muda como se olha performance de abertura em **qualquer**

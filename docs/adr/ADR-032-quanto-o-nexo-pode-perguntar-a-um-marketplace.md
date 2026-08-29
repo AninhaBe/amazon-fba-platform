@@ -1,6 +1,6 @@
 # ADR-032: Quanto o NEXO pode perguntar a um marketplace
 
-- **Status:** Proposto
+- **Status:** Aceito
 - **Data:** 2026-08-29
 
 ## Contexto

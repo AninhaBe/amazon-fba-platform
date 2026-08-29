@@ -58,7 +58,14 @@ const DAY = 86_400_000;
 const WINDOW_DAYS = ORDER_WINDOW_DAYS; // teto da própria API
 const FRESH_FOR_MS = 10 * 60_000;
 /** Pedidos por passo que buscam escrow — mantém o passo curto no cron. */
-const ESCROW_BATCH_SIZE = 20;
+// 20 → 50 em 29/08/2026, depois dos quatro consertos. A 20 por ciclo de ~10min
+// a fila de 17.155 pedidos levaria SEIS DIAS; a 50 leva ~2,5 dias.
+//
+// ⚠️ Subir o LOTE e não a frequência é deliberado: a curva continua previsível,
+// e foi CONCENTRAÇÃO de chamada que abriu o alerta de comportamento anormal.
+// Mudar a forma da curva enquanto a plataforma está olhando para ela é a pior
+// hora possível. Reavaliar com o contador cheio (ADR-032), não no chute.
+const ESCROW_BATCH_SIZE = 50;
 
 /**
  * Quanto tempo esperar antes de reperguntar o escrow do MESMO pedido.
@@ -667,7 +674,19 @@ export async function runShopeeSyncStep(
   // Este claim é próprio e não toca o caminho normal: só pega o lease quando o
   // sync está 'complete' E existe fila de escrow, roda a conciliação e devolve o
   // 'complete'. É o remendo; o desenho certo é a conciliação virar passo
-  // independente do ciclo de ingestão (ADR).
+  // independente do ciclo de ingestão (ADR-032).
+  //
+  // ⚠️ ESTA REDE PODE PASSAR SEMANAS SEM DISPARAR, E ISSO NÃO É SINAL DE QUE ELA
+  // SOBRA. O caminho comum chama `requestShopeeSync` antes daqui, e quando a
+  // janela de pedidos está velha isso devolve o status para 'pending' — aí o
+  // passo normal assume e o escrow roda no fim dele, como sempre rodou.
+  //
+  // Ela existe para o estado descoberto em 29/08/2026: janela de pedidos FRESCA
+  // e conciliação ainda com fila. Nesse estado o passo inteiro retornava em zero
+  // segundo e a conciliação simplesmente deixava de existir, sem erro nenhum em
+  // lugar nenhum. Se ela nunca disparar, é porque o caminho comum está
+  // funcionando — não porque ela é caminho morto. É cinto de segurança, não
+  // motor: não apague por cobertura de teste baixa.
   const conciliacao = await dbQuery<{ ownership_token: string }>(
     `UPDATE workspace_marketplace_syncs s
         SET lease_until = now() + interval '5 minutes', updated_at = now()

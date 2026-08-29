@@ -65,7 +65,7 @@ O que ganhamos, o que abrimos mão, o que passa a ser obrigatório respeitar.
 | [ADR-028](./ADR-028-modo-do-pooler-e-teto-de-conexoes.md) | Modo do pooler e o teto real de conexões: `session` com `pool_size 15` já falha hoje; proposta é `transaction` | Proposto |
 | [ADR-029](./ADR-029-produto-canonico-e-a-variacao.md) | O produto canônico é a variação, não o anúncio — o custo se prende onde a venda acontece (TikTok já faz assim) | Proposto |
 | [ADR-030](./ADR-030-fundo-nao-compete-com-a-tela.md) | Trabalho de fundo tem pool próprio e intervalo medido — a fome da tela vira impossível por construção | Aceito |
-| [ADR-032](./ADR-032-quanto-o-nexo-pode-perguntar-a-um-marketplace.md) | Quanto o NEXO pode perguntar a um marketplace: não antes de haver resposta, não repetir sem intervalo, não perguntar o que já se sabe — e contar toda chamada | Proposto |
+| [ADR-032](./ADR-032-quanto-o-nexo-pode-perguntar-a-um-marketplace.md) | Quanto o NEXO pode perguntar a um marketplace: não antes de haver resposta, não repetir sem intervalo, não perguntar o que já se sabe — e contar toda chamada | Aceito |
 
 **Índice completo em 16/08/2026** — 14 ADRs, todos listados. Ao criar um ADR novo,
 adicione a linha aqui na mesma hora; este índice já ficou 8 ADRs atrás uma vez.
