@@ -38,3 +38,26 @@ export function runComoFundo<T>(fn: () => Promise<T>): Promise<T> {
 export function ehFundo(): boolean {
   return armazenamento.getStore() === true;
 }
+
+/**
+ * Cronometra um trabalho disparado por `after()` e diz em QUAL pool ele correu.
+ *
+ * ⚠️ Por que existe (29/08/2026): descobrimos que as oito rotas com `after()`
+ * — inclusive o sync que a TELA dispara a cada abertura — não passam por
+ * `runComoFundo`. Elas usam os 8 slots do pool de USUÁRIO, os mesmos que a tela
+ * precisa para desenhar. A cerca das 4h da manhã isolou o caminho frio (cron) e
+ * deixou o quente sem cerca — e por isso "com tudo desligado" nunca foi com tudo
+ * desligado: desligar o agendador não desligou o sync das telas.
+ *
+ * Este log existe para medir com o tráfego REAL dela em vez de gerar carga nova
+ * numa sonda. Sai uma linha por trabalho, com duração e pool.
+ */
+export async function medirTrabalhoDeFundo<T>(nome: string, fn: () => Promise<T>): Promise<T> {
+  const comecou = performance.now();
+  const pool = ehFundo() ? "fundo" : "usuario";
+  try {
+    return await fn();
+  } finally {
+    console.info("[after]", { trabalho: nome, ms: Math.round(performance.now() - comecou), pool });
+  }
+}

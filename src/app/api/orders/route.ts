@@ -6,6 +6,7 @@ import { cached } from "@/lib/cache";
 import { resolvePeriod } from "@/lib/period";
 import { withAccountContext } from "@/lib/withAccount";
 import { getDailySales } from "@/lib/sales";
+import { medirTrabalhoDeFundo } from "@/lib/execucaoDeFundo";
 import { currentAccount } from "@/lib/accountContext";
 import { runAmazonSyncBatch } from "@/lib/integrations/amazonSync";
 import { currentWorkspaceId, runWithWorkspace } from "@/lib/workspaceScope";
@@ -25,7 +26,7 @@ export async function GET(req: NextRequest) {
     if (hasDb() && account) {
       const workspaceId = currentWorkspaceId();
       after(() => runWithWorkspace(workspaceId, () =>
-        runAmazonSyncBatch(account).catch((error) => {
+        medirTrabalhoDeFundo("orders:amazon-sync", () => runAmazonSyncBatch(account)).catch((error) => {
           console.error("Falha ao avançar sincronização da Amazon", {
             sellerId: account.sellerId,
             reason: error instanceof Error ? error.message : "Erro desconhecido",

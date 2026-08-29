@@ -5,6 +5,7 @@ import { getMercadoLivreOverview } from "@/lib/integrations/mercadoLivre";
 import { getMercadoLivreOverviewFromCanonical } from "@/lib/integrations/mercadoLivreOverviewCanonical";
 import { requestMercadoLivreSync, runMercadoLivreSyncBatch } from "@/lib/integrations/mercadoLivreSync";
 import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
+import { medirTrabalhoDeFundo } from "@/lib/execucaoDeFundo";
 import { hasDb } from "@/lib/db";
 import { currentWorkspaceId, runWithWorkspace } from "@/lib/workspaceScope";
 import { anunciosPorProdutoNoPeriodo, cruzarComMargem } from "@/lib/integrations/amazonAdsPorProduto";
@@ -86,7 +87,8 @@ export async function GET(req: NextRequest) {
       if (syncNeedsWork) {
         after(() => runWithWorkspace(workspaceId, async () => {
           try {
-            await runMercadoLivreSyncBatch(connection, process.env.VERCEL ? 4 : 8);
+            await medirTrabalhoDeFundo("ml-overview:sync", () =>
+              runMercadoLivreSyncBatch(connection, process.env.VERCEL ? 4 : 8));
           } catch (error) {
             console.error("Falha ao avançar sincronização do Mercado Livre", {
               connectionId: connection.id,

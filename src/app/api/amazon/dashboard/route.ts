@@ -7,6 +7,7 @@ import { getAmazonOverviewCanonicalCached } from "@/lib/integrations/amazonOverv
 import { getStockRadar } from "@/lib/radar";
 import { dbQuery } from "@/lib/db";
 import { currentWorkspaceId, runWithWorkspace } from "@/lib/workspaceScope";
+import { medirTrabalhoDeFundo } from "@/lib/execucaoDeFundo";
 import { currentAccount, runWithAccount } from "@/lib/accountContext";
 import { runAmazonSyncBatch } from "@/lib/integrations/amazonSync";
 import { getDailySales } from "@/lib/sales";
@@ -306,7 +307,8 @@ export async function GET(req: NextRequest) {
                 // sem ele o sync vê `status = complete`, recusa abrir janela nova
                 // por causa do FRESH_FOR_MS de 6h, e só reconcilia itens — a tela
                 // continuava presa em dado de horas atrás (21/08/2026).
-                await runAmazonSyncBatch(conta, 3, true);
+                await medirTrabalhoDeFundo("dashboard-amazon:sync", () =>
+                  runAmazonSyncBatch(conta, 3, true));
               } catch (error) {
                 // Falha aqui não pode afetar a tela — ela já respondeu.
                 console.error("[dashboard/amazon] sync sob demanda falhou", error);
