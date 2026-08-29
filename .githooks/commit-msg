@@ -1,0 +1,4 @@
+#!/bin/sh
+# Portão de donos — ver docs/donos-da-arvore.md e scripts/portao-de-donos.mjs.
+# Ligar com: git config core.hooksPath .githooks
+exec node "$(git rev-parse --show-toplevel)/scripts/portao-de-donos.mjs" "$1"
