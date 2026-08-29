@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+
 import { createClient, supabaseConfigured } from "./supabase/server";
+import { chaveDaSessao, comRenovacaoUnica } from "./supabase/renovacaoUnica";
 import { runWithWorkspace } from "./workspaceScope";
 import { getTrial } from "./trial";
 
@@ -23,7 +26,17 @@ export async function withAuthenticatedWorkspace<T>(
   }
 
   const supabase = await createClient();
-  const { data, error } = await supabase.auth.getClaims();
+  // ⚠️ UMA renovação de sessão em voo por vez, ENTRE requisições.
+  //
+  // `getClaims()` renova o token quando ele venceu. Uma carga de tela dispara
+  // muitas requisições, todas veem o token vencido ao mesmo tempo e todas
+  // tentavam renovar o MESMO refresh token — que é de uso único e rotativo. A
+  // primeira rotacionava, as outras chegavam com token morto, e a sessão da
+  // dona morria no meio (29/08/2026: 409 oito vezes em seis segundos).
+  //
+  // Ver `supabase/renovacaoUnica.ts` — mesmo padrão que a Shopee já usa.
+  const chave = chaveDaSessao((await cookies()).getAll());
+  const { data, error } = await comRenovacaoUnica(chave, () => supabase.auth.getClaims());
   const workspaceId = data?.claims?.sub;
   if (error || !workspaceId) {
     return NextResponse.json({ error: "Faça login para continuar." }, { status: 401 });
