@@ -208,6 +208,55 @@ Amazon*. Se o papel for concedido, o caminho é `transportationOptions` da 2024-
 
 ## Changelog observado (mais recente primeiro)
 
+### 29/08/2026 — 📖 LIDO NO MCP OFICIAL DA AMAZON, **não confirmado por chamada nossa**
+
+> ⚠️ **Origem diferente do resto deste changelog.** Todo o resto daqui para baixo
+> foi **medido** por nós, contra a API de verdade. As três entradas abaixo vieram
+> do **MCP oficial da Amazon** (`sp-api-dev`, ferramenta `sp_api_reference`), que
+> fala pela **documentação** — e neste mesmo dia a gente provou que documentação e
+> comportamento divergem: o teto do item 1 estava publicado e nós o atropelávamos.
+> **Hipótese até uma chamada nossa confirmar.** Quando confirmar, mova para uma
+> entrada medida e diga qual chamada provou.
+
+**1. `listTransactions` declara teto de 0,5 req/s, burst 10.** Texto da referência:
+*"Usage plan: Rate (requests per second): 0.5, Burst: 10"*. O cabeçalho
+`x-amzn-RateLimit-Limit` devolve o limite **efetivamente aplicado**, que pode ser
+maior que o padrão — a orientação oficial é ler o cabeçalho em vez de assumir o
+número. Sobre o 429: *"A 429 is a retry-able status code. You can try again, but
+repeated throttled requests require a back-off strategy."*
+
+Paginação, na letra: `nextToken` deve ser chamado até vir `null`, e a chamada
+seguinte deve **incluir os mesmos argumentos** da chamada que gerou o token.
+
+⚠️ **Onde o nosso código difere hoje** (`src/lib/spapi.ts`, `nextTokenPagination.ts`):
+a paginação já é serial e o 429 já tem backoff exponencial com `Retry-After`, mas
+(a) nada **espaça** as chamadas a 0,5/s — o balde de burst esvazia e o resto vira
+429 retentado; (b) o `x-amzn-RateLimit-Limit` é **registrado em log, não obedecido**;
+(c) nas páginas seguintes mandamos só `{ nextToken }`, sem repetir `postedAfter`,
+`postedBefore` e `marketplaceId`. Funciona hoje; contraria a letra da referência.
+**Não mexi no código** — é do backend, e a decisão é dele.
+
+**2. Evento financeiro pode não incluir as últimas 48 horas.** Texto da referência
+do `listTransactions`: *"Financial events might not include orders from the last 48
+hours."* Se aparecer buraco de repasse no dia corrente e no anterior, essa é a
+primeira hipótese — e não é defeito nosso.
+
+**3. Existe filtro por grupo de evento financeiro.** Release note oficial: o
+`listTransactions` passou a aceitar filtro por `FinancialEventGroupId`, com
+`relatedIdentifierName = FINANCIAL_EVENT_GROUP_ID` e `relatedIdentifierValue` sendo
+o id obtido no `listFinancialEventGroups` da **Finances v0**. Há ainda o
+`listFinancialEventsByGroupId`, que devolve *"up to 100 financial events"* por grupo.
+
+🔴 **O QUE ISSO NÃO DIZ.** Perguntei ao MCP, por quatro formulações diferentes, até
+onde a Transactions API volta no tempo e até onde os grupos de evento financeiro
+alcançam. **Ele não respondeu.** A documentação descreve o `postedAfter` e **não
+publica limite inferior**; sobre a idade máxima dos grupos, silêncio. Silêncio não é
+permissão: **caminho existir não prova que ele alcança o passado.** A pergunta que
+decide os 14.692 pedidos antigos sem taxa — se dá para buscar dado anterior a junho —
+continua **em aberto**, e só uma chamada real com `postedAfter` anterior a junho
+fecha ela.
+
+
 ### 22/08/2026 — "Vendas de produtos solicitados" é preço de TABELA, não o que entrou
 
 Divergência que parecia bug e não era. Conferido pedido a pedido nos 20 pedidos da
