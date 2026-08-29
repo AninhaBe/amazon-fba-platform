@@ -1544,8 +1544,37 @@ summary:hover { background: var(--paper-soft); }
 .listing-coverage-note { display: flex; align-items: center; gap: 10px; border-radius: var(--radius-md); background: var(--meli-soft); padding: 12px 14px; box-shadow: var(--shadow-surface); color: var(--meli-dark); }
 .listing-coverage-note > span { display: grid; width: 28px; height: 28px; flex: none; place-items: center; border-radius: 9px; background: var(--meli); font-size: 13px; font-weight: 850; }
 .listing-coverage-note p { font-size: 12px; line-height: 1.5; text-wrap: pretty; }
-.listing-controls { display: grid; grid-template-columns: minmax(260px, 1fr) repeat(3, minmax(170px, auto)); gap: 8px; border-radius: var(--radius-md); background: var(--paper); padding: 9px; box-shadow: var(--shadow-surface); }
-.listing-controls.cols-3 { grid-template-columns: minmax(260px, 1fr) repeat(2, minmax(170px, auto)); }
+/* ⚠️ A BARRA ACOMODA QUANTOS CONTROLES TIVER — NAO CONTE COLUNAS AQUI.
+   
+   Medido em producao em 28/08/2026, na pagina de produtos da Shopee: a grade
+   declarava TRES colunas e a tela passou a ter QUATRO controles (o seletor
+   "Mais vendidos (30 dias)" entrou no commit 3f50fda). O quarto — o botao
+   "Aplicar filtro" — caiu para a SEGUNDA linha, na primeira coluna, que e a
+   larga da busca, e esticou ate o fim dela. O botao media exatamente o mesmo
+   que o campo de busca em toda largura: 642/642, 802/802, 962/962, 1282/1282.
+   Nao era um botao grande; era um botao ocupando a coluna da busca.
+   
+   Ninguem decidiu aquilo: foi efeito de acrescentar um controle sem mexer na
+   grade. Contar colunas na folha de estilo obriga quem acrescenta um controle a
+   lembrar de vir aqui — e quem esquece nao ve erro nenhum, ve uma barra feia.
+   
+   Agora a primeira coluna e elastica (a busca) e as demais nascem por FLUXO,
+   dimensionadas pelo proprio conteudo. Controle novo entra na linha; o botao
+   fica do tamanho do rotulo. `is-costs` e `is-monitor` seguem ajustando a
+   MEDIDA da coluna elastica; o numero no nome nao limita mais nada.
+   
+   `cols-3` ficou sem regra: ela so repetia a medida que agora e a padrao. O
+   nome continua no markup de seis telas e sai numa limpeza propria — trocar
+   seis arquivos agora seria churn no meio de um conserto. */
+.listing-controls { display: grid; grid-template-columns: minmax(260px, 1fr); grid-auto-flow: column; grid-auto-columns: minmax(min-content, max-content); align-items: end; gap: 8px; border-radius: var(--radius-md); background: var(--paper); padding: 9px; box-shadow: var(--shadow-surface); }
+/* ⚠️ `cols-3` NAO FAZ MAIS NADA — e o nome mente. Ela existia para declarar
+   tres colunas; desde 28/08/2026 a barra acomoda quantos controles tiver (ver
+   a nota acima) e a classe ficou sem regra. Continua no markup de seis telas
+   e sai numa limpeza propria. Se voce chegou aqui procurando por que ela nao
+   surte efeito: e este o motivo, e acrescentar um controle NAO exige mexer em
+   coluna nenhuma. */
+.listing-controls.cols-3 { /* sem efeito: mantida so para o markup existente */ }
+
 .listing-controls input, .listing-controls select { width: 100%; min-height: 36px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: white; padding-inline: 10px; color: var(--ink); font-size: 12px; }
 .listing-search { min-width: 0; }
 .listing-table-shell { overflow: hidden; border-radius: var(--radius-lg); background: var(--paper); box-shadow: var(--shadow-surface); }
@@ -1984,7 +2013,9 @@ summary:hover { background: var(--paper-soft); }
   .profitability-heading { align-items: flex-start; flex-direction: column; gap: 9px; }
   .profit-breakdown { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .stock-coverage-note { grid-template-columns: 1fr; gap: 8px; }
-  .listing-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* Estreito: duas colunas, e ai empilhar E o certo — cada controle ganha
+     largura de toque. O fluxo por coluna sai de cena. */
+  .listing-controls { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-columns: auto; }
   .listing-search { grid-column: 1 / -1; }
   .dashboard-custom-period { grid-template-columns: minmax(0, 1fr) auto; }
   .dashboard-custom-period-intro { grid-column: 1 / -1; }
@@ -1995,7 +2026,7 @@ summary:hover { background: var(--paper-soft); }
   .operation-pending { grid-template-columns: 36px minmax(0, 1fr); align-items: start; }
   .operation-pending ul { grid-column: 1 / -1; justify-content: stretch; }
   .operation-pending li { min-width: 100%; }
-  .listing-controls { grid-template-columns: 1fr; }
+  .listing-controls { grid-auto-flow: row; grid-template-columns: 1fr; grid-auto-columns: auto; }
   .listing-search { grid-column: auto; }
   .listing-table-shell > header { align-items: start; flex-direction: column; gap: 5px; }
   .filter-toolbar > label, .filter-toolbar > div { min-width: 100%; }
@@ -4807,9 +4838,12 @@ summary:hover { background: var(--paper-soft); }
 .tiktok-abc-classes .is-a .tiktok-abc-class-bar i { background: var(--positive); }
 .tiktok-abc-classes .is-b .tiktok-abc-class-bar i { background: var(--warning); }
 .tiktok-abc-method { margin-block-start: 14px; padding-block-start: 11px; border-block-start: 1px solid var(--ink-08); color: var(--ink-muted); font-size: 11px; line-height: 15px; }
-.channel-module-filters { grid-template-columns: minmax(260px, 1fr) minmax(145px, auto) auto; align-items: end; }
-.channel-module-filters.is-costs { grid-template-columns: minmax(260px, 1fr) auto; }
-.channel-module-filters.is-monitor { grid-template-columns: repeat(2, minmax(180px, 1fr)) minmax(145px, auto) auto; }
+/* Herdam o fluxo da `.listing-controls`; aqui so a medida da coluna elastica.
+   O monitor tem dois campos largos (busca e periodo), entao a primeira coluna
+   dele e menor para os dois caberem. */
+.channel-module-filters { grid-template-columns: minmax(260px, 1fr); }
+.channel-module-filters.is-costs { grid-template-columns: minmax(260px, 1fr); }
+.channel-module-filters.is-monitor { grid-template-columns: minmax(180px, 1fr); }
 .channel-module-filters label { display: grid; min-width: 0; gap: 3px; color: var(--ink-muted); font-size: 12px; font-weight: var(--weight-medium); }
 .channel-module-filters input,
 .channel-module-filters select { min-height: 34px !important; }
@@ -4852,7 +4886,7 @@ summary:hover { background: var(--paper-soft); }
 
 @media (max-width: 900px) {
   .channel-module-page > .dashboard-period-filter { margin-inline: -16px; padding-inline: 16px; }
-  .channel-module-filters.is-monitor { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .channel-module-filters.is-monitor { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-columns: auto; }
   .channel-module-filters.is-monitor .listing-refresh { grid-column: 1 / -1; }
   .tiktok-abc-insights-grid { grid-template-columns: 1fr; }
   .tiktok-abc-insights-grid > article + article { border-block-start: 1px solid var(--ink-08); border-inline-start: 0; }
@@ -4864,7 +4898,7 @@ summary:hover { background: var(--paper-soft); }
   .channel-store-selector select { min-height: 44px; }
   .channel-module-filters,
   .channel-module-filters.is-costs,
-  .channel-module-filters.is-monitor { grid-template-columns: 1fr; }
+  .channel-module-filters.is-monitor { grid-auto-flow: row; grid-template-columns: 1fr; grid-auto-columns: auto; }
   .channel-module-filters.is-monitor .listing-refresh { grid-column: auto; }
   .tiktok-abc-insights > header { align-items: flex-start; flex-direction: column; gap: 4px; }
   .tiktok-abc-ranking li { grid-template-columns: 18px minmax(0, 1fr); }

@@ -13,13 +13,13 @@ import { BaseDeData } from "./BaseDeData";
 import { EstadoDoSync } from "./EstadoDoSync";
 import { CustomizableMetricGrid } from "./CustomizableMetricGrid";
 import { Metric } from "./Metric";
-import { AvisoDeOcultos, FiltroDeAtividade } from "./FiltroDeAtividade";
+import { AvisoDeEstoqueNaoInformado, AvisoDeOcultos, FiltroDeAtividade } from "./FiltroDeAtividade";
 
 type Kind="monitor"|"finance"|"catalog"|"inventory"|"costs"|"abc";
 type Connection={id:string;displayName?:string;externalAccountId?:string};
 type ProviderIssue={status:"attention";code:"OWNERSHIP_CONFLICT"|"PROVIDER_READ_FAILED"|"INFRA_INDISPONIVEL";message:string};
 type FinanceCoverage={status?:"complete"|"partial"|"blocked";terminal?:boolean;from?:string;to?:string;source?:"statement_ledger"|"per_order_fallback"|"schema_blocked";estimatesIncluded?:false;rejected?:number};
-type Payload={items?:Record<string,unknown>[];costs?:Record<string,unknown>[];availability?:string;atividade?:"ativos"|"inativos"|"todos";ocultados?:number;totalNoCanal?:number;page?:{limit:number;offset:number;total:number|null;hasMore:boolean};coverage?:FinanceCoverage|null;profitSubset?:{reason?:string};summary?:{confirmados:number;receita:number;conciliados:number;aguardandoExtrato:number;currency:string};code?:string;error?:string};
+type Payload={items?:Record<string,unknown>[];costs?:Record<string,unknown>[];availability?:string;atividade?:"ativos"|"inativos"|"todos";ocultados?:number;semEstoqueInformado?:{anuncios:number;varreduraEm:string|null};totalNoCanal?:number;page?:{limit:number;offset:number;total:number|null;hasMore:boolean};coverage?:FinanceCoverage|null;profitSubset?:{reason?:string};summary?:{confirmados:number;receita:number;conciliados:number;aguardandoExtrato:number;currency:string};code?:string;error?:string};
 const config:Record<Kind,{title:string;subtitle:string;endpoint:string;period:boolean}>={monitor:{title:"Monitor da conta",subtitle:"Pedidos e estado de conciliação, sem dados pessoais do comprador.",endpoint:"monitor",period:true},finance:{title:"Financeiro",subtitle:"Transações finais do ledger e cobertura dos extratos, sem estimativas.",endpoint:"finance",period:true},catalog:{title:"Anúncios",subtitle:"Catálogo publicado e variações em modo somente leitura.",endpoint:"catalog",period:false},inventory:{title:"Radar de estoque",subtitle:"Cobertura e risco de ruptura, sem projetar quando falta base de venda.",endpoint:"inventory",period:true},costs:{title:"Produtos",subtitle:"Custos por SKU exclusivos desta loja TikTok Shop.",endpoint:"costs",period:false},abc:{title:"Curva ABC",subtitle:"Receita por produto e participação acumulada no período.",endpoint:"abc",period:true}};
 const text=(v:unknown)=>v==null||v===""?"—":String(v);
 
@@ -62,6 +62,9 @@ function ModuleContent({kind,body,sp,update,connectionId,retry}:{kind:Kind;body:
   return <section className="channel-module-content" aria-live="polite">
     <ChannelModuleSummary kind={kind} rows={rows} total={body.page?.total}/>
     {kind==="costs"&&<AvisoDeOcultos ocultados={body.ocultados} atividade={body.atividade} verTodos={()=>update({atividade:"todos",offset:null})}/>}
+    {/* ADR-033: 30 dos 33 zeros do TikTok eram estoque que a fonte nao informou.
+        O dado ja esta certo no banco e no radar; esta e a frase que faltava. */}
+    {["catalog","inventory"].includes(kind)&&<AvisoDeEstoqueNaoInformado anuncios={body.semEstoqueInformado?.anuncios} canal="TikTok Shop" varreduraEm={body.semEstoqueInformado?.varreduraEm}/>}
     <Filters kind={kind} sp={sp} update={update}/>
     {kind==="abc"&&<aside className="channel-module-notice is-warning"><strong>Lucro indisponível por SKU</strong><p>{body.profitSubset?.reason||"O contrato atual não permite atribuir lucro por produto com segurança."}</p></aside>}
     {kind==="abc"&&rows.length>0&&<TikTokAbcInsights rows={rows}/>}

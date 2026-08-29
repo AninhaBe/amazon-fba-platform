@@ -335,9 +335,13 @@ async function persistCatalogPage(input: {
       [workspaceId, PROVIDER, input.connection.id, input.checkpoint.sweepStartedAt]
     );
     await query(
+      // ⚠️ `available_qty = NULL`, NUNCA 0 (ADR-033). Eram 435 dos 747 anúncios
+      // desta loja — 58% do catálogo — com estoque inventado por esta linha. O
+      // `status='closed'` continua: ele é conclusão nossa e é verdadeira. A
+      // quantidade é dado da fonte, e a fonte não falou.
       `UPDATE workspace_channel_products
           SET status='closed', provider_status='NOT_PRESENT_IN_COMPLETE_SNAPSHOT',
-              available_qty=0, synced_at=now()
+              available_qty=NULL, synced_at=now()
         WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3
           AND synced_at < $4::timestamptz`,
       [workspaceId, PROVIDER, input.connection.id, input.checkpoint.sweepStartedAt]

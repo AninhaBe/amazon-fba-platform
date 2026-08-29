@@ -84,6 +84,24 @@ export async function readMonitor(connection: IntegrationConnection, params: URL
   };
 }
 
+/**
+ * Anúncios cujo estoque a FONTE NÃO INFORMOU, e quando foi a varredura que não
+ * os trouxe (ADR-033). 30 dos 33 zeros do TikTok estavam nesse estado — 91%.
+ */
+async function semEstoqueInformado(connectionId: string) {
+  const [linha] = await dbQuery<{ anuncios: number; varredura: string | null }>(
+    `SELECT COUNT(*) FILTER (WHERE p.available_qty IS NULL)::int AS anuncios,
+            MAX(s.products_synced_at)::text AS varredura
+       FROM workspace_channel_products p
+       LEFT JOIN workspace_marketplace_syncs s
+         ON s.workspace_id = p.workspace_id AND s.provider = p.provider
+        AND s.connection_id = p.connection_id
+      WHERE p.workspace_id=$1 AND p.provider=$2 AND p.connection_id=$3`,
+    [currentWorkspaceId(), PROVIDER, connectionId]
+  );
+  return { anuncios: Number(linha?.anuncios ?? 0), varreduraEm: linha?.varredura ?? null };
+}
+
 export async function readCatalog(connection: IntegrationConnection, params: URLSearchParams) {
   const page=pageRequest(params), q=queryText(params);
   // Filtro de status explícito continua mandando; quando ele não vem, o padrão
@@ -95,14 +113,14 @@ export async function readCatalog(connection: IntegrationConnection, params: URL
     :atividade==="ativos"?[STATUS_ATIVO]
     :atividade==="inativos"?TIKTOK_CATALOG_STATUSES.filter(s=>s!==STATUS_ATIVO)
     :[];
-  if (!hasDb()) return {items:[],page:{...page,total:0,hasMore:false},availability:"NOT_AVAILABLE" as const};
+  if (!hasDb()) return {items:[],page:{...page,total:0,hasMore:false},semEstoqueInformado:{anuncios:0,varreduraEm:null},availability:"NOT_AVAILABLE" as const};
   const rows=await dbQuery<any>(`SELECT external_product_id,sku,title,status,provider_status,price,currency,available_qty,synced_at,COUNT(*) OVER()::int total FROM workspace_channel_products WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3 AND ($4='' OR title ILIKE '%'||$4||'%' OR sku ILIKE '%'||$4||'%' OR external_product_id ILIKE '%'||$4||'%') AND (cardinality($5::text[])=0 OR status=ANY($5::text[])) ORDER BY title,COALESCE(sku,''),external_product_id LIMIT $6 OFFSET $7`,[currentWorkspaceId(),PROVIDER,connection.id,q,state,page.limit,page.offset]);
   const items=rows.map((r:any)=>({productId:r.external_product_id,variationId:r.external_product_id,sku:r.sku,title:r.title,status:r.status,providerStatus:r.provider_status,price:r.price==null?null:Number(r.price),currency:r.currency,availableQty:r.available_qty==null?null:Number(r.available_qty),updatedAt:new Date(r.synced_at).toISOString()})); const total=rows[0]?.total??0;
   // Quantos o filtro deixou de fora — sem este número a tela esconderia calada.
   const totalNoCanal=state.length===0?total:Number((await dbQuery<any>(
     `SELECT COUNT(*)::int total FROM workspace_channel_products WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3 AND ($4='' OR title ILIKE '%'||$4||'%' OR sku ILIKE '%'||$4||'%' OR external_product_id ILIKE '%'||$4||'%')`,
     [currentWorkspaceId(),PROVIDER,connection.id,q]))[0]?.total??0);
-  return {items,page:{...page,total,hasMore:page.offset+items.length<total},atividade,totalNoCanal,ocultados:ocultadosPeloFiltro(totalNoCanal,total),availability:"AVAILABLE" as const};
+  return {items,page:{...page,total,hasMore:page.offset+items.length<total},atividade,totalNoCanal,ocultados:ocultadosPeloFiltro(totalNoCanal,total),semEstoqueInformado:await semEstoqueInformado(connection.id),availability:"AVAILABLE" as const};
 }
 
 export async function readFinance(connection: IntegrationConnection, params: URLSearchParams) {
@@ -122,7 +140,7 @@ export async function readInventory(connection: IntegrationConnection, params: U
   const period=periodRequest(params), page=pageRequest(params), q=queryText(params);
   const filter=params.get("filter");
   if(filter&&!new Set(["out","low","no_sales"]).has(filter)) throw new TiktokModuleError(400,"INVALID_FILTER","Filtro de estoque inválido.");
-  if(!hasDb()) return {items:[],page:{...page,total:0,hasMore:false},availability:"NOT_AVAILABLE" as const,period:{from:period.from.toISOString(),to:period.to.toISOString()}};
+  if(!hasDb()) return {items:[],page:{...page,total:0,hasMore:false},semEstoqueInformado:{anuncios:0,varreduraEm:null},availability:"NOT_AVAILABLE" as const,period:{from:period.from.toISOString(),to:period.to.toISOString()}};
   const days=Math.max(1,(period.to.getTime()-period.from.getTime())/86_400_000);
   const rows=await dbQuery<any>(`WITH sold AS (
     SELECT i.external_product_id,i.sku,SUM(i.qty)::int units
@@ -161,7 +179,7 @@ export async function readInventory(connection: IntegrationConnection, params: U
     // do TikTok estavam nesse estado.
     cobertura:classificarCobertura({disponivel:r.available_qty==null?null:Number(r.available_qty),porDia:Number(r.average_per_day??0),diasRestantes:r.days_remaining==null?null:Number(r.days_remaining)})}));
   const total=rows[0]?.total??0;
-  return {items,page:{...page,total,hasMore:page.offset+items.length<total},availability:"AVAILABLE" as const,period:{from:period.from.toISOString(),to:period.to.toISOString()}};
+  return {items,page:{...page,total,hasMore:page.offset+items.length<total},semEstoqueInformado:await semEstoqueInformado(connection.id),availability:"AVAILABLE" as const,period:{from:period.from.toISOString(),to:period.to.toISOString()}};
 }
 
 export async function readAbc(connection: IntegrationConnection, params: URLSearchParams) {

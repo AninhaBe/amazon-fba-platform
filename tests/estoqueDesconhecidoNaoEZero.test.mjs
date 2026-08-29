@@ -120,3 +120,37 @@ test("o item que sai da lista de capital parado e CONTADO, nao sumido", async ()
   assert.match(full, /const semEstoqueConhecido = ofertas\.filter\(\(item\) => item\.availableQty == null\)\.length/);
   assert.match(full, /item\.availableQty != null && item\.availableQty > 0/);
 });
+
+test("NENHUMA varredura escreve quantidade para item que ela nao encontrou", async () => {
+  // ⚠️ ESTE TESTE NASCEU DE UMA FALHA MINHA, 29/08/2026: eu consertei as SETE
+  // superficies de LEITURA e subi, e o backfill de 465 linhas foi DESFEITO em
+  // minutos — o sync do TikTok rodou e reescreveu os 30 de volta para zero,
+  // porque o ESCRITOR continuava fabricando.
+  //
+  // O dado percebeu antes de qualquer teste: fui conferir a frase da tela e os
+  // nulos do TikTok eram ZERO de novo. Ler o banco depois de subir e o que
+  // separou "consertei" de "achei que tinha consertado".
+  //
+  // A regra: quem nao encontra um item pode mudar o STATUS dele, nunca os
+  // NUMEROS dele.
+  const varreduras = [
+    "../src/lib/integrations/shopeeSync.ts",
+    "../src/lib/integrations/tiktokSync.ts",
+  ];
+  for (const caminho of varreduras) {
+    const fonte = semComentario(await readFile(new URL(caminho, import.meta.url), "utf8"));
+    const marca = fonte.indexOf("NOT_PRESENT_IN_COMPLETE_SNAPSHOT");
+    assert.ok(marca > -1, `${caminho} nao marca item ausente do snapshot`);
+    const bloco = fonte.slice(marca, marca + 600);
+    assert.doesNotMatch(
+      bloco,
+      /available_qty\s*=\s*0/,
+      `${caminho} escreve quantidade ZERO para item que a fonte nao devolveu — isso e inventar dado`
+    );
+    assert.match(
+      bloco,
+      /available_qty\s*=\s*NULL/i,
+      `${caminho} precisa gravar NULL: a fonte nao informou a quantidade`
+    );
+  }
+});

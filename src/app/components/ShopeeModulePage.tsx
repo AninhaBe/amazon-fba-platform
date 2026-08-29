@@ -218,7 +218,11 @@ function ShopeeTaxRateEditor({connectionId}:{connectionId:string}) {
 
   return <form id={SHOPEE_TAX_RATE_ANCHOR} onSubmit={save} className="channel-tax-panel">
     <div className="flex flex-wrap items-end gap-3">
-      <label className="flex min-w-60 flex-1 flex-col gap-1 text-sm font-medium text-[var(--ink-soft)]">
+      {/* ⚠️ LARGURA DO CAMPO E A DO DADO QUE ELE RECEBE.
+          Com `flex-1` ele esticava ate o fim do painel: medido em producao,
+          814px a 1280 de janela e 1454px a 1920 — para um numero de um ou dois
+          digitos. Campo largo promete entrada longa; este recebe "12,5". */}
+      <label className="flex w-[9.5rem] flex-none flex-col gap-1 text-sm font-medium text-[var(--ink-soft)]">
         <span>Alíquota média de imposto</span>
         <span className="flex items-center rounded-lg bg-white shadow-[inset_0_0_0_1px_rgb(203_213_225)]">
           <input ref={inputRef} aria-label="Alíquota média de imposto da Shopee" type="text" inputMode="decimal" value={draft}
@@ -231,7 +235,7 @@ function ShopeeTaxRateEditor({connectionId}:{connectionId:string}) {
         {state==="loading"?"Carregando…":state==="saving"?"Salvando…":"Salvar alíquota"}
       </button>
     </div>
-    <p className="mt-2 text-xs text-[var(--ink-muted)]">Use a alíquota efetiva da empresa para esta loja. Zero é um valor conhecido; deixe em branco e salve para voltar a desconhecido.</p>
+    <p className="mt-2 max-w-[68ch] text-xs text-[var(--ink-muted)]">Use a alíquota efetiva da empresa para esta loja. Zero é um valor conhecido; deixe em branco e salve para voltar a desconhecido.</p>
     {message&&<p role={state==="error"?"alert":"status"} className={`mt-2 text-sm ${state==="error"?"text-red-700":"text-emerald-700"}`}>{message}</p>}
   </form>;
 }
