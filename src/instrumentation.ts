@@ -35,7 +35,29 @@ export async function register() {
   // Fica registrado que isto é polling, não tempo real. O desenho de push está em
   // ADR-023, pronto para o dia em que o atraso incomodar mais que a infra nova.
   const SYNC_INTERVAL_MS = Number(process.env.SCHEDULER_SYNC_INTERVAL_MS || 2 * 60_000);
-  const SYNCS = ["amazon-sync", "mercado-livre-sync", "shopee-sync", "tiktok-sync"];
+  const TODOS_OS_SYNCS = ["amazon-sync", "mercado-livre-sync", "shopee-sync", "tiktok-sync"];
+  /**
+   * Freio POR CANAL — `SCHEDULER_CANAIS=shopee-sync,amazon-sync`.
+   *
+   * ⚠️ Existe por causa do incidente de 29/08/2026: para parar a fonte de
+   * demanda foi preciso desligar o agendador INTEIRO (`INTERNAL_SCHEDULER=0`),
+   * e para religar não havia como subir um canal de cada vez. Voltar os quatro
+   * juntos depois de um incidente é subir a variável e o controle no mesmo
+   * movimento: se der ruim, não se sabe se foi o canal suspeito ou o religamento.
+   *
+   * Vazio ou ausente = todos, que é o comportamento normal. Nome desconhecido é
+   * ignorado com aviso, em vez de derrubar o agendador por um erro de digitação.
+   */
+  const pedidos = (process.env.SCHEDULER_CANAIS ?? "")
+    .split(",").map((nome) => nome.trim()).filter(Boolean);
+  const desconhecidos = pedidos.filter((nome) => !TODOS_OS_SYNCS.includes(nome));
+  if (desconhecidos.length) {
+    console.error(`[scheduler] SCHEDULER_CANAIS ignora nome desconhecido: ${desconhecidos.join(", ")}`);
+  }
+  const SYNCS = pedidos.length ? TODOS_OS_SYNCS.filter((nome) => pedidos.includes(nome)) : TODOS_OS_SYNCS;
+  if (SYNCS.length !== TODOS_OS_SYNCS.length) {
+    console.log(`[scheduler] rodando SO os canais: ${SYNCS.join(", ") || "(nenhum)"}`);
+  }
   // Retenção é diária (ADR-016); rodar no intervalo de sync seria 288 expurgos/dia à toa.
   const RETENTION_INTERVAL_MS = 24 * 60 * 60_000;
 
