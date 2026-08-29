@@ -47,7 +47,9 @@ test("ativo é 'active' — os outros status do canônico contam como inativos",
 test("o filtro é do SERVIDOR nos quatro canais — filtrar no cliente mentiria na paginação", async () => {
   const shopee = await readFile(new URL("../src/lib/integrations/shopeeModules.ts", import.meta.url), "utf8");
   assert.match(shopee, /filtroDeAtividadeRequest\(params\)/);
-  assert.match(shopee, /condicaoDeAtividade\("status", 7, atividade\)/);
+  // A coluna leva o alias da tabela desde que a consulta ganhou o LATERAL de
+  // volume de vendas — o que importa é que a condição continue no SERVIDOR.
+  assert.match(shopee, /condicaoDeAtividade\("p?\.?status", 7, atividade\)/);
   assert.match(shopee, /ocultados: ocultadosPeloFiltro\(totalNoCanal, total\)/);
 
   const tiktok = await readFile(new URL("../src/lib/integrations/tiktokModules.ts", import.meta.url), "utf8");

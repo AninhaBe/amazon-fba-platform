@@ -8,3 +8,54 @@ test("Shopee cost editor preserves unknown values and exposes inline errors",()=
 test("Shopee monitor forwards pagination and states exact incomplete coverage",()=>{const query=new URLSearchParams(shopeeModuleQuery("days=15&limit=100&offset=900","shopee:1","monitor"));assert.equal(query.get("limit"),"100");assert.equal(query.get("offset"),"900");const ui=fs.readFileSync(new URL("../src/app/components/ShopeeModulePage.tsx",import.meta.url),"utf8");assert.match(ui,/Exibindo/);assert.match(ui,/não representa o conjunto completo/);assert.match(ui,/body\.page\.returned/)});
 test("Shopee dashboard selects connections and exposes profitability completeness",()=>{const ui=fs.readFileSync(new URL("../src/app/components/ShopeeWorkspace.tsx",import.meta.url),"utf8");assert.match(ui,/aria-label="Loja Shopee"/);assert.match(ui,/query\.set\("connection_id", selected\.id\)/);assert.match(ui,/profitabilityPage\.hasMore/);assert.match(ui,/Exibindo/);assert.match(ui,/next\.set\("offset", "0"\)/)});
 test("Shopee modules distinguish provider issue from a genuinely empty workspace",()=>{const ui=fs.readFileSync(new URL("../src/app/components/ShopeeModulePage.tsx",import.meta.url),"utf8");assert.match(ui,/setProviderIssue\(issue\)/);assert.match(ui,/setConnections\(issue\?\[\]/);assert.match(ui,/issueContent\?<EmptyState/);assert.match(ui,/href="\/integracoes"/);const issueBranch=ui.slice(ui.indexOf("issueContent?<EmptyState"),ui.indexOf(":!selected&&!error"));assert.doesNotMatch(issueBranch,/Conecte uma loja|Conectar loja/)});
+
+// ⚠️ 29/08/2026 — o filtro de atividade entrou no servidor e NINGUEM o
+// alimentava: `shopeeModuleQuery` nao encaminhava `atividade`, entao o seletor
+// e o "Ver todos" mudavam a URL e o servidor seguia aplicando o padrao.
+// Filtro que so existe na barra de endereco e filtro que nao existe.
+test("o filtro de atividade chega ao servidor nas telas de catalogo, estoque e custo", () => {
+  for (const kind of ["catalog", "inventory", "costs"]) {
+    const q = new URLSearchParams(shopeeModuleQuery("atividade=todos&offset=50", "shopee:1", kind));
+    assert.equal(q.get("atividade"), "todos", `${kind}: atividade nao encaminhada`);
+    // E a paginacao continua junto — foi assim que o defeito apareceu na tela:
+    // a pessoa troca o recorte, a lista nao muda, e "Proxima" parece nao andar.
+    assert.equal(q.get("offset"), "50", `${kind}: offset nao encaminhado`);
+  }
+  // "ativos" e o padrao do servidor: a tela o representa OMITINDO o parametro,
+  // entao ausencia aqui e correto e nao deve virar `atividade=ativos`.
+  const padrao = new URLSearchParams(shopeeModuleQuery("offset=50", "shopee:1", "costs"));
+  assert.equal(padrao.has("atividade"), false);
+  // A curva ABC nao pagina nem filtra por atividade — nao deve receber nenhum dos dois.
+  const abc = new URLSearchParams(shopeeModuleQuery("atividade=todos&offset=50", "shopee:1", "abc"));
+  assert.equal(abc.has("atividade"), false);
+  assert.equal(abc.has("offset"), false);
+});
+
+// Pedido da dona (29/08/2026): "que na tela de produtos tenha um filtro de
+// selecionar em ordem de maior pro menor por volume de vendas nos ultimos 30
+// dias pra ficarem no topo todos os SKUs que eu preciso cadastrar custo".
+test("a ordenacao por volume e o PADRAO e a antiga continua disponivel", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const servidor = await readFile(new URL("../src/lib/integrations/shopeeModules.ts", import.meta.url), "utf8");
+  // Padrao = volume; so "titulo" tira dele.
+  assert.match(servidor, /params\.get\("ordenacao"\) === "titulo" \? "titulo" : "volume"/);
+  // ⚠️ A protecao que custou uma rodada de teste: ORDER BY x DESC no Postgres e
+  // NULLS FIRST, entao sem COALESCE os anuncios SEM VENDA subiam ao topo — o
+  // exato oposto do pedido. Este assert impede a regressao.
+  assert.match(servidor, /ORDER BY COALESCE\(v\.unidades,0\) DESC/);
+  assert.doesNotMatch(servidor, /ORDER BY v\.unidades DESC/);
+  // A contagem sai do NOSSO canonico, nunca da Shopee, e so de venda que valeu.
+  assert.match(servidor, /workspace_channel_order_items/);
+  assert.match(servidor, /interval '30 days'/);
+  assert.match(servidor, /ARRAY\['paid','shipped','delivered'\]/);
+
+  const tela = await readFile(new URL("../src/app/components/ShopeeModulePage.tsx", import.meta.url), "utf8");
+  // O numero que ordena aparece NA LINHA — ordem que nao se explica nao se usa.
+  assert.match(tela, /\["unidades30d","Vendidas \(30 dias\)"\]/);
+  // "N variacoes" e informacao, NAO bloqueio: o campo de custo continua editavel.
+  assert.match(tela, /variacoes>1&&/);
+  assert.match(tela, /variações neste anúncio/);
+  assert.doesNotMatch(tela, /disabled=\{[^}]*variacoes/);
+  // O seletor mantem a ordem antiga.
+  assert.match(tela, /<option value="titulo">Nome do produto<\/option>/);
+});

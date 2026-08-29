@@ -38,10 +38,53 @@ export async function readShopeeCatalog(connection: IntegrationConnection, param
   // Anúncio inativo sai da frente por padrão — 265 de 372 nesta loja. Ver
   // `filtroDeAtividade.ts`: o inativo não some, só deixa de ser o padrão.
   const atividade = filtroDeAtividadeRequest(params);
-  if (!hasDb()) return { items: [], page: { ...page, total: 0, hasMore: false }, atividade, totalNoCanal: 0, ocultados: 0, availability: "NOT_AVAILABLE" as const };
+  if (!hasDb()) return { items: [], page: { ...page, total: 0, hasMore: false }, atividade, ordenacao: "volume" as const, totalNoCanal: 0, ocultados: 0, availability: "NOT_AVAILABLE" as const };
   const escopo = [currentWorkspaceId(), PROVIDER, connection.id];
-  const rows = await dbQuery<Row>(`SELECT external_product_id,sku,title,status,provider_status,price,currency,available_qty,thumbnail,permalink,synced_at,COUNT(*) OVER()::int total FROM workspace_channel_products WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3 AND ($4='' OR title ILIKE '%'||$4||'%' OR COALESCE(sku,'') ILIKE '%'||$4||'%' OR external_product_id ILIKE '%'||$4||'%')${condicaoDeAtividade("status", 7, atividade)} ORDER BY title,COALESCE(sku,''),external_product_id LIMIT $5 OFFSET $6`, atividade === "todos" ? [...escopo, q, page.limit, page.offset] : [...escopo, q, page.limit, page.offset, STATUS_ATIVO]);
-  const items = rows.map(r => ({ productId: String(r.external_product_id), sku: r.sku == null ? null : String(r.sku), title: String(r.title), status: String(r.status), providerStatus: String(r.provider_status), price: r.price == null ? null : Number(r.price), currency: String(r.currency), availableQty: r.available_qty == null ? null : Number(r.available_qty), thumbnail: r.thumbnail == null ? null : String(r.thumbnail), permalink: r.permalink == null ? null : String(r.permalink), updatedAt: new Date(String(r.synced_at)).toISOString() }));
+  // ORDENAÇÃO PADRÃO: mais vendido nos últimos 30 dias primeiro.
+  //
+  // Pedido da dona, nas palavras dela: "preciso que na tela de produtos tenha um
+  // filtro de selecionar em ordem de maior pro menor por volume de vendas nos
+  // últimos 30 dias pra ficarem no topo todos os SKUs que eu preciso cadastrar
+  // custo". Entregar isso escondido atrás de um seletor resolveria pela metade —
+  // então é o padrão. A ordem anterior (alfabética) continua no seletor.
+  //
+  // ⚠️ Sem venda no período é ZERO, que é fato, e vai para o fim naturalmente —
+  // não é `null` e não some da lista.
+  const ordenacao = params.get("ordenacao") === "titulo" ? "titulo" : "volume";
+  const ordem = ordenacao === "titulo"
+    ? "ORDER BY p.title,COALESCE(p.sku,''),p.external_product_id"
+    // ⚠️ COALESCE no ORDER BY, não só no SELECT. `ORDER BY x DESC` no Postgres
+    // é NULLS FIRST — e sem venda no período o LATERAL devolve NULL, então os
+    // anúncios que NÃO venderam iam para o TOPO, o exato oposto do pedido.
+    // Pego ao rodar contra a loja real antes de subir; a consulta "funcionava".
+    : "ORDER BY COALESCE(v.unidades,0) DESC,p.title,p.external_product_id";
+  const rows = await dbQuery<Row>(
+    `SELECT p.external_product_id,p.sku,p.title,p.status,p.provider_status,p.price,p.currency,p.available_qty,p.thumbnail,p.permalink,p.synced_at,
+            COALESCE(v.unidades,0)::int unidades_30d, COALESCE(v.variacoes,0)::int variacoes_vendidas,
+            COUNT(*) OVER()::int total
+       FROM workspace_channel_products p
+       LEFT JOIN LATERAL (
+         -- O número que ORDENA e que a tela mostra na linha. Conta o canônico,
+         -- nunca a Shopee. Uma passada por anúncio, com o mesmo escopo da linha.
+         SELECT SUM(i.qty)::int unidades, COUNT(DISTINCT NULLIF(TRIM(i.sku),''))::int variacoes
+           FROM workspace_channel_order_items i
+           JOIN workspace_channel_orders o USING(workspace_id,provider,connection_id,external_order_id)
+          WHERE i.workspace_id=p.workspace_id AND i.provider=p.provider AND i.connection_id=p.connection_id
+            AND i.external_product_id=p.external_product_id
+            AND o.occurred_at > now() - interval '30 days'
+            AND o.status = ANY(ARRAY['paid','shipped','delivered'])
+       ) v ON true
+      WHERE p.workspace_id=$1 AND p.provider=$2 AND p.connection_id=$3
+        AND ($4='' OR p.title ILIKE '%'||$4||'%' OR COALESCE(p.sku,'') ILIKE '%'||$4||'%' OR p.external_product_id ILIKE '%'||$4||'%')${condicaoDeAtividade("p.status", 7, atividade)}
+      ${ordem} LIMIT $5 OFFSET $6`,
+    atividade === "todos" ? [...escopo, q, page.limit, page.offset] : [...escopo, q, page.limit, page.offset, STATUS_ATIVO]);
+  const items = rows.map(r => ({ productId: String(r.external_product_id), sku: r.sku == null ? null : String(r.sku), title: String(r.title), status: String(r.status), providerStatus: String(r.provider_status), price: r.price == null ? null : Number(r.price), currency: String(r.currency), availableQty: r.available_qty == null ? null : Number(r.available_qty), thumbnail: r.thumbnail == null ? null : String(r.thumbnail), permalink: r.permalink == null ? null : String(r.permalink), updatedAt: new Date(String(r.synced_at)).toISOString(),
+    unidades30d: Number(r.unidades_30d ?? 0),
+    // Quantas VARIAÇÕES distintas venderam sob este anúncio. Enquanto o custo
+    // for por anúncio (até a ADR-029), isto é a informação que diz à pessoa que
+    // um campo só está cobrindo várias coisas. É AVISO, não bloqueio: bloquear
+    // frustraria quem pediu facilidade; esconder seria pior.
+    variacoesVendidas: Number(r.variacoes_vendidas ?? 0) }));
   const total = Number(rows[0]?.total ?? 0);
   // O total do canal (sem o filtro, com a busca) é o que permite dizer QUANTOS
   // ficaram de fora. Sem esse número a tela esconderia sem avisar.
@@ -49,7 +92,7 @@ export async function readShopeeCatalog(connection: IntegrationConnection, param
     `SELECT COUNT(*)::int total FROM workspace_channel_products WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3 AND ($4='' OR title ILIKE '%'||$4||'%' OR COALESCE(sku,'') ILIKE '%'||$4||'%' OR external_product_id ILIKE '%'||$4||'%')`,
     [...escopo, q]
   ))[0]?.total ?? 0);
-  return { items, page: { ...page, total, hasMore: page.offset + items.length < total }, atividade, totalNoCanal, ocultados: ocultadosPeloFiltro(totalNoCanal, total), availability: "AVAILABLE" as const };
+  return { items, page: { ...page, total, hasMore: page.offset + items.length < total }, atividade, ordenacao, totalNoCanal, ocultados: ocultadosPeloFiltro(totalNoCanal, total), availability: "AVAILABLE" as const };
 }
 
 export async function readShopeeInventory(connection: IntegrationConnection, params: URLSearchParams) {

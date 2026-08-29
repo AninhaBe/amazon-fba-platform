@@ -17,6 +17,19 @@ export function shopeeModuleQuery(source: string, connectionId: string, kind: Sh
   if (kind !== "abc") {
     for (const key of ["limit", "offset"]) { const value = input.get(key); if (value) output.set(key, value); }
   }
+  // ⚠️ `atividade` PRECISA ser encaminhada, senão o seletor de anúncios ativos/
+  // inativos e o "Ver todos" não têm efeito nenhum: a URL muda, o servidor
+  // recebe a requisição sem o parâmetro e aplica sempre o padrão ("ativos").
+  //
+  // Foi o que aconteceu quando o filtro entrou (28/08/2026): o servidor foi
+  // escrito, testado e está correto — mas ninguém o alimentava. Filtro que só
+  // existe na barra de endereço é filtro que não existe.
+  if (["catalog", "inventory", "costs"].includes(kind)) {
+    const atividade = input.get("atividade"); if (atividade) output.set("atividade", atividade);
+    // Mesma regra para a ordenação: o padrão ("volume") é representado pela
+    // AUSÊNCIA do parâmetro, então só encaminha quando a pessoa escolheu outra.
+    const ordenacao = input.get("ordenacao"); if (ordenacao) output.set("ordenacao", ordenacao);
+  }
   if (["monitor", "inventory", "abc"].includes(kind)) {
     // Período personalizado deixou de ser descartado (E3): com from+to na URL,
     // eles é que definem o período; days fica de fallback.
