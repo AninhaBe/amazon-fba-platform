@@ -56,6 +56,36 @@ function horaCheia(): string {
   return agora.toISOString();
 }
 
+/**
+ * Agrupa o caminho pelo FORMATO, nunca pelo valor: `/orders/123-456` vira
+ * `/orders/:id`. Contador por valor responderia "quantas vezes chamei ESTE
+ * pedido" em vez de "quantas vezes chamei este endpoint", e criaria uma linha
+ * por pedido.
+ *
+ * ⚠️ Troca SEGMENTO INTEIRO, e só o que tem cara de identificador. A primeira
+ * versão usava uma regex solta e comia `v0` e `2024-06-19`: o relatório saía com
+ * `/finances/:id/transactions`, que não atrapalha a contagem mas é nome que
+ * alguém lê errado depois — e ler errado um relatório de chamadas é como a gente
+ * chega em conclusão errada sobre um alerta de plataforma.
+ */
+export function caminhoAgrupado(caminho: string): string {
+  return caminho
+    .split("?")[0]
+    .split("/")
+    .map((segmento) => {
+      if (!segmento) return segmento;
+      // Versão de API (`v0`, `2024-06-19`, `2021-08-01`) e nome de recurso ficam.
+      if (/^v\d+$/i.test(segmento)) return segmento;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(segmento)) return segmento;
+      // Identificador: pedido da Amazon, número longo, ASIN, ou token com dígito.
+      if (/^\d{3}-\d{7}-\d{7}$/.test(segmento)) return ":id";
+      if (/^\d{5,}$/.test(segmento)) return ":id";
+      if (/^[A-Z0-9]{10}$/.test(segmento) && /\d/.test(segmento)) return ":id";
+      return segmento;
+    })
+    .join("/");
+}
+
 export interface RegistroDeChamada {
   /** Status HTTP da resposta, quando houve resposta. */
   status?: number | null;

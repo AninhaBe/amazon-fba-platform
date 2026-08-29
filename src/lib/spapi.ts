@@ -3,7 +3,7 @@
 // Multi-conta: o token vem da conta ativa (AsyncLocalStorage); fallback para o .env.
 
 import { currentAccount } from "./accountContext";
-import { registrarChamada } from "./integrations/contadorDeChamadas";
+import { caminhoAgrupado, registrarChamada } from "./integrations/contadorDeChamadas";
 
 const REGION_HOSTS: Record<string, string> = {
   NA: "https://sellingpartnerapi-na.amazon.com",
@@ -233,7 +233,7 @@ export interface SpApiOptions {
  * ESTE pedido" em vez de "quantas vezes chamei este endpoint".
  */
 function caminhoDoEndpoint(path: string): string {
-  return path.split("?")[0].replace(/\/[A-Z0-9]{2,}[\w.-]*\d[\w.-]*/gi, "/:id");
+  return caminhoAgrupado(path);
 }
 
 export async function spapiFetch<T = unknown>(
@@ -268,6 +268,22 @@ export async function spapiFetch<T = unknown>(
       limite: res.headers.get("x-amzn-RateLimit-Limit"),
       erro: !res.ok,
     });
+    // ⚠️ O 429 era RETENTADO EM SILÊNCIO. O contador revelou 40 falhas em 154
+    // chamadas de /finances/2024-06-19/transactions sem uma linha de log — e a
+    // pergunta "que erro é esse?" não tinha resposta, porque o único registro
+    // era um contador que só guarda o ÚLTIMO status (200, o da retentativa que
+    // deu certo). Sem esta linha, um erro que PARE de ser transitório continua
+    // invisível até virar buraco no dado financeiro dela.
+    //
+    // Nada de credencial aqui: só caminho agrupado, status e o teto declarado.
+    if (!res.ok) {
+      console.warn("[spapi] chamada recusada", {
+        endpoint: caminhoDoEndpoint(path),
+        status: res.status,
+        limite: res.headers.get("x-amzn-RateLimit-Limit"),
+        tentativa: attempt + 1,
+      });
+    }
 
     // 429 = rate limit; espera e tenta de novo (backoff exponencial).
     if (res.status === 429 && attempt < maxRetries) {

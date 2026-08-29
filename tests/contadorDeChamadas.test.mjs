@@ -114,3 +114,28 @@ test("a descarga NUNCA corre no pool de usuario, nem por acidente", async () => 
   const indiceFundo = descarga.indexOf("runComoFundo");
   assert.ok(indiceFundo < indiceQuery, "nenhuma consulta pode ficar fora do runComoFundo");
 });
+
+test("o agrupador preserva versao de API — relatorio com nome errado se le errado", async () => {
+  const { caminhoAgrupado } = await import("../src/lib/integrations/contadorDeChamadas.ts");
+  // A primeira versao comia `v0` e `2024-06-19` e o relatorio saia com
+  // "/finances/:id/transactions". Nao atrapalha a contagem, mas nome feio e
+  // nome que alguem le errado depois — e ler errado um relatorio de chamadas e
+  // como se chega em conclusao errada sobre um alerta de plataforma.
+  assert.equal(caminhoAgrupado("/finances/2024-06-19/transactions"), "/finances/2024-06-19/transactions");
+  assert.equal(caminhoAgrupado("/finances/v0/financialEvents"), "/finances/v0/financialEvents");
+  assert.equal(caminhoAgrupado("/reports/2021-06-30/reports"), "/reports/2021-06-30/reports");
+  // E continua trocando o que E identificador.
+  assert.equal(caminhoAgrupado("/orders/v0/orders/701-1234567-1234567"), "/orders/v0/orders/:id");
+  assert.equal(caminhoAgrupado("/orders/v0/orders/701-1234567-1234567/orderItems"), "/orders/v0/orders/:id/orderItems");
+  assert.equal(caminhoAgrupado("/items/123456789"), "/items/:id");
+  // Query fora: ela carrega assinatura e token.
+  assert.equal(caminhoAgrupado("/api/v2/order/get_order_list?sign=abc"), "/api/v2/order/get_order_list");
+});
+
+test("chamada recusada pela SP-API vira log, nao silencio", async () => {
+  const spapi = await readFile(new URL("../src/lib/spapi.ts", import.meta.url), "utf8");
+  assert.match(spapi, /console\.warn\("\[spapi\] chamada recusada"/);
+  // Sem credencial no log: nem token, nem assinatura, nem corpo.
+  const bloco = spapi.slice(spapi.indexOf('console.warn("[spapi] chamada recusada"'), spapi.indexOf('console.warn("[spapi] chamada recusada"') + 400);
+  assert.doesNotMatch(bloco, /token|sign|Authorization|body/i);
+});
