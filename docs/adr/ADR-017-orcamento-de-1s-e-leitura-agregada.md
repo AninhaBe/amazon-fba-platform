@@ -419,6 +419,37 @@ não a média. Medido na UTILEIRA: abrindo em "hoje", o aquecimento só termina
 **2,6 segundos** depois. Quem clicar antes disso espera igual — o pré-carregamento
 não ajuda quem chegou primeiro.
 
+## Três exageros num dia — e o terceiro é o mais difícil de pegar (28/08/2026)
+
+Em um único dia, três números/afirmações saíram inflados **a favor de quem os
+publicou**. Nos três casos quem derrubou foi o próprio autor. Ficam juntos
+porque a família é a mesma e a terceira só fica visível ao lado das duas
+primeiras.
+
+| # | O que foi afirmado | O que era | Quem derrubou |
+|---|---|---|---|
+| 1 | "a consulta nova é **18× mais rápida** (953ms → 52ms)" | 50ms × 46ms — a medida original comparava **cache frio com cache quente** | o autor |
+| 2 | "`/api/admin/eu` e `/api/trial` saem **duas vezes** por abertura" | não saíam: a segunda vinha do **documento anterior**, não da abertura nova | a autora |
+| 3 | "a manchete **afirma números sob o rótulo de outro recorte**" | o texto **já dizia** "nos últimos 30 dias": era **defasagem e ambiguidade**, mais um **risco latente** (o prompt não *exigia* a janela, então uma geração seguinte poderia escrever "hoje" — e aí sim seria rótulo errado) | o autor |
+
+**1 e 2 são número inflado. 3 é GRAVIDADE inflada — e é a mais perigosa das
+três, por ser a menos óbvia.** Número errado alguém confere e refuta; gravidade
+errada não tem unidade, então ninguém a checa. Ela faz a equipe **priorizar
+errado** e faz quem fala com a dona **alarmá-la sem lastro** — neste caso a
+afirmação já tinha convencido o orquestrador e já tinha chegado à dona antes de
+ser corrigida.
+
+📌 **A pergunta que pega o caso 3**, e que as outras duas não precisam:
+*"qual é a diferença exata entre o que o sistema faz hoje e o que eu estou
+dizendo que ele faz?"* — se a resposta for "poderia acontecer", isso é **bala na
+agulha, não bala disparada**, e a frase precisa dizer isso. O conserto costuma
+valer do mesmo jeito; o que não vale é o motivo dramático.
+
+⚠️ Notar também: o caso 3 foi descoberto **ao conferir o resultado do próprio
+conserto**, comparando o texto novo com o antigo lado a lado. Sem essa
+conferência a versão inflada teria ficado de pé — o que torna a verificação
+pós-entrega parte da entrega, não zelo opcional.
+
 ## ⚠️ Pendência nomeada: a ida repetida é MULETA, não só desperdício (28/08/2026)
 
 Achado da Vitrine, e ele muda como se olha performance de abertura em **qualquer**
