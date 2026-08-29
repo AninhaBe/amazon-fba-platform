@@ -93,6 +93,76 @@ curto e devolver não-200 quando o banco não responde.
    pool já respondia em 200ms. Agir ali seria mexer num estado que não existia
    mais.
 
+## Segunda onda (02:55Z) — e a causa era outra
+
+Com Amazon, TikTok e Shopee ligados e o **ML desligado**, o pool esgotou de novo.
+Desta vez não era `INSERT`: era um **`SELECT` com sete cópias empilhadas**, a mais
+velha em 112s.
+
+A consulta: agregação de **30 dias** de `workspace_channel_orders`, agrupada por
+provider, contando pendentes e atrasados. Quem dispara: o **servidor de métricas
+da porta 9091** (`src/instrumentation.ts` → `src/lib/metricas.ts`). O coletor do
+Fly raspa periodicamente, e **cada raspagem rodava a agregação inteira**. Quando
+ela passa a demorar mais que o intervalo de raspagem, as chamadas se acumulam —
+cada uma segurando uma conexão do pool.
+
+### ⚠️ Isto reenquadra a primeira onda
+
+A hipótese "o ML é o culpado" ficou **fraca**, e a das métricas ficou **forte**:
+é bem possível que os `INSERT` do ML fossem **vítima** de um pool já esgotado —
+escrita esperando, 9 minutos. Não está provado, e por isso a decisão sobre o ML
+foi **suspensa, não revogada**.
+
+### A lição mais cara do dia
+
+O coletor rodava uma agregação de 30 dias **a cada raspagem**, e **ninguém nunca
+mediu quanto ela custava** — porque métrica é a coisa que se instala para
+*observar* o sistema, não para pesar nele.
+
+**O instrumento virou a carga.**
+
+Somando o dia: das sete lições de instrumento, **as seis primeiras foram o
+instrumento dando resposta errada** (health que não toca o banco; cache frio
+comparado com quente; conta demo; teto de cliente medido e o de servidor não;
+número de versão vindo de terceiro; causa externa que correlacionava sem
+explicar). A sétima foi o instrumento **derrubando produção**.
+
+Não é mais *"o instrumento pode te enganar"*. É:
+
+> **O instrumento tem custo, e o custo tem que ser medido como qualquer outro.**
+
+### Conserto
+
+| O quê | Como |
+|---|---|
+| Raspagem empilhando | **uma coleta por vez** (raspagem que chega com outra em voo recebe o último corpo conhecido) + **validade mínima de 60s** + **teto de 5s** por raspagem. As três juntas: só a validade não impede empilhar quando a consulta passa do intervalo |
+| Consulta sem teto | `statement_timeout` de **120s** no pool da aplicação, vindo de `DB_STATEMENT_TIMEOUT_MS`. **Não** se aplica a migrations (o `migrate-cli` abre a própria conexão; travado em teste) |
+
+📌 **Por que 120s e não menos:** há trabalho legítimo de sync em 68s, medido no
+log da mesma noite. O que separa um teto bem posto de um mal posto não é o
+número — é **o que acontece quando ele erra**: aqui, a *etapa* falha e o app
+continua de pé, e a variável afrouxa sem deploy.
+
+## 🔦 Capacidade nova: freio de emergência por variável
+
+`METRICS_PORT=-1` derruba o servidor de métricas **em segundos, sem build** — a
+porta inválida faz o `listen` falhar e o `catch` já existente registra
+`[metricas] nao subiu`.
+
+Isso não é detalhe: às 02:55, com a dona fora do ar, a única saída conhecida era
+um deploy de 4 minutos. **"Existe um jeito de desligar isto em segundos?" é a
+pergunta que se deve fazer de cada coisa que toca o banco** — antes de precisar
+dela.
+
+Freios que existem hoje:
+
+| Alvo | Freio | Efeito |
+|---|---|---|
+| Agendador inteiro | `INTERNAL_SCHEDULER=0` | reinicia a máquina |
+| Um canal por vez | `SCHEDULER_CANAIS=shopee-sync` | criado neste incidente |
+| Servidor de métricas | `METRICS_PORT=-1` | sem build |
+| Teto por consulta | `DB_STATEMENT_TIMEOUT_MS` | sem build |
+
 ## Pendências que este incidente abriu
 
 - **`INSERT` de bronze que leva 9 minutos.** Enquanto uma escrita puder prender

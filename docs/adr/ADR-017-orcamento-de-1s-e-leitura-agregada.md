@@ -568,6 +568,34 @@ sorteado.
 evidência a favor de nenhuma. Vale dizer isso em voz alta ao entregar, porque
 "passou em 371ms" soa como confirmação e não é.
 
+### As sete lições de instrumento de 28–29/08/2026, e o fecho delas
+
+| # | O instrumento | O que ele respondeu de verdade |
+|---|---|---|
+| 1 | Medição de A/B no mesmo processo | comparou **cache frio com quente** — "18× mais rápido" era 8% |
+| 2 | Conta demo | prova que **funciona**, nunca que é **rápido** nem que está **certo** (a ordenação invertida passaria limpa nela) |
+| 3 | Teto de conexões | mediu o teto de **cliente** (14 → 30+) e não o de **servidor**, que foi o que mordeu |
+| 4 | Número de versão vindo de outra pessoa | é a **última leitura dela**, não o estado do sistema — confira na máquina |
+| 5 | Incidente público de terceiro | correlacionava e **não explicava**: componente diferente, janela que não fecha |
+| 6 | Health check que não toca a dependência | prova que o **processo subiu** — deu verde durante 7 minutos de app fora |
+| 7 | Coletor de métricas | rodava uma agregação de **30 dias por raspagem**, empilhou 7 cópias e **derrubou produção** |
+
+As seis primeiras são o instrumento **dando resposta errada**. A sétima é o
+instrumento **virando a carga** — e é a mais cara, porque métrica é justamente a
+coisa que se instala para *observar* o sistema, não para pesar nele.
+
+> **O instrumento tem custo, e o custo tem que ser medido como qualquer outro.**
+
+Isso não é sobre contar o que aconteceu: é sobre o que se faz na próxima vez que
+alguém for instalar uma medição. Antes de ligar qualquer coisa que observe
+produção, pergunte **quanto ela custa por execução e com que frequência roda** —
+e se não souber responder, isso é a primeira medição a fazer.
+
+📌 E a pergunta irmã, que veio do mesmo incidente: **"existe um jeito de desligar
+isto em segundos?"** — às 02:55, com a dona fora do ar, a única saída conhecida
+era um deploy de 4 minutos. Freio de emergência por variável de ambiente é
+requisito de qualquer coisa que toque o banco, não luxo.
+
 ## ⚠️ Pendência nomeada: a ida repetida é MULETA, não só desperdício (28/08/2026)
 
 Achado da Vitrine, e ele muda como se olha performance de abertura em **qualquer**
