@@ -61,7 +61,12 @@ await runWithWorkspace(WORKSPACE, async () => {
   for (let etapa = 1; etapa <= MAX_ETAPAS; etapa += 1) {
     const t = Date.now();
     try {
-      await runShopeeSyncStep(conexao, false);
+      // ⚠️ `prepareSync = true` (o padrao) e OBRIGATORIO aqui. Com `false` a
+      // etapa nao chama `requestShopeeSync`, e a linha continua em
+      // `status='complete'` — e a clausula que reivindica o lease exige
+      // `status <> 'complete'`. Resultado: 12 etapas voltando em 60ms sem fazer
+      // nada, que foi o que aconteceu na primeira tentativa deste lote.
+      await runShopeeSyncStep(conexao, true);
     } catch (erro) {
       console.log(`${agora()} etapa ${etapa} FALHOU: ${erro instanceof Error ? erro.message : erro}`);
       console.log("PARE e reporte — nao siga para o backfill com o catalogo pela metade.");
