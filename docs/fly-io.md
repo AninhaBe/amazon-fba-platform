@@ -308,6 +308,31 @@ na cabeça de quem chamou.
 é código, e código não exercitado quebra o que deveria proteger.** Uma trava que
 só roda no caminho feliz é um passivo com cara de proteção.
 
+### A quarta forma: ação larga demais (29/08/2026)
+
+Ainda no mesmo dia, um `git add -A` rodado às pressas para destravar uma
+migration varreu dois arquivos **untracked de outro agente** para dentro de um
+commit alheio. Nada quebrou — o código estava correto e testado —, mas o
+histórico passou a dizer que um helper de backend nasceu num commit de front.
+
+Somando o dia inteiro, é **a mesma doença em quatro roupas**:
+
+| Onde | A ação larga demais |
+|---|---|
+| `fly deploy` | publica a **árvore inteira**, não o commit |
+| `useEffect` | dependência ampla demais refaz o que não precisava |
+| `invalidateByKeyPart` / reiniciar a máquina | limpa mais cache do que o alvo |
+| `git add -A` | commita o que estava em voo de outra pessoa |
+
+**A defesa é sempre a mesma forma: nomear o alvo em vez de pegar tudo.** Deploy
+confere a árvore colado no uso; efeito depende do que realmente usa; a
+invalidação entra pela chave (versão do prompt); e o commit vai por **caminho
+explícito** (`git add <arquivos>`) em vez de `-A`.
+
+📌 E uma decisão tomada junto: **não reescrever histórico para consertar
+autoria.** Reescrever commit por estética é pior que o problema — quem procurar o
+helper daqui a um mês encontra a origem no ADR-029 e no teste.
+
 ---
 
 ## 8. O piloto — e o que ele precisa provar
