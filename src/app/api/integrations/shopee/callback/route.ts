@@ -1,4 +1,3 @@
-import { after } from "next/server";
 import { NextRequest, NextResponse } from "next/server";
 import { saveIntegration } from "@/lib/integrations/integrationStore";
 import {
@@ -10,6 +9,7 @@ import {
 import { ensureShopeeSyncState, runShopeeSyncBatch } from "@/lib/integrations/shopeeSync";
 import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
 import { currentWorkspaceId, runWithWorkspace } from "@/lib/workspaceScope";
+import { depoisDaResposta } from "@/lib/depoisDaResposta";
 
 /** Orçamento do sync imediato pós-conexão: cobre a janela recente de pedidos. */
 const KICK_BUDGET_MS = 60_000;
@@ -83,7 +83,7 @@ export async function GET(req: NextRequest) {
       // o cron. Se o kick morrer, o agendador assume no próximo ciclo.
       await ensureShopeeSyncState(saved.id);
       const workspaceId = currentWorkspaceId();
-      after(() => runWithWorkspace(workspaceId, async () => {
+      depoisDaResposta("shopee-callback:kick", () => runWithWorkspace(workspaceId, async () => {
         try {
           await runShopeeSyncBatch(saved, KICK_BUDGET_MS);
         } catch (error) {

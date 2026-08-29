@@ -1,4 +1,3 @@
-import { after } from "next/server";
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse } from "@/lib/apiError";
 import { getOrders, summarizeOrders } from "@/lib/orders";
@@ -6,11 +5,11 @@ import { cached } from "@/lib/cache";
 import { resolvePeriod } from "@/lib/period";
 import { withAccountContext } from "@/lib/withAccount";
 import { getDailySales } from "@/lib/sales";
-import { medirTrabalhoDeFundo } from "@/lib/execucaoDeFundo";
 import { currentAccount } from "@/lib/accountContext";
 import { runAmazonSyncBatch } from "@/lib/integrations/amazonSync";
 import { currentWorkspaceId, runWithWorkspace } from "@/lib/workspaceScope";
 import { hasDb } from "@/lib/db";
+import { depoisDaResposta } from "@/lib/depoisDaResposta";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,8 +24,8 @@ export async function GET(req: NextRequest) {
     const account = currentAccount();
     if (hasDb() && account) {
       const workspaceId = currentWorkspaceId();
-      after(() => runWithWorkspace(workspaceId, () =>
-        medirTrabalhoDeFundo("orders:amazon-sync", () => runAmazonSyncBatch(account)).catch((error) => {
+      depoisDaResposta("orders:amazon-sync", () => runWithWorkspace(workspaceId, () =>
+        runAmazonSyncBatch(account).catch((error) => {
           console.error("Falha ao avançar sincronização da Amazon", {
             sellerId: account.sellerId,
             reason: error instanceof Error ? error.message : "Erro desconhecido",

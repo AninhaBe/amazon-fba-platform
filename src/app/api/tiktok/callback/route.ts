@@ -1,5 +1,4 @@
 import crypto from "crypto";
-import { after } from "next/server";
 import { NextRequest, NextResponse } from "next/server";
 import { exchangeAuthCode, getAuthorizedShops, epochToIso, TIKTOK_OAUTH_STATE_COOKIE } from "@/lib/tiktok";
 import { saveTiktokAuthorization } from "@/lib/tiktokStore";
@@ -7,6 +6,7 @@ import { validarConviteTiktok } from "@/lib/tiktokInvite";
 import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
 import { currentWorkspaceId, runWithWorkspace } from "@/lib/workspaceScope";
 import { runTiktokSyncBatch, tiktokConnectionId } from "@/lib/integrations/tiktokSync";
+import { depoisDaResposta } from "@/lib/depoisDaResposta";
 
 /** Orçamento do sync imediato pós-conexão: cobre a janela recente de pedidos. */
 const KICK_BUDGET_MS = 60_000;
@@ -101,7 +101,7 @@ async function concluir(
     // assume no próximo ciclo.
     const workspaceId = currentWorkspaceId();
     const shopIds = shops.map((s) => s.id);
-    after(() => runWithWorkspace(workspaceId, async () => {
+    depoisDaResposta("tiktok-callback:kick", () => runWithWorkspace(workspaceId, async () => {
       for (const shopId of shopIds) {
         try {
           await runTiktokSyncBatch(tiktokConnectionId(shopId), KICK_BUDGET_MS);

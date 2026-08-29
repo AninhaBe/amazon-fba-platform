@@ -8,7 +8,7 @@ import test from "node:test";
 test("callback do Mercado Livre dispara o sync na hora, fora do caminho do redirect", async () => {
   const callback = await readFile(new URL("../src/app/api/integrations/mercado-livre/callback/route.ts", import.meta.url), "utf8");
   const ensureIdx = callback.indexOf("ensureMercadoLivreSyncState(connection.id)");
-  const kickIdx = callback.indexOf("after(() => runWithWorkspace(");
+  const kickIdx = callback.indexOf("depoisDaResposta(");
   const redirectIdx = callback.indexOf("NextResponse.redirect(`${uiBaseUrl}/integracoes?connected=mercado_livre`)");
   assert.ok(ensureIdx > -1, "o callback precisa criar o estado de sync");
   assert.ok(kickIdx > -1, "o callback precisa disparar o sync imediato");

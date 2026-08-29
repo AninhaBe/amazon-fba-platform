@@ -9,7 +9,7 @@ import test from "node:test";
 test("callback da Shopee dispara o sync na hora, fora do caminho do redirect", async () => {
   const callback = await readFile(new URL("../src/app/api/integrations/shopee/callback/route.ts", import.meta.url), "utf8");
   const ensureIdx = callback.indexOf("ensureShopeeSyncState(saved.id)");
-  const kickIdx = callback.indexOf("after(() => runWithWorkspace(");
+  const kickIdx = callback.indexOf("depoisDaResposta(");
   const redirectIdx = callback.indexOf("NextResponse.redirect(`${uiBaseUrl}/integracoes?connected=shopee`)");
   assert.ok(ensureIdx > -1, "o callback precisa criar o estado de sync");
   assert.ok(kickIdx > -1, "o callback precisa disparar o sync imediato");

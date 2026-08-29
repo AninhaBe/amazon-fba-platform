@@ -36,7 +36,7 @@ test("callback da Amazon cria a linha de estado e dispara o sync fora do redirec
   const callback = await readFile(new URL("../src/app/api/auth/callback/route.ts", import.meta.url), "utf8");
   const saveIdx = callback.indexOf("await saveAccount(");
   const ensureIdx = callback.indexOf("ensureAmazonSyncState(amazonConnectionId(sellerId))");
-  const kickIdx = callback.indexOf("after(() => runWithWorkspace(");
+  const kickIdx = callback.indexOf("depoisDaResposta(");
   const redirectIdx = callback.indexOf("NextResponse.redirect(`${baseUrl}/?connected=1`)");
   assert.ok(saveIdx > -1 && ensureIdx > -1 && kickIdx > -1 && redirectIdx > -1);
   assert.ok(saveIdx < ensureIdx && ensureIdx < kickIdx && kickIdx < redirectIdx,

@@ -46,7 +46,16 @@ function maximoDoPool(padrao: number, variavel = "DB_POOL_MAX"): number {
  * conexoes do tenant no pooler nao e conhecido. Sobem por variavel, sem deploy.
  */
 const MAX_USUARIO = process.env.VERCEL ? 2 : 8;
-const MAX_FUNDO = process.env.VERCEL ? 1 : 3;
+// 3 → 5 em 29/08/2026, junto com a migração dos oito `after()` para o fundo.
+// A conta de 8+3 foi feita de madrugada supondo que fundo = cron. Agora o fundo
+// carrega também o sync que a tela dispara e o webhook do ML, que antes corriam
+// no pool do usuário. 8+5 = 13 contra os 15 do Supavisor, com 2 de margem para
+// migration e sonda — mesma lógica conservadora, com o trabalho novo dentro.
+//
+// O risco desta escolha é fila NO FUNDO (ingestão atrasada), e ele é aceitável
+// porque é VISÍVEL: a varredura de eventos velhos se anuncia no log quando
+// começa a resgatar. Fila na tela é invisível e cai em cima da vendedora.
+const MAX_FUNDO = process.env.VERCEL ? 1 : 5;
 
 function criarPool(max: number): Pool {
   return new Pool({

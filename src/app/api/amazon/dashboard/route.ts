@@ -1,4 +1,3 @@
-import { after } from "next/server";
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse } from "@/lib/apiError";
 import { resolvePeriod } from "@/lib/period";
@@ -7,13 +6,13 @@ import { getAmazonOverviewCanonicalCached } from "@/lib/integrations/amazonOverv
 import { getStockRadar } from "@/lib/radar";
 import { dbQuery } from "@/lib/db";
 import { currentWorkspaceId, runWithWorkspace } from "@/lib/workspaceScope";
-import { medirTrabalhoDeFundo } from "@/lib/execucaoDeFundo";
 import { currentAccount, runWithAccount } from "@/lib/accountContext";
 import { runAmazonSyncBatch } from "@/lib/integrations/amazonSync";
 import { getDailySales } from "@/lib/sales";
 import { defaultMarketplaceId } from "@/lib/spapi";
 import { adsEstaConectado, anunciosNoPeriodo } from "@/lib/integrations/amazonAdsSync";
 import { anunciosPorProdutoNoPeriodo, cruzarComMargem } from "@/lib/integrations/amazonAdsPorProduto";
+import { depoisDaResposta } from "@/lib/depoisDaResposta";
 
 // Frescor aceitável antes de buscar de novo ao abrir a tela.
 //
@@ -296,7 +295,7 @@ export async function GET(req: NextRequest) {
       const sincronizacaoVelha = frescorRows[0]?.velho ?? true;
       const conta = currentAccount();
       if (conta?.refreshToken && sincronizacaoVelha) {
-        after(() =>
+        depoisDaResposta("dashboard-amazon:sync", () =>
           runWithWorkspace(workspaceId, () =>
             runWithAccount(conta, async () => {
               try {
@@ -307,8 +306,7 @@ export async function GET(req: NextRequest) {
                 // sem ele o sync vê `status = complete`, recusa abrir janela nova
                 // por causa do FRESH_FOR_MS de 6h, e só reconcilia itens — a tela
                 // continuava presa em dado de horas atrás (21/08/2026).
-                await medirTrabalhoDeFundo("dashboard-amazon:sync", () =>
-                  runAmazonSyncBatch(conta, 3, true));
+                await runAmazonSyncBatch(conta, 3, true);
               } catch (error) {
                 // Falha aqui não pode afetar a tela — ela já respondeu.
                 console.error("[dashboard/amazon] sync sob demanda falhou", error);

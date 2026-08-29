@@ -32,7 +32,15 @@ test("sao DOIS pools e o fundo e MENOR — a assimetria e o ponto", async () => 
   const db = await readFile(new URL("../src/lib/db.ts", import.meta.url), "utf8");
   assert.match(db, /let poolDeFundo: Pool \| null = null/);
   assert.match(db, /const MAX_USUARIO = process\.env\.VERCEL \? 2 : 8/);
-  assert.match(db, /const MAX_FUNDO = process\.env\.VERCEL \? 1 : 3/);
+  // 3 -> 5 em 29/08/2026: o fundo passou a carregar tambem os oito `after()`
+  // (o sync que a TELA dispara e o webhook do ML), que antes corriam no pool do
+  // usuario. 8+5 = 13 contra os 15 do Supavisor, com 2 de margem.
+  assert.match(db, /const MAX_FUNDO = process\.env\.VERCEL \? 1 : 5/);
+  // A assimetria e o ponto e continua valendo: o fundo NUNCA maior que a tela.
+  const usuario = Number(db.match(/const MAX_USUARIO = process\.env\.VERCEL \? 2 : (\d+)/)[1]);
+  const fundo = Number(db.match(/const MAX_FUNDO = process\.env\.VERCEL \? 1 : (\d+)/)[1]);
+  assert.ok(fundo < usuario, "fundo maior que o do usuario devolve a fome que a separacao existe para impedir");
+  assert.ok(usuario + fundo <= 13, "os dois pools somados precisam caber no Supavisor com margem para migration e sonda");
   // O fundo escolhe o proprio pool: e isso que torna a fome impossivel por
   // construcao, em vez de depender de escalonamento feliz.
   assert.match(db, /if \(ehFundo\(\)\)/);

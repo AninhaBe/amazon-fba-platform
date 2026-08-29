@@ -64,7 +64,7 @@ test("início do mês vigente respeita o fuso de Brasília, inclusive na virada"
 test("callback do TikTok dispara o sync na hora, fora do caminho do redirect", async () => {
   const callback = await readFile(new URL("../src/app/api/tiktok/callback/route.ts", import.meta.url), "utf8");
   const saveIdx = callback.indexOf("await saveTiktokAuthorization(");
-  const kickIdx = callback.indexOf("after(() => runWithWorkspace(");
+  const kickIdx = callback.indexOf("depoisDaResposta(");
   const redirectIdx = callback.indexOf("integracoes?connected=tiktok_shop");
   assert.ok(saveIdx > -1 && kickIdx > -1 && redirectIdx > -1);
   assert.ok(saveIdx < kickIdx && kickIdx < redirectIdx, "kick nasce depois do save e não segura o redirect");

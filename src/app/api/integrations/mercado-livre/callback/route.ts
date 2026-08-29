@@ -1,4 +1,3 @@
-import { after } from "next/server";
 import { NextRequest, NextResponse } from "next/server";
 import { connectionId } from "@/lib/integrations/types";
 import { saveIntegration } from "@/lib/integrations/integrationStore";
@@ -6,6 +5,7 @@ import { exchangeMercadoLivreCode, mercadoLivreFetch, type MercadoLivreUser } fr
 import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
 import { ensureMercadoLivreSyncState, runMercadoLivreSyncBatch } from "@/lib/integrations/mercadoLivreSync";
 import { currentWorkspaceId, runWithWorkspace } from "@/lib/workspaceScope";
+import { depoisDaResposta } from "@/lib/depoisDaResposta";
 
 /** Passos do sync imediato pós-conexão: cobre a janela recente de pedidos. */
 const KICK_MAX_STEPS = 16;
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
     // o cron. Se o kick morrer, o agendador assume no próximo ciclo.
     await ensureMercadoLivreSyncState(connection.id);
     const workspaceId = currentWorkspaceId();
-    after(() => runWithWorkspace(workspaceId, async () => {
+    depoisDaResposta("ml-callback:kick", () => runWithWorkspace(workspaceId, async () => {
       try {
         await runMercadoLivreSyncBatch(connection, KICK_MAX_STEPS);
       } catch (error) {

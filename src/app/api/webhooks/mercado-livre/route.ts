@@ -1,4 +1,3 @@
-import { after } from "next/server";
 import { NextRequest, NextResponse } from "next/server";
 import {
   enqueueMercadoLivreNotification,
@@ -9,6 +8,7 @@ import {
   MercadoLivreWebhookConfigurationError,
   parseMercadoLivreNotification,
 } from "@/lib/integrations/mercadoLivreNotification";
+import { depoisDaResposta } from "@/lib/depoisDaResposta";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (queued.length) {
-      after(async () => {
+      depoisDaResposta("webhook-ml:processa", async () => {
         for (const event of queued) {
           try {
             await processMercadoLivreEvent(event);

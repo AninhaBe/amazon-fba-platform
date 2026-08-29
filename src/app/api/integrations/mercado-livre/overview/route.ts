@@ -1,14 +1,13 @@
-import { after } from "next/server";
 import { NextRequest, NextResponse } from "next/server";
 import { getIntegration, getIntegrations } from "@/lib/integrations/integrationStore";
 import { getMercadoLivreOverview } from "@/lib/integrations/mercadoLivre";
 import { getMercadoLivreOverviewFromCanonical } from "@/lib/integrations/mercadoLivreOverviewCanonical";
 import { requestMercadoLivreSync, runMercadoLivreSyncBatch } from "@/lib/integrations/mercadoLivreSync";
 import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
-import { medirTrabalhoDeFundo } from "@/lib/execucaoDeFundo";
 import { hasDb } from "@/lib/db";
 import { currentWorkspaceId, runWithWorkspace } from "@/lib/workspaceScope";
 import { anunciosPorProdutoNoPeriodo, cruzarComMargem } from "@/lib/integrations/amazonAdsPorProduto";
+import { depoisDaResposta } from "@/lib/depoisDaResposta";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -85,10 +84,9 @@ export async function GET(req: NextRequest) {
       ]);
       const syncNeedsWork = sync.status !== "complete" && sync.status !== "error" && sync.status !== "unavailable";
       if (syncNeedsWork) {
-        after(() => runWithWorkspace(workspaceId, async () => {
+        depoisDaResposta("ml-overview:sync", () => runWithWorkspace(workspaceId, async () => {
           try {
-            await medirTrabalhoDeFundo("ml-overview:sync", () =>
-              runMercadoLivreSyncBatch(connection, process.env.VERCEL ? 4 : 8));
+            await runMercadoLivreSyncBatch(connection, process.env.VERCEL ? 4 : 8);
           } catch (error) {
             console.error("Falha ao avançar sincronização do Mercado Livre", {
               connectionId: connection.id,

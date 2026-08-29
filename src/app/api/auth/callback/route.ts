@@ -1,4 +1,3 @@
-import { after } from "next/server";
 import { NextRequest, NextResponse } from "next/server";
 import { saveAccount } from "@/lib/accountStore";
 import { ACTIVE_COOKIE } from "@/lib/withAccount";
@@ -12,6 +11,7 @@ import {
   ensureAmazonSyncState,
   runAmazonSyncBatch,
 } from "@/lib/integrations/amazonSync";
+import { depoisDaResposta } from "@/lib/depoisDaResposta";
 
 /** Passos do sync imediato pós-conexão: cobre a janela recente de pedidos. */
 const KICK_MAX_STEPS = 8;
@@ -82,7 +82,7 @@ export async function GET(req: NextRequest) {
     await ensureAmazonSyncState(amazonConnectionId(sellerId));
     const workspaceId = currentWorkspaceId();
     const account = { sellerId, refreshToken: data.refresh_token };
-    after(() => runWithWorkspace(workspaceId, async () => {
+    depoisDaResposta("auth-callback:amazon-kick", () => runWithWorkspace(workspaceId, async () => {
       try {
         await runAmazonSyncBatch(account, KICK_MAX_STEPS);
       } catch (error) {
