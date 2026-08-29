@@ -76,3 +76,21 @@ test("SKU vazio nao vira sinal", () => {
   const ocorrencias = fonte.match(/NULLIF\(TRIM\((?:i|p)\.sku\), ''\) IS NOT NULL/g) ?? [];
   assert.ok(ocorrencias.length >= 2, "os sinais por SKU precisam descartar SKU vazio");
 });
+
+test("ruptura exige anuncio ATIVO — zero de anuncio que a fonte nao reportou nao e ruptura", () => {
+  // 29/08/2026, no mesmo dia em que o sinal nasceu: os tres primeiros da lista
+  // eram anuncios com provider_status NOT_PRESENT_IN_COMPLETE_SNAPSHOT — a
+  // Shopee nao devolveu o anuncio no snapshot e o NOSSO codigo escreveu
+  // available_qty = 0. Zero fabricado em cima de desconhecido. Sao 435 dos 739
+  // anuncios da Shopee dela nesse estado.
+  //
+  // available_qty e NOT NULL: a coluna nao consegue dizer "nao sei". Exigir
+  // status 'active' e o que separa o zero que e FATO do zero que e ignorancia.
+  const ruptura = fonte.slice(fonte.indexOf('sinalOuVazio("ruptura-de-estoque"'));
+  const consulta = ruptura.slice(0, ruptura.indexOf("LIMIT 5"));
+  assert.match(
+    consulta,
+    /p\.status = 'active' AND p\.available_qty = 0/,
+    "sem exigir anuncio ativo, o sinal chama de ruptura o anuncio que sumiu do snapshot"
+  );
+});

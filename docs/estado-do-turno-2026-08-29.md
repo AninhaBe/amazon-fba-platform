@@ -5,7 +5,7 @@ o que está pendente, e o que **não** deve ser feito sem entender antes.
 
 ## No ar agora
 
-- **v179** na máquina (`fly status`, não `fly releases`).
+- **v180** na máquina (`fly status`, não `fly releases`) desde 13:08:14Z.
 - **Scheduler DESLIGADO** (`INTERNAL_SCHEDULER=0`) desde **12:23:52Z**, por ordem
   do cérebro: a dona não conseguia usar o app e o sync competia com ela.
 - **Coletor de métricas desligado** (`METRICS_PORT=-1`) desde ~02:59Z.

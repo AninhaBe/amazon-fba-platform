@@ -139,6 +139,19 @@ export async function coletarSinaisDeCausa(): Promise<SinalDeCausa[]> {
       //
       // "Estoque zerado" com vários anúncios no mesmo SKU só é ruptura se TODOS
       // estiverem zerados — se um ainda tem estoque, dá para comprar.
+      //
+      // ⚠️ E EXIGE ANÚNCIO ATIVO — `p.status = 'active'`. Sem isso o sinal mentiu
+      // no mesmo dia em que nasceu (29/08/2026). `available_qty` é `NOT NULL`:
+      // a coluna NÃO CONSEGUE dizer "não sei". Então três estados diferentes
+      // chegam aqui como o mesmo zero:
+      //   · a fonte disse zero            -> fato, e é o único que é ruptura
+      //   · a fonte não falou do anúncio  -> `NOT_PRESENT_IN_COMPLETE_SNAPSHOT`,
+      //                                      435 dos 739 anúncios da Shopee dela
+      //   · nunca sincronizamos o anúncio -> desconhecido também
+      // Os dois últimos entram como `closed`, então exigir `active` os corta.
+      // Anúncio PAUSADO com zero é dado real, mas não é ruptura: a ação dela é
+      // reativar, não repor. Se for para mostrar, é OUTRO sinal com outra frase.
+      // O defeito de baixo — desconhecido virando zero no canônico — é ADR.
       `WITH vendas AS (
          SELECT i.provider, i.connection_id, i.sku, COUNT(*)::int AS vendas
            FROM workspace_channel_order_items i
@@ -157,6 +170,7 @@ export async function coletarSinaisDeCausa(): Promise<SinalDeCausa[]> {
                 SELECT 1 FROM workspace_channel_products p
                  WHERE p.workspace_id = $1 AND p.provider = v.provider
                    AND p.connection_id = v.connection_id AND p.sku = v.sku
+                   AND p.status = 'active' AND p.available_qty = 0
               )
           AND NOT EXISTS (
                 SELECT 1 FROM workspace_channel_products p
