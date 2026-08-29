@@ -87,3 +87,84 @@ Relacionado: [ADR-016](./ADR-016-ciclo-de-vida-do-dado.md) ·
 [ADR-019](./ADR-019-agendador-interno.md) ·
 [`../sp-api-notifications.md`](../sp-api-notifications.md) ·
 [`../tiktok-shop-integracao.md`](../tiktok-shop-integracao.md)
+
+## Atualização de 29/08/2026 — o que a operação ensinou desde a decisão
+
+A decisão acima não muda. O que segue são **fatos medidos** que a execução ainda
+não tinha, e que alteram a ordem das fases e acrescentam um passo zero.
+
+### 📌 O push do ML não é só "referência": ele é um experimento em produção
+
+Medido em 29/08/2026, na caixa de entrada:
+
+```
+mercado_livre  complete   35.791
+mercado_livre  pending       207   ← parados desde 28/08 14:52 (~13 horas)
+mercado_livre  error           3
+```
+
+**4.032 eventos nas últimas 24h** — o push funciona. E **207 parados por 13
+horas sem ninguém perceber** — o push falha em silêncio, porque o cron encobre.
+
+Isso é exatamente a razão de o cron ser permanente (a decisão já dizia). Mas é
+também uma oportunidade que estava sendo desperdiçada: **temos um push real de
+onde extrair números antes de integrar o segundo canal.**
+
+### Fase 0.5 (nova): aprender com o push que já existe
+
+Custo de horas, zero integração nova, e ela dimensiona as três fases seguintes:
+
+1. **Por que 207 estão `pending`?** Fila que não drena é o modo de falha nº 1 de
+   push, e é silencioso.
+2. **Qual a taxa real de perda?** Pedidos que chegaram por webhook contra os que
+   só a varredura encontrou, na mesma janela. É esse número que dimensiona a
+   rede de segurança dos outros três — hoje ela é dimensionada por intuição.
+3. **Qual a latência real?** Do `occurred_at` no canal até o `received_at` aqui.
+   É o número que responde *"quão tempo real?"* com fato em vez de promessa.
+
+Sem isso, os três canais seguintes copiam um desenho sem saber onde ele vaza, e
+descobrimos os mesmos defeitos três vezes.
+
+### ⚠️ A ordem das fases 1 e 2 depende de terceiros, e a situação mudou
+
+| Canal | Bloqueio na decisão (20/08) | Situação em 29/08 |
+|---|---|---|
+| TikTok (fase 1) | "falta Listing/App review" | **app público submetido em 27/08** — aguardando |
+| Shopee (fase 2) | "Go Live pendente" | **Go Live segue pendente**; sem ele não há chave de produção |
+
+Ou seja: **os dois seguem bloqueados por terceiros**, e a ordem entre eles não é
+escolha nossa — é quem destravar primeiro. Um plano que fixe "Shopee antes de
+TikTok" por volume de pedidos ignora que a Shopee **não tem credencial de
+produção para push** enquanto o Go Live não sair.
+
+📌 Consequência prática: **a fase 0.5 é a única que não depende de ninguém** — e
+por isso deve começar primeiro, independentemente de qual review sair antes.
+
+### O segundo eixo: tempo real é até os OLHOS dela, não até a nossa tabela
+
+De que adianta o pedido chegar no banco em 1 segundo se a tela pede **28
+transações** para compor — e, sob contenção, levou **54 segundos** em 29/08?
+
+| Eixo | Onde está | Dono |
+|---|---|---|
+| **Ingestão** — do canal ao nosso banco | 3–10 min (polling) + segundos (ML por push) | este ADR |
+| **Leitura** — do nosso banco à tela | 28 transações, ~280ms em regime bom | [ADR-030](./ADR-030-fundo-nao-compete-com-a-tela.md) |
+
+**São a mesma frente.** Entregar só a ingestão produz um sistema que ingere
+rápido e mostra devagar — e a pessoa que pediu tempo real não vê diferença.
+
+### E uma consequência que vale nos dois eixos ao mesmo tempo
+
+> **Intervalo de 10 minutos COM push é melhor que 2 minutos SEM push** — mais
+> rápido para o que importa e mais leve para o banco.
+
+Os intervalos do ADR-030 (3/5/10/10 min, medidos) não afastam o produto do tempo
+real: afastam o produto de um custo que **não comprava tempo real nenhum**. Push
+é o que compra, e o polling de 2 minutos foi, em 29/08, causa direta de a tela
+não carregar.
+
+### Requisito acrescentado à lista original
+
+O consumo de push é **trabalho de FUNDO** (ADR-030): usa o pool do fundo, nunca o
+da tela. Um pico de webhook não pode competir com a dona olhando o painel — que
+é a forma exata do incidente de 29/08.

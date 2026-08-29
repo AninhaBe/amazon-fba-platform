@@ -65,7 +65,6 @@ O que ganhamos, o que abrimos mão, o que passa a ser obrigatório respeitar.
 | [ADR-028](./ADR-028-modo-do-pooler-e-teto-de-conexoes.md) | Modo do pooler e o teto real de conexões: `session` com `pool_size 15` já falha hoje; proposta é `transaction` | Proposto |
 | [ADR-029](./ADR-029-produto-canonico-e-a-variacao.md) | O produto canônico é a variação, não o anúncio — o custo se prende onde a venda acontece (TikTok já faz assim) | Proposto |
 | [ADR-030](./ADR-030-fundo-nao-compete-com-a-tela.md) | Trabalho de fundo tem pool próprio e intervalo medido — a fome da tela vira impossível por construção | Aceito |
-| [ADR-031](./ADR-031-tempo-real-e-push.md) | Tempo real é push, e é do dado até os olhos dela — o ciclo vira rede de segurança | Proposto |
 
 **Índice completo em 16/08/2026** — 14 ADRs, todos listados. Ao criar um ADR novo,
 adicione a linha aqui na mesma hora; este índice já ficou 8 ADRs atrás uma vez.
