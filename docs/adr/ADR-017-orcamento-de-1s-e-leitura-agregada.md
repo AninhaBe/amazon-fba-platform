@@ -383,6 +383,43 @@ O que fica:
   o identificador mora, é guarda de forma. Se ela sobrevive a renomear variáveis
   e mover código, é teste de regra.
 
+### O instrumento respondeu outra pergunta — quatro vezes no mesmo dia
+
+Quatro erros de medição em 28/08/2026, e os quatro têm a mesma forma: o
+instrumento respondeu com clareza a uma pergunta **diferente** da que se queria
+fazer, e a resposta limpa passou por verdade.
+
+| O que se queria perguntar | O que o instrumento respondeu | Como apareceu |
+|---|---|---|
+| Algum **quadro** mostra valor de outro período? | O que havia a cada 100ms | Janelas de 5–52ms passaram: PASSA falso em 3 canais |
+| O cache está **acertando**? | Quanto custou a 1ª ida vs. a 2ª | Comparava frio com quente e chamava de melhora |
+| A **regra** continua valendo? | Aquele texto ainda está naquela linha? | Refatoração inocente ficou vermelha; e o inverso passaria |
+| O **eslint** passou? | O `tail` do pipe terminou bem | Erro impresso na tela, reportado como verde |
+
+O quarto é o mais barato de evitar e o mais perigoso, porque contaminou uma
+decisão de outra pessoa: um commit foi feito em cima de um portão que eu disse
+estar verde.
+
+**A defesa, e ela vale para o time inteiro:**
+
+1. **Comando de verificação roda sozinho, e o código de saída é lido direto.**
+   `pipe` para `tail` ou `grep` serve para LER a saída, nunca para julgar o
+   resultado — em shell, `$?` depois de um pipe é do ÚLTIMO comando. Se precisar
+   dos dois, guarde o rc antes de filtrar.
+2. **Antes de confiar numa medição, escreva a pergunta e leia o instrumento
+   perguntando "é isto que ele mede?".** As quatro falhas acima seriam vistas
+   nessa leitura, sem rodar nada.
+3. **Resposta limpa não é resposta certa.** Todas as quatro vieram sem ruído:
+   um PASSA, um "melhorou", um vermelho convincente, um `rc=0`. A ausência de
+   ruído não é evidência de nada.
+4. **Instrumento que nunca falhou merece a mesma suspeita** de qualquer código
+   sem teste. O probe de quadros só ficou confiável quando foi construído para
+   falhar num caso conhecido.
+
+Prática que ficou: quando um resultado contraria o esperado, **desconfie primeiro
+do instrumento** — foi o que achou o defeito das cinco fatias da Amazon, e o que
+evitou "consertar" um teste que estava certo pelo motivo errado.
+
 ## Lição de 28/08/2026: medição em conta demo não representa a conta dela
 
 Todas as medições de troca de período tinham sido feitas na **conta demo** —

@@ -61,8 +61,12 @@ export function usePrefetchDePeriodos({ ativo, atual, escopo, jaTem, buscar }: {
   // duas vezes a mesma janela do mesmo escopo.
   const emVoo = useRef(new Set<string>());
   const intencao = useRef<{ timer: number; chave: string } | null>(null);
+  // O que a intenção precisa saber quando o temporizador dispara, 120ms depois.
+  // Atualizado por efeito, não no render: `react-hooks/refs` proíbe escrever em
+  // ref durante o render, e aqui não é preciso — o efeito roda antes de
+  // qualquer temporizador que o próximo hover venha a criar.
   const contexto = useRef({ ativo, atual, escopo, jaTem, buscar });
-  contexto.current = { ativo, atual, escopo, jaTem, buscar };
+  useEffect(() => { contexto.current = { ativo, atual, escopo, jaTem, buscar }; });
 
   useEffect(() => {
     if (!ativo || !escopo || feitos.current.has(escopo)) return;

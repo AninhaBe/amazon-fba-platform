@@ -211,6 +211,23 @@ interface DashboardPayload {
   durationMs: number;
 }
 
+// ⚠️ TUDO QUE DEPENDE DO PERIODO MORA AQUI. NAO DEIXE FATIA DE FORA.
+//
+// Medido em producao em 28/08/2026, no movimento que a dona do produto faz todo
+// dia: a tela abre em 30 dias, ela vai para 7 e VOLTA para 30. Na volta, o card
+// de Faturamento continuou mostrando R$ 1.603,70 — o valor de 7 dias — sob o
+// rotulo "30 dias" por 551ms, enquanto a celula de Taxas ao lado ja mostrava o
+// recorte novo.
+//
+// A causa nao foi o cache: foi o que ficou FORA dele. Cinco fatias
+// (conciliacao, faturamento, pedidos feitos, canceladas e cobertura) eram
+// estado solto, escrito so quando a resposta chegava. O que estava no snapshot
+// repintava do cache no primeiro quadro; o que estava fora esperava a rede — e
+// esperar mostrando o numero do periodo anterior e a mesma mentira que a gente
+// passou o dia inteiro consertando, so que numa celula que ninguem olhava.
+//
+// A regra, entao: fatia nova que muda com o periodo entra NESTE tipo. Se ela
+// nao couber aqui, ela nao pode ser exibida junto do rotulo do periodo.
 interface DashSnapshot {
   orders: OrdersData | null;
   profit: ProfitData | null;
@@ -219,8 +236,21 @@ interface DashSnapshot {
   top: TopProduct[];
   profitability: ProfitabilityLine[];
   profitabilityScope?: ProfitabilityScope;
+  conciliacao: ConciliacaoData | null;
+  faturamento: DashboardPayload["billing"] | null;
+  pedidosFeitos: PedidosFeitosData | null;
+  canceladas: CanceladasData | null;
+  cobertura: CoberturaData | null;
   updatedAt: Date;
 }
+
+type ConciliacaoData = { processedOrders: number; paidOrders: number; complete: boolean };
+type PedidosFeitosData = { revenue: number; orders: number; units: number; points: DailyPoint[] };
+type CanceladasData = { revenue: number | null; orders: number; ordersWithValue?: number; ordersEstimated?: number };
+type CoberturaData = {
+  periodo: { from: string; to: string };
+  sync: { connectionId: string; coveredFrom: string | null; coveredTo: string | null; status: string | null; processedOrders: number };
+};
 
 // Escopo de módulo: sobrevive à navegação entre canais. Ao voltar, o período
 // já visto renderiza no primeiro paint e a revalidação roda em segundo plano.
@@ -285,17 +315,17 @@ export default function Dashboard() {
   // Cobertura da conciliação: quantos pedidos pagos já viraram linhas conciliadas.
   // É o que permite à seção "Financeiro conciliado" DIZER que está parcial em vez
   // de exibir um número menor que o faturamento sem explicação (20/08/2026).
-  const [conciliacao, setConciliacao] = useState<{ processedOrders: number; paidOrders: number; complete: boolean } | null>(null);
+  const [conciliacaoBruta, setConciliacao] = useState<ConciliacaoData | null>(initialDash?.conciliacao ?? null);
   // Faturamento do período — o MESMO número que a central mostra. Antes o card
   // exibia a receita conciliada (subconjunto), e por isso três telas do produto
   // mostravam três valores diferentes de "faturamento" (20/08/2026).
-  const [faturamento, setFaturamento] = useState<DashboardPayload["billing"] | null>(null);
+  const [faturamentoBruto, setFaturamento] = useState<DashboardPayload["billing"] | null>(initialDash?.faturamento ?? null);
   // O número que ela confere contra o Seller Central. Sem ele na tela, a conta
   // era feita à mão — e foi assim que apareceram os defeitos de 21/08.
-  const [pedidosFeitos, setPedidosFeitos] = useState<{ revenue: number; orders: number; units: number; points: DailyPoint[] } | null>(null);
+  const [pedidosFeitosBruto, setPedidosFeitos] = useState<PedidosFeitosData | null>(initialDash?.pedidosFeitos ?? null);
   // Canceladas entram no bruto (ADR-020); mostrar à parte é o que impede o número
   // de parecer inflado sem explicação — o ML já fazia, a Amazon não tinha.
-  const [canceladas, setCanceladas] = useState<{ revenue: number | null; orders: number; ordersWithValue?: number; ordersEstimated?: number } | null>(null);
+  const [canceladasBrutas, setCanceladas] = useState<CanceladasData | null>(initialDash?.canceladas ?? null);
   const [profitabilityScopeBruto, setProfitabilityScope] = useState<ProfitabilityScope | undefined>(initialDash?.profitabilityScope);
   const [saldo, setSaldo] = useState<SaldoData | null>(null);
   const [profitabilityLoadingBruto, setProfitabilityLoading] = useState(!initialDash);
@@ -303,10 +333,7 @@ export default function Dashboard() {
   const [errors, setErrors] = useState<string[]>([]);
   const [brokenConnection, setBrokenConnection] = useState<string | null>(null);
   // Cobertura do sync vs. período (frente K) — vem da rota agregadora.
-  const [cobertura, setCobertura] = useState<{
-    periodo: { from: string; to: string };
-    sync: { connectionId: string; coveredFrom: string | null; coveredTo: string | null; status: string | null; processedOrders: number };
-  } | null>(null);
+  const [coberturaBruta, setCobertura] = useState<CoberturaData | null>(initialDash?.cobertura ?? null);
   const [updatedAtBruto, setUpdatedAt] = useState<Date | null>(initialDash?.updatedAt ?? null);
 
   const periodQuery = period.query;
@@ -338,6 +365,15 @@ export default function Dashboard() {
   const profitability = naMao ? profitabilityBruto : cacheDoPeriodo?.profitability ?? [];
   const profitabilityScope = naMao ? profitabilityScopeBruto : cacheDoPeriodo?.profitabilityScope;
   const updatedAt = naMao ? updatedAtBruto : cacheDoPeriodo?.updatedAt ?? null;
+  // As cinco que faltavam. Mesmo criterio das de cima: o que esta na mao vale
+  // quando e DESTE periodo; senao vem do cache; senao e null — que a tela sabe
+  // exibir como "—" ou carregando. O que nao pode e sobrar o valor do recorte
+  // anterior, e era exatamente isso que acontecia aqui.
+  const conciliacao = naMao ? conciliacaoBruta : cacheDoPeriodo?.conciliacao ?? null;
+  const faturamento = naMao ? faturamentoBruto : cacheDoPeriodo?.faturamento ?? null;
+  const pedidosFeitos = naMao ? pedidosFeitosBruto : cacheDoPeriodo?.pedidosFeitos ?? null;
+  const canceladas = naMao ? canceladasBrutas : cacheDoPeriodo?.canceladas ?? null;
+  const cobertura = naMao ? coberturaBruta : cacheDoPeriodo?.cobertura ?? null;
   // Carregando = nao ha NADA daquele periodo na mao. Derivado pelo mesmo motivo
   // dos valores: o estado chegava um quadro depois do rotulo.
   const temDoPeriodo = naMao || !!cacheDoPeriodo;
@@ -365,6 +401,11 @@ export default function Dashboard() {
       top: cached?.top ?? [],
       profitability: cached?.profitability ?? [],
       profitabilityScope: cached?.profitabilityScope,
+      conciliacao: cached?.conciliacao ?? null,
+      faturamento: cached?.faturamento ?? null,
+      pedidosFeitos: cached?.pedidosFeitos ?? null,
+      canceladas: cached?.canceladas ?? null,
+      cobertura: cached?.cobertura ?? null,
     };
     const store = () => {
       dashCache.set(periodQuery, { ...next, updatedAt: new Date() });
@@ -452,11 +493,15 @@ export default function Dashboard() {
       if (payload.radar) { next.radar = payload.radar; setRadar(payload.radar); }
       next.top = payload.topProducts; setTop(payload.topProducts);
       next.profitability = payload.profitabilityLines; setProfitability(payload.profitabilityLines);
-      setConciliacao(payload.profit.coverage ?? null);
-      setFaturamento(payload.billing ?? null);
-      setPedidosFeitos(payload.ordered ?? null);
-      setCanceladas(payload.cancelled ?? null);
-      setCobertura(payload.period && payload.sync ? { periodo: payload.period, sync: payload.sync } : null);
+      // Escrever nas DUAS pontas — estado e `next` — e o que faltava: sem o
+      // `next`, estas cinco nunca chegavam ao cache e a volta ao periodo ja
+      // visto pagava a ida inteira mostrando o recorte anterior.
+      next.conciliacao = payload.profit.coverage ?? null; setConciliacao(next.conciliacao);
+      next.faturamento = payload.billing ?? null; setFaturamento(next.faturamento);
+      next.pedidosFeitos = payload.ordered ?? null; setPedidosFeitos(next.pedidosFeitos);
+      next.canceladas = payload.cancelled ?? null; setCanceladas(next.canceladas);
+      next.cobertura = payload.period && payload.sync ? { periodo: payload.period, sync: payload.sync } : null;
+      setCobertura(next.cobertura);
       next.profitabilityScope = payload.profitabilityScope; setProfitabilityScope(payload.profitabilityScope);
     };
     // Se o aquecimento ja trouxe este periodo, aplica o payload guardado em vez
