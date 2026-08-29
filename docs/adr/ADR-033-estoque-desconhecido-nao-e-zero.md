@@ -3,6 +3,14 @@
 - **Status:** Proposto
 - **Data:** 2026-08-29
 
+> ## A regra
+>
+> **Uma varredura que não encontra um item pode mudar o STATUS dele, nunca os
+> NÚMEROS dele.**
+>
+> Status é conclusão nossa sobre disponibilidade. Quantidade é dado da fonte.
+> Se você só for ler uma linha deste documento daqui a um ano, é esta.
+
 ## Contexto
 
 `workspace_channel_products.available_qty` é `integer NOT NULL`. **A coluna não
@@ -42,7 +50,13 @@ QUANTIDADE que ninguém informou.
 - Na Shopee, **58% do catálogo inteiro** está com estoque inventado.
 - No TikTok, **30 dos 33 zeros (91%)** são inventados.
 - O ML **não fabrica**: os 313 zeros dele são `paused`/`under_review` com
-  quantidade realmente informada. É a prova de que dá para não fazer isso.
+  quantidade realmente informada.
+
+> **E este é o argumento mais forte do documento, porque é por existência e não
+> por princípio:** não se trata de "seria bom não fabricar". Um canal nosso —
+> o de maior volume, 37.775 pedidos — **já não fabrica, e nada quebrou por causa
+> disso**. Para quem vier depois e quiser "simplificar" tornando a coluna
+> `NOT NULL` de novo, a resposta já está rodando em produção.
 
 E o terceiro estado, SKUs que vendem sem linha no catálogo: **Amazon 75**,
 Mercado Livre 4, Shopee 4. Para esses a tela não mostra zero — não mostra nada,
@@ -64,9 +78,15 @@ nenhuma defesa do sistema.
 | **Alerta "N produto(s) em estoque crítico"** no topo dos dashboards | Conta itens que não deveriam estar lá |
 | **Telas de estoque** dos quatro canais (coluna "Disponível") | Mostra `0` como se fosse leitura da fonte |
 | **Tela de produtos/custos** (Shopee, TikTok) | Idem |
-| **Custo do estoque no Full** (`mercadoLivreFullStock`) | Filtra `availableQty > 0`: o item **sai silenciosamente** da lista de capital parado |
+| **Custo do estoque no Full** (`mercadoLivreFullStock`) | ⚠️ **A pior das sete.** Filtra `availableQty > 0`: o item **desaparece** da lista de capital parado |
 | **Detector de ruptura do TikTok** (`insights/detectors/tiktokRuptura.ts`) | Gera insight de ruptura sobre ignorância |
 | **Sinal de ruptura do briefing** (`centralDiagnostico`) | Já contornado em 29/08 exigindo `status='active'` — contorno, não conserto |
+
+> ⚠️ **A quinta superfície é a pior, e merece o nome escrito:** as outras seis
+> mostram **número errado**; essa faz o item **DESAPARECER** da lista de capital
+> parado **sem deixar rastro**. Erro que aparece a gente conserta; erro que some
+> ninguém procura. E capital parado é dinheiro dela — um item sumindo dali é a
+> tela dizendo *"não há nada aqui"* sobre estoque que existe.
 
 ## Decisão
 
@@ -142,6 +162,9 @@ conclusão nossa sobre disponibilidade; quantidade é dado da fonte.
   um alarme de reposição legítimo e um alarme sobre ignorância.
 - **Perde-se** a simplicidade de um campo que nunca é nulo. É o custo de dizer a
   verdade, e é o mesmo custo que `gross` já pagou na migration 0008.
-- **Fica em aberto**: a Amazon tem 75 SKUs vendendo sem linha no catálogo — o
-  terceiro estado é maior lá do que nos outros canais, e a causa é diferente (o
-  catálogo canônico da Amazon quase não é populado: 8 anúncios). Frente própria.
+- **O terceiro estado é FRENTE PRÓPRIA, não rodapé deste ADR.** São 75 SKUs
+  vendendo na Amazon sem linha no catálogo, mais 4 no ML e 4 na Shopee. A tela
+  não mostra zero — **não mostra nada**, e "não mostra nada" é o único erro que
+  nenhuma medição de tela pega. A causa é diferente (o catálogo canônico da
+  Amazon quase não é populado: 8 anúncios) e o conserto também. Este ADR só
+  nomeia o estado; resolvê-lo é outro trabalho.
