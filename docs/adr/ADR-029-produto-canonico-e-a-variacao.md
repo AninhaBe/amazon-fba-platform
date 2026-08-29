@@ -281,6 +281,28 @@ mesma classe do achado da NF-e.
 - Enquanto o ML não expandir variações, ele fica com a granularidade antiga.
   Precisa entrar na mesma frente ou ficar registrado como pendência explícita.
 
+## ⚠️ O que o `fillfactor` protege — e o que ele NÃO protege
+
+Registrado antes de aplicar, para ninguém depois concluir que o backfill foi HOT:
+
+`ALTER TABLE ... SET (fillfactor = 90)` **não libera espaço nas páginas que já
+estão cheias.** Ele vale para páginas novas. Como a tabela está hoje em
+`fillfactor` 100 (medido: `reloptions = NULL`) com as páginas antigas cheias,
+**boa parte das escritas deste backfill não conseguirá ser HOT** — as versões
+novas vão para páginas novas, e essas sim nascem com a folga.
+
+Ou seja: o `fillfactor` aqui **protege os updates seguintes**, não acelera este
+backfill. Ele entra mesmo assim porque a tabela vai continuar recebendo escrita
+depois; o que não se deve é atribuir a ele um ganho que ele não entrega agora.
+
+Obter o ganho também neste backfill exigiria `VACUUM FULL` depois — **decisão
+recusada** em 29/08/2026: tem lock, e o ganho não justifica no meio de um lote.
+
+📌 Custo físico projetado do backfill, com esse desenho: ~22.965 linhas ×
+~295 bytes = **~6,8 MB de heap novo**, mais ~5,2 MB de entradas de índice
+(escrita não-HOT) = **~12 MB de inchaço temporário**, recuperável no autovacuum.
+Cerca de **um terço** dos 37 MB que o backfill da R2 inflou.
+
 ## Ordem de execução (indivisível — ver a condição de atomicidade)
 
 1. `SET fillfactor=90` em `workspace_channel_order_items` **antes** do backfill.

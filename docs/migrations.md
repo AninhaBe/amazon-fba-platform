@@ -146,6 +146,25 @@ por isso o hash muda a cada execução. Guardar o recalculado no lugar do assina
 fazia o log parecer prova de adulteração de um apply legítimo (corrigido em
 21/08/2026, no primeiro apply real do runner).
 
+### ⚠️ Comentário em migration influencia a classificação — escolha as palavras
+
+O classificador do runner é textual (`classify` em `migration-safety.mjs`): ele
+casa `INSERT|UPDATE|DELETE` contra o **arquivo inteiro**, comentários incluídos.
+
+Aconteceu em 29/08/2026: a `0018`, que é **DDL puro** (`SET fillfactor`,
+`ADD COLUMN`, `COMMENT`), saiu classificada como `DATA_CHANGE` porque um
+comentário dizia *"cada **update** do backfill"*. Bastou trocar para "escrita" e
+o plano voltou a `["DDL"]`.
+
+Parece detalhe e não é: **um rastro de auditoria que classifica errado ensina o
+revisor futuro a desconfiar do rastro** — e rastro em que não se confia é pior
+que nenhum, porque dá a sensação de controle sem o controle. A correção certa é
+reescrever o comentário, não explicar a classificação no reporte.
+
+Ao escrever comentário em migration, evite `insert`, `update` e `delete` como
+palavras comuns quando o arquivo não faz DML. "Escrita", "gravação" e "carga"
+dizem a mesma coisa sem sujar a classificação.
+
 ⚠️ **Isto não é dupla custódia.** Numa operação de uma pessoa, quem autoriza e quem
 aplica são a mesma pessoa, com as duas chaves. O que o fluxo garante é que apply
 não acontece por acidente, que operação destrutiva aparece classificada antes, e
