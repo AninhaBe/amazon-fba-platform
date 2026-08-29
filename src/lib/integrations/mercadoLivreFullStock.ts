@@ -30,7 +30,8 @@ export interface OfertaFull {
   externalProductId: string;
   sku: string | null;
   title: string;
-  availableQty: number;
+  /** `null` = a fonte não informou o estoque. Ver ADR-033. */
+  availableQty: number | null;
   userProductId: string | null;
 }
 
@@ -63,6 +64,16 @@ export interface CustoDoFull {
   unidadesSemCusto: number;
   /** Quantos itens ficaram fora do total por falta de custo. */
   itensSemCusto: number;
+  /**
+   * Ofertas que ficaram fora da lista porque a FONTE NÃO INFORMOU o estoque.
+   *
+   * ⚠️ Existe porque esta era a pior das sete superfícies do ADR-033: o filtro
+   * `availableQty > 0` fazia o item DESAPARECER da lista de capital parado sem
+   * deixar rastro. As outras seis mostravam número errado; essa sumia com o
+   * item. Erro que aparece a gente conserta; erro que some ninguém procura — e
+   * capital parado é dinheiro dela.
+   */
+  ofertasSemEstoqueConhecido: number;
 }
 
 const round2 = (valor: number) => +valor.toFixed(2);
@@ -83,9 +94,21 @@ export function custoDoEstoqueNoFull(
   custoDe: (oferta: OfertaFull) => number | null,
   moeda = "BRL"
 ): CustoDoFull {
-  const grupos = new Map<string, { ofertas: OfertaFull[]; tipo: ChaveDeAgrupamento }>();
+  type OfertaComEstoque = OfertaFull & { availableQty: number };
+  const grupos = new Map<string, { ofertas: OfertaComEstoque[]; tipo: ChaveDeAgrupamento }>();
   // Estoque zerado não é capital parado: fica fora da lista inteira.
-  for (const oferta of ofertas.filter((item) => item.availableQty > 0)) {
+  // ⚠️ `!= null &&` explícito, nunca `?? 0` (ADR-033). E o que fica de fora por
+  // estoque DESCONHECIDO é contado — sumir em silêncio foi o defeito.
+  const semEstoqueConhecido = ofertas.filter((item) => item.availableQty == null).length;
+  // O predicado de tipo carrega a garantia adiante: depois deste filtro,
+  // `availableQty` É `number`, e nenhum `?? 0` precisa existir aqui dentro.
+  // Escrever `?? 0` mesmo onde é inofensivo mantém vivo o idioma que fabrica a
+  // mentira — e foi assim que ele chegou a sete lugares.
+  const comEstoque = ofertas.filter(
+    (item): item is OfertaFull & { availableQty: number } =>
+      item.availableQty != null && item.availableQty > 0
+  );
+  for (const oferta of comEstoque) {
     const { chave, tipo } = chaveDe(oferta);
     const grupo = grupos.get(chave);
     if (grupo) grupo.ofertas.push(oferta);
@@ -121,5 +144,6 @@ export function custoDoEstoqueNoFull(
     unidadesComCusto: comCusto.reduce((soma, item) => soma + item.qtyFull, 0),
     unidadesSemCusto: itens.filter((item) => item.subtotal == null).reduce((soma, item) => soma + item.qtyFull, 0),
     itensSemCusto: itens.length - comCusto.length,
+    ofertasSemEstoqueConhecido: semEstoqueConhecido,
   };
 }

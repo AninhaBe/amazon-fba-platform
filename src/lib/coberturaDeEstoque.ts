@@ -13,7 +13,7 @@
 //
 // Ela viu na tela: *"tenho 1 em estoque e é saudável? caraca"*.
 
-export type StockStatus = "out" | "critical" | "low" | "ok" | "overstock" | "idle";
+export type StockStatus = "out" | "critical" | "low" | "ok" | "overstock" | "idle" | "desconhecido";
 
 // Limiares de dias para classificar a urgência.
 //
@@ -33,6 +33,10 @@ export const ORDEM_DO_RADAR: Record<StockStatus, number> = {
   ok: 3,
   overstock: 4,
   idle: 5,
+  // Último de propósito: desconhecido NÃO É URGÊNCIA, é lacuna. Colocá-lo entre
+  // os urgentes faria a lista de reposição começar por itens sobre os quais não
+  // se sabe nada.
+  desconhecido: 6,
 };
 
 /** O mesmo nome para o mesmo estado, em todo canal. */
@@ -43,6 +47,9 @@ export const ROTULO_DE_COBERTURA: Record<StockStatus, string> = {
   ok: "Saudável",
   overstock: "Excesso",
   idle: "Sem venda",
+  // Diz o que É, não pede desculpa. "Parcial" e "incompleto" são proibidos: a
+  // pessoa já sabe que falta algo — ela precisa saber O QUÊ.
+  desconhecido: "Estoque não informado",
 };
 
 /**
@@ -50,12 +57,22 @@ export const ROTULO_DE_COBERTURA: Record<StockStatus, string> = {
  * tem, o anúncio do Mercado Livre não.
  */
 export function classificarCobertura(input: {
-  disponivel: number;
+  /**
+   * `null` = A FONTE NÃO INFORMOU. Nunca converta para 0 antes de chamar aqui:
+   * `disponivel ?? 0` transforma ignorância em fato e é exatamente o defeito que
+   * a ADR-033 fecha — 435 dos 747 anúncios da Shopee estavam nesse estado.
+   */
+  disponivel: number | null;
   aCaminho?: number;
   porDia: number;
   diasRestantes: number | null;
 }): StockStatus {
   const { disponivel, aCaminho = 0, porDia, diasRestantes } = input;
+  // ⚠️ ANTES DE QUALQUER OUTRA CLASSIFICAÇÃO (ADR-033). Sem estoque conhecido não
+  // dá para dizer "esgotado" nem "saudável" — as duas seriam afirmação sobre o
+  // que ninguém informou. E "esgotado" é a pior das duas: vira alarme de
+  // reposição para produto que talvez esteja cheio.
+  if (disponivel == null) return "desconhecido";
   if (disponivel <= 0 && aCaminho <= 0) return "out";
   // Sem venda no período não é "saudável": é desconhecido. Sem velocidade não
   // existe previsão de ruptura, e afirmar cobertura seria inventar.

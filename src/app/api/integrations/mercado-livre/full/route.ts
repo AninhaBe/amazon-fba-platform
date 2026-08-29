@@ -25,7 +25,8 @@ interface LinhaFull {
   external_product_id: string;
   sku: string | null;
   title: string;
-  available_qty: number;
+  /** `null` = a fonte nao informou. Ver ADR-033. */
+  available_qty: number | null;
   user_product_id: string | null;
   currency: string | null;
 }

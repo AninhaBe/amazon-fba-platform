@@ -41,10 +41,16 @@ test("as faixas de urgencia", () => {
 test("sem venda vai para o fim da fila de urgencia", () => {
   assert.ok(ORDEM_DO_RADAR.out < ORDEM_DO_RADAR.critical);
   assert.ok(ORDEM_DO_RADAR.critical < ORDEM_DO_RADAR.ok);
+  // "idle" continua depois de TODA urgência. O que mudou em 29/08/2026 (ADR-033)
+  // é que existe algo ainda menos urgente: "desconhecido" — estoque que a fonte
+  // não informou. Lacuna não é urgência, e não pode abrir a fila de reposição.
+  for (const urgente of ["out", "critical", "low", "ok", "overstock"]) {
+    assert.ok(ORDEM_DO_RADAR.idle > ORDEM_DO_RADAR[urgente], `idle tem que vir depois de ${urgente}`);
+  }
   assert.equal(
     Math.max(...Object.values(ORDEM_DO_RADAR)),
-    ORDEM_DO_RADAR.idle,
-    "quem não vendeu não é urgente — vai por último"
+    ORDEM_DO_RADAR.desconhecido,
+    "estoque não informado é o último: não dá para priorizar o que não se sabe"
   );
 });
 

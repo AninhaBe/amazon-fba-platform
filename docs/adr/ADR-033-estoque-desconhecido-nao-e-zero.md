@@ -1,6 +1,6 @@
 # ADR-033: Estoque desconhecido não é zero
 
-- **Status:** Proposto
+- **Status:** Aceito
 - **Data:** 2026-08-29
 
 > ## A regra

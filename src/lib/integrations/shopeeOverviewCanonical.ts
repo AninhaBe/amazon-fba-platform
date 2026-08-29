@@ -122,7 +122,8 @@ interface CatalogRow {
   title: string;
   status: string;
   price: string;
-  available_qty: number;
+  /** `null` = a fonte nao informou. Ver ADR-033. */
+  available_qty: number | null;
   thumbnail: string | null;
   permalink: string | null;
   synced_at: Date | string;
@@ -235,7 +236,7 @@ export interface ShopeeOverview {
     cost: number; contribution: number; complete: boolean; marginPct: number | null;
   }>;
   stockRadar: Array<{
-    id: string; sku: string | null; title: string; availableQuantity: number;
+    id: string; sku: string | null; title: string; availableQuantity: number | null;
     unitsSold: number; calculationDays: number; daysRemaining: number | null;
     status: StockStatus;
   }>;
@@ -722,13 +723,22 @@ export async function getShopeeOverviewFromCanonical(
   // verdade); anúncio pausado só entra se ainda tem estoque parado, que é a
   // informação útil ("tem mercadoria presa num anúncio desligado").
   const stockRadar = catalog
-    .filter((product) => product.status === "active" || (product.status === "paused" && product.availableQuantity > 0))
+    // ⚠️ `!= null &&` explícito, nunca `?? 0` (ADR-033): estoque desconhecido não
+    // pode virar zero para caber numa comparação. Anúncio pausado com estoque
+    // DESCONHECIDO fica fora do radar — não dá para dizer que tem mercadoria
+    // presa sem saber se tem.
+    .filter((product) => product.status === "active"
+      || (product.status === "paused" && product.availableQuantity != null && product.availableQuantity > 0))
     .map((product) => {
       const unitsSold = unitsByItem.get(product.id) ?? 0;
       // Sem data de início do anúncio no canônico, o período inteiro é a janela.
       const calculationDays = periodDays;
       const perDay = unitsSold / calculationDays;
-      const daysRemaining = perDay > 0 ? Math.floor(product.availableQuantity / perDay) : null;
+      // Sem estoque conhecido não há previsão possível — e `null` aqui já é o
+      // vocabulário existente para "não dá para prever".
+      const daysRemaining = perDay > 0 && product.availableQuantity != null
+        ? Math.floor(product.availableQuantity / perDay)
+        : null;
       // Mesma regra dos outros canais, do mesmo lugar. Aqui havia a terceira
       // cópia da classificação — e com o mesmo defeito do ML: anúncio com
       // estoque e ZERO venda saía como "ok". Ver `classificarCobertura`.

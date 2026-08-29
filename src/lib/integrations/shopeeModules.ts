@@ -38,7 +38,7 @@ export async function readShopeeCatalog(connection: IntegrationConnection, param
   // Anúncio inativo sai da frente por padrão — 265 de 372 nesta loja. Ver
   // `filtroDeAtividade.ts`: o inativo não some, só deixa de ser o padrão.
   const atividade = filtroDeAtividadeRequest(params);
-  if (!hasDb()) return { items: [], page: { ...page, total: 0, hasMore: false }, atividade, ordenacao: "volume" as const, totalNoCanal: 0, ocultados: 0, availability: "NOT_AVAILABLE" as const };
+  if (!hasDb()) return { items: [], page: { ...page, total: 0, hasMore: false }, atividade, ordenacao: "volume" as const, totalNoCanal: 0, ocultados: 0, semEstoqueInformado: { anuncios: 0, varreduraEm: null }, availability: "NOT_AVAILABLE" as const };
   const escopo = [currentWorkspaceId(), PROVIDER, connection.id];
   // ORDENAÇÃO PADRÃO: mais vendido nos últimos 30 dias primeiro.
   //
@@ -122,11 +122,38 @@ export async function readShopeeCatalog(connection: IntegrationConnection, param
   const total = Number(rows[0]?.total ?? 0);
   // O total do canal (sem o filtro, com a busca) é o que permite dizer QUANTOS
   // ficaram de fora. Sem esse número a tela esconderia sem avisar.
+  // ⚠️ O QUE NAO ESTA NA LISTA PRECISA SER DITO, COM NUMERO E DATA (ADR-033).
+  // Anuncio que a varredura nao devolveu tem `available_qty` NULL — antes ele
+  // vinha como 0 e a tela afirmava "estoque zero" sobre o que ninguem informou.
+  // Some-lo em silencio seria trocar um defeito por outro.
+  const [semEstoque] = await dbQuery<{ anuncios: number; varredura: string | null }>(
+    `SELECT COUNT(*) FILTER (WHERE p.available_qty IS NULL)::int AS anuncios,
+            MAX(s.products_synced_at)::text AS varredura
+       FROM workspace_channel_products p
+       LEFT JOIN workspace_marketplace_syncs s
+         ON s.workspace_id = p.workspace_id AND s.provider = p.provider
+        AND s.connection_id = p.connection_id
+      WHERE p.workspace_id=$1 AND p.provider=$2 AND p.connection_id=$3`,
+    escopo
+  );
+
   const totalNoCanal = atividade === "todos" ? total : Number((await dbQuery<Row>(
     `SELECT COUNT(*)::int total FROM workspace_channel_products WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3 AND ($4='' OR title ILIKE '%'||$4||'%' OR COALESCE(sku,'') ILIKE '%'||$4||'%' OR external_product_id ILIKE '%'||$4||'%')`,
     [...escopo, q]
   ))[0]?.total ?? 0);
-  return { items, page: { ...page, total, hasMore: page.offset + items.length < total }, atividade, ordenacao, totalNoCanal, ocultados: ocultadosPeloFiltro(totalNoCanal, total), availability: "AVAILABLE" as const };
+  return {
+    items,
+    page: { ...page, total, hasMore: page.offset + items.length < total },
+    atividade,
+    ordenacao,
+    totalNoCanal,
+    ocultados: ocultadosPeloFiltro(totalNoCanal, total),
+    semEstoqueInformado: {
+      anuncios: Number(semEstoque?.anuncios ?? 0),
+      varreduraEm: semEstoque?.varredura ?? null,
+    },
+    availability: "AVAILABLE" as const,
+  };
 }
 
 export async function readShopeeInventory(connection: IntegrationConnection, params: URLSearchParams) {

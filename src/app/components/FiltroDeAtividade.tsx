@@ -50,3 +50,35 @@ export function AvisoDeOcultos({ ocultados, atividade, verTodos }: {
     </p>
   );
 }
+
+/**
+ * Anúncios cujo estoque a FONTE NÃO INFORMOU (ADR-033).
+ *
+ * ⚠️ A frase não se desculpa e não usa adjetivo. Nada de "estoque parcialmente
+ * disponível" ou "dados incompletos": a pessoa já sabe que falta algo — ela
+ * precisa saber O QUÊ, QUANTOS, DE QUANDO e o que fazer. Por isso a frase
+ * carrega número, canal, a data da varredura que não os trouxe, e um caminho.
+ *
+ * Antes destes anúncios existirem como `null`, eles vinham como estoque ZERO —
+ * e a tela afirmava "esgotado" sobre 435 dos 747 anúncios da Shopee dela.
+ */
+export function AvisoDeEstoqueNaoInformado({ anuncios, canal, varreduraEm, verTodos }: {
+  anuncios?: number;
+  canal: string;
+  varreduraEm?: string | null;
+  verTodos?: () => void;
+}) {
+  if (!anuncios || anuncios <= 0) return null;
+  const plural = anuncios === 1 ? "anúncio" : "anúncios";
+  const quando = varreduraEm
+    ? new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
+      .format(new Date(varreduraEm))
+    : null;
+  return (
+    <p className="channel-module-method" role="status">
+      {anuncios} {plural} sem estoque confirmado pel{canal === "Shopee" ? "a" : "o"} {canal}
+      {quando ? ` — não vieram na última varredura de catálogo (${quando})` : ""}.{" "}
+      {verTodos && <button type="button" className="link-button" onClick={verTodos}>Ver quais</button>}
+    </p>
+  );
+}

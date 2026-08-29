@@ -21,13 +21,13 @@ import { buildFinancialComposition, FinancialSummaryPanel } from "./FinancialSum
 import { shopeeTaxLabel } from "./ShopeeWorkspaceModel";
 import { comSemImposto } from "@/lib/semImposto";
 import { marginMetricTone } from "@/lib/marginTone";
-import { AvisoDeOcultos, FiltroDeAtividade } from "./FiltroDeAtividade";
+import { AvisoDeEstoqueNaoInformado, AvisoDeOcultos, FiltroDeAtividade } from "./FiltroDeAtividade";
 import type { FiltroDeAtividade as FiltroDeAtividadeValor } from "@/lib/integrations/filtroDeAtividade";
 
 type Connection={id:string;status:string;displayName?:string;externalAccountId?:string;metadata?:{demo?:boolean}};
 type Coverage={complete?:boolean;capturedOrders?:number;totalOrders?:number;processedOrders?:number;paidOrders?:number};
 type ProfitBlock={fees:number|null;ads:number|null;taxesWithheld:number|null;refunds:number|null;cogs:number|null;taxes:number|null;taxRate:number|null;sellerShipping:number|null;buyerShipping:number|null;feesComplete:boolean;revenueProcessed:number;coverage:Coverage&{processedOrders:number;paidOrders:number;complete:boolean};estimatedProfit:number|null;marginPct:number|null;unitsWithoutCost:number};
-type Payload={items?:Record<string,unknown>[];orders?:Record<string,unknown>[];availability?:string;page?:{limit:number;offset:number;total:number;returned?:number;hasMore:boolean;complete?:boolean};coverage?:Coverage|null;profitSubset?:{reason?:string};profit?:ProfitBlock|null;currency?:string;error?:string;code?:string;atividade?:FiltroDeAtividadeValor;ocultados?:number;totalNoCanal?:number;ordenacao?:"volume"|"titulo"};
+type Payload={items?:Record<string,unknown>[];orders?:Record<string,unknown>[];availability?:string;page?:{limit:number;offset:number;total:number;returned?:number;hasMore:boolean;complete?:boolean};coverage?:Coverage|null;profitSubset?:{reason?:string};profit?:ProfitBlock|null;currency?:string;error?:string;code?:string;atividade?:FiltroDeAtividadeValor;ocultados?:number;semEstoqueInformado?:{anuncios:number;varreduraEm:string|null};totalNoCanal?:number;ordenacao?:"volume"|"titulo"};
 const money=(value:unknown,currency="BRL")=>value==null?"—":new Intl.NumberFormat("pt-BR",{style:"currency",currency}).format(Number(value));
 const show=(value:unknown)=>value==null||value===""?"—":String(value);
 
@@ -66,6 +66,10 @@ function Content({kind,body,params,update,connectionId,retry}:{kind:ShopeeModule
     {kind==="abc"&&<aside className="channel-module-notice is-warning"><strong>Lucro por SKU indisponível</strong><p>{body.profitSubset?.reason||"O contrato atual não permite atribuir lucro por produto com segurança."}</p></aside>}
     {["catalog","inventory","costs"].includes(kind)&&<form className="listing-controls channel-module-filters" onSubmit={event=>{event.preventDefault();update({q:search||null})}}><label className="listing-search"><span className="sr-only">Buscar</span><input value={search} maxLength={120} onChange={event=>setSearch(event.target.value)} placeholder="Produto, SKU ou ID"/></label><FiltroDeAtividade atual={body.atividade} onChange={valor=>update({atividade:valor==="ativos"?null:valor,offset:null})}/><label className="listing-search"><span className="sr-only">Ordenar por</span><select value={body.ordenacao??"volume"} onChange={event=>update({ordenacao:event.target.value==="volume"?null:event.target.value,offset:null})}><option value="volume">Mais vendidos (30 dias)</option><option value="titulo">Nome do produto</option></select></label><button className="listing-refresh">Aplicar filtro</button></form>}
     {["catalog","inventory","costs"].includes(kind)&&<AvisoDeOcultos ocultados={body.ocultados} atividade={body.atividade} verTodos={()=>update({atividade:"todos",offset:null})}/>}
+    {/* ADR-033: o que a fonte NAO informou precisa aparecer com numero e data.
+        Antes estes anuncios vinham como estoque ZERO e a tela dizia "esgotado"
+        sobre 435 dos 747 anuncios dela. */}
+    {["catalog","inventory","costs"].includes(kind)&&<AvisoDeEstoqueNaoInformado anuncios={body.semEstoqueInformado?.anuncios} canal="Shopee" varreduraEm={body.semEstoqueInformado?.varreduraEm} verTodos={()=>update({atividade:"todos",offset:null})}/>}
     {!rows.length?<EmptyState compact title="Nenhum resultado" description="Não há dados para os filtros e o período selecionados."/>:<Table kind={kind} rows={rows} connectionId={connectionId} retry={retry}/>} 
     {body.page&&<nav aria-label="Paginação" className="listing-pagination channel-module-pagination"><p role="status">Exibindo {body.page.total===0?0:body.page.offset+1}–{Math.min(body.page.offset+(body.page.returned??rows.length),body.page.total)} de {body.page.total} resultado(s). {body.page.complete===false||body.page.hasMore?"Há mais resultados; esta página não representa o conjunto completo.":"Cobertura completa."}</p><div><button disabled={!body.page.offset} onClick={()=>update({offset:String(Math.max(0,body.page!.offset-body.page!.limit))})}>Anterior</button><button disabled={!body.page.hasMore} onClick={()=>update({offset:String(body.page!.offset+body.page!.limit)})}>Próxima</button></div></nav>}
   </section>;

@@ -66,7 +66,7 @@ O que ganhamos, o que abrimos mão, o que passa a ser obrigatório respeitar.
 | [ADR-029](./ADR-029-produto-canonico-e-a-variacao.md) | O produto canônico é a variação, não o anúncio — o custo se prende onde a venda acontece (TikTok já faz assim) | Proposto |
 | [ADR-030](./ADR-030-fundo-nao-compete-com-a-tela.md) | Trabalho de fundo tem pool próprio e intervalo medido — a fome da tela vira impossível por construção | Aceito |
 | [ADR-032](./ADR-032-quanto-o-nexo-pode-perguntar-a-um-marketplace.md) | Quanto o NEXO pode perguntar a um marketplace: não antes de haver resposta, não repetir sem intervalo, não perguntar o que já se sabe — e contar toda chamada | Aceito |
-| [ADR-033](./ADR-033-estoque-desconhecido-nao-e-zero.md) | Estoque desconhecido é `null`, não `0` — varredura que não acha um item muda o status dele, nunca os números | Proposto |
+| [ADR-033](./ADR-033-estoque-desconhecido-nao-e-zero.md) | Estoque desconhecido é `null`, não `0` — varredura que não acha um item muda o status dele, nunca os números | Aceito |
 
 **Índice completo em 16/08/2026** — 14 ADRs, todos listados. Ao criar um ADR novo,
 adicione a linha aqui na mesma hora; este índice já ficou 8 ADRs atrás uma vez.

@@ -155,7 +155,11 @@ export async function readInventory(connection: IntegrationConnection, params: U
     // MESMA classificação dos outros três canais. Antes o TikTok não devolvia
     // status nenhum e a tela não sabia dizer se um SKU estava saudável, parado
     // ou perto de romper — ver `classificarCobertura`.
-    cobertura:classificarCobertura({disponivel:Number(r.available_qty??0),porDia:Number(r.average_per_day??0),diasRestantes:r.days_remaining==null?null:Number(r.days_remaining)})}));
+    // ⚠️ `available_qty ?? 0` estava AQUI e era o idioma proibido pela ADR-033:
+    // transformava "a fonte nao informou" em "a fonte disse zero", e zero vira
+    // "Esgotado" no radar — alarme de reposicao sobre ignorancia. 30 dos 33 zeros
+    // do TikTok estavam nesse estado.
+    cobertura:classificarCobertura({disponivel:r.available_qty==null?null:Number(r.available_qty),porDia:Number(r.average_per_day??0),diasRestantes:r.days_remaining==null?null:Number(r.days_remaining)})}));
   const total=rows[0]?.total??0;
   return {items,page:{...page,total,hasMore:page.offset+items.length<total},availability:"AVAILABLE" as const,period:{from:period.from.toISOString(),to:period.to.toISOString()}};
 }
