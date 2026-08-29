@@ -1004,7 +1004,13 @@ export default function Dashboard() {
             total: faturamentoConciliado,
             costs: [
               ...(profit?.finance.feeBreakdown ?? []).map((fee) => ({ id: fee.type, label: nomeDaTarifa(fee.type), value: fee.amount })),
-              { id: "cogs", label: "Custo dos produtos", value: costsIncomplete ? null : profit?.cogs },
+              // ⚠️ O MESMO tudo-ou-nada da Shopee, achado no mesmo dia (29/08/2026):
+              // `costsIncomplete ? null` some com o custo INTEIRO por causa das
+              // unidades sem cadastro. A soma das que TÊM custo é fato, e a
+              // pendência já aparece nomeada com número e link no rodapé.
+              // Lucro e margem seguem esperando — `result` abaixo continua com o
+              // portão, porque lucro com custo incompleto é otimista sem aviso.
+              { id: "cogs", label: "Custo dos produtos", value: profit?.cogs },
               // ⚠️ ANÚNCIO ENTRA NA COMPOSIÇÃO (29/08/2026). Ele não é repasse da
               // Amazon, e era por isso que estava fora — mas o painel não mostra
               // "repasses", mostra COMO O FATURAMENTO VIRA LUCRO, e anúncio sai

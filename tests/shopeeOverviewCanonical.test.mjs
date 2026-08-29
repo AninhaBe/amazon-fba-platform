@@ -147,7 +147,15 @@ test("período parcial bloqueia lucro e completude", async () => {
   assert.equal(result.profit.marginPct, null);
 });
 
-test("COGS incompleto permanece null e bloqueia lucro", async () => {
+test("COGS incompleto mostra a soma do que se sabe e AINDA ASSIM bloqueia lucro", async () => {
+  // ⚠️ ESTE TESTE MUDOU DE INTENCAO em 29/08/2026, por decisao do cerebro depois
+  // de a Ana relatar a tela sem calcular nada. Antes ele exigia `cogs === null`
+  // quando faltava custo de uma unidade — o tudo-ou-nada. Agora exige as DUAS
+  // metades, que sao decisoes separadas de proposito:
+  //   1. o custo mostra a soma das unidades conhecidas (fato, nao extrapolacao);
+  //   2. o lucro CONTINUA null, porque lucro com custo incompleto e otimista.
+  // Aqui nenhuma unidade tem custo, entao o custo e null mesmo — soma de zero
+  // unidades conhecidas nao e "R$ 0,00", e desconhecido.
   const result = await overview({ taxRate: 10, costs: {} });
   assert.equal(result.profit.cogs, null);
   assert.equal(result.profit.unitsWithoutCost, 1);
@@ -171,6 +179,7 @@ test("custo explicitamente zero é COGS conhecido, mas custo ausente continua nu
   assert.equal(known.profitabilityLines[0].complete, true);
 
   const missing = await overview({ taxRate: 0, costs: {} });
+  // Nenhuma unidade conhecida: continua null (ver o teste acima).
   assert.equal(missing.profit.cogs, null);
   assert.equal(missing.profitabilityLines[0].productCost, null);
   assert.equal(missing.metrics.productsWithoutCost, 1);

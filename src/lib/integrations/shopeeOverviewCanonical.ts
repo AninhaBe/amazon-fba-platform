@@ -591,10 +591,19 @@ export async function getShopeeOverviewFromCanonical(
 
   let cogs = 0;
   let unitsWithoutCost = 0;
+  let unitsWithCost = 0;
+  // Produtos que VENDERAM no período e não têm custo. É o que a vendedora pode
+  // resolver para mudar o número da tela — ver `productsWithoutCost` adiante.
+  const vendidosSemCusto = new Set<string>();
   for (const row of cogsRows) {
     const entry = shopeeCostEntry(costs, connection.id, row.external_product_id, row.sku, costNamespace);
-    if (entry) cogs += costAt(entry, new Date(row.occurred_at).toISOString()) * row.qty;
-    else unitsWithoutCost += row.qty;
+    if (entry) {
+      cogs += costAt(entry, new Date(row.occurred_at).toISOString()) * row.qty;
+      unitsWithCost += row.qty;
+    } else {
+      unitsWithoutCost += row.qty;
+      vendidosSemCusto.add(row.external_product_id ?? row.sku ?? "");
+    }
   }
 
   const profitabilityLines: ProfitabilityLine[] = [];
@@ -684,7 +693,30 @@ export async function getShopeeOverviewFromCanonical(
   // aqui — sem eles o número seria otimista sem ninguém saber.
   const financialComplete = periodCovered && ordersProcessed >= totals.paid_orders && cogsKnown
     && [fees, sellerShipping, ads, taxesWithheld, refunds].every((value) => value != null);
-  const cogsValue = cogsKnown ? cogs : null;
+  // ⚠️ A SOMA DO QUE SE SABE NÃO É DESCONHECIDA.
+  //
+  // Aqui morava `cogsKnown ? cogs : null`: duas unidades sem custo entre 210
+  // faziam a tela devolver travessão no custo INTEIRO — e `cogs` já estava
+  // somado na linha de cima, com as outras 208. O número existia e era jogado
+  // fora.
+  //
+  // `null` é desconhecido; a soma de 208 unidades com custo cadastrado é FATO —
+  // dinheiro que ela gastou e que a gente sabe. Esconder fato para não arriscar
+  // um total incompleto é o tudo-ou-nada, não a regra da casa: a regra manda
+  // NOMEAR o que falta com número e link (`unitsWithoutCost` faz isso), não
+  // sumir com o que se tem. Relatado pela Ana em 29/08/2026, depois de cadastrar
+  // os custos e a tela continuar sem calcular nada.
+  //
+  // ⚠️ LUCRO E MARGEM CONTINUAM ESPERANDO, de propósito: `cogsKnown` segue em
+  // `financialComplete` logo acima. Custo é soma de fatos; lucro com custo
+  // incompleto seria otimista sem ninguém saber. Os dois portões são diferentes
+  // porque as duas perguntas são diferentes.
+  //
+  // ⚠️ E se NENHUMA unidade tem custo, aí sim é `null`. "R$ 0,00" com zero
+  // unidades conhecidas não é a soma do que se sabe — é um número que parece
+  // dizer "não custou nada". Somar fato é honesto; exibir vazio como zero é o
+  // erro que a regra da casa proíbe desde sempre.
+  const cogsValue = unitsWithCost > 0 || unitsWithoutCost === 0 ? cogs : null;
   const estimatedProfit = financialComplete
     ? processedRevenue - fees! - cogsValue! - (taxes ?? 0) - sellerShipping! - ads! - taxesWithheld! - refunds!
     : null;
@@ -768,7 +800,15 @@ export async function getShopeeOverviewFromCanonical(
     period: { from: period.from.toISOString(), to: period.to.toISOString(), label: period.label },
     metrics: {
       activeListings: catalog.filter((product) => product.status === "active").length,
-      productsWithoutCost: catalog.filter((product) => product.cost == null).length,
+      // ⚠️ CONTA QUEM VENDEU, NÃO O CATÁLOGO INTEIRO.
+      //
+      // Era `catalog.filter(cost == null)` — todos os produtos da loja, sem
+      // filtro de venda, de período ou de status. Na UTILEIRA isso dava **680**
+      // (catálogo de 747) quando os produtos com venda em 30 dias eram **123**.
+      // A Ana cadastrou os que venderam e a tela continuou pedindo 680: ação que
+      // não cabe numa tarde não é ação, é parede — e ainda faz parecer que o
+      // trabalho dela não serviu de nada.
+      productsWithoutCost: vendidosSemCusto.size,
       orders30d: totals.total_orders,
       paidOrders: totals.paid_orders,
       revenue30d: revenue,
