@@ -205,12 +205,31 @@ vazia — ao implementar, re-validar tudo marcado com ⚠️ e registrar o que d
   A janela recente não estava atrasada, estava **faminta por construção**. Corrigido
   na v196 (`occurred_at DESC`).
 
-  ⚠️ **Ainda não sabemos** se `commission_fee` no dia zero é definitivo ou muda na
-  liquidação. Não há campo dizendo "estimado"; há fatias com prefixo `final_`
-  (`final_shipping_fee`, `final_escrow_product_gst`, …) todas **zeradas** hoje, e
-  `commission_fee`/`service_fee` **não** têm par `final_`. Verificação pendente:
-  comparar o valor que a API devolve agora para um pedido antigo com o que já foi
-  gravado dele na liquidação.
+  ⚠️ **PENDÊNCIA COM MEDIÇÃO AGENDADA** (formato exigido pela lição 17 do
+  [ADR-017](./adr/ADR-017-orcamento-de-1s-e-leitura-agregada.md) — pendência sem
+  medição ao lado é arquivo morto):
+
+  - **Não sabemos se** o `commission_fee` do dia zero é **definitivo** ou se muda
+    na liquidação.
+  - **Pista, que aponta mas não prova:** não há campo dizendo "estimado"; há
+    fatias com prefixo `final_` (`final_shipping_fee`, `final_escrow_product_gst`,
+    `final_product_vat_tax`, …) **todas zeradas** hoje, e
+    `commission_fee`/`service_fee` **não têm par `final_`**. Aponta para
+    definitivo. Apontar não é provar.
+  - **Qual chamada:** `get_escrow_detail` para ~20 pedidos que já estavam
+    liquidados **antes** desta verificação.
+  - **Contra o quê:** o `commission_fee` que a resposta devolve agora, comparado
+    com o valor que já gravamos em `workspace_channel_order_fees` para o mesmo
+    pedido, na época em que ele foi conciliado.
+  - **O que decide:** se os dois baterem em todos, a taxa é **definitiva desde o
+    dia do pedido** e a margem da tela não precisa de aviso nenhum. Se divergirem
+    em qualquer um, a taxa **se move**, a margem recente é **provisória**, e a
+    tela precisa dizer isso com a mesma honestidade do resto (regra da casa:
+    nomear o que é, não se desculpar com adjetivo).
+  - **Quando:** assim que a fila nova (v196, recente-primeiro) tiver drenado
+    pedidos suficientes para haver amostra com as duas leituras — gatilho
+    observável: **≥ 200 pedidos com menos de 30 dias e `financial_settled = true`**.
+    Não é "quando der".
 
 - **2026-08-29 — `get_order_detail` NÃO carrega comissão, por mais campos que se peça.**
   Chamado com **28 `response_optional_fields`** (todos os documentados que fazem

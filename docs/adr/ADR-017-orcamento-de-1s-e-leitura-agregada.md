@@ -698,6 +698,66 @@ catálogo, à tarde o escrow.
 Irmã da rede de segurança que não conta quantas vezes salvou: **o perigo não está
 no que falha barulhento, está no que para quieto.**
 
+### 17. "Não sei" é uma resposta honesta que também é um lugar confortável para descansar
+
+A lição do dia sobre instrumento tinha um segundo andar que só apareceu no fim
+dele.
+
+**O caso (29/08/2026).** A pergunta era se a Shopee informa a taxa antes de
+liquidar. Eu tinha o ceticismo certo: notei que os pedidos com menos de 46 dias
+apareciam sem tarifa, apliquei a regra do dia — *ausência de escrita não é
+ausência de tentativa* — e descobri que **nunca tínhamos perguntado** por nenhum
+pedido daquela faixa. Concluí, corretamente, *"não posso confirmar; o penhasco é
+a fronteira do nosso dreno, não a política da Shopee"*.
+
+E **parei ali**.
+
+> **Ceticismo bem calibrado me impediu de afirmar o falso, mas não me fez ir
+> buscar o verdadeiro.**
+
+Foi preciso o argumento da vendedora — *se o faturamento bate com outro software
+e outro software mostra margem, então a comissão é obtenível* — para transformar
+o "não sei" em "então vá medir". Vinte chamadas depois, a resposta estava lá:
+`order_income` **com valor em 20 de 20**, inclusive nos pedidos do próprio dia.
+
+**O que isso completa.** A gente aprendeu a **não afirmar o que não mediu**. Ainda
+não tinha aprendido a **ir medir o que declarou não saber**. São defeitos
+opostos e o segundo é mais difícil de ver, porque a saída dele *parece* rigor:
+ninguém revisa uma pendência bem escrita.
+
+> **Dúvida registrada sem medição agendada vira arquivo morto.**
+
+**A defesa executável — e ela não é um teste, é um formato obrigatório:**
+
+> **Toda pendência do tipo "não sabemos se X" nasce com a MEDIÇÃO QUE A RESOLVE
+> escrita ao lado: qual chamada, contra o quê, e o que decide.** Sem as três, não
+> é pendência — é anotação. E "quando der" não é quando: precisa de um gatilho
+> observável.
+
+Pendência sem medição é indistinguível de pendência com medição na hora em que
+alguém lê — e é por isso que a exigência tem que estar no formato, não na
+disciplina de quem escreve.
+
+### 18. Frase que é verdade e engana é pior que frase errada
+
+`docs/api-shopee.md` dizia, sobre `get_escrow_detail`: *"Só disponível após o
+pedido pago/concluído"*. Está **correto**. E foi lido, por mim e pelo
+orquestrador, como *"só depois da liquidação"* — o que fez um canal inteiro
+esperar ~50 dias por um número disponível no dia zero.
+
+> **Frase errada alguém confere. Frase verdadeira que engana ninguém confere —
+> ela passa na revisão exatamente porque é verdade.**
+
+Mesma família do selo verde de "Composição completa" que se declarava completo em
+relação à própria lista de componentes, enquanto ignorava a maior despesa do
+período: cada um estava certo dentro do próprio escopo, e os dois enganavam
+justamente por isso.
+
+O conserto não é "escrever certo" — já estava certo. É escrever **contra a
+leitura errada previsível**: a linha agora diz *"responde a partir de `paid`, no
+dia do pedido — não espera a liquidação"*, que é a mesma verdade escrita para
+impedir a confusão que ela causou.
+
 ### A regra que fecha a seção
 
 Escrevi "não usar crase dentro de template literal" depois de errar isso três
@@ -719,14 +779,18 @@ O que virou defesa em 29/08/2026:
 | 12 | `/api/vivo` como liveness; `fly.toml` não aponta mais para readiness |
 | 13 | `tests/centralDiagnostico.test.mjs` — exige anúncio ATIVO e agregação antes do join |
 | 14 | — *(esta não tem defesa automatizável; é regra de método)* |
+| 17 | formato obrigatório da pendência: medição + gatilho ao lado (ver ADR-034 e a pendência da comissão em `docs/api-shopee.md`) |
+| 18 | — *(regra de escrita: a revisão tem que perguntar "como isto pode ser lido errado?", não só "isto está correto?")* |
 | 15 | `tests/erroNaoCulpaAUsuaria.test.mjs` e `tests/escrowNaoRepeteNemPula.test.mjs` |
 | 16 | `tests/escrowNaoRepeteNemPula.test.mjs` — exige o claim próprio de conciliação |
 | crase | `tests/*` — nenhum comentário SQL usa crase dentro de template literal |
 | `after()` | `tests/afterEhSempreFundo.test.mjs` — proíbe importar `after` fora da porta única |
 | `workspace_id` | `tests/workspaceIdNaoDependeDeLembranca.test.mjs` — allowlist com motivo |
 
-A linha 14 está vazia de propósito, e isso é informação: **é a única lição do dia
-que continua dependendo de alguém lembrar.**
+As linhas 14 e 18 estão vazias de propósito, e isso é informação: **são as
+lições que continuam dependendo de alguém lembrar.** A 17 quase ficou vazia
+junto — a defesa dela não é um teste, é uma exigência de formato, e formato só
+vale se quem revisa recusar a pendência que chega sem medição ao lado.
 
 ## ⚠️ Pendência nomeada: a ida repetida é MULETA, não só desperdício (28/08/2026)
 
