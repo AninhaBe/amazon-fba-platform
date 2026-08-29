@@ -77,3 +77,21 @@ test("o caminho de autenticacao USA a serializacao", async () => {
   const ctx = await readFile(new URL("../src/lib/workspaceContext.ts", import.meta.url), "utf8");
   assert.match(ctx, /comRenovacaoUnica\(chave, \(\) => supabase\.auth\.getClaims\(\)\)/);
 });
+
+test("a mensagem de login so CULPA a credencial quando o erro E de credencial", async () => {
+  const { mensagemDeFalhaDeLogin } = await import("../src/app/login/mensagemDeFalha.ts");
+  // Credencial errada de verdade: a frase de sempre.
+  assert.match(mensagemDeFalhaDeLogin({ status: 400, code: "invalid_credentials" }), /senha incorretos/);
+  // ⚠️ 409 de renovacao concorrente NAO e culpa dela — foi o que a trancou
+  // do lado de fora em 29/08/2026 enquanto a senha estava certa.
+  const nossa = mensagemDeFalhaDeLogin({ status: 409, code: "conflict", message: "Too many concurrent token refresh requests" });
+  assert.doesNotMatch(nossa, /senha incorretos/);
+  assert.match(nossa, /o problema e nosso|problema é nosso/i);
+  // E precisa dizer para NAO repetir: tentativa repetida dispara limite de taxa,
+  // e ai a mensagem teria CRIADO o problema que descrevia.
+  assert.match(nossa, /Nao precisa tentar de novo|não precisa tentar de novo/i);
+  // Timeout de conexao ao banco: mesmo tratamento.
+  assert.doesNotMatch(mensagemDeFalhaDeLogin({ message: "timeout exceeded when trying to connect" }), /senha incorretos/);
+  // Limite de taxa: manda esperar, nunca tentar de novo.
+  assert.match(mensagemDeFalhaDeLogin({ status: 429 }), /Aguarde/i);
+});

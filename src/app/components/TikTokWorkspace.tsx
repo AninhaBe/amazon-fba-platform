@@ -60,7 +60,7 @@ interface ProviderStatus {
   configured: boolean;
   connectHref?: string;
   connections: TiktokConnectionOption[];
-  issue?: { status: "attention"; code: "OWNERSHIP_CONFLICT" | "PROVIDER_READ_FAILED"; message: string };
+  issue?: { status: "attention"; code: "OWNERSHIP_CONFLICT" | "PROVIDER_READ_FAILED" | "INFRA_INDISPONIVEL"; message: string };
 }
 
 const TIKTOK_PRIMARY_FINANCIAL_KEYS = new Set(["revenue", "fees", "cogs", "profit", "marginPct"]);
@@ -204,11 +204,25 @@ export function TikTokWorkspace() {
   if (!provider) return <WorkspaceFrame><DashboardSkeleton /></WorkspaceFrame>;
 
   if (provider.issue) {
-    return <WorkspaceFrame subtitle="A leitura deste canal foi interrompida para proteger o isolamento dos dados."><EmptyState
+    // ⚠️ FALHA NOSSA NAO OFERECE BOTAO DE MEXER NA CONEXAO (29/08/2026).
+    //
+    // Quando o banco nao responde, a guarda de isolamento fecha — e isso esta
+    // CERTO. O defeito era o que a tela contava: dizia "Canal TikTok requer
+    // atencao" e oferecia "Gerenciar conexoes". Se ela reconectasse, queimaria
+    // uma autorizacao intacta — e o TikTok esta com app publico em review.
+    // Acao destrutiva oferecida com base numa duvida e o pior desenho possivel.
+    const nossa = provider.issue.code === "INFRA_INDISPONIVEL";
+    return <WorkspaceFrame subtitle={nossa
+      ? "Não conseguimos consultar os dados deste canal agora."
+      : "A leitura deste canal foi interrompida para proteger o isolamento dos dados."}><EmptyState
       kind="permission"
-      title={provider.issue.code === "OWNERSHIP_CONFLICT" ? "Conexão TikTok protegida" : "Canal TikTok requer atenção"}
+      title={nossa
+        ? "Instabilidade nossa, não da sua conexão"
+        : provider.issue.code === "OWNERSHIP_CONFLICT" ? "Conexão TikTok protegida" : "Canal TikTok requer atenção"}
       description={provider.issue.message}
-      action={<Link className="meli-primary-action" href={MANAGE_CONNECTIONS}>Gerenciar conexões <span aria-hidden="true">→</span></Link>}
+      action={nossa
+        ? undefined
+        : <Link className="meli-primary-action" href={MANAGE_CONNECTIONS}>Gerenciar conexões <span aria-hidden="true">→</span></Link>}
     /></WorkspaceFrame>;
   }
 

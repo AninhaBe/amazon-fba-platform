@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { createClient, supabaseConfigured } from "@/lib/supabase/server";
+import { mensagemDeFalhaDeLogin } from "./mensagemDeFalha";
 
 export interface AuthActionState {
   message?: string;
@@ -31,7 +32,7 @@ export async function signIn(_state: AuthActionState, formData: FormData): Promi
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) return { message: "E-mail ou senha incorretos." };
+  if (error) return { message: mensagemDeFalhaDeLogin(error) };
 
   const requested = String(formData.get("next") ?? "");
   const destination = requested.startsWith("/") && !requested.startsWith("//") ? requested : "/";
