@@ -123,6 +123,33 @@ Ele olha o que está **staged**. As duas colisões de 29/08 nasceram de `git add
 abrangente — e nesse caso o stage **já está contaminado** quando o portão olha.
 Ele barra, que é o certo, mas a pessoa descobre depois de ter varrido.
 
+⚠️ **PONTO CEGO MAIOR QUE O PRIMEIRO: a cerca pega "levei o trabalho do outro
+junto"; NÃO pega "fiz o trabalho do outro inteiro".** E como todos os commits saem
+da **mesma identidade git**, ela não consegue distinguir agente — o que significa
+que o segundo caso é **invisível por construção, e não por descuido**.
+
+`avaliarCommit` reprova quando o commit tem **mais de um dono**. Um commit com um
+dono só passa — mesmo que o dono não seja quem commitou. Não há nada no stage nem
+na mensagem que diga *quem* está commitando, então não há o que comparar.
+
+**O `ab81ef0` é a prova viva:** cem por cento arquivo da Vitrine
+(`ShopeeModulePage.tsx`, `TikTokModulePage.tsx`), commitado pelo backend, portão
+passou — e **está certo pela regra dele**. Repassado depois pelo próprio portão,
+com o mapa antigo e com o novo: `donos: ["vitrine"]`, `PASSOU: true`.
+
+⚠️ **A cerca nunca fechou.** Até 29/08/2026 ela não barrou um commit sequer, e o
+escape `cruza-areas:` **nunca foi usado**. Os dois lotes daquele dia foram
+divididos por disciplina de quem commitava, não por ela: o `33b82f2` caiu inteiro
+dentro do ponto cego das telas de canal, e o `ab81ef0` tinha um dono só. Então não
+há dado sobre se a mensagem de bloqueio ajuda — ela nunca foi lida por ninguém.
+
+> **Cerca que nunca fechou não está testada em produção — está só instalada.**
+
+*Os dois pontos cegos acima estão DECLARADOS, não consertados, e isso é a ordem
+combinada: primeiro declarar onde não se enxerga, depois resolver. Inventar
+identidade por agente às pressas trocaria um buraco conhecido por um mecanismo
+não pensado.*
+
 Um aviso mais cedo, no `pre-commit` (*"você está encenando N arquivos que não
 estavam no seu último diff"*), pegaria antes. Fica registrado como melhoria
 possível, não como falta — *sugestão da Vitrine, 29/08/2026*.
