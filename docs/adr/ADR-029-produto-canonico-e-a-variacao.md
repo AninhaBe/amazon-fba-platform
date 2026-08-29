@@ -186,6 +186,29 @@ Isso torna (b) quase gratuito: o registro antigo **fica onde está** e a tela o
 oferece — *"você cadastrou R$ X para este anúncio; aplicar a quais variações?"* —
 até alguém confirmar. Nada é afirmado sem confirmação, nada é perdido.
 
+### 🗣️ A dona descreveu o mecanismo — e a última frase decide a opção
+
+Em 29/08/2026, olhando a tela, ela explicou o defeito sem conhecer os nomes
+técnicos dos campos:
+
+> *"A lixeira que aparece no print, o SKU puxa porque o SKU está cadastrado no
+> campo de **SKU Principal** na plataforma da Shopee. Já itens como mesinha, que
+> o SKU é cadastrado **dentro de cada campo de variação**, não tá puxando. E
+> precisa puxar todos, porque **TEM MUITOS PRODUTOS QUE TÊM CUSTO DIFERENTE POR
+> SKU DENTRO DO MESMO ANÚNCIO**."*
+
+"SKU Principal" é o `item_sku`; "dentro de cada campo de variação" é o
+`model_sku`. O diagnóstico técnico e a descrição dela são o mesmo fato.
+
+⚠️ **A última frase é a prova de que a opção (a) estava errada.** Se o custo
+difere por SKU dentro do mesmo anúncio, **replicar** o custo do anúncio para
+todas as variações fabricaria número errado em massa — e justamente nos anúncios
+de maior volume (74% das unidades de 30 dias estão em multi-variação). Não é
+teoria nossa: é a operação dela descrita por ela.
+
+Fica registrado aqui para proteger a decisão de quem, no futuro, achar que
+"replicar é mais simples".
+
 Por que não as outras:
 
 - **(a) replicar para todas** afirma um custo que ninguém conferiu, e num anúncio
