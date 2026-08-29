@@ -419,6 +419,46 @@ não a média. Medido na UTILEIRA: abrindo em "hoje", o aquecimento só termina
 **2,6 segundos** depois. Quem clicar antes disso espera igual — o pré-carregamento
 não ajuda quem chegou primeiro.
 
+## ⚠️ Pendência nomeada: a ida repetida é MULETA, não só desperdício (28/08/2026)
+
+Achado da Vitrine, e ele muda como se olha performance de abertura em **qualquer**
+canal. Fica aqui porque a próxima pessoa que medir requisições repetidas vai
+querer removê-las, e removê-las hoje **quebra a tela**.
+
+O overview da Shopee faz 3 idas na abertura. Duas tentativas de guarda contra
+repetição foram implementadas e **as duas deixaram a tela em branco por 45
+segundos** (medido). O defeito não está na guarda:
+
+> O `cancelled` do efeito significa **"o efeito rodou de novo"**, não **"esta
+> resposta não interessa mais"**. Quando a rodada seguinte é *pulada* pela
+> guarda, a rodada anterior **já foi marcada como cancelada** pela limpeza e a
+> resposta dela é descartada — e aí ninguém entrega o dado.
+
+**É a ida repetida que repõe o que a cancelada jogou fora.** Por isso a
+repetição parece desperdício e é, na prática, o que mantém a tela viva.
+
+**Desenho proposto (não implementado):** o cancelamento vira **por ALVO** —
+*"esta resposta ainda é a que a tela quer?"* — em vez de **por rodada**. Com
+isso, pular uma ida em voo deixa de descartar a resposta que estava chegando, e
+a guarda contra repetição passa a ser segura.
+
+Enquanto isso não existir, a única guarda segura é a de busca **já respondida**:
+resposta aplicada não depende de ninguém repor. A armadilha está escrita também
+no `ShopeeWorkspace.tsx`, no ponto exato onde alguém tentaria acrescentar a
+guarda.
+
+📌 **Regra que fica:** *consertar a repetição sem consertar o cancelamento troca
+lentidão por tela vazia* — e tela vazia é incomparavelmente pior. Ninguém
+desconfia de um número que demora; todo mundo desconfia de uma tela que não
+mostra nada.
+
+📌 **Correção da própria autora, registrada porque a lição é de método:** a
+medição inicial dizia que `/api/admin/eu` e `/api/trial` saíam duas vezes por
+abertura. Não saíam — a segunda vinha do **documento anterior**, não da abertura
+nova. O ganho real do helper é menor do que o anunciado, e quem derrubou o
+número foi ela mesma. É o mesmo erro de medição do "18× mais rápido" desta ADR:
+**número a favor da própria entrega é o mais perigoso que existe.**
+
 ## Ordem de execução
 
 1. **Rota agregadora** `/api/amazon/dashboard` lendo do canônico (o que der do canônico
