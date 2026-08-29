@@ -37,10 +37,20 @@ export async function updateSession(request: NextRequest) {
     isLab || publicPaths.some((path) => request.nextUrl.pathname.startsWith(path));
   const isApi = request.nextUrl.pathname.startsWith("/api/");
 
-  if (isPublic && request.nextUrl.pathname === "/api/health") {
-    const commit = process.env.RENDER_GIT_COMMIT || process.env.VERCEL_GIT_COMMIT_SHA;
-    return NextResponse.json({ ok: true, version: commit?.slice(0, 7) || "local" });
-  }
+  // ⚠️ AQUI HAVIA UM ATALHO QUE RESPONDIA /api/health SEM CHEGAR NA ROTA.
+  //
+  // Ele devolvia `{ ok: true, version }` direto do middleware — ou seja, nem a
+  // rota nem o banco eram tocados. No incidente de 29/08/2026 (02:10-02:17Z) o
+  // app passou 7 minutos sem conseguir NENHUMA conexao, com `ECHECKOUTTIMEOUT`
+  // FATAL no log e toda tela com dado quebrada, e este atalho respondeu 200 o
+  // tempo todo. Duas pessoas leram esse verde como "o app esta de pe".
+  //
+  // O atalho saiu para que `/api/health` chegue na rota, que consulta o banco e
+  // devolve 503 quando ele nao responde. `/api/health` continua em `publicPaths`,
+  // entao segue sem exigir autenticacao — o que o atalho economizava era a
+  // execucao da rota, e era exatamente isso que escondia o defeito.
+  //
+  // Ver `docs/postmortem-2026-08-29-pool-esgotado.md`.
 
   if (!configured) {
     if (isApi) {

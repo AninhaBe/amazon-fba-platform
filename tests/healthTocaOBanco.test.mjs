@@ -54,3 +54,15 @@ test("a razao esta escrita no arquivo, para nao ser revertida por simplificacao"
   assert.match(src, /postmortem-2026-08-29-pool-esgotado/);
   assert.match(src, /não é health check/i);
 });
+
+test("o middleware NAO responde /api/health por atalho — era o que escondia o defeito", async () => {
+  const proxy = await readFile(new URL("../src/lib/supabase/proxy.ts", import.meta.url), "utf8");
+  // O atalho devolvia 200 do middleware sem chegar na rota nem no banco: no
+  // incidente de 29/08/2026 ele respondeu verde por 7 minutos de app fora.
+  assert.doesNotMatch(proxy, /pathname === "\/api\/health"[\s\S]{0,200}NextResponse\.json\(\{ ok: true/);
+  // E health continua PUBLICO: tirar o atalho nao pode ter passado a exigir login.
+  // A lista tem comentarios longos entre as entradas, entao a checagem e pela
+  // entrada em si dentro do bloco da constante, nao por proximidade de caracteres.
+  const bloco = proxy.slice(proxy.indexOf("const publicPaths = ["), proxy.indexOf("];", proxy.indexOf("const publicPaths = [")));
+  assert.match(bloco, /"\/api\/health"/, "health precisa continuar publico");
+});
