@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+
+import { buscaCompartilhada } from "./buscaCompartilhada";
 import { brDate } from "@/lib/datetime";
 import { NEXO_TRIAL_DISMISSED_EVENT, NEXO_TRIAL_STATE_EVENT } from "@/lib/productTour";
 
@@ -36,7 +38,9 @@ export function TrialNotice() {
     let cancelled = false;
     (async () => {
       try {
-        const response = await fetch("/api/trial", { cache: "no-store" });
+        // Compartilhada: na navegação entre telas o componente remonta antes de a
+        // primeira resposta chegar, e as duas idas voltariam idênticas.
+        const response = await buscaCompartilhada("trial", () => fetch("/api/trial", { cache: "no-store" }));
         if (!response.ok) {
           window.dispatchEvent(new CustomEvent(NEXO_TRIAL_STATE_EVENT, { detail: { willOpen: false } }));
           return;

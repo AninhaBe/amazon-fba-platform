@@ -13,6 +13,7 @@ import type { OperationPendingItem } from "../components/OperationPending";
 import { Metric as Kpi, CompactMetric, getRevenueTrend } from "../components/Metric";
 import { amazonFinancialCards, diasSemAnuncio, type AmazonAdsInput } from "./amazonFinancialCards";
 import { AnimatedNumber, identidadeDePeriodo } from "../components/AnimatedNumber";
+import { buscaCompartilhada } from "../components/buscaCompartilhada";
 import { OrderProfitabilityTable } from "../components/OrderProfitabilityTable";
 import { AnunciosPorProduto, type AnuncioDeProduto } from "../components/AnunciosPorProduto";
 import { ConnectionBroken, isBrokenConnection } from "../components/ConnectionBroken";
@@ -1286,7 +1287,9 @@ function useAmazonPendencias({ products, productsLoading, missingCosts }: { prod
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      void fetch("/api/auth/accounts")
+      // Mesma pergunta que o `AccountSwitcher` faz no cabeçalho, na mesma
+      // abertura: as duas idas saíam juntas e voltavam idênticas.
+      void buscaCompartilhada("auth/accounts", () => fetch("/api/auth/accounts"))
         .then((res) => readJson(res).then((data) => ({ ok: res.ok, data })))
         .then(({ ok, data }) => setConnection(ok && (data.hasOwnerToken || data.accounts?.length > 0) ? "connected" : "missing"))
         .catch(() => setConnection("missing"));

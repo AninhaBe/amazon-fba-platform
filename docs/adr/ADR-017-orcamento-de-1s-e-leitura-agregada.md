@@ -344,6 +344,45 @@ quadro seguinte. A sonda passou a reprovar sequências de 4 quadros ou mais
 (~65ms, tempo de leitura) com o valor antigo sob o rótulo novo, e continua
 imprimindo o total bruto para nada ficar escondido atrás do critério.
 
+### Guarda de fonte trava a forma; comportamento se prova por comportamento
+
+Um teste escrito hoje para proteger a regra certa reprovou uma refatoração
+inocente — e o modo como ele falhou mostra o limite do formato.
+
+A guarda contra repetir o mesmo pedido do overview identifica cada busca por uma
+chave. Enquanto a chave era montada numa linha, o teste conferia se
+`retryKey`, `syncPoll`, `period.query` e `offset` apareciam **no texto daquela
+linha**. Ao extrair a parte comum para uma variável (`janela`), os quatro
+continuaram na chave por composição, e o teste ficou vermelho:
+
+```ts
+const janela = `${period.query}|${offset}|${retryKey}|${syncPoll}`;
+const alvo   = `${selected?.id ?? ""}|${janela}`;
+```
+
+O vermelho custou caro em interpretação: chegou a ser lido como "a guarda
+congelaria a tela durante a sincronização", que era o risco real que o teste
+existia para vigiar. Não era — a leitura do código mostrou que qualquer avanço do
+`syncPoll` muda `janela` e, portanto, `alvo`, e nenhuma guarda consegue barrá-lo.
+
+O que fica:
+
+- **Casar texto de código trava a FORMA, não a REGRA.** O mesmo teste que reprova
+  uma refatoração inocente aprovaria uma mudança que preservasse o texto e
+  quebrasse o comportamento — o pior dos dois erros, porque é silencioso.
+- **Guarda de fonte cabe para proibir um PADRÃO**: import que não pode existir,
+  campo que não pode ser interpolado numa prop, cláusula que não pode sumir de
+  uma dependência, tela nova que esqueceu de declarar uma prop. São coisas que
+  se verificam olhando o arquivo porque *são* o arquivo.
+- **Lógica se testa por comportamento.** A montagem da chave virou função pura
+  num módulo próprio, e o teste passou a afirmar o que importa: mexer em
+  `syncPoll`, `retryKey`, período, offset ou loja produz chave **diferente**
+  (logo, nunca é barrado); só a repetição idêntica produz chave **igual**. Isso
+  sobrevive à próxima refatoração e prova mais.
+- **Regra prática:** se para escrever a asserção você precisa saber em que linha
+  o identificador mora, é guarda de forma. Se ela sobrevive a renomear variáveis
+  e mover código, é teste de regra.
+
 ## Lição de 28/08/2026: medição em conta demo não representa a conta dela
 
 Todas as medições de troca de período tinham sido feitas na **conta demo** —

@@ -42,6 +42,7 @@ import { comSemImposto } from "@/lib/semImposto";
 import { rotuloStatusShopee } from "./statusDeExibicao";
 import { shopeeTaxRateHref } from "./ShopeeSettingsModel";
 import { BaseDeData, ProgressoDaImportacao } from "./BaseDeData";
+import { chaveDaBusca } from "./chaveDaBusca";
 import { usePrefetchDePeriodos } from "./prefetchDePeriodos";
 
 interface Overview {
@@ -229,6 +230,21 @@ export function ShopeeWorkspace() {
     buscar: buscarPeriodo,
   });
 
+  // ⚠️ DEPENDENCIA DE EFEITO E POR VALOR, NAO POR OBJETO.
+  //
+  // Medido em producao em 28/08/2026: a Shopee pedia o overview TRES VEZES
+  // antes da primeira pintura (1050ms, 1706ms, 2142ms) — e e a rota mais cara
+  // que medimos (1457ms em 30 dias na conta real). O efeito dependia de
+  // `status` e de `searchParams`, que sao objetos: referencia nova a cada
+  // resposta ou a cada render do roteador refazia o MESMO pedido.
+  //
+  // O que o efeito de fato usa sao tres strings. Elas entram na dependencia; os
+  // objetos ficam de fora.
+  const connectionPedido = searchParams.get("connection_id");
+  const offsetPedido = searchParams.get("offset") ?? "0";
+  const statusPronto = status !== null;
+  const lojaPedida = status ? escolherConexaoPadrao(status.connections, connectionPedido)?.id ?? null : null;
+
   function retry() {
     setError(null);
     setPending(false);
@@ -268,9 +284,13 @@ export function ShopeeWorkspace() {
     return () => { cancelled = true; };
   }, [retryKey]);
 
+  // Ultima busca ja RESPONDIDA, identificada pela loja que o servidor resolveu
+  // — nao pela que supomos antes de perguntar.
+  const ultimaBusca = useRef<string | null>(null);
+
   useEffect(() => {
     let cancelled = false;
-    const requested = searchParams.get("connection_id");
+    const requested = connectionPedido;
     // ⚠️ ABERTURA SEM ESPERAR O /api/integrations (28/08/2026).
     //
     // Antes, este efeito só rodava depois que o status chegava — e o status
@@ -286,7 +306,40 @@ export function ShopeeWorkspace() {
     // Sem loja E com o status já carregado = não há o que buscar. Com o status
     // ainda em voo, seguimos: o servidor sabe escolher.
     if (!selected && status) return;
-    const offset = searchParams.get("offset") ?? "0";
+    const offset = offsetPedido;
+    // ⚠️ A CHEGADA DO STATUS NAO PEDE DE NOVO O QUE JA FOI PEDIDO.
+    //
+    // Este efeito roda ANTES do `/api/integrations` de proposito (a nota acima
+    // explica: eram dois RTTs em serie). Quando o status chega, ele traz a
+    // mesma loja que o servidor ja tinha resolvido — e o efeito refazia o
+    // pedido identico. Era a segunda das tres idas medidas.
+    //
+    // A comparacao usa a loja RESOLVIDA da resposta anterior, entao ela so
+    // silencia a repeticao: `retryKey`, `syncPoll`, periodo, offset e loja
+    // diferente continuam entrando aqui, cada um com alvo proprio. Em especial,
+    // o `syncPoll` — que existe para a tela acompanhar a sincronizacao — muda o
+    // alvo a cada volta e nunca e barrado.
+    const { alvo } = chaveDaBusca({
+      loja: selected?.id ?? null, periodo: period.query, offset,
+      tentativa: retryKey, sincronizacao: syncPoll,
+    });
+    if (selected && ultimaBusca.current === alvo) return;
+    // ⚠️ NAO ACRESCENTE AQUI UMA GUARDA POR BUSCA "NO AR". Eu acrescentei duas
+    // (a identica em voo e a que reconhecia a ida sem loja) e as duas DEIXARAM
+    // A TELA EM BRANCO — medido em 28/08/2026, 45s sem numero nenhum.
+    //
+    // O motivo nao esta na guarda, esta na semantica de cancelamento deste
+    // efeito: o `cancelled` la embaixo significa "o efeito rodou de novo", nao
+    // "esta resposta nao interessa mais". Quando a rodada seguinte e pulada, a
+    // anterior ja foi marcada como cancelada pela limpeza e a resposta dela e
+    // descartada — entao ninguem entrega o dado. Hoje a repeticao ESCONDE isso:
+    // e a ida repetida que repoe o que a cancelada jogou fora.
+    //
+    // Por isso a unica guarda segura aqui e a de busca ja RESPONDIDA (acima):
+    // resposta aplicada nao depende de ninguem repor. Para pular tambem o que
+    // esta em voo, o cancelamento precisa virar por ALVO ("esta resposta ainda
+    // e a que a tela quer?") em vez de por rodada. E mudanca de desenho, esta
+    // proposta, e nao entra junto com uma medicao de fim de turno.
     // Sem id conhecido ainda, a chave sai da resposta (`selectedConnectionId`).
     const chave = selected ? chaveDoPeriodo(selected.id, period.query, offset) : null;
     // Pinta o periodo ja visto ANTES de buscar. A resposta nova sobrescreve
@@ -311,6 +364,14 @@ export function ShopeeWorkspace() {
         // chegar, dizer loja B — a mesma classe de defeito do número sob o
         // rótulo errado, só que com loja, e num app multi-loja é pior.
         const idExibido = data.selectedConnectionId ?? selected?.id ?? null;
+        // Registrado com o id RESOLVIDO: e assim que a chegada do status, que
+        // resolve para a mesma loja, reconhece que nao ha o que buscar.
+        if (idExibido) {
+          ultimaBusca.current = chaveDaBusca({
+            loja: idExibido, periodo: period.query, offset,
+            tentativa: retryKey, sincronizacao: syncPoll,
+          }).alvo;
+        }
         const chaveFinal = idExibido ? chaveDoPeriodo(idExibido, period.query, offset) : null;
         setSyncBruto(data.sync);
         if (data.pending) {
@@ -334,7 +395,7 @@ export function ShopeeWorkspace() {
       }
     })();
     return () => { cancelled = true; };
-  }, [status, period.query, retryKey, searchParams, syncPoll]);
+  }, [status, statusPronto, lojaPedida, connectionPedido, offsetPedido, period.query, retryKey, syncPoll]);
 
   // Enquanto a primeira sincronização roda, a tela se atualiza sozinha — o
   // vendedor vê o número de pedidos crescer em vez de recarregar a página.

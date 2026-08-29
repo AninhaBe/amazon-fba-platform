@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+
+import { buscaCompartilhada } from "./buscaCompartilhada";
 import { readJson } from "../../lib/readJson";
 
 interface Acct {
@@ -30,7 +32,8 @@ export function AccountSwitcher({ compact = false }: { compact?: boolean }) {
 
   async function load() {
     try {
-      const res = await fetch("/api/auth/accounts");
+      // A Amazon pergunta a mesma coisa na mesma abertura (ver `useAmazonPendencias`).
+      const res = await buscaCompartilhada("auth/accounts", () => fetch("/api/auth/accounts"));
       const data = await readJson(res);
       if (!res.ok) throw new Error(data.error || "Erro ao carregar contas.");
       setInfo(data);
