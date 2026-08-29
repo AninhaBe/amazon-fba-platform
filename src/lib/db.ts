@@ -102,6 +102,46 @@ function getPool(): Pool {
   return pool;
 }
 
+/**
+ * CONTABILIDADE DE CHECKOUTS — medição, não comportamento.
+ *
+ * ⚠️ Por que existe (29/08/2026): uma carga do dashboard custava 28 idas ao
+ * pool. Com 8 slots de usuário, isso são QUATRO ONDAS DE ESPERA antes de a tela
+ * ficar pronta — e enquanto for assim, qualquer trabalho de fundo empurra a
+ * vendedora para o timeout. Contar em produção é a única forma de saber se uma
+ * mudança realmente reduziu o número, em vez de só parecer mais rápida num teste.
+ *
+ * Cada `dbQuery` é um checkout: `pool.query` pega uma conexão, roda e devolve.
+ * `dbTransaction` é UM checkout, não importa quantas consultas rode dentro.
+ *
+ * A trilha (o texto da consulta) só é guardada com `DB_TRACE=1`, e é limitada:
+ * medição não pode virar vazamento de memória nem despejar SQL em log de produção.
+ */
+let checkouts = 0;
+const TRILHA_MAXIMA = 500;
+const trilha: Array<{ sql: string; ms: number }> = [];
+
+function anotarCheckout(text: string, ms: number): void {
+  checkouts += 1;
+  if (process.env.DB_TRACE !== "1" || trilha.length >= TRILHA_MAXIMA) return;
+  trilha.push({ sql: text.replace(/\s+/g, " ").trim().slice(0, 120), ms });
+}
+
+/** Quantos checkouts aconteceram até agora neste processo. */
+export function checkoutsDoPool(): number {
+  return checkouts;
+}
+
+/** Trilha das consultas desde o último `zerarContabilidade` (só com `DB_TRACE=1`). */
+export function trilhaDeConsultas(): ReadonlyArray<{ sql: string; ms: number }> {
+  return trilha;
+}
+
+export function zerarContabilidade(): void {
+  checkouts = 0;
+  trilha.length = 0;
+}
+
 async function createSchema(): Promise<void> {
   await getPool().query(`
     CREATE TABLE IF NOT EXISTS accounts (
@@ -453,7 +493,9 @@ export async function dbQuery<T = Record<string, unknown>>(
   params: unknown[] = []
 ): Promise<T[]> {
   await ensureSchema();
+  const comecou = performance.now();
   const res = await getPool().query(text, params);
+  anotarCheckout(text, performance.now() - comecou);
   return res.rows as T[];
 }
 
@@ -467,6 +509,7 @@ export async function dbTransaction<T>(
   fn: (query: DbQuery) => Promise<T>
 ): Promise<T> {
   await ensureSchema();
+  const comecou = performance.now();
   const client = await getPool().connect();
   try {
     await client.query("BEGIN");
@@ -481,6 +524,8 @@ export async function dbTransaction<T>(
     throw error;
   } finally {
     client.release();
+    // Uma transação inteira é UM checkout — é isso que disputa slot no pool.
+    anotarCheckout("BEGIN ... COMMIT", performance.now() - comecou);
   }
 }
 
