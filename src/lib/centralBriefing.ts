@@ -208,7 +208,16 @@ export type ModoNarracao = "resumo" | "briefing";
 const FORMATO: Record<ModoNarracao, string> = {
   // Overview: a manchete que puxa pro briefing.
   resumo:
-    "FORMATO: escreva no máximo 2 frases, em um parágrafo só, sem markdown. Comece com uma saudação curta (bom dia/boa tarde, sem depender de hora exata). Aponte a ÚNICA coisa mais importante entre os canais hoje. Termine com um convite curto para ver o briefing ('vamos ver?'). Nada de listas.",
+    "FORMATO: escreva no máximo 2 frases, em um parágrafo só, sem markdown. Comece com uma saudação curta (bom dia/boa tarde, sem depender de hora exata). Aponte a ÚNICA coisa mais importante entre os canais hoje. Termine com um convite curto para ver o briefing ('vamos ver?'). Nada de listas.\n\n" +
+    // ⚠️ A JANELA TEM QUE ESTAR ESCRITA, e logo no começo.
+    //
+    // Esta narração é SEMPRE dos últimos 30 dias, e fica na mesma tela que tem
+    // um seletor de período. Em 28/08/2026 ficou provado que a pessoa podia
+    // estar vendo "hoje" e lendo uma frase que afirmava, com valor por extenso,
+    // o faturamento de 30 dias — número sob o rótulo de outro recorte, só que
+    // em prosa e em primeira pessoa, que é pior: número num card se desconfia,
+    // frase dizendo "reparei que" se acredita.
+    "OBRIGATÓRIO: os números que você recebeu são SEMPRE dos ÚLTIMOS 30 DIAS, e a tela onde este texto aparece tem um seletor de período que pode estar em outro recorte. Por isso a janela precisa estar ESCRITA logo na primeira frase, antes de qualquer número — por exemplo 'nos últimos 30 dias'. Nunca escreva 'hoje', 'no período' ou 'nesse recorte' para se referir a estes números.",
   // Briefing: a matéria cheia.
   briefing:
     "FORMATO: escreva o briefing do dia. Uma saudação curta de uma linha, e depois de 2 a 4 pontos priorizados. Cada ponto: o que aconteceu (com o número exato) e o que fazer ou onde olhar. Seja específico e acionável. Pode usar hífens simples para separar os pontos, mas nada de títulos, negrito ou tabelas. Se estiver tudo estável, diga em duas linhas que o dia está tranquilo e o que continuar observando.",

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { NexoMensagem } from "./NexoMensagem";
@@ -141,8 +142,26 @@ function montarFrase(p: BriefingLeadProps): { titulo: string; detalhe: string | 
 function useNexoResumo(props: BriefingLeadProps): string | null {
   const [texto, setTexto] = useState<string | null>(null);
   const { escopo, canalNome, faturamento, lucro, pedidos, moeda, motivoSemLucro } = props;
+  // ⚠️ A NARRAÇÃO É DOS ÚLTIMOS 30 DIAS, SEMPRE — e só é pedida nessa janela.
+  //
+  // Provado em 28/08/2026: o servidor cacheia o modo "resumo" por
+  // (escopo, saudação, workspace, dia), SEM período. Mandar os números de
+  // "hoje" não muda o texto — dois payloads com números completamente
+  // diferentes voltaram idênticos, palavra por palavra. Ou seja, o efeito
+  // refazia o POST a cada troca de período para receber sempre a mesma coisa,
+  // e a frase afirmava, com valor por extenso, números de outro recorte.
+  //
+  // Agora o pedido só sai na janela de 30 dias — que é o padrão da tela e o que
+  // os campos do payload (`faturamento30d`, `lucro30d`) sempre disseram ser. Em
+  // outro período o texto que já veio continua na tela, e ele DIZ a janela dele
+  // (ver o FORMATO do modo resumo em `centralBriefing.ts`). Nada de narrar um
+  // recorte com os números de outro.
+  const params = useSearchParams();
+  const dias = params.get("days");
+  const janelaDe30Dias = !params.get("from") && !params.get("to") && (dias == null || dias === "30");
 
   useEffect(() => {
+    if (!janelaDe30Dias) return;
     if (!escopo || faturamento == null || pedidos === 0) return;
     const margemPct = lucro != null && faturamento > 0 ? Math.round((lucro / faturamento) * 1000) / 10 : null;
     const payload = {
@@ -163,7 +182,10 @@ function useNexoResumo(props: BriefingLeadProps): string | null {
       .then((d) => { if (!cancelado && d?.texto) setTexto(d.texto as string); })
       .catch(() => {});
     return () => { cancelado = true; };
-  }, [escopo, canalNome, faturamento, lucro, pedidos, moeda, motivoSemLucro]);
+    // As dependências continuam cobrindo o que a narração REALMENTE usa —
+    // escopo, canal e os números da janela de 30 dias. O que saiu foi a
+    // refeitura por troca de período, que só rendia o mesmo texto de volta.
+  }, [janelaDe30Dias, escopo, canalNome, faturamento, lucro, pedidos, moeda, motivoSemLucro]);
 
   return texto;
 }
