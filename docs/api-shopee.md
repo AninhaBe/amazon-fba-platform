@@ -79,7 +79,7 @@ A Ana não tem — quem tem é o sócio, e a loja dele será a primeira conexão
 
 | Endpoint | Uso | Observações |
 |---|---|---|
-| `GET /api/v2/payment/get_escrow_detail` | detalhe de escrow por pedido | **fonte das taxas reais**: comissão, taxa de serviço, taxa de transação, frete real. Só disponível após o pedido pago/concluído ⚠️ |
+| `GET /api/v2/payment/get_escrow_detail` | detalhe de escrow por pedido | **fonte das taxas reais**: comissão, taxa de serviço, taxa de transação, frete real. Responde **a partir de `paid`, no dia do pedido** — não espera a liquidação (medido em 29/08/2026, ver Changelog) |
 
 ## Mapeamento canônico (ver [`canonical-schema.md`](./canonical-schema.md))
 
@@ -176,6 +176,50 @@ nem observação de payload real Shopee.
 Mesma convenção dos docs da Amazon e do ML: mudanças de comportamento da API observadas
 na prática entram aqui, com data. Enquanto o canal não for implementado, a lista fica
 vazia — ao implementar, re-validar tudo marcado com ⚠️ e registrar o que divergir.
+
+- **2026-08-29 — `get_escrow_detail` RESPONDE NO DIA DO PEDIDO, com a comissão.**
+  Medido contra a loja real (UTILEIRA, 275804987), **20 pedidos em quatro faixas de
+  idade — 0, 3, 10 e 25 dias**. Os 20 devolveram `order_income` **com valor**,
+  inclusive os cinco do **próprio dia**, ainda em `paid` e sem um centavo repassado.
+
+  | Idade | Bruto | `commission_fee` | `service_fee` | `escrow_amount` |
+  |---|---|---|---|---|
+  | **0 dias** (`paid`) | 33,90 | **6,10** | 4,68 | 23,12 |
+  | **0 dias** (`paid`) | 69,90 | **12,58** | 5,40 | 51,92 |
+  | 25 dias (`delivered`) | 279,60 | 50,33 | 21,59 | 207,19 |
+
+  A comissão saiu **18% cravado** em todas as amostras conferidas, e a conta fecha:
+  `33,90 − 6,10 − 4,68 = 23,12`.
+
+  ⚠️ **O QUE ISTO DESMENTE.** Este doc dizia "só disponível após o pedido
+  pago/concluído", e a frase foi lida como *"só depois da liquidação"*. São coisas
+  diferentes, e a confusão custou caro: o diagnóstico corrente era *"a Shopee só
+  libera depois de ~40 dias, logo a margem de hoje não existe"*, o que misturava
+  **LIQUIDAÇÃO** (o dinheiro cair na conta da vendedora) com **VISIBILIDADE DA TAXA**
+  (a Shopee dizer quanto vai cobrar). Só a segunda importa para a margem, e ela
+  existe desde o dia zero.
+
+  O efeito prático era nosso, não da Shopee: a fila do escrow perguntava do pedido
+  **mais antigo para o mais novo**, então o pedido de hoje esperava ~2,8 dias no fim
+  de 16.700 — e ao chegar a vez dele já havia mais 2,8 dias de pedidos novos atrás.
+  A janela recente não estava atrasada, estava **faminta por construção**. Corrigido
+  na v196 (`occurred_at DESC`).
+
+  ⚠️ **Ainda não sabemos** se `commission_fee` no dia zero é definitivo ou muda na
+  liquidação. Não há campo dizendo "estimado"; há fatias com prefixo `final_`
+  (`final_shipping_fee`, `final_escrow_product_gst`, …) todas **zeradas** hoje, e
+  `commission_fee`/`service_fee` **não** têm par `final_`. Verificação pendente:
+  comparar o valor que a API devolve agora para um pedido antigo com o que já foi
+  gravado dele na liquidação.
+
+- **2026-08-29 — `get_order_detail` NÃO carrega comissão, por mais campos que se peça.**
+  Chamado com **28 `response_optional_fields`** (todos os documentados que fazem
+  sentido para pedido): as 40 chaves da resposta trazem só frete —
+  `estimated_shipping_fee`, `actual_shipping_fee`, `actual_shipping_fee_confirmed`,
+  `reverse_shipping_fee`. **Nenhum campo de comissão, taxa de serviço ou escrow.**
+  Ou seja: `get_escrow_detail` é o **único** caminho para a taxa, e a ausência no
+  `get_order_detail` não é efeito da nossa lista curta de campos — foi testada a
+  lista larga.
 
 - **2026-08-28 — account_health sondado na loja real (base da tela Saúde da conta).**
   Seis chamadas reais, dentro do runtime de produção:
