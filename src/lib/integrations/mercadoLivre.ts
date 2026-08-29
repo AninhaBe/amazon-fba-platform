@@ -10,6 +10,7 @@ import { calcularSaldoML, type PagamentoMP, type SaldoMercadoLivre } from "./mer
 import { auditarFrete, type FreteEsperado, type PagamentoAuditoria, type ResultadoAuditoria } from "./mercadoLivreAuditoria";
 import { dbQuery } from "../db";
 import { currentWorkspaceId } from "../workspaceScope";
+import { registrarChamada } from "./contadorDeChamadas";
 
 const API_BASE = "https://api.mercadolibre.com";
 const AUTH_BASE = "https://auth.mercadolivre.com.br/authorization";
@@ -348,6 +349,16 @@ async function validConnection(connection: IntegrationConnection): Promise<Integ
  * `/advertising/advertisers` e `api-version: 2` no resto. Sem ele, a resposta é
  * 404 — medido pelo Delta em 28/08/2026. Nenhuma chamada existente muda.
  */
+/**
+ * Agrupa o recurso pelo FORMATO, nao pelo valor: `/orders/123` e `/orders/456`
+ * viram `/orders/:id`. Sem isso o contador criaria uma linha por pedido e
+ * responderia "quantas vezes chamei ESTE pedido" em vez de "quantas vezes
+ * chamei este endpoint" — que e a pergunta de um alerta de plataforma.
+ */
+function caminhoDoRecurso(resource: string): string {
+  return resource.split("?")[0].replace(/\/\d[\w-]*/g, "/:id");
+}
+
 export async function mercadoLivreFetch<T>(
   connection: IntegrationConnection,
   resource: string,
@@ -363,7 +374,15 @@ export async function mercadoLivreFetch<T>(
         cache: "no-store",
         signal: AbortSignal.timeout(10_000),
       });
+      // Conta CADA tentativa, que e o que o canal ve. Ver contadorDeChamadas.ts.
+      registrarChamada("mercado_livre", caminhoDoRecurso(resource), {
+        status: response.status,
+        limite: response.headers.get("x-ratelimit-remaining"),
+        erro: !response.ok,
+        connectionId: current.id,
+      });
     } catch (error) {
+      registrarChamada("mercado_livre", caminhoDoRecurso(resource), { status: null, erro: true, connectionId: current.id });
       if (attempt < 2) {
         await new Promise((resolve) => setTimeout(resolve, 350 * 2 ** attempt));
         continue;

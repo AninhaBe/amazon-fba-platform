@@ -83,3 +83,33 @@ export async function expurgarEventosProcessados(
     duracaoMs: Math.round(performance.now() - inicio),
   };
 }
+
+/**
+ * Retenção do contador de chamadas (ADR-016, regra 1: toda tabela responde
+ * "quando isso morre").
+ *
+ * 90 dias: janela suficiente para responder sobre um alerta de plataforma —
+ * "quantas vezes chamamos este endpoint no dia tal?" — e curta o bastante para
+ * a tabela não virar histórico eterno. Ela é AGREGADA por hora, então cresce
+ * devagar: no pior caso são endpoints × conexões × 24 linhas por dia.
+ */
+export const RETENCAO_CHAMADAS_DIAS = 90;
+
+export async function expurgarChamadasAntigas(
+  dias: number = RETENCAO_CHAMADAS_DIAS
+): Promise<{ tabela: string; removidas: number; restantes: number }> {
+  const removidas = await dbQuery<{ count: string }>(
+    `DELETE FROM marketplace_api_calls
+      WHERE hora < now() - ($1 || ' days')::interval
+      RETURNING 1`,
+    [String(dias)]
+  );
+  const [contagem] = await dbQuery<{ restantes: string }>(
+    `SELECT count(*) AS restantes FROM marketplace_api_calls`
+  );
+  return {
+    tabela: "marketplace_api_calls",
+    removidas: removidas.length,
+    restantes: Number(contagem?.restantes ?? 0),
+  };
+}

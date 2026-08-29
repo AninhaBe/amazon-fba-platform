@@ -1,3 +1,5 @@
+import { registrarChamada } from "./contadorDeChamadas";
+
 /** Erro sanitizado da Open Platform, com metadados suficientes para retry/log. */
 export class ShopeeApiError extends Error {
   readonly code: string;
@@ -35,6 +37,31 @@ export function invalidShopeeResponse(status?: number): ShopeeApiError {
 
 const wait = (milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
 
+/**
+ * Contabiliza a requisicao COMO A SHOPEE A VE — aqui dentro, e nao em
+ * `shopeeFetch`, de proposito: este laco tenta ate tres vezes, e a plataforma
+ * conta cada tentativa. Contar uma camada acima esconderia justamente as
+ * repeticoes, que sao o que um alerta de comportamento anormal enxerga.
+ *
+ * O caminho e o endpoint (sem query, que carrega assinatura e token); o
+ * `shop_id` identifica a loja, que e a unidade do limite deles.
+ */
+function contar(url: string, status: number | null, erro: boolean): void {
+  try {
+    const parsed = new URL(url);
+    registrarChamada("shopee", parsed.pathname, {
+      status,
+      // A Shopee nao documenta cabecalho de limite; se um dia mandar, aparece aqui.
+      erro,
+      connectionId: parsed.searchParams.get("shop_id")
+        ? `shopee:${parsed.searchParams.get("shop_id")}`
+        : null,
+    });
+  } catch {
+    // Instrumentacao nunca derruba a chamada que ela observa.
+  }
+}
+
 /** HTTP fail-closed: resposta não-ok ou não-JSON jamais vira sucesso vazio. */
 export async function requestShopeeJson(
   url: string,
@@ -45,7 +72,9 @@ export async function requestShopeeJson(
     let response: Response;
     try {
       response = await fetch(url, { ...init, cache: "no-store", signal: AbortSignal.timeout(15_000) });
+      contar(url, response.status, !response.ok);
     } catch (error) {
+      contar(url, null, true);
       if (attempt < 2) {
         await pause(350 * 2 ** attempt);
         continue;

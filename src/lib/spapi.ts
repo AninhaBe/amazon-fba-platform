@@ -3,6 +3,7 @@
 // Multi-conta: o token vem da conta ativa (AsyncLocalStorage); fallback para o .env.
 
 import { currentAccount } from "./accountContext";
+import { registrarChamada } from "./integrations/contadorDeChamadas";
 
 const REGION_HOSTS: Record<string, string> = {
   NA: "https://sellingpartnerapi-na.amazon.com",
@@ -226,6 +227,15 @@ export interface SpApiOptions {
 }
 
 /** Faz uma chamada autenticada à SP-API e retorna o JSON. Lança erro em status >= 400. */
+/**
+ * Agrupa pelo FORMATO do caminho: `/orders/v0/orders/123-456` vira
+ * `/orders/v0/orders/:id`. Contador por valor responderia "quantas vezes chamei
+ * ESTE pedido" em vez de "quantas vezes chamei este endpoint".
+ */
+function caminhoDoEndpoint(path: string): string {
+  return path.split("?")[0].replace(/\/[A-Z0-9]{2,}[\w.-]*\d[\w.-]*/gi, "/:id");
+}
+
 export async function spapiFetch<T = unknown>(
   path: string,
   opts: SpApiOptions = {}
@@ -250,6 +260,13 @@ export async function spapiFetch<T = unknown>(
       },
       body: opts.body ? JSON.stringify(opts.body) : undefined,
       cache: "no-store",
+    });
+    // Conta CADA tentativa, inclusive as que levam 429 e sao repetidas — e o
+    // que a Amazon ve. Ver contadorDeChamadas.ts.
+    registrarChamada("amazon", caminhoDoEndpoint(path), {
+      status: res.status,
+      limite: res.headers.get("x-amzn-RateLimit-Limit"),
+      erro: !res.ok,
     });
 
     // 429 = rate limit; espera e tenta de novo (backoff exponencial).

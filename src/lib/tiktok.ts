@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { registrarChamada } from "./integrations/contadorDeChamadas";
 
 // Cliente TikTok Shop Partner API v2.
 // - Token endpoints (get/refresh): usam app_key+app_secret direto, SEM assinatura.
@@ -180,6 +181,14 @@ export async function tiktokFetch<T = unknown>(path: string, opts: TiktokFetchOp
     signal: AbortSignal.timeout(30_000),
   });
   const json = await res.json();
+  // Contagem no funil unico: e o unico lugar por onde TODA chamada passa.
+  // Ver `contadorDeChamadas.ts` — o alerta da Shopee de 29/08/2026 chegou e a
+  // pergunta "quantas chamadas por endpoint e por hora" nao tinha resposta.
+  registrarChamada("tiktok_shop", path, {
+    status: res.status,
+    limite: res.headers.get("x-ratelimit-remaining"),
+    erro: !res.ok || json.code !== 0,
+  });
   if (!res.ok || json.code !== 0) {
     throw classifyTiktokApiError({ httpStatus: res.status, code: json.code, message: json.message });
   }

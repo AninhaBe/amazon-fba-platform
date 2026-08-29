@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { expurgarEventosProcessados, RETENCAO_EVENTOS_DIAS } from "@/lib/retencao";
+import { expurgarChamadasAntigas, expurgarEventosProcessados, RETENCAO_EVENTOS_DIAS } from "@/lib/retencao";
 import { runComoFundo } from "@/lib/execucaoDeFundo";
 
 // Expurgo de dados efêmeros — ver ADR-016.
@@ -26,6 +26,18 @@ export async function GET(req: NextRequest) {
   return runComoFundo(async () => {
   try {
     const resultado = await expurgarEventosProcessados(dias);
+    // O contador de chamadas tem janela propria (90 dias): ele responde sobre
+    // alerta de plataforma, nao sobre evento de webhook. Falha dele nao pode
+    // derrubar o expurgo de eventos, que e o que segurava 172 MB.
+    const chamadas = await expurgarChamadasAntigas().catch((erro) => {
+      console.error("[retencao] expurgo do contador de chamadas falhou:", erro);
+      return null;
+    });
+    if (chamadas) {
+      console.log(
+        `[retencao] ${chamadas.tabela}: ${chamadas.removidas} removidas, ${chamadas.restantes} restantes (janela de 90 dias)`
+      );
+    }
     // ADR-016, regra 4: nada de expurgo silencioso.
     console.log(
       `[retencao] ${resultado.tabela}: ${resultado.removidas} removidas, ` +
