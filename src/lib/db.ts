@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { assertFinancialLedgerContract, financialLedgerContractHash, FINANCIAL_LEDGER_CONTRACT_SQL } from "../../scripts/migration-contracts.mjs";
 import { inspectFinancialLedgerContract } from "../../scripts/migration-safety.mjs";
+import { urlDoPoolDaAplicacao } from "./databaseUrl";
 
 // Camada Postgres (Supabase). Quando DATABASE_URL está definido, os dados que
 // precisam persistir (contas conectadas + custos) vão para o banco; senão, os
@@ -17,10 +18,28 @@ export function hasDb(): boolean {
   return !!process.env.DATABASE_URL;
 }
 
+/**
+ * Teto de conexões do pool. Padrão da aplicação: 10 (2 na Vercel, onde cada
+ * instância cria o seu). `DB_POOL_MAX` sobrescreve para baixo nos scripts.
+ *
+ * Valor inválido ou fora de 1..10 é IGNORADO em silêncio a favor do padrão —
+ * um erro de digitação num script não pode virar autorização para abrir mais
+ * conexões que a aplicação.
+ */
+function maximoDoPool(): number {
+  const padrao = process.env.VERCEL ? 2 : 10;
+  const pedido = Number(process.env.DB_POOL_MAX);
+  if (!Number.isInteger(pedido) || pedido < 1 || pedido > padrao) return padrao;
+  return pedido;
+}
+
 function getPool(): Pool {
   if (!pool) {
     pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
+      // Modo `transaction` (porta 6543) quando o destino é o pooler do Supabase.
+      // No modo `session` o `pool_size: 15` é teto de CLIENTES e já não cabia o
+      // `max` daqui. Ver `databaseUrl.ts` e ADR-028.
+      connectionString: urlDoPoolDaAplicacao(process.env.DATABASE_URL),
       // Supabase exige SSL. rejectUnauthorized:false evita erro de CA no Render.
       ssl: { rejectUnauthorized: false },
       // Cada instância serverless pode criar seu próprio pool. Mantê-lo pequeno
@@ -34,7 +53,11 @@ function getPool(): Pool {
       // era aqui: o cron dispara os quatro canais em paralelo e cada passo de
       // sync abre várias queries — não cabe em 5 slots. 10 continua conservador
       // (bem abaixo do teto do servidor) e é reversível numa linha.
-      max: process.env.VERCEL ? 2 : 10,
+      // `DB_POOL_MAX` existe para os SCRIPTS: regra de higiene de 28/08/2026 —
+      // script local contra produção não abre pool de 10. Foram duas sondas
+      // minhas com `max: 10` que derrubaram uma na outra com EMAXCONNSESSION.
+      // A aplicação não define a variável; quem define é o script, no topo dele.
+      max: maximoDoPool(),
       idleTimeoutMillis: 10_000,
       connectionTimeoutMillis: 10_000,
     });

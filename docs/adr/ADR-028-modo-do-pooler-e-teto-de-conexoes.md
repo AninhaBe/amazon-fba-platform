@@ -83,9 +83,23 @@ Resultado da sonda, lado a lado:
   ok    10 conexoes simultaneas (o max do db.ts)        413ms
 ```
 
-⚠️ **Leia a linha `FALHA` com cuidado:** ela não diz "vai quebrar um dia". Ela
-diz que **hoje, em produção, abrir o `max` que o próprio `db.ts` declara já
-falha** quando alguma outra coisa está usando o pooler.
+⚠️ **Leia a linha `FALHA` com a ressalva certa — e ela é uma correção a uma
+versão anterior deste ADR.** Numa segunda rodada, horas depois, o modo `session`
+**passou** nas 10 simultâneas (505ms). O teto não morde sempre: ele morde quando
+o app, os crons e algum script somam mais de 15 **ao mesmo tempo**. A primeira
+redação dizia "já falha hoje", sem o "quando", e isso era gravidade inflada — do
+mesmo tipo catalogado no ADR-017.
+
+O que é constante, medido nas duas rodadas:
+
+| | session (5432) | transaction (6543) |
+|---|---:|---:|
+| Conexões de **cliente** que se consegue abrir | **14** | **30+** (parei de contar) |
+
+Ou seja: o `pool_size: 15` é teto de clientes no modo `session` e deixa de ser
+no `transaction`. A falha das 10 simultâneas é **intermitente por natureza** —
+depende de quem mais está usando o pooler no instante — e é exatamente por isso
+que ela é perigosa: some quando se vai investigar.
 
 ## Opções
 

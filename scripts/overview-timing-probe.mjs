@@ -13,6 +13,16 @@
 // Rodadas ALTERNADAS (ADR-017): frio e quente medidos separados, e os periodos
 // intercalados entre rodadas — medir A tres vezes e depois B tres vezes compara
 // cache frio com cache quente e mente a favor de quem mede.
+// ⚠️ REGRA DE HIGIENE (28/08/2026): SCRIPT LOCAL CONTRA PRODUCAO NAO ABRE POOL
+// DE 10. O pooler do Supabase tem pool_size 15 compartilhado com o app e os
+// crons; duas sondas minhas com o max de 10 do db.ts derrubaram uma a outra com
+// EMAXCONNSESSION. Ver ADR-028.
+//
+// Funciona apesar de os imports do ESM subirem para o topo porque o pool do
+// db.ts e criado PREGUICOSAMENTE, na primeira consulta — e nenhuma consulta
+// acontece antes desta linha.
+process.env.DB_POOL_MAX = "3";
+
 import { runWithWorkspace } from "../src/lib/workspaceScope.ts";
 import { runWithAccount } from "../src/lib/accountContext.ts";
 import { dbQuery } from "../src/lib/db.ts";
