@@ -32,7 +32,14 @@ export function TrendIndicator({ trend }: { trend: RevenueTrend }) {
 export interface MetricProps {
   label: string;
   value: React.ReactNode;
-  sub?: string;
+  /**
+   * ⚠️ `ReactNode`, e nao `string`, desde 30/08/2026: o rodape precisa poder
+   * levar LINK. A regra da casa manda dizer o que falta "com numero e link", e
+   * com `string` a metade acionavel era impossivel — a tela ficava em "3
+   * unidades sem custo" sem dizer onde cadastrar. A diferenca entre a
+   * vendedora SABER e a vendedora RESOLVER e o href.
+   */
+  sub?: React.ReactNode;
   tone?: "default" | "ok" | "warn" | "danger" | "positive";
   loading?: boolean;
   icon?: React.ReactNode;
