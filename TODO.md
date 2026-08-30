@@ -488,6 +488,27 @@ outro canal (o diff da rodada não podia sair do TikTok), ou é decisão de prod
   reproduzível e não carrega dado. Vale como princípio, não como caso isolado:
   instrumento de medição nasce, mede e morre; o gerador fica.
 
+## Portão automático de testes (criado em 30/08/2026)
+
+- [x] **Primeiro workflow de CI do projeto** — `.github/workflows/testes.yml`:
+  tsc, eslint, suíte, testes de integração com Postgres descartável e build. Até
+  aqui a suíte só rodava quando alguém lembrava.
+- [ ] **`src/app/page.tsx:188` — `setState` síncrono dentro de efeito**
+  (`Calling setState synchronously within an effect can trigger cascading
+  renders`). É o **único** erro de lint da árvore versionada, e é ANTERIOR ao
+  portão. Enquanto ele existir, a primeira execução do CI fica vermelha.
+
+  ⚠️ Não silenciei e não afrouxei o passo de lint para o portão "nascer verde":
+  gate que começa complacente nunca endurece depois. A escolha é: consertar
+  antes de ligar, ou deixar a primeira execução vermelha e tratar isto como o
+  primeiro achado do portão — que é, aliás, exatamente o tipo de coisa que
+  ninguém via sem ele.
+- [ ] **Cota do Actions.** O `cron.yml` morreu em 21/08/2026 com os 2.000
+  min/mês esgotados. O portão roda só em `push` na `main` e em `pull_request`,
+  com `cancel-in-progress` e `timeout-minutes` — mas se a cota apertar, o
+  primeiro corte é o `build` (passo mais lento), e isso é decisão, não algo para
+  fazer no susto.
+
 ## Explicações dentro do produto (pedido em 23/08/2026)
 
 Referência que ela mandou: painel de monitoramento de marca com **ⓘ em cada

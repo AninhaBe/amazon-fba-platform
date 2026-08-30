@@ -57,6 +57,16 @@ const MAX_USUARIO = process.env.VERCEL ? 2 : 8;
 // começa a resgatar. Fila na tela é invisível e cai em cima da vendedora.
 const MAX_FUNDO = process.env.VERCEL ? 1 : 5;
 
+/** Alvo em localhost = banco descartável (CI ou desenvolvimento), que não fala SSL. */
+function hostLocal(url: string | undefined): boolean {
+  if (!url) return false;
+  try {
+    return ["localhost", "127.0.0.1", "::1"].includes(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+}
+
 function criarPool(max: number): Pool {
   return new Pool({
       // Modo `transaction` (porta 6543) quando o destino é o pooler do Supabase.
@@ -64,7 +74,14 @@ function criarPool(max: number): Pool {
       // `max` daqui. Ver `databaseUrl.ts` e ADR-028.
       connectionString: urlDoPoolDaAplicacao(process.env.DATABASE_URL),
       // Supabase exige SSL. rejectUnauthorized:false evita erro de CA no Render.
-      ssl: { rejectUnauthorized: false },
+      //
+      // ⚠️ Postgres LOCAL não fala SSL e responde "The server does not support
+      // SSL connections" (visto ao montar o portão do CI em 30/08/2026). Alvo
+      // local é sempre banco descartável — contêiner do CI ou Postgres de
+      // desenvolvimento —, nunca dado de vendedora, então desligar aí não afrouxa
+      // nada: os alvos reais deste projeto (Supabase) não são locais e continuam
+      // exigindo SSL por este mesmo `if`.
+      ssl: hostLocal(process.env.DATABASE_URL) ? false : { rejectUnauthorized: false },
       // Cada instância serverless pode criar seu próprio pool. Mantê-lo pequeno
       // evita multiplicar conexões no Supavisor quando a Vercel escala a aplicação.
       //
@@ -464,9 +481,38 @@ async function createSchema(): Promise<void> {
   `);
 }
 
-// Mantido temporariamente apenas para tornar explícito no diff o bootstrap antigo;
-// não é chamado. Remoção mecânica pode ser feita após separar o worktree concorrente.
-void createSchema;
+/**
+ * O BOOTSTRAP ANTIGO, e por que ele voltou a ter dono (30/08/2026).
+ *
+ * ⚠️ Ele deixou de ser código morto quando o projeto ganhou portão automático.
+ * Descoberto ao montar o CI: **as tabelas base — `workspace_marketplace_syncs`,
+ * `workspace_integrations`, `accounts` e companhia — NÃO são criadas por
+ * migration nenhuma.** Elas nasceram deste `createSchema`, antes das migrations
+ * versionadas existirem, e as migrations partem do princípio de que já estão lá:
+ * a 0002 é um `ALTER TABLE workspace_marketplace_syncs`, que falha em banco
+ * novo.
+ *
+ * Consequência que ninguém tinha medido: **o repositório não conseguia
+ * reconstruir o próprio schema do zero.** O schema completo só existia em
+ * produção, como resíduo de uma versão deste arquivo que já não roda. Nenhum
+ * ambiente novo — CI, staging, a máquina de quem entra no time — subia sem
+ * copiar produção.
+ *
+ * ⚠️ ISTO NÃO ABRE A PORTA QUE A ADR FECHOU. "Runtime, sync e health nunca
+ * corrigem schema" continua valendo, e é por isso que a guarda de host mora
+ * DENTRO da função em vez de na chamada: em produção o host não é local e ela
+ * lança, então nem um erro de configuração consegue transformar isto em DDL
+ * implícito no caminho de uma requisição. Alvo descartável, e só ele.
+ */
+export async function criarSchemaBaseParaTesteLocal(): Promise<void> {
+  const alvo = process.env.DATABASE_URL;
+  if (!alvo) throw new Error("BLOCKED: sem DATABASE_URL para criar schema base.");
+  const host = new URL(alvo).hostname;
+  if (!["localhost", "127.0.0.1", "::1"].includes(host)) {
+    throw new Error(`BLOCKED: schema base só é criado em banco descartável; "${host}" não é local.`);
+  }
+  await createSchema();
+}
 
 /** Garante que as tabelas existam (idempotente, roda uma vez por processo). */
 function ensureSchema(): Promise<void> {

@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "node --experimental-strip-types --import ./scripts/ts-resolver.mjs --test tests/*.test.mjs",
+    "test:integracao": "node --experimental-strip-types --import ./scripts/ts-resolver.mjs --test tests-integracao/*.test.mjs",
+    "ci:preparar-banco": "node --experimental-strip-types --import ./scripts/ts-resolver.mjs scripts/ci-preparar-banco.mjs",
     "health:local": "node scripts/health-local.mjs",
     "migrate": "node scripts/migrate-cli.mjs guard",
     "migrate:plan": "node --env-file-if-exists=.env.local scripts/migrate-cli.mjs plan",

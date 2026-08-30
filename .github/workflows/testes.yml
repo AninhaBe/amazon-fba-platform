@@ -1,0 +1,107 @@
+name: Portão de testes (NEXO)
+
+# O PRIMEIRO PORTÃO AUTOMÁTICO DO PROJETO (30/08/2026).
+#
+# Até aqui a suíte rodava só quando alguém lembrava de rodar local. Os workflows
+# que existiam (`cron.yml`, `retencao.yml`) disparam o app em produção; nenhum
+# verificava código. Então "teste obrigatório no CI" não tinha onde acontecer.
+#
+# ⚠️ NÃO CAI SOB O ADR-035: ferramenta de desenvolvimento não toca as 15 conexões
+# do pooler nem roda em produção. O Postgres aqui é um contêiner descartável que
+# vive ~3 minutos e é jogado fora.
+#
+# ⚠️ A COTA DO ACTIONS JÁ MATOU UM WORKFLOW DESTE REPO. Em 21/08/2026 o
+# `cron.yml` parou com "recent account payments have failed or your spending
+# limit needs to be increased" — 2.000 min/mês esgotados. Por isso este job:
+#   - roda em `push` só na `main` e em `pull_request` (não em toda branch);
+#   - cancela execução anterior do mesmo ref (`concurrency`), em vez de empilhar;
+#   - tem `timeout-minutes`, para job travado não queimar cota até o teto;
+#   - guarda cache de dependência, que é o passo mais caro depois do build.
+# Se a cota apertar de novo, o primeiro corte é o `build` (o mais lento), não os
+# testes — mas isso é decisão, não algo para alguém fazer no susto.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch: {}
+
+concurrency:
+  group: testes-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  portao:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # Postgres DESCARTÁVEL. Se ele não subir, o workflow FALHA — não pula.
+    # É essa a diferença entre um portão e uma decoração.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: nexo
+          POSTGRES_PASSWORD: nexo
+          POSTGRES_DB: nexo_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nexo -d nexo_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      # ⚠️ `localhost` não é estética: `ci-preparar-banco.mjs` e o teste de
+      # concorrência RECUSAM host que não seja local. É a trava que impede o
+      # portão de, por erro de configuração, escrever no banco da vendedora.
+      TEST_DATABASE_URL: postgres://nexo:nexo@localhost:5432/nexo_test
+      # DATABASE_URL fica DELIBERADAMENTE indefinida: nenhum passo daqui pode
+      # alcançar produção, nem por engano de quem editar este arquivo depois.
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      # ── Os portões que não precisam de banco ────────────────────────────────
+      # Vêm primeiro porque falham rápido: erro de tipo não deve esperar o
+      # Postgres subir para aparecer.
+      - name: Tipos (tsc)
+        run: npx tsc --noEmit
+
+      # ⚠️ CAMINHOS EXPLÍCITOS, e não `npm run lint` pelado. O script é `eslint`
+      # sem argumento, que varre a árvore inteira — inclusive diretórios locais
+      # não versionados (`.codex-artifacts/` na máquina de quem estava rodando
+      # em 30/08/2026: 36 arquivos e a maior parte dos 417 erros). No CI eles não
+      # existem, mas depender disso deixaria o portão com resultado diferente do
+      # que a pessoa vê na máquina dela — e portão que discorda do local é
+      # portão que ninguém confia.
+      - name: Lint (eslint)
+        run: npx eslint src tests tests-integracao scripts
+
+      - name: Suíte de testes
+        run: npm test
+
+      # ── O portão que precisa de banco ───────────────────────────────────────
+      # As migrations rodam ANTES do teste: sem isto testaríamos contra schema
+      # velho e descobriríamos no pior dia.
+      - name: Preparar o banco descartável (bootstrap + migrations)
+        run: npm run ci:preparar-banco
+
+      # ⚠️ ESTE NÃO PULA. Sem `TEST_DATABASE_URL`, ou com ela apontando para
+      # host não descartável, o arquivo lança na importação e o job fica
+      # vermelho. Teste que se omite fica verde sem ter testado nada.
+      - name: Testes de integração (concorrência de lease, com Postgres real)
+        run: npm run test:integracao
+
+      # ── Build por último: é o passo mais lento ──────────────────────────────
+      - name: Build de produção
+        run: npm run build
