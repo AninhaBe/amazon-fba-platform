@@ -49,8 +49,14 @@ export interface AmazonAdsInput {
 export interface AmazonCardsInput {
   finance: AmazonFinanceInput | null;
   cogs: number;
-  /** Lucro ANTES de anúncio. O card "Lucro" desconta o Ads em cima disto. */
-  estimatedProfit: number;
+  /**
+   * O LUCRO DO PERÍODO, **já com o anúncio dentro** — ver a fronteira em
+   * `src/lib/financialMath.ts`. Vem pronto de `profit.ts`; esta tela LÊ.
+   *
+   * ⚠️ Era "lucro ANTES de anúncio" até 30/08/2026, e a subtração morava aqui.
+   * `null` = gasto com anúncio desconhecido, e o produtor já decidiu isso.
+   */
+  estimatedProfit: number | null;
   /** Unidades vendidas sem custo cadastrado — invalida COGS, lucro, margem e ROI. */
   unitsWithoutCost: number;
   /** Alíquota declarada pela vendedora. `null` = não configurada. */
@@ -59,6 +65,12 @@ export interface AmazonCardsInput {
   taxes?: number | null;
   /** Anúncio do período. `null` = não sincronizado (≠ não gastou). */
   ads?: AmazonAdsInput | null;
+  /**
+   * O gasto com anúncio JÁ DESCONTADO de `estimatedProfit` pelo produtor.
+   * Serve para a tela ESCREVER o que foi descontado — nunca para descontar.
+   * `null` = desconhecido; `0` = não gastou.
+   */
+  adsNoLucro?: number | null;
   /**
    * A janela do período em dia-calendário BRT. Enviada sempre que há Ads
    * conectado, INCLUSIVE quando não há métrica — é ela que distingue
@@ -121,66 +133,33 @@ const ANUNCIOS = (tipo: string) => /advertis|productads/i.test(tipo);
 const COMISSAO = (tipo: string) => /commission|referralfee/i.test(tipo);
 
 /**
- * O gasto com anúncio que ENTRA no lucro do período — fonte única.
+ * O LUCRO DO PERÍODO — hoje um LEITOR, e é isso que a função tem de ser.
  *
- * ⚠️ Por que isto virou função exportada (29/08/2026): a decisão da vendedora de
- * 25/08 — *"o card de lucro passa a descontar também o ads, isso é lucro real"* —
- * foi aplicada ao CARD e não ao PAINEL. O painel ficou com a definição anterior,
- * e a mesma tela passou a mostrar **dois números chamados lucro com sinais
- * opostos**: −R$ 35,61 na faixa e +R$ 365,53 no painel, com selo verde de
- * "Composição completa". A diferença era exatamente a maior despesa do período.
+ * ⚠️ ELA JÁ FOI A CONTA (25 a 30/08/2026), e esse foi o defeito. A subtração do
+ * anúncio nasceu no card, virou função quando o painel divergiu dele, cresceu
+ * para a conta inteira quando a cascata divergiu dos dois — e enquanto isso
+ * MERCADO LIVRE, MONITOR e HOME nem sabiam que anúncio existia. Três cópias na
+ * tela da Amazon e nenhuma nos outros: a conta estava no andar errado.
  *
- * Ela relatou o defeito uma vez, recebeu metade do conserto, e achou a outra
- * metade quatro dias depois. Uma conta usada em dois lugares tem que morar em
- * UM lugar — foi ter duas cópias que deixou uma para trás.
+ * Em 30/08/2026 a subtração subiu para quem PRODUZ o número (`profit.ts` e os
+ * canônicos de cada canal), sob a fronteira escrita em `src/lib/financialMath.ts`:
+ * **`estimatedProfit` inclui anúncio; quem consome não subtrai de novo.**
  *
- * ⚠️ A guarda do extrato continua aqui: se a Amazon postar anúncio como tarifa
- * de pedido, o valor já saiu de `estimatedProfit` e descontar a Ads API por cima
- * contaria o mesmo dinheiro duas vezes.
- */
-export function gastoComAnuncioDoPeriodo(input: {
-  finance?: { feeBreakdown?: { type: string; amount: number }[] } | null;
-  ads?: AmazonAdsInput | null;
-  adsConectado?: boolean;
-}): { gastoComAnuncio: number; jaNoExtrato: boolean; desconhecido: boolean } {
-  const noExtrato = somaTipos(input.finance?.feeBreakdown, ANUNCIOS, input.finance != null);
-  const jaNoExtrato = (noExtrato ?? 0) > 0;
-  // Ads conectado e SEM metrica sincronizada: o gasto e DESCONHECIDO, nao zero.
-  // Isto mora aqui junto com o valor porque quem desconta o anuncio precisa
-  // saber que nao pode descontar — e antes so o card sabia.
-  const desconhecido = input.adsConectado === true && input.ads == null && !jaNoExtrato;
-  return { gastoComAnuncio: jaNoExtrato ? 0 : (input.ads?.cost ?? 0), jaNoExtrato, desconhecido };
-}
-
-/**
- * O LUCRO DO PERÍODO — a conta inteira, e não só o gasto com anúncio.
- *
- * ⚠️ Por que esta função nasceu logo depois da de cima (29/08/2026): unificar o
- * *gasto* deixou a *subtração* duplicada. O card fazia `estimatedProfit −
- * gasto` aqui, e a tela refazia a mesma linha lá — duas contas que concordavam
- * hoje e voltariam a divergir na primeira vez que alguém mexesse numa só.
- *
- * Era esse o padrão do defeito: o mesmo número morava em TRÊS superfícies da
- * tela da Amazon (a faixa de cards, a rosca de composição e a cascata escrita
- * abaixo dela), e cada conserto alcançava só a cópia que alguém tinha visto.
- * Consertar onde a pessoa apontou conserta a CÓPIA, não a CONTA.
- *
- * As três leem daqui. Continua valendo `null` ≠ `0`: sem `estimatedProfit` ou
- * com gasto de anúncio desconhecido, o lucro é `null` — nunca o número otimista
- * que assume zero de anúncio.
+ * O que sobrou aqui é o que uma tela pode fazer: ler o lucro que chegou e dizer
+ * o que foi descontado. Se você sentir falta da subtração nesta função, ela já
+ * aconteceu — procure `descontarAnuncio` no produtor do canal.
  */
 export function lucroDoPeriodo(input: {
-  finance?: { feeBreakdown?: { type: string; amount: number }[] } | null;
-  ads?: AmazonAdsInput | null;
-  adsConectado?: boolean;
   estimatedProfit?: number | null;
-}): { lucro: number | null; gastoComAnuncio: number; jaNoExtrato: boolean; desconhecido: boolean } {
-  const anuncio = gastoComAnuncioDoPeriodo(input);
-  const lucro =
-    input.estimatedProfit == null || anuncio.desconhecido
-      ? null
-      : +(input.estimatedProfit - anuncio.gastoComAnuncio).toFixed(2);
-  return { lucro, ...anuncio };
+  adsNoLucro?: number | null;
+}): { lucro: number | null; gastoComAnuncio: number | null; desconhecido: boolean } {
+  return {
+    lucro: input.estimatedProfit ?? null,
+    gastoComAnuncio: input.adsNoLucro ?? null,
+    // `null` de gasto com lucro `null` é o produtor dizendo "não sei o anúncio".
+    // Com lucro presente, gasto ausente é só uma tela que não recebeu o detalhe.
+    desconhecido: input.estimatedProfit == null && input.adsNoLucro == null,
+  };
 }
 
 /**
@@ -259,9 +238,10 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
   //
   // Com Ads conectado e SEM métrica sincronizada, o gasto é desconhecido — não
   // zero. Lucro, margem e ROI ficam "—" em vez de repetir o número otimista.
-  // A MESMA função que a rosca e a cascata da tela usam — ver `lucroDoPeriodo`.
-  const { gastoComAnuncio, jaNoExtrato: anuncioJaNoExtrato, desconhecido: anuncioDesconhecido, lucro: lucroReal } =
-    lucroDoPeriodo(input);
+  // A MESMA leitura que a rosca e a cascata da tela usam — ver `lucroDoPeriodo`.
+  // O anúncio já saiu do lucro no produtor; aqui só se lê o que foi descontado.
+  const { gastoComAnuncio, desconhecido: anuncioDesconhecido, lucro: lucroReal } = lucroDoPeriodo(input);
+  const anuncioJaNoExtrato = (anuncios ?? 0) > 0;
 
   // O DIA DE HOJE EXISTE, MAS AINDA ESTÁ SOMANDO.
   //
@@ -382,7 +362,7 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
               comSemImposto([
                 "Faturamento − taxas − custo",
                 input.taxRate == null ? null : "imposto",
-                gastoComAnuncio > 0 ? "anúncio" : null,
+                (gastoComAnuncio ?? 0) > 0 ? "anúncio" : null,
               ]
                 .filter(Boolean)
                 .join(" − "), input.taxRate == null),

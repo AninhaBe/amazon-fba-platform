@@ -1,7 +1,8 @@
 import { getFinanceSummaryFromTransactions, type FinanceSummaryFromTransactions } from "./transactions";
 import { getCosts } from "./costStore";
 import type { Period } from "./period";
-import { calculateHistoricalCostCoverage } from "./financialMath";
+import { calculateHistoricalCostCoverage, descontarAnuncio } from "./financialMath";
+import { anuncioDoCanal, anuncioJaNoExtrato } from "./anuncioDoCanal";
 import { dbQuery } from "./db";
 import { currentAccountId } from "./accountContext";
 import { currentWorkspaceId } from "./workspaceScope";
@@ -10,7 +11,15 @@ import { amazonTaxAmount, getAmazonTaxRateSetting } from "./integrations/amazonS
 export interface ProfitSummary {
   finance: FinanceSummaryFromTransactions;
   cogs: number; // custo das mercadorias vendidas (unidades × custo cadastrado)
-  estimatedProfit: number; // repasse líquido − COGS − imposto (quando configurado)
+  /**
+   * Repasse líquido − COGS − imposto (quando configurado) − ANÚNCIO.
+   *
+   * ⚠️ O anúncio JÁ ESTÁ AQUI DENTRO desde 30/08/2026 — ver a fronteira em
+   * `financialMath.ts`. Quem consome (MONITOR, HOME) não subtrai de novo.
+   * `null` quando o gasto com anúncio é desconhecido: o número sem anúncio
+   * seria otimista, e otimista sem aviso é mentira.
+   */
+  estimatedProfit: number | null;
   unitsWithCost: number;
   unitsWithoutCost: number; // unidades vendidas sem custo cadastrado
   skusMissingCost: string[];
@@ -18,6 +27,12 @@ export interface ProfitSummary {
   taxRate: number | null;
   /** Imposto do período. `null` quando não há alíquota — nunca zero por omissão. */
   taxes: number | null;
+  /** Gasto com anúncio JÁ descontado de `estimatedProfit`. `null` = desconhecido. */
+  ads: number | null;
+  /** A conta anuncia e a métrica do período não chegou. */
+  adsDesconhecido: boolean;
+  /** Último dia com métrica de anúncio. Não extrapolamos os dias que faltam. */
+  adsAteDia: string | null;
 }
 
 /**
@@ -41,11 +56,25 @@ export async function getProfitSummary(period: Period): Promise<ProfitSummary> {
   // base é o que foi vendido, não o que sobrou depois das tarifas.
   const taxes = amazonTaxAmount(finance.revenue, taxRate);
 
+  // ⚠️ O ANÚNCIO ENTRA AQUI, e não em quem exibe — ver a fronteira em
+  // `financialMath.ts`. Este é o produtor do lucro que MONITOR e HOME leem, e
+  // eram duas telas exibindo lucro da Amazon com a maior despesa de fora.
+  //
+  // Só a Amazon: `getProfitSummary` é o caminho da Amazon (Transactions API).
+  // Os outros canais descontam no produtor deles.
+  const anuncio = await anuncioDoCanal("amazon", period.startISO, period.endISO, {
+    jaNoExtrato: anuncioJaNoExtrato(finance.feeBreakdown),
+  });
+  const lucro = descontarAnuncio(+(coverage.estimatedProfit - (taxes ?? 0)).toFixed(2), anuncio);
+
   return {
     finance,
     ...coverage,
     taxRate,
     taxes,
-    estimatedProfit: +(coverage.estimatedProfit - (taxes ?? 0)).toFixed(2),
+    estimatedProfit: lucro.estimatedProfit,
+    ads: lucro.ads,
+    adsDesconhecido: lucro.adsDesconhecido,
+    adsAteDia: lucro.ateDia,
   };
 }

@@ -6,6 +6,8 @@ import { getIntegrations } from "./integrationStore";
 import { getCosts, costAt } from "../costStore";
 import { cached } from "../cache";
 import { allocateByWeight, calculateContribution, type ProfitabilityLine } from "../profitability";
+import { descontarAnuncio } from "../financialMath";
+import { anuncioDoCanal } from "../anuncioDoCanal";
 import type { Period } from "../period";
 import { amazonConnectionId } from "./amazonSync";
 import { brazilDateKey } from "./mercadoLivre";
@@ -78,7 +80,17 @@ export interface AmazonCanonicalOverview {
     revenueProcessed: number;
     fees: number;
     cogs: number;
-    estimatedProfit: number;
+    /**
+     * ⚠️ JÁ COM O ANÚNCIO DENTRO (30/08/2026) — ver a fronteira em
+     * `financialMath.ts`. Quem exibe não subtrai de novo. `null` quando o gasto
+     * com anúncio é desconhecido.
+     */
+    estimatedProfit: number | null;
+    /** Anúncio já descontado acima. `null` = desconhecido; `0` = não gastou. */
+    ads: number | null;
+    adsDesconhecido: boolean;
+    /** Último dia com métrica. Os dias que faltam não são extrapolados. */
+    adsAteDia: string | null;
     unitsWithCost: number;
     unitsWithoutCost: number;
     /** SKUs distintos sem custo — a unidade de ACAO da vendedora. */
@@ -406,7 +418,17 @@ export async function getAmazonOverviewFromCanonical(period: Period): Promise<Am
     });
   }
 
-  const estimatedProfit = +(processedRevenue - fees - cogs).toFixed(2);
+  // ⚠️ O ANÚNCIO ENTRA AQUI — fronteira em `financialMath.ts`. O dashboard da
+  // Amazon subtraía o anúncio na TELA, em três lugares diferentes; agora o
+  // número já sai daqui com ele dentro e a tela só lê.
+  //
+  // A guarda do extrato não se aplica neste caminho: aqui `fees` vem de
+  // `workspace_channel_order_fees`, que é tarifa DE PEDIDO — anúncio nunca é
+  // postado por pedido. O caminho que precisa da guarda é `profit.ts`, que lê o
+  // extrato inteiro da Transactions API.
+  const anuncio = await anuncioDoCanal("amazon", period.startISO, period.endISO);
+  const lucro = descontarAnuncio(+(processedRevenue - fees - cogs).toFixed(2), anuncio);
+  const estimatedProfit = lucro.estimatedProfit;
 
   const topProducts: AmazonCanonicalTopProduct[] = productTotalsRows
     .map((row) => {
@@ -455,6 +477,9 @@ export async function getAmazonOverviewFromCanonical(period: Period): Promise<Am
       fees: +fees.toFixed(2),
       cogs: +cogs.toFixed(2),
       estimatedProfit,
+      ads: lucro.ads,
+      adsDesconhecido: lucro.adsDesconhecido,
+      adsAteDia: lucro.ateDia,
       unitsWithCost,
       unitsWithoutCost,
       skusWithoutCost: skusSemCusto.size,

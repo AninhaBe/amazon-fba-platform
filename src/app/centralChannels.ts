@@ -22,9 +22,10 @@ export interface Provider {
   connections: ProviderConnection[];
   issue?: { status: "attention"; code: "OWNERSHIP_CONFLICT" | "PROVIDER_READ_FAILED"; message: string };
 }
-interface AmazonProfit { estimatedProfit: number; unitsWithoutCost: number; finance: { currency: string } }
+/** `estimatedProfit` já inclui o anúncio — fronteira em `src/lib/financialMath.ts`. */
+interface AmazonProfit { estimatedProfit: number | null; adsDesconhecido?: boolean; unitsWithoutCost: number; finance: { currency: string } }
 interface AmazonSales { series: { totalRevenue: number; totalOrders: number; currency: string; points?: DailyPoint[] } }
-interface MercadoLivreOverview { metrics: { revenue30d: number; orders30d: number; activeListings: number; cancelledRevenue: number; cancelledOrders: number; currency: string; revenueCoverage: { complete: boolean; capturedOrders: number; totalOrders: number; sincronizadoAte?: string | null; historicoDesde?: string | null } }; profit: { estimatedProfit: number; unitsWithoutCost: number; coverage: { processedOrders: number; paidOrders: number; complete: boolean } }; dailySales?: DailyPoint[] }
+interface MercadoLivreOverview { metrics: { revenue30d: number; orders30d: number; activeListings: number; cancelledRevenue: number; cancelledOrders: number; currency: string; revenueCoverage: { complete: boolean; capturedOrders: number; totalOrders: number; sincronizadoAte?: string | null; historicoDesde?: string | null } }; profit: { estimatedProfit: number | null; adsDesconhecido?: boolean; unitsWithoutCost: number; coverage: { processedOrders: number; paidOrders: number; complete: boolean } }; dailySales?: DailyPoint[] }
 interface TiktokOverviewResponse {
   overview: { revenue: number | null; profit: number | null; currency: string } | null;
   orders?: number;
@@ -46,6 +47,8 @@ export interface ChannelSnapshot {
   revenue: number | null;
   profit: number | null;
   profitPartial?: boolean;
+  /** Lucro `null` porque falta o gasto com anúncio — não porque falta conexão. */
+  adsDesconhecido?: boolean;
   /** Faturamento servido pelo modelo canônico, não pelo orderMetrics oficial. */
   revenueFromCanonical?: boolean;
   /** O faturamento chegou mas a rota de lucro falhou — não é "lucro zero". */
@@ -204,6 +207,10 @@ export async function gatherCentralChannels(
 
     tasks.push(json<{ summary: AmazonProfit }>("/api/profit?days=30").then(({ summary }) => {
       amazon.profit = summary.estimatedProfit;
+      // Lucro `null` com anúncio desconhecido não é falha de conexão: é gasto
+      // que ainda não chegou. A nota precisa dizer isso, senão a HOME manda a
+      // vendedora reconectar uma conta que está conectada.
+      amazon.adsDesconhecido = summary.adsDesconhecido === true;
       amazon.profitPartial = summary.unitsWithoutCost > 0;
       amazon.unitsWithoutCost = summary.unitsWithoutCost;
       amazon.currency = amazon.currency || summary.finance.currency;
@@ -220,6 +227,7 @@ export async function gatherCentralChannels(
     mercadoLivre.revenue = overview.metrics.revenue30d;
     mercadoLivre.cancelled = overview.metrics.cancelledRevenue;
     mercadoLivre.profit = overview.profit.estimatedProfit;
+    mercadoLivre.adsDesconhecido = overview.profit.adsDesconhecido === true;
     mercadoLivre.profitPartial = !overview.profit.coverage.complete || overview.profit.unitsWithoutCost > 0;
     mercadoLivre.unitsWithoutCost = overview.profit.unitsWithoutCost;
     mercadoLivre.orders = overview.metrics.orders30d;

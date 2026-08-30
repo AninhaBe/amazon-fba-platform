@@ -19,7 +19,23 @@ const FINANCE = {
 };
 
 const ADS = { cost: 312.98, sales: 496.16, purchases: 16, ateDia: "2026-08-24", esperadoAte: "2026-08-24" };
-const base = { finance: FINANCE, cogs: 200, estimatedProfit: 295.65, unitsWithoutCost: 0, adsConectado: true };
+
+// ⚠️ A INTENCAO DOS FIXTURES MUDOU EM 30/08/2026, E O PORQUE E O MESMO DA
+// FRONTEIRA (`src/lib/financialMath.ts`): `estimatedProfit` passou a CHEGAR com
+// o anuncio dentro, produzido por `profit.ts`, porque enquanto a subtracao
+// morava na tela da Amazon ela nao existia no ML, no MONITOR nem na HOME —
+// R$ 2.827,10 de anuncio fora do lucro, medidos naquele dia.
+//
+// Entao `base` traz o lucro JA LIQUIDO (295,65 - 312,98 = -17,33) e `adsNoLucro`
+// com o que o produtor descontou, para a tela poder ESCREVER o que foi tirado.
+// Nenhum assert foi afrouxado: o card continua tendo que exibir -17,33 e dizer
+// "anuncio". O que mudou e de onde o -17,33 vem.
+const LUCRO_ANTES_DO_ANUNCIO = 295.65;
+const LUCRO_COM_ANUNCIO = -17.33;
+const base = {
+  finance: FINANCE, cogs: 200, unitsWithoutCost: 0, adsConectado: true,
+  estimatedProfit: LUCRO_COM_ANUNCIO, adsNoLucro: ADS.cost,
+};
 
 test("o lucro desconta o anuncio", () => {
   // O NÚMERO QUE MOTIVOU A ENTREGA (25/08/2026): a tela exibia R$ 295,65 de
@@ -29,8 +45,8 @@ test("o lucro desconta o anuncio", () => {
   // Decisão dela: *"o card de lucro passa a descontar também o ads, isso é
   // lucro real"*.
   const cards = amazonFinancialCards({ ...base, ads: ADS });
-  assert.equal(carta(cards, "profit").raw, -17.33);
-  assert.equal(carta(cards, "profit").value, brl(-17.33));
+  assert.equal(carta(cards, "profit").raw, LUCRO_COM_ANUNCIO);
+  assert.equal(carta(cards, "profit").value, brl(LUCRO_COM_ANUNCIO));
   assert.equal(carta(cards, "profit").tone, "danger", "prejuízo não pode sair verde");
 });
 
@@ -75,7 +91,10 @@ test("sem venda atribuida o ACOS e '—', nunca 0%", () => {
 test("com Ads conectado e sem metrica, o lucro fica '—'", () => {
   // `null ≠ 0`: gasto desconhecido não pode virar lucro otimista. É a mesma
   // regra que fez o card de custo parar de afirmar lucro zero sem repasse.
-  const c = amazonFinancialCards({ ...base, ads: null, adsConectado: true });
+  // Quem decide o desconhecimento agora e o produtor (`anuncioDoCanal`): ele
+  // manda `estimatedProfit: null`, e a tela repete. Antes a tela decidia — e
+  // era a segunda copia da regra.
+  const c = amazonFinancialCards({ ...base, estimatedProfit: null, adsNoLucro: null, ads: null, adsConectado: true });
   assert.equal(carta(c, "profit").value, "—");
   assert.match(carta(c, "profit").context, /gasto com anúncio/);
   assert.equal(carta(c, "marginPct").value, "—");
@@ -84,8 +103,8 @@ test("com Ads conectado e sem metrica, o lucro fica '—'", () => {
 test("sem Ads conectado o lucro sai normal", () => {
   // Quem não anuncia não pode ficar com a tela travada esperando um dado que
   // nunca vem. Aqui lucro sem anúncio É o lucro real.
-  const c = amazonFinancialCards({ ...base, ads: null, adsConectado: false });
-  assert.equal(carta(c, "profit").raw, 295.65);
+  const c = amazonFinancialCards({ ...base, estimatedProfit: LUCRO_ANTES_DO_ANUNCIO, adsNoLucro: 0, ads: null, adsConectado: false });
+  assert.equal(carta(c, "profit").raw, LUCRO_ANTES_DO_ANUNCIO);
   assert.match(carta(c, "ads").context, /Nenhuma conta de anúncio conectada/);
 });
 
@@ -93,12 +112,16 @@ test("anuncio postado como tarifa nao e descontado duas vezes", () => {
   // Se a Amazon algum dia postar anúncio como tarifa de pedido, o valor já
   // entrou em `fees` e já saiu de `estimatedProfit`. Descontar a Ads API por
   // cima contaria o mesmo dinheiro duas vezes.
+  // A guarda mudou de andar junto com a conta: quem enxerga o extrato e decide
+  // nao descontar de novo e `anuncioJaNoExtrato`, em `src/lib/anuncioDoCanal.ts`.
+  // Aqui o produtor ja mandou o lucro liquido UMA vez — e a tela nao mexe.
   const c = amazonFinancialCards({
     ...base,
+    estimatedProfit: LUCRO_COM_ANUNCIO,
     finance: { ...FINANCE, fees: 312.98, feeBreakdown: [{ type: "AdvertisingFee", amount: 312.98 }] },
     ads: ADS,
   });
-  assert.equal(carta(c, "profit").raw, 295.65, "o lucro já vinha líquido de anúncio");
+  assert.equal(carta(c, "profit").raw, LUCRO_COM_ANUNCIO, "o lucro já vinha líquido de anúncio");
   assert.match(carta(c, "ads").context, /extrato/);
 });
 
@@ -153,13 +176,15 @@ test("o gasto de hoje aparece, com aviso de que o dia nao fechou", () => {
   // avisando que ainda cresce.
   const c = amazonFinancialCards({
     ...base,
+    estimatedProfit: +(LUCRO_ANTES_DO_ANUNCIO - 17.53).toFixed(2),
+    adsNoLucro: 17.53,
     ads: { cost: 17.53, sales: 0, purchases: 0, ateDia: "2026-08-25", esperadoAte: "2026-08-25" },
     adsJanela: { inicioDia: "2026-08-25", esperadoAte: "2026-08-25", incluiHoje: true },
   });
   assert.equal(carta(c, "ads").raw, 17.53, "custo já pago não pode sumir da tela");
   assert.match(carta(c, "ads").context, /ainda está somando/);
   // O lucro de hoje desconta o anúncio de hoje.
-  assert.equal(carta(c, "profit").raw, 295.65 - 17.53);
+  assert.equal(carta(c, "profit").raw, +(LUCRO_ANTES_DO_ANUNCIO - 17.53).toFixed(2));
   // ACOS sem venda atribuída não é 0% nem catastrófico: é cedo.
   assert.equal(carta(c, "acos").value, "—");
   assert.match(carta(c, "acos").context, /entra depois/);
@@ -172,7 +197,7 @@ test("sem metrica de hoje o texto nao culpa a Amazon", () => {
   // O cron ainda não colheu o dia. A pendência é nossa — mas também não é
   // "sincronização atrasada", porque hoje sempre chega por último.
   const c = amazonFinancialCards({
-    ...base, ads: null, adsConectado: true,
+    ...base, estimatedProfit: null, adsNoLucro: null, ads: null, adsConectado: true,
     adsJanela: { inicioDia: "2026-08-25", esperadoAte: "2026-08-25", incluiHoje: true },
   });
   assert.match(carta(c, "profit").context, /ainda não foi contabilizado/);

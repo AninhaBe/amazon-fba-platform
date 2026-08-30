@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { amazonFinancialCards, gastoComAnuncioDoPeriodo, lucroDoPeriodo } from "../src/app/amazon/amazonFinancialCards.ts";
+import { amazonFinancialCards, lucroDoPeriodo } from "../src/app/amazon/amazonFinancialCards.ts";
 
 // O DEFEITO (relatado por ela em 29/08/2026): a mesma tela da Amazon exibia
 // DOIS numeros chamados lucro com sinais OPOSTOS — -R$ 35,61 na faixa de cards e
@@ -13,6 +13,29 @@ import { amazonFinancialCards, gastoComAnuncioDoPeriodo, lucroDoPeriodo } from "
 // metade do conserto, e achou a outra metade quatro dias depois.
 //
 // Estes testes existem para que a conta so possa morar em UM lugar.
+//
+// ⚠️⚠️ A INTENCAO DESTE ARQUIVO MUDOU EM 30/08/2026, E O PORQUE ESTA AQUI.
+//
+// Ate aqui ele exigia que a subtracao do anuncio morasse em UM lugar DA TELA DA
+// AMAZON (`lucroDoPeriodo`). Essa exigencia estava certa e resolvia o defeito
+// relatado — e ainda assim o andar estava errado. Enquanto a tela da Amazon
+// ganhava a terceira copia da conta, MERCADO LIVRE, MONITOR e HOME nao
+// descontavam anuncio NENHUM: R$ 2.827,10 de gasto fora do lucro, medidos em
+// 30/08/2026 (R$ 2.411,25 no ML em 3 dias, R$ 415,85 na Amazon em 19).
+//
+// A subtracao subiu para quem PRODUZ o numero, sob a fronteira escrita em
+// `src/lib/financialMath.ts`: **`estimatedProfit` ja inclui o anuncio, e quem
+// consome nao subtrai de novo.** Com isso:
+//   - `gastoComAnuncioDoPeriodo` DEIXOU DE EXISTIR: decidir "quanto de anuncio
+//     entra e se ele e desconhecido" e trabalho do canonico (`anuncioDoCanal` +
+//     `descontarAnuncio`), nao de um modulo de tela. Manter a funcao aqui seria
+//     manter a segunda copia da regra que a fronteira existe para proibir.
+//   - `lucroDoPeriodo` virou LEITOR: le o lucro que chegou pronto e diz o que
+//     foi descontado.
+// Por isso os fixtures abaixo passaram a trazer `estimatedProfit` JA LIQUIDO de
+// anuncio (-17,33 = 295,65 - 312,98) e `adsNoLucro` com o que foi descontado.
+// O assert nao foi "ajustado" para a nova saida: a PERGUNTA e que mudou, de
+// "quem subtrai?" para "alguem alem do produtor subtrai?".
 
 const FINANCE = {
   currency: "BRL",
@@ -24,47 +47,54 @@ const FINANCE = {
   feeBreakdown: [{ type: "commission", amount: 0 }],
 };
 const ADS = { cost: 312.98, sales: 496.16, purchases: 16, ateDia: "2026-08-24", esperadoAte: "2026-08-24" };
-const base = { finance: FINANCE, cogs: 200, estimatedProfit: 295.65, unitsWithoutCost: 0, adsConectado: true };
+// O lucro chega PRONTO do produtor: 295,65 antes do anuncio, 312,98 de anuncio.
+const LUCRO_COM_ANUNCIO = -17.33;
+const base = {
+  finance: FINANCE, cogs: 200, unitsWithoutCost: 0, adsConectado: true,
+  estimatedProfit: LUCRO_COM_ANUNCIO, adsNoLucro: ADS.cost,
+};
 
 const carta = (cards, key) => cards.find((c) => c.key === key);
 const fonte = (caminho) => readFile(new URL(`../${caminho}`, import.meta.url), "utf8");
 
-test("o lucro do painel sai da MESMA funcao do card", () => {
-  const { gastoComAnuncio } = gastoComAnuncioDoPeriodo({ ...base, ads: ADS });
-  const lucroDoPainel = +(base.estimatedProfit - gastoComAnuncio).toFixed(2);
-  assert.equal(lucroDoPainel, carta(amazonFinancialCards({ ...base, ads: ADS }), "profit").raw);
-  assert.ok(lucroDoPainel < 0, "com R$ 312,98 de anuncio sobre R$ 295,65, o resultado e negativo");
+test("card e painel leem o MESMO lucro, e nenhum dos dois subtrai", () => {
+  const { lucro, gastoComAnuncio } = lucroDoPeriodo({ ...base, ads: ADS });
+  assert.equal(lucro, LUCRO_COM_ANUNCIO, "o leitor devolve o lucro como o produtor mandou");
+  assert.equal(gastoComAnuncio, ADS.cost, "e diz o que foi descontado, para a cascata escrever");
+  assert.equal(carta(amazonFinancialCards({ ...base, ads: ADS }), "profit").raw, lucro);
+  assert.ok(lucro < 0, "com R$ 312,98 de anuncio sobre R$ 295,65, o resultado e negativo");
 });
 
-test("anuncio postado no extrato nao e descontado duas vezes", () => {
-  // Se a Amazon algum dia postar anuncio como tarifa de pedido, o valor ja saiu
-  // de `estimatedProfit`. Descontar a Ads API por cima contaria o mesmo dinheiro
-  // duas vezes — e agora sao DOIS lugares que dependem dessa guarda.
-  const comExtrato = {
-    ...base,
-    ads: ADS,
-    finance: { ...FINANCE, feeBreakdown: [{ type: "AdvertisingFee", amount: 312.98 }] },
-  };
-  const r = gastoComAnuncioDoPeriodo(comExtrato);
-  assert.equal(r.jaNoExtrato, true);
-  assert.equal(r.gastoComAnuncio, 0, "o extrato ja levou o anuncio embora");
-  assert.equal(r.desconhecido, false);
+test("a tela NAO desconta o anuncio de novo", () => {
+  // A guarda que substitui a antiga checagem de `jaNoExtrato`. Aquela protegia
+  // contra dupla contagem DENTRO da tela; a fronteira protege contra a tela
+  // inteira contar de novo o que o produtor ja tirou.
+  const cards = amazonFinancialCards({ ...base, ads: ADS });
+  assert.equal(carta(cards, "profit").raw, LUCRO_COM_ANUNCIO);
+  assert.notEqual(
+    carta(cards, "profit").raw,
+    +(LUCRO_COM_ANUNCIO - ADS.cost).toFixed(2),
+    "descontar o anuncio aqui contaria o mesmo dinheiro duas vezes",
+  );
 });
 
-test("Ads conectado sem metrica e DESCONHECIDO — para os dois lugares", () => {
-  // `null` != `0` (AGENTS.md). Sem esta flag na funcao, o card dizia "—" e o
-  // painel exibia um lucro que assume zero de anuncio: o mesmo defeito de novo,
-  // so que por outro caminho.
-  const r = gastoComAnuncioDoPeriodo({ ...base, ads: null });
+test("lucro desconhecido chega como `null` do produtor e a tela repete `null`", () => {
+  // `null` != `0` (AGENTS.md). Quem decide isso agora e `anuncioDoCanal`: canal
+  // que anuncia e sem metrica no periodo produz lucro `null`. A tela nao tem
+  // mais opiniao sobre o assunto — e nao pode ter, ou seriam duas regras.
+  const r = lucroDoPeriodo({ ...base, estimatedProfit: null, adsNoLucro: null });
+  assert.equal(r.lucro, null);
   assert.equal(r.desconhecido, true);
-  assert.equal(carta(amazonFinancialCards({ ...base, ads: null }), "profit").raw, null);
+  assert.equal(carta(amazonFinancialCards({ ...base, estimatedProfit: null, adsNoLucro: null }), "profit").raw, null);
 });
 
-test("sem Ads conectado, ausencia de anuncio e fato, nao lacuna", () => {
-  const r = gastoComAnuncioDoPeriodo({ ...base, ads: null, adsConectado: false });
-  assert.equal(r.desconhecido, false, "quem nao anuncia tem lucro conhecido");
-  assert.equal(r.gastoComAnuncio, 0);
-  assert.equal(carta(amazonFinancialCards({ ...base, ads: null, adsConectado: false }), "profit").raw, 295.65);
+test("quem nao anuncia tem lucro conhecido", () => {
+  // Sem anuncio, o produtor manda o lucro cheio e `adsNoLucro` zero: ausencia
+  // de anuncio e FATO, nao lacuna.
+  const semAds = { ...base, estimatedProfit: 295.65, adsNoLucro: 0, ads: null, adsConectado: false };
+  assert.equal(lucroDoPeriodo(semAds).lucro, 295.65);
+  assert.equal(lucroDoPeriodo(semAds).desconhecido, false);
+  assert.equal(carta(amazonFinancialCards(semAds), "profit").raw, 295.65);
 });
 
 test("a tela da Amazon nao recalcula o anuncio por conta propria", async () => {
@@ -133,10 +163,18 @@ test("a subtracao do anuncio existe em UM lugar no codigo inteiro", async () => 
   // precisa ser impossivel de duplicar sem quebrar isto.
   const cards = await fonte("src/app/amazon/amazonFinancialCards.ts");
   const page = await fonte("src/app/amazon/page.tsx");
-  const subtracoes = (cards.match(/estimatedProfit\s*-\s*/g) ?? []).length;
-  assert.equal(subtracoes, 1, "so `lucroDoPeriodo` pode subtrair o anuncio do lucro");
+  // ⚠️ MUDOU EM 30/08/2026: antes o teto era UMA subtracao na camada de tela
+  // (dentro de `lucroDoPeriodo`). Agora e ZERO — a conta subiu para o produtor.
+  assert.ok(
+    !/estimatedProfit\s*-\s*/.test(cards),
+    "a camada de tela nao subtrai mais anuncio: quem subtrai e `descontarAnuncio`, no produtor",
+  );
   assert.ok(
     !/estimatedProfit\s*-\s*/.test(page),
-    "a tela nao subtrai anuncio: quem faz isso e `lucroDoPeriodo`"
+    "a tela nao subtrai anuncio: o numero ja chega com ele dentro"
   );
+  // E a subtracao existe UMA vez no lugar novo.
+  const matematica = await fonte("src/lib/financialMath.ts");
+  const subtracoes = (matematica.match(/lucroAntesDoAnuncio - gasto/g) ?? []).length;
+  assert.equal(subtracoes, 1, "so `descontarAnuncio` pode subtrair o anuncio do lucro");
 });

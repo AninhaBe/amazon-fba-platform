@@ -99,7 +99,10 @@ interface ProfitData {
     feeBreakdown?: { type: string; amount: number }[];
   };
   cogs: number;
-  estimatedProfit: number;
+  /** Já com o anúncio dentro (fronteira em `src/lib/financialMath.ts`). */
+  estimatedProfit: number | null;
+  /** O anúncio que o produtor já descontou acima — a tela escreve, não subtrai. */
+  adsNoLucro?: number | null;
   unitsWithoutCost: number;
   skusWithoutCost: number;
   taxRate?: number | null;
@@ -200,7 +203,7 @@ interface DashboardPayload {
   metrics: { totalOrders: number; paidOrders: number; fbaOrders: number; revenue: number };
   dailySales: Array<{ date: string; revenue: number; orders: number; units: number }>;
   topProducts: Array<{ sku: string; title: string; units: number; revenue: number; marginPct: number | null }>;
-  profit: { revenueProcessed: number; fees: number; cogs: number; estimatedProfit: number; unitsWithCost: number; unitsWithoutCost: number; skusWithoutCost: number; coverage?: { processedOrders: number; paidOrders: number; complete: boolean } };
+  profit: { revenueProcessed: number; fees: number; cogs: number; estimatedProfit: number | null; ads?: number | null; unitsWithCost: number; unitsWithoutCost: number; skusWithoutCost: number; coverage?: { processedOrders: number; paidOrders: number; complete: boolean } };
   ads?: AmazonAdsInput | null;
   adsJanela?: { inicioDia: string; esperadoAte: string; incluiHoje?: boolean } | null;
   adsConectado?: boolean;
@@ -459,6 +462,7 @@ export default function Dashboard() {
         finance: payload.finance,
         cogs: payload.profit.cogs,
         estimatedProfit: payload.profit.estimatedProfit,
+        adsNoLucro: payload.profit.ads ?? null,
         unitsWithoutCost: payload.profit.unitsWithoutCost,
         skusWithoutCost: payload.profit.skusWithoutCost ?? 0,
         // ⚠️ ESTE OBJETO E MONTADO CAMPO A CAMPO: campo novo na resposta da rota
@@ -617,6 +621,8 @@ export default function Dashboard() {
   const revenue = sales?.totalRevenue ?? orders?.metrics.totalRevenue ?? 0;
   const salesCount = sales?.totalOrders ?? orders?.metrics.totalOrders ?? 0;
   const unitsCount = sales?.totalUnits ?? 0;
+  // ⚠️ `?? 0` só para o ROI abaixo, que é indicador secundário: lucro ausente
+  // vira ROI 0%, e o card de lucro (a autoridade) já mostra "—" nesse caso.
   const estProfit = profit?.estimatedProfit ?? 0;
   const cogs = profit?.cogs ?? 0;
   const missingCostUnits = profit?.unitsWithoutCost ?? 0;
@@ -634,15 +640,14 @@ export default function Dashboard() {
   // cada uma fazia a própria subtração, cada conserto alcançava só a cópia que
   // alguém tinha visto.
   const anuncio = lucroDoPeriodo({
-    finance: profit?.finance ?? null,
-    ads: profit?.ads ?? null,
-    adsConectado: profit?.adsConectado ?? false,
     estimatedProfit: profit?.estimatedProfit ?? null,
+    adsNoLucro: profit?.adsNoLucro ?? null,
   });
   const anuncioNoLucro = anuncio.gastoComAnuncio || null;
-  // Sem subtração aqui, DE PROPÓSITO: com Ads conectado e sem métrica o gasto é
-  // desconhecido, e um lucro que assume zero de anúncio é o MESMO erro por outro
-  // caminho. Quem decide isso é `lucroDoPeriodo`, para o card e para a tela.
+  // Sem subtração aqui, DE PROPÓSITO — e desde 30/08/2026 nem aqui nem no card:
+  // o anúncio já saiu do lucro em `profit.ts`, sob a fronteira de
+  // `src/lib/financialMath.ts`. A tela mostra o que foi descontado; subtrair
+  // outra vez contaria o mesmo dinheiro duas vezes.
   const lucroComAnuncio = anuncio.lucro;
   /** Cupom resgatado pelo comprador — já abatido de `revenue` pela camada financeira. */
   const promocoes = profit?.finance.promotions ?? 0;
@@ -785,7 +790,8 @@ export default function Dashboard() {
         const cards = amazonFinancialCards({
           finance: profit?.finance ?? null,
           cogs: profit?.cogs ?? 0,
-          estimatedProfit: profit?.estimatedProfit ?? 0,
+          estimatedProfit: profit?.estimatedProfit ?? null,
+          adsNoLucro: profit?.adsNoLucro ?? null,
           unitsWithoutCost: profit?.unitsWithoutCost ?? 0,
           taxRate: profit?.taxRate ?? null,
           taxes: profit?.taxes ?? null,

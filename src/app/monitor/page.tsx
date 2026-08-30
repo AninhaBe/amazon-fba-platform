@@ -35,7 +35,12 @@ interface FinanceSummary {
 interface ProfitSummary {
   finance: FinanceSummary;
   cogs: number;
-  estimatedProfit: number;
+  /**
+   * Já com o gasto de anúncio dentro — fronteira em `src/lib/financialMath.ts`.
+   * `null` = anúncio desconhecido; o MONITOR mostra "—", nunca o número sem ele.
+   */
+  estimatedProfit: number | null;
+  adsDesconhecido?: boolean;
   unitsWithCost: number;
   unitsWithoutCost: number;
   skusMissingCost: string[];
@@ -198,11 +203,16 @@ function MonitorPage({ secaoInicial }: { secaoInicial: MonitorSection }) {
   }, [period.query]);
 
   const costsIncomplete = (profit?.unitsWithoutCost ?? 0) > 0;
-  const estimatedProfit = profit?.estimatedProfit ?? finance?.netProceeds ?? 0;
+  // ⚠️ 30/08/2026: o lucro chega COM anúncio dentro, e chega `null` quando o
+  // gasto é desconhecido. Cair no repasse líquido nesse caso exibiria o número
+  // otimista — sem anúncio — com o rótulo "Lucro estimado". É a versão MONITOR
+  // do defeito que custou quatro consertos na tela da Amazon.
+  const adsDesconhecido = profit?.adsDesconhecido === true || (profit != null && profit.estimatedProfit == null);
+  const estimatedProfit = adsDesconhecido ? null : profit?.estimatedProfit ?? finance?.netProceeds ?? 0;
   const otherAdjustments = finance
     ? Math.round((finance.netProceeds - (finance.revenue - finance.fees - finance.refunds)) * 100) / 100
     : 0;
-  const marginPct = finance && finance.revenue > 0 ? (estimatedProfit / finance.revenue) * 100 : null;
+  const marginPct = estimatedProfit != null && finance && finance.revenue > 0 ? (estimatedProfit / finance.revenue) * 100 : null;
 
   return (
     <div className="monitor-page">
@@ -257,7 +267,7 @@ function MonitorPage({ secaoInicial }: { secaoInicial: MonitorSection }) {
               {
                 id: "lucro",
                 label: costsIncomplete ? "Repasse antes do custo" : "Lucro estimado",
-                node: <Metric label={costsIncomplete ? "Repasse antes do custo" : "Lucro estimado"} value={money(estimatedProfit, finance.currency)} sub={costsIncomplete ? "faltam custos cadastrados" : "repasse − custo dos produtos"} tone={costsIncomplete ? "default" : estimatedProfit > 0 ? "positive" : estimatedProfit < 0 ? "danger" : "default"} />,
+                node: <Metric label={estimatedProfit != null && costsIncomplete ? "Repasse antes do custo" : "Lucro estimado"} value={estimatedProfit == null ? "—" : money(estimatedProfit, finance.currency)} sub={estimatedProfit == null ? "aguardando o gasto com anúncio do período" : costsIncomplete ? "faltam custos cadastrados" : "repasse − custo dos produtos − anúncio"} tone={estimatedProfit == null || costsIncomplete ? "default" : estimatedProfit > 0 ? "positive" : estimatedProfit < 0 ? "danger" : "default"} />,
               },
               {
                 id: "margem-pct",
@@ -321,7 +331,7 @@ function MonitorPage({ secaoInicial }: { secaoInicial: MonitorSection }) {
               {Math.abs(otherAdjustments) >= 0.005 && <Flow label="Outros ajustes (promoções, frete, estoque)" value={money(otherAdjustments, finance.currency)} />}
               <Flow label="Repasse líquido" value={money(finance.netProceeds, finance.currency)} sign="=" />
               <Flow label="Custo dos produtos" value={money(profit?.cogs ?? 0, finance.currency)} sign="−" />
-              <Flow label={costsIncomplete ? "Repasse antes do custo" : "Lucro estimado"} value={money(estimatedProfit, finance.currency)} sign="=" accent={!costsIncomplete} />
+              <Flow label={estimatedProfit == null ? "Lucro indisponível" : costsIncomplete ? "Repasse antes do custo" : "Lucro estimado"} value={estimatedProfit == null ? "—" : money(estimatedProfit, finance.currency)} sign="=" accent={estimatedProfit != null && !costsIncomplete} />
             </div>
             {costsIncomplete && (
               <p className="monitor-coverage-note">

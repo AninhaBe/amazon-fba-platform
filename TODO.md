@@ -434,6 +434,32 @@ outro canal (o diff da rodada não podia sair do TikTok), ou é decisão de prod
   estava em Oregon e o Supabase em São Paulo, ~180ms por query.
 - [x] ~~Pinger externo em `/api/health`~~ — desnecessário no Fly:
   `auto_stop_machines = false` e `min_machines_running = 1` no `fly.toml`.
+- [ ] **Consolidar as idas ao banco do dashboard da Amazon.**
+
+  ⚠️ **O "antes" é 30 idas em 4 ondas, não 28.** O 28 foi medido ANTES de o
+  gasto com anúncio entrar no lucro (30/08/2026); `anuncioDoCanal` acrescenta
+  **2 consultas por produtor** (soma do período + `MIN(day)`), e **3** quando o
+  canal não grava na tabela de campanha e a leitura cai na de produto — é o caso
+  do Mercado Livre. Comparar o depois contra o 28 inventaria um ganho de duas
+  consultas que nunca existiu.
+
+  O que a medição achou:
+  - `getCosts` roda **3 vezes** na mesma carga — mesma consulta, mesmo
+    resultado, rotas diferentes;
+  - das 10 do overview, **8 são independentes** entre si e rodam em fila
+    indiana;
+  - das 4 ondas, **2 são artificiais**: o early-return de conta vazia e o Ads,
+    que espera o overview sem depender dele;
+  - **novo, achado em 30/08:** a mesma requisição pergunta a
+    `workspace_ad_metrics` **duas vezes** — `adsDoPeriodo` na rota (para os
+    cards de anúncio) e `anuncioDoCanal` dentro do canônico (para o lucro).
+    São 5 consultas de anúncio por carga, e duas delas fazem quase a mesma
+    pergunta.
+
+  **Critério de aceite, e ele não é "menos consultas":** a tela mostra
+  EXATAMENTE os mesmos números de antes, provados lado a lado na conta real, no
+  mesmo período, **campo por campo** — não só o total. Otimização que muda
+  número é defeito com outro nome.
 
 ## Explicações dentro do produto (pedido em 23/08/2026)
 

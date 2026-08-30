@@ -3,6 +3,8 @@ import { getIntegration, saveIntegration } from "./integrationStore";
 import type { IntegrationConnection } from "./types";
 import { costAt, getCosts } from "../costStore";
 import { allocateByWeight, calculateContribution, type ProfitabilityLine } from "../profitability";
+import { descontarAnuncio } from "../financialMath";
+import { anuncioDoCanal } from "../anuncioDoCanal";
 import { collectMercadoLivreOrders } from "./mercadoLivreOrders";
 import { classificarCobertura, ORDEM_DO_RADAR, type StockStatus } from "../coberturaDeEstoque";
 import { ChannelAuthExpiredError } from "./authErrors";
@@ -1003,7 +1005,16 @@ export async function getMercadoLivreOverview(
   // `taxes ?? 0`: sem alíquota o lucro sai sem imposto, exatamente como saía
   // antes. Quem avisa é a tela — mudar o número aqui seria alterar o resultado
   // exibido sem a vendedora ter pedido.
-  const estimatedProfit = processedRevenue - fees - cogs - (taxes ?? 0) - sellerShipping;
+  // ⚠️ O ANÚNCIO ENTRA AQUI — fronteira em `financialMath.ts`. O Mercado Livre
+  // ignorava o gasto com anúncio por completo: medido em 30/08/2026, R$ 2.411,25
+  // em 3 dias de PADS fora do lucro. Quem exibe não subtrai de novo.
+  //
+  // Sem guarda de extrato: a tarifa do ML é `sale_fee` (comissão) por pedido, e
+  // o PADS é cobrado fora dela — não há caminho para contar duas vezes aqui.
+  const lucroAntesDoAnuncio = processedRevenue - fees - cogs - (taxes ?? 0) - sellerShipping;
+  const anuncio = await anuncioDoCanal("mercado_livre", from.toISOString(), to.toISOString());
+  const lucro = descontarAnuncio(lucroAntesDoAnuncio, anuncio);
+  const estimatedProfit = lucro.estimatedProfit;
   const daily = new Map<string, { date: string; revenue: number; orders: number; units: number }>();
   for (const order of paidOrders) {
     const date = brazilDateKey(order.date_created);
@@ -1082,7 +1093,10 @@ export async function getMercadoLivreOverview(
       revenueProcessed: processedRevenue,
       coverage: { processedOrders: detailedPaidOrders.length, paidOrders: paidOrders.length, complete: collectedOrders.complete && detailedPaidOrders.length >= paidOrders.length },
       estimatedProfit,
-      marginPct: processedRevenue > 0 ? estimatedProfit / processedRevenue * 100 : 0,
+      ads: lucro.ads,
+      adsDesconhecido: lucro.adsDesconhecido,
+      adsAteDia: lucro.ateDia,
+      marginPct: estimatedProfit != null && processedRevenue > 0 ? estimatedProfit / processedRevenue * 100 : null,
       unitsWithoutCost,
       skusWithoutCost: skusSemCusto.size,
     },
