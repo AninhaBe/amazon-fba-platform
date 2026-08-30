@@ -55,7 +55,7 @@ interface Overview {
   account: { id: string; nickname: string; siteId: string; };
   period: { from: string; to: string; label: string; };
   metrics: { activeListings: number; productsWithoutCost: number; orders30d: number; paidOrders: number; revenue30d: number; approvedRevenue: number; cancelledRevenue: number; cancelledOrders: number; pendingOrders: number; pendingRevenue: number | null; lastSaleAt: string | null; currency: string; revenueCoverage: { capturedOrders: number; totalOrders: number; complete: boolean; sincronizadoAte?: string | null; historicoDesde?: string | null }; };
-  profit: { fees: number; cogs: number; taxes: number | null; taxRate: number | null; sellerShipping: number; buyerShipping: number; shippingCostsComplete: boolean; revenueProcessed: number; coverage: { processedOrders: number; paidOrders: number; complete: boolean; }; estimatedProfit: number; marginPct: number; unitsWithoutCost: number; skusWithoutCost: number; };
+  profit: { fees: number; cogs: number; taxes: number | null; taxRate: number | null; sellerShipping: number; buyerShipping: number; shippingCostsComplete: boolean; revenueProcessed: number; coverage: { processedOrders: number; paidOrders: number; complete: boolean; }; estimatedProfit: number | null; marginPct: number | null; unitsWithoutCost: number; skusWithoutCost: number; };
   dailySales: DailyPoint[];
   topProducts: Array<{ id: string; sku: string | null; title: string; units: number; revenue: number; cost: number; contribution: number; complete: boolean; marginPct: number | null; }>;
   stockRadar: Array<{ id: string; sku: string | null; title: string; thumbnail: string | null; availableQuantity: number; unitsSold: number; calculationDays: number; daysRemaining: number | null; status: StockStatus; }>;
@@ -113,7 +113,19 @@ function money(value: number, currency = "BRL") {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(value);
 }
 
-function percent(value: number) {
+/**
+ * Margem desconhecida vira travessão AQUI, e não em cada ponto de uso.
+ *
+ * ⚠️ Foi de propósito, e a alternativa estava errada: guardar `marginPct == null`
+ * junto de `resultIncomplete` na chamada recriaria o idioma que
+ * `margemNuncaSozinha` proíbe — apagar a margem por causa de CUSTO, que é
+ * decisão da vendedora e não deste conserto. Tratando no formatador, `null` some
+ * e o resto do comportamento fica exatamente como estava.
+ *
+ * Mesma forma do `percent` de `centralOverview.ts`.
+ */
+function percent(value: number | null) {
+  if (value == null) return "—";
   return `${value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
 }
 
@@ -335,7 +347,14 @@ function avaliarResultado(overview: Overview) {
   if (!overview.profit.shippingCostsComplete) faltas.push("frete de alguns pedidos");
   const resultParcial = faltas.length > 0;
   // Só dado do canal bloqueia. A alíquota saiu daqui de propósito.
-  const resultIncomplete = resultParcial;
+  //
+  // ⚠️ `estimatedProfit == null` entrou aqui em 30/08/2026, quando o lucro dos
+  // quatro canais passou a DESCONTAR o gasto com anúncio: com o sync de Ads sem
+  // resposta, o lucro é DESCONHECIDO, não zero. Sem esta linha o número caía em
+  // `money(null)` e a tela escrevia "R$ 0,00" — a mentira que o AGENTS.md
+  // proíbe, e ela só apareceria quando o Ads falhasse, que é justo quando
+  // importa. Mesmo padrão do arquivo vizinho (`ShopeeWorkspace`).
+  const resultIncomplete = resultParcial || overview.profit.estimatedProfit == null;
   const margemSub = resultParcial
     ? `falta ${faltas.join(", ")}`
     : comSemImposto("sobre o faturamento", semAliquota);
@@ -358,7 +377,7 @@ function Dashboard({ overview, syncStatus, periodoLabel, connectionId }: { overv
   });
   const netReceived = overview.profit.revenueProcessed - overview.profit.fees - overview.profit.sellerShipping;
   const ticket = overview.metrics.paidOrders > 0 ? overview.metrics.approvedRevenue / overview.metrics.paidOrders : null;
-  const roi = overview.profit.cogs > 0 && !resultParcial ? (overview.profit.estimatedProfit / overview.profit.cogs) * 100 : null;
+  const roi = overview.profit.cogs > 0 && !resultParcial && overview.profit.estimatedProfit != null ? (overview.profit.estimatedProfit / overview.profit.cogs) * 100 : null;
   const knownCosts = overview.profit.fees + overview.profit.sellerShipping + overview.profit.cogs + (overview.profit.taxes ?? 0);
   // Período do filtro vs. histórico já importado (frente K): mês ainda não
   // importado nunca vira cards zerados — "não vendeu" e "não importei" são
@@ -444,7 +463,7 @@ function Dashboard({ overview, syncStatus, periodoLabel, connectionId }: { overv
       <Metric label="Faturamento" value={<AnimatedNumber periodo={identidadeDePeriodo(overview.period.from, overview.period.to)} id="ml-dash-revenue" value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={`${overview.metrics.paidOrders} aprovadas + ${overview.metrics.cancelledOrders} canceladas`} trend={getRevenueTrend(overview.dailySales)} />
       <Metric label="Taxas" value={money(overview.profit.fees, overview.metrics.currency)} sub={`${profitCoverage.processedOrders} venda(s) processada(s)`} />
       <Metric label="Custo dos produtos" value={money(overview.profit.cogs, overview.metrics.currency)} sub={overview.profit.unitsWithoutCost > 0 ? `${overview.profit.unitsWithoutCost} unidade(s) sem custo` : "custos cadastrados"} tone={overview.profit.unitsWithoutCost > 0 ? "warn" : "default"} />
-      <Metric label={resultParcial ? "Resultado processado" : "Lucro estimado"} value={<AnimatedNumber periodo={identidadeDePeriodo(overview.period.from, overview.period.to)} id="ml-dash-profit" value={overview.profit.estimatedProfit} format={(amount) => money(amount, overview.metrics.currency)} />} sub={sinais.length > 0 ? <SinaisDoResultado sinais={sinais} /> : comSemImposto("após todos os custos", semAliquota)} tone={overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
+      <Metric label={overview.profit.estimatedProfit == null ? "Resultado processado" : resultParcial ? "Resultado processado" : "Lucro estimado"} value={overview.profit.estimatedProfit == null ? "—" : <AnimatedNumber periodo={identidadeDePeriodo(overview.period.from, overview.period.to)} id="ml-dash-profit" value={overview.profit.estimatedProfit} format={(amount) => money(amount, overview.metrics.currency)} />} sub={sinais.length > 0 ? <SinaisDoResultado sinais={sinais} /> : comSemImposto("após todos os custos", semAliquota)} tone={overview.profit.estimatedProfit == null ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
       <Metric label="Margem" value={percent(overview.profit.marginPct)} sub={sinais.length > 0 ? <SinaisDoResultado sinais={sinais} /> : margemSub} tone={marginMetricTone(overview.profit.marginPct)} />
     </section>
 
@@ -515,7 +534,7 @@ function Dashboard({ overview, syncStatus, periodoLabel, connectionId }: { overv
               rotuloImposto(overview.profit.taxRate, overview.profit.taxes, overview.metrics.currency),
             ]}
           />
-          <Flow label={resultIncomplete ? "Lucro indisponível" : comSemImposto("Lucro estimado", semAliquota)} value={resultIncomplete ? "—" : money(overview.profit.estimatedProfit, overview.metrics.currency)} sign="=" accent tone={resultIncomplete ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
+          <Flow label={resultIncomplete ? "Lucro indisponível" : comSemImposto("Lucro estimado", semAliquota)} value={resultIncomplete || overview.profit.estimatedProfit == null ? "—" : money(overview.profit.estimatedProfit, overview.metrics.currency)} sign="=" accent tone={resultIncomplete || overview.profit.estimatedProfit == null ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
           <Flow
             label={comSemImposto("Margem", semAliquota)}
             value={resultIncomplete ? "—" : percent(overview.profit.marginPct)}
@@ -674,7 +693,7 @@ function Monitor({ overview, secaoInicial }: { overview: Overview; secaoInicial:
         {
           id: "margem",
           label: profitCoverage.complete ? "Margem de contribuição" : "Margem processada",
-          node: <Metric label={resultIncomplete ? "Resultado processado" : "Margem de contribuição"} value={money(overview.profit.estimatedProfit, overview.metrics.currency)} sub={comSemImposto(`${overview.profit.coverage.processedOrders} de ${overview.profit.coverage.paidOrders} vendas`, semAliquota)} tone={resultIncomplete ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />,
+          node: <Metric label={resultIncomplete ? "Resultado processado" : "Margem de contribuição"} value={overview.profit.estimatedProfit == null ? "—" : money(overview.profit.estimatedProfit, overview.metrics.currency)} sub={comSemImposto(`${overview.profit.coverage.processedOrders} de ${overview.profit.coverage.paidOrders} vendas`, semAliquota)} tone={resultIncomplete || overview.profit.estimatedProfit == null ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />,
         },
         {
           id: "margem-pct",
@@ -701,7 +720,7 @@ function Monitor({ overview, secaoInicial }: { overview: Overview; secaoInicial:
         <Flow label="Total recebido" value={money(netReceived, overview.metrics.currency)} sign="=" />
         <Flow label="Custo dos produtos" value={money(overview.profit.cogs, overview.metrics.currency)} sign="−" />
         <Flow label={rotuloImposto(overview.profit.taxRate, overview.profit.taxes, overview.metrics.currency).label} value={rotuloImposto(overview.profit.taxRate, overview.profit.taxes, overview.metrics.currency).value} sign="−" />
-        <Flow label={comSemImposto("Margem de contribuição", semAliquota)} value={money(overview.profit.estimatedProfit, overview.metrics.currency)} sign="=" accent />
+        <Flow label={comSemImposto("Margem de contribuição", semAliquota)} value={overview.profit.estimatedProfit == null ? "—" : money(overview.profit.estimatedProfit, overview.metrics.currency)} sign="=" accent />
       </div>
       {overview.profit.buyerShipping > 0 && <p className="monitor-coverage-note">O comprador pagou {money(overview.profit.buyerShipping, overview.metrics.currency)} de frete no período. Esse valor não compõe o faturamento; o resultado considera apenas o frete efetivamente pago pelo vendedor.</p>}
     {(!profitCoverage.complete || !overview.profit.shippingCostsComplete) && (

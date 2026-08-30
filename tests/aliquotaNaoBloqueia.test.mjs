@@ -65,7 +65,14 @@ test("Amazon: dado do canal ausente CONTINUA bloqueando, com ou sem alíquota", 
   assert.match(carta(semCusto, "profit").context, /3 unidade/);
 
   // Ads conectado e sem métrica: gasto desconhecido ≠ zero.
-  const semAds = amazonFinancialCards({ ...amazonBase, adsConectado: true, ads: null, taxRate: null, taxes: null });
+  //
+  // ⚠️ 30/08/2026: quem decide isso passou a ser o PRODUTOR (`anuncioDoCanal` +
+  // `descontarAnuncio`), que manda `estimatedProfit: null` — a tela so repete.
+  // Antes a regra morava aqui tambem, e regra em dois lugares foi o defeito.
+  const semAds = amazonFinancialCards({
+    ...amazonBase, adsConectado: true, ads: null, estimatedProfit: null, adsNoLucro: null,
+    taxRate: null, taxes: null,
+  });
   assert.equal(carta(semAds, "profit").value, "—");
 });
 
@@ -124,7 +131,11 @@ test("TikTok: os cards derivados do imposto ganham o rótulo, os outros não", (
 
 test("ML: a alíquota saiu da condição de bloqueio e virou rótulo", () => {
   const tela = fonte("src/app/components/MercadoLivreWorkspace.tsx");
-  assert.match(tela, /const resultIncomplete = resultParcial;/, "só dado do canal bloqueia");
+  // A afirmacao e "so DADO DO CANAL bloqueia", nao "a expressao tem uma palavra
+  // so": em 30/08/2026 entrou `estimatedProfit == null` (lucro desconhecido
+  // quando o sync de Ads nao responde), que tambem e dado do canal. O que nao
+  // pode voltar e a aliquota — e e isso que a linha seguinte guarda.
+  assert.match(tela, /const resultIncomplete = resultParcial(\s*\|\|\s*overview\.profit\.estimatedProfit == null)?;/, "só dado do canal bloqueia");
   assert.doesNotMatch(tela, /resultIncomplete = semAliquota/, "a alíquota não pode voltar para o bloqueio");
   // Lucro e margem, no dashboard, no painel de baixo e no monitor.
   assert.match(tela, /comSemImposto\("Lucro estimado", semAliquota\)/);
@@ -152,7 +163,12 @@ test("ML: a pendência 'Cadastrar alíquota' continua na tela", () => {
 
 test("ML: o lucro do canônico já sai sem imposto quando não há alíquota", () => {
   const canonico = fonte("src/lib/integrations/mercadoLivreOverviewCanonical.ts");
-  assert.match(canonico, /estimatedProfit = processedRevenue - fees - cogs - \(taxes \?\? 0\) - sellerShipping/);
+  // ⚠️ O NOME MUDOU EM 30/08/2026, a exigencia nao: a variavel virou
+  // `lucroAntesDoAnuncio` porque o `estimatedProfit` do ML passou a ser o
+  // resultado de `descontarAnuncio` sobre ela (fronteira em financialMath.ts).
+  // O que este teste cobra continua sendo `(taxes ?? 0)`: sem aliquota o lucro
+  // sai SEM imposto, e nao vira `null`.
+  assert.match(canonico, /lucroAntesDoAnuncio = processedRevenue - fees - cogs - \(taxes \?\? 0\) - sellerShipping/);
 });
 
 // ── Shopee ──────────────────────────────────────────────────────────────────
