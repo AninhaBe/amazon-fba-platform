@@ -27,6 +27,12 @@
 > [seção 5](#5-pré-requisito-da-segunda-máquina-o-desvio-do-lease).**
 > `fly scale count > 1` hoje **dobra chamada a marketplace** por um caminho
 > específico do código, e ele tem endereço.
+>
+> 🚨 **E uma regra que nasceu aqui mas vale para o repositório inteiro: teste que
+> depende de recurso externo NÃO PULA.** Sem o recurso, ele **falha alto**
+> dizendo que não conseguiu rodar — nunca `skip`, nunca verde silencioso.
+> **Teste que se omite sozinho é pior que teste que não existe**, porque o
+> segundo não engana ninguém. Detalhe na [seção 6.5](#65-a-quinta-peça-o-teste-concorrente-obrigatório-no-ci).
 
 ## Contexto
 
@@ -390,13 +396,18 @@ de ordem deste ADR, para não existirem duas se contradizendo daqui a seis meses
 
 ## 5. Pré-requisito da segunda máquina: o desvio do lease
 
-> ### 🚧 Portão
+> ### 🚧 Portão — e é BUG, não só pré-requisito
 >
-> **`fly scale count > 1` está bloqueado até este item fechar.** Não é
-> recomendação: é pré-requisito. Enquanto existir caminho de código que faz
-> chamada externa **sem** ter ganho o lease, a segunda máquina dobra pergunta ao
-> marketplace — e a Shopee já abriu alerta de comportamento anormal contra o app
-> em 29/08/2026 por esse tipo de comportamento.
+> **`fly scale count > 1` está bloqueado até este item fechar.** Enquanto existir
+> caminho de código que faz chamada externa **sem** ter ganho o lease, a segunda
+> máquina dobra pergunta ao marketplace — e a Shopee já abriu alerta de
+> comportamento anormal contra o app em 29/08/2026 por esse tipo de comportamento.
+>
+> ⚠️ **E a classificação mudou em 30/08/2026, por decisão da dona:** isto não é
+> "pré-requisito de infraestrutura", é **bug funcional** — *"se o worker perder ou
+> não conseguir o lease, ele tem que PARAR IMEDIATAMENTE"*. Vale hoje, com uma
+> máquina só, e vem antes de process group, TTL e heartbeat. Ver
+> [seção 6.6](#66-a-ordem-fechada-pela-dona-em-30082026).
 
 ### Por que isto virou seção, e não rodapé
 
@@ -595,7 +606,7 @@ Consequência de desenho, e ela é inegociável:
 sobreviver à chamada HTTP exigiria exatamente a transação aberta que esta regra
 proíbe. As duas decisões dizem a mesma coisa por caminhos diferentes.
 
-### 6.5 A quinta peça: o teste que força a disputa — requisito, não sugestão
+### 6.5 A quinta peça: o teste concorrente, OBRIGATÓRIO NO CI
 
 > ### ⚠️ Uma defesa que nunca é exercitada não é uma defesa
 >
@@ -605,8 +616,19 @@ proíbe. As duas decisões dizem a mesma coisa por caminhos diferentes.
 > a chamar de testada porque **nunca tinha barrado nada**. Defesa que só roda no
 > dia do acidente é decoração até lá.
 
-Por isso o desenho tem uma quinta peça, e ela é **requisito de aceitação**: um
-teste que force **dois workers a disputarem o mesmo lease** e prove três coisas.
+> **"Eu adicionaria um teste concorrente obrigatório no CI: dois workers disputam
+> o mesmo lease, só um ganha, o perdedor faz ZERO chamadas externas e o vencedor
+> consegue renovar."**
+> — Ana, 30/08/2026
+
+📌 **A palavra que ela acrescentou é "obrigatório no CI", e ela promove o
+requisito.** A versão anterior desta seção pedia *um teste que forçasse a
+disputa* — isso garante um teste que **existe**. O dela garante um teste que
+**roda a cada mudança**. A diferença é a mesma entre ter extintor e ter extintor
+com validade conferida: só a segunda sobrevive a seis meses de mudanças no código
+do lease.
+
+O teste força **dois workers a disputarem o mesmo lease** e prova três coisas.
 
 | # | O que o teste prova | Como falha se estiver quebrado |
 |---|---|---|
@@ -614,10 +636,21 @@ teste que force **dois workers a disputarem o mesmo lease** e prove três coisas
 | 2 | **O perdedor NÃO faz chamada externa** — zero chamadas no cliente de marketplace falso | perdedor chama mesmo assim → é o desvio da seção 5, de novo |
 | 3 | **O vencedor renova** — e a renovação do perdedor afeta zero linhas | perdedor consegue renovar → falta o `lease_owner` da 6.2 |
 
-Regras do teste, para ele não virar outra decoração:
+> ### 🚨 ESTE TESTE NÃO PULA
+>
+> **Teste de concorrência precisa de banco de verdade.** O padrão comum quando o
+> ambiente não tem um é **pular** — e aí o resultado fica **verde sem ter testado
+> nada**, que é a pior combinação possível: sensação de cobertura sem cobertura.
+>
+> **Sem banco, este teste FALHA ALTO**, dizendo que não conseguiu rodar. Nunca
+> `skip`, nunca verde silencioso.
+>
+> **Regra geral, e vale para qualquer teste que dependa de recurso externo:**
+> teste que se omite sozinho é **pior que teste que não existe** — o segundo não
+> engana ninguém.
 
-- **Roda na CI**, junto com o resto — não é script manual que alguém lembra de
-  rodar.
+Outras regras do teste, para ele não virar decoração:
+
 - **Não toca marketplace nenhum**: o cliente externo é falso, e a asserção nº 2 é
   literalmente *"o falso não recebeu chamada"*. A prova mais importante é uma
   **ausência**, e ausência só se prova com o dublê contando.
@@ -627,21 +660,36 @@ Regras do teste, para ele não virar outra decoração:
   segundo agendador que ninguém sabia que existia. Zero aqui é fato observado,
   não ausência de instrumento — a diferença que custou o alerta da Shopee.
 
-### 6.6 A ordem, e o que continua na frente de tudo
+### 6.6 A ordem, fechada pela dona em 30/08/2026
 
-> ⚠️ **O pré-requisito da [seção 5](#5-pré-requisito-da-segunda-máquina-o-desvio-do-lease)
-> vem antes de todo este desenho.** Enquanto o passo seguir para as cinco rotinas
-> de conciliação **depois de PERDER o lease**, o lease protege a porta da frente e
-> a dos fundos fica aberta. Um lease impecável com um desvio aberto ao lado
-> continua dobrando chamada ao marketplace — e ainda dá a sensação de estar
-> protegido, que é o pior dos dois mundos.
+> **"Antes de mexer em process group, TTL ou heartbeat, precisa corrigir um BUG
+> FUNCIONAL: se o worker perder ou não conseguir o lease, ele tem que PARAR
+> IMEDIATAMENTE e não fazer nenhuma chamada externa."**
+> — Ana, 30/08/2026
 
-1. **P1/P2 da seção 5** — fechar o desvio da Amazon, auditar ML e TikTok.
-2. **6.1 + 6.2 + 6.3** — claim atômico, `lease_owner`, TTL/renovação, aborto por
-   zero linhas.
-3. **6.5** — o teste de disputa, verde na CI, e o contador de lease perdido no ar.
-4. **Grupo de processo** (4a), `scheduler` em 1.
-5. **Só então** `fly scale count > 1`, e a medição de cache da seção 2.
+📌 **Enquanto o worker não parar ao perder o lease, todo o resto é cinto preso
+numa fivela quebrada.** É por isso que o passo (0) abaixo **não é pré-requisito de
+infraestrutura** — é **conserto de bug funcional**, e bug funcional não entra na
+fila atrás de melhoria de topologia.
+
+O ADR trouxe esse desvio como "pré-requisito da segunda máquina"
+([seção 5](#5-pré-requisito-da-segunda-máquina-o-desvio-do-lease)). **A
+reclassificação dela é mais forte e substitui aquela leitura:** o desvio é defeito
+hoje, com uma máquina só — não uma dívida que vence quando escalarmos.
+
+| # | O quê | Por que nesta posição |
+|---|---|---|
+| **0** | **Corrigir o desvio do `amazonSync.ts:417`–`435`** — perdeu ou não conseguiu o lease, **para imediatamente**, zero chamada externa. E auditar ML e TikTok pelo mesmo desvio (P2 da seção 5) | **Bug funcional.** Não depende de nada e nada funciona direito antes dele |
+| **1** | **Grupo de processo** (4a) com **um** `scheduler` | É a regra: normalmente só existe um agendador |
+| **2** | **Lease como defesa de segurança** — claim atômico (6.1), `lease_owner` (6.2), aborto por zero linhas (6.3), **TTL e heartbeat vindos de MEDIÇÃO** e não de arbítrio | Protege quando a regra falha: erro de configuração ou máquina que não morreu direito |
+| **3** | **Teste concorrente obrigatório no CI** (6.5) | Sem ele, (2) é uma defesa que ninguém sabe se funciona |
+| 4 | `fly scale count > 1` e a medição de cache (seção 2) | Só depois de 0–3 |
+
+⚠️ **Os TTL/heartbeat do passo (2) saem das métricas reais**, não da tabela de
+30s/90s da seção 6.2 — aquela é o ponto de partida derivado dos 129–170s medidos
+**hoje**, e os jobs vão mudar de duração quando as idas ao banco do dashboard
+forem consolidadas. Por isso os dois são variável de ambiente, e por isso o número
+é para ser **re-medido**, não herdado.
 
 ---
 
