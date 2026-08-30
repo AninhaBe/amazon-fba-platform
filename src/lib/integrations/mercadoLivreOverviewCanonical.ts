@@ -2,8 +2,6 @@ import { dbQuery, hasDb } from "../db";
 import { currentWorkspaceId } from "../workspaceScope";
 import { getCosts, costAt } from "../costStore";
 import { allocateByWeight, calculateContribution, type ProfitabilityLine } from "../profitability";
-import { descontarAnuncio } from "../financialMath";
-import { anuncioDoCanal } from "../anuncioDoCanal";
 import {
   brazilDateKey,
   getMercadoLivreOverview,
@@ -414,16 +412,25 @@ export async function getMercadoLivreOverviewFromCanonical(
   // `taxes ?? 0`: sem alíquota o lucro sai sem imposto, exatamente como saía
   // antes. Quem avisa é a tela — mudar o número aqui seria alterar o resultado
   // exibido sem a vendedora ter pedido.
-  // ⚠️ O ANÚNCIO ENTRA AQUI — fronteira em `financialMath.ts`. O Mercado Livre
-  // ignorava o gasto com anúncio por completo: medido em 30/08/2026, R$ 2.411,25
-  // em 3 dias de PADS fora do lucro. Quem exibe não subtrai de novo.
+  // ⚠️ O ANÚNCIO NÃO ENTRA NO LUCRO DO MERCADO LIVRE — e já entrou, por algumas
+  // horas em 30/08/2026. Removido no mesmo dia, por DOIS motivos independentes,
+  // cada um suficiente sozinho:
   //
-  // Sem guarda de extrato: a tarifa do ML é `sale_fee` (comissão) por pedido, e
-  // o PADS é cobrado fora dela — não há caminho para contar duas vezes aqui.
-  const lucroAntesDoAnuncio = processedRevenue - fees - cogs - (taxes ?? 0) - sellerShipping;
-  const anuncio = await anuncioDoCanal("mercado_livre", period.from.toISOString(), period.to.toISOString());
-  const lucro = descontarAnuncio(lucroAntesDoAnuncio, anuncio);
-  const estimatedProfit = lucro.estimatedProfit;
+  // 1) DECISÃO DA VENDEDORA: *"nem era pra puxar ads. O ads o seller desconta
+  //    depois no mercado livre, quando fizer seu próprio fechamento."* No ML a
+  //    conciliação do anúncio é dela, por fora — descontar aqui subtrai duas
+  //    vezes. Ver a regra POR CANAL em `financialMath.ts`.
+  //
+  // 2) O NÚMERO NÃO ERA DEFENSÁVEL: o console de Ads do ML mostrava R$ 44 de
+  //    investimento e 71 cliques em 30/08; nós tínhamos gravado R$ 768,86 e
+  //    1.228 cliques no mesmo dia. Deixar na tela um desconto que a gente não
+  //    consegue explicar é pior que não ter o desconto.
+  //
+  // A causa da divergência está sendo investigada em `mercadoLivreAdsScheduler.ts`
+  // (a janela pedida ao PADS é de 7 dias e o resultado é carimbado como UM dia).
+  // A coleta continua rodando — o dado segue sendo gravado e a aba de Anúncios
+  // continua lendo. O que saiu daqui é o LUCRO.
+  const estimatedProfit = processedRevenue - fees - cogs - (taxes ?? 0) - sellerShipping;
 
   // Cobertura: mesmo critério do loadMercadoLivreSource.
   const coveredFrom = syncRow.covered_from ? new Date(syncRow.covered_from).getTime() : Number.POSITIVE_INFINITY;
@@ -520,10 +527,12 @@ export async function getMercadoLivreOverviewFromCanonical(
       revenueProcessed: processedRevenue,
       coverage: { processedOrders: ordersProcessed, paidOrders: totals.paid_orders, complete: periodCovered && ordersProcessed >= totals.paid_orders },
       estimatedProfit,
-      ads: lucro.ads,
-      adsDesconhecido: lucro.adsDesconhecido,
-      adsAteDia: lucro.ateDia,
-      marginPct: estimatedProfit != null && processedRevenue > 0 ? estimatedProfit / processedRevenue * 100 : null,
+      // `ads: null` = "este canal não desconta anúncio", não "não sei quanto foi".
+      // O gasto existe e a aba de Anúncios o mostra; ele só não entra no lucro.
+      ads: null,
+      adsDesconhecido: false,
+      adsAteDia: null,
+      marginPct: processedRevenue > 0 ? estimatedProfit / processedRevenue * 100 : null,
       unitsWithoutCost,
       skusWithoutCost: skusSemCusto.size,
     },

@@ -163,12 +163,14 @@ test("ML: a pendência 'Cadastrar alíquota' continua na tela", () => {
 
 test("ML: o lucro do canônico já sai sem imposto quando não há alíquota", () => {
   const canonico = fonte("src/lib/integrations/mercadoLivreOverviewCanonical.ts");
-  // ⚠️ O NOME MUDOU EM 30/08/2026, a exigencia nao: a variavel virou
-  // `lucroAntesDoAnuncio` porque o `estimatedProfit` do ML passou a ser o
-  // resultado de `descontarAnuncio` sobre ela (fronteira em financialMath.ts).
-  // O que este teste cobra continua sendo `(taxes ?? 0)`: sem aliquota o lucro
-  // sai SEM imposto, e nao vira `null`.
-  assert.match(canonico, /lucroAntesDoAnuncio = processedRevenue - fees - cogs - \(taxes \?\? 0\) - sellerShipping/);
+  // ⚠️ O NOME FOI E VOLTOU NO MESMO DIA (30/08/2026), e a exigencia nunca mudou.
+  // Virou `lucroAntesDoAnuncio` quando o anuncio entrou no lucro do ML, e voltou
+  // a ser `estimatedProfit` horas depois, quando a vendedora decidiu que no
+  // Mercado Livre o anuncio NAO entra — ela concilia por fora. Ver a regra por
+  // canal em `financialMath.ts` → ANUNCIO_FORA_DO_LUCRO.
+  // O que este teste cobra segue sendo `(taxes ?? 0)`: sem aliquota o lucro sai
+  // SEM imposto, e nao vira `null`.
+  assert.match(canonico, /estimatedProfit = processedRevenue - fees - cogs - \(taxes \?\? 0\) - sellerShipping/);
 });
 
 // ── Shopee ──────────────────────────────────────────────────────────────────

@@ -74,8 +74,19 @@ async function providersQueAnunciam() {
   return encontrados;
 }
 
-test("todo canal que gasta com anuncio desconta anuncio do lucro", async () => {
+/**
+ * A declaracao explicita de quem NAO desconta — lida do MODULO, nao do texto.
+ * Importar em vez de raspar o fonte: a constante e a fonte de verdade, e um
+ * parser de regex sobre codigo quebra no dia em que alguem reformatar o arquivo.
+ */
+async function declaradosForaDoLucro() {
+  const { ANUNCIO_FORA_DO_LUCRO } = await import("../src/lib/financialMath.ts");
+  return ANUNCIO_FORA_DO_LUCRO;
+}
+
+test("todo canal que gasta com anuncio desconta anuncio do lucro, ou diz por que nao", async () => {
   const anunciam = await providersQueAnunciam();
+  const fora = await declaradosForaDoLucro();
   assert.ok(anunciam.size > 0, "nenhum gravador de anuncio encontrado — a descoberta quebrou, nao o produto");
 
   const produtores = await produtoresDeLucro();
@@ -85,12 +96,42 @@ test("todo canal que gasta com anuncio desconta anuncio do lucro", async () => {
       doCanal.length > 0,
       `${provider} grava gasto com anuncio e nenhum produtor de lucro fala dele`,
     );
+    // ⚠️ A REGRA E POR CANAL, e desde 30/08/2026 ela admite DUAS respostas certas
+    // — mas nunca o silencio. Quem gasta com anuncio ou DESCONTA, ou esta
+    // declarado em `ANUNCIO_FORA_DO_LUCRO` com o motivo e a data. A terceira
+    // opcao (nao descontar e nao dizer nada) e o esquecimento que este teste
+    // existe para pegar.
+    if (fora[provider]) {
+      assert.ok(
+        fora[provider].length > 40,
+        `${provider} esta em ANUNCIO_FORA_DO_LUCRO sem motivo escrito — declaracao sem porque ` +
+          "vira folclore na proxima pessoa que ler",
+      );
+      continue;
+    }
     for (const produtor of doCanal) {
       assert.match(
         produtor.src,
         /descontarAnuncio/,
         `${produtor.caminho} produz o lucro de ${provider}, que gasta com anuncio, e nao chama ` +
-          "`descontarAnuncio` — e o defeito de 25 a 30/08/2026 nascendo de novo",
+          "`descontarAnuncio` nem esta declarado em `ANUNCIO_FORA_DO_LUCRO` — e o defeito de " +
+          "25 a 30/08/2026 nascendo de novo",
+      );
+    }
+  }
+});
+
+test("quem esta FORA do lucro nao pode ter o desconto de volta por descuido", async () => {
+  // O par do teste acima: declarar o canal como "fora" e mesmo assim descontar
+  // seria pior que qualquer um dos dois sozinho — a tela subtrairia contra a
+  // decisao escrita, e o proximo a ler o codigo acreditaria na declaracao.
+  const produtores = await produtoresDeLucro();
+  const fora = await declaradosForaDoLucro();
+  for (const provider of Object.keys(fora)) {
+    for (const produtor of produtores.filter((p) => p.providers.includes(provider))) {
+      assert.ok(
+        !/descontarAnuncio/.test(produtor.src),
+        `${produtor.caminho} desconta anuncio de ${provider}, que esta declarado FORA do lucro`,
       );
     }
   }
