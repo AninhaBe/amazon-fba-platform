@@ -468,12 +468,25 @@ outro canal (o diff da rodada não podia sair do TikTok), ou é decisão de prod
   mudou entre as capturas, ele diz "esta comparação não vale" em vez de culpar a
   otimização.
 
-  📌 **A foto do antes: `G:/sc-temp/dashboard-antes-2026-08-30.json`** — 3.532
-  campos, 3 períodos fechados, conta real, capturada em 30/08/2026 **com o código
-  anterior à otimização**. ⚠️ **Ela é insubstituível:** depois que as consultas
-  mudarem, não há como recapturar o antes. `G:/sc-temp` não é lugar durável — se
-  esta frente demorar, mova a foto para um lugar que sobreviva à faxina, ou a
-  prova do critério de aceite se perde junto com o arquivo.
+  ⚠️ **MEÇA NA MESMA JANELA EM QUE VOCÊ MUDA — e não guarde a foto.**
+
+  A foto do antes é **instrumento, não artefato**: ela precisa sobreviver da
+  captura até a comparação, não do projeto inteiro. Se o trabalho atravessar
+  dias, **recapture o antes** com o código que estiver em produção naquele
+  momento, em vez de confiar num arquivo velho — e sempre dá para recapturar,
+  porque o código antigo está vivo enquanto a mudança não subir.
+
+  Foto velha não é só desnecessária, é **pior**: entre a captura e a comparação o
+  DADO muda (venda nova, tarifa que chegou, custo cadastrado), então um antes de
+  três dias atrás compara períodos que já não existem. Guardar por muito tempo
+  cria a ilusão de rigor e entrega ruído — e é por isso que o script mede a
+  impressão digital do substrato e recusa a comparação quando ele mudou.
+
+  📌 **A foto NÃO entra no repositório.** Dado financeiro de produção no
+  histórico do git é para sempre: não se apaga sem reescrever história e vaza
+  para qualquer clone. O que entra no repo é o **script** que gera a foto — ele é
+  reproduzível e não carrega dado. Vale como princípio, não como caso isolado:
+  instrumento de medição nasce, mede e morre; o gerador fica.
 
 ## Explicações dentro do produto (pedido em 23/08/2026)
 

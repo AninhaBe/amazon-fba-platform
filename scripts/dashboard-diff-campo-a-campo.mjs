@@ -26,6 +26,38 @@
 // anuncio, custo cadastrado), entao "igual na demo" nao prova nada. O script se
 // recusa a rodar contra conexao marcada como demo.
 //
+// ⚠️ A FOTO QUE ELE GERA NAO ENTRA NO REPOSITORIO, E ELA NAO E PARA GUARDAR.
+//
+// Dado financeiro de producao no historico do git e para sempre: nao se apaga
+// sem reescrever historia e vaza para qualquer clone. O que entra no repo e este
+// script — reproduzivel, sem dado dentro.
+//
+// E a foto e INSTRUMENTO, nao artefato: ela precisa sobreviver da captura ate a
+// comparacao, nao do projeto inteiro. Se o trabalho atravessar dias, RECAPTURE o
+// antes com o codigo que estiver em producao — o codigo antigo esta vivo
+// enquanto a mudanca nao subir. Foto velha e pior que foto nova: entre uma e
+// outra o DADO muda, e um antes de tres dias atras compara periodos que ja nao
+// existem. Guardar por muito tempo cria ilusao de rigor e entrega ruido.
+//
+// ⚠️ O QUE ELE PEGOU NA PRIMEIRA VEZ QUE RODOU (30/08/2026), antes do deploy:
+//
+//   `operator does not exist: text = uuid` — os TRES paineis caiam. Causa:
+//   `workspace_id` e `uuid` na migration 0012 e `text` na 0016, e
+//   `primeiroDiaComAnuncio` usava um `$1` so nas duas metades da consulta; o
+//   Postgres infere o tipo do parametro pelo primeiro uso e a segunda comparacao
+//   virava `text = uuid`. A SUITE NAO PEGOU: o teste que varre as duas tabelas
+//   nao filtra por `workspace_id`, entao a consulta dele nunca esbarrava no
+//   conflito. Quem pegou foi a captura contra o banco real, na estreia.
+//
+// ⚠️ E O DEFEITO IRMAO, que este script nao pegou mas a mesma sessao expos:
+//
+//   uma medicao de gasto com anuncio feita SEM filtro de `workspace_id` somou
+//   dois inquilinos e reportou R$ 2.419,70 de anuncio no Mercado Livre "da
+//   vendedora" — dinheiro do OUTRO workspace. O produto sempre filtrou; a
+//   medicao e que nao filtrou. Por isso a captura aqui roda dentro de
+//   `runWithWorkspace` e o `PROBE_WORKSPACE_ID` e obrigatorio: consulta de
+//   diagnostico em app multi-inquilino sem escopo nao mede o que voce acha.
+//
 // ⚠️ REGRA DE HIGIENE (ADR-028): script local contra producao nao abre pool de
 // 10 — o pooler tem pool_size 15 compartilhado com o app e os crons.
 process.env.DB_POOL_MAX = "3";
