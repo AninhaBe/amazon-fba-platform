@@ -88,7 +88,10 @@ e zero `ECHECKOUTTIMEOUT` desde o religamento.
 - ➕ Trabalho de fundo não pode mais matar de fome quem está olhando a tela.
 - ➕ ~70% menos batidas de sync, sem perda perceptível de frescor.
 - ➖ Atraso máximo do polling sobe (2 → 3/5/10 min por canal). Mitigado pelo
-  webhook do ML e endereçado de vez pelo [ADR-031](./ADR-031-tempo-real-e-push.md).
+  webhook do ML e endereçado de vez pelo [ADR-018](./ADR-018-ingestao-por-evento.md)
+  (push como ingestão primária). O "ADR-031" citado aqui na versão original
+  **nunca foi escrito** — o assunto ficou coberto pelo ADR-018 e, na parte de
+  topologia, pelo [ADR-035](./ADR-035-quando-o-nexo-adiciona-uma-peca-de-infraestrutura.md).
 - ➖ Mais um conceito no código (`ehFundo`), que precisa ser lembrado por quem
   escrever rota de cron nova — por isso o teste que varre o diretório.
 
