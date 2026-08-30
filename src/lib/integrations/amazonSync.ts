@@ -415,23 +415,107 @@ export async function runAmazonSyncStep(account: AccountCtx, forcarJanela = fals
   );
   const row = leased[0];
   if (!row) {
-    // Sem trabalho de janela (completo ou outro processo na frente): as
-    // conciliações de itens e fees ainda podem avançar.
-    await runWithAccount(account, async () => {
-      // Reverificação antes dos itens: o pedido precisa sair de `pending` para o
-      // backfill de itens enxergá-lo. Best-effort — rate limit fica para a próxima.
-      // Pontual primeiro (alcança os recentes), varredura depois (descobre o resto).
-      await reverifyPendingById(connectionId).catch(() => {});
-      await reverifyUpdatedOrders(connectionId).catch(() => {});
-      await syncMissingOrderItems(connectionId);
-      await syncMissingOrderFees(connectionId);
-      // Captura o valor de tabela enquanto o pedido ainda tem um: a Amazon zera
-      // o cancelado em toda API de pedido, então depois não há de onde tirar.
-      // Ele mesmo se espaça (3h) — chamar todo ciclo não gera relatório todo ciclo.
-      await ingerirRelatorioDePedidos(connectionId).catch((erro) => {
-        console.error("[amazon] relatório de pedidos falhou", erro);
+    // ⚠️ AQUI MORAVA UM DEFEITO QUE SÓ APARECE COM DUAS MÁQUINAS (corrigido em
+    // 30/08/2026), e ele é do tipo que nasce pronto no dia do escalonamento.
+    //
+    // O claim acima falha por DUAS razões diferentes, e o código antigo tratava
+    // as duas como a mesma:
+    //   (a) `status = 'complete'` — não há janela para ingerir, e NINGUÉM está
+    //       rodando. A conciliação abaixo é legítima e necessária.
+    //   (b) OUTRO WORKER ESTÁ COM O LEASE — ele está rodando agora.
+    //
+    // No caso (b) o passo seguia adiante assim mesmo e fazia CINCO operações com
+    // chamada à SP-API, nenhuma sob lease: `reverifyPendingById`,
+    // `reverifyUpdatedOrders`, `syncMissingOrderItems`, `syncMissingOrderFees` e
+    // `ingerirRelatorioDePedidos`. Com uma máquina só isso é inofensivo, porque
+    // não há concorrente. Com a segunda máquina, as chamadas ao canal DOBRAM —
+    // e o sintoma não é CPU desperdiçada, é limite de API queimado, que foi o
+    // que rendeu o alerta da Shopee.
+    //
+    // ⚠️ E A CORREÇÃO NÃO É "RETORNAR QUANDO `!row`". Isso mataria a conciliação
+    // no estado NORMAL da conta (a linha vive em 'complete'), e o backfill de
+    // itens e tarifas simplesmente deixaria de existir — sem erro, em silêncio.
+    // É o mesmo defeito que a Shopee pagou em 29/08: sucesso de uma etapa virou
+    // condição de parada de outra. Consertar não é remover.
+    //
+    // Então a conciliação ganha o SEU PRÓPRIO lease, pelo mesmo UPDATE
+    // condicional atômico do caminho normal — sem `status <> 'complete'`, porque
+    // ela é contínua por natureza, e sem mexer em `status`, porque ela não faz
+    // parte da máquina de estados da ingestão. Não conseguiu o lease = alguém
+    // está rodando = PARA, com zero chamada externa.
+    const conciliacao = await dbQuery<{ ownership_token: string }>(
+      `UPDATE workspace_marketplace_syncs
+          SET lease_until = now() + interval '5 minutes', updated_at = now()
+        WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
+          AND (lease_until IS NULL OR lease_until < now())
+        RETURNING lease_until::text AS ownership_token`,
+      [workspaceId, PROVIDER, connectionId]
+    );
+    // Zero linhas = outro worker é o dono. Nenhuma chamada à SP-API daqui.
+    if (!conciliacao[0]) return;
+
+    let tokenDaConciliacao = conciliacao[0].ownership_token;
+    // ⚠️ RENOVAÇÃO ENTRE AS ETAPAS, NUNCA NO MEIO DE UMA.
+    //
+    // Abortar entre chamadas é seguro porque o sync é idempotente por chave
+    // externa; abortar no meio de uma escrita não seria. Isto limita a janela
+    // sem renovação à duração de UMA etapa em vez das cinco somadas — e
+    // renovação que afeta ZERO LINHAS significa "perdi o lease, aborta".
+    const aindaSouDono = async (): Promise<boolean> => {
+      const renovado = await dbQuery<{ ownership_token: string }>(
+        `UPDATE workspace_marketplace_syncs
+            SET lease_until = now() + interval '5 minutes', updated_at = now()
+          WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
+            AND lease_until::text = $4 AND lease_until > now()
+          RETURNING lease_until::text AS ownership_token`,
+        [workspaceId, PROVIDER, connectionId, tokenDaConciliacao]
+      );
+      if (!renovado[0]) return false;
+      tokenDaConciliacao = renovado[0].ownership_token;
+      return true;
+    };
+
+    try {
+      await runWithAccount(account, async () => {
+        // Reverificação antes dos itens: o pedido precisa sair de `pending` para o
+        // backfill de itens enxergá-lo. Best-effort — rate limit fica para a próxima.
+        // Pontual primeiro (alcança os recentes), varredura depois (descobre o resto).
+        //
+        // Cada etapa só começa se o lease ainda for nosso. A primeira acabou de
+        // ser conquistada, então a checagem vale para a segunda em diante.
+        const etapas: Array<[string, () => Promise<unknown>]> = [
+          ["reverifyPendingById", () => reverifyPendingById(connectionId).catch(() => {})],
+          ["reverifyUpdatedOrders", () => reverifyUpdatedOrders(connectionId).catch(() => {})],
+          ["syncMissingOrderItems", () => syncMissingOrderItems(connectionId)],
+          ["syncMissingOrderFees", () => syncMissingOrderFees(connectionId)],
+          // Captura o valor de tabela enquanto o pedido ainda tem um: a Amazon zera
+          // o cancelado em toda API de pedido, então depois não há de onde tirar.
+          // Ele mesmo se espaça (3h) — chamar todo ciclo não gera relatório todo ciclo.
+          ["ingerirRelatorioDePedidos", () => ingerirRelatorioDePedidos(connectionId).catch((erro) => {
+            console.error("[amazon] relatório de pedidos falhou", erro);
+          })],
+        ];
+        for (const [nome, etapa] of etapas) {
+          if (!(await aindaSouDono())) {
+            // Perder o lease no meio não é erro: é outro worker assumindo. O que
+            // não pode acontecer é continuar chamando a SP-API depois disso.
+            console.info("[amazon] conciliação abortada: lease perdido", { antesDe: nome });
+            return;
+          }
+          await etapa();
+        }
       });
-    });
+    } finally {
+      // Devolve o lease só se ele ainda for nosso — se outro worker já assumiu,
+      // este UPDATE não casa e não apaga o lease do dono novo.
+      await dbQuery(
+        `UPDATE workspace_marketplace_syncs
+            SET lease_until = NULL, updated_at = now()
+          WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
+            AND lease_until::text = $4`,
+        [workspaceId, PROVIDER, connectionId, tokenDaConciliacao]
+      );
+    }
     return;
   }
 
