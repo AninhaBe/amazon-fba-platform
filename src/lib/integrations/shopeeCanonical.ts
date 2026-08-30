@@ -200,7 +200,35 @@ const FEE_MAP: Array<{ field: keyof ShopeeEscrowIncome; type: CanonicalFeeType }
   { field: "commission_fee", type: "commission" },
   { field: "service_fee", type: "commission" },
   { field: "seller_transaction_fee", type: "payment" },
-  { field: "actual_shipping_fee", type: "shipping_seller" },
+  // ⚠️ `actual_shipping_fee` SAIU DAQUI em 30/08/2026 — ele NAO e custo da
+  // vendedora, e mapea-lo como `shipping_seller` estava fazendo a tela dela
+  // mostrar PREJUIZO onde havia LUCRO.
+  //
+  // MEDIDO CONTRA A LOJA REAL, 160 pedidos em quatro faixas de idade (0-1d,
+  // 2-15d, 16-45d, 46d+): a diferenca entre `escrow_amount` e
+  // (bruto - comissao - servico) NUNCA foi igual ao `actual_shipping_fee` —
+  // **0 de 80** entre os que divergiam. Nas duas faixas recentes a identidade
+  // fecha exata (80 de 80). Regra sem excecao.
+  //
+  // E o corpo do escrow fecha o argumento por outro caminho:
+  //     actual_shipping_fee       9,62
+  //     buyer_paid_shipping_fee   9,62   <- o COMPRADOR pagou
+  //     final_shipping_fee       -9,62   <- e a Shopee estorna
+  // Liquido para a vendedora: ZERO.
+  //
+  // O estrago: R$ 3.542,80 descontados num unico dia (256 pedidos), 33% do
+  // faturamento. A tela mostrava -12,64% de margem onde a real era +20,35% — e
+  // a vendedora so descobriu porque conferiu em outro software.
+  //
+  // Este mapeamento foi escrito em 05/08 contra a DOCUMENTACAO, antes de existir
+  // loja conectada, e estava marcado com "⚠️ confirmar enum" em
+  // `docs/api-shopee.md`. Nunca foi conferido contra o escrow real. Documentacao
+  // e comportamento divergem — de novo.
+  //
+  // ⚠️ `reverse_shipping_fee` CONTINUA aqui: e frete de DEVOLUCAO, cobrado do
+  // vendedor em outra circunstancia, e NAO foi verificado nesta amostra. Nao
+  // tirei junto porque nao medi — tirar por analogia seria repetir o erro que
+  // criou esta linha.
   { field: "reverse_shipping_fee", type: "shipping_seller" },
   { field: "campaign_fee", type: "ads" },
   { field: "order_ams_commission_fee", type: "ads" },
@@ -214,10 +242,15 @@ export function canonicalShopeeFees(income: ShopeeEscrowIncome, currency: string
   for (const { field, type } of FEE_MAP) {
     const value = income[field];
     // undefined = campo não veio (desconhecido). 0 = fato conhecido, mas não
-    // vale gravar linha zerada — exceto o frete, cuja ausência muda a leitura
-    // de cobertura no dashboard.
+    // vale gravar linha zerada.
+    //
+    // ⚠️ Havia aqui uma excecao para `actual_shipping_fee`, que gravava a linha
+    // mesmo zerada "porque a ausencia muda a leitura de cobertura". Ela morreu
+    // junto com o mapeamento em 30/08/2026: o campo nao e mais custo dela, e
+    // manter a excecao deixaria uma linha orfa apontando para um tipo que este
+    // mapa nao produz mais.
     if (value == null) continue;
-    if (value === 0 && field !== "actual_shipping_fee") continue;
+    if (value === 0) continue;
     fees.push({
       feeType: type,
       providerFeeCode: field,

@@ -121,20 +121,28 @@ test("escrow traduz as taxas para a taxonomia canônica", () => {
   assert.equal(byCode.commission_fee.amount, 25.98);
   assert.equal(byCode.service_fee.feeType, "commission");
   assert.equal(byCode.seller_transaction_fee.feeType, "payment");
-  assert.equal(byCode.actual_shipping_fee.feeType, "shipping_seller");
-  assert.equal(byCode.actual_shipping_fee.amount, 21.9);
+  // ⚠️ INVERTEU EM 30/08/2026: `actual_shipping_fee` NAO vira mais linha de
+  // custo. Medido em 160 pedidos da loja real — o escrow nunca desconta esse
+  // frete do repasse (o comprador paga e a Shopee estorna). Mapea-lo como
+  // `shipping_seller` fazia a tela mostrar prejuizo onde havia lucro.
+  assert.equal(byCode.actual_shipping_fee, undefined);
+  // O frete do COMPRADOR continua sendo informado — ele explica o faturamento,
+  // nao deduz dele.
   assert.equal(order.buyerShipping, 19.9);
   // escrow_tax veio zero: não vira linha de taxa.
   assert.equal(byCode.escrow_tax, undefined);
 });
 
-test("frete zero é fato conhecido e gera linha; taxa ausente não gera", () => {
+test("taxa zerada nao gera linha — nem o frete, que deixou de ser custo", () => {
+  // ⚠️ INVERTEU EM 30/08/2026. A excecao que gravava `actual_shipping_fee` zerado
+  // "porque marca o pedido como completo" morreu junto com o mapeamento: o campo
+  // nao e mais custo da vendedora, e uma linha orfa apontaria para um tipo que
+  // este mapa nao produz mais.
   const fees = canonicalShopeeFees({ actual_shipping_fee: 0, commission_fee: 0 }, "BRL");
   const codes = fees.map((fee) => fee.providerFeeCode);
-  // Frete zero precisa existir: é o que marca o pedido como completo no lucro.
-  assert.ok(codes.includes("actual_shipping_fee"));
-  // Comissão zero não agrega informação.
+  assert.ok(!codes.includes("actual_shipping_fee"));
   assert.ok(!codes.includes("commission_fee"));
+  assert.equal(fees.length, 0);
 });
 
 test("campos de anúncio e imposto entram nas categorias certas", () => {
