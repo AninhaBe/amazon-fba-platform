@@ -101,6 +101,26 @@ quem lê o histórico depois; "dividir deixaria um commit em que a tela mente" �
 a ressalva original da Vitrine sobre este arquivo continua válida, e virou a
 linha do mapa.)*
 
+⚠️ **PRIMEIRO USO REAL — 30/08/2026, commit `cc8234f`.** Até aqui a cerca nunca
+tinha fechado e o escape nunca tinha sido usado; este doc registrava isso como
+*"cerca que nunca fechou não está testada em produção — está só instalada"*.
+
+O lote que a fechou: a margem deixando de ser refém do custo, nos quatro canais.
+Ele mistura `backend` (5 arquivos de `src/lib/`, as fontes que paravam de anular
+o lucro) e `vitrine` (8 de `src/app/components/`, as telas que passaram a
+exibi-lo com o sinal). A mensagem de bloqueio listou os dois donos e as duas
+saídas, e resolveu sem precisar abrir este documento.
+
+O escape usado, com **um motivo só**:
+
+> `cruza-areas: a fonte para de anular o lucro e a tela passa a exibi-lo com o
+> sinal; separados, um dos dois commits deixa a tela mentindo.`
+
+É **atomicidade, não permissão** — e é verificável por quem ler depois: dividir
+produziria um commit em que a fonte devolve o lucro e a tela ainda o esconde, ou
+pior, a tela mostrando margem sem o sinal ao lado. **A cerca deixou de estar só
+instalada.**
+
 O escape custa uma frase e fica **auditável no histórico** — que é a diferença
 entre ele e uma allowlist muda.
 
@@ -118,6 +138,21 @@ com hipótese.
 
 > **Instrumento que declara o próprio ponto cego é mais confiável que o que
 > promete cobrir tudo.**
+
+⚠️ **TERCEIRO PONTO CEGO: mudança de contrato que quebra o trabalho EM VOO do
+outro.** A cerca impede o commit misturado; ela **não** impede que uma mudança
+legítima na sua própria área derrube o que o outro dono está escrevendo agora.
+
+No `cc8234f` o `Metric.tsx` teve `sub` alargado de `string` para `ReactNode`, e o
+`Flow` teve `value`. São arquivos da Vitrine, alterados dentro de um commit que
+declarou o cruzamento — tudo certo pela regra —, mas se ela estivesse com uma
+tela aberta usando o tipo antigo, descobriria pelo `tsc` quebrando, não por
+aviso. O portão não tem como saber o que está no editor de ninguém.
+
+**A defesa aqui não é código, é aviso:** mudou contrato de componente
+compartilhado, fala com o outro dono. Ficou registrado porque, dos três pontos
+cegos, este é o único em que a cerca passar é o comportamento *correto* e ainda
+assim alguém pode se machucar.
 
 Ele olha o que está **staged**. As duas colisões de 29/08 nasceram de `git add`
 abrangente — e nesse caso o stage **já está contaminado** quando o portão olha.
