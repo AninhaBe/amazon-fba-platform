@@ -335,11 +335,13 @@ export async function getMercadoLivreOverviewFromCanonical(
   // Custo das mercadorias por vigência, sobre TODAS as vendas do período.
   let cogs = 0;
   let unitsWithoutCost = 0;
+  // SKU e a unidade de ACAO (ver oQueFaltaNoResultado.ts).
+  const skusSemCusto = new Set<string>();
   for (const row of cogsRows) {
     const entry = mercadoLivreCostEntry(costs, connection.id, row.external_product_id, row.sku);
     const unitCost = entry ? costAt(entry, new Date(row.occurred_at).toISOString()) : 0;
     if (unitCost > 0) cogs += unitCost * row.qty;
-    else unitsWithoutCost += row.qty;
+    else { unitsWithoutCost += row.qty; skusSemCusto.add(row.sku ?? row.external_product_id ?? ""); }
   }
 
   const profitabilityLines: ProfitabilityLine[] = [];
@@ -509,6 +511,7 @@ export async function getMercadoLivreOverviewFromCanonical(
       estimatedProfit,
       marginPct: processedRevenue > 0 ? estimatedProfit / processedRevenue * 100 : 0,
       unitsWithoutCost,
+      skusWithoutCost: skusSemCusto.size,
     },
     dailySales,
     stockRadar,

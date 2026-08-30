@@ -34,6 +34,8 @@ export interface TiktokFinancialOverviewV2 {
   currency: string; revenue: number | null; fees: number | null; sellerShipping: number | null;
   buyerShipping: number | null; ads: number | null; taxesWithheld: number | null; refunds: number | null;
   tax: number | null; taxRate: number | null; cogs: number | null; profit: number | null;
+  /** Unidades sem custo (a TikTok nao expoe sku nesta linha — ver o calculo). */
+  unitsWithoutCost?: number;
   marginPct: number | null; roiPct: number | null;
 }
 /**
@@ -133,6 +135,16 @@ export function calculateTiktokFinancialV2(input: TiktokFinancialInput, currency
   const capturedCogs = sum(units.filter((item) => item.unitCost != null && item.unitCost >= 0).map((item) => item.unitCost! * item.quantity));
   const cogsCoverage = coverage("units", totalUnits, knownCostUnits, totalUnits - knownCostUnits, 0, capturedCogs);
   const cogs = cogsCoverage.status === "complete" ? sum(units.map((item) => item.unitCost! * item.quantity)) : null;
+  // ⚠️ AQUI E UNIDADE, NAO SKU — e a diferenca esta declarada de proposito.
+  //
+  // Os outros tres canais sinalizam em SKU, que e a unidade de ACAO (ela cadastra
+  // custo por SKU). A linha de item da TikTok neste calculo NAO carrega sku nem
+  // productId, entao contar SKU aqui exigiria mudar o formato de entrada — e
+  // inventar um numero de SKU a partir de unidades seria pior que dizer unidade.
+  // `sinaisDoResultado` aceita os dois e escreve a palavra certa para cada um.
+  const unitsWithoutCost = totalUnits - knownCostUnits;
+  // O custo PARCIAL, que e o que entra no lucro desde 30/08/2026.
+  const cogsParcial = knownCostUnits > 0 ? capturedCogs : 0;
   // Cupom concedido no período. Uma única unidade sem desconto provado deixa o
   // total desconhecido: somar só as unidades provadas afirmaria um cupom menor
   // do que o concedido, e "não extrapolar" vale aqui como em qualquer outro
@@ -150,14 +162,18 @@ export function calculateTiktokFinancialV2(input: TiktokFinancialInput, currency
   // que a tela sabe apontar "Cadastrar aliquota". Todos os outros continuam
   // aqui: sem tarifa, frete, ads, retencao, estorno ou custo, o lucro seria
   // otimista e ninguem saberia — esse e o `null != 0` de dado do canal.
-  const components = [revenue, fees.value, sellerShipping.value, ads.value, taxesWithheld.value, refunds.value, cogs];
+  // ⚠️ `cogs` SAIU de `components` em 30/08/2026, por decisao da vendedora: SKU
+  // sem custo virou SINAL ao lado do numero, nao trava. Os componentes que a
+  // TIKTOK posta continuam aqui — esses ela nao resolve, e o numero ainda muda
+  // sozinho enquanto faltarem.
+  const components = [revenue, fees.value, sellerShipping.value, ads.value, taxesWithheld.value, refunds.value];
   const financialCoverage = coverage("period", components.length, components.filter((value) => value != null).length, components.filter((value) => value == null).length);
   const complete = input.periodCovered && components.every((value) => value != null);
-  const profit = complete ? +(revenue! - fees.value! - sellerShipping.value! - ads.value! - taxesWithheld.value! - refunds.value! - (tax ?? 0) - cogs!).toFixed(2) : null;
+  const profit = complete ? +(revenue! - fees.value! - sellerShipping.value! - ads.value! - taxesWithheld.value! - refunds.value! - (tax ?? 0) - cogsParcial).toFixed(2) : null;
   return { overview: { currency, revenue, fees: fees.value, sellerShipping: sellerShipping.value, buyerShipping,
     ads: ads.value, taxesWithheld: taxesWithheld.value, refunds: refunds.value, tax, taxRate: input.taxRate, cogs, profit,
     marginPct: profit != null && revenue! > 0 ? +(profit / revenue! * 100).toFixed(2) : null,
-    roiPct: profit != null && cogs! > 0 ? +(profit / cogs! * 100).toFixed(2) : null },
+    roiPct: profit != null && cogsParcial > 0 ? +(profit / cogsParcial * 100).toFixed(2) : null, unitsWithoutCost },
     coverage: (() => {
       const requestedPeriod = { revenue: revenueCoverage, fees: fees.coverage, buyerShipping: buyerCoverage,
         sellerShipping: sellerShipping.coverage, shipping: shippingCoverage, ads: ads.coverage,

@@ -1,79 +1,112 @@
 /**
- * O QUE FALTA PARA O RESULTADO E PARA A MARGEM — em numero, nunca em adjetivo.
+ * O QUE FALTA PARA O RESULTADO — SINAL AO LADO DO NUMERO, NUNCA NO LUGAR DELE.
  *
- * ⚠️ NASCEU DE DOIS TEXTOS QUE MENTIAM (30/08/2026, print da Ana).
+ * ⚠️ DECISAO DA VENDEDORA, 30/08/2026, revertendo a nossa:
  *
- * A tela da Shopee, filtro HOJE, mostrava:
- *   Taxas   R$ 2.770,98  "aguardando fechamento do extrato financeiro"
- *   Margem  —            "aguardando conciliacao completa"
+ *   "as 3 unidades sem custo — ISSO NAO PODE EXISTIR. Tem que mostrar a margem
+ *    independente de se tem algo nao cadastrado. E se tiver algum SKU sem
+ *    cadastrar custo naquele dia ou periodo, basta sinalizar pra cadastrar. Mas
+ *    isso nao pode impedir de mostrar a margem parcial. Voce nao precisa tomar
+ *    essa responsabilidade de entregar dados errados. O erro e do seller que nao
+ *    cadastrou o custo."
  *
- * As duas frases eram FALSAS. Medido no mesmo instante: 219 de 219 pedidos com
- * tarifa registrada, os cinco componentes financeiros nao-nulos, periodo
- * coberto. Nao havia extrato pendente nem conciliacao aguardando. O que faltava
- * era o custo de TRES unidades de 240 — cadastro que a propria vendedora faz em
- * dois minutos.
+ * Antes disso, UMA unidade sem custo apagava lucro, margem e ROI do periodo
+ * inteiro. A tela escondia o numero para nao arriscar um numero incompleto — e
+ * quem esconde decide pela dona do negocio o que ela pode ver.
  *
- * O preco de mentir assim e concreto: a tela dizia a ela que o problema era da
- * Shopee, quando o problema era dela e resolvivel. Mesma familia do "a Shopee
- * ainda nao postou" que ja foi corrigido por culpar o fornecedor no escuro.
+ * ⚠️ O NUMERO NUNCA APARECE SOZINHO quando ha pendencia. Isso e condicao, nao
+ * enfeite: margem sem custo de um SKU sai MAIOR que a verdade, e numero maior
+ * que a verdade sem aviso e a coisa que este projeto passou o dia 29/08 tirando
+ * da tela. O sinal fica COLADO no bloco do numero — nao numa faixa do outro lado
+ * que ela pode nao olhar.
  *
- * Regra da casa (23/08/2026): nao diga "parcial", diga O QUE FALTA, com numero e
- * link. Adjetivo que se desculpa nao vira acao; "3 unidades sem custo
- * cadastrado →" vira.
+ * ⚠️ SKU, NAO UNIDADE. Ela cadastra custo por SKU; unidade vendida e consequencia.
+ * Medido na UTILEIRA em 30/08: "3 unidades sem custo" eram **2 SKUs** (um vendido
+ * duas vezes) — a tela pedia 3 cadastros para um trabalho de 2, inflando em 50%
+ * a tarefa dela.
  *
- * ⚠️ NAO MUDA NUMERO NENHUM. Nenhum valor exibido muda por causa deste arquivo:
- * ele so troca a explicacao de por que um travessao esta ali. A decisao de
- * mostrar margem sobre custo parcial foi avaliada e RECUSADA pelo cerebro em
- * 30/08/2026, e o motivo esta registrado: a pendencia aqui e resolvivel pela
- * vendedora em dois minutos, e nesse caso a resposta certa e apontar a acao, nao
- * estimar por cima. Margem com 3 de 240 unidades sem custo sairia melhor que a
- * verdade, e margem e uma RAZAO — somar parcial informa, dividir por parcial
- * engana.
+ * ⚠️ DUAS CAUSAS, DUAS FRASES. Custo faltando e responsabilidade dela e ela
+ * resolve hoje: chama para acao, com link. Tarifa faltando e a nossa fila ainda
+ * drenando e ela nao pode fazer nada: avisa que o numero muda sozinho, sem link
+ * — link para o que nao se pode resolver e ruido. Mandar a acao errada e fazer a
+ * pessoa trabalhar a toa (a mesma regra ja escrita em `TikTokWorkspaceModel`).
  */
 
-export interface PendenciaDoResultado {
-  /** Texto curto, com numero. Nunca adjetivo. */
+export type TomDoSinal = "acao" | "progresso";
+
+export interface SinalDoResultado {
+  chave: "custo" | "tarifa" | "conciliacao";
+  /** Numero + o que falta. Nunca adjetivo, nunca "parcial". */
   texto: string;
-  /** Para onde a vendedora vai resolver, quando ela PODE resolver. */
+  /** So existe quando ha o que ela POSSA fazer. */
   href?: string;
+  tom: TomDoSinal;
 }
 
-/**
- * A PRIMEIRA pendencia que segura o resultado, em ordem de quem pode agir.
- *
- * A ordem nao e estetica: o que a vendedora resolve sozinha vem antes do que
- * depende de nos ou do marketplace. Listar tudo de uma vez faria a acao dela
- * competir com informacao que ela nao pode usar.
- */
-export function oQueFaltaParaOResultado(estado: {
-  unitsWithoutCost: number;
-  ordersWithFees: number;
-  ordersProcessed: number;
-  paidOrders: number;
+export interface EstadoDoResultado {
+  /** SKUs distintos vendidos no periodo sem custo cadastrado. Preferido. */
+  skusWithoutCost?: number;
+  /**
+   * Unidades sem custo. Usado SO quando o canal nao consegue contar SKU (a linha
+   * de item da TikTok nao carrega sku). Dizer "unidade" quando e unidade e mais
+   * honesto que converter em SKU por chute — e a palavra muda no texto.
+   */
+  unitsWithoutCost?: number;
+  /** Pedidos do periodo com tarifa registrada. */
+  ordersWithFees?: number;
+  /** Pedidos do periodo com detalhe processado. */
+  ordersProcessed?: number;
+  /** Pedidos pagos do periodo. */
+  paidOrders?: number;
+  /** Para onde ela vai cadastrar custo, neste canal. */
   hrefDeCustos: string;
-}): PendenciaDoResultado | null {
-  // 1. Custo: dela, e resolvivel agora.
-  if (estado.unitsWithoutCost > 0) {
-    return {
-      texto: `${estado.unitsWithoutCost} unidade(s) sem custo cadastrado`,
-      href: estado.hrefDeCustos,
-    };
-  }
-  // 2. Tarifa que ainda nao chegou: nossa fila, com o tamanho dito.
-  if (estado.ordersWithFees < estado.ordersProcessed) {
-    return { texto: `tarifa de ${estado.ordersWithFees} de ${estado.ordersProcessed} vendas` };
-  }
-  // 3. Venda ainda nao detalhada: idem.
-  if (estado.ordersProcessed < estado.paidOrders) {
-    return { texto: `${estado.ordersProcessed} de ${estado.paidOrders} vendas detalhadas` };
-  }
-  return null;
 }
 
 /**
- * O rodape do card de Taxas. Completo NAO fala em espera; parcial fala com
- * NUMERO, nunca "aguardando fechamento do extrato".
+ * TODOS os sinais, nao o primeiro. Cada linha explica uma PARTE diferente da
+ * distancia entre o numero exibido e a verdade — omitir uma esconde metade.
+ * Custo vem primeiro por ser o unico que ela pode resolver agora.
  */
+export function sinaisDoResultado(estado: EstadoDoResultado): SinalDoResultado[] {
+  const sinais: SinalDoResultado[] = [];
+  const skus = estado.skusWithoutCost ?? 0;
+  const unidades = estado.unitsWithoutCost ?? 0;
+  if (skus > 0 || unidades > 0) {
+    const texto = skus > 0
+      ? `${skus} SKU${skus > 1 ? "s" : ""} sem custo cadastrado`
+      : `${unidades} unidade${unidades > 1 ? "s" : ""} sem custo cadastrado`;
+    sinais.push({ chave: "custo", texto, href: estado.hrefDeCustos, tom: "acao" });
+  }
+  const comTarifa = estado.ordersWithFees;
+  const processados = estado.ordersProcessed;
+  if (comTarifa != null && processados != null && comTarifa < processados) {
+    sinais.push({
+      chave: "tarifa",
+      texto: `tarifa de ${comTarifa} de ${processados} vendas — a margem ainda cai`,
+      tom: "progresso",
+    });
+  }
+  const pagos = estado.paidOrders;
+  if (processados != null && pagos != null && processados < pagos) {
+    sinais.push({
+      chave: "conciliacao",
+      texto: `${processados} de ${pagos} vendas detalhadas — a margem ainda cai`,
+      tom: "progresso",
+    });
+  }
+  return sinais;
+}
+
+/**
+ * Fica `true` quando ha numero E ha pendencia — ou seja, quando o sinal e
+ * OBRIGATORIO. Renderizar o numero com isto `true` e sem sinal e o defeito que
+ * o teste tranca.
+ */
+export function sinalObrigatorio(valor: number | null | undefined, sinais: SinalDoResultado[]): boolean {
+  return valor != null && sinais.length > 0;
+}
+
+/** O rodape do card de Taxas: completo nao fala em espera; parcial fala com NUMERO. */
 export function rodapeDasTaxas(estado: {
   feesComplete: boolean;
   ordersWithFees: number;

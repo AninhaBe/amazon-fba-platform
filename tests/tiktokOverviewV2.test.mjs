@@ -17,6 +17,7 @@ test("contrato completo calcula lucro, margem e ROI", () => {
     currency: "BRL", revenue: 100, fees: 10, sellerShipping: 5, buyerShipping: 0,
     ads: 0, taxesWithheld: 0, refunds: 0,
     tax: 10, taxRate: 10, cogs: 10, profit: 65, marginPct: 65, roiPct: 650,
+    unitsWithoutCost: 0,
   });
   assert.equal(result.coverage.financials.status, "complete");
 });
@@ -66,10 +67,14 @@ test("imposto ausente difere de alíquota explícita 0%", () => {
   assert.equal(calculate({ taxRate: 0 }).overview.tax, 0);
 });
 
-test("custo ausente permanece desconhecido e custo zero explícito é conhecido", () => {
+test("custo ausente permanece desconhecido, mas NAO apaga mais o lucro", () => {
+  // ⚠️ INVERTEU EM 30/08/2026 (decisao da vendedora). `cogs` continua `null` —
+  // "nao sei" segue sendo "nao sei" — mas o LUCRO passa a sair com o custo
+  // conhecido, e `unitsWithoutCost` vai junto para a tela sinalizar ao lado.
   const missing = calculate({ orders: [order({ items: [item(null)] })] });
   assert.equal(missing.overview.cogs, null);
-  assert.equal(missing.overview.profit, null);
+  assert.notEqual(missing.overview.profit, null);
+  assert.equal(missing.overview.unitsWithoutCost, 1);
   assert.equal(missing.coverage.cogs.missing, 1);
 
   const zero = calculate({ orders: [order({ items: [item(0)] })] });

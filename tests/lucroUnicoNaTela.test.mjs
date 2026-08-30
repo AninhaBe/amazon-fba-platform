@@ -87,7 +87,11 @@ test("a cascata escrita fecha no MESMO lucro da rosca e da faixa", async () => {
   // ate `estimatedProfit` — o numero antigo, maior e positivo. Lucro e margem
   // da cascata agora leem `lucroComAnuncio`, como todo o resto da tela.
   const page = await fonte("src/app/amazon/page.tsx");
-  assert.match(page, /label=\{costsIncomplete \? "Repasse líquido" : "Lucro estimado"\}[\s\S]{0,200}lucroComAnuncio/,
+  // ⚠️ O PORTAO MUDOU EM 30/08/2026 (decisao da vendedora): custo faltando nao
+  // apaga mais o lucro. A exigencia deste teste NAO mudou — a cascata continua
+  // tendo que fechar em `lucroComAnuncio`, a fonte unica. So o rotulo passou a
+  // depender do lucro existir, e nao de o custo estar completo.
+  assert.match(page, /label=\{lucroComAnuncio == null \? "Repasse líquido" : "Lucro estimado"\}[\s\S]{0,200}lucroComAnuncio/,
     "a linha de lucro da cascata precisa fechar no lucro com anuncio");
   assert.ok(
     !/estimatedProfit \?\? 0\) \/ \(profit\?\.finance\.revenue/.test(page),
@@ -119,8 +123,8 @@ test("as tres superficies leem o lucro da MESMA funcao", async () => {
   const page = await fonte("src/app/amazon/page.tsx");
   assert.match(page, /const anuncio = lucroDoPeriodo\(\{/, "a tela precisa chamar a fonte unica");
   assert.match(page, /const lucroComAnuncio = anuncio\.lucro;/, "a tela nao pode recalcular o lucro");
-  assert.match(page, /result: costsIncomplete \? null : lucroComAnuncio/, "a rosca precisa fechar no lucro da funcao");
-  assert.match(page, /label=\{costsIncomplete \? "Repasse líquido" : "Lucro estimado"\}[\s\S]{0,200}lucroComAnuncio/,
+  assert.match(page, /result: lucroComAnuncio,/, "a rosca precisa fechar no lucro da funcao");
+  assert.match(page, /label=\{lucroComAnuncio == null \? "Repasse líquido" : "Lucro estimado"\}[\s\S]{0,200}lucroComAnuncio/,
     "a cascata precisa fechar no lucro da funcao");
 });
 

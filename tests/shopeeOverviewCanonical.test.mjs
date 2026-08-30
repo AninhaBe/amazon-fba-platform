@@ -147,20 +147,24 @@ test("período parcial bloqueia lucro e completude", async () => {
   assert.equal(result.profit.marginPct, null);
 });
 
-test("COGS incompleto mostra a soma do que se sabe e AINDA ASSIM bloqueia lucro", async () => {
-  // ⚠️ ESTE TESTE MUDOU DE INTENCAO em 29/08/2026, por decisao do cerebro depois
-  // de a Ana relatar a tela sem calcular nada. Antes ele exigia `cogs === null`
-  // quando faltava custo de uma unidade — o tudo-ou-nada. Agora exige as DUAS
-  // metades, que sao decisoes separadas de proposito:
-  //   1. o custo mostra a soma das unidades conhecidas (fato, nao extrapolacao);
-  //   2. o lucro CONTINUA null, porque lucro com custo incompleto e otimista.
-  // Aqui nenhuma unidade tem custo, entao o custo e null mesmo — soma de zero
-  // unidades conhecidas nao e "R$ 0,00", e desconhecido.
+test("COGS incompleto mostra a soma do que se sabe e NAO bloqueia mais o lucro", async () => {
+  // ⚠️ ESTE TESTE MUDOU DE INTENCAO DUAS VEZES, e as duas estao registradas.
+  //
+  // 29/08: antes exigia `cogs === null` quando faltava custo de uma unidade — o
+  // tudo-ou-nada. Passou a exigir que o CUSTO mostrasse a soma do que se sabe.
+  //
+  // 30/08 (decisao da vendedora, revertendo a nossa): o LUCRO tambem para de
+  // esperar. *"Tem que mostrar a margem independente de se tem algo nao
+  // cadastrado [...] basta sinalizar pra cadastrar."*
+  //
+  // O que NAO mudou: `cogs` continua `null` quando NENHUMA unidade tem custo —
+  // soma de zero unidades conhecidas nao e "R$ 0,00", e desconhecido. E
+  // `skusWithoutCost` viaja no payload para a tela sinalizar ao lado do numero.
   const result = await overview({ taxRate: 10, costs: {} });
   assert.equal(result.profit.cogs, null);
   assert.equal(result.profit.unitsWithoutCost, 1);
-  assert.equal(result.profit.coverage.complete, false);
-  assert.equal(result.profit.estimatedProfit, null);
+  assert.equal(result.profit.skusWithoutCost, 1);
+  assert.notEqual(result.profit.estimatedProfit, null, "o lucro sai com o que se sabe");
 });
 
 test("custo explicitamente zero é COGS conhecido, mas custo ausente continua null", async () => {

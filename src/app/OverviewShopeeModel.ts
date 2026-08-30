@@ -45,6 +45,7 @@ export interface CentralShopeeOverview {
   profit: {
     estimatedProfit: number | null;
     unitsWithoutCost: number;
+    skusWithoutCost: number;
     coverage: { processedOrders: number; paidOrders: number; complete: boolean };
   };
   dailySales?: CentralShopeeDailyPoint[];

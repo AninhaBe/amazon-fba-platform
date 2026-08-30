@@ -44,7 +44,8 @@ import { shopeeTaxRateHref } from "./ShopeeSettingsModel";
 import { BaseDeData, ProgressoDaImportacao } from "./BaseDeData";
 import { chaveDaBusca } from "./chaveDaBusca";
 import { usePrefetchDePeriodos } from "./prefetchDePeriodos";
-import { oQueFaltaParaOResultado, rodapeDasTaxas } from "./oQueFaltaNoResultado";
+import { sinaisDoResultado, rodapeDasTaxas } from "./oQueFaltaNoResultado";
+import { SinaisDoResultado } from "./SinaisDoResultado";
 
 interface Overview {
   account: { id: string; name: string; region: string };
@@ -68,7 +69,7 @@ interface Overview {
     sellerShipping: number | null; buyerShipping: number | null; feesComplete: boolean;
     revenueProcessed: number;
     coverage: { processedOrders: number; paidOrders: number; ordersWithFees: number; complete: boolean };
-    estimatedProfit: number | null; marginPct: number | null; unitsWithoutCost: number;
+    estimatedProfit: number | null; marginPct: number | null; unitsWithoutCost: number; skusWithoutCost: number;
   };
   dailySales: DailyPoint[];
   topProducts: Array<{ id: string; sku: string | null; title: string; units: number; revenue: number; cost: number; contribution: number; complete: boolean; marginPct: number | null }>;
@@ -657,8 +658,8 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
   const profitCoverage = overview.profit.coverage;
   // O QUE FALTA, com número e link — nunca "aguardando" seco. Ver
   // `oQueFaltaNoResultado.ts`: os dois textos que moravam aqui eram falsos.
-  const faltaNoResultado = oQueFaltaParaOResultado({
-    unitsWithoutCost: overview.profit.unitsWithoutCost,
+  const sinais = sinaisDoResultado({
+    skusWithoutCost: overview.profit.skusWithoutCost,
     ordersWithFees: profitCoverage.ordersWithFees,
     ordersProcessed: profitCoverage.processedOrders,
     paidOrders: profitCoverage.paidOrders,
@@ -677,7 +678,9 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
   // alíquota →" continua no painel. Tarifa, frete, ads, retenção, estorno e
   // custo seguem bloqueando.
   const semAliquota = overview.profit.taxRate == null;
-  const resultIncomplete = !profitCoverage.complete || !overview.profit.feesComplete || costsIncomplete || overview.profit.fees == null || overview.profit.sellerShipping == null || overview.profit.ads == null || overview.profit.taxesWithheld == null || overview.profit.refunds == null || overview.profit.cogs == null || overview.profit.estimatedProfit == null || overview.profit.marginPct == null;
+  // ⚠️ `costsIncomplete` SAIU DAQUI em 30/08/2026 (decisao da vendedora): custo
+  // faltando virou SINAL ao lado do numero, nao trava. Ver `sinaisDoResultado`.
+  const resultIncomplete = !profitCoverage.complete || !overview.profit.feesComplete || overview.profit.fees == null || overview.profit.sellerShipping == null || overview.profit.ads == null || overview.profit.taxesWithheld == null || overview.profit.refunds == null || overview.profit.cogs == null || overview.profit.estimatedProfit == null || overview.profit.marginPct == null;
   const knownCosts = resultIncomplete ? null : overview.profit.fees! + overview.profit.sellerShipping! + overview.profit.ads! + overview.profit.taxesWithheld! + overview.profit.refunds! + overview.profit.cogs! + (overview.profit.taxes ?? 0);
   const ordersAwaitingCapture = Math.max(0, overview.metrics.revenueCoverage.totalOrders - overview.metrics.revenueCoverage.capturedOrders);
   // ⚠️ 29/08/2026 — ERA `paidOrders - processedOrders`, e os dois são o mesmo
@@ -809,15 +812,15 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
         <Metric label="Faturamento" value={<AnimatedNumber periodo={identidadeDePeriodo(overview.period.from, overview.period.to)} id="shopee-dash-revenue" value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={`${overview.metrics.paidOrders} pedido(s) no período`} trend={getRevenueTrend(overview.dailySales)} />
         <Metric label="Taxas" value={overview.profit.fees == null ? "—" : money(overview.profit.fees, overview.metrics.currency)} sub={rodapeDasTaxas({ feesComplete: overview.profit.feesComplete, ordersWithFees: profitCoverage.ordersWithFees, ordersProcessed: profitCoverage.processedOrders })} />
         <Metric label="Custo dos produtos" value={overview.profit.cogs == null ? "—" : money(overview.profit.cogs, overview.metrics.currency)} sub={costsIncomplete ? `${overview.profit.unitsWithoutCost} unidade(s) sem custo` : "custos cadastrados"} tone={costsIncomplete ? "warn" : "default"} />
-        <Metric label={resultIncomplete ? "Resultado processado" : "Lucro estimado"} value={resultIncomplete || overview.profit.estimatedProfit == null ? "—" : <AnimatedNumber periodo={identidadeDePeriodo(overview.period.from, overview.period.to)} id="shopee-dash-profit" value={overview.profit.estimatedProfit} format={(amount) => money(amount, overview.metrics.currency)} />} sub={resultIncomplete ? `${profitCoverage.processedOrders} de ${profitCoverage.paidOrders} vendas` : comSemImposto("após todos os custos", semAliquota)} tone={resultIncomplete || overview.profit.estimatedProfit == null ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
-        <Metric label="Margem" value={resultIncomplete || overview.profit.marginPct == null ? "—" : percent(overview.profit.marginPct)} sub={resultIncomplete ? (faltaNoResultado?.href ? <Link href={faltaNoResultado.href} className="meli-financial-link">{faltaNoResultado.texto} <span aria-hidden="true">→</span></Link> : faltaNoResultado?.texto ?? "resultado em conciliação") : comSemImposto("sobre o faturamento", semAliquota)} tone={resultIncomplete ? "default" : marginMetricTone(overview.profit.marginPct)} />
+        <Metric label={overview.profit.estimatedProfit == null ? "Resultado processado" : "Lucro estimado"} value={overview.profit.estimatedProfit == null ? "—" : <AnimatedNumber periodo={identidadeDePeriodo(overview.period.from, overview.period.to)} id="shopee-dash-profit" value={overview.profit.estimatedProfit} format={(amount) => money(amount, overview.metrics.currency)} />} sub={sinais.length > 0 ? <SinaisDoResultado sinais={sinais} /> : comSemImposto("após todos os custos", semAliquota)} tone={overview.profit.estimatedProfit == null ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
+        <Metric label="Margem" value={overview.profit.marginPct == null ? "—" : percent(overview.profit.marginPct)} sub={sinais.length > 0 ? <SinaisDoResultado sinais={sinais} /> : comSemImposto("sobre o faturamento", semAliquota)} tone={overview.profit.marginPct == null ? "default" : marginMetricTone(overview.profit.marginPct)} />
       </section>
 
       <section className="secondary-metrics" aria-label="Indicadores operacionais Shopee">
         <CompactMetric label="Vendas" value={overview.metrics.paidOrders.toLocaleString("pt-BR")} />
         <CompactMetric label="Unidades" value={units.toLocaleString("pt-BR")} />
         <CompactMetric label="Ticket médio" value={ticket == null ? "—" : money(ticket, overview.metrics.currency)} />
-        <CompactMetric label="ROI" value={resultIncomplete || roi == null ? "—" : `${roi.toFixed(1)}%`} tone={resultIncomplete || roi == null ? "default" : roi > 0 ? "positive" : roi < 0 ? "danger" : "default"} />
+        <CompactMetric label="ROI" value={roi == null ? "—" : `${roi.toFixed(1)}%`} tone={roi == null ? "default" : roi > 0 ? "positive" : roi < 0 ? "danger" : "default"} />
         <CompactMetric label="Canceladas" value={`${money(overview.metrics.cancelledRevenue, overview.metrics.currency)} · ${overview.metrics.cancelledOrders}`} tone={overview.metrics.cancelledOrders > 0 ? "danger" : "default"} />
         <CompactMetric label="Estoque crítico" value={critical.length.toLocaleString("pt-BR")} tone={critical.length > 0 ? "danger" : "default"} />
       </section>
@@ -914,12 +917,12 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
                 { label: shopeeTaxLabel(overview.profit.taxRate), value: overview.profit.taxes == null ? "—" : money(overview.profit.taxes, overview.metrics.currency) },
               ]}
             />
-            <Flow label={resultIncomplete ? "Lucro indisponível" : comSemImposto("Lucro estimado", semAliquota)} value={resultIncomplete || overview.profit.estimatedProfit == null ? "—" : money(overview.profit.estimatedProfit, overview.metrics.currency)} sign="=" accent tone={resultIncomplete || overview.profit.estimatedProfit == null ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
+            <Flow label={overview.profit.estimatedProfit == null ? "Lucro indisponível" : comSemImposto("Lucro estimado", semAliquota)} value={overview.profit.estimatedProfit == null ? "—" : <>{money(overview.profit.estimatedProfit, overview.metrics.currency)}{sinais.length > 0 && <SinaisDoResultado sinais={sinais} />}</>} sign="=" accent tone={overview.profit.estimatedProfit == null ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
             <Flow
               label={comSemImposto("Margem", semAliquota)}
-              value={resultIncomplete || overview.profit.marginPct == null ? "—" : percent(overview.profit.marginPct)}
+              value={overview.profit.marginPct == null ? "—" : <>{percent(overview.profit.marginPct)}{sinais.length > 0 && <SinaisDoResultado sinais={sinais} />}</>}
               accent
-              tone={resultIncomplete ? "default" : marginMetricTone(overview.profit.marginPct)}
+              tone={overview.profit.marginPct == null ? "default" : marginMetricTone(overview.profit.marginPct)}
             />
         </FinancialSummaryPanel>
       </section>

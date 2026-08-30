@@ -81,6 +81,8 @@ export interface AmazonCanonicalOverview {
     estimatedProfit: number;
     unitsWithCost: number;
     unitsWithoutCost: number;
+    /** SKUs distintos sem custo — a unidade de ACAO da vendedora. */
+    skusWithoutCost: number;
     coverage: { processedOrders: number; paidOrders: number; complete: boolean };
   };
   profitabilityLines: ProfitabilityLine[];
@@ -346,6 +348,8 @@ export async function getAmazonOverviewFromCanonical(period: Period): Promise<Am
   let cogs = 0;
   let unitsWithCost = 0;
   let unitsWithoutCost = 0;
+  // SKU e a unidade de ACAO da vendedora (ver oQueFaltaNoResultado.ts).
+  const skusSemCusto = new Set<string>();
   let processedRevenue = 0;
   const profitabilityLines: ProfitabilityLine[] = [];
 
@@ -376,7 +380,7 @@ export async function getAmazonOverviewFromCanonical(period: Period): Promise<Am
         marketplaceFees: lineFees,
       });
       if (unitCost > 0) { cogs += unitCost * line.qty; unitsWithCost += line.qty; }
-      else unitsWithoutCost += line.qty;
+      else { unitsWithoutCost += line.qty; skusSemCusto.add(line.sku ?? line.external_product_id ?? ""); }
 
       profitabilityLines.push({
         id: `${orderId}:${line.external_product_id}:${line.line_no}`,
@@ -453,6 +457,7 @@ export async function getAmazonOverviewFromCanonical(period: Period): Promise<Am
       estimatedProfit,
       unitsWithCost,
       unitsWithoutCost,
+      skusWithoutCost: skusSemCusto.size,
       coverage: {
         processedOrders: linesByOrder.size,
         paidOrders: totals.paid_orders,

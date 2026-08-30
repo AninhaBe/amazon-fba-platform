@@ -100,12 +100,18 @@ test("TikTok: tarifa desconhecida CONTINUA bloqueando mesmo com alíquota cadast
   assert.notEqual(coverage.financials.status, "complete");
 });
 
-test("TikTok: unidade sem custo CONTINUA bloqueando", () => {
+test("TikTok: unidade sem custo NAO bloqueia mais — vira sinal ao lado do numero", () => {
+  // ⚠️ ESTE TESTE INVERTEU EM 30/08/2026, por decisao da vendedora: *"tem que
+  // mostrar a margem independente de se tem algo nao cadastrado [...] basta
+  // sinalizar pra cadastrar"*. O custo saiu de `components`; o que a TIKTOK
+  // posta continua bloqueando, porque disso ela nao tem como cuidar.
   const { overview } = calculateTiktokFinancialV2({
     periodCovered: true, taxRate: null,
     orders: [pedidoTiktok({ items: [{ quantity: 1, unitCost: null, unitDiscount: 0 }] })],
   });
-  assert.equal(overview.profit, null);
+  assert.notEqual(overview.profit, null, "o lucro sai com o custo que se sabe");
+  assert.equal(overview.cogs, null, "e o custo continua declarado como desconhecido");
+  assert.equal(overview.unitsWithoutCost, 1, "o numero do sinal viaja junto");
 });
 
 test("TikTok: os cards derivados do imposto ganham o rótulo, os outros não", () => {

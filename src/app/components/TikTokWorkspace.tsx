@@ -19,6 +19,8 @@ import { BriefingLead } from "./BriefingLead";
 import { NexoDoDia } from "./NexoDoDia";
 import { IntegrationDashboardFrame } from "./IntegrationDashboardFrame";
 import { buildFinancialComposition, FinancialSummaryPanel } from "./FinancialSummaryPanel";
+import { sinaisDoResultado } from "./oQueFaltaNoResultado";
+import { SinaisDoResultado } from "./SinaisDoResultado";
 import { ConnectionBroken } from "./ConnectionBroken";
 import { ChannelConnectionEmpty } from "./ChannelConnectionEmpty";
 import { brDate } from "@/lib/datetime";
@@ -285,6 +287,13 @@ export function TikTokWorkspace() {
   // MESMA autoridade da faixa de cima: a cobertura do PERÍODO escrita pelo
   // ledger, nunca a fase do sync. Ver `tiktokResultadoFechado`.
   const resultReady = tiktokResultadoFechado(data.overview, data.coverage, financialBlocked);
+  // ⚠️ 30/08/2026 — custo faltando virou SINAL, nao trava (decisao da vendedora).
+  // Aqui a contagem e em UNIDADE e nao em SKU: a linha de item da TikTok nao
+  // carrega sku, e `sinaisDoResultado` escreve a palavra certa para cada caso.
+  const sinais = sinaisDoResultado({
+    unitsWithoutCost: data.overview.unitsWithoutCost ?? 0,
+    hrefDeCustos: tiktokProductsHref(selectedConnectionId),
+  });
   const knownCosts = resultReady && costCards.every((card) => card.raw != null && card.value !== "—")
     ? costCards.reduce((total, card) => total + Math.abs(card.raw ?? 0), 0)
     : null;
@@ -470,7 +479,7 @@ export function TikTokWorkspace() {
                 onToggle={() => setCostsOpen((open) => !open)}
                 items={costCards.map((card) => ({ label: card.label, value: card.value }))}
               />
-              <Flow label={resultReady ? "Lucro" : "Lucro indisponível"} value={resultReady ? primaryCards.find((card) => card.key === "profit")?.value ?? "—" : "—"} sign="=" accent tone={!resultReady ? "default" : data.overview.profit! > 0 ? "positive" : data.overview.profit! < 0 ? "danger" : "default"} />
+              <Flow label={resultReady ? "Lucro" : "Lucro indisponível"} value={resultReady ? <>{primaryCards.find((card) => card.key === "profit")?.value ?? "—"}{sinais.length > 0 && <SinaisDoResultado sinais={sinais} />}</> : "—"} sign="=" accent tone={!resultReady ? "default" : data.overview.profit! > 0 ? "positive" : data.overview.profit! < 0 ? "danger" : "default"} />
               <Flow
                 label="Margem"
                 value={resultReady ? primaryCards.find((card) => card.key === "marginPct")?.value ?? "—" : "—"}

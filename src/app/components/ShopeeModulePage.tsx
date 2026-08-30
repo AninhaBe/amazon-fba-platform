@@ -19,6 +19,8 @@ import { BaseDeData } from "./BaseDeData";
 import { CustomizableMetricGrid } from "./CustomizableMetricGrid";
 import { Flow, FlowExpandable, Metric } from "./Metric";
 import { buildFinancialComposition, FinancialSummaryPanel } from "./FinancialSummaryPanel";
+import { sinaisDoResultado } from "./oQueFaltaNoResultado";
+import { SinaisDoResultado } from "./SinaisDoResultado";
 import { shopeeTaxLabel } from "./ShopeeWorkspaceModel";
 import { comSemImposto } from "@/lib/semImposto";
 import { marginMetricTone } from "@/lib/marginTone";
@@ -27,7 +29,7 @@ import type { FiltroDeAtividade as FiltroDeAtividadeValor } from "@/lib/integrat
 
 type Connection={id:string;status:string;displayName?:string;externalAccountId?:string;metadata?:{demo?:boolean}};
 type Coverage={complete?:boolean;capturedOrders?:number;totalOrders?:number;processedOrders?:number;paidOrders?:number};
-type ProfitBlock={fees:number|null;ads:number|null;taxesWithheld:number|null;refunds:number|null;cogs:number|null;taxes:number|null;taxRate:number|null;sellerShipping:number|null;buyerShipping:number|null;feesComplete:boolean;revenueProcessed:number;coverage:Coverage&{processedOrders:number;paidOrders:number;complete:boolean};estimatedProfit:number|null;marginPct:number|null;unitsWithoutCost:number};
+type ProfitBlock={fees:number|null;ads:number|null;taxesWithheld:number|null;refunds:number|null;cogs:number|null;taxes:number|null;taxRate:number|null;sellerShipping:number|null;buyerShipping:number|null;feesComplete:boolean;revenueProcessed:number;coverage:Coverage&{processedOrders:number;paidOrders:number;complete:boolean;ordersWithFees:number};estimatedProfit:number|null;marginPct:number|null;unitsWithoutCost:number;skusWithoutCost:number};
 type Payload={items?:Record<string,unknown>[];orders?:Record<string,unknown>[];availability?:string;page?:{limit:number;offset:number;total:number;returned?:number;hasMore:boolean;complete?:boolean};coverage?:Coverage|null;profitSubset?:{reason?:string};profit?:ProfitBlock|null;currency?:string;error?:string;code?:string;atividade?:FiltroDeAtividadeValor;ocultados?:number;semEstoqueInformado?:{anuncios:number;varreduraEm:string|null};totalNoCanal?:number;ordenacao?:"volume"|"titulo"};
 const money=(value:unknown,currency="BRL")=>value==null?"—":new Intl.NumberFormat("pt-BR",{style:"currency",currency}).format(Number(value));
 const show=(value:unknown)=>value==null||value===""?"—":String(value);
@@ -91,9 +93,16 @@ function ShopeeMonitorContent({body,params,update,connectionId}:{body:Payload;pa
   const [secao,setSecao]=useState<"composicao"|"pedidos">(params.get("secao")==="pedidos"?"pedidos":"composicao");
   const rows=body.orders??[], profit=body.profit, currency=body.currency??"BRL", coverage=body.coverage??profit?.coverage;
   const custoIncompleto=(profit?.unitsWithoutCost??0)>0;
+  const sinaisDaTela=sinaisDoResultado({
+    skusWithoutCost:profit?.skusWithoutCost??0,
+    ordersWithFees:profit?.coverage.ordersWithFees,
+    ordersProcessed:profit?.coverage.processedOrders,
+    hrefDeCustos:"/shopee/produtos",
+  });
   const semAliquota=profit?.taxRate==null;
   // A MESMA régua do dashboard: lucro só é afirmado com tudo identificado.
-  const resultIncomplete=!profit||!profit.coverage.complete||!profit.feesComplete||custoIncompleto||profit.fees==null||profit.sellerShipping==null||profit.ads==null||profit.taxesWithheld==null||profit.refunds==null||profit.cogs==null||profit.estimatedProfit==null||profit.marginPct==null;
+  // ⚠️ 30/08/2026: `custoIncompleto` saiu daqui — virou SINAL, nao trava.
+  const resultIncomplete=!profit||!profit.coverage.complete||!profit.feesComplete||profit.fees==null||profit.sellerShipping==null||profit.ads==null||profit.taxesWithheld==null||profit.refunds==null||profit.cogs==null||profit.estimatedProfit==null||profit.marginPct==null;
   const knownCosts=!profit||resultIncomplete?null:profit.fees!+profit.sellerShipping!+profit.ads!+profit.taxesWithheld!+profit.refunds!+profit.cogs!+(profit.taxes??0);
   return <section className="channel-module-content" aria-live="polite">
     {/* Mesmo nome de página do monitor da Amazon, base DIFERENTE: lá o número é
@@ -108,8 +117,8 @@ function ShopeeMonitorContent({body,params,update,connectionId}:{body:Payload;pa
         {id:"receita",label:"Receita processada",node:<Metric label="Receita processada" value={money(profit.revenueProcessed,currency)} sub={`${profit.coverage.processedOrders} de ${profit.coverage.paidOrders} venda(s) com repasse processado`}/>},
         // null nunca vira 0: tarifa desconhecida diz que ainda não foi conciliada.
         {id:"tarifas",label:"Tarifas da Shopee",node:<Metric label="Tarifas da Shopee" value={profit.fees==null?"Ainda não conciliadas":money(profit.fees,currency)} sub="comissões e taxas do canal"/>},
-        {id:"lucro",label:"Lucro estimado",node:<Metric label={comSemImposto("Lucro estimado",semAliquota)} value={resultIncomplete||profit.estimatedProfit==null?"—":money(profit.estimatedProfit,currency)} sub={resultIncomplete?"aguardando extrato ou custos":"no período selecionado"} tone={resultIncomplete||profit.estimatedProfit==null?undefined:profit.estimatedProfit<0?"danger":"ok"}/>},
-        {id:"margem",label:"Margem",node:<Metric label={comSemImposto("Margem",semAliquota)} value={resultIncomplete||profit.marginPct==null?"—":`${profit.marginPct.toLocaleString("pt-BR",{maximumFractionDigits:2})}%`} sub="sobre a receita processada" tone={resultIncomplete?undefined:marginMetricTone(profit.marginPct)}/>},
+        {id:"lucro",label:"Lucro estimado",node:<Metric label={comSemImposto("Lucro estimado",semAliquota)} value={profit.estimatedProfit==null?"—":money(profit.estimatedProfit,currency)} sub={sinaisDaTela.length>0?<SinaisDoResultado sinais={sinaisDaTela}/>:"no período selecionado"} tone={profit.estimatedProfit==null?undefined:profit.estimatedProfit<0?"danger":"ok"}/>},
+        {id:"margem",label:"Margem",node:<Metric label={comSemImposto("Margem",semAliquota)} value={profit.marginPct==null?"—":`${profit.marginPct.toLocaleString("pt-BR",{maximumFractionDigits:2})}%`} sub={sinaisDaTela.length>0?<SinaisDoResultado sinais={sinaisDaTela}/>:"sobre a receita processada"} tone={profit.marginPct==null?undefined:marginMetricTone(profit.marginPct)}/>},
       ]}
     />}
     <nav className="monitor-section-tabs" aria-label="Visões do monitor">
@@ -157,8 +166,8 @@ function ShopeeMonitorContent({body,params,update,connectionId}:{body:Payload;pa
           {label:shopeeTaxLabel(profit.taxRate),value:profit.taxes==null?"—":money(profit.taxes,currency)},
         ]}
       />
-      <Flow label={resultIncomplete?"Lucro indisponível":comSemImposto("Lucro estimado",semAliquota)} value={resultIncomplete||profit.estimatedProfit==null?"—":money(profit.estimatedProfit,currency)} sign="=" accent tone={resultIncomplete||profit.estimatedProfit==null?"default":profit.estimatedProfit>0?"positive":profit.estimatedProfit<0?"danger":"default"} />
-      <Flow label={comSemImposto("Margem",semAliquota)} value={resultIncomplete||profit.marginPct==null?"—":`${profit.marginPct.toLocaleString("pt-BR",{maximumFractionDigits:2})}%`} accent tone={resultIncomplete?"default":marginMetricTone(profit.marginPct)} />
+      <Flow label={profit.estimatedProfit==null?"Lucro indisponível":comSemImposto("Lucro estimado",semAliquota)} value={profit.estimatedProfit==null?"—":<>{money(profit.estimatedProfit,currency)}{sinaisDaTela.length>0&&<SinaisDoResultado sinais={sinaisDaTela}/>}</>} sign="=" accent tone={profit.estimatedProfit==null?"default":profit.estimatedProfit>0?"positive":profit.estimatedProfit<0?"danger":"default"} />
+      <Flow label={comSemImposto("Margem",semAliquota)} value={profit.marginPct==null?"—":<>{`${profit.marginPct.toLocaleString("pt-BR",{maximumFractionDigits:2})}%`}{sinaisDaTela.length>0&&<SinaisDoResultado sinais={sinaisDaTela}/>}</>} accent tone={profit.marginPct==null?"default":marginMetricTone(profit.marginPct)} />
     </FinancialSummaryPanel>
     :<EmptyState compact title="Composição indisponível" description="A sincronização ainda não materializou o resultado financeiro deste período."/>)}
     {secao==="pedidos"&&<>

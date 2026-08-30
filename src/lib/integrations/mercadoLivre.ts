@@ -884,6 +884,8 @@ export async function getMercadoLivreOverview(
   let sellerShipping = 0;
   let buyerShipping = 0;
   let unitsWithoutCost = 0;
+  // SKU e a unidade de ACAO (ver oQueFaltaNoResultado.ts).
+  const skusSemCusto = new Set<string>();
   const productTotals = new Map<string, { id: string; sku: string | null; title: string; units: number; revenue: number; processedRevenue: number; cost: number; contribution: number; calculationsComplete: boolean }>();
   const unitsByItem = new Map<string, number>();
   const profitabilityLines: ProfitabilityLine[] = [];
@@ -962,7 +964,7 @@ export async function getMercadoLivreOverview(
         : { contribution: null, marginPct: null, complete: false };
       fees += lineFees;
       if (unitCost > 0) cogs += unitCost * line.quantity;
-      else unitsWithoutCost += line.quantity;
+      else { unitsWithoutCost += line.quantity; skusSemCusto.add(String(line.item.seller_sku ?? line.item.id)); }
       const current = productTotals.get(productKey) ?? { id: line.item.id, sku: line.item.seller_sku ?? null, title: line.item.title, units: line.quantity, revenue: lineRevenue, processedRevenue: 0, cost: 0, contribution: 0, calculationsComplete: true };
       current.processedRevenue += lineRevenue;
       current.cost += unitCost * line.quantity;
@@ -1082,6 +1084,7 @@ export async function getMercadoLivreOverview(
       estimatedProfit,
       marginPct: processedRevenue > 0 ? estimatedProfit / processedRevenue * 100 : 0,
       unitsWithoutCost,
+      skusWithoutCost: skusSemCusto.size,
     },
     dailySales,
     stockRadar,

@@ -19,6 +19,8 @@ import { AnunciosPorProduto, type AnuncioDeProduto } from "../components/Anuncio
 import { ConnectionBroken, isBrokenConnection } from "../components/ConnectionBroken";
 import { TopProductsRanking } from "../components/TopProductsRanking";
 import { buildFinancialComposition, FinancialSummaryPanel } from "../components/FinancialSummaryPanel";
+import { sinaisDoResultado } from "../components/oQueFaltaNoResultado";
+import { SinaisDoResultado } from "../components/SinaisDoResultado";
 import { BriefingLead } from "../components/BriefingLead";
 import { nomeDaTarifa } from "@/lib/nomeDaTarifa";
 import { IntegrationDashboardFrame } from "../components/IntegrationDashboardFrame";
@@ -99,6 +101,7 @@ interface ProfitData {
   cogs: number;
   estimatedProfit: number;
   unitsWithoutCost: number;
+  skusWithoutCost: number;
   taxRate?: number | null;
   taxes?: number | null;
   /** Anuncio do periodo, da Ads API. `null` = nao sincronizado (nao e zero). */
@@ -197,7 +200,7 @@ interface DashboardPayload {
   metrics: { totalOrders: number; paidOrders: number; fbaOrders: number; revenue: number };
   dailySales: Array<{ date: string; revenue: number; orders: number; units: number }>;
   topProducts: Array<{ sku: string; title: string; units: number; revenue: number; marginPct: number | null }>;
-  profit: { revenueProcessed: number; fees: number; cogs: number; estimatedProfit: number; unitsWithCost: number; unitsWithoutCost: number; coverage?: { processedOrders: number; paidOrders: number; complete: boolean } };
+  profit: { revenueProcessed: number; fees: number; cogs: number; estimatedProfit: number; unitsWithCost: number; unitsWithoutCost: number; skusWithoutCost: number; coverage?: { processedOrders: number; paidOrders: number; complete: boolean } };
   ads?: AmazonAdsInput | null;
   adsJanela?: { inicioDia: string; esperadoAte: string; incluiHoje?: boolean } | null;
   adsConectado?: boolean;
@@ -457,6 +460,7 @@ export default function Dashboard() {
         cogs: payload.profit.cogs,
         estimatedProfit: payload.profit.estimatedProfit,
         unitsWithoutCost: payload.profit.unitsWithoutCost,
+        skusWithoutCost: payload.profit.skusWithoutCost ?? 0,
         // ⚠️ ESTE OBJETO E MONTADO CAMPO A CAMPO: campo novo na resposta da rota
         // NAO chega na tela sozinho, e como os tres sao opcionais o TypeScript
         // nao reclama. Foi assim que o card de Anuncios ficou em "—" com o dado
@@ -617,6 +621,13 @@ export default function Dashboard() {
   const cogs = profit?.cogs ?? 0;
   const missingCostUnits = profit?.unitsWithoutCost ?? 0;
   const costsIncomplete = missingCostUnits > 0;
+  // ⚠️ 30/08/2026 — custo faltando virou SINAL, nao trava (decisao da
+  // vendedora). `costsIncomplete` segue vivo para o CARD de custo e para o selo
+  // do painel; o que ele nao faz mais e apagar lucro, margem e ROI.
+  const sinais = sinaisDoResultado({
+    skusWithoutCost: profit?.skusWithoutCost ?? 0,
+    hrefDeCustos: "/amazon/produtos",
+  });
   // FONTE ÚNICA do lucro desta tela — a MESMA função que a faixa de cards usa.
   // A rosca de composição e a cascata escrita abaixo dela leem as duas daqui.
   // Ver `lucroDoPeriodo`: três superfícies mostravam este número, e enquanto
@@ -799,7 +810,7 @@ export default function Dashboard() {
               card.key === "profit" ? (
                 <Kpi
                   key={card.key}
-                  label={costsIncomplete ? "Repasse líquido" : "Lucro"}
+                  label={card.raw == null ? "Repasse líquido" : "Lucro"}
                   tone={card.tone}
                   loading={loading}
                   value={card.raw != null
@@ -1024,7 +1035,7 @@ export default function Dashboard() {
             // O MESMO lucro da faixa, pela MESMA função. Duas cópias da conta
             // foi o que deixou uma para trás quando a decisão dela de 25/08 foi
             // aplicada só ao card.
-            result: costsIncomplete ? null : lucroComAnuncio,
+            result: lucroComAnuncio,
           })}
           empty={!loading && !hasFinance ? (
             // Sem transação postada não há cascata: zerar receita, taxas e lucro
@@ -1069,10 +1080,10 @@ export default function Dashboard() {
                 />
               )}
               <Flow
-                label={costsIncomplete ? "Repasse líquido" : "Lucro estimado"}
+                label={lucroComAnuncio == null ? "Repasse líquido" : "Lucro estimado"}
                 value={loading ? "…" : lucroComAnuncio == null ? "—" : money(lucroComAnuncio, currency)}
                 accent
-                tone={costsIncomplete || loading || lucroComAnuncio == null
+                tone={loading || lucroComAnuncio == null
                   ? "default"
                   : lucroComAnuncio > 0
                     ? "positive"
@@ -1092,11 +1103,12 @@ export default function Dashboard() {
               {!loading && lucroComAnuncio != null && (profit?.finance.revenue ?? 0) > 0 && (
                 <Flow
                   label="Margem"
-                  value={`${((lucroComAnuncio / (profit?.finance.revenue || 1)) * 100).toFixed(1).replace(".", ",")}%`}
+                  value={<>
+                    {`${((lucroComAnuncio / (profit?.finance.revenue || 1)) * 100).toFixed(1).replace(".", ",")}%`}
+                    {sinais.length > 0 && <SinaisDoResultado sinais={sinais} />}
+                  </>}
                   accent
-                  tone={costsIncomplete
-                    ? "default"
-                    : marginMetricTone((lucroComAnuncio / (profit?.finance.revenue || 1)) * 100)}
+                  tone={marginMetricTone((lucroComAnuncio / (profit?.finance.revenue || 1)) * 100)}
                 />
               )}
         </FinancialSummaryPanel>
@@ -1217,7 +1229,8 @@ function Flow({
 }: {
   detail?: boolean;
   label: string;
-  value: string;
+  /** ReactNode desde 30/08/2026: a margem leva o SINAL colado nela. */
+  value: React.ReactNode;
   muted?: boolean;
   accent?: boolean;
   tone?: "default" | "positive" | "danger" | "warn";

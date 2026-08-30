@@ -142,7 +142,13 @@ export function CompactMetric({
   );
 }
 
-export function Flow({ label, value, sign, accent = false, tone = "positive" }: { label: string; value: string; sign?: "−" | "="; accent?: boolean; tone?: "positive" | "danger" | "warn" | "default" }) {
+/**
+ * ⚠️ `value` e `React.ReactNode` desde 30/08/2026, pelo mesmo motivo de `sub` no
+ * `Metric`: a margem precisa levar o SINAL colado nela ("2 SKUs sem custo
+ * cadastrado — cadastrar →"). Com `string` o sinal so caberia longe do numero, e
+ * a regra e que ele ande junto.
+ */
+export function Flow({ label, value, sign, accent = false, tone = "positive" }: { label: string; value: React.ReactNode; sign?: "−" | "="; accent?: boolean; tone?: "positive" | "danger" | "warn" | "default" }) {
   // Custo (sinal "−") em vermelho; subtotal ("=") e valores de entrada em tinta
   // cheia; o resultado final só ganha cor quando o dado permite afirmar o sinal.
   return (

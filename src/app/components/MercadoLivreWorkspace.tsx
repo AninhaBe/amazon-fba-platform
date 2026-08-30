@@ -19,6 +19,8 @@ import { ORDEM_DO_RADAR, ROTULO_DE_COBERTURA, type StockStatus } from "@/lib/cob
 import { LegendaDeVendas } from "./LegendaDeVendas";
 import { CompactMetric, Flow, FlowExpandable, Metric, getRevenueTrend } from "./Metric";
 import { buildFinancialComposition, FinancialSummaryPanel } from "./FinancialSummaryPanel";
+import { sinaisDoResultado } from "./oQueFaltaNoResultado";
+import { SinaisDoResultado } from "./SinaisDoResultado";
 import { brDate, brTime } from "@/lib/datetime";
 import { coberturaDoPeriodo } from "@/lib/coberturaPeriodo";
 import { SincronizacaoCompleta } from "./SincronizacaoCompleta";
@@ -53,7 +55,7 @@ interface Overview {
   account: { id: string; nickname: string; siteId: string; };
   period: { from: string; to: string; label: string; };
   metrics: { activeListings: number; productsWithoutCost: number; orders30d: number; paidOrders: number; revenue30d: number; approvedRevenue: number; cancelledRevenue: number; cancelledOrders: number; pendingOrders: number; pendingRevenue: number | null; lastSaleAt: string | null; currency: string; revenueCoverage: { capturedOrders: number; totalOrders: number; complete: boolean; sincronizadoAte?: string | null; historicoDesde?: string | null }; };
-  profit: { fees: number; cogs: number; taxes: number | null; taxRate: number | null; sellerShipping: number; buyerShipping: number; shippingCostsComplete: boolean; revenueProcessed: number; coverage: { processedOrders: number; paidOrders: number; complete: boolean; }; estimatedProfit: number; marginPct: number; unitsWithoutCost: number; };
+  profit: { fees: number; cogs: number; taxes: number | null; taxRate: number | null; sellerShipping: number; buyerShipping: number; shippingCostsComplete: boolean; revenueProcessed: number; coverage: { processedOrders: number; paidOrders: number; complete: boolean; }; estimatedProfit: number; marginPct: number; unitsWithoutCost: number; skusWithoutCost: number; };
   dailySales: DailyPoint[];
   topProducts: Array<{ id: string; sku: string | null; title: string; units: number; revenue: number; cost: number; contribution: number; complete: boolean; marginPct: number | null; }>;
   stockRadar: Array<{ id: string; sku: string | null; title: string; thumbnail: string | null; availableQuantity: number; unitsSold: number; calculationDays: number; daysRemaining: number | null; status: StockStatus; }>;
@@ -346,6 +348,14 @@ function Dashboard({ overview, syncStatus, periodoLabel, connectionId }: { overv
   const units = overview.dailySales.reduce((total, point) => total + point.units, 0);
   const critical = overview.stockRadar.filter((product) => product.status === "critical" || product.status === "out");
   const { semAliquota, resultParcial, resultIncomplete, margemSub } = avaliarResultado(overview);
+  // ⚠️ 30/08/2026 — custo faltando virou SINAL, nao trava (decisao da vendedora).
+  // O numero aparece sempre; `sinais` anda colado nele.
+  const sinais = sinaisDoResultado({
+    skusWithoutCost: overview.profit.skusWithoutCost,
+    ordersProcessed: profitCoverage.processedOrders,
+    paidOrders: profitCoverage.paidOrders,
+    hrefDeCustos: "/mercado-livre/produtos",
+  });
   const netReceived = overview.profit.revenueProcessed - overview.profit.fees - overview.profit.sellerShipping;
   const ticket = overview.metrics.paidOrders > 0 ? overview.metrics.approvedRevenue / overview.metrics.paidOrders : null;
   const roi = overview.profit.cogs > 0 && !resultParcial ? (overview.profit.estimatedProfit / overview.profit.cogs) * 100 : null;
@@ -434,8 +444,8 @@ function Dashboard({ overview, syncStatus, periodoLabel, connectionId }: { overv
       <Metric label="Faturamento" value={<AnimatedNumber periodo={identidadeDePeriodo(overview.period.from, overview.period.to)} id="ml-dash-revenue" value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={`${overview.metrics.paidOrders} aprovadas + ${overview.metrics.cancelledOrders} canceladas`} trend={getRevenueTrend(overview.dailySales)} />
       <Metric label="Taxas" value={money(overview.profit.fees, overview.metrics.currency)} sub={`${profitCoverage.processedOrders} venda(s) processada(s)`} />
       <Metric label="Custo dos produtos" value={money(overview.profit.cogs, overview.metrics.currency)} sub={overview.profit.unitsWithoutCost > 0 ? `${overview.profit.unitsWithoutCost} unidade(s) sem custo` : "custos cadastrados"} tone={overview.profit.unitsWithoutCost > 0 ? "warn" : "default"} />
-      <Metric label={resultIncomplete ? "Resultado processado" : "Lucro estimado"} value={<AnimatedNumber periodo={identidadeDePeriodo(overview.period.from, overview.period.to)} id="ml-dash-profit" value={overview.profit.estimatedProfit} format={(amount) => money(amount, overview.metrics.currency)} />} sub={resultIncomplete ? `${profitCoverage.processedOrders} de ${profitCoverage.paidOrders} vendas` : comSemImposto("após todos os custos", semAliquota)} tone={resultIncomplete ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
-      <Metric label="Margem" value={resultParcial ? "—" : percent(overview.profit.marginPct)} sub={margemSub} tone={resultParcial ? "default" : marginMetricTone(overview.profit.marginPct)} />
+      <Metric label={resultParcial ? "Resultado processado" : "Lucro estimado"} value={<AnimatedNumber periodo={identidadeDePeriodo(overview.period.from, overview.period.to)} id="ml-dash-profit" value={overview.profit.estimatedProfit} format={(amount) => money(amount, overview.metrics.currency)} />} sub={sinais.length > 0 ? <SinaisDoResultado sinais={sinais} /> : comSemImposto("após todos os custos", semAliquota)} tone={overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
+      <Metric label="Margem" value={percent(overview.profit.marginPct)} sub={sinais.length > 0 ? <SinaisDoResultado sinais={sinais} /> : margemSub} tone={marginMetricTone(overview.profit.marginPct)} />
     </section>
 
     <section className="secondary-metrics" aria-label="Indicadores operacionais Mercado Livre">
@@ -625,6 +635,11 @@ function Monitor({ overview, secaoInicial }: { overview: Overview; secaoInicial:
   const profitCoverage = overview.profit.coverage;
   const netReceived = overview.profit.revenueProcessed - overview.profit.fees - overview.profit.sellerShipping;
   const { semAliquota, resultParcial, resultIncomplete, margemSub } = avaliarResultado(overview);
+  // ⚠️ 30/08/2026 — custo faltando virou SINAL, nao trava (decisao da vendedora).
+  const sinais = sinaisDoResultado({
+    skusWithoutCost: overview.profit.skusWithoutCost,
+    hrefDeCustos: "/mercado-livre/produtos",
+  });
   // ⚠️ Vem por PROP, não de `window.location`: a página é prerenderizada e um
   // `useState` que lê a URL no inicializador roda no servidor, onde `window` não
   // existe — e a hidratação não o re-executa. Quem lê a URL é o
@@ -664,7 +679,7 @@ function Monitor({ overview, secaoInicial }: { overview: Overview; secaoInicial:
         {
           id: "margem-pct",
           label: "Margem",
-          node: <Metric label="Margem" value={resultParcial ? "—" : percent(overview.profit.marginPct)} sub={margemSub} tone={resultParcial ? "default" : marginMetricTone(overview.profit.marginPct)} />,
+          node: <Metric label="Margem" value={percent(overview.profit.marginPct)} sub={sinais.length > 0 ? <SinaisDoResultado sinais={sinais} /> : margemSub} tone={marginMetricTone(overview.profit.marginPct)} />,
         },
       ]}
     />

@@ -5800,3 +5800,16 @@ summary:hover { background: var(--paper-soft); }
   .aliquota-linha { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 10px; }
   .aliquota-canal, .aliquota-linha > small, .aliquota-vazio { grid-column: 1 / -1; }
 }
+
+/* ⚠️ O SINAL ANDA COLADO NO NUMERO (30/08/2026).
+   Decisao da vendedora: margem aparece sempre, e a pendencia vira sinal ao lado.
+   `display:block` logo abaixo do valor e de proposito — faixa do outro lado da
+   tela e sinal que ela pode nao olhar, e ai o numero fica sozinho. */
+.resultado-sinais { display: block; margin-top: 0.25rem; font-size: 0.6875rem; line-height: 1.35; }
+.resultado-sinal { display: flex; align-items: baseline; gap: 0.3rem; }
+.resultado-sinal + .resultado-sinal { margin-top: 0.125rem; }
+.resultado-sinal-marca { flex: none; font-size: 0.625rem; }
+/* Acao: ha o que ela fazer, entao chama atencao. */
+.resultado-sinal--acao { color: var(--amber-700, #b45309); }
+/* Progresso: ela nao pode resolver — alarme aqui viraria ruido. */
+.resultado-sinal--progresso { color: var(--ink-muted); }

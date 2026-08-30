@@ -229,6 +229,8 @@ export interface ShopeeOverview {
     estimatedProfit: number | null;
     marginPct: number | null;
     unitsWithoutCost: number;
+    /** SKUs distintos sem custo — a unidade de ACAO da vendedora. */
+    skusWithoutCost: number;
   };
   dailySales: Array<{ date: string; revenue: number; orders: number; units: number }>;
   topProducts: Array<{
@@ -595,6 +597,10 @@ export async function getShopeeOverviewFromCanonical(
   // Produtos que VENDERAM no período e não têm custo. É o que a vendedora pode
   // resolver para mudar o número da tela — ver `productsWithoutCost` adiante.
   const vendidosSemCusto = new Set<string>();
+  // SKU e a unidade de ACAO: ela cadastra custo por SKU, nao por unidade
+  // vendida. Medido em 30/08/2026 na UTILEIRA: 3 unidades sem custo eram 2 SKUs
+  // (um vendido duas vezes) — a tela pedia 3 cadastros para um trabalho de 2.
+  const skusSemCusto = new Set<string>();
   for (const row of cogsRows) {
     const entry = shopeeCostEntry(costs, connection.id, row.external_product_id, row.sku, costNamespace);
     if (entry) {
@@ -603,6 +609,7 @@ export async function getShopeeOverviewFromCanonical(
     } else {
       unitsWithoutCost += row.qty;
       vendidosSemCusto.add(row.external_product_id ?? row.sku ?? "");
+      skusSemCusto.add(row.sku ?? row.external_product_id ?? "");
     }
   }
 
@@ -686,12 +693,27 @@ export async function getShopeeOverviewFromCanonical(
   const periodCovered = coveredFrom <= period.from.getTime()
     && coveredTo + COVERAGE_TOLERANCE_MS >= period.to.getTime()
     && !!syncRow.products_synced_at;
-  const cogsKnown = unitsWithoutCost === 0;
   // `taxes` saiu desta lista de propósito: a alíquota é configuração da
   // vendedora, não dado da Shopee. Sem ela o lucro sai SEM imposto (`taxes ?? 0`)
   // e a tela rotula. Tarifa, frete, ads, retenção, estorno e custo continuam
   // aqui — sem eles o número seria otimista sem ninguém saber.
-  const financialComplete = periodCovered && ordersProcessed >= totals.paid_orders && cogsKnown
+  // ⚠️ `cogsKnown` SAIU DAQUI em 30/08/2026, por decisao da vendedora.
+  //
+  // Palavras dela: *"as 3 unidades sem custo — ISSO NAO PODE EXISTIR. Tem que
+  // mostrar a margem independente de se tem algo nao cadastrado. [...] Voce nao
+  // precisa tomar essa responsabilidade de entregar dados errados. O erro e do
+  // seller que nao cadastrou o custo."*
+  //
+  // A pendencia de custo virou SINAL, nao trava: lucro e margem passam a sair
+  // com o que se sabe, e `skusWithoutCost` viaja no payload para a tela mostrar
+  // o sinal COLADO no numero. Quem esconde numero decide pela dona do negocio o
+  // que ela pode ver — e ela decidiu o contrario.
+  //
+  // ⚠️ `financialComplete` continua sendo COBERTURA FINANCEIRA e nao "tudo
+  // pronto": ele ainda exige os cinco componentes da Shopee. E o que a tela usa
+  // para dizer se o numero ainda muda SOZINHO, que e a outra causa e tem outra
+  // frase.
+  const financialComplete = periodCovered && ordersProcessed >= totals.paid_orders
     && [fees, sellerShipping, ads, taxesWithheld, refunds].every((value) => value != null);
   // ⚠️ A SOMA DO QUE SE SABE NÃO É DESCONHECIDA.
   //
@@ -707,18 +729,21 @@ export async function getShopeeOverviewFromCanonical(
   // sumir com o que se tem. Relatado pela Ana em 29/08/2026, depois de cadastrar
   // os custos e a tela continuar sem calcular nada.
   //
-  // ⚠️ LUCRO E MARGEM CONTINUAM ESPERANDO, de propósito: `cogsKnown` segue em
-  // `financialComplete` logo acima. Custo é soma de fatos; lucro com custo
-  // incompleto seria otimista sem ninguém saber. Os dois portões são diferentes
-  // porque as duas perguntas são diferentes.
+  // ⚠️ ATÉ 30/08/2026 LUCRO E MARGEM ESPERAVAM AQUI, e não esperam mais — a
+  // vendedora reverteu essa decisão. O custo continua sendo soma de fatos; o que
+  // mudou é que a lacuna virou SINAL ao lado do número em vez de motivo para
+  // escondê-lo. Ver `financialComplete` acima e `skusWithoutCost` no payload.
   //
   // ⚠️ E se NENHUMA unidade tem custo, aí sim é `null`. "R$ 0,00" com zero
   // unidades conhecidas não é a soma do que se sabe — é um número que parece
   // dizer "não custou nada". Somar fato é honesto; exibir vazio como zero é o
   // erro que a regra da casa proíbe desde sempre.
   const cogsValue = unitsWithCost > 0 || unitsWithoutCost === 0 ? cogs : null;
+  // `cogsValue ?? 0`: com NENHUMA unidade custeada o custo e desconhecido (null)
+  // e o lucro sai sem ele — maior que a verdade, e por isso o sinal ao lado nao
+  // e opcional. Ver `skusWithoutCost` no payload.
   const estimatedProfit = financialComplete
-    ? processedRevenue - fees! - cogsValue! - (taxes ?? 0) - sellerShipping! - ads! - taxesWithheld! - refunds!
+    ? processedRevenue - fees! - (cogsValue ?? 0) - (taxes ?? 0) - sellerShipping! - ads! - taxesWithheld! - refunds!
     : null;
   const marginPct = estimatedProfit != null && processedRevenue > 0 ? (estimatedProfit / processedRevenue) * 100 : null;
 
@@ -844,6 +869,7 @@ export async function getShopeeOverviewFromCanonical(
       estimatedProfit,
       marginPct,
       unitsWithoutCost,
+      skusWithoutCost: skusSemCusto.size,
     },
     dailySales,
     stockRadar,
