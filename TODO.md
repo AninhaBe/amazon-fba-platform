@@ -461,6 +461,20 @@ outro canal (o diff da rodada não podia sair do TikTok), ou é decisão de prod
   mesmo período, **campo por campo** — não só o total. Otimização que muda
   número é defeito com outro nome.
 
+  **O instrumento existe e a foto do ANTES já foi tirada:**
+  `scripts/dashboard-diff-campo-a-campo.mjs`. Ele captura os campos do dashboard
+  na conta REAL (recusa a demo), compara campo a campo e **falha alto** dizendo
+  qual campo e os dois valores. Também mede o dado de baixo: se o substrato
+  mudou entre as capturas, ele diz "esta comparação não vale" em vez de culpar a
+  otimização.
+
+  📌 **A foto do antes: `G:/sc-temp/dashboard-antes-2026-08-30.json`** — 3.532
+  campos, 3 períodos fechados, conta real, capturada em 30/08/2026 **com o código
+  anterior à otimização**. ⚠️ **Ela é insubstituível:** depois que as consultas
+  mudarem, não há como recapturar o antes. `G:/sc-temp` não é lugar durável — se
+  esta frente demorar, mova a foto para um lugar que sobreviva à faxina, ou a
+  prova do critério de aceite se perde junto com o arquivo.
+
 ## Explicações dentro do produto (pedido em 23/08/2026)
 
 Referência que ela mandou: painel de monitoramento de marca com **ⓘ em cada
