@@ -4,11 +4,15 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AnimatedNumber } from "./components/AnimatedNumber";
 
-// A central nao tem seletor de periodo: e sempre a mesma janela. Declarar isso
-// mantem a animacao honesta (mesmo recorte, valor novo chegando) em vez de
-// perde-la por omissao.
-const PERIODO_DA_CENTRAL = "central:30d";
+// A central TEM seletor de periodo desde 31/08/2026 (pedido da Ana: "coloque um
+// filtro para data personalizada"). Antes disso a janela era fixa em 30 dias,
+// escrita como literal no coletor — e foi por isso que a troca do padrao para
+// "Hoje" nao alcancou esta tela: ela nao usava o hook do filtro.
+//
+// A identidade do periodo alimenta o AnimatedNumber: mesmo recorte com valor
+// novo anima; recorte diferente nao. Por isso ela agora carrega a query.
 import { PageHeader, pageIcons } from "./components/PageHeader";
+import { DashboardPeriodFilter, useDashboardPeriod } from "./components/DashboardPeriodFilter";
 import { DashboardSkeleton } from "./components/LoadingState";
 import { MarketplaceIcon } from "./components/MarketplaceIcon";
 import { Metric } from "./components/Metric";
@@ -58,14 +62,21 @@ function QuickReadItem({
 
 // Escopo de módulo: ao navegar para um canal e voltar, a central renderiza o
 // consolidado já conhecido no primeiro paint e revalida em segundo plano.
-let centralCache: { channels: ChannelSnapshot[]; series: DailyPoint[]; updatedAt: Date } | null = null;
+//
+// ⚠️ A CHAVE CARREGA O PERÍODO desde 31/08/2026, quando a tela ganhou seletor.
+// Um cache sem período pintaria o número de 30 dias sob o rótulo "Hoje" no
+// primeiro quadro depois da troca — número certo, recorte errado, que é o modo
+// de errar mais difícil de perceber.
+const centralCache = new Map<string, { channels: ChannelSnapshot[]; series: DailyPoint[]; updatedAt: Date }>();
 
 export default function OverviewDashboard() {
-  const [channels, setChannels] = useState<ChannelSnapshot[]>(centralCache?.channels ?? []);
-  const [series, setSeries] = useState<DailyPoint[]>(centralCache?.series ?? []);
+  const period = useDashboardPeriod();
+  const emCache = centralCache.get(period.query);
+  const [channels, setChannels] = useState<ChannelSnapshot[]>(emCache?.channels ?? []);
+  const [series, setSeries] = useState<DailyPoint[]>(emCache?.series ?? []);
   const [chartChannel, setChartChannel] = useState<"todos" | ChannelSnapshot["id"]>("todos");
-  const [loading, setLoading] = useState(!centralCache);
-  const [updatedAt, setUpdatedAt] = useState<Date | null>(centralCache?.updatedAt ?? null);
+  const [loading, setLoading] = useState(!emCache);
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(emCache?.updatedAt ?? null);
   // Narração do dia gerada por modelo (Gemini). Fica null sem chave ou enquanto
   // não responde, e aí a tela usa o alerta por regra.
   const [narracao, setNarracao] = useState<string | null>(null);
@@ -91,21 +102,24 @@ export default function OverviewDashboard() {
             setChannels(parciais.map((canal) => ({ ...canal })));
             setSeries(parcial);
             setLoading(false);
-          }
+          },
+          period.query
         );
         const refreshedAt = new Date();
-        centralCache = { channels: coletados, series: merged, updatedAt: refreshedAt };
+        centralCache.set(period.query, { channels: coletados, series: merged, updatedAt: refreshedAt });
         setChannels(coletados);
         setSeries(merged);
         setUpdatedAt(refreshedAt);
       } catch {
-        if (!centralCache) setChannels([]);
+        if (!centralCache.has(period.query)) setChannels([]);
       } finally {
         setLoading(false);
       }
     }, 0);
     return () => window.clearTimeout(timer);
-  }, []);
+    // Trocar o período REBUSCA — sem esta dependência o filtro mudaria o rótulo
+    // e deixaria os números do período anterior na tela.
+  }, [period.query]);
 
 
   const totals = useMemo(() => channels.reduce((summary, channel) => {
@@ -197,6 +211,10 @@ export default function OverviewDashboard() {
   return (
     <div className="overview-page channel-dashboard">
       <PageHeader eyebrow="Central multicanal" title="Visão geral" subtitle="Acompanhe sua operação inteira e entre em cada canal quando precisar dos detalhes próprios da plataforma." icon={pageIcons.dashboard} action={updatedAt && <span className="data-freshness">Atualizado às {brTime(updatedAt)}</span>} />
+      {/* O MESMO seletor dos quatro canais, não um parecido: dois seletores com
+          o mesmo desenho e comportamentos diferentes divergem em três meses, e
+          foi assim que nasceu o `days || "30"` que sobreviveu escondido. */}
+      <DashboardPeriodFilter {...period.filterProps} />
       {loading ? <DashboardSkeleton label="Consolidando seus canais" chart={false} rows={2} /> : channels.length === 0 ? (
         <section className="central-empty"><span>NEXO</span><div><p className="section-kicker">Primeira conexão</p><h2>Monte sua central de vendas</h2><p>Conecte Amazon, Mercado Livre, Shopee ou TikTok Shop para começar a consolidar faturamento e pedidos.</p></div><Link href="/integracoes">Conectar um canal <b aria-hidden="true">→</b></Link></section>
       ) : <div className="dashboard-sections channel-dashboard-sections">
@@ -220,7 +238,7 @@ export default function OverviewDashboard() {
         <section className="metric-grid central-summary-band" aria-label="Indicadores consolidados">
           <Metric
             label="Faturamento conhecido"
-            value={<AnimatedNumber periodo={PERIODO_DA_CENTRAL} id="central-revenue" value={totals.revenue} format={(amount) => money(amount)} />}
+            value={<AnimatedNumber periodo={`central:${period.query}`} id="central-revenue" value={totals.revenue} format={(amount) => money(amount)} />}
             sub={tendenciaTotal.deltaPct == null
               ? "Soma dos canais com dados"
               : `${tendenciaTotal.deltaPct >= 0 ? "▲" : "▼"} ${percent(Math.abs(tendenciaTotal.deltaPct))} vs. semana anterior`}
@@ -228,7 +246,7 @@ export default function OverviewDashboard() {
           />
           <Metric
             label="Lucro conhecido"
-            value={totals.profitSources ? <AnimatedNumber periodo={PERIODO_DA_CENTRAL} id="central-profit" value={totals.profit} format={(amount) => money(amount)} /> : "—"}
+            value={totals.profitSources ? <AnimatedNumber periodo={`central:${period.query}`} id="central-profit" value={totals.profit} format={(amount) => money(amount)} /> : "—"}
             sub={`${totals.profitSources} de ${totals.connected} canais com cálculo`}
             tone={!totals.profitSources ? "default" : totals.profit > 0 ? "positive" : totals.profit < 0 ? "danger" : "default"}
           />

@@ -144,8 +144,31 @@ export async function gatherCentralChannels(
    * Chamado a cada canal que termina, para a tela pintar em vez de esperar o
    * conjunto. Sem ele o comportamento é o de antes: uma resposta só, no fim.
    */
-  aoAvancar?: (parcial: { channels: ChannelSnapshot[]; series: DailyPoint[] }) => void
+  aoAvancar?: (parcial: { channels: ChannelSnapshot[]; series: DailyPoint[] }) => void,
+  /**
+   * O período pedido, no MESMO formato do seletor dos canais (`days=today`,
+   * `days=30` ou `from=…&to=…`).
+   *
+   * ⚠️ Antes de 31/08/2026 os quatro canais eram buscados com `days=30` FIXO no
+   * código — a central não tinha seletor nenhum. A troca do padrão para "Hoje"
+   * (pedido da Ana) não alcançou esta tela por isso: ela não usa o hook do
+   * filtro, usava um literal. O padrão aqui continua `days=30` porque o
+   * BriefingView depende desta função e trabalha em janela de 30 dias; quem quer
+   * outro período passa explicitamente.
+   */
+  periodQuery = "days=30"
 ): Promise<{ channels: ChannelSnapshot[]; series: DailyPoint[] }> {
+  const periodo = new URLSearchParams(periodQuery);
+  /**
+   * ⚠️ PERÍODO PERSONALIZADO NA SHOPEE: a rota dela ainda não lê `from`/`to`
+   * (`/api/integrations/shopee/overview` só aceita `days`), e mandar o intervalo
+   * assim mesmo faria a rota cair no padrão de 30 dias e devolver OUTRO período
+   * com cara de resposta certa. Converter o intervalo em `days` no cliente seria
+   * pior: um número plausível e errado. Enquanto o backend não aceitar o
+   * intervalo, a Shopee sai sem número e a tela diz por quê.
+   */
+  const intervaloPersonalizado = periodo.has("from") && periodo.has("to");
+  const q = periodo.toString();
   const integrationData = await json<{ providers: Provider[] }>("/api/integrations");
   const amazonProvider = integrationData.providers.find((provider) => provider.id === "amazon");
   const mercadoLivreProvider = integrationData.providers.find((provider) => provider.id === "mercado_livre");
@@ -193,7 +216,7 @@ export async function gatherCentralChannels(
   };
 
   if (amazon.connected) {
-    tasks.push(json<AmazonSales & { source?: string }>("/api/sales?days=30").then((sales) => {
+    tasks.push(json<AmazonSales & { source?: string }>(`/api/sales?${q}`).then((sales) => {
       channelSeries.push(sales.series.points);
       amazon.series = sales.series.points;
       amazon.revenue = sales.series.totalRevenue;
@@ -205,7 +228,7 @@ export async function gatherCentralChannels(
       amazon.error = error instanceof Error ? error.message : "Dados indisponíveis";
     }));
 
-    tasks.push(json<{ summary: AmazonProfit }>("/api/profit?days=30").then(({ summary }) => {
+    tasks.push(json<{ summary: AmazonProfit }>(`/api/profit?${q}`).then(({ summary }) => {
       amazon.profit = summary.estimatedProfit;
       // Lucro `null` com anúncio desconhecido não é falha de conexão: é gasto
       // que ainda não chegou. A nota precisa dizer isso, senão a HOME manda a
@@ -221,7 +244,7 @@ export async function gatherCentralChannels(
     }));
   }
 
-  if (mercadoLivre.connected) tasks.push(json<{ overview: MercadoLivreOverview }>("/api/integrations/mercado-livre/overview?view=monitor").then(({ overview }) => {
+  if (mercadoLivre.connected) tasks.push(json<{ overview: MercadoLivreOverview }>(`/api/integrations/mercado-livre/overview?view=monitor&${q}`).then(({ overview }) => {
     channelSeries.push(overview.dailySales);
     mercadoLivre.series = overview.dailySales;
     mercadoLivre.revenue = overview.metrics.revenue30d;
@@ -242,9 +265,16 @@ export async function gatherCentralChannels(
       : coverageNote(overview.metrics.revenueCoverage, new Date(Date.now() - 30 * 86_400_000));
   }).catch((error) => { mercadoLivre.error = error instanceof Error ? error.message : "Dados indisponíveis"; }));
 
-  if (shopee.connected) tasks.push((async () => {
+  if (shopee.connected && intervaloPersonalizado) {
+    // Sem número, e a tela DIZ por quê — em vez de exibir 30 dias com rótulo de
+    // outro período. Ver a nota sobre `intervaloPersonalizado` no topo.
+    shopee.revenue = null;
+    shopee.profit = null;
+    shopee.orders = null;
+    shopee.motivoSemLucro = "a Shopee ainda não aceita período personalizado; escolha Hoje, 7, 15 ou 30 dias para ver este canal";
+  } else if (shopee.connected) tasks.push((async () => {
     const results = await Promise.allSettled(shopeeConnectionIds.map((connectionId) =>
-      json<CentralShopeeResponse>(`/api/integrations/shopee/overview?days=30&connection_id=${encodeURIComponent(connectionId)}`)
+      json<CentralShopeeResponse>(`/api/integrations/shopee/overview?${q}&connection_id=${encodeURIComponent(connectionId)}`)
     ));
     const aggregate = aggregateShopeeStores(shopeeConnectionIds.map((connectionId, index) => ({ connectionId, result: results[index] })));
     shopee.revenue = aggregate.revenue;
@@ -260,7 +290,7 @@ export async function gatherCentralChannels(
 
   if (tiktok.connected) tasks.push((async () => {
     const results = await Promise.allSettled((tiktokProvider?.connections ?? []).map((connection) =>
-      json<TiktokOverviewResponse>(`/api/integrations/tiktok/overview?days=30&connection_id=${encodeURIComponent(connection.id)}`)
+      json<TiktokOverviewResponse>(`/api/integrations/tiktok/overview?${q}&connection_id=${encodeURIComponent(connection.id)}`)
     ));
     const available = results.flatMap((result) => result.status === "fulfilled" && result.value.overview ? [result.value] : []);
     const failed = results.length - available.length;

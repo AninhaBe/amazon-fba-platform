@@ -179,8 +179,13 @@ test("central consulta cada loja Shopee pelo connection_id explícito", () => {
   // A coleta mora em centralChannels.ts (compartilhada com o briefing); o
   // render dos estados de atenção segue em page.tsx.
   const coleta = fs.readFileSync(new URL("../src/app/centralChannels.ts", import.meta.url), "utf8");
-  assert.match(coleta, /shopee\/overview\?days=30&connection_id=\$\{encodeURIComponent\(connectionId\)\}/);
-  assert.doesNotMatch(coleta, /shopee\/overview\?days=30["`]/);
+  // A invariante e o CONNECTION_ID EXPLICITO, nao o periodo literal: em
+  // 31/08/2026 a central ganhou seletor e o `days=30` fixo virou a query do
+  // filtro (`${q}`). Amarrar o teste ao literal reprovaria a troca de periodo
+  // sem proteger nada — o que precisa continuar verdade e que cada loja e
+  // consultada pelo id dela, e nunca pela conexao implicita.
+  assert.match(coleta, /shopee\/overview\?\$\{q\}&connection_id=\$\{encodeURIComponent\(connectionId\)\}/);
+  assert.doesNotMatch(coleta, /shopee\/overview\?\$\{q\}["`]/, "sem connection_id a rota cairia na conexao implicita");
   assert.match(coleta, /const shopeeReadState = centralProviderReadState\(shopeeProvider\)/);
   assert.match(coleta, /const tiktokReadState = centralProviderReadState\(tiktokProvider\)/);
   const page = fs.readFileSync(new URL("../src/app/page.tsx", import.meta.url), "utf8");

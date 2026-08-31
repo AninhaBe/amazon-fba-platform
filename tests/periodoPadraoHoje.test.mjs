@@ -47,3 +47,39 @@ test("quem ESCOLHEU continua com a escolha — o padrao so vale para quem nao es
   assert.match(hook, /if \(days === "today" \|\| days === "7" \|\| days === "15" \|\| days === "30"\)/);
   assert.match(hook, /hasCustomPeriod \? "custom"/, "periodo personalizado na URL tambem manda");
 });
+
+test("a central usa O MESMO seletor dos canais, e nao um parecido", async () => {
+  // Pedido da Ana (31/08/2026): *"no dash de todos os dados integrados, alem de
+  // deixar o hoje como default, coloque um filtro para data personalizada"*.
+  //
+  // ⚠️ O pedido revelou um buraco: a central NAO usava o hook — ela buscava os
+  // quatro canais com `days=30` escrito no codigo. Por isso a troca do padrao
+  // para Hoje nao tinha alcancado esta tela.
+  const central = await fonte("src/app/page.tsx");
+  assert.match(central, /import \{ DashboardPeriodFilter, useDashboardPeriod \} from ".\/components\/DashboardPeriodFilter"/);
+  assert.match(central, /<DashboardPeriodFilter \{\.\.\.period\.filterProps\} \/>/, "o Personalizado vem da peca compartilhada");
+  assert.match(central, /useDashboardPeriod\(\)/);
+
+  const coletor = await fonte("src/app/centralChannels.ts");
+  assert.ok(!/days=30&connection_id|\/api\/sales\?days=30|\/api\/profit\?days=30/.test(coletor),
+    "nenhuma chamada da central pode ter periodo fixo no codigo");
+});
+
+test("trocar o periodo REBUSCA, e o cache nao mistura recortes", async () => {
+  // Cache sem periodo na chave pintaria o numero de 30 dias sob o rotulo "Hoje"
+  // no primeiro quadro: numero certo, recorte errado.
+  const central = await fonte("src/app/page.tsx");
+  assert.match(central, /centralCache = new Map</, "o cache e por periodo");
+  assert.match(central, /centralCache\.get\(period\.query\)/);
+  assert.match(central, /\}, \[period\.query\]\);/, "o efeito depende do periodo");
+});
+
+test("periodo personalizado na Shopee: sem numero e com o motivo, nunca 30 dias disfarcados", async () => {
+  // A rota da Shopee ainda nao le from/to — ela cairia no padrao de 30 dias e
+  // devolveria OUTRO periodo com cara de resposta certa. Converter o intervalo
+  // em `days` no cliente seria pior: plausivel e errado.
+  const coletor = await fonte("src/app/centralChannels.ts");
+  assert.match(coletor, /const intervaloPersonalizado = periodo\.has\("from"\) && periodo\.has\("to"\)/);
+  assert.match(coletor, /shopee\.connected && intervaloPersonalizado/);
+  assert.match(coletor, /a Shopee ainda não aceita período personalizado/);
+});
