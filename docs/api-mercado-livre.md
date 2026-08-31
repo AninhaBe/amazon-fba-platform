@@ -125,6 +125,42 @@ terceiro), `/highlights/{site}/category/{id}` (top 20 da categoria, com
 
 ## Changelog observado (mais recente primeiro)
 
+- **2026-08-31** — **As duas visões do PADS consolidam em velocidades
+  diferentes, e o dia recente ainda se move.** O `ads/search` (por anúncio) e o
+  `campaigns/search` (por campanha) do mesmo advertiser, mesma janela de um dia,
+  não devolvem o mesmo total enquanto o dia está fresco:
+
+  | dia | `campaigns/search` | `ads/search` | |
+  |---|---|---|---|
+  | 29/08 | R$ 69,66 · 95 cliques | R$ 69,66 · 95 cliques | confere na vírgula |
+  | 30/08 | R$ 53,05 · 106 cliques | R$ 46,55 · 84 cliques | **não confere** |
+
+  E o mesmo dia encolheu entre duas leituras nossas: uma sonda às ~02h BRT deu
+  **R$ 46,78 / 80 cliques** para 30/08, e a coleta minutos depois deu **R$ 46,55
+  / 84**. **Dia fechado não encolhe** — então ele não tinha fechado.
+
+  ⚠️ **Consequência prática:** a checagem `conferirContraCampanha` do nosso
+  coletor vai acusar divergência no dia corrente e no último dia fechado, e o
+  palpite que ela imprime ("provável duplicata não tratada") está **errado**
+  nesse caso. Não é duplicata: é a fonte consolidando. Divergência em dia ANTIGO
+  continua sendo sinal de verdade.
+
+  Isso é o que torna correto recolher os últimos dias a cada ciclo em vez de uma
+  vez só: o upsert reescreve o dia até ele parar de mudar.
+
+- **2026-08-31** — **O PADS aceita janela de um dia (`date_from = date_to`) e
+  devolve o AGREGADO da janela pedida.** Óbvio em retrospecto, e custou caro:
+  pedíamos oito dias e gravávamos o resultado carimbado como um, então cada
+  linha "diária" da nossa tabela era a soma de oito — até **17× o valor real**.
+  Medido no mesmo minuto, mesma conta: um dia = R$ 46,78 / 80 cliques (batendo
+  com o console de Ads); oito dias = R$ 771,93 / 1.237 cliques (batendo com o
+  que estava gravado).
+
+  O que denunciou não foi o dinheiro: foi o **clique errar pelo mesmo fator**.
+  Clique não tem moeda, então câmbio e centavos morreram sem outra medição.
+  Quando duas grandezas de naturezas diferentes erram pelo mesmo fator, a causa
+  está no que elas **compartilham** — e o que elas compartilhavam era a janela.
+
 - **2026-08-27** — **`available_quantity` no Full é POR OFERTA, e várias ofertas
   dividem o mesmo estoque.** No Full o estoque pertence ao produto do vendedor
   (`user_product`), não ao anúncio: o anúncio do catálogo e o próprio apontam
