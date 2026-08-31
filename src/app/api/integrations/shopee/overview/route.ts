@@ -13,10 +13,47 @@ const DAY = 86_400_000;
 const ALLOWED_DAYS = new Set([7, 15, 30]);
 
 // Mesmo contrato de período das demais rotas de canal: dia-calendário em São Paulo.
+//
+// ⚠️ O PERSONALIZADO ERA IGNORADO EM SILÊNCIO (corrigido em 31/08/2026).
+//
+// A tela já oferecia "Personalizado" e mandava `from`/`to`; esta função lia
+// apenas `days`, caía no `|| "30"` e devolvia TRINTA DIAS — com o rótulo do
+// período que a pessoa escolheu. Número de uma janela com etiqueta de outra, sem
+// erro em lugar nenhum: a pior forma do defeito, porque a tela parecia certa.
+//
+// É a mesma família do dia inteiro (anúncio, tarifa, faturamento, imposto,
+// narração): dois lados discordando sobre QUAL PERÍODO é, e o silêncio no meio.
+//
+// O contrato abaixo é COPIADO da rota do Mercado Livre, que já o tinha — mesmas
+// validações, mesmas mensagens, mesmo teto de 365 dias. Divergir aqui só criaria
+// a próxima diferença entre canais.
 function requestedPeriod(url: URL) {
   const daysParam = url.searchParams.get("days") || "30";
   const daysValue = Number(daysParam);
+  const fromValue = url.searchParams.get("from");
+  const toValue = url.searchParams.get("to");
   const to = new Date();
+
+  if (fromValue || toValue) {
+    // Uma data só é pedido malformado, não meio período: recusar é o único jeito
+    // de não inventar a outra ponta.
+    if (!fromValue || !toValue || !/^\d{4}-\d{2}-\d{2}$/.test(fromValue) || !/^\d{4}-\d{2}-\d{2}$/.test(toValue)) {
+      throw new RangeError("Informe as datas inicial e final no formato correto.");
+    }
+    const from = new Date(`${fromValue}T00:00:00-03:00`);
+    const ate = new Date(`${toValue}T23:59:59.999-03:00`);
+    if (Number.isNaN(from.getTime()) || Number.isNaN(ate.getTime()) || from > ate) {
+      throw new RangeError("O período personalizado é inválido.");
+    }
+    if (ate.getTime() - from.getTime() > 365 * DAY) {
+      throw new RangeError("O período personalizado pode ter no máximo 365 dias.");
+    }
+    return {
+      from,
+      to: ate,
+      label: `${from.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })} a ${ate.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}`,
+    };
+  }
 
   if (daysParam === "today") {
     const brazilDate = new Date(to.getTime() - 3 * 60 * 60 * 1_000).toISOString().slice(0, 10);
