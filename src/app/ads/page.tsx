@@ -8,6 +8,7 @@ import { DashboardPeriodFilter, useDashboardPeriod } from "../components/Dashboa
 import { MarketplaceIcon } from "../components/MarketplaceIcon";
 import { EmptyState } from "../components/EmptyState";
 import { InlineLoading } from "../components/LoadingState";
+import { IntegrationDashboardFrame } from "../components/IntegrationDashboardFrame";
 import { margemPosAds, margemPosAdsDoCanal, type ProdutoAnunciado } from "@/lib/margemPosAds";
 import { avaliarAnuncio } from "@/lib/anuncioContraMargem";
 import type { AdsMultiCanal, CanalDeAdsResumo, CampanhaDeAds, CanalDeAds } from "@/lib/adsMultiCanal";
@@ -340,21 +341,36 @@ export default function AdsPage() {
   const semSku = produtos.some((produto) => produto.sku == null);
 
   return (
-    <div className="dashboard-shell">
-      <PageHeader
+    /**
+     * ⚠️ O FRAME É O DA CASA, e isto foi um defeito meu achado na revisão de
+     * 31/08/2026: eu tinha escrito `<div className="dashboard-shell">`, uma
+     * classe que NÃO EXISTE no globals.css — inventada aqui e usada só por esta
+     * página. Sem o frame, a página ficava sem o `min-width: 0` da raiz
+     * (`IntegrationDashboardFrame.module.css`), e a fileira de canais
+     * transbordava para a direita: o quarto card (TikTok) era CORTADO pela
+     * borda, justo o único com ação ("Ver como ligar"). Conteúdo cortado que não
+     * anuncia o corte é pior que conteúdo ausente.
+     *
+     * O frame também é quem posiciona o período antes do cabeçalho, que é a
+     * ordem estrutural dos outros dashboards.
+     */
+    <IntegrationDashboardFrame
+      className="channel-dashboard"
+      period={<DashboardPeriodFilter {...period.filterProps} />}
+      header={<PageHeader
         eyebrow="Todos os canais"
         title="Ads"
         subtitle="O que cada real de anúncio deixou, depois do custo do produto e da tarifa."
         icon={pageIcons.dashboard}
-      />
-      <DashboardPeriodFilter {...period.filterProps} />
+      />}
+    >
 
       {carregando ? (
         <InlineLoading label="Carregando anúncios dos canais" />
       ) : erro ? (
         <EmptyState kind="data" title="Não foi possível carregar os anúncios" description={erro} />
       ) : (
-        <div className="dashboard-sections">
+        <div className="dashboard-sections channel-dashboard-sections">
           <section className="ads-bloco" aria-labelledby="ads-estado">
             <header>
               <p className="section-kicker">Situação</p>
@@ -424,6 +440,6 @@ export default function AdsPage() {
           <TabelaDeCampanhas campanhas={dados?.campanhas ?? []} />
         </div>
       )}
-    </div>
+    </IntegrationDashboardFrame>
   );
 }

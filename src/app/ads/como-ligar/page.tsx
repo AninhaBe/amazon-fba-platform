@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { PageHeader, pageIcons } from "../../components/PageHeader";
+import { IntegrationDashboardFrame } from "../../components/IntegrationDashboardFrame";
 
 /**
  * COMO LIGAR OS ANÚNCIOS DA SHOPEE E DO TIKTOK.
@@ -16,15 +17,18 @@ import { PageHeader, pageIcons } from "../../components/PageHeader";
  */
 export default function ComoLigarAdsPage() {
   return (
-    <div className="dashboard-shell">
-      <PageHeader
+    // Mesmo frame da aba — ver a nota em `ads/page.tsx` sobre a classe
+    // inventada que deixava a página sem `min-width: 0` e cortava conteúdo.
+    <IntegrationDashboardFrame
+      className="channel-dashboard"
+      header={<PageHeader
         eyebrow="Ads"
         title="Como ligar Shopee e TikTok"
         subtitle="Dois cadastros independentes. Nenhum mexe no que já funciona; os dois começam relógios de aprovação que correm sozinhos."
         icon={pageIcons.dashboard}
-      />
-
-      <div className="dashboard-sections">
+      />}
+    >
+      <div className="dashboard-sections channel-dashboard-sections">
         <section className="ads-bloco" aria-labelledby="ads-tiktok">
           <header>
             <p className="section-kicker">TikTok Shop</p>
@@ -80,6 +84,6 @@ export default function ComoLigarAdsPage() {
           <Link href="/ads">← Voltar para os Ads</Link>
         </p>
       </div>
-    </div>
+    </IntegrationDashboardFrame>
   );
 }

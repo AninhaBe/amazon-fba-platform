@@ -141,3 +141,24 @@ test("linha que cobre mais de um dia NAO e somada — a tela diz o que esta erra
   assert.match(lib, /nada a fazer do seu lado/);
   assert.match(lib, /volta sozinho na próxima sincronização/);
 });
+
+test("a aba usa o FRAME da casa, e nao uma classe inventada", async () => {
+  // DEFEITO ACHADO NA REVISAO (31/08/2026): a pagina abria com
+  // <div className="dashboard-shell">, classe que NAO EXISTE no globals.css —
+  // inventada aqui e usada so por estas duas paginas. Sem o frame, faltava o
+  // `min-width: 0` da raiz e a fileira de canais transbordava para a direita: o
+  // quarto card (TikTok) era cortado pela borda, e e justamente o unico com
+  // acao ("Ver como ligar"). Conteudo cortado que nao anuncia o corte e pior
+  // que conteudo ausente.
+  const css = await fonte("src/app/globals.css");
+  for (const caminho of ["src/app/ads/page.tsx", "src/app/ads/como-ligar/page.tsx"]) {
+    const pagina = await fonte(caminho);
+    const jsx = pagina.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    assert.ok(!/className="dashboard-shell"/.test(jsx), `${caminho}: classe de layout inexistente`);
+    assert.match(jsx, /<IntegrationDashboardFrame/, `${caminho}: precisa do frame compartilhado`);
+    // A variante de sections que carrega o min-width: 0.
+    assert.match(jsx, /dashboard-sections channel-dashboard-sections/, `${caminho}: sections sem a guarda de largura`);
+  }
+  // E a guarda existe mesmo — se alguem tirar do CSS, este teste acusa.
+  assert.match(css, /\.channel-dashboard-sections \{ display: flex; min-width: 0;/);
+});
