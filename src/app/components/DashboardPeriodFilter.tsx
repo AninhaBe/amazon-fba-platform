@@ -6,11 +6,29 @@ import { ArrowRight, CalendarRange } from "lucide-react";
 
 export type DashboardPeriodOption = "today" | "7" | "15" | "30" | "custom";
 
+/**
+ * O PERÍODO PADRÃO É HOJE — pedido da Ana em 31/08/2026:
+ *
+ *   *"Todo click no dashboard (para Mercado Livre, Amazon, Shopee e TikTok)
+ *   precisa entrar com o Hoje clicado ao invés de 30 dias. O carregamento é mais
+ *   rápido e a necessidade principal é saber o lucro de hoje."*
+ *
+ * ⚠️ O padrão vale só para quem NÃO escolheu. A escolha da pessoa vive na URL
+ * (`?days=…` ou `?from=&to=`), e o efeito abaixo a respeita: quem está com 30
+ * dias no endereço continua com 30 dias, inclusive ao recarregar e ao voltar
+ * pelo histórico do navegador.
+ *
+ * ⚠️ Mudar aqui muda os QUATRO canais de uma vez, porque os quatro usam este
+ * mesmo hook. É de propósito: dois dashboards com padrões diferentes seriam a
+ * inconsistência que a regra de replicar existe para impedir.
+ */
+const PERIODO_PADRAO: Exclude<DashboardPeriodOption, "custom"> = "today";
+
 export function useDashboardPeriod(initialQuery = "", onQueryChange?: (query: string) => void) {
   const initial = new URLSearchParams(initialQuery);
   const hasCustomPeriod = Boolean(initial.get("from") && initial.get("to"));
-  const [selected, setSelected] = useState<DashboardPeriodOption>(hasCustomPeriod ? "custom" : "30");
-  const [query, setQuery] = useState(hasCustomPeriod ? new URLSearchParams({ from: initial.get("from")!, to: initial.get("to")! }).toString() : "days=30");
+  const [selected, setSelected] = useState<DashboardPeriodOption>(hasCustomPeriod ? "custom" : PERIODO_PADRAO);
+  const [query, setQuery] = useState(hasCustomPeriod ? new URLSearchParams({ from: initial.get("from")!, to: initial.get("to")! }).toString() : `days=${PERIODO_PADRAO}`);
   const [from, setFrom] = useState(hasCustomPeriod ? initial.get("from")! : "");
   const [to, setTo] = useState(hasCustomPeriod ? initial.get("to")! : "");
   const [error, setError] = useState<string | null>(null);
