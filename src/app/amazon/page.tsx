@@ -867,6 +867,9 @@ export default function Dashboard() {
                 <Kpi
                   key={card.key}
                   label={card.label}
+                  // UMA LINHA POR CARD NA FACE, e quem decide qual e o
+                  // construtor (`amazonFinancialCards`): o Faturamento recebe o
+                  // cupom ja abatido, os demais recebem a base declarada.
                   sub={card.baseDeclarada}
                   // ⚠️ O CARD NÃO É MAIS SOBRESCRITO AQUI (30/08/2026).
                   //
@@ -895,14 +898,7 @@ export default function Dashboard() {
                   // "R$ 0,00 · 1 pedido", que se contradiz na própria linha
                   // (22/08/2026). Quando há pedido sem valor, o texto DIZ isso
                   // em vez de fingir coerência.
-                  info={card.key === "revenue"
-                    ? [
-                        legendaFaturamento(faturamento, salesCount),
-                        (faturamento?.coupon ?? 0) > 0
-                          ? `O que o comprador pagou, já sem ${money(faturamento?.coupon ?? 0, currency)} de cupom.`
-                          : null,
-                      ].filter(Boolean).join(" · ")
-                    : card.context}
+                  info={card.key === "revenue" ? legendaFaturamento(faturamento, salesCount) : card.context}
                   trend={card.key === "revenue" ? revenueTrend : undefined}
                   tone={card.key === "marginPct" ? marginMetricTone(card.raw) : card.tone}
                   loading={loading}
@@ -941,11 +937,11 @@ export default function Dashboard() {
               ? `${money(pedidosFeitos.revenue, currency)} · ${pedidosFeitos.orders}`
               : "—"
           }
-          info={
-            pedidosFeitos
-              ? "Preço de tabela, antes do cupom. É o número do Seller Central."
-              : undefined
-          }
+          // ⚠️ NA FACE, NÃO NO "i" (31/08/2026). Esta frase distingue DUAS
+          // receitas que convivem na mesma tela: "Pedidos feitos" vem a preço de
+          // tabela e "Faturamento" é o que o comprador pagou. Quem não lê isso
+          // conclui que um dos dois está errado — e foi o que aconteceu.
+          hint={pedidosFeitos ? "Preço de tabela, antes do cupom — é o número do Seller Central." : undefined}
           loading={loading}
         />
         {/*
@@ -965,11 +961,16 @@ export default function Dashboard() {
             // solto e a pessoa não liga um card ao outro.
             // Só afirma a igualdade quando ela SE SUSTENTA: numa conta com
             // pedidos sem preço de tabela, este valor é piso, não a diferença.
-            info={
-              faturamento?.couponPartial
-                ? "Apurado só nos pedidos com preço de tabela importado — pode haver mais."
-                : "A diferença entre Pedidos feitos e Faturamento."
-            }
+            // ⚠️ UMA LINHA NA FACE, E É A QUE MUDA A LEITURA.
+            //
+            // "Pode haver mais" é ressalva de COBERTURA: sem ela a pessoa toma
+            // um piso por um total. Ela vai na face. Já "a diferença entre
+            // Pedidos feitos e Faturamento" só explica o que o número é, sem
+            // mudar como ele é lido — essa continua no "i".
+            hint={faturamento?.couponPartial
+              ? "Apurado só nos pedidos com preço de tabela importado — pode haver mais."
+              : undefined}
+            info={faturamento?.couponPartial ? undefined : "A diferença entre Pedidos feitos e Faturamento."}
             loading={loading}
           />
         )}

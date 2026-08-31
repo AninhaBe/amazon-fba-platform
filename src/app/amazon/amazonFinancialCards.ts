@@ -387,7 +387,17 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
     : "Aguardando custos dos produtos";
 
   return [
-    { key: "revenue", label: "Faturamento", ...num(faturamentoExibido, "Aguardando cobertura completa do período") },
+    {
+      key: "revenue", label: "Faturamento",
+      ...num(faturamentoExibido, "Aguardando cobertura completa do período"),
+      // ⚠️ NA FACE, NAO NO "i" (31/08/2026). E o cupom que explica por que este
+      // valor e MENOR que "Pedidos feitos"; escondido no tooltip, os dois cards
+      // pareciam se contradizer. O Faturamento nao tem base declarada (a base
+      // dele E o card), entao a linha livre e desta frase — uma por card.
+      baseDeclarada: (f?.promotions ?? 0) > 0
+        ? `O que o comprador pagou, já sem ${money(f?.promotions ?? 0, currency)} de cupom.`
+        : undefined,
+    },
     { key: "fees", label: "Taxas", ...num(f?.fees, semExtrato) },
     { key: "fbaShipping", label: "Logística FBA", ...num(logistica, "Aguardando tarifas de logística no extrato", undefined, "A Amazon não cobrou logística no período") },
     { key: "buyerShipping", label: "Frete do comprador", ...num(f?.buyerShipping, "Aguardando frete pago pelo comprador", undefined, "Nenhum frete pago pelo comprador") },

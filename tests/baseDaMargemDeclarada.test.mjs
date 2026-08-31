@@ -93,6 +93,10 @@ test("a tela RENDERIZA a base, e nao so no tooltip", async () => {
   const page = await fonte("src/app/amazon/page.tsx");
   const ocorrencias = (page.match(/sub=\{card\.baseDeclarada\}/g) ?? []).length;
   assert.equal(ocorrencias, 2, "os dois ramos de card (lucro e demais) precisam renderizar a base");
+  // E ela nunca pode sair pelo "i": foi ali que a frase ficou invisivel o dia
+  // inteiro em 31/08/2026.
+  const codigo = page.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+  assert.ok(!/info=\{card\.baseDeclarada/.test(codigo), "a base nunca pode sair pelo 'i'");
 });
 
 test("bases IGUAIS nao ganham declaracao — ruido tambem e defeito", () => {
