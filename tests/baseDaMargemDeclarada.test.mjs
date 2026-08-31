@@ -53,7 +53,11 @@ test("e a base APARECE na tela, com numero — nunca em silencio", () => {
   const contexto = carta(cards, "marginPct").context;
   assert.match(contexto, /418,43/, "a base apurada precisa estar escrita");
   assert.match(contexto, /1\.270,13/, "e o total de onde ela sai tambem");
-  assert.match(contexto, /40 pedido\(s\) aguardando/, "e o que falta, com numero");
+  // A invariante e "o que falta, COM NUMERO" — nao a tipografia do plural. A
+  // frase saiu de `amazonFinancialCards` para `baseDaMargem` (compartilhada com
+  // os quatro canais) e passou a flexionar de verdade: "1 pedido" / "40
+  // pedidos", no lugar de "pedido(s)".
+  assert.match(contexto, /40 pedidos? aguardando/, "e o que falta, com numero");
   // AGENTS.md: "parcial" explica ao vendedor o que ele ja sabe, em vez de dizer
   // o que falta. A frase acima diz o que falta, com numero.
   assert.doesNotMatch(contexto, /parcial|incompleto/i);

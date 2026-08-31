@@ -130,6 +130,8 @@ export interface AmazonCard {
   baseDeclarada?: string;
 }
 
+import { declaracaoDeBase, BASE_SEM_DIFERENCA } from "../components/baseDaMargem";
+
 const money = (v: number, currency: string) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(v);
 const percent = (v: number) =>
@@ -340,11 +342,17 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
   const baseApurada = f?.revenue ?? null;
   const margem = resultadoValido && lucroReal != null && f.revenue > 0 ? (lucroReal / f.revenue) * 100 : null;
   /** A frase que impede a leitura "o lucro não sai do faturamento, logo está errado". */
+  // A frase sai de `declaracaoDeBase`, compartilhada com os outros canais: a
+  // Shopee recebe o mesmo desbloqueio de margem e ML e TikTok têm a mesma
+  // diferença entre faturamento exibido e base apurada. Quatro canais
+  // escrevendo a própria versão divergem na primeira vez que alguém ajusta uma.
   const baseDeclarada =
-    baseApurada != null && faturamentoExibido != null && faturamentoExibido > baseApurada
-      ? `sobre ${money(baseApurada, currency)} apurados de ${money(faturamentoExibido, currency)}` +
-        (input.pedidosAguardando ? ` — ${input.pedidosAguardando} pedido(s) aguardando confirmação` : "")
-      : "sobre vendas";
+    declaracaoDeBase({
+      baseApurada,
+      faturamentoExibido,
+      moeda: currency,
+      pedidosAguardando: input.pedidosAguardando,
+    }) ?? BASE_SEM_DIFERENCA;
   /** A linha visível do card de Lucro: base quando difere, e a devolução quando houver. */
   const notaDoLucro = [baseDeclarada === "sobre vendas" ? null : baseDeclarada, devolucao]
     .filter(Boolean)
