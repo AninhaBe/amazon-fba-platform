@@ -74,6 +74,13 @@ export interface AmazonCardsInput {
   faturamentoTotal?: number | null;
   /** Quantos pedidos do período ainda não têm valor/custo/tarifa apurados. */
   pedidosAguardando?: number;
+  /**
+   * Estorno do período, já descontado do lucro (decisão dela em 31/08/2026:
+   * "estorno reduz o resultado do período"). `0` = não houve devolução.
+   */
+  refunds?: number;
+  /** Quantas devoluções compõem o valor acima. */
+  refundCount?: number;
   /** Anúncio do período. `null` = não sincronizado (≠ não gastou). */
   ads?: AmazonAdsInput | null;
   /**
@@ -315,6 +322,20 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
   // Então o lucro fica na base apurada e a tela DECLARA a base, com número —
   // nunca com a palavra "parcial", que explica ao vendedor uma coisa que ele já
   // sabe em vez de dizer o que falta (AGENTS.md).
+  // ⚠️ QUANDO UM PERÍODO PASSADO MUDA DE VALOR, A TELA DIZ POR QUÊ.
+  //
+  // O estorno passou a reduzir o resultado do MÊS DA VENDA (31/08/2026), então
+  // um período que ela já leu pode valer outra coisa hoje — junho caiu
+  // R$ 1.877,31, julho R$ 879,49. Número que muda sozinho vira "está errado",
+  // mesmo estando certo: foi o que aconteceu duas vezes em 30/08, com o anúncio
+  // e com a margem.
+  //
+  // A frase diz O QUE mudou e QUANTO, com número, e some quando não há estorno —
+  // "inclui R$ 0,00 de devolução" seria ruído, e zero aqui é fato.
+  const devolucao =
+    (input.refunds ?? 0) > 0
+      ? `inclui ${money(input.refunds!, currency)} de ${input.refundCount ?? 0} devolução(ões), pela data da venda`
+      : null;
   const faturamentoExibido = input.faturamentoTotal ?? f?.revenue ?? null;
   const baseApurada = f?.revenue ?? null;
   const margem = resultadoValido && lucroReal != null && f.revenue > 0 ? (lucroReal / f.revenue) * 100 : null;
@@ -324,6 +345,10 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
       ? `sobre ${money(baseApurada, currency)} apurados de ${money(faturamentoExibido, currency)}` +
         (input.pedidosAguardando ? ` — ${input.pedidosAguardando} pedido(s) aguardando confirmação` : "")
       : "sobre vendas";
+  /** A linha visível do card de Lucro: base quando difere, e a devolução quando houver. */
+  const notaDoLucro = [baseDeclarada === "sobre vendas" ? null : baseDeclarada, devolucao]
+    .filter(Boolean)
+    .join(" · ") || undefined;
   const roi = resultadoValido && lucroReal != null && input.cogs > 0 ? (lucroReal / input.cogs) * 100 : null;
 
   // Dias do período sem métrica. Não extrapolamos o que falta (AGENTS.md): o
@@ -430,7 +455,7 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
                 .join(" − "), input.taxRate == null),
             tone: lucroReal > 0 ? "positive" as const : lucroReal < 0 ? "danger" as const : "default" as const,
             raw: lucroReal,
-            baseDeclarada: baseDeclarada === "sobre vendas" ? undefined : baseDeclarada,
+            baseDeclarada: notaDoLucro,
           }
         : {
             value: "—",

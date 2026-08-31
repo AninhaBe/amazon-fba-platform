@@ -254,7 +254,22 @@ export function canonicalShopeeFees(income: ShopeeEscrowIncome, currency: string
     fees.push({
       feeType: type,
       providerFeeCode: field,
-      amount: round2(Number(value)),
+      // ⚠️ SINAL NORMALIZADO: POSITIVO = DINHEIRO QUE SAIU DA VENDEDORA.
+      //
+      // É a convenção de `workspace_channel_order_fees` no banco inteiro — 43 mil
+      // linhas positivas em todos os canais e todos os tipos. A única exceção era
+      // `shopee/refund`, 128 de 128 negativas, porque a Shopee devolve
+      // `seller_return_refund` já com sinal (dinheiro voltando).
+      //
+      // O estrago: `shopeeOverviewCanonical` calcula `... - refunds`, e com
+      // `refunds` negativo isso SOMAVA o estorno ao lucro em vez de subtrair —
+      // R$ 5.411,82 a mais numa conta. A fórmula estava certa e legível; a
+      // convenção de sinal é que a traía. Número errado que se decompõe
+      // direitinho é mais perigoso que número que não fecha.
+      //
+      // `Math.abs` e não `-value`: se a Shopee um dia mandar positivo, isto
+      // continua certo. Quem lê subtrai; quem grava garante o sinal.
+      amount: Math.abs(round2(Number(value))),
       currency,
     });
   }

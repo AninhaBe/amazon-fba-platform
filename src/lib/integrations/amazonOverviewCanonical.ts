@@ -91,6 +91,13 @@ export interface AmazonCanonicalOverview {
     taxRate: number | null;
     /** Imposto do período sobre a receita apurada. `null` sem alíquota. */
     taxes: number | null;
+    /**
+     * Estorno do período, pela data do PEDIDO original. Já descontado do lucro.
+     * `0` = não houve devolução (fato verificado, não ausência de dado).
+     */
+    refunds: number;
+    /** Quantas devoluções compõem o valor acima — a tela avisa quando muda o passado. */
+    refundCount: number;
     /** Anúncio já descontado acima. `null` = desconhecido; `0` = não gastou. */
     ads: number | null;
     adsDesconhecido: boolean;
@@ -460,10 +467,48 @@ export async function getAmazonOverviewFromCanonical(period: Period): Promise<Am
   const taxRate = await getAmazonTaxRateSetting(dbQuery, workspaceId, currentAccountId()).catch(() => null);
   const taxes = amazonTaxAmount(processedRevenue, taxRate);
 
+  // ═══ ESTORNO REDUZ O RESULTADO DO PERÍODO (decisão dela, 31/08/2026) ═══════
+  //
+  // Palavras dela: *"estorno reduz o resultado do período"*. Até aqui os
+  // estornos não entravam em lucro nenhum: `fees` os exclui de propósito
+  // (devolução ao comprador não é tarifa, e somá-la como tarifa contaria a
+  // devolução como custo operacional) — mas eles também não entravam em nenhum
+  // outro termo. Medido no banco: R$ 3.091,33 em 123 devoluções fora da conta.
+  //
+  // ⚠️ PELA DATA DO PEDIDO ORIGINAL, E ISSO MUDA MÊS JÁ FECHADO. É deliberado:
+  // junho já está errado hoje — ele exibe um resultado que a operação nunca
+  // teve, porque nunca contou aquelas devoluções. Mudar não corrompe histórico;
+  // para de publicar número que não existiu. Medido: 107 dos 123 estornos
+  // (R$ 2.756,80) caem em meses fechados; junho cai R$ 1.877,31 e julho
+  // R$ 879,49.
+  //
+  // ⚠️ E A DATA DO PEDIDO FOI ESCOLHIDA POR FALTA DE DADO, NÃO POR PREFERÊNCIA.
+  // `workspace_channel_order_fees` NÃO TEM COLUNA DE DATA — o estorno não carrega
+  // data própria no nosso banco, e a única disponível é a do pedido. A data real
+  // do estorno existe na Transactions API (`postedDate`) e nunca foi persistida.
+  // Quando existir, revisitar: ver `docs/achado-duas-bases-financeiras-da-amazon.md`.
+  const [estornoRows] = await Promise.all([
+    dbQuery<{ total: string | null; n: number }>(
+      `SELECT SUM(f.amount)::text AS total, COUNT(*)::int AS n
+         FROM workspace_channel_order_fees f
+         JOIN workspace_channel_orders o
+           ON o.workspace_id = f.workspace_id AND o.provider = f.provider
+          AND o.connection_id = f.connection_id AND o.external_order_id = f.external_order_id
+        WHERE f.workspace_id = $1 AND f.provider = $2 AND f.connection_id = $3
+          AND f.fee_type = 'refund'
+          AND o.occurred_at >= $4 AND o.occurred_at <= $5`,
+      scopeParams(connectionId, period),
+    ),
+  ]);
+  // `0` é fato ("não houve devolução no período"), não ausência: a Amazon expõe
+  // estorno e a consulta acima cobre o período inteiro. Ausência VERIFICADA.
+  const refunds = Number(estornoRows[0]?.total ?? 0);
+  const refundCount = estornoRows[0]?.n ?? 0;
+
   const anuncio = await anuncioDoCanal("amazon", period.startISO, period.endISO);
   // `taxes ?? 0`: sem alíquota o lucro sai sem imposto, como sempre saiu — quem
   // avisa é a tela, que passa a dizer "(sem imposto)" só nesse caso.
-  const lucro = descontarAnuncio(+(processedRevenue - fees - cogs - (taxes ?? 0)).toFixed(2), anuncio);
+  const lucro = descontarAnuncio(+(processedRevenue - fees - cogs - (taxes ?? 0) - refunds).toFixed(2), anuncio);
   const estimatedProfit = lucro.estimatedProfit;
 
   const topProducts: AmazonCanonicalTopProduct[] = productTotalsRows
@@ -515,6 +560,8 @@ export async function getAmazonOverviewFromCanonical(period: Period): Promise<Am
       estimatedProfit,
       taxRate,
       taxes,
+      refunds: +refunds.toFixed(2),
+      refundCount,
       ads: lucro.ads,
       adsDesconhecido: lucro.adsDesconhecido,
       adsAteDia: lucro.ateDia,

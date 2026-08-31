@@ -129,6 +129,59 @@ nenhum dos dois seria verificável.
 **A pergunta é dela, e é uma só:** estorno reduz o resultado do período, ou é
 tratado à parte? Só ela sabe como fecha o mês.
 
+### ✅ RESPONDIDO em 31/08/2026, verbatim: *"estorno reduz o resultado do período"*
+
+Implementado em Amazon e Shopee. **ML e TikTok não têm `fee_type` de estorno —
+ausência VERIFICADA no banco, não presumida:** os únicos tipos desses dois canais
+são `commission` e `shipping_seller`, em 85 mil linhas. Se um dia aparecer, o
+termo entra.
+
+#### ⚠️ O PERÍODO É O DA VENDA — E POR FALTA DE DADO, NÃO POR PREFERÊNCIA
+
+`workspace_channel_order_fees` **não tem coluna de data**: `workspace_id`,
+`provider`, `connection_id`, `external_order_id`, `fee_type`,
+`provider_fee_code`, `amount`, `currency`, `external_ref`. O estorno **não
+carrega data própria** no nosso banco, e a única disponível é a `occurred_at` do
+pedido.
+
+Então das duas opções, só uma era implementável:
+
+| opção | estado |
+|---|---|
+| (i) data do **estorno** | **impossível hoje** — a data existe na Transactions API (`postedDate`) e nunca foi persistida |
+| (ii) data do **pedido** | implementada |
+
+**Custo assumido, medido:** 107 dos 123 estornos (R$ 2.756,80, 89% do valor)
+caem em meses fechados. Junho cai R$ 1.877,31 e julho R$ 879,49,
+**retroativamente**.
+
+**Por que isso não corrompe histórico:** junho já está errado hoje — ele exibe um
+resultado que a operação nunca teve, porque nunca contou aquelas devoluções.
+Mudar não corrompe; **para de publicar número que não existiu.**
+
+> **FRENTE PRÓPRIA, A ABRIR: capturar o `postedDate` do estorno.**
+> Escolhemos a data do pedido por **falta de dado**, não por preferência. A opção
+> (i) é mais verdadeira. Quando a data existir, **revisitar** — o termo já está
+> isolado na fórmula (`- refunds`) e a troca é do recorte da consulta, não da
+> conta.
+
+#### E o defeito que a implementação revelou na Shopee
+
+`shopee/refund` era o **único `fee_type` do banco inteiro gravado com sinal
+negativo** — 129 de 129, contra 43 mil linhas positivas em todos os outros canais
+e tipos, porque a Shopee devolve `seller_return_refund` já com sinal.
+
+E `shopeeOverviewCanonical` sempre calculou `... − refunds`. Com `refunds`
+negativo, isso **somava R$ 5.461,72 ao lucro em vez de subtrair**.
+
+⚠️ **A fórmula estava certa e legível; a convenção de sinal é que a traía.** É
+outro caso de número errado que se decompõe direitinho — o tipo mais perigoso,
+porque a leitura do código confirma a conta.
+
+Curado: o gravador normaliza (`Math.abs`, com a convenção escrita — **positivo =
+dinheiro que saiu da vendedora**) e as 129 linhas foram corrigidas em transação
+com `rowCount` conferido. Teste trava a volta.
+
 ## O critério que ficou, e vale além deste caso
 
 > **ENUMERAR ANTES DE MIGRAR.**

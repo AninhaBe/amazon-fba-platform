@@ -108,6 +108,9 @@ interface ProfitData {
   estimatedProfit: number | null;
   /** O anúncio que o produtor já descontou acima — a tela escreve, não subtrai. */
   adsNoLucro?: number | null;
+  /** Estorno já descontado, pela data da venda. A tela avisa quando muda o passado. */
+  refunds?: number;
+  refundCount?: number;
   unitsWithoutCost: number;
   skusWithoutCost: number;
   taxRate?: number | null;
@@ -208,7 +211,7 @@ interface DashboardPayload {
   metrics: { totalOrders: number; paidOrders: number; fbaOrders: number; revenue: number };
   dailySales: Array<{ date: string; revenue: number; orders: number; units: number }>;
   topProducts: Array<{ sku: string; title: string; units: number; revenue: number; marginPct: number | null }>;
-  profit: { revenueProcessed: number; fees: number; cogs: number; estimatedProfit: number | null; taxRate?: number | null; taxes?: number | null; ads?: number | null; unitsWithCost: number; unitsWithoutCost: number; skusWithoutCost: number; coverage?: { processedOrders: number; paidOrders: number; complete: boolean } };
+  profit: { revenueProcessed: number; fees: number; cogs: number; estimatedProfit: number | null; taxRate?: number | null; taxes?: number | null; refunds?: number; refundCount?: number; ads?: number | null; unitsWithCost: number; unitsWithoutCost: number; skusWithoutCost: number; coverage?: { processedOrders: number; paidOrders: number; complete: boolean } };
   ads?: AmazonAdsInput | null;
   adsJanela?: { inicioDia: string; esperadoAte: string; incluiHoje?: boolean } | null;
   adsConectado?: boolean;
@@ -474,6 +477,8 @@ export default function Dashboard() {
         // já no banco; o imposto entrou em 31/08/2026 pelo mesmo caminho.
         taxRate: payload.profit.taxRate ?? null,
         taxes: payload.profit.taxes ?? null,
+        refunds: payload.profit.refunds ?? 0,
+        refundCount: payload.profit.refundCount ?? 0,
         unitsWithoutCost: payload.profit.unitsWithoutCost,
         skusWithoutCost: payload.profit.skusWithoutCost ?? 0,
         // ⚠️ ESTE OBJETO E MONTADO CAMPO A CAMPO: campo novo na resposta da rota
@@ -815,6 +820,8 @@ export default function Dashboard() {
           // com "Vendas hoje até agora" do Seller Central.
           faturamentoTotal: pedidosFeitos?.revenue ?? null,
           pedidosAguardando,
+          refunds: profit?.refunds ?? 0,
+          refundCount: profit?.refundCount ?? 0,
         });
         const margem = cards.find((c) => c.key === "marginPct");
         const primaryCards = cards.filter((card) => PRIMARY_FINANCIAL_CARDS.has(card.key));
