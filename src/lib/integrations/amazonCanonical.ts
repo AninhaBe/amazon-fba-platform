@@ -157,7 +157,14 @@ export function normalizeAmazonOrderItems(orderItems: AmazonOrderItem[]): Normal
       sku: item.SellerSKU ?? null,
       title: item.Title ?? item.SellerSKU ?? item.ASIN ?? "Item Amazon",
       qty,
-      unitPrice: round2(revenue / qty),
+      // ⚠️ SEM `ItemPrice`, O PREÇO É DESCONHECIDO — NÃO ZERO.
+      //
+      // Pedido `Pending` devolve o item (ASIN, SKU, título, quantidade) e não
+      // devolve dinheiro. `revenue` acima cai em 0 nesse caso, e gravar 0,00
+      // afirmaria que o item não custou nada — o mesmo defeito da tarifa R$ 0,00
+      // com 63 vendas. A coluna aceita NULL desde a migration 0021, pelo mesmo
+      // motivo que `gross` aceita desde a 0008.
+      unitPrice: item.ItemPrice?.Amount === undefined ? null : round2(revenue / qty),
       // Parcelas guardadas por unidade, para casar com `unitPrice`.
       // `moneyOrUnknown` distingue "a Amazon não mandou o campo" de "mandou zero"
       // — sem cupom ela manda `PromotionDiscount: 0,00`, que é fato, não ausência.

@@ -54,7 +54,15 @@ export interface CanonicalOrderItem {
   title: string;
   qty: number;
   /** Líquido de desconto — é dele que saem margem e lucro. */
-  unitPrice: number;
+  /**
+   * Preço unitário praticado. `null` = a fonte ainda não expôs — pedido
+   * `Pending` na Amazon devolve o item sem `ItemPrice` (migration 0021).
+   *
+   * ⚠️ Quem soma `qty * unitPrice` tem de EXCLUIR a linha sem preço, nunca
+   * coalescer para zero: zero é o fato "não custou nada", e coalescer recria a
+   * mentira que a coluna nullable existe para remover.
+   */
+  unitPrice: number | null;
   /**
    * Preço de tabela por unidade, antes de promoção. `null` = canal não informa.
    * Guardar as parcelas (e não só o líquido) é o que permite responder "usaram

@@ -379,7 +379,11 @@ export function agruparItens(linhas: TiktokLineItem[]): CanonicalOrderItem[] {
     // Por unidade, como na Amazon (`amazonCanonical.ts`): o canônico guarda a
     // parcela unitária e a quantidade separadas.
     item.promotionDiscount = round2(acumulado / item.qty);
-    item.listPrice = round2(item.unitPrice + item.promotionDiscount);
+    // `unitPrice` virou nullable no canônico (migration 0021, por causa do
+    // pedido `Pending` da Amazon). No TikTok ele nunca é nulo — a API entrega o
+    // preço da linha sempre —, e a guarda existe para o dia em que isso mudar:
+    // somar `null` produziria `listPrice` errado em silêncio.
+    item.listPrice = item.unitPrice == null ? null : round2(item.unitPrice + item.promotionDiscount);
   }
 
   return [...porSku.values()];
@@ -564,8 +568,11 @@ export function normalizeTiktokOrder(
     ?? "BRL";
 
   const items = agruparItens(order.line_items ?? []);
-  const itemGross = items.length
-    ? items.reduce((soma, item) => soma + item.unitPrice * item.qty, 0)
+  // Linha sem preço fica FORA da soma, em vez de entrar como zero: zero baixaria
+  // o bruto do pedido afirmando que aquele item não custou nada.
+  const comPreco = items.filter((item) => item.unitPrice != null);
+  const itemGross = comPreco.length
+    ? comPreco.reduce((soma, item) => soma + item.unitPrice! * item.qty, 0)
     : null;
   const paymentGross = paraNumero(order.payment?.sub_total);
   const grossSource = itemGross ?? paymentGross;

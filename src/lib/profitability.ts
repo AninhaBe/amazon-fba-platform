@@ -6,14 +6,16 @@ export interface ProfitabilityLine {
   date: string;
   status: string;
   fulfillment: string | null;
-  unitPrice: number;
+  /** `null` = a fonte ainda não expôs o preço (pedido `Pending`, migration 0021). */
+  unitPrice: number | null;
   quantity: number;
   /**
    * SEMPRE o que o comprador pagou, líquido de cupom — nunca preço de tabela.
    * É a base da margem %, e misturar as duas coisas fazia duas vendas idênticas
    * de R$ 19,90 exibirem 59,16% e 65,73%.
    */
-  revenue: number;
+  /** `null` = receita desconhecida — nunca zero. */
+  revenue: number | null;
   /**
    * `false` quando o marketplace ainda NÃO informou o valor da venda — o caso da
    * Amazon com pedido `Pending`, que omite `ItemPrice` e `OrderTotal` até enviar.
@@ -66,7 +68,8 @@ export interface ProfitabilityResult {
 }
 
 export function calculateContribution(input: {
-  revenue: number;
+  /** `null` = receita ainda desconhecida (pedido `Pending`). Sem ela não há contribuição. */
+  revenue: number | null;
   buyerShipping?: number | null;
   productCost: number | null;
   marketplaceFees: number | null;
@@ -83,7 +86,12 @@ export function calculateContribution(input: {
   // nunca chegou à tela — mas ficou armado por meses esperando quem lesse o
   // campo da linha e o ligasse aqui de boa-fé (removido em 23/08/2026).
 }): { contribution: number | null; marginPct: number | null; complete: boolean } {
-  if (input.productCost == null || input.marketplaceFees == null) {
+  // ⚠️ RECEITA DESCONHECIDA ENTRA NA MESMA PORTA QUE CUSTO E TARIFA (31/08/2026).
+  //
+  // Desde a migration 0021 a linha de um pedido `Pending` chega sem preço. Sem
+  // receita não existe contribuição — e tratar `null` como zero produziria uma
+  // contribuição NEGATIVA do tamanho do custo, que é pior que não mostrar nada.
+  if (input.revenue == null || input.productCost == null || input.marketplaceFees == null) {
     return { contribution: null, marginPct: null, complete: false };
   }
   const contribution = input.revenue

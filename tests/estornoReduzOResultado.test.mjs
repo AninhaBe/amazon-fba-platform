@@ -29,9 +29,13 @@ const base = {
 
 test("o canonico SUBTRAI o estorno do lucro", async () => {
   const canonico = await fonte("src/lib/integrations/amazonOverviewCanonical.ts");
+  // ⚠️ A FORMULA MUDOU DE NOME EM 31/08/2026, NAO DE CONTEUDO. A base passou a
+  // ser o FATURAMENTO (apurado + pendente) e a tarifa passou a somar a estimada,
+  // entao os termos viraram `receitaDoLucro`, `tarifaDoLucro` e `cogsDoLucro`.
+  // O que este teste cobra continua sendo o mesmo: o estorno E termo da formula.
   assert.match(
     canonico,
-    /processedRevenue - fees - cogs - \(taxes \?\? 0\) - refunds/,
+    /receitaDoLucro - tarifaDoLucro - cogsDoLucro - \(taxes \?\? 0\) - refunds/,
     "o estorno precisa ser termo da formula, nao so um campo no payload",
   );
 });

@@ -1,4 +1,5 @@
 import { dbQuery, hasDb } from "../db";
+import { estimarTarifaDosPedidosSemTarifa } from "./amazonTarifaEstimada";
 import { currentWorkspaceId } from "../workspaceScope";
 import { runWithAccount, type AccountCtx } from "../accountContext";
 import { getOrder, getOrders, getOrderItems } from "../orders";
@@ -201,12 +202,31 @@ export function registrarDesistencia(etapa: string, erro: unknown, contexto: Rec
   });
 }
 
-// Conciliação de itens: pedidos com receita e sem linhas, mais recentes antes.
+/**
+ * Conciliação de itens: pedidos sem linhas, mais recentes antes.
+ *
+ * ⚠️ `pending` ENTRA NA CONSULTA (31/08/2026), e a ausência dele era NOSSA, não
+ * da API. O filtro era `status IN ('paid','shipped','delivered')`, e por isso o
+ * banco não tinha item nenhum de pedido pendente — o que chegou a ser lido como
+ * "a Amazon não devolve item de Pending".
+ *
+ * Medido com uma chamada real (pedido 702-7217003-1775439, conta
+ * AO62LVXJMX3AA): `getOrderItems` DEVOLVE o item de um `Pending`, com ASIN, SKU,
+ * título e quantidade. Só não devolve PREÇO — daí a migration 0021.
+ *
+ * O QUE ISSO DESTRAVA, e é o pedido dela: *"o lucro tem que ser em cima do
+ * Faturamento e não em cima só do que foi apurado"*. Sem item, o pedido pendente
+ * não tem custo, não tem tarifa e não entra na conta — e a tela mostrava lucro
+ * sobre R$ 76,49 de um faturamento de R$ 514,43.
+ *
+ * ⚠️ Não gera chamada repetida quando o pedido vira `paid`: o `NOT EXISTS`
+ * abaixo só busca quem ainda não tem item, e o pendente já terá os seus.
+ */
 async function syncMissingOrderItems(connectionId: string): Promise<void> {
   const rows = await dbQuery<{ external_order_id: string }>(
     `SELECT o.external_order_id FROM workspace_channel_orders o
       WHERE o.workspace_id = $1 AND o.provider = $2 AND o.connection_id = $3
-        AND o.status IN ('paid', 'shipped', 'delivered')
+        AND o.status IN ('pending', 'paid', 'shipped', 'delivered')
         AND NOT EXISTS (
           SELECT 1 FROM workspace_channel_order_items i
            WHERE i.workspace_id = o.workspace_id AND i.provider = o.provider
@@ -488,6 +508,15 @@ export async function runAmazonSyncStep(account: AccountCtx, forcarJanela = fals
           ["reverifyUpdatedOrders", () => reverifyUpdatedOrders(connectionId).catch(() => {})],
           ["syncMissingOrderItems", () => syncMissingOrderItems(connectionId)],
           ["syncMissingOrderFees", () => syncMissingOrderFees(connectionId)],
+          // ⚠️ DEPOIS das tarifas reais, nunca antes: a estimativa só vale para
+          // pedido que ainda NÃO tem tarifa postada, e quem descobre isso é o
+          // passo acima. Falha não derruba o ciclo — tarifa estimada é melhoria
+          // da leitura, não requisito da ingestão (ADR-027).
+          ["estimarTarifa", () => estimarTarifaDosPedidosSemTarifa(connectionId).catch((erro) => {
+            console.error("[amazon] tarifa estimada falhou", {
+              motivo: erro instanceof Error ? erro.message.slice(0, 200) : "erro desconhecido",
+            });
+          })],
           // Captura o valor de tabela enquanto o pedido ainda tem um: a Amazon zera
           // o cancelado em toda API de pedido, então depois não há de onde tirar.
           // Ele mesmo se espaça (3h) — chamar todo ciclo não gera relatório todo ciclo.
@@ -602,6 +631,12 @@ export async function runAmazonSyncStep(account: AccountCtx, forcarJanela = fals
       await reverifyUpdatedOrders(connectionId).catch(() => {});
       await syncMissingOrderItems(connectionId);
       await syncMissingOrderFees(connectionId);
+      // Mesma ordem do laço de conciliação: estimativa depois da tarifa real.
+      await estimarTarifaDosPedidosSemTarifa(connectionId).catch((erro) => {
+        console.error("[amazon] tarifa estimada falhou", {
+          motivo: erro instanceof Error ? erro.message.slice(0, 200) : "erro desconhecido",
+        });
+      });
     });
   } catch (error) {
     // O token cerca também a falha: worker que perdeu o lease não sobrescreve o

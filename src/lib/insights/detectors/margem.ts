@@ -17,7 +17,10 @@ export const margemDetector: Detector = {
     const result = await getAmazonProfitability(periodFromDays(30));
     const bySku = new Map<string, { name: string; revenue: number; contribution: number; units: number }>();
     for (const line of result.lines) {
-      if (!line.complete || line.contribution == null || !line.sku) continue;
+      // `revenue == null` = pedido ainda sem preço exposto (migration 0021).
+      // `complete` já é falso nesse caso, mas a checagem explícita evita que uma
+      // mudança em `complete` deixe `null` entrar somando como zero.
+      if (!line.complete || line.contribution == null || line.revenue == null || !line.sku) continue;
       const agg = bySku.get(line.sku) ?? { name: line.product, revenue: 0, contribution: 0, units: 0 };
       agg.revenue += line.revenue;
       agg.contribution += line.contribution;

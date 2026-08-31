@@ -509,6 +509,22 @@ outro canal (o diff da rodada não podia sair do TikTok), ou é decisão de prod
   primeiro corte é o `build` (passo mais lento), e isso é decisão, não algo para
   fazer no susto.
 
+## Tarifa estimada — o lote de 20 que não ligou (31/08/2026)
+
+- [ ] **Descobrir o corpo de `getMyFeesEstimates` e voltar a 3 chamadas.**
+  A operação existe e aceita **20 itens por chamada** (confirmado na doc via
+  MCP), mas `POST /products/fees/v0/feesEstimate` com `FeesEstimateByIdRequest`
+  devolveu erro nesta conta, e a doc **não traz o corpo exato**. Chutar o formato
+  seria inventar contrato de API — o erro que esta semana inteira custou caro.
+
+  Enquanto isso, cada chave vai pelo endpoint de **um ASIN**, que já era provado
+  no repo (`src/lib/fees.ts`, usado pela calculadora). O custo sobe de **3 para
+  47 chamadas** na janela de 30 dias — ainda **bounded**, porque a dedup por
+  `(ASIN, preço)` acontece antes: 1.617 linhas viram 47 chamadas, não 1.617.
+
+  A assinatura de `estimarTarifasEmLote` **já é de lote**, então ligar é trocar o
+  miolo, não reescrever o chamador.
+
 ## Explicações dentro do produto (pedido em 23/08/2026)
 
 Referência que ela mandou: painel de monitoramento de marca com **ⓘ em cada
