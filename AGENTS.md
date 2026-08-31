@@ -81,6 +81,42 @@ Cada doc de API termina num **"Changelog observado"** (datado, mais recente prim
 Os marketplaces mudam comportamento sem aviso — ao esbarrar numa mudança nova, registre
 lá na hora.
 
+# Teste novo só conta depois de ter falhado
+
+**Quebre o código de propósito, veja o teste ficar vermelho, desfaça.** Teste que
+nunca foi visto vermelho é decoração: ele passa desde o primeiro dia e ninguém
+sabe se passa porque o código está certo ou porque a asserção não toca o código.
+
+⚠️ **Isto não é zelo — é a correção de um erro que aconteceu três vezes em
+31/08/2026, sempre com a mesma forma:**
+
+| onde | o teste garantia | e não garantia |
+|---|---|---|
+| declaração da base da margem | que a **frase existia** | que ela fosse **lida** (estava num tooltip) |
+| `from`/`to` na rota da Shopee | que a **string** `searchParams.get("from")` existisse | que o valor fosse **usado** (o bloco foi apagado e o teste ficou verde) |
+| itens do pedido pendente | — | que o banco vazio vinha da **nossa** consulta, não da API |
+
+A família toda é a mesma: **casar a existência de um símbolo não prova
+comportamento nenhum.** Um `assert.match(fonte, /nomeDaFuncao/)` continua verde
+depois de alguém apagar a chamada e deixar o import.
+
+**Na prática:**
+
+- ao escrever o teste, **desfaça a correção** (ou apague a linha que importa) e
+  rode. Se não ficar vermelho, o teste não cobre o que você acha que cobre;
+- prefira asserção sobre **comportamento** (chamar a função e conferir a saída) a
+  asserção sobre **texto do fonte**. Quando só der para olhar o fonte — porque o
+  alvo é JSX ou uma rota —, case a **ramificação**, não o identificador:
+  `if (fromValue || toValue)` prova uso; `searchParams.get("from")` não prova
+  nada;
+- e diga no próprio teste **qual defeito ele reprova**, com o número que ele teve
+  no mundo real. Teste sem essa frase vira o primeiro a ser afrouxado quando
+  ficar vermelho por outro motivo.
+
+**Teste vermelho por motivo que não é o produto** — formatação, corte de string,
+uma janela de `slice` fixa — ensina a ignorar teste vermelho, e é tão ruim quanto
+teste que nunca falha. Conserte a fragilidade, não o sintoma.
+
 # Como este projeto trata dado incerto
 
 Três regras que atravessam o código todo e não são negociáveis sem ADR:
