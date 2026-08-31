@@ -803,6 +803,12 @@ export default function Dashboard() {
           ads: profit?.ads ?? null,
           adsJanela: profit?.adsJanela ?? null,
           adsConectado: profit?.adsConectado ?? false,
+          // A base que ela definiu: todos os pedidos do período, pendentes
+          // inclusive. `pedidosFeitos` é a Sales API (orderMetrics) — inclui
+          // pendente, exclui cancelado, a preço de tabela. É o número que bate
+          // com "Vendas hoje até agora" do Seller Central.
+          faturamentoTotal: pedidosFeitos?.revenue ?? null,
+          pedidosAguardando,
         });
         const margem = cards.find((c) => c.key === "marginPct");
         const primaryCards = cards.filter((card) => PRIMARY_FINANCIAL_CARDS.has(card.key));
@@ -840,8 +846,22 @@ export default function Dashboard() {
                 <Kpi
                   key={card.key}
                   label={card.label}
-                  value={loading ? "…" : card.key === "revenue" && (faturamento || card.raw != null)
-                    ? <AnimatedNumber periodo={cobertura ? identidadeDePeriodo(cobertura.periodo.from, cobertura.periodo.to) : undefined} id="amz-revenue" value={faturamento?.revenue ?? card.raw ?? 0} format={(amount) => money(amount, currency)} />
+                  // ⚠️ O CARD NÃO É MAIS SOBRESCRITO AQUI (30/08/2026).
+                  //
+                  // Esta linha trocava o VALOR do card "Faturamento" mantendo o
+                  // RÓTULO, enquanto a margem seguia sendo calculada sobre a base
+                  // apurada, dentro de `amazonFinancialCards`. Resultado: lucro e
+                  // margem de um universo exibidos ao lado do faturamento de
+                  // outro, e a conta não fechava para quem olhasse — foi assim
+                  // que ela achou uma "margem de 63,1%" que nenhum par de números
+                  // da tela produzia.
+                  //
+                  // Agora a base entra POR PARÂMETRO (`faturamentoTotal`) e o
+                  // módulo dos cards decide o número e declara a base na margem.
+                  // Sobrescrever valor de card na renderização é como a conta
+                  // volta a ter duas definições.
+                  value={loading ? "…" : card.key === "revenue" && card.raw != null
+                    ? <AnimatedNumber periodo={cobertura ? identidadeDePeriodo(cobertura.periodo.from, cobertura.periodo.to) : undefined} id="amz-revenue" value={card.raw} format={(amount) => money(amount, currency)} />
                     : card.value}
                   // TUDO que explicava o número embaixo dele agora mora no "i".
                   // O card mostra rótulo e valor; a explicação aparece ao passar

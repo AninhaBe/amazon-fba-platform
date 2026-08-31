@@ -64,6 +64,16 @@ export interface AmazonCardsInput {
   taxRate?: number | null;
   /** Imposto do período, já descontado de `estimatedProfit`. `null` sem alíquota. */
   taxes?: number | null;
+  /**
+   * ⚠️ FATURAMENTO = TODOS OS PEDIDOS DO PERÍODO, por data do pedido, INCLUSIVE
+   * os pendentes (decisão dela em 30/08/2026, abaixo). `null` = ainda não veio.
+   *
+   * É uma base DIFERENTE de `finance.revenue`, que é o subconjunto já apurado —
+   * e é justamente essa diferença que precisa ficar declarada na tela.
+   */
+  faturamentoTotal?: number | null;
+  /** Quantos pedidos do período ainda não têm valor/custo/tarifa apurados. */
+  pedidosAguardando?: number;
   /** Anúncio do período. `null` = não sincronizado (≠ não gastou). */
   ads?: AmazonAdsInput | null;
   /**
@@ -270,7 +280,35 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
   // sem custo cadastrado, o resultado seria otimista — e otimista sem aviso é mentira.
   const resultadoValido =
     f != null && !custoIncompleto && !semRepassePostado && !anuncioDesconhecido && lucroReal != null;
+  // ═══ FATURAMENTO E MARGEM SÃO DE UNIVERSOS DIFERENTES, E A TELA DIZ QUAL ═══
+  //
+  // ⚠️ DECISÃO DELA, 30/08/2026: *"Faturamento deve significar todos os pedidos
+  // independente de status Confirmado. Pode ser Pendente que entrará na conta.
+  // Os outros softwares usam isso."* A prova que ela mandou: o Seller Central
+  // marcava "Vendas R$ 1.270,13 hoje até agora" e o nosso card "Pedidos feitos"
+  // mostrava exatamente R$ 1.270,13 — o número certo já estava na tela, com o
+  // nome errado. Contraria a intuição de "só conta o que está confirmado; quem
+  // for reverter achando defeito: NÃO É. Mercado Livre e Shopee já faziam assim;
+  // a Amazon era a única fora do padrão.
+  //
+  // ⚠️ MAS LUCRO E MARGEM NÃO SEGUEM O FATURAMENTO, e isso é deliberado. Pedido
+  // pendente na Amazon não tem valor no nosso banco (`gross` é `null`), não tem
+  // item e não tem tarifa — medido em 30/08: 40 pendentes, zero itens, zero
+  // tarifas. Somar essa receita sem o custo correspondente INFLARIA o lucro, que
+  // é o defeito que passamos o dia inteiro removendo da tela.
+  //
+  // Então o lucro fica na base apurada e a tela DECLARA a base, com número —
+  // nunca com a palavra "parcial", que explica ao vendedor uma coisa que ele já
+  // sabe em vez de dizer o que falta (AGENTS.md).
+  const faturamentoExibido = input.faturamentoTotal ?? f?.revenue ?? null;
+  const baseApurada = f?.revenue ?? null;
   const margem = resultadoValido && lucroReal != null && f.revenue > 0 ? (lucroReal / f.revenue) * 100 : null;
+  /** A frase que impede a leitura "o lucro não sai do faturamento, logo está errado". */
+  const baseDeclarada =
+    baseApurada != null && faturamentoExibido != null && faturamentoExibido > baseApurada
+      ? `sobre ${money(baseApurada, currency)} apurados de ${money(faturamentoExibido, currency)}` +
+        (input.pedidosAguardando ? ` — ${input.pedidosAguardando} pedido(s) aguardando confirmação` : "")
+      : "sobre vendas";
   const roi = resultadoValido && lucroReal != null && input.cogs > 0 ? (lucroReal / input.cogs) * 100 : null;
 
   // Dias do período sem métrica. Não extrapolamos o que falta (AGENTS.md): o
@@ -301,7 +339,7 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
     : "Aguardando custos dos produtos";
 
   return [
-    { key: "revenue", label: "Faturamento", ...num(f?.revenue, "Aguardando cobertura completa do período") },
+    { key: "revenue", label: "Faturamento", ...num(faturamentoExibido, "Aguardando cobertura completa do período") },
     { key: "fees", label: "Taxas", ...num(f?.fees, semExtrato) },
     { key: "fbaShipping", label: "Logística FBA", ...num(logistica, "Aguardando tarifas de logística no extrato", undefined, "A Amazon não cobrou logística no período") },
     { key: "buyerShipping", label: "Frete do comprador", ...num(f?.buyerShipping, "Aguardando frete pago pelo comprador", undefined, "Nenhum frete pago pelo comprador") },
@@ -393,7 +431,9 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
     {
       key: "marginPct", label: "Margem",
       value: margem == null ? "—" : percent(margem),
-      context: margem == null ? (custoIncompleto ? faltaCusto : "Aguardando receita e lucro completos") : comSemImposto("Lucro sobre faturamento", input.taxRate == null),
+      context: margem == null
+        ? (custoIncompleto ? faltaCusto : "Aguardando receita e lucro completos")
+        : comSemImposto(`Lucro ${baseDeclarada}`, input.taxRate == null),
       tone: margem == null ? "default" : margem > 0 ? "positive" : margem < 0 ? "danger" : "default",
       raw: margem,
     },
