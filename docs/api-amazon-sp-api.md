@@ -208,6 +208,50 @@ Amazon*. Se o papel for concedido, o caminho é `transportationOptions` da 2024-
 
 ## Changelog observado (mais recente primeiro)
 
+- **2026-08-31** — **`getOrderItems` DEVOLVE os itens de um pedido `Pending`:
+  traz ASIN, SKU e quantidade — e NÃO traz preço.** Medido com uma chamada real
+  na conta `AO62LVXJMX3AA`, pedido `702-7217003-1775439` (Pending, AFN):
+
+  ```json
+  { "ASIN": "B0HBGLBL6Y", "SellerSKU": "kit-clips-320",
+    "QuantityOrdered": 1, "QuantityShipped": 0,
+    "Title": "Kit 320 Clips de Papel Coloridos…",
+    "OrderItemId": "168420222447521",
+    "ProductInfo": { "NumberOfItems": "1" }, "BuyerInfo": {} }
+  ```
+
+  Sem `ItemPrice`, sem `ItemTax`, sem `PromotionDiscount` — os campos de dinheiro
+  simplesmente não existem no objeto enquanto o pedido está Pending, do mesmo
+  jeito que `getOrders` omite `OrderTotal`.
+
+  ⚠️ **E o nosso banco estava vazio por culpa NOSSA, não da Amazon.**
+  `amazonSync.ts` filtra `status IN ('paid','shipped','delivered')` ao buscar
+  itens — nunca pedimos os de um pendente. A ausência era consequência da nossa
+  consulta, e chegamos a tratá-la como fato sobre a API. É o mesmo mecanismo pelo
+  qual a premissa "a Amazon não tem imposto do vendedor" nasceu e sobreviveu no
+  código: medir o nosso próprio silêncio e chamar de propriedade da fonte.
+
+  **O que isto destrava:** com ASIN e SKU disponíveis desde o primeiro minuto do
+  pedido, dá para estimar a tarifa de um pendente pela Product Fees API — que
+  pede ASIN + preço. O preço vem de duas fontes possíveis, nesta ordem:
+  1. `ordered_gross` (preço de tabela do PRÓPRIO pedido, do relatório All Orders
+     — migration 0010). Medido: pendentes de 29/08 já tinham R$ 22,11; os de
+     hoje ainda não, porque o relatório se espaça a cada 3h.
+  2. o preço do nosso catálogo, quando o relatório ainda não passou.
+
+- **2026-08-31** — **Os relatórios dedicados a pedidos pendentes NÃO servem para
+  esta operação. Não persiga este caminho de novo.** `GET_PENDING_ORDERS_DATA`,
+  `GET_FLAT_FILE_PENDING_ORDERS_DATA` e
+  `GET_CONVERGED_FLAT_FILE_PENDING_ORDERS_DATA` existem, mas a documentação diz,
+  em três eliminatórias independentes:
+  - **"only available in the Amazon Japan store"** — a conta é `Amazon.com.br`;
+  - **Order Fulfillment Channel: MFN** — os pedidos dela são **AFN** (FBA);
+  - e os campos são `order-id, order-item-id, purchase-date, sku, product-name,
+    quantity-purchased, payment-type` — **sem preço**, então nem resolveriam.
+
+  Ou seja: mesmo que os dois primeiros não valessem, o relatório entregaria menos
+  que o `getOrderItems` acima.
+
 ### 29/08/2026 — 📖 LIDO NO MCP OFICIAL DA AMAZON, **não confirmado por chamada nossa**
 
 > ⚠️ **Origem diferente do resto deste changelog.** Todo o resto daqui para baixo
