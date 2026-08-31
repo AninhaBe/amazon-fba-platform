@@ -1,0 +1,37 @@
+/* Identidade da vitrine = identidade do produto.
+   Os tokens abaixo são cópia fiel do :root de src/app/globals.css (31/08/2026).
+   Cópia, e não import, porque estas peças são renderizadas fora do app, por
+   Chrome headless em file:// — mas se o produto mudar de cor, muda aqui também. */
+:root{
+  --ink:#171717; --paper:#fdfdfd;
+  --ink-05:#1717170d; --ink-08:#17171714; --ink-12:#1717171f;
+  --ink-50:#17171780; --ink-64:#171717a3;
+  --amazon:oklch(0.548 0.142 249); --meli:oklch(0.895 0.166 96);
+  --shopee:oklch(0.596 0.198 30); --tiktok:oklch(0.285 0 0);
+  --core:oklch(0.685 0.158 48);
+  --danger:oklch(0.556 0.19 27);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  width:1600px;height:900px;overflow:hidden;background:var(--paper);color:var(--ink);
+  font-family:"Inter","Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased;
+  display:grid;place-items:center;
+}
+/* ÁREA SEGURA: tudo que precisa ser lido vive dentro de um 4:3 central
+   (1200×900). Se o console do TikTok exigir 1:1 ou 4:3, a peça reescala sem
+   redesenhar — foi para isso que a margem existe. */
+.palco{width:1200px;height:900px;padding:70px 60px;display:flex;flex-direction:column;justify-content:center}
+/* A marca e o rodapé saem do fluxo: sem isso, o conteúdo era empurrado para
+   cima e sobrava um terço vazio embaixo — desequilíbrio que aparece na
+   miniatura antes de aparecer no tamanho cheio. */
+.palco{position:relative}
+.palco>.marca{position:absolute;left:60px;top:70px}
+.palco>.rodape{position:absolute;left:60px;bottom:70px;margin:0}
+.marca{display:flex;align-items:center;gap:12px;font-size:23px;font-weight:800;letter-spacing:-.03em}
+.marca i{width:13px;height:13px;border-radius:3px;background:var(--ink);display:block}
+.kicker{color:var(--ink-50);font-size:19px;font-weight:700;letter-spacing:.14em;text-transform:uppercase}
+h1{font-size:76px;font-weight:800;line-height:1.02;letter-spacing:-.035em}
+h2{font-size:52px;font-weight:800;line-height:1.06;letter-spacing:-.03em}
+.sub{color:var(--ink-64);font-size:25px;line-height:1.45;max-width:22ch}
+.num{font-variant-numeric:tabular-nums}
+.rodape{margin-top:auto;color:var(--ink-50);font-size:17px}

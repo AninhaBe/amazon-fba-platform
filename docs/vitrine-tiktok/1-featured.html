@@ -1,0 +1,36 @@
+<!doctype html><meta charset="utf-8"><title>NEXO — featured</title>
+<link rel="stylesheet" href="vitrine.css">
+<!-- PEÇA 1 — FEATURED (capa). Tem que funcionar em MINIATURA: uma frase e um
+     símbolo. O símbolo carrega o sentido sozinho — quatro canais entrando, um
+     número saindo — para quem vê a 200px entender o que o produto faz sem ler
+     nenhum valor. Nenhum dado real: não há número nesta peça. -->
+<style>
+  /* COMPOSIÇÃO CENTRADA, e não em duas colunas: a dimensão exigida pelo console
+     ainda não é conhecida. Centrada, a peça sobrevive a corte 16:9, 4:3 e 1:1
+     sem redesenho — em duas colunas, um corte quadrado comeria metade. */
+  .capa{display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:64px;position:relative}
+  /* O rodapé sai do fluxo: com `margin-top:auto` ele comia a folga e empurrava
+     o bloco para o topo, deixando a peça desequilibrada. */
+  .capa .rodape{position:absolute;left:0;right:0;bottom:70px;margin:0;text-align:center}
+  .capa .marca{position:absolute;left:0;right:0;top:70px;justify-content:center}
+  .simbolo{display:flex;align-items:center;gap:34px}
+  .canais{display:grid;grid-template-columns:repeat(2,86px);gap:18px}
+  .canais span{width:86px;height:86px;border-radius:22px;display:block}
+  .seta{width:120px;height:12px;background:var(--ink);border-radius:6px;position:relative}
+  .seta::after{content:"";position:absolute;right:-4px;top:-15px;border:20px solid transparent;border-left-color:var(--ink)}
+  .resultado{width:190px;height:190px;border-radius:44px;background:var(--ink);display:grid;place-items:center;color:var(--paper);font-size:92px;font-weight:800}
+  h1 .destaque{display:block;color:var(--core)}
+</style>
+<div class="palco capa">
+  <div class="marca"><i></i>NEXO</div>
+  <div class="simbolo" role="img" aria-label="Quatro canais entram, um resultado sai">
+    <div class="canais">
+      <span style="background:var(--tiktok)"></span><span style="background:var(--amazon)"></span>
+      <span style="background:var(--meli)"></span><span style="background:var(--shopee)"></span>
+    </div>
+    <div class="seta"></div>
+    <div class="resultado">$</div>
+  </div>
+  <h1>Quatro canais.<span class="destaque">Um lucro real.</span></h1>
+  <p class="rodape">TikTok Shop · Amazon · Mercado Livre · Shopee</p>
+</div>

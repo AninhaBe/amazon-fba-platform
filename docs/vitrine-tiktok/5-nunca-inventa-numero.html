@@ -1,0 +1,50 @@
+<!doctype html><meta charset="utf-8"><title>NEXO — mostra o número e aponta o que falta</title>
+<link rel="stylesheet" href="vitrine.css">
+<!-- PEÇA 5 — MOSTRA O NÚMERO **E** APONTA O QUE FALTA.
+     ⚠️ VERSÃO ANTERIOR REPROVADA (31/08/2026), e o motivo importa: ela exibia
+     "Lucro —" com a explicação de que sem todos os custos o lucro não é
+     afirmado. Isso é EXATAMENTE o comportamento que a Ana mandou tirar do
+     produto em 29/08: *"as 3 unidades sem custo — ISSO NÃO PODE EXISTIR. Tem que
+     mostrar a margem independente de se tem algo não cadastrado. […] O erro é do
+     seller que não cadastrou o custo."* Levamos dois dias removendo esse
+     travessão da Amazon e do ML — vender ele como virtude na vitrine seria
+     anunciar o defeito. E, do lado de quem vê, "o app esconde meu lucro quando
+     falta cadastro" é motivo para NÃO instalar.
+     A mensagem certa é a que o produto faz hoje, e é mais forte: o número
+     aparece SEMPRE, e o que falta vira sinal ao lado dele, com número e link —
+     no mesmo vocabulário da tela real (`oQueFaltaNoResultado`: "N SKUs sem custo
+     cadastrado").
+     ⚠️ A frase do fim fica: ela defende a regra que SOBREVIVEU (`null` não é
+     zero), não a que caiu.
+     ⚠️ Números sintéticos. -->
+<style>
+  .duo{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:36px}
+  .cartao{border:1px solid var(--ink-12);border-radius:20px;padding:28px}
+  .cartao h3{font-size:17px;font-weight:700;color:var(--ink-50);letter-spacing:.06em;text-transform:uppercase}
+  .cartao .v{font-size:52px;font-weight:800;margin-top:14px;letter-spacing:-.03em}
+  .cartao .d{color:var(--ink-64);font-size:17px;margin-top:12px;line-height:1.5}
+  /* O sinal mora COLADO no número, e não no lugar dele. */
+  .sinal{display:inline-flex;align-items:center;gap:12px;margin-top:16px;border:1px dashed var(--ink-12);border-radius:999px;padding:11px 18px;font-size:17px}
+  .sinal b{font-weight:800}
+  .sinal .link{color:var(--ink-50)}
+  .frase{margin-top:34px;font-size:27px;font-weight:700;line-height:1.35;letter-spacing:-.02em}
+</style>
+<div class="palco">
+  <div class="marca"><i></i>NEXO</div>
+  <p class="kicker">Sem número inventado</p>
+  <h2 style="margin-top:10px">Faltou um dado?<br>O NEXO diz qual.</h2>
+  <div class="duo">
+    <div class="cartao">
+      <h3>Faturamento</h3>
+      <div class="v num">R$ 3.940,00</div>
+      <div class="d">O que os compradores pagaram no período.</div>
+    </div>
+    <div class="cartao">
+      <h3>Lucro</h3>
+      <div class="v num">R$ 1.128,40</div>
+      <span class="sinal"><span><b>2 SKUs</b> sem custo cadastrado</span><span class="link">Cadastrar →</span></span>
+    </div>
+  </div>
+  <p class="frase">Um zero no lugar de “não sei”<br>é a mentira mais cara do painel.</p>
+  <p class="rodape">Valores ilustrativos.</p>
+</div>

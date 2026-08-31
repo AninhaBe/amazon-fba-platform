@@ -1,0 +1,41 @@
+<!doctype html><meta charset="utf-8"><title>NEXO — multicanal</title>
+<link rel="stylesheet" href="vitrine.css">
+<!-- PEÇA 2 — SERVICE MAIN. Diferente da capa de propósito (foi por imagem
+     repetida que o Go Live reprovou em 31/08/2026). Mostra A ESTRUTURA: os
+     quatro canais lado a lado, com as MESMAS linhas e os mesmos critérios.
+     ⚠️ Composição TRADUZIDA, não capturada: o dashboard real é denso porque é
+     para quem já entrou; a vitrine é para quem nunca viu.
+     ⚠️ TODOS OS NÚMEROS SÃO SINTÉTICOS. Nenhum dado de conta real. -->
+<style>
+  .grade{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:44px}
+  .canal{border:1px solid var(--ink-12);border-radius:18px;padding:22px 20px}
+  .canal header{display:flex;align-items:center;gap:9px;font-size:17px;font-weight:700;padding-bottom:16px}
+  .canal header b{width:12px;height:12px;border-radius:4px;display:block}
+  .linha{display:flex;justify-content:space-between;align-items:baseline;padding:11px 0;border-top:1px solid var(--ink-08);font-size:16px;color:var(--ink-64)}
+  .linha strong{color:var(--ink);font-size:19px;font-weight:700}
+  .linha.res strong{font-size:24px}
+</style>
+<div class="palco">
+  <div class="marca"><i></i>NEXO</div>
+  <h2 style="margin-top:34px">A mesma estrutura<br>para os quatro canais.</h2>
+  <p class="sub" style="margin-top:18px;max-width:38ch">Os mesmos critérios de cálculo em todos — comparação justa entre canais, sem planilha.</p>
+  <div class="grade">
+    <div class="canal"><header><b style="background:var(--tiktok)"></b>TikTok Shop</header>
+      <div class="linha">Faturamento <strong class="num">R$ 8.420</strong></div>
+      <div class="linha">Tarifas <strong class="num">R$ 1.263</strong></div>
+      <div class="linha res">Lucro <strong class="num">R$ 1.906</strong></div></div>
+    <div class="canal"><header><b style="background:var(--amazon)"></b>Amazon</header>
+      <div class="linha">Faturamento <strong class="num">R$ 12.150</strong></div>
+      <div class="linha">Tarifas <strong class="num">R$ 2.187</strong></div>
+      <div class="linha res">Lucro <strong class="num">R$ 2.744</strong></div></div>
+    <div class="canal"><header><b style="background:var(--meli)"></b>Mercado Livre</header>
+      <div class="linha">Faturamento <strong class="num">R$ 9.630</strong></div>
+      <div class="linha">Tarifas <strong class="num">R$ 1.541</strong></div>
+      <div class="linha res">Lucro <strong class="num">R$ 2.118</strong></div></div>
+    <div class="canal"><header><b style="background:var(--shopee)"></b>Shopee</header>
+      <div class="linha">Faturamento <strong class="num">R$ 5.280</strong></div>
+      <div class="linha">Tarifas <strong class="num">R$ 792</strong></div>
+      <div class="linha res">Lucro <strong class="num">R$ 1.135</strong></div></div>
+  </div>
+  <p class="rodape">Valores ilustrativos.</p>
+</div>
