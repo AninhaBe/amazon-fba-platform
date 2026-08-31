@@ -89,7 +89,12 @@ interface OrdersData {
 }
 interface ProfitData {
   finance: {
-    revenue: number; fees: number; refunds: number; netProceeds: number; currency: string;
+    revenue: number;
+    /** `null` = nenhuma tarifa postada no período. Zero seria mentira (30/08/2026). */
+    fees: number | null;
+    refunds: number;
+    netProceeds: number | null;
+    currency: string;
     orderCount: number; units: number; daily: DailyPoint[];
     /** Cupom bancado pela vendedora, já abatido de `revenue`. */
     promotions?: number;
@@ -659,8 +664,8 @@ export default function Dashboard() {
     !!profit &&
     (profit.finance.orderCount > 0 ||
       profit.finance.units > 0 ||
-      profit.finance.netProceeds !== 0 ||
-      profit.finance.fees !== 0 ||
+      (profit.finance.netProceeds ?? 0) !== 0 ||
+      (profit.finance.fees ?? 0) !== 0 ||
       profit.finance.refunds !== 0);
   // Ticket e faturamento têm de sair da MESMA base. `revenue`/`salesCount` vêm do
   // orderMetrics (data do pedido, preço de tabela, inclui pendente); o card de

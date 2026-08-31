@@ -12,7 +12,8 @@ import { comSemImposto } from "../../lib/semImposto";
 export interface AmazonFinanceInput {
   currency: string;
   revenue: number;
-  fees: number;
+  /** `null` = a Amazon ainda não postou tarifa nenhuma no período — não é zero. */
+  fees: number | null;
   refunds: number;
   promotions?: number;
   buyerShipping?: number;
@@ -220,9 +221,17 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
           raw: v,
         };
 
-  const logistica = somaTipos(f?.feeBreakdown, LOGISTICA_FBA, f != null);
-  const anuncios = somaTipos(f?.feeBreakdown, ANUNCIOS, f != null);
-  const comissao = somaTipos(f?.feeBreakdown, COMISSAO, f != null);
+  // ⚠️ `conciliado` É "EXISTE EXTRATO", NÃO "EXISTE OBJETO `f`" (30/08/2026).
+  //
+  // Antes o terceiro argumento era `f != null`, e `f` existe sempre que a rota
+  // responde. Com o período sem nenhuma linha de tarifa, os três cards abaixo
+  // afirmavam R$ 0,00 com o contexto "A Amazon não cobrou no período" — a mesma
+  // fabricação do card "Taxas", replicada em três lugares. `f.fees == null` é
+  // exatamente o sinal de "não há extrato ainda".
+  const conciliado = f != null && f.fees != null;
+  const logistica = somaTipos(f?.feeBreakdown, LOGISTICA_FBA, conciliado);
+  const anuncios = somaTipos(f?.feeBreakdown, ANUNCIOS, conciliado);
+  const comissao = somaTipos(f?.feeBreakdown, COMISSAO, conciliado);
 
   // ANÚNCIO É CUSTO, E ENTRA NO LUCRO.
   //

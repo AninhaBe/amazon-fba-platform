@@ -261,11 +261,27 @@ export async function GET(req: NextRequest) {
         .map((r) => ({ type: r.fee_type, amount: Math.abs(Number(r.total ?? 0)) }))
         .filter((f) => f.amount > 0);
       const refunds = feeBreakdown.find((f) => /refund/i.test(f.type))?.amount ?? 0;
-      // "Taxas" é a autoridade sobre o total; estorno é devolução, não tarifa.
-      const fees = +feeBreakdown
-        .filter((f) => !/refund/i.test(f.type))
-        .reduce((sum, f) => sum + f.amount, 0)
-        .toFixed(2);
+      // ⚠️ SEM NENHUMA LINHA DE TARIFA, "Taxas" É DESCONHECIDO — NÃO ZERO.
+      //
+      // Achado por ela em 30/08/2026: a tela mostrava "Taxas R$ 0,00 · Total do
+      // período conciliado" num dia com 63 vendas. Medido no banco naquele dia:
+      // NENHUM pedido tinha linha em `workspace_channel_order_fees` — nem os
+      // enviados. Zero linhas viravam zero afirmado, porque o `reduce` parte de
+      // `0` e `0` não é `null`.
+      //
+      // É o mesmo defeito que a Shopee e o Mercado Livre já tinham perdido; a
+      // Amazon ficou. E aqui ele custa mais do que um card errado: `netProceeds`
+      // é `revenueProcessed − fees`, então tarifa fabricada em zero SOBRA como
+      // lucro que não existe.
+      //
+      // ⚠️ A distinção que a linha abaixo preserva: período conciliado COM linhas
+      // e soma zero continua sendo `0` — "a Amazon não cobrou" é notícia, e a
+      // promoção de vendedor novo realmente zera comissão. O que vira `null` é a
+      // AUSÊNCIA de linha, que é outra coisa.
+      const tarifasDoPeriodo = feeBreakdown.filter((f) => !/refund/i.test(f.type));
+      const fees: number | null = feeRows.length === 0
+        ? null
+        : +tarifasDoPeriodo.reduce((sum, f) => sum + f.amount, 0).toFixed(2);
       const buyerShipping = Number(billingRows[0]?.frete ?? 0);
       // Bruto inclui o frete do comprador para espelhar o Seller Central (ADR-020).
       const faturamento = +(Number(billingRows[0]?.receita ?? 0) + buyerShipping).toFixed(2);
@@ -372,7 +388,9 @@ export async function GET(req: NextRequest) {
           revenue: canonical.profit.revenueProcessed,
           fees,
           refunds,
-          netProceeds: +(canonical.profit.revenueProcessed - fees).toFixed(2),
+          // Repasse desconhecido enquanto a tarifa for desconhecida: subtrair
+          // `0` aqui devolveria o mesmo número inflado por outro caminho.
+          netProceeds: fees == null ? null : +(canonical.profit.revenueProcessed - fees).toFixed(2),
           currency: canonical.currency,
           orderCount: canonical.metrics.paidOrders,
           units: canonical.profit.unitsWithCost + canonical.profit.unitsWithoutCost,
