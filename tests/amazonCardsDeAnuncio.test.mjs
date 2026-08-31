@@ -239,7 +239,12 @@ test("a pagina LE os tres campos ao montar ProfitData", () => {
   const pagina = arquivo("src/app/amazon/page.tsx");
   const i = pagina.indexOf("const profit: ProfitData = {");
   assert.ok(i > 0, "a montagem de ProfitData precisa existir");
-  const montagem = pagina.slice(i, i + 1200);
+  // ⚠️ A JANELA VAI ATE O FIM DO OBJETO, nao um numero fixo de caracteres.
+  // Era `slice(i, i + 1200)`, e em 31/08/2026 o teste quebrou sozinho quando um
+  // comentario novo empurrou `adsConectado` para alem do corte — falha que nao
+  // dizia nada sobre o produto, so sobre o tamanho da fatia. Teste fragil ensina
+  // a ignorar teste vermelho.
+  const montagem = pagina.slice(i, pagina.indexOf("      };", i));
   for (const campo of ["ads: payload.ads", "adsJanela: payload.adsJanela", "adsConectado: payload.adsConectado"]) {
     assert.ok(montagem.includes(campo), `${campo} não chega na tela`);
   }

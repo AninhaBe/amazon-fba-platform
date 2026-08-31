@@ -208,7 +208,7 @@ interface DashboardPayload {
   metrics: { totalOrders: number; paidOrders: number; fbaOrders: number; revenue: number };
   dailySales: Array<{ date: string; revenue: number; orders: number; units: number }>;
   topProducts: Array<{ sku: string; title: string; units: number; revenue: number; marginPct: number | null }>;
-  profit: { revenueProcessed: number; fees: number; cogs: number; estimatedProfit: number | null; ads?: number | null; unitsWithCost: number; unitsWithoutCost: number; skusWithoutCost: number; coverage?: { processedOrders: number; paidOrders: number; complete: boolean } };
+  profit: { revenueProcessed: number; fees: number; cogs: number; estimatedProfit: number | null; taxRate?: number | null; taxes?: number | null; ads?: number | null; unitsWithCost: number; unitsWithoutCost: number; skusWithoutCost: number; coverage?: { processedOrders: number; paidOrders: number; complete: boolean } };
   ads?: AmazonAdsInput | null;
   adsJanela?: { inicioDia: string; esperadoAte: string; incluiHoje?: boolean } | null;
   adsConectado?: boolean;
@@ -468,6 +468,12 @@ export default function Dashboard() {
         cogs: payload.profit.cogs,
         estimatedProfit: payload.profit.estimatedProfit,
         adsNoLucro: payload.profit.ads ?? null,
+        // ⚠️ CAMPO NOVO TEM QUE SER LIDO AQUI — este objeto é montado campo a
+        // campo e o TypeScript não reclama do que falta (os campos são
+        // opcionais). Foi assim que o card de Anúncios ficou em "—" com o dado
+        // já no banco; o imposto entrou em 31/08/2026 pelo mesmo caminho.
+        taxRate: payload.profit.taxRate ?? null,
+        taxes: payload.profit.taxes ?? null,
         unitsWithoutCost: payload.profit.unitsWithoutCost,
         skusWithoutCost: payload.profit.skusWithoutCost ?? 0,
         // ⚠️ ESTE OBJETO E MONTADO CAMPO A CAMPO: campo novo na resposta da rota

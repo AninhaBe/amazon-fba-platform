@@ -1,7 +1,8 @@
 import { dbQuery, hasDb } from "../db";
 import { cacheScope } from "../accountContext";
 import { currentWorkspaceId } from "../workspaceScope";
-import { currentAccount } from "../accountContext";
+import { currentAccount, currentAccountId } from "../accountContext";
+import { amazonTaxAmount, getAmazonTaxRateSetting } from "./amazonSettings";
 import { getIntegrations } from "./integrationStore";
 import { getCosts, costAt } from "../costStore";
 import { cached } from "../cache";
@@ -15,8 +16,8 @@ import { brazilDateKey } from "./mercadoLivre";
 // Overview da Amazon servido pelo modelo canônico (fase 5 da migração,
 // docs/canonical-schema.md). Espelha o mercadoLivreOverviewCanonical: agregados
 // em SQL sobre workspace_channel_orders/items/fees + linhas magras para o lucro,
-// sem payload jsonb. Diferenças da Amazon: sem alíquota de imposto do vendedor
-// (tax = 0) e sem frete do vendedor (sellerShipping = null); fulfillment
+// sem payload jsonb. Diferença da Amazon: sem frete do vendedor
+// (sellerShipping = null); fulfillment
 // platform = FBA / seller = Próprio; custo resolve por sku ?? asin.
 //
 // Este módulo é apenas leitura. Já serve `/api/order-profitability`, `/api/radar`
@@ -86,6 +87,10 @@ export interface AmazonCanonicalOverview {
      * com anúncio é desconhecido.
      */
     estimatedProfit: number | null;
+    /** Alíquota declarada pela vendedora. `null` = não cadastrada. */
+    taxRate: number | null;
+    /** Imposto do período sobre a receita apurada. `null` sem alíquota. */
+    taxes: number | null;
     /** Anúncio já descontado acima. `null` = desconhecido; `0` = não gastou. */
     ads: number | null;
     adsDesconhecido: boolean;
@@ -348,7 +353,13 @@ export async function getAmazonOverviewFromCanonical(period: Period): Promise<Am
 
   // Detalhe por linha: rateia as fees do pedido entre as linhas por peso de
   // receita e resolve o custo por vigência (mesma regra do ML e do builder
-  // ao vivo). Amazon não tem imposto do vendedor nem frete do vendedor.
+  // ao vivo). A Amazon não tem frete do vendedor.
+  //
+  // ⚠️ IMPOSTO POR LINHA CONTINUA `null` DE PROPÓSITO, E ISSO NÃO É A PREMISSA
+  // ANTIGA. O imposto entra no AGREGADO, sobre a receita apurada do período —
+  // é assim que o `profit.ts` sempre fez e é assim que o ML faz. Ratear imposto
+  // por linha aqui só teria sentido se a tabela de rentabilidade o exibisse por
+  // pedido, e ela não exibe.
   const linesByOrder = new Map<string, DetailedLineRow[]>();
   for (const row of lineRows) {
     const group = linesByOrder.get(row.external_order_id) ?? [];
@@ -426,8 +437,33 @@ export async function getAmazonOverviewFromCanonical(period: Period): Promise<Am
   // `workspace_channel_order_fees`, que é tarifa DE PEDIDO — anúncio nunca é
   // postado por pedido. O caminho que precisa da guarda é `profit.ts`, que lê o
   // extrato inteiro da Transactions API.
+  // ⚠️ A AMAZON TEM, SIM, IMPOSTO DO VENDEDOR (corrigido em 31/08/2026).
+  //
+  // Este arquivo afirmava em três lugares que este canal não teria imposto do
+  // vendedor, e o canônico foi construído sobre isso. Era
+  // PREMISSA FALSA, não esquecimento — e a prova estava no próprio banco: a
+  // conta A15NQMF7A6J1Y0 tem `amazon:tax_rate` cadastrado em 5%, e a tela de
+  // configuração aceita o valor. A contradição era visível para a vendedora e
+  // invisível para o código.
+  //
+  // O custo dela: `profit.ts` (MONITOR e HOME) descontava o imposto e este
+  // caminho (DASHBOARD) não, então as duas telas da Amazon mostravam lucros
+  // diferentes para a mesma conta no mesmo instante. Número que diverge entre
+  // telas é o defeito que a vendedora detecta sozinha e depois do qual ela não
+  // confia em nenhum dos dois.
+  //
+  // ⚠️ A BASE É A RECEITA APURADA, não o faturamento com pendentes. Pedido
+  // pendente não tem receita reconhecida aqui (`gross` nulo, sem item), e cobrar
+  // imposto de receita que não capturamos inventaria despesa — o espelho exato
+  // da tarifa fabricada em zero. É também a base que o `profit.ts` já usa:
+  // alinhar não é decisão nova, inventar uma terceira base seria.
+  const taxRate = await getAmazonTaxRateSetting(dbQuery, workspaceId, currentAccountId()).catch(() => null);
+  const taxes = amazonTaxAmount(processedRevenue, taxRate);
+
   const anuncio = await anuncioDoCanal("amazon", period.startISO, period.endISO);
-  const lucro = descontarAnuncio(+(processedRevenue - fees - cogs).toFixed(2), anuncio);
+  // `taxes ?? 0`: sem alíquota o lucro sai sem imposto, como sempre saiu — quem
+  // avisa é a tela, que passa a dizer "(sem imposto)" só nesse caso.
+  const lucro = descontarAnuncio(+(processedRevenue - fees - cogs - (taxes ?? 0)).toFixed(2), anuncio);
   const estimatedProfit = lucro.estimatedProfit;
 
   const topProducts: AmazonCanonicalTopProduct[] = productTotalsRows
@@ -477,6 +513,8 @@ export async function getAmazonOverviewFromCanonical(period: Period): Promise<Am
       fees: +fees.toFixed(2),
       cogs: +cogs.toFixed(2),
       estimatedProfit,
+      taxRate,
+      taxes,
       ads: lucro.ads,
       adsDesconhecido: lucro.adsDesconhecido,
       adsAteDia: lucro.ateDia,
