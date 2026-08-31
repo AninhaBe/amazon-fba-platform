@@ -69,7 +69,7 @@ function Breakdown({ line }: { line: ProfitabilityLine }) {
       <div className="is-muted"><span>Preço de tabela</span><strong>{money(line.listPrice, line.currency)}</strong></div>
       <div className="is-muted"><span>Cupom aplicado</span><strong>− {money(line.promotions, line.currency)}</strong></div>
     </>}
-    <div><span>{line.promotions ? "Pago pelo comprador" : "Receita da venda"}</span><strong>{line.revenueKnown === false ? "Aguardando envio" : money(line.revenue, line.currency)}</strong></div>
+    <div><span>{line.promotions ? "Pago pelo comprador" : "Receita da venda"}</span><strong>{line.revenueKnown === false || line.revenue == null ? "Aguardando envio" : money(line.revenue, line.currency)}</strong></div>
     {line.buyerShipping != null && <div><span>Frete pago pelo comprador</span><strong>{line.buyerShippingIsRevenue === false ? "" : "+ "}{money(line.buyerShipping, line.currency)}</strong></div>}
     <div><span>Custo dos produtos</span><strong>{line.productCost == null ? "Não cadastrado" : `− ${money(line.productCost, line.currency)}`}</strong></div>
     <div><span>Tarifas do canal</span><strong>{line.marketplaceFees == null ? "Ainda não conciliadas" : `− ${money(line.marketplaceFees, line.currency)}`}</strong></div>
@@ -163,10 +163,10 @@ export function ProfitabilitySale({ line, expanded, onToggle }: { line: Profitab
             pedido está pendente — a Amazon exibe os dois lado a lado. */}
         {line.fulfillment && <span>{line.fulfillment}</span>}
         <span className={line.revenueKnown === false ? "is-pendente" : undefined}>{statusLabel(line.status)}</span>
-        <span>{line.quantity} {line.quantity === 1 ? "unidade" : "unidades"}{line.revenueKnown === false ? "" : ` × ${money(line.unitPrice, line.currency)}`}</span>
+        <span>{line.quantity} {line.quantity === 1 ? "unidade" : "unidades"}{line.revenueKnown === false || line.unitPrice == null ? "" : ` × ${money(line.unitPrice, line.currency)}`}</span>
       </div>
       <div className={`profit-equation ${styles.equation}`} aria-label="Resumo financeiro da venda">
-        <div><span>Venda</span><strong>{vendaConhecida ? money(line.revenue, line.currency) : "—"}</strong></div>
+        <div><span>Venda</span><strong>{vendaConhecida && line.revenue != null ? money(line.revenue, line.currency) : "—"}</strong></div>
         <i aria-hidden="true">−</i>
         <div className="is-cost"><span>Custos</span><strong>{custoRotulo}</strong></div>
         <i aria-hidden="true">=</i>
