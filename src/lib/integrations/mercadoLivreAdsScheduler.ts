@@ -1,7 +1,7 @@
 import { dbQuery, hasDb } from "../db";
 import { runWithWorkspace } from "../workspaceScope";
 import { getIntegration } from "./integrationStore";
-import { coletarAdsDoMercadoLivre } from "./mercadoLivreAdsSync";
+import { coletarAdsDoMercadoLivre, type ResultadoDaColeta } from "./mercadoLivreAdsSync";
 
 /**
  * Um ciclo de coleta de Product Ads para todas as conexões vivas do ML.
@@ -56,10 +56,28 @@ export async function runScheduledMercadoLivreAds(): Promise<ResultadoDoCicloDeA
       const resultado = await runWithWorkspace(conexao.workspace_id, async () => {
         const connection = await getIntegration(conexao.connection_id);
         if (!connection || connection.provider !== PROVIDER) return null;
-        return coletarAdsDoMercadoLivre(connection, diaEmBrasilia(), {
-          de: diaEmBrasilia(DIAS_DA_JANELA),
-          ate: diaEmBrasilia(),
-        });
+        // ⚠️ UM PEDIDO POR DIA, e a soma dos dias é feita AQUI — nunca pela API.
+        //
+        // Este laço substitui uma chamada única de oito dias cujo resultado era
+        // gravado como se fosse de um dia só (ver `coletarAdsDoMercadoLivre`).
+        // Custa 2 chamadas por dia em vez de 2 no total; em troca, cada linha da
+        // tabela passa a ser do dia que ela diz ser.
+        //
+        // A janela continua curta pelo mesmo motivo de sempre: o PADS aceita 90
+        // dias para trás, e recolher tudo a cada ciclo reescreveria o passado
+        // inteiro sem motivo. O que muda é só a granularidade do pedido.
+        const total: ResultadoDaColeta = { gravadas: 0, duplicadasIgnoradas: 0, sanidade: null };
+        for (let atras = 0; atras <= DIAS_DA_JANELA; atras += 1) {
+          const parcial = await coletarAdsDoMercadoLivre(connection, diaEmBrasilia(atras));
+          total.gravadas += parcial.gravadas;
+          total.duplicadasIgnoradas += parcial.duplicadasIgnoradas;
+          // Basta um dia não conferir para o ciclo não conferir: a sanidade é
+          // sobre o dado gravado, e ela não pode ficar verde pela média.
+          if (parcial.sanidade && (total.sanidade == null || !parcial.sanidade.confere)) {
+            total.sanidade = parcial.sanidade;
+          }
+        }
+        return total;
       });
       if (!resultado) continue;
       resultados.push({

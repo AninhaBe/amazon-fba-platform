@@ -202,8 +202,29 @@ export interface ResultadoDaColeta {
 export async function coletarAdsDoMercadoLivre(
   connection: IntegrationConnection,
   dia: string,
-  janela: { de: string; ate: string },
 ): Promise<ResultadoDaColeta> {
+  // ⚠️ A JANELA É O PRÓPRIO DIA, E ELA DEIXOU DE SER PARÂMETRO (31/08/2026).
+  //
+  // Antes o chamador passava `janela` separado de `dia`, e o agendador pedia
+  // OITO DIAS (`de: hoje-7, ate: hoje`) enquanto gravava tudo carimbado como UM
+  // dia. O PADS devolve o agregado do intervalo, então cada linha "diária" da
+  // nossa tabela era a soma de oito — 17× o valor real.
+  //
+  // Provado contra a fonte em 31/08/2026, na mesma conta e no mesmo minuto:
+  //   date_from = date_to = 30/08 →  R$  46,78 e    80 cliques  (console: R$ 44, 71)
+  //   date_from = 23/08 … 30/08   →  R$ 771,93 e 1.237 cliques  (gravado: R$ 768,86, 1.228)
+  //
+  // O que denunciou não foi o dinheiro: foi o CLIQUE errar pelo MESMO fator.
+  // Clique não tem moeda, então câmbio e centavos morreram sem outra medição —
+  // quando duas grandezas de naturezas diferentes erram pelo mesmo fator, a
+  // causa está no que elas COMPARTILHAM, e o que elas compartilhavam era a
+  // janela.
+  //
+  // Por isso a janela sumiu da assinatura em vez de virar "passe o dia nos dois
+  // campos": enquanto o chamador puder informar um intervalo diferente do dia,
+  // alguém vai informar. Agora `dia` é a única entrada e o descasamento não tem
+  // por onde nascer.
+  const janela = { de: dia, ate: dia };
   if (!hasDb()) return { gravadas: 0, duplicadasIgnoradas: 0, sanidade: null };
 
   const advertisers = await mercadoLivreFetch<{ advertisers?: Array<{ advertiser_id?: number; site_id?: string }> }>(
