@@ -106,6 +106,21 @@ export interface AmazonCard {
   tone?: "positive" | "danger" | "default";
   /** Valor cru, quando conhecido. É o que permite animar o número na tela. */
   raw?: number | null;
+  /**
+   * A base de cálculo, quando ela é DIFERENTE do card de Faturamento ao lado.
+   *
+   * ⚠️ CAMPO PRÓPRIO, e não `context`, porque `context` vai para o "i" — e
+   * declaração dentro de tooltip não declara nada. Em 31/08/2026 a tela exibia
+   * lucro e margem de um universo ao lado do faturamento de outro, COM a frase
+   * explicando, e a vendedora mesmo assim concluiu que estava errado: a frase
+   * existia num lugar que ela não sabia que existia. O teste garantia a frase e
+   * não garantia a LEITURA.
+   *
+   * Quem renderiza tem de pôr isto num campo visível sem interação (`sub`).
+   * `undefined` quando as bases coincidem — explicar diferença que não existe
+   * treina a pessoa a ignorar a frase no dia em que ela importa.
+   */
+  baseDeclarada?: string;
 }
 
 const money = (v: number, currency: string) =>
@@ -415,6 +430,7 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
                 .join(" − "), input.taxRate == null),
             tone: lucroReal > 0 ? "positive" as const : lucroReal < 0 ? "danger" as const : "default" as const,
             raw: lucroReal,
+            baseDeclarada: baseDeclarada === "sobre vendas" ? undefined : baseDeclarada,
           }
         : {
             value: "—",
@@ -436,6 +452,7 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
         : comSemImposto(`Lucro ${baseDeclarada}`, input.taxRate == null),
       tone: margem == null ? "default" : margem > 0 ? "positive" : margem < 0 ? "danger" : "default",
       raw: margem,
+      baseDeclarada: baseDeclarada === "sobre vendas" ? undefined : baseDeclarada,
     },
     {
       key: "roiPct", label: "ROI",

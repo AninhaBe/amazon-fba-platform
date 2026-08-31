@@ -1,8 +1,8 @@
 import { getFinanceSummaryFromTransactions, type FinanceSummaryFromTransactions } from "./transactions";
 import { getCosts } from "./costStore";
 import type { Period } from "./period";
-import { calculateHistoricalCostCoverage, descontarAnuncio } from "./financialMath";
-import { anuncioDoCanal, anuncioJaNoExtrato } from "./anuncioDoCanal";
+import { calculateHistoricalCostCoverage } from "./financialMath";
+import { getAmazonOverviewCanonicalCached } from "./integrations/amazonOverviewCanonical";
 import { dbQuery } from "./db";
 import { currentAccountId } from "./accountContext";
 import { currentWorkspaceId } from "./workspaceScope";
@@ -51,30 +51,76 @@ export async function getProfitSummary(period: Period): Promise<ProfitSummary> {
     getAmazonTaxRateSetting(dbQuery, currentWorkspaceId(), currentAccountId()).catch(() => null),
   ]);
 
+  // A cobertura de custo continua saindo daqui: `salesLines` é o que diz quais
+  // SKUs venderam e em que data, e é o insumo do "N unidades sem custo".
   const coverage = calculateHistoricalCostCoverage(finance.netProceeds, finance.salesLines, costs);
-  // Imposto incide sobre a receita de vendas, não sobre o repasse líquido — a
-  // base é o que foi vendido, não o que sobrou depois das tarifas.
-  const taxes = amazonTaxAmount(finance.revenue, taxRate);
 
-  // ⚠️ O ANÚNCIO ENTRA AQUI, e não em quem exibe — ver a fronteira em
-  // `financialMath.ts`. Este é o produtor do lucro que MONITOR e HOME leem, e
-  // eram duas telas exibindo lucro da Amazon com a maior despesa de fora.
+  // ═══ UMA DEFINIÇÃO SÓ DE LUCRO DA AMAZON (31/08/2026) ═══════════════════════
   //
-  // Só a Amazon: `getProfitSummary` é o caminho da Amazon (Transactions API).
-  // Os outros canais descontam no produtor deles.
-  const anuncio = await anuncioDoCanal("amazon", period.startISO, period.endISO, {
-    jaNoExtrato: anuncioJaNoExtrato(finance.feeBreakdown),
-  });
-  const lucro = descontarAnuncio(+(coverage.estimatedProfit - (taxes ?? 0)).toFixed(2), anuncio);
+  // ⚠️ Este produtor DEIXOU DE CALCULAR o lucro e passou a LER o do canônico —
+  // o mesmo que o dashboard da Amazon exibe. Antes eram duas fórmulas, e elas
+  // discordavam na conta dela em R$ 292,16 no mesmo instante: a tela central
+  // dizia +R$ 276,53 e o dashboard −R$ 15,63.
+  //
+  // AS DUAS DIFERENÇAS, medidas termo a termo:
+  //
+  //   1. BASE. Aqui partia-se de `netProceeds` (repasse líquido, R$ 609,45); o
+  //      canônico parte da receita BRUTA (R$ 748,56). A bruta é a base do card
+  //      de Faturamento ao lado — `netProceeds` nunca fecharia com card nenhum.
+  //      E ele não é mais verdadeiro, é mais TARDIO: cobre só o que a Amazon já
+  //      postou, que é a mesma doença da tarifa ausente.
+  //
+  //   2. ANÚNCIO. Aqui descontava-se o `ProductAdsPayment` do extrato
+  //      (R$ 256,22), que é só o FATURADO. O canônico desconta a Ads API
+  //      (R$ 428,88), que é o gasto real — provado em 30/08 contra o console:
+  //      R$ 417,09 = R$ 256,22 faturado + R$ 160,87 acumulado. Descontar o
+  //      menor número INFLA o lucro.
+  //
+  // ⚠️ ENUMERAR ANTES DE MIGRAR — e este é o critério, não o caso.
+  //
+  // Antes de trocar a fórmula, listei tudo que existe dentro do `netProceeds`
+  // desta conta em 30 dias, em vez de assumir "netProceeds = vendas − tarifas":
+  //
+  //   Shipment [RELEASED]           +380,70   → vira receita bruta − fees
+  //   Shipment [DEFERRED]           +365,47   → idem
+  //   ProductAdsPayment [RELEASED]  −256,22   → passa a vir da Ads API, maior
+  //   DebtRecovery [RELEASED]       +119,50   → SAI, e sai certo (abaixo)
+  //                                 = 609,45
+  //
+  // Assumir a fórmula teria perdido os R$ 119,50 em silêncio e a gente teria
+  // chamado isso de "alinhamento". É o mesmo erro da premissa "a Amazon não tem
+  // imposto do vendedor", na direção contrária: lá afirmamos o que não medimos,
+  // aqui teríamos deixado de ver o que não listamos.
+  //
+  // ⚠️ POR QUE O `DebtRecovery` DE +R$ 119,50 SOME, E ISSO NÃO É DEFEITO.
+  //
+  // Quem vier depois vai ver R$ 119,50 desaparecerem do lucro e achar que se
+  // perdeu um termo. Não se perdeu: **é movimento de caixa, não resultado.**
+  // São os R$ 119,50 que a Amazon cobrou no cartão dela em 30/08 para quitar a
+  // dívida de anúncio, e que ela estranhou. O custo do anúncio JÁ está contado
+  // (R$ 428,88 pela Ads API); somar o pagamento da dívida como ganho seria
+  // contar o mesmo dinheiro duas vezes, com o sinal trocado. Parar de somar
+  // dinheiro que nunca foi lucro não é remoção.
+  //
+  // ⚠️ E A GUARDA DE DUPLA CONTAGEM TROCOU DE LADO. `anuncioJaNoExtrato` existia
+  // para zerar a Ads API quando o extrato já trazia `AdvertisingFee`. Com o
+  // anúncio vindo SEMPRE da Ads API, a guarda que importa é a inversa: o
+  // `ProductAdsPayment` do extrato não pode entrar em `fees`. Ele não entra por
+  // construção — `fees` do canônico vem de `workspace_channel_order_fees`, cujos
+  // únicos tipos são commission, refund e fulfillment —, e há teste para isso.
+  const canonico = await getAmazonOverviewCanonicalCached(period);
 
   return {
     finance,
     ...coverage,
-    taxRate,
-    taxes,
-    estimatedProfit: lucro.estimatedProfit,
-    ads: lucro.ads,
-    adsDesconhecido: lucro.adsDesconhecido,
-    adsAteDia: lucro.ateDia,
+    // O lucro e seus componentes são os do canônico, sem exceção: dois lugares
+    // calculando o mesmo número é como eles voltam a divergir.
+    cogs: canonico?.profit.cogs ?? coverage.cogs,
+    taxRate: canonico?.profit.taxRate ?? taxRate,
+    taxes: canonico?.profit.taxes ?? amazonTaxAmount(finance.revenue, taxRate),
+    estimatedProfit: canonico?.profit.estimatedProfit ?? null,
+    ads: canonico?.profit.ads ?? null,
+    adsDesconhecido: canonico?.profit.adsDesconhecido ?? true,
+    adsAteDia: canonico?.profit.adsAteDia ?? null,
   };
 }

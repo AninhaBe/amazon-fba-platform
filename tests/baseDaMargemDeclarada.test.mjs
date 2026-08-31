@@ -59,6 +59,38 @@ test("e a base APARECE na tela, com numero — nunca em silencio", () => {
   assert.doesNotMatch(contexto, /parcial|incompleto/i);
 });
 
+test("a base vem em CAMPO PROPRIO, para a tela poder renderizar sem hover", () => {
+  // ⚠️ ESTE TESTE NASCEU DE UMA FALHA DO TESTE ACIMA (31/08/2026).
+  //
+  // O de cima passava — a frase existia — e mesmo assim a vendedora olhou a
+  // tela, viu lucro e margem sobre R 748,56 ao lado de um Faturamento de
+  // R 1.068,37, e concluiu que estava errado. A declaracao morava no
+  // `context`, que a pagina joga no "i": um tooltip que ninguem abre.
+  //
+  // "O teste garantiu a frase, nao a leitura." O criterio passou a ser: existir
+  // num campo que a tela RENDERIZA SEM INTERACAO.
+  const cards = amazonFinancialCards(base);
+  for (const key of ["marginPct", "profit"]) {
+    assert.ok(carta(cards, key).baseDeclarada, `${key} precisa expor a base em campo proprio`);
+    assert.match(carta(cards, key).baseDeclarada, /418,43[\s\S]*1\.270,13/);
+  }
+});
+
+test("bases iguais NAO produzem campo — ruido tambem e defeito", () => {
+  const cards = amazonFinancialCards({ ...base, faturamentoTotal: 418.43, pedidosAguardando: 0 });
+  for (const key of ["marginPct", "profit"]) {
+    assert.equal(carta(cards, key).baseDeclarada, undefined);
+  }
+});
+
+test("a tela RENDERIZA a base, e nao so no tooltip", async () => {
+  // A trava no lugar onde o defeito estava: `sub` aparece sem interacao, `info`
+  // exige hover. Se `baseDeclarada` voltar a sair so pelo `info`, isto quebra.
+  const page = await fonte("src/app/amazon/page.tsx");
+  const ocorrencias = (page.match(/sub=\{card\.baseDeclarada\}/g) ?? []).length;
+  assert.equal(ocorrencias, 2, "os dois ramos de card (lucro e demais) precisam renderizar a base");
+});
+
 test("bases IGUAIS nao ganham declaracao — ruido tambem e defeito", () => {
   // Quando todo o periodo esta apurado, nao ha duas bases e nao ha o que
   // declarar. Explicar uma diferenca que nao existe treina a pessoa a ignorar a

@@ -51,35 +51,52 @@ async function produtoresDaAmazon() {
   return achados;
 }
 
-test("todo produtor de lucro da Amazon LE a aliquota cadastrada", async () => {
-  const produtores = await produtoresDaAmazon();
-  assert.ok(produtores.length >= 2, "esperava ao menos o canonico e o profit.ts — a descoberta quebrou");
+// ⚠️ A INTENCAO DESTES DOIS MUDOU EM 31/08/2026, E O PORQUE E O ALINHAMENTO.
+//
+// Ate aqui existiam DOIS produtores de lucro da Amazon e o teste cobrava de cada
+// um que lesse a aliquota. O problema era ter dois: eles divergiam em R 292,16
+// na conta dela, no mesmo instante (central +276,53, dashboard -15,63).
+//
+// Agora ha UM produtor — `amazonOverviewCanonical` — e `profit.ts` virou LEITOR
+// dele. Cobrar de um leitor que ele leia a aliquota seria exigir que ele
+// recalculasse o que acabou de ler, que e como as duas formulas nasceram.
+//
+// A exigencia passa a ser mais forte, nao mais fraca: quem emite lucro da Amazon
+// ou CALCULA com imposto, ou DELEGA a quem calcula. Nao existe terceira via.
 
+/** Quem realmente calcula: tem a formula na mao. */
+const CALCULA = /- \(taxes \?\? 0\)/;
+/** Quem delega: le o numero pronto do canonico. */
+const DELEGA = /getAmazonOverviewCanonical|canonico\?\.profit\.estimatedProfit/;
+
+test("todo emissor de lucro da Amazon calcula COM imposto, ou delega a quem calcula", async () => {
+  const produtores = await produtoresDaAmazon();
+  assert.ok(produtores.length >= 1, "a descoberta quebrou: nenhum produtor encontrado");
+
+  let quemCalcula = 0;
   for (const { caminho, src } of produtores) {
-    assert.match(
-      src,
-      /getAmazonTaxRateSetting/,
-      `${caminho} produz lucro da Amazon e nao le a aliquota cadastrada — ` +
-        "cadastro que nao chega no calculo foi o defeito de 31/08/2026",
+    const calcula = CALCULA.test(src);
+    const delega = DELEGA.test(src);
+    assert.ok(
+      calcula || delega,
+      `${caminho} emite lucro da Amazon sem imposto e sem delegar — e a terceira via que nao pode existir`,
     );
-    assert.match(
-      src,
-      /amazonTaxAmount/,
-      `${caminho} le a aliquota mas nao calcula imposto com ela`,
-    );
+    if (calcula) {
+      quemCalcula += 1;
+      assert.match(src, /getAmazonTaxRateSetting/, `${caminho} calcula sem ler a aliquota cadastrada`);
+      assert.match(src, /amazonTaxAmount/, `${caminho} le a aliquota mas nao calcula imposto com ela`);
+    }
   }
+  assert.equal(quemCalcula, 1, "a formula do lucro da Amazon mora em UM lugar — dois e como elas divergem");
 });
 
-test("e o imposto entra na formula do lucro, nao fica so no objeto", async () => {
-  // Ler a aliquota e expor `taxes` sem subtrair seria pior que nao ler: a tela
-  // mostraria o imposto ao lado de um lucro que nao o desconta.
-  for (const { caminho, src } of await produtoresDaAmazon()) {
-    assert.match(
-      src,
-      /- \(taxes \?\? 0\)/,
-      `${caminho} calcula o imposto e nao subtrai do lucro`,
-    );
-  }
+test("o LEITOR nao recalcula o lucro por conta propria", async () => {
+  // A trava do alinhamento: se `profit.ts` voltar a montar a propria formula,
+  // as duas telas voltam a discordar — foi assim que R 292,16 apareceram.
+  const leitor = await fonte("src/lib/profit.ts");
+  assert.match(leitor, DELEGA, "profit.ts precisa ler o canonico");
+  assert.doesNotMatch(leitor, CALCULA, "profit.ts nao pode ter formula propria de lucro");
+  assert.doesNotMatch(leitor, /descontarAnuncio/, "nem descontar anuncio por fora: quem faz isso e o canonico");
 });
 
 test("a premissa falsa nao pode voltar ao canonico", async () => {

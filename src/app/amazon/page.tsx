@@ -844,6 +844,14 @@ export default function Dashboard() {
                   // estão embaixo... pode colocar no i igual está em pedidos
                   // feitos". O card fica com rótulo e valor; a explicação
                   // aparece ao passar o mouse.
+                  // ⚠️ A BASE VAI EM `sub`, QUE RENDERIZA SEM INTERAÇÃO.
+                  //
+                  // Ela morava só no "i", e em 31/08/2026 a vendedora viu lucro
+                  // e margem calculados sobre R$ 748,56 ao lado de um card de
+                  // Faturamento de R$ 1.068,37 e concluiu — com razão — que
+                  // estava errado. A explicação existia, dentro de um tooltip
+                  // que ninguém abre. Declaração que exige hover não declara.
+                  sub={card.baseDeclarada}
                   info={card.value === "—" || margem?.value === "—"
                     ? card.context
                     : `${card.context}. Margem de ${margem?.value} sobre vendas.`}
@@ -852,6 +860,7 @@ export default function Dashboard() {
                 <Kpi
                   key={card.key}
                   label={card.label}
+                  sub={card.baseDeclarada}
                   // ⚠️ O CARD NÃO É MAIS SOBRESCRITO AQUI (30/08/2026).
                   //
                   // Esta linha trocava o VALOR do card "Faturamento" mantendo o

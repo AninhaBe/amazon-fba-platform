@@ -77,6 +77,15 @@ export function resolvePeriod(sp: URLSearchParams): Period {
   const from = sp.get("from");
   const to = sp.get("to");
   if (from && to) return periodFromRange(from, to);
-  const days = sp.get("days") || "30";
+  // ⚠️ O DEFAULT DO SERVIDOR ACOMPANHA O DA TELA (31/08/2026).
+  //
+  // Era `|| "30"` enquanto o cliente passou a abrir em "Hoje" — dois defaults,
+  // e a divergência já estava sangrando: a narração do dashboard da Amazon
+  // dispara quando `days` está AUSENTE (`BriefingLead`), montava o payload com
+  // os números da tela e rotulava como "nos últimos 30 dias". Na conta dela isso
+  // produziu "o faturamento ficou em R$ 0,00" ao lado de um card de R$ 1.068,37.
+  //
+  // Dois defaults em lugares diferentes divergem — a questão é só quando.
+  const days = sp.get("days") || "today";
   return periodFromDays(days === "today" ? 1 : Number(days));
 }
