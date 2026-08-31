@@ -107,6 +107,11 @@ const navigation: Record<WorkspaceId, NavGroup[]> = {
       items: [
         { href: "/", label: "Visão geral", desc: "Todos os canais", icon: icons.dashboard, exact: true },
         BRIEFING_GLOBAL,
+        // "Ads", e NÃO "Anúncios": nos quatro canais "Anúncios" já significa
+        // CATÁLOGO PUBLICADO (linhas abaixo). Dois itens com o mesmo nome e
+        // sentidos diferentes é o tipo de ambiguidade que a pessoa só descobre
+        // clicando errado. "Ads" é a palavra que a própria Ana usa.
+        { href: "/ads", label: "Ads", desc: "Publicidade nos 4 canais", icon: icons.performance },
         { href: "/integracoes", label: "Integrações", desc: "Contas e canais", icon: icons.integrations },
       ],
     },
