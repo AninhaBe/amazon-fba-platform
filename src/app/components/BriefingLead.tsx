@@ -161,8 +161,24 @@ function useNexoResumo(props: BriefingLeadProps): string | null {
   const janelaDe30Dias = !params.get("from") && !params.get("to") && (dias == null || dias === "30");
 
   useEffect(() => {
+    // ⚠️ TEXTO DE OUTRA JANELA NÃO FICA NA TELA (31/08/2026).
+    //
+    // A narração persistia ao trocar de período — e em 31/08 ela exibia
+    // "40 vendas e R$ 969,45 nos últimos 30 dias" ao lado de um card de
+    // R$ 1.068,37, com os R$ 969,45 vindos de um recorte anterior. Número velho
+    // na tela é pior que número ausente: ele parece atual e ninguém confere.
+    //
+    // Ao sair da janela de 30 dias o texto SOME — mas quem esconde é o RETURN
+    // lá embaixo, não um `setTexto(null)` aqui: `setState` dentro de efeito
+    // dispara render em cascata (é o que o eslint acusa em `app/page.tsx:188`).
+    // Derivar na renderização não tem esse custo e ainda evita o flash do texto
+    // velho antes do estado limpar.
     if (!janelaDe30Dias) return;
-    if (!escopo || faturamento == null || pedidos === 0) return;
+    // ⚠️ `faturamento === 0` TAMBÉM não narra. Zero aqui não é "vendeu zero": é
+    // o período ainda sem valor apurado (pendente sem preço postado), e narrar
+    // "o faturamento ficou em R$ 0,00" afirma um fato que ninguém mediu. É o
+    // `null ≠ 0` do AGENTS.md chegando na narração.
+    if (!escopo || faturamento == null || faturamento === 0 || pedidos === 0) return;
     const margemPct = lucro != null && faturamento > 0 ? Math.round((lucro / faturamento) * 1000) / 10 : null;
     const payload = {
       modo: "resumo",
@@ -187,7 +203,17 @@ function useNexoResumo(props: BriefingLeadProps): string | null {
     // refeitura por troca de período, que só rendia o mesmo texto de volta.
   }, [janelaDe30Dias, escopo, canalNome, faturamento, lucro, pedidos, moeda, motivoSemLucro]);
 
-  return texto;
+  // ⚠️ O TEXTO SÓ APARECE NA JANELA QUE ELE DESCREVE (31/08/2026).
+  //
+  // Antes ele persistia ao trocar de período, e em 31/08 a tela exibia
+  // "40 vendas e R$ 969,45 nos últimos 30 dias" ao lado de um card de
+  // R$ 1.068,37 — os R$ 969,45 vinham de outro recorte. Número velho na tela é
+  // pior que número ausente: parece atual, e ninguém confere o que parece atual.
+  //
+  // E com `faturamento` zerado ele também não aparece: zero aqui não é "vendeu
+  // zero", é período sem valor apurado ainda (pendente sem preço postado).
+  // Narrar "o faturamento ficou em R$ 0,00" afirma um fato que ninguém mediu.
+  return janelaDe30Dias && faturamento != null && faturamento > 0 ? texto : null;
 }
 
 export function BriefingLead(props: BriefingLeadProps) {
