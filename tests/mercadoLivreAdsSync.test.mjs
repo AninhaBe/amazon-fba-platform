@@ -91,7 +91,14 @@ test("divergência é LOGADA, nunca corrigida em silêncio — dinheiro que não
   assert.match(fonte, /if \(!sanidade\.confere\) \{[\s\S]{0,200}console\.error/);
   assert.match(fonte, /Log, não conserto/);
   // E grava linha a linha (é o que faz a PK da 0016 proteger por construção).
-  assert.match(fonte, /for \(const anuncio of unicos\) await gravarAnuncio/);
+  //
+  // ⚠️ A regex aceita o laço em bloco desde 31/08/2026: a chamada ganhou o
+  // argumento de procedência (`janelaEmDias`/`consolidando`) e não cabia mais em
+  // uma linha. A EXIGÊNCIA não mudou — uma escrita por anúncio, sem agregar
+  // antes —, e quem guarda isso de verdade é o `doesNotMatch` do `reduce`
+  // abaixo. Casar a formatação em vez do comportamento deixa o teste vermelho
+  // por motivo que não é o produto, e teste assim ensina a ignorar vermelho.
+  assert.match(fonte, /for \(const anuncio of unicos\)[\s\S]{0,40}gravarAnuncio\(/);
   assert.doesNotMatch(fonte, /reduce[\s\S]{0,80}gravarAnuncio/, "nada de somar antes de gravar");
 });
 

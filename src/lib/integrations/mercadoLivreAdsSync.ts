@@ -140,6 +140,7 @@ async function gravarAnuncio(
   connectionId: string,
   dia: string,
   anuncio: AnuncioPads,
+  procedencia: { janelaEmDias: number; consolidando: boolean },
 ): Promise<void> {
   const m = anuncio.metrics ?? {};
   await dbQuery(
@@ -177,6 +178,24 @@ async function gravarAnuncio(
       "BRL",
       JSON.stringify({
         attribution_window: "pads",
+        // ⚠️ PROCEDÊNCIA GRAVADA POR QUEM SABE, LIDA POR QUEM EXIBE (31/08/2026).
+        //
+        // `janela_em_dias` responde "esta linha é de UM dia?" sem que ninguém
+        // precise confiar em acordo verbal. Era a proposta da Vitrine e ela está
+        // certa: o defeito de 17× existiu porque a leitura somava linhas de oito
+        // dias achando que somava dias, e nada no dado dizia o contrário.
+        //
+        // `consolidando` responde "este número ainda vai mudar?". A tela PRECISA
+        // dizer isso — número que muda sozinho vira "está errado" mesmo estando
+        // certo, e foi o que aconteceu duas vezes em 30/08 (o ads e a margem).
+        //
+        // ⚠️ E ELE NÃO É REGRA DE DATA NA TELA, DE PROPÓSITO. Inferir "hoje ou
+        // ontem" na renderização é a tela adivinhando um fato que quem gravou
+        // sabia — mesma família da janela que vinha por parâmetro. Pior ainda
+        // porque a tela lê payload cacheado: o "agora" dela pode estar horas
+        // depois do "agora" da coleta, e a resposta muda com isso.
+        janela_em_dias: procedencia.janelaEmDias,
+        consolidando: procedencia.consolidando,
         status: anuncio.status ?? null,
         cvr: m.cvr ?? null,
         sov: m.sov ?? null,
@@ -199,6 +218,13 @@ export interface ResultadoDaColeta {
  * `dia` é o dia-calendário de Brasília a que as métricas se referem; a janela do
  * PADS aceita 90 dias para trás.
  */
+/** Dia-calendário de Brasília, com deslocamento em dias. */
+function diaEmBrasiliaAgora(deslocamentoDias = 0): string {
+  return new Date(Date.now() - 3 * 60 * 60_000 - deslocamentoDias * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+}
+
 export async function coletarAdsDoMercadoLivre(
   connection: IntegrationConnection,
   dia: string,
@@ -279,7 +305,25 @@ export async function coletarAdsDoMercadoLivre(
   // A moeda é fixa em BRL dentro do gravador: o PADS que consumimos é do site
   // MLB. Se um dia houver conta em outro site, ela entra por parâmetro — e a
   // coluna `currency` da 0016 já existe justamente para isso.
-  for (const anuncio of unicos) await gravarAnuncio(connection.id, dia, anuncio);
+  // ⚠️ "AINDA CONSOLIDANDO" É MEDIDO, NÃO SUPOSTO — e por isso precisa dos dois.
+  //
+  // A EVIDÊNCIA: as duas visões do PADS (por anúncio e por campanha) discordam
+  // enquanto o dia está fresco. Medido em 31/08/2026: 29/08 fechou na vírgula
+  // (R$ 69,66 nas duas), 30/08 não (R$ 53,05 contra R$ 46,55). Divergência entre
+  // as visões da própria fonte é a melhor prova de que ela não terminou.
+  //
+  // A JANELA DE RECÊNCIA: divergência num dia ANTIGO significa OUTRA coisa — é
+  // problema de verdade, e é o que o `console.error` abaixo continua reportando.
+  // Sem esta segunda condição, um defeito real em dado velho seria rotulado como
+  // "consolidando" e desapareceria da vista. É a diferença entre "não terminou"
+  // e "está errado", que o mesmo silêncio no banco produziria.
+  const hoje = diaEmBrasiliaAgora();
+  const ontem = diaEmBrasiliaAgora(1);
+  const consolidando = !sanidade.confere && (dia === hoje || dia === ontem);
+
+  for (const anuncio of unicos) {
+    await gravarAnuncio(connection.id, dia, anuncio, { janelaEmDias: 1, consolidando });
+  }
 
   return { gravadas: unicos.length, duplicadasIgnoradas: crus.length - unicos.length, sanidade };
 }
