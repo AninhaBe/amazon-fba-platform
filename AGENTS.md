@@ -117,6 +117,58 @@ depois de alguém apagar a chamada e deixar o import.
 uma janela de `slice` fixa — ensina a ignorar teste vermelho, e é tão ruim quanto
 teste que nunca falha. Conserte a fragilidade, não o sintoma.
 
+# Recusa temporária morre junto com a limitação que a justificou
+
+Salvaguarda escrita para contornar um limite — *"este canal ainda não aceita X,
+então não peça"* — é **dívida com prazo**, não desenho. Quando o limite cai,
+ela precisa cair junto. Enquanto sobrevive, ela deixa de proteger e passa a
+**mentir**.
+
+⚠️ **Aconteceu em 31/08/2026, com 4 horas de distância entre as duas pontas.** A
+rota da Shopee passou a aceitar período personalizado (`4c1cc18`) e a central
+continuou recusando, com a frase na tela:
+
+> *"a Shopee ainda não aceita período personalizado; escolha Hoje, 7, 15 ou 30
+> dias para ver este canal"*
+
+A frase era verdadeira de manhã e falsa à tarde. Ela **escondia um canal que já
+sabia responder** — e o pior não foi a frase:
+
+**O TESTE QUE GUARDAVA A RECUSA PASSOU A DEFENDER O DEFEITO.** Ele exigia que a
+recusa existisse. Quem removesse a mentira quebraria a suíte, e o vermelho diria
+que a *correção* estava errada.
+
+**Na prática:**
+
+- ao escrever uma recusa temporária, diga no comentário **o que precisa
+  acontecer para ela morrer** — o commit, a rota, a capacidade;
+- ao remover uma limitação, **procure quem a contornava**. `grep` pela frase que
+  aparece na tela é o caminho mais curto;
+- ao escrever o teste de uma recusa, escreva-o sabendo que ele será invertido:
+  registre a intenção anterior no próprio teste quando ela mudar, como já se faz
+  com os testes que mudaram de intenção duas vezes;
+- **divergência sem mentira é dívida; divergência com mentira é defeito** e sobe
+  na fila na hora. (Critério do cérebro, 31/08/2026. Exemplo de dívida: as rotas
+  de ABC lerem só `days` enquanto a tela do ABC não oferece "Personalizado" —
+  ninguém é enganado. Exemplo de defeito: a central acima.)
+
+# O que subiu é o que está no commit, não o que o HTTP responde
+
+Para provar o que foi publicado, leia a **árvore do commit**:
+
+```
+git ls-tree -r <commit> --name-only | grep <caminho>
+```
+
+⚠️ **Probe HTTP não distingue rota ausente de rota presente** neste app. Medido
+em 31/08/2026 contra produção: `/api/qualquer-coisa-inexistente` devolve **401**
+(o middleware de auth responde antes do roteador) e `/qualquer-pagina` devolve
+**307** para o login. Testar `/ads` e receber 307 não prova que a aba de Ads não
+subiu — prova só que existe middleware.
+
+É a mesma família de **"ausência de escrita não é ausência de tentativa"**: um
+sintoma compatível com a hipótese não é prova dela.
+
 # Como este projeto trata dado incerto
 
 Três regras que atravessam o código todo e não são negociáveis sem ADR:
