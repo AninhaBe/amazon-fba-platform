@@ -47,7 +47,7 @@ import { chaveDaBusca } from "./chaveDaBusca";
 import { usePrefetchDePeriodos } from "./prefetchDePeriodos";
 import { sinaisDoResultado, rodapeDasTaxas } from "./oQueFaltaNoResultado";
 import { SinaisDoResultado } from "./SinaisDoResultado";
-import { declaracaoDeBase } from "./baseDaMargem";
+import { declaracaoDeBase, nomeDaBase } from "./baseDaMargem";
 
 interface Overview {
   account: { id: string; name: string; region: string };
@@ -896,7 +896,7 @@ function Dashboard({ overview, sync, onPage, periodoLabel, periodoQuery }: { ove
         <Metric label="Taxas" value={overview.profit.fees == null ? "—" : money(overview.profit.fees, overview.metrics.currency)} sub={rodapeDasTaxas({ feesComplete: overview.profit.feesComplete, ordersWithFees: profitCoverage.ordersWithFees, ordersProcessed: profitCoverage.processedOrders })} />
         <Metric label="Custo dos produtos" value={overview.profit.cogs == null ? "—" : money(overview.profit.cogs, overview.metrics.currency)} sub={costsIncomplete ? `${overview.profit.unitsWithoutCost} unidade(s) sem custo` : "custos cadastrados"} tone={costsIncomplete ? "warn" : "default"} />
         <Metric label={overview.profit.estimatedProfit == null ? "Resultado processado" : "Lucro estimado"} value={overview.profit.estimatedProfit == null ? "—" : <AnimatedNumber periodo={identidadeDePeriodo(overview.period.from, overview.period.to)} id="shopee-dash-profit" value={overview.profit.estimatedProfit} format={(amount) => money(amount, overview.metrics.currency)} />} sub={<>{baseDoResultado && <>{baseDoResultado} · </>}{comSemImposto("após todos os custos", semAliquota)}</>} tone={overview.profit.estimatedProfit == null ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
-        <Metric label="Margem" value={overview.profit.marginPct == null ? "—" : percent(overview.profit.marginPct)} sub={<>{baseDoResultado && <>{baseDoResultado} · </>}{comSemImposto(baseDoResultado ? "" : "sobre o faturamento", semAliquota)}</>} tone={overview.profit.marginPct == null ? "default" : marginMetricTone(overview.profit.marginPct)} />
+        <Metric label="Margem" value={overview.profit.marginPct == null ? "—" : percent(overview.profit.marginPct)} sub={<>{baseDoResultado && <>{baseDoResultado} · </>}{comSemImposto(baseDoResultado ? "" : nomeDaBase({ rotuloDaBase: "o faturamento" }), semAliquota)}</>} tone={overview.profit.marginPct == null ? "default" : marginMetricTone(overview.profit.marginPct)} />
       </section>
       {/* ⚠️ OS SINAIS APARECEM UMA VEZ POR TELA — corte 1 da auditoria de
           empilhamento (01/09/2026).

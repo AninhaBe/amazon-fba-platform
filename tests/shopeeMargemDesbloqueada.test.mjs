@@ -52,7 +52,13 @@ test("a tela declara a base do resultado — e usa a peca compartilhada", async 
   // Uma frase, um lugar, quatro canais. Se a Shopee escrever a propria versao,
   // nascem quatro declaracoes que divergem na primeira vez que alguem ajusta uma.
   const tela = await fonte("src/app/components/ShopeeWorkspace.tsx");
-  assert.match(tela, /import \{ declaracaoDeBase \} from "\.\/baseDaMargem"/);
+  // ⚠️ A ANCORA E O MODULO, NAO A LISTA DE NOMES IMPORTADOS. A versao anterior
+  // casava `import { declaracaoDeBase }` exato e ficou vermelha no dia em que a
+  // tela passou a importar tambem `nomeDaBase` — reprovando a MELHORA, nao um
+  // defeito. E a familia de `docs/achado-guarda-que-depende-da-forma.md`:
+  // guarda que casa a aparencia pune quem conserta. O que importa e que a frase
+  // venha da peca compartilhada, e isso o caminho do import prova.
+  assert.match(tela, /import \{[^}]*declaracaoDeBase[^}]*\} from "\.\/baseDaMargem"/);
   assert.match(tela, /baseApurada: overview\.profit\.revenueDoLucro/);
   assert.match(tela, /pedidosAguardando: overview\.profit\.pedidosSemApuracao/);
 });

@@ -333,12 +333,9 @@ function MonitorPage({ secaoInicial }: { secaoInicial: MonitorSection }) {
                 label: "Margem",
                 node: <Metric label="Margem" value={costsIncomplete || marginPct == null ? "—" : percent(marginPct)} sub={costsIncomplete ? "aguardando todos os custos" : nomeDaBase({
                   // A margem do monitor sai de `finance.revenue`, que e o valor do
-                  // cartao "Receita conciliada" logo ao lado — nao ha divergencia a
-                  // declarar, so o denominador a nomear. O texto na tela nao muda:
-                  // continua "sobre a receita".
-                  baseApurada: finance.revenue,
-                  faturamentoExibido: finance.revenue,
-                  moeda: finance.currency,
+                  // cartao "Receita conciliada" logo ao lado: nao ha divergencia a
+                  // declarar, so o denominador a nomear — por isso nenhum numero
+                  // e passado. Texto na tela inalterado: "sobre a receita".
                   rotuloDaBase: "a receita",
                 })} tone={costsIncomplete ? "default" : marginMetricTone(marginPct)} />,
               },

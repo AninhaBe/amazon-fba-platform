@@ -165,13 +165,9 @@ function ShopeeMonitorContent({body,params,update,connectionId}:{body:Payload;pa
    * mesmo lugar que decide o número, nunca de uma string.
    */
   const baseDoResultado=profit==null?null:nomeDaBase({
-    // O denominador do modulo e `revenueProcessed` ate o backend mandar
-    // `revenueDoLucro`. Nao ha faturamento exibido ao lado para divergir, entao
-    // a peca so NOMEIA a base — e o nome acompanha o campo que foi de fato
-    // usado, que era o ponto da correcao anterior. Texto na tela inalterado.
-    baseApurada:profit.revenueDoLucro??profit.revenueProcessed,
-    faturamentoExibido:profit.revenueDoLucro??profit.revenueProcessed,
-    moeda:currency,
+    // Nao ha faturamento exibido ao lado para divergir, entao a peca so NOMEIA
+    // a base — e o nome acompanha o campo que foi de fato usado, que era o
+    // ponto da correcao anterior. Texto na tela inalterado.
     rotuloDaBase:profit.revenueDoLucro!=null?"o faturamento":"a receita processada",
   });
   const sinaisDaTela=sinaisDoResultado({

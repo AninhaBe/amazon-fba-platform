@@ -27,6 +27,17 @@ export interface BaseDaMargem {
   moeda: string;
   /** Pedidos que ainda não entraram na base — a causa da diferença, quando conhecida. */
   pedidosAguardando?: number | null;
+  /**
+   * A OUTRA razão de a base ser menor: parte das vendas não tem custo
+   * cadastrado, então não entra no cálculo.
+   *
+   * ⚠️ SÃO AS DUAS RAZÕES REAIS, e a peça precisa saber nomear as duas — não é
+   * caso especial da central. Até 01/09/2026 ela só sabia falar de pedidos
+   * aguardando, e por isso a central escrevia a causa dela à mão. A causa é a
+   * única parte da frase que diz O QUE FAZER: o número a pessoa já vê no cartão
+   * ao lado, a causa não está em lugar nenhum.
+   */
+  custoNaoCadastrado?: boolean;
 }
 
 const dinheiro = (valor: number, moeda: string) =>
@@ -50,7 +61,9 @@ export function declaracaoDeBase(entrada: BaseDaMargem): string | null {
   const aguardando = entrada.pedidosAguardando ?? 0;
   const causa = aguardando > 0
     ? ` — ${aguardando} pedido${aguardando > 1 ? "s" : ""} aguardando confirmação`
-    : "";
+    : entrada.custoNaoCadastrado
+      ? " — a parte com custo cadastrado"
+      : "";
   return `sobre ${dinheiro(baseApurada, moeda)} apurados de ${dinheiro(faturamentoExibido, moeda)}${causa}`;
 }
 
@@ -81,8 +94,31 @@ export const BASE_SEM_DIFERENCA = "sobre vendas";
  * porque é assim que a pessoa liga os dois ("a receita conciliada", e o cartão
  * diz "Receita conciliada"). Ele não é texto livre: é o rótulo que já existe.
  */
-export function nomeDaBase(
-  entrada: BaseDaMargem & { rotuloDaBase: string },
-): string {
-  return declaracaoDeBase(entrada) ?? `sobre ${entrada.rotuloDaBase}`;
+export interface NomeDaBase extends Partial<BaseDaMargem> {
+  /** O nome do denominador NA TELA — o mesmo rótulo do cartão ao lado. */
+  rotuloDaBase: string;
+  /**
+   * O que a frase declara, quando o `sub` sozinho seria ambíguo: "Lucro sobre o
+   * faturamento do período" diz QUAL número está sendo declarado; "sobre o
+   * faturamento do período" deixa a pessoa adivinhar.
+   */
+  prefixo?: string;
+}
+
+/**
+ * ⚠️ QUEM SÓ NOMEIA NÃO PASSA OS NÚMEROS. Sem `baseApurada` e
+ * `faturamentoExibido` não há divergência a declarar, e a peça devolve só o
+ * nome. É o caso do monitor, do módulo da Shopee e do cartão de Margem da
+ * Amazon — este último porque ele já declara a divergência num campo próprio
+ * (`baseDeclarada`), e declarar duas vezes na mesma tela é o empilhamento que a
+ * auditoria de 01/09/2026 desfez.
+ */
+export function nomeDaBase(entrada: NomeDaBase): string {
+  const { baseApurada, faturamentoExibido, moeda } = entrada;
+  const declaracao =
+    baseApurada != null && faturamentoExibido != null
+      ? declaracaoDeBase({ ...entrada, baseApurada, faturamentoExibido, moeda: moeda ?? "BRL" })
+      : null;
+  const texto = declaracao ?? `sobre ${entrada.rotuloDaBase}`;
+  return entrada.prefixo ? `${entrada.prefixo} ${texto}` : texto;
 }

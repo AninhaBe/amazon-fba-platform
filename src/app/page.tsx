@@ -25,6 +25,7 @@ import { NexoMensagem } from "./components/NexoMensagem";
 import { AliquotasPorCanal } from "./components/AliquotasPorCanal";
 import { gatherCentralChannels, type ChannelSnapshot } from "./centralChannels";
 import { marginMetricTone, marginStateClass } from "@/lib/marginTone";
+import { nomeDaBase } from "./components/baseDaMargem";
 
 function money(value: number | null, currency = "BRL") {
   if (value == null) return "Indisponível";
@@ -324,9 +325,19 @@ export default function OverviewDashboard() {
             sub={
               margemTotal.pct == null
                 ? "Aguardando lucro dos canais"
-                : margemTotal.base != null && margemTotal.base < totals.revenue
-                  ? `Sobre ${money(margemTotal.base)} — a parte com custo cadastrado`
-                  : "Lucro sobre o faturamento"
+                : nomeDaBase({
+                    // ⚠️ A CAUSA ERA A UNICA PARTE DA FRASE QUE DIZ O QUE FAZER, e
+                    // ela quase se perdeu na refatoracao: o numero a pessoa ja ve
+                    // no cartao ao lado, a causa nao esta em lugar nenhum. Por isso
+                    // a peca aprendeu a segunda razao em vez de a central escrever
+                    // a dela a mao.
+                    baseApurada: margemTotal.base,
+                    faturamentoExibido: totals.revenue,
+                    custoNaoCadastrado: true,
+                    moeda: "BRL",
+                    prefixo: "Lucro",
+                    rotuloDaBase: "o faturamento",
+                  })
             }
             tone={marginMetricTone(margemTotal.pct)}
           />

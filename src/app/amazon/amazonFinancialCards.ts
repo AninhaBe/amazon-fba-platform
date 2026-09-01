@@ -8,6 +8,7 @@
 // Relativo, nao "@/": este modulo e carregado direto pelos testes, onde o
 // alias do Next nao existe.
 import { comSemImposto } from "../../lib/semImposto";
+import { nomeDaBase } from "../components/baseDaMargem";
 
 export interface AmazonFinanceInput {
   currency: string;
@@ -639,7 +640,13 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
       value: margem == null ? "—" : percent(margem),
       context: margem == null
         ? (custoIncompleto ? faltaCusto : "Aguardando receita e lucro completos")
-        : comSemImposto("Lucro sobre o faturamento do período", input.taxRate == null),
+        // A divergencia deste cartao ja e declarada em `baseDeclarada` logo
+        // abaixo, entao aqui a peca so NOMEIA — e o prefixo guarda a palavra
+        // "Lucro", sem a qual a frase fica ambigua sobre QUAL numero declara.
+        : comSemImposto(
+            nomeDaBase({ prefixo: "Lucro", rotuloDaBase: "o faturamento do período" }),
+            input.taxRate == null,
+          ),
       tone: margem == null ? "default" : margem > 0 ? "positive" : margem < 0 ? "danger" : "default",
       raw: margem,
       baseDeclarada: notaDoLucro,

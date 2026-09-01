@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readdir, readFile } from "node:fs/promises";
 import { declaracaoDeBase, nomeDaBase } from "../src/app/components/baseDaMargem.ts";
 
 /**
@@ -38,4 +39,100 @@ test("e DELEGA quando ha divergencia — a declaracao continua ganhando do nome"
   const comDivergencia = { baseApurada: 748.56, faturamentoExibido: 1068.37, moeda: "BRL", rotuloDaBase: "a receita" };
   assert.equal(nomeDaBase(comDivergencia), declaracaoDeBase(comDivergencia));
   assert.match(nomeDaBase(comDivergencia), /apurados de/);
+});
+
+test("a peca sabe nomear AS DUAS razoes de a base ser menor", () => {
+  // ⚠️ O DEFEITO QUE ISTO REPROVA (01/09/2026, na central): rotear a Margem
+  // consolidada pela peca fazia a frase GANHAR o segundo numero e PERDER a
+  // causa — "a parte com custo cadastrado". E o pior negocio possivel: o numero
+  // a pessoa ja ve no cartao ao lado, a causa nao esta em lugar nenhum, e a
+  // causa e a unica parte da frase que diz O QUE FAZER.
+  const comum = { baseApurada: 748.56, faturamentoExibido: 1068.37, moeda: "BRL" };
+  assert.match(nomeDaBase({ ...comum, rotuloDaBase: "o faturamento", custoNaoCadastrado: true }), / — a parte com custo cadastrado$/);
+  assert.match(nomeDaBase({ ...comum, rotuloDaBase: "o faturamento", pedidosAguardando: 3 }), / — 3 pedidos aguardando confirmação$/);
+  // Pedidos aguardando ganha quando as duas existem: e a causa que se resolve
+  // sozinha com o tempo, entao dizer "espere" e mais util que "cadastre".
+  assert.match(nomeDaBase({ ...comum, rotuloDaBase: "o faturamento", pedidosAguardando: 3, custoNaoCadastrado: true }), /aguardando confirmação$/);
+});
+
+test("o PREFIXO diz QUAL numero esta sendo declarado", () => {
+  // Sem ele, "sobre o faturamento do periodo" no cartao da Amazon deixa a
+  // pessoa adivinhar se a base e do lucro, da margem ou do ROI.
+  assert.equal(nomeDaBase({ prefixo: "Lucro", rotuloDaBase: "o faturamento do período" }), "Lucro sobre o faturamento do período");
+  assert.equal(nomeDaBase({ rotuloDaBase: "a receita" }), "sobre a receita");
+});
+
+test("a frase do CARTAO DE MARGEM vem da peca, em toda a arvore", async () => {
+  // ⚠️ A REGRA VALE PARA O CARTAO DE MARGEM, NAO PARA QUALQUER TEXTO — e o
+  // escopo estreito e o que dispensa lista de excecao. A versao anterior
+  // reprovava "Gasto com anuncio sobre o faturamento total" (a definicao do
+  // TACOS, que E sobre o faturamento total) e "X% sobre o faturamento" (a base
+  // da ALIQUOTA). Os dois saem por CONSTRUCAO, nao por excecao escrita.
+  //
+  // ⚠️ E o fonte vai SEM COMENTARIOS: assercao que PROIBE casa o comentario que
+  // explica a proibicao. Pegou quatro vezes em dois dias neste repo.
+  const VOCABULARIO = /(["'])[^"'\n]*\bsobre (o|a) (faturamento|receita|base)[^"'\n]*\1/;
+  const MARGEM = /key: "marginPct"|label: "Margem"|label="Margem"|label=\{comSemImposto\("Margem"/g;
+  const arquivos = [];
+  const anda = async (dir) => {
+    for (const e of await readdir(dir, { withFileTypes: true })) {
+      const caminho = `${dir}/${e.name}`;
+      if (e.isDirectory()) await anda(caminho);
+      else if (/\.tsx?$/.test(e.name)) arquivos.push(caminho);
+    }
+  };
+  await anda("src/app");
+  // O cartao e delimitado pela CHAVE QUE O ENVOLVE — contagem de chaves, nunca
+  // janela fixa de caracteres. Janela fixa foi o que reprovou arquivo errado na
+  // guarda dos sinais, no mesmo dia.
+  const cartao = (codigo, posicao) => {
+    let i = posicao, profundidade = 0;
+    for (; i >= 0; i -= 1) {
+      if (codigo[i] === "}") profundidade += 1;
+      else if (codigo[i] === "{") { if (profundidade === 0) break; profundidade -= 1; }
+    }
+    if (i < 0) return "";
+    let fim = i, nivel = 0;
+    for (; fim < codigo.length; fim += 1) {
+      if (codigo[fim] === "{") nivel += 1;
+      else if (codigo[fim] === "}") { nivel -= 1; if (nivel === 0) break; }
+    }
+    return codigo.slice(i, fim + 1);
+  };
+  let vistos = 0;
+  for (const arquivo of arquivos) {
+    if (arquivo.includes("/lab/")) continue; // mockup, nao produto
+    const codigo = (await readFile(arquivo, "utf8")).replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    for (const m of codigo.matchAll(MARGEM)) {
+      vistos += 1;
+      const achado = cartao(codigo, m.index).match(VOCABULARIO);
+      assert.equal(achado, null, `${arquivo}: a frase que nomeia a base da margem tem de vir de nomeDaBase() — derive do mesmo lugar que decide o valor. Achado: ${achado?.[0]}`);
+    }
+  }
+  assert.ok(vistos >= 4, `a guarda so achou ${vistos} cartoes de margem — o padrao de busca envelheceu`);
+});
+
+test("e a CENTRAL continua passando a causa — ela pode sumir em silencio", async () => {
+  // ⚠️ ESTE TESTE NASCEU DE UMA QUEBRA QUE NAO FICOU VERMELHA (01/09/2026):
+  // trocar `custoNaoCadastrado: true` por `false` apagava "a parte com custo
+  // cadastrado" da tela dela e nenhuma assercao reclamava. E a mesma familia do
+  // "nada desaparece" — a causa e a UNICA parte da frase que diz o que fazer.
+  //
+  // ⚠️ A ANCORA E A CHAMADA INTEIRA, nao o par `chave: valor` avulso: um
+  // `assert.match(fonte, /custoNaoCadastrado: true/)` fica verde depois de
+  // alguem apagar a propriedade, porque a frase sobrevive no comentario logo
+  // acima. Aconteceu neste repo, com `filaDeFundo: false`.
+  const codigo = (await readFile("src/app/page.tsx", "utf8"))
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\/\/.*$/gm, "");
+  const inicio = codigo.indexOf("nomeDaBase({");
+  assert.ok(inicio > 0, "a Margem consolidada da central deixou de usar a peca");
+  let nivel = 0, fim = inicio;
+  for (; fim < codigo.length; fim += 1) {
+    if (codigo[fim] === "{") nivel += 1;
+    else if (codigo[fim] === "}") { nivel -= 1; if (nivel === 0) break; }
+  }
+  const chamada = codigo.slice(inicio, fim + 1);
+  assert.match(chamada, /custoNaoCadastrado: true/, "a causa saiu da chamada — a frase volta a dizer so o numero");
+  assert.match(chamada, /baseApurada: margemTotal\.base/, "a base deixou de sair do numero que foi de fato usado");
 });
