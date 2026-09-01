@@ -192,8 +192,12 @@ interface DashboardPayload {
   period?: { from: string; to: string };
   sync?: { connectionId: string; coveredFrom: string | null; coveredTo: string | null; status: string | null; processedOrders: number };
   currency: string;
-  /** Faturamento bruto do período — espelha o painel do canal (ADR-020). */
-  billing: {
+  /**
+   * ⚠️ NÃO É O FATURAMENTO — é a receita que o NOSSO BANCO consegue valorizar.
+   * Chamava-se `billing`, e o nome custou o ticket médio de R$ 0,68 medido em
+   * 01/09/2026. Ver a nota no produtor, em `api/amazon/dashboard/route.ts`.
+   */
+  receitaValorizadaPeloBanco: {
     revenue: number;
     orders: number;
     ordersWithValue?: number;
@@ -270,7 +274,7 @@ interface DashSnapshot {
   profitability: ProfitabilityLine[];
   profitabilityScope?: ProfitabilityScope;
   conciliacao: ConciliacaoData | null;
-  faturamento: DashboardPayload["billing"] | null;
+  faturamento: DashboardPayload["receitaValorizadaPeloBanco"] | null;
   pedidosFeitos: PedidosFeitosData | null;
   canceladas: CanceladasData | null;
   cobertura: CoberturaData | null;
@@ -378,7 +382,7 @@ function Dashboard() {
   // Faturamento do período — o MESMO número que a central mostra. Antes o card
   // exibia a receita conciliada (subconjunto), e por isso três telas do produto
   // mostravam três valores diferentes de "faturamento" (20/08/2026).
-  const [faturamentoBruto, setFaturamento] = useState<DashboardPayload["billing"] | null>(initialDash?.faturamento ?? null);
+  const [faturamentoBruto, setFaturamento] = useState<DashboardPayload["receitaValorizadaPeloBanco"] | null>(initialDash?.faturamento ?? null);
   // O número que ela confere contra o Seller Central. Sem ele na tela, a conta
   // era feita à mão — e foi assim que apareceram os defeitos de 21/08.
   const [pedidosFeitosBruto, setPedidosFeitos] = useState<PedidosFeitosData | null>(initialDash?.pedidosFeitos ?? null);
@@ -572,7 +576,7 @@ function Dashboard() {
       // `next`, estas cinco nunca chegavam ao cache e a volta ao periodo ja
       // visto pagava a ida inteira mostrando o recorte anterior.
       next.conciliacao = payload.profit.coverage ?? null; setConciliacao(next.conciliacao);
-      next.faturamento = payload.billing ?? null; setFaturamento(next.faturamento);
+      next.faturamento = payload.receitaValorizadaPeloBanco ?? null; setFaturamento(next.faturamento);
       next.pedidosFeitos = payload.ordered ?? null; setPedidosFeitos(next.pedidosFeitos);
       next.canceladas = payload.cancelled ?? null; setCanceladas(next.canceladas);
       next.cobertura = payload.period && payload.sync ? { periodo: payload.period, sync: payload.sync } : null;

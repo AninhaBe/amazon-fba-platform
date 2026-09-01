@@ -386,8 +386,23 @@ export async function GET(req: NextRequest) {
           processedOrders: Number(frescorRows[0]?.processed_orders ?? 0),
         },
         currency: canonical.currency,
-        // Faturamento do período — a MESMA definição em toda tela do produto.
-        billing: { revenue: faturamento, orders: pedidosFaturados, ordersWithValue: pedidosComValor, coupon: cupom, couponPartial: cupomParcial },
+        /**
+         * ⚠️ NÃO É O FATURAMENTO DO PERÍODO, e o nome antigo dizia que era.
+         *
+         * Chamava-se `billing`, e o card de Faturamento é o `orderMetrics` —
+         * duas coisas diferentes. Este campo é `SUM(COALESCE(NULLIF(gross, 0),
+         * ordered_gross))` mais o frete do comprador: **só o pedido cujo valor o
+         * nosso banco já conhece**. O pendente sem valor publicado fica de fora.
+         *
+         * O nome custou um defeito real: o ticket médio dividia esta receita
+         * PARCIAL por TODAS as vendas. Medido em 01/09/2026 na Silveiras Import:
+         * R$ 12,89 de um pedido dividido por 19 vendas dava **R$ 0,68** ao lado
+         * de um Faturamento de R$ 348,07 — o ticket real era R$ 18,32.
+         *
+         * Quem quiser "o faturamento" usa `pedidosFeitos.revenue`. Este campo
+         * serve para comparar o que o banco valoriza com o que a Amazon informa.
+         */
+        receitaValorizadaPeloBanco: { revenue: faturamento, orders: pedidosFaturados, ordersWithValue: pedidosComValor, coupon: cupom, couponPartial: cupomParcial },
         // PEDIDOS FEITOS — o mesmo número do Seller Central, com pendentes e
         // cancelados dentro. Fica ao lado do conciliado, nunca no lugar dele:
         // são perguntas diferentes (ADR-020) e a tela precisa dizer qual é qual.
