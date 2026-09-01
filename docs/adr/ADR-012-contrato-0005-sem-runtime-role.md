@@ -1,5 +1,15 @@
 # ADR-012: Contrato da 0005 sem exigência de runtime role dedicada
 
+> 📌 **Reaberta em 01/09/2026 pela [ADR-036](./ADR-036-barreira-de-inquilino-no-banco.md),
+> com motivo novo.** O que está decidido aqui — que policy `USING (true)` não
+> protege e que o `REVOKE` de `PUBLIC`/`anon`/`authenticated`/`service_role` é o
+> que de fato protege — **continua valendo e foi reconfirmado por medição**. O que
+> a ADR-036 acrescenta é o caso que esta aqui não cobria: a role da **própria
+> aplicação** é `postgres`, com `rolbypassrls = true` e dona das 32 tabelas, então
+> a separação entre inquilinos hoje depende inteiramente do `WHERE` da aplicação.
+
+
+
 - **Status:** Aceito
 - **Data:** 2026-08-13
 - **Substitui parcialmente:** o bloco de grants/policies de
