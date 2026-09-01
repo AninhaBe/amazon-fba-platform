@@ -1,10 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { TABELA_DE_COMISSAO_AMAZON_BR, comissaoPelaTabela } from "../src/lib/integrations/amazonTabelaDeComissao.ts";
 import { categoriaDaTabela } from "../src/lib/integrations/amazonCategoriaDaTabela.ts";
 
 // A tabela vem da pagina publica de precos da Amazon (venda.amazon.com.br/precos),
-// capturada em 02/09/2026. Estes casos sao os que foram MEDIDOS de forma
+// capturada em 31/08/2026. Estes casos sao os que foram MEDIDOS de forma
 // independente — no Gestor Seller e no nosso proprio extrato — e servem para
 // provar que a copia esta certa, nao so que existe.
 
@@ -14,17 +15,38 @@ const daFolha = (folha, raiz) => {
   return r.categoria;
 };
 
-test("os percentuais batem com a comissao EFETIVA medida no nosso extrato", () => {
-  // ⚠️ ESTES SAO OS NUMEROS QUE DESEMPATARAM DUAS CAPTURAS DIVERGENTES DA MESMA
-  // PAGINA (01/09/2026). Medido em pedidos de uma linha so, com preco conhecido,
-  // usando so linhas `Commission` decompostas:
-  //   Papelaria 12,03% (1.274 pedidos) · Beleza 12,01% (103) · Moda 14,03% (701)
-  //   Cozinha 12,04% (422) · Saude 12,01% (149) · Pets 12,02% (31)
-  // O doc dizia 13% em Papelaria e Beleza; o chat dizia 15% em Moda. Nenhum dos
-  // dois estava inteiramente certo, e a medicao e o arbitro.
-  assert.equal(comissaoPelaTabela(daFolha("Filete", "Papelaria e Escritório"), 100).percentual, 0.12);
-  assert.equal(comissaoPelaTabela(daFolha("Utensílios e Acessórios", "Beleza"), 100).percentual, 0.12);
-  assert.equal(comissaoPelaTabela(daFolha("Bolas", "Pet Shop"), 100).percentual, 0.12);
+test("a constante segue o VERBATIM da pagina, e a medicao e o alerta", () => {
+  // ⚠️ ESTE TESTE MUDOU DE INTENCAO EM 01/09/2026, DUAS VEZES NO MESMO DIA.
+  //
+  // 1a versao: fixava os percentuais da leitura trazida ao chat.
+  // 2a versao: eu troquei Papelaria e Beleza para 12% porque o NOSSO EXTRATO
+  //   media 12,0x e uma reconstrucao do doc dizia 12%. Estava errado — eu deixei
+  //   a medicao sobrepor a fonte.
+  // 3a e atual: alguem abriu a pagina ao vivo, em duas leituras independentes.
+  //   Ela diz 13% em Papelaria e Beleza. A pagina ganha, porque esta constante
+  //   existe para ser a COPIA dela — nao a nossa melhor estimativa.
+  //
+  // 📌 A REGRA QUE SAI DISSO: quando a fonte e a medicao discordam, a fonte
+  // manda na CONSTANTE e a medicao vira DIVERGENCIA REGISTRADA. Inverter isso
+  // transforma a tabela publicada numa media nossa com outro nome — e ai ela
+  // perde a unica coisa que a torna util, que e ser verificavel contra a pagina.
+  assert.equal(comissaoPelaTabela(daFolha("Filete", "Papelaria e Escritório"), 100).percentual, 0.13);
+  assert.equal(comissaoPelaTabela(daFolha("Utensílios e Acessórios", "Beleza"), 100).percentual, 0.13);
+});
+
+test("a divergencia entre pagina e extrato esta REGISTRADA, nao escondida", () => {
+  // O extrato mede 12,0x onde a pagina diz 13% — em 1.274 pedidos de Papelaria e
+  // 103 de Beleza. Pode ser promocional, mudanca recente, ou a nossa raiz de
+  // catalogo nao ser a categoria de COBRANCA. Nao resolvido, e nao escondido.
+  //
+  // E a ordem observada > tabela protege: quem tem historico usa os 12% reais;
+  // a tabela so alcanca ASIN sem historico, onde 1pp a mais e conservador e a
+  // primeira venda real substitui.
+  const fonte = fs.readFileSync(
+    new URL("../src/lib/integrations/amazonTabelaDeComissao.ts", import.meta.url), "utf8");
+  assert.match(fonte, /12,03%/, "a medicao de Papelaria precisa estar registrada");
+  assert.match(fonte, /12,01%/, "a de Beleza tambem");
+  assert.match(fonte, /divergencia|Divergência|DIVERGIRAM/i, "e precisa estar nomeada como divergencia");
 });
 
 test("os tres percentuais que foram medidos de forma independente batem", () => {
@@ -37,13 +59,26 @@ test("os tres percentuais que foram medidos de forma independente batem", () => 
   assert.equal(comissaoPelaTabela(daFolha("Mouse Pads", "Computadores e Informática"), 49.9).percentual, 0.15);
 });
 
-test("a faixa de preco vira 10% acima do teto — e o teto e por CATEGORIA", () => {
+test("a faixa e MARGINAL — 10% no EXCEDENTE, nao no preco inteiro", () => {
+  // ⚠️ O DEFEITO QUE ISTO REPROVA (achado em 01/09/2026, na leitura verbatim da
+  // pagina): "15% ate R$ 100,00; 10% NO EXCEDENTE" e faixa progressiva, como
+  // imposto de renda — nao aliquota unica por banda, como faixa de frete.
+  //
+  // A primeira implementacao lia a banda e aplicava o percentual dela ao preco
+  // INTEIRO. Errava para MENOS acima do teto, e errava mais quanto mais caro o
+  // produto. Nao apareceu em teste nenhum porque tudo que a conta vende custa de
+  // R$ 14 a R$ 38 — abaixo do teto as duas leituras coincidem, e o defeito so
+  // nasceria no primeiro produto caro.
   const acessorio = daFolha("Mouse Pads", "Computadores e Informática");
-  assert.equal(comissaoPelaTabela(acessorio, 100).percentual, 0.15, "no teto ainda e 15%");
-  assert.equal(comissaoPelaTabela(acessorio, 100.01).percentual, 0.10, "acima do teto cai para 10%");
-  const moveis = TABELA_DE_COMISSAO_AMAZON_BR["Móveis"];
-  assert.equal(comissaoPelaTabela(moveis, 200).percentual, 0.15);
-  assert.equal(comissaoPelaTabela(moveis, 200.01).percentual, 0.10, "movel tem teto proprio, R$ 200");
+  assert.equal(comissaoPelaTabela(acessorio, 100).valor, 15, "no teto: 15% de 100");
+  // R$ 150 = 15% dos primeiros 100 (15,00) + 10% dos 50 excedentes (5,00).
+  assert.equal(comissaoPelaTabela(acessorio, 150).valor, 20);
+  assert.notEqual(comissaoPelaTabela(acessorio, 150).valor, 15,
+    "10% sobre o preco inteiro seria R$ 15,00 — a leitura errada");
+  // E o percentual DECLARADO e o efetivo: 20/150 = 13,33%.
+  assert.equal(comissaoPelaTabela(acessorio, 150).percentual, 0.1333);
+  // Movel tem teto proprio: R$ 300 = 15% de 200 (30) + 10% de 100 (10) = 40.
+  assert.equal(comissaoPelaTabela(TABELA_DE_COMISSAO_AMAZON_BR["Móveis"], 300).valor, 40);
 });
 
 test("o minimo por item e PISO, nao acrescimo", () => {

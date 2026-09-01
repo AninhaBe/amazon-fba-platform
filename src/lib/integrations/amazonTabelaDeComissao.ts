@@ -113,11 +113,15 @@ export const TABELA_DE_COMISSAO_AMAZON_BR: Record<string, CategoriaDaTabela> = {
   "Esportes, aventura e lazer": pct("Esportes, aventura e lazer", 0.12, 2),
   "Instrumentos musicais": pct("Instrumentos musicais", 0.12, 2),
   // 13%
-  // 12% e nao 13%: medido 12,01% em 103 pedidos (ver a nota do cabecalho).
-  "Beleza": pct("Beleza", 0.12, 1),
+  // ⚠️ 13%, VERBATIM DA PAGINA — e o extrato mede 12,01% em 103 pedidos.
+  // A divergencia esta aberta e registrada em docs/tarifas-amazon-br.md; o que
+  // manda aqui e a pagina, porque esta constante existe para ser a COPIA dela.
+  // Quem tem historico usa a observada (12% real) pela ordem de preferencia.
+  "Beleza": pct("Beleza", 0.13, 2),
   "Eletrônicos portáteis": pct("Eletrônicos portáteis", 0.13, 2),
-  // 12% e nao 13%: medido 12,03% em 1.274 pedidos, a maior amostra que temos.
-  "Papelaria e Escritório": pct("Papelaria e Escritório", 0.12, 1),
+  // ⚠️ 13%, VERBATIM DA PAGINA — e o extrato mede 12,03% em 1.274 pedidos, a
+  // maior amostra que temos. Mesma divergencia aberta da Beleza.
+  "Papelaria e Escritório": pct("Papelaria e Escritório", 0.13, 2),
   "Relógios": pct("Relógios", 0.13, 2),
   // 14%
   "Beleza de luxo": pct("Beleza de luxo", 0.14, 2),
@@ -155,18 +159,40 @@ export function comissaoPelaTabela(
   categoria: CategoriaDaTabela,
   precoUnitario: number | null,
 ): { valor: number; percentual: number } | null {
-  const temFaixas = categoria.faixas.length > 1;
   if (precoUnitario == null || precoUnitario <= 0) {
     // Percentual único ainda é conhecido, mas o VALOR depende do preço — e o
     // mínimo por item também. Sem preço não há valor.
     return null;
   }
-  if (temFaixas && precoUnitario == null) return null;
-  const faixa =
-    categoria.faixas.find((f) => f.ate == null || precoUnitario <= f.ate)
-    ?? categoria.faixas[categoria.faixas.length - 1];
+  /**
+   * ⚠️ A FAIXA É MARGINAL, NÃO UMA ALÍQUOTA ÚNICA POR BANDA (01/09/2026).
+   *
+   * A página escreve "15% até R$ 100,00; **10% no excedente**" — como imposto de
+   * renda, não como faixa de frete. Um acessório de R$ 150 paga
+   * `0,15 × 100 + 0,10 × 50 = R$ 20,00`, e não `0,10 × 150 = R$ 15,00`.
+   *
+   * A primeira versão desta função lia a banda e aplicava o percentual dela ao
+   * preço inteiro: errava para MENOS em tudo acima do teto, e errava mais quanto
+   * mais caro o produto. Não apareceu em teste porque os produtos medidos custam
+   * de R$ 14 a R$ 38 — abaixo do teto, as duas leituras coincidem, e o defeito
+   * só nasceria no primeiro produto caro.
+   */
+  let restante = precoUnitario;
+  let anterior = 0;
+  let valorBruto = 0;
+  for (const faixa of categoria.faixas) {
+    if (restante <= 0) break;
+    const teto = faixa.ate == null ? Infinity : faixa.ate;
+    const nestaFaixa = Math.min(restante, teto - anterior);
+    valorBruto += nestaFaixa * faixa.percentual;
+    restante -= nestaFaixa;
+    anterior = teto;
+  }
   // O MÍNIMO POR ITEM É PISO, não acréscimo: a Amazon cobra o maior entre o
   // percentual e o mínimo. Somar os dois inflaria toda venda barata.
-  const valor = Math.max(precoUnitario * faixa.percentual, categoria.minimoPorItem);
-  return { valor: +valor.toFixed(2), percentual: faixa.percentual };
+  const valor = Math.max(valorBruto, categoria.minimoPorItem);
+  // O percentual DECLARADO é o efetivo sobre o preço — é o que a tela mostra, e
+  // é o único que faz sentido quando há mais de uma faixa.
+  const percentual = +(valorBruto / precoUnitario).toFixed(4);
+  return { valor: +valor.toFixed(2), percentual };
 }
