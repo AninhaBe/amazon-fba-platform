@@ -208,6 +208,56 @@ Amazon*. Se o papel for concedido, o caminho é `transportationOptions` da 2024-
 
 ## Changelog observado (mais recente primeiro)
 
+- **2026-08-31** — **O software concorrente calcula comissão e FBA NO MOMENTO DO
+  PEDIDO, por tabela, e mostra na tela sem esperar aprovação nem liquidação.**
+  Não é observação da SP-API: é medição da tela do **Gestor Seller**, feita pelo
+  cérebro em leitura na conta que a Ana usa lá (**Crystal Fancy**, do colega).
+  Fica registrado aqui porque responde a pergunta que a nossa documentação
+  tratava como aberta — *quando a tarifa pode aparecer* — e porque muda o
+  enquadramento da [ADR-027](adr/ADR-027-tarifa-estimada-ate-a-liquidacao.md).
+
+  Pedido medido: **`702-5661774-5509040`**, Amazon FBA, criado em **31/08/2026
+  às 22:05:42**. **Data de aprovação: `-`** — ou seja, o equivalente ao nosso
+  `pending`, minutos após a criação. A composição inteira já estava na tela:
+
+  | linha | valor |
+  |---|---|
+  | Total dos itens | +R$ 28,90 |
+  | Comissão | −R$ 3,47 |
+  | Taxa FBA | −R$ 5,65 |
+  | Imposto | −R$ 1,73 |
+  | Custo dos produtos | −R$ 12,08 |
+  | **Lucro do pedido** | **R$ 5,97** (margem 20,64%) |
+
+  E na linha da lista: *"líquido do marketplace R$ 19,78"* = 28,90 − 3,47 − 5,65.
+
+  **É tabela, não extrato — e a prova é aritmética.** 3,47 / 28,90 = **12,006%**,
+  a comissão de categoria batida na casa decimal; número vindo de extrato não cai
+  em 12,00% redondo. A Taxa FBA de R$ 5,65 se repete idêntica em pedidos do mesmo
+  SKU (quatro conferidos: 28,90 → 19,78 sempre). Derivação minha sobre os números
+  deles, marcada como derivação: no outro preço do mesmo SKU, 21,90 → 13,62
+  implica comissão 2,63 (**12,0%** de 21,90) e FBA **5,65 de novo** — preço
+  diferente, mesma taxa de logística, que é o comportamento de tarifa por
+  tamanho/peso e não por valor. É a mesma chave `(ASIN, preço)` cuja dedup já
+  medimos do nosso lado.
+
+  **Eles NÃO marcam o número como estimado.** Mostram como se fosse o oficial.
+  ⚠️ **Isto não é para copiar** — a marca da casa fica. O que o achado derruba é
+  a ideia de que exibir tarifa calculada antes da liquidação seria heterodoxo: o
+  software que a Ana usa como referência faz isso desde o minuto zero do pedido.
+
+  **O que NÃO foi provado, e não pode ser afirmado:** se eles **substituem** o
+  calculado pelo oficial quando a liquidação chega. O medido é que calculam
+  antes; a substituição ficou sem prova.
+
+  Uma observação lateral que vale para o nosso defeito de hoje: o lucro deles
+  fecha exatamente sobre o **total de itens do próprio pedido**
+  (28,90 − 3,47 − 5,65 − 1,73 − 12,08 = 5,97), e a margem sai sobre essa mesma
+  base — **uma base só, do mesmo universo**. A margem exibida (20,64%) fica
+  0,02 p.p. abaixo de 5,97/28,90 = 20,66%; o arredondamento exato do denominador
+  deles não foi determinado.
+
+
 - **2026-08-31** — **`getOrderItems` DEVOLVE os itens de um pedido `Pending`:
   traz ASIN, SKU e quantidade — e NÃO traz preço.** Medido com uma chamada real
   na conta `AO62LVXJMX3AA`, pedido `702-7217003-1775439` (Pending, AFN):

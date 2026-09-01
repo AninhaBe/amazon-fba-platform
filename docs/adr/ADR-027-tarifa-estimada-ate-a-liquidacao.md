@@ -123,6 +123,66 @@ descobrir pelo cliente.
 O desvio precisa ser consultável por período e por SKU (um erro concentrado num
 produto é um problema diferente de um erro espalhado).
 
+## Emenda de 31/08/2026 — deixa de ser exceção e passa a ser o caminho padrão
+
+**Decidido pelo cérebro em 31/08/2026, com achado de concorrente medido na mão.**
+O texto original acima fica intacto: esta emenda muda o **enquadramento e o
+escopo**, não a fonte nem o modo de falha.
+
+### O que foi medido
+
+Na tela do **Gestor Seller** (leitura na conta **Crystal Fancy**, do colega, que
+é a que a Ana usa lá), pedido **`702-5661774-5509040`**, Amazon FBA, criado em
+**31/08/2026 às 22:05:42**, com **data de aprovação `-`** — o equivalente ao
+nosso `pending`. Minutos depois de criado, a tela já mostrava a composição
+inteira: itens +R$ 28,90, comissão −R$ 3,47, FBA −R$ 5,65, imposto −R$ 1,73,
+custo −R$ 12,08, **lucro R$ 5,97 (20,64%)**, e *"líquido do marketplace
+R$ 19,78"*.
+
+É cálculo **por tabela**, não leitura de extrato: 3,47 / 28,90 = **12,006%**, a
+comissão de categoria na casa decimal, e a Taxa FBA de R$ 5,65 se repete idêntica
+em quatro pedidos do mesmo SKU. O registro completo, com a derivação sobre o
+segundo preço, está no *Changelog observado* de
+[`docs/api-amazon-sp-api.md`](../api-amazon-sp-api.md).
+
+### O que isso muda neste ADR
+
+| era (28/08) | passa a ser (31/08) |
+|---|---|
+| **Exceção** à regra "não extrapolar", para cobrir o buraco até a liquidação | **Caminho padrão da Amazon**: toda venda nasce com comissão e FBA calculados por tabela, e o oficial **substitui** quando chega |
+| Escopo: a linha do pedido na Rentabilidade, onde hoje não há número | Vale **também para o pedido `pending`** — que é o que a Ana pediu três vezes |
+| Justificativa: "número ausente é pior que número estimado e rotulado" | A mesma, **mais** a evidência de que o software de referência dela faz assim desde o minuto zero do pedido |
+
+O que **não** muda, e não está em discussão:
+
+- a fonte continua sendo a **Product Fees API** da Amazon — média histórica
+  calculada por nós segue proibida;
+- o modo de falha continua o mesmo: **sem estimativa, o pedido fica sem número**,
+  nunca `0`;
+- **a marca de estimativa na tela FICA.** Os concorrentes exibem o número sem
+  marca nenhuma, como se fosse oficial — e essa é a parte que **não copiamos**.
+  Nossa vantagem sobre eles passa a ser exatamente a marca e a substituição, não
+  a ausência do número.
+
+### O que NÃO foi provado
+
+Não foi possível provar que o concorrente **substitui** o calculado pelo oficial
+depois da liquidação. O medido é que ele **calcula antes**. Nada neste ADR pode
+se apoiar na substituição deles — a nossa substituição (item 3 acima) continua
+sendo decisão nossa, sustentada pelo acompanhamento de pontaria (item 5), e não
+por imitação.
+
+### Aberto em 31/08/2026, e é dívida desta emenda
+
+A implementação que já está no ar (`e8fee24`) grava a tarifa estimada como
+`fee_type = 'estimated'` e a soma ao lucro do período. Medido no mesmo dia, na
+conta `A15NQMF7A6J1Y0`: a estimativa entrou para 28 pedidos, enquanto a **receita**
+do pendente só cobre 13 de 32 — `ordered_gross` é `NULL` nos outros 19. Tarifa e
+custo de um universo contra receita de outro é o que produziu a margem de −90,5%
+na tela dela. **O caminho padrão só vale com receita e tarifa cobrindo o mesmo
+conjunto de pedidos** — a apuração desse desencontro está medida e registrada, e
+o conserto aguarda o cérebro.
+
 ## Consequências
 
 **A favor:**
