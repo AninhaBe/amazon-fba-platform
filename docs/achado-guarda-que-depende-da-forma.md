@@ -1,8 +1,8 @@
-# Ancoragem de guardas: o catálogo dos seis casos de 01/09/2026
+# Ancoragem de guardas: o catálogo de 01/09/2026
 
 **O que este documento é:** a lista completa das guardas que ficaram vermelhas
 **pelo motivo errado** num único dia, o que cada uma casava, o que a derrubou, e
-a regra que sai do conjunto. Escrito de uma vez, com os seis frescos, porque
+a regra que sai do conjunto. Escrito de uma vez, com os casos frescos, porque
 guarda mal ancorada não é erro de quem a escreveu: é o resultado padrão de
 escrever guarda com pressa.
 
@@ -11,9 +11,9 @@ função, confira a saída) ou **a forma do código**. A segunda é sempre mais 
 de escrever, e é a que dá falsa sensação de cobertura — ela protege contra **o
 defeito escrito de um jeito só**.
 
-## Os seis casos
+## Os sete casos
 
-Os seis são sobre **onde a guarda ancora**. No fim há uma sétima família, irmã e
+Os sete são sobre **onde a guarda ancora**. No fim há uma família irmã e
 diferente: **unidade implícita**, em que nenhuma guarda dispara porque não há
 nada de errado no código — só no significado.
 
@@ -25,6 +25,7 @@ nada de errado no código — só no significado.
 | 4 | a **linha exata** de um ternário | a frase passou a sair da peça compartilhada e o teste acusou *"a base voltou a ser constante"* — **o oposto do que aconteceu** | a forma da linha, não a propriedade |
 | 5 | o **import exato** `import { declaracaoDeBase }` | a tela passou a importar **também** `nomeDaBase` | a lista de nomes, não a procedência |
 | 6 | a **profundidade do caminho** (`../../lib/semImposto`, `./components/Dash…`) | as telas desceram um nível para dentro do route group `(app)` | a posição na árvore, não o módulo |
+| 7 | o **fim de linha** — um removedor de comentários que exige a quebra de linha logo depois do ponto | o ponto não casa carriage return, então num arquivo CRLF a limpeza vira **no-op** e a guarda acusa o comentário que documenta a correção | nada, no disco de quem tem CRLF — e tudo no de quem tem LF |
 
 Os casos 4, 5 e 6 têm uma propriedade que os separa dos outros três, e é a mais
 cara: **eles ficaram vermelhos por causa de uma melhora.**
@@ -64,6 +65,7 @@ fazer, suspeite da âncora antes de suspeitar do código.
 | **a distância em caracteres** | a janela atravessa a expressão e acusa o arquivo errado |
 | **o comentário** | asserção que PROÍBE casa o texto que explica a proibição |
 | **a linha exata** | qualquer melhora na linha vira vermelho |
+| **o fim de linha** | o mesmo arquivo é LF numa máquina e CRLF na outra: a guarda passa para um e falha para o outro |
 
 ## Duas regras operacionais que vêm junto
 
@@ -106,6 +108,51 @@ recorrente, mas quando **a busca manual é propensa a ponto cego** — condiçã
 escondida em ternário, fallback que só aparece num estado raro, arquivo com
 extensão fora do recorte (`.ts` numa varredura de `.tsx` — foi assim que o quarto
 sítio escapou).
+
+## Caso 7: o FIM DE LINHA, que é aparência disfarçada de estrutura
+
+**Do backend, 01/09/2026.** Um removedor de comentários virou **no-op** num
+arquivo salvo com CRLF — e a guarda passou a acusar exatamente o comentário que
+documentava a correção. É o caso 3 outra vez (aparência em vez de estrutura), só
+que a aparência aqui é o **fim de linha**.
+
+O mecanismo, medido chamando as duas formas com a mesma entrada:
+
+| padrão | LF | CRLF |
+|---|---|---|
+| ancorado em `$` com a flag `m` | limpa | **limpa** |
+| que exige a quebra de linha logo depois do ponto | limpa | **NO-OP** |
+
+A causa tem duas metades, e é preciso saber as duas — elas se cancelam:
+
+1. **o ponto não casa carriage return.** Em JS os terminadores de linha (LF, CR,
+   e os dois separadores Unicode) estão fora do ponto. Então um padrão que exige
+   a quebra de linha logo depois do ponto **não alcança** essa quebra: o CR está
+   no caminho, e o casamento inteiro falha;
+2. **mas `$` com a flag `m` casa antes do CR também.** É por isso que a forma
+   ancorada sobrevive — e é por isso que o buraco é impossível de prever de
+   cabeça: as duas formas *parecem* equivalentes, e uma delas é.
+
+**A correção é a fragilidade, não a asserção:** normalize antes de qualquer
+análise de fonte, com uma linha que troca CRLF por LF.
+
+⚠️ **E isto não é problema de quem escreveu o arquivo.** O `.gitattributes`
+normaliza no git — não no **disco** de quem já tinha checkout. O mesmo arquivo é
+LF numa máquina e CRLF na outra, então a guarda **passa para um e falha para o
+outro**: o modo mais caro de uma guarda falhar, porque ela vira "coisa da máquina
+dele" e a próxima pessoa aprende a ignorá-la.
+
+### E as guardas desta casa? Medidas, não supostas
+
+As varreduras de fonte de `tests/` usam formas ancoradas em `$` com `m`, ou a
+classe que casa qualquer caractere para bloco — as duas sobrevivem ao CRLF.
+Verificado **chamando** cada variante com a mesma entrada em LF e em CRLF, não
+lendo o regex e concluindo.
+
+📌 **Mas isso é sorte de sintaxe, não cuidado:** ninguém escolheu `$` por causa
+do carriage return. Quem escrever a próxima varredura tem chance de sobra de
+escolher a forma que quebra, e ela vai quebrar só na máquina de outra pessoa. Por
+isso a normalização vale sempre, mesmo onde hoje não muda nada.
 
 ## A família irmã: unidade implícita — o valor está certo, o significado não
 

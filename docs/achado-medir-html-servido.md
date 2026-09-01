@@ -88,3 +88,26 @@ estáticas antes e 61 depois, com `/` seguindo `○`.
 
 O flash na Visão geral acabou junto: a casca volta a ser renderizada no
 servidor para quem tem sessão, porque a landing já não passa por ela.
+
+## Constante se lê, não se lembra
+
+**Do backend, 01/09/2026.** Uma pré-condição foi medida contra uma **lista de
+status escrita de cabeça**. A conta deu *"sumiriam 0 de 10"*, e a mudança parecia
+segura. Ao abrir a constante de verdade, o número virou **10 de 10**.
+
+Não foi uma medição imprecisa — foi uma medição **invertida**. Ela dizia o
+oposto do que era verdade, com a confiança de um número. E números não são
+questionados como opiniões: um "0 de 10" teria aprovado a mudança sem discussão.
+
+> **Toda medição que depende de uma lista de valores cita o arquivo e a linha de
+> onde a lista veio.**
+
+Vale para lista de status, de enum, de rota pública, de coluna, de tipo de
+tarifa. É a mesma disciplina do bloco anterior por um motivo diferente: lá o
+método de fatiar estava errado; aqui o método está certo e **a entrada** é que
+foi inventada. As duas produzem um número que confirma o que se esperava — e é
+por isso que ambas passam.
+
+📌 **O sinal de alerta é a facilidade.** Se você conseguiu montar a lista sem
+abrir arquivo nenhum, você não mediu: você lembrou. Lembrar dá a mesma sensação
+de saber, e é a diferença entre "0 de 10" e "10 de 10".
