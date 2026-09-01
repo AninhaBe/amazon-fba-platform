@@ -24,7 +24,26 @@ import {
 } from "@/lib/navigationPreferences";
 import accountStyles from "./ShellAccountLinks.module.css";
 
+/**
+ * Há sessão neste navegador?
+ *
+ * ⚠️ Lê o COOKIE, não pergunta ao servidor: a casca é decidida a cada render, e
+ * uma chamada de auth aqui seria uma por página, no caminho da requisição — o
+ * oposto do que o postmortem do pool esgotado (29/08/2026) mandou fazer. O
+ * cookie do Supabase é o mesmo que o proxy já lê para decidir a rota, então os
+ * dois não têm como discordar.
+ *
+ * No servidor devolve `false` ("assuma que há sessão"): é o que mantém o HTML
+ * pré-renderizado das telas autenticadas igual ao que o cliente monta. A raiz
+ * sem sessão vem do rewrite, cujo HTML é o da landing — que já não tem casca.
+ */
+function usarSemSessao(): boolean {
+  if (typeof document === "undefined") return false;
+  return !/(^|;\s*)sb-[^=]*-auth-token=/.test(document.cookie);
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const semSessao = usarSemSessao();
   const pathname = usePathname();
   const workspace = workspaceFromPath(pathname);
   const isDashboard = ["/", "/amazon", "/mercado-livre", "/shopee", "/tiktok"].includes(pathname);
@@ -65,7 +84,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // com `publicPaths` do proxy evita, por exemplo, uma política pública com a
   // sidebar e o seletor da conta de quem já estiver logado. `/lab` desenha a
   // própria navegação em desenvolvimento.
+  //
+  // ⚠️ E A LISTA SOZINHA NÃO BASTA DESDE 01/09/2026, quando a raiz passou a
+  // servir a landing por REWRITE.
+  //
+  // Rewrite mantém o endereço em `/` — é o ponto dele —, então `pathname`
+  // continua sendo `/` e nenhuma linha desta lista casa. Sem a regra de sessão
+  // abaixo, a landing renderizaria DENTRO da moldura autenticada, com sidebar,
+  // topo e seletor de conta, para um visitante que nunca logou: a primeira tela
+  // de um cliente novo mostrando navegação de um produto que ele não tem.
+  //
+  // Por isso a condição passou a olhar SESSÃO, e não só endereço. Lista é
+  // enumeração — ela protege os caminhos que alguém lembrou de escrever. Sessão
+  // é a propriedade que realmente decide se existe casca para mostrar, e o
+  // próximo endereço público entra protegido sem ninguém editar nada.
   if (
+    semSessao ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/landing") ||
     pathname.startsWith("/privacidade") ||
