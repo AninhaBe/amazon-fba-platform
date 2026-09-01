@@ -48,7 +48,7 @@ const PROVIDER = "amazon";
  * `provider_fee_code`, e não contamina nenhuma das duas parcelas que a tela
  * exibe separadas.
  */
-function naturezaDaTarifa(tipoDaAmazon: string): CanonicalFeeType {
+export function naturezaDaTarifa(tipoDaAmazon: string): CanonicalFeeType {
   const t = tipoDaAmazon.toLowerCase();
   if (t.includes("referral") || t.includes("commission")) return "commission";
   if (t.includes("fba") || t.includes("fulfillment") || t.includes("pick") || t.includes("weight")) {
