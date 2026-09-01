@@ -106,6 +106,14 @@ export async function inspectFinancialLedgerContract(query, contractSql) {
  * caminho certo mais caro que o errado vira desvio. Mesma regra do "worktree
  * limpo", que já é assim.
  */
+/*
+ * ⚠️ CHAMADA PELO CLI, NÃO POR `buildPlan` — e a primeira versão errava nisso.
+ * `buildPlan` é função pura: recebe migrations já carregadas e devolve um plano.
+ * Pôr `git show` lá dentro fez uma função pura tocar disco e processo, e quebrou
+ * todo teste que a exercita com migrations sintéticas (`tests/migrationSafety.test.mjs`
+ * reprovou na hora, que é exatamente o trabalho dele). O I/O mora no CLI, que já
+ * lê arquivo e já roda git — e chamar de lá cobre `plan` e `apply` igual.
+ */
 export function assertMigrationsMatchCommit({ environment, migrations, dir = "migrations" }) {
   if (environment === "local") return;
   for (const { name, sql } of migrations) {
@@ -131,10 +139,6 @@ export function assertMigrationsMatchCommit({ environment, migrations, dir = "mi
 }
 
 export function buildPlan({ environment, target, identity, migrations, applied, git, runtimeRole }) {
-  // Aqui, e não só em `validateApply`, porque o PLAN também precisa barrar: um
-  // plano gerado sobre bytes não commitados assinaria conteúdo que o repositório
-  // não tem, e a assinatura passaria a cobrir o que ninguém revisou.
-  assertMigrationsMatchCommit({ environment, migrations });
   const appliedMap = new Map(applied.map((item) => [item.name, item.hash]));
   const entries = migrations.map(({ name, hash, operations }) => ({
     name, hash, operations, status: appliedMap.has(name) ? "applied" : "pending",

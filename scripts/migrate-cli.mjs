@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import pg from "pg";
-import { LOCAL_HOSTS, assertLocalTarget, buildPlan, inspectFinancialLedgerContract, inspectTarget, loadMigrations, newRunId, parseArgs, safeTarget, savePlan, validateApply } from "./migration-safety.mjs";
+import { LOCAL_HOSTS, assertLocalTarget, assertMigrationsMatchCommit, buildPlan, inspectFinancialLedgerContract, inspectTarget, loadMigrations, newRunId, parseArgs, safeTarget, savePlan, validateApply } from "./migration-safety.mjs";
 import { assertFinancialLedgerContract, assertFinancialLedgerPrecheck, financialLedgerContractHash, FINANCIAL_LEDGER_CONTRACT_SQL, FINANCIAL_LEDGER_CONTRACT_VERSION, FINANCIAL_LEDGER_MIGRATION, materializeFinancialLedgerMigration } from "./migration-contracts.mjs";
 
 const mode=process.argv[2], args=parseArgs(process.argv.slice(3)), environment=args.environment, databaseUrl=process.env.DATABASE_URL, runId=newRunId();
@@ -26,6 +26,10 @@ if(!databaseUrl)throw new Error("BLOCKED: DATABASE_URL ausente.");
 const target=safeTarget(databaseUrl); assertLocalTarget(environment,target);
 if(mode==="local"&&environment!=="local")throw new Error("BLOCKED: migrate:local exige --environment local.");
 const git=gitState(), migrations=await loadMigrations(path.resolve("migrations"));
+// O .sql em disco tem de ser o commitado, em staging/producao. Antes de tudo:
+// planejar sobre bytes nao commitados assinaria conteudo que o repositorio nao
+// tem. Ver migration-safety.mjs -> assertMigrationsMatchCommit.
+if(mode!=="guard")assertMigrationsMatchCommit({environment,migrations});
 const auditBase={targetFingerprint:target.fingerprint,commit:git.commit,dirty:git.dirty,migrationHashes:migrations.map(({name,hash})=>({name,hash}))};
 let authorizationReference;
 const pool=new pg.Pool({connectionString:databaseUrl,ssl:LOCAL_HOSTS.has(target.host)?false:{rejectUnauthorized:false},max:1});
