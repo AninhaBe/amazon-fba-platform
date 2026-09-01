@@ -109,6 +109,15 @@ depois de alguém apagar a chamada e deixar o import.
   alvo é JSX ou uma rota —, case a **ramificação**, não o identificador:
   `if (fromValue || toValue)` prova uso; `searchParams.get("from")` não prova
   nada;
+- **casar texto do fonte pega o COMENTÁRIO também.** Quando só der para olhar o
+  fonte, ancore a asserção **dentro da chamada**, nunca numa frase solta.
+  Aconteceu em 31/08/2026, e o teste era justamente o que reprovava esta
+  família: `assert.match(fonte, /filaDeFundo: false/)` ficava verde depois de
+  apagar a propriedade, porque a frase existia no comentário logo acima da
+  chamada. O que reprova é a chamada inteira —
+  `usePrefetchDePeriodos({ … filaDeFundo: false, });` —, não o par
+  `chave: valor` avulso. E só apareceu porque as quebras foram rodadas uma a
+  uma: **confiar no verde é como o teste decorativo sobrevive.**
 - e diga no próprio teste **qual defeito ele reprova**, com o número que ele teve
   no mundo real. Teste sem essa frase vira o primeiro a ser afrouxado quando
   ficar vermelho por outro motivo.
@@ -168,6 +177,55 @@ subiu — prova só que existe middleware.
 
 É a mesma família de **"ausência de escrita não é ausência de tentativa"**: um
 sintoma compatível com a hipótese não é prova dela.
+
+# Isolamento entre inquilinos — as duas garantias que sustentam tudo
+
+O NEXO é multi-inquilino, e a pergunta da dona do produto em 31/08/2026 é o
+critério: *"Integrações diferentes não podem misturar dados umas com as outras.
+**Nossos futuros clientes não podem ter esse problema.**"*
+
+Duas propriedades do código respondem por isso. Quem mexer em qualquer uma
+precisa saber o que está desfazendo:
+
+**1. `currentWorkspaceId()` LANÇA quando não há escopo — e não tem default.**
+Escrever ou ler fora de um `runWithWorkspace` **quebra**, em vez de gravar no
+lugar errado ou devolver o banco inteiro. É o modo de falha certo: **falhar alto
+em vez de falhar silencioso.** Um `?? "default"` ali dentro transformaria toda
+leitura fora de contexto num vazamento — e nada ficaria vermelho para avisar.
+
+É o oposto exato da lista negra que este projeto matou em 31/08/2026
+(`fee_type NOT IN (...)`), onde o desconhecido entrava por padrão. Aqui o
+desconhecido **para tudo**.
+
+**2. `connection_id` vindo do cliente é filtro ADICIONAL, nunca substituto.**
+Três rotas aceitam `connection_id` por query string (`shopee/settings`,
+`tiktok/overview`, `sync-estado`). As três são seguras porque o valor pedido só
+**escolhe dentro** de uma lista que já nasceu filtrada por `workspace_id`, ou
+entra como `AND` sobre um `WHERE workspace_id` que sempre existe. Pedir a conexão
+de outro inquilino devolve **vazio**, nunca o dado dele.
+
+⚠️ A regra que isso vira: **parâmetro do cliente pode ESTREITAR o escopo, nunca
+defini-lo.** No dia em que alguém usar um id vindo da requisição como chave
+primária de busca sem o `workspace_id` ao lado, a porta abre.
+
+**Nenhuma rota aceita `workspace_id` por parâmetro, header ou body.** O workspace
+vem só de `claims.sub` (`workspaceContext.ts`). Isso não é acidente e não pode
+virar conveniência de debug.
+
+## Os portões que provam isso, e o que cada um NÃO prova
+
+| portão | prova | não prova |
+|---|---|---|
+| `tests/workspaceIdNaoDependeDeLembranca` | que todo SQL de `src/` **escreve** o filtro | que ele **acontece** |
+| `tests/workspaceScope` | que dois escopos concorrentes não se misturam | nada sobre SQL |
+| `tests-integracao/isolamentoEntreInquilinos` | **comportamento**, contra Postgres: dois inquilinos na mesma conexão, e a leitura de um nunca alcança o outro | — |
+
+⚠️ **Ao escrever teste de isolamento, monte o cenário em que o `workspace_id` é a
+ÚNICA coisa que separa os dois inquilinos.** A primeira versão do teste de
+integração deu `connection_id` diferente a cada um e ficou **verde com os 13
+filtros de `workspace_id` neutralizados** — quem separava era o `connection_id`.
+Se qualquer outra coluna distingue os inquilinos, o teste mede essa outra coluna.
+
 
 # Como este projeto trata dado incerto
 

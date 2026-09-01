@@ -301,6 +301,37 @@ Não é `application/json`; com o genérico a API recusa.
 
 ## Changelog observado — Ads API
 
+- **2026-08-31** — **As DUAS tabelas de anúncio dão números diferentes de
+  propósito, e a fonte de verdade do GASTO é `workspace_ad_metrics`.** Medido na
+  conta dela, mesma janela: `workspace_ad_metrics` = **R$ 447,97** e
+  `workspace_ad_product_metrics` = **R$ 397,16**. A diferença é ~11%.
+
+  | tabela | grão | responde |
+  |---|---|---|
+  | `workspace_ad_metrics` | campanha × dia | **quanto gastei** — é o total |
+  | `workspace_ad_product_metrics` | produto × campanha × dia | **em quê** — é um recorte |
+
+  **A prova de que um contém o outro**, campanha a campanha por dia: o custo por
+  produto é sempre **menor ou igual** ao da campanha, nunca maior. E a campanha
+  `213167782978574` tem custo de campanha R$ 0,50 e R$ 1,20 em dois dias com
+  custo por produto **R$ 0,00** nos dois. Gasto que a Amazon não atribui a um
+  SKU existe e **não aparece** no grão de produto.
+
+  ⚠️ **SOMAR `ad_product_metrics` COMO TOTAL SUBESTIMA O GASTO** — e isso deixa a
+  margem otimista, que é a direção errada do erro.
+
+  📌 **Onde isso está acontecendo hoje (31/08/2026):** `adsMultiCanal.ts` monta o
+  total por canal da aba de Ads com `SUM(m.cost)` sobre
+  `workspace_ad_product_metrics`. Na conta dela, a aba mostra ~R$ 397 onde o
+  gasto real é ~R$ 448. `anuncioDoCanal.ts` (o card de Ads do dashboard) está
+  **certo**: prefere `workspace_ad_metrics` e só cai no grão de produto quando
+  não há linha de campanha — o que é o caso do Mercado Livre, que só grava o
+  grão de produto. ⚠️ Essa queda é **silenciosa**: se um dia faltar linha de
+  campanha da Amazon num período que tem linha de produto, o total encolhe ~11%
+  sem avisar.
+
+
+
 *Mais recente primeiro. Registrar aqui na hora de esbarrar num comportamento novo.*
 
 ### 25/08/2026 — a Reporting API **entrega o dia corrente**
