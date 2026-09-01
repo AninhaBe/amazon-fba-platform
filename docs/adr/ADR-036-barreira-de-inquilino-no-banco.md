@@ -4,6 +4,22 @@
 - **Data:** 2026-09-01
 - **Origem:** auditoria de isolamento pedida pela Ana em 01/09/2026 — *"Integrações diferentes não podem misturar dados umas com as outras. Nossos futuros clientes não podem ter esse problema."*
 
+
+## Os três critérios, no topo porque são critério e não detalhe
+
+**1. O portador só pode ser `SET LOCAL`.** Um `SET` de sessão sobreviveria à
+devolução da conexão ao pooler em modo `transaction` e **serviria outro
+inquilino** — o vazamento que esta ADR existe para impedir, criado pelo próprio
+mecanismo de defesa. Detalhe medido na seção 3.
+
+**2. A policy é de graça; as idas ao banco é que custam.** Predicado: **+0,2 ms**,
+resolvido como `One-Time Filter`. Transação explícita: **+48 ms**, três idas de
+rede. Sem essa medição teríamos otimizado a policy e não o transporte.
+
+**3. `WITH CHECK` é tão importante quanto `USING`.** Sem ele a role pode
+**escrever** linha carimbada com o workspace de outro. Barreira que só protege
+leitura não é barreira.
+
 ## Contexto
 
 A auditoria respondeu a pergunta que a Ana fez: **não há mistura de dados entre
@@ -165,12 +181,67 @@ antes do apply.
 | o que | por que quebra | caminho declarado |
 |---|---|---|
 | **Migrations / runner assinado** | DDL e leitura de catálogo em tabela sob RLS; e o runner não tem workspace | Continua em `postgres` (dono, `bypassrls`). **Não muda.** O runner é operacional, não runtime — é a separação que a ADR-012 já assume |
-| **Scheduler / cron / sync de fundo** | Roda **sem usuário**: não há workspace para setar, e fail-closed faz ele ver **zero linhas** — sincronização silenciosamente vazia | O pior caso do desenho. Duas opções, e é **decisão do portão**: (a) o fundo itera workspace a workspace e seta `app.workspace_id` em cada um — mais lento, mas sujeito à mesma barreira; (b) role separada `nexo_worker` com `bypassrls`, auditável e usada só ali. **Recomendo (a)**: uma segunda role com bypass recria o buraco de hoje com outro nome |
+| **Scheduler / cron / sync de fundo** | Roda **sem usuário**: não há workspace para setar, e fail-closed faz ele ver **zero linhas** | ✅ **Decidido em 01/09/2026: opção (a)** — o fundo itera workspace a workspace e seta `app.workspace_id` em cada um, sujeito à mesma barreira que todo o resto. A opção (b), uma role `nexo_worker` com `bypassrls`, foi **recusada**: seria construir a barreira e já abrir uma porta de serviço nela — o buraco de hoje com outro nome. Ver o modo de falha logo abaixo |
 | **Webhook do ML** | Chega sem sessão; o workspace vem do payload | Resolver o workspace **antes** de tocar o banco e entrar pelo mesmo caminho (a) |
 | **Scripts de manutenção** (`db-size`, probes, curadoria) | Leem o banco inteiro, sem workspace | Seguem em `postgres`, fora do runtime. Já é assim |
 | **`ensureSchema` / contrato 0005** | `db.ts` inspeciona catálogo na primeira consulta | Catálogo não é tabela sob RLS; segue funcionando. **Verificar no piloto** |
 | **Pool de fundo (ADR-030)** | Mesmo problema do scheduler | Mesmo caminho |
-| **`marketplace_api_calls`** | Auditoria mediu **6.908 de 6.908** linhas cujo `workspace_id` não corresponde a workspace com conexão | Definir se a tabela é de inquilino ou de sistema **antes** de aplicar policy nela. Aplicar sem decidir a cega |
+| **`marketplace_api_calls`** | `workspace_id` é **`NULL` em 100% das 6.911 linhas** — nunca foi preenchido | ✅ **Classificada em 01/09/2026: é tabela de inquilino, entra na barreira.** Ver a seção abaixo |
+
+
+
+### `marketplace_api_calls` — classificada pelo conteúdo, não pela conveniência
+
+A pergunta certa não é "dá trabalho?", é **"tem dado de cliente ali?"**. Medido:
+
+| coluna | conteúdo |
+|---|---|
+| `provider`, `endpoint`, `hora`, `chamadas`, `erros`, `ultimo_status`, `ultimo_limite` | telemetria de chamada |
+| `connection_id` | **identifica a conta do vendedor** — `mercado_livre:1191100170`, `shopee:275804987` |
+| `workspace_id` | **`NULL` em 6.911 de 6.911 linhas** |
+
+E o `endpoint` **não é sempre template**. A maioria é (`/orders/v0/orders/:id`),
+mas há 733 endpoints distintos com identificador de negócio literal:
+
+```
+/items/MLB6955574150
+/items/MLB6444348218
+```
+
+São **anúncios reais**, com id do Mercado Livre, ligados a uma conta pela
+`connection_id` da mesma linha.
+
+**Veredito: não é telemetria pura. Entra na barreira.** E antes disso o
+`workspace_id` precisa ser consertado — hoje ele é `NULL` em toda linha, então a
+policy filtraria 100% da tabela. O conserto é derivável: `connection_id` diz a
+conta, e `workspace_integrations` diz o workspace dela. Para as linhas com
+`connection_id` nulo (TikTok 4.802 e Amazon 881), a origem precisa ser
+investigada antes — não dá para adivinhar o dono.
+
+📌 Enquanto o `workspace_id` não for preenchido, **esta tabela fica de fora da
+Etapa 3** e entra numa etapa própria. Aplicar policy nela hoje apagaria a
+telemetria inteira da tela.
+
+### ⚠️ O modo de falha do trabalho de fundo precisa ser ALTO
+
+Fail-closed é a propriedade certa para a tela e a **pior possível** para o
+sincronizador, se ele for silencioso. Um passo do scheduler que rode sem setar
+`app.workspace_id` enxerga **zero linhas** — e zero linhas é indistinguível de
+"não havia nada para sincronizar".
+
+**Sincronização vazia que parece sucesso é o pior desfecho possível**: ninguém
+olha, o dado para de chegar, e o defeito só aparece quando a vendedora estranha o
+painel dias depois.
+
+Portanto, e isto é requisito de implementação, não recomendação:
+
+- todo passo de fundo **verifica que `app.workspace_id` está definido antes de
+  consultar** e **falha com erro** se não estiver — nunca segue com zero;
+- "zero linhas" num passo de sincronização é **alarme**, não resultado. O
+  agendador já alarma `ok:false` desde 27/08 (ver `docs/estado-atual.md`); este
+  caso entra nesse mesmo caminho;
+- o teste da Etapa 0 cobre isto explicitamente: rodar um passo de fundo sem
+  workspace tem de **estourar**, não devolver lista vazia.
 
 ## Espaço em disco — e a boa notícia
 
