@@ -110,6 +110,24 @@ export default function OverviewDashboard() {
   const [updatedAt, setUpdatedAt] = useState<Date | null>(emCache?.updatedAt ?? null);
   // Narração do dia gerada por modelo (Gemini). Fica null sem chave ou enquanto
   // não responde, e aí a tela usa o alerta por regra.
+  /**
+   * ⚠️ ESTE ESTADO NÃO É LIDO POR NADA NESTA TELA, E NÃO É SOBRA — NÃO APAGUE.
+   *
+   * A faixa do NEXO saiu da Visão geral em 24/08/2026 **a pedido dela** (ver a
+   * nota no JSX abaixo): a central é tela de passagem, e a leitura do dia mora
+   * no dashboard de cada canal, onde `NexoDoDia` a exibe.
+   *
+   * O que ficou aqui é a **GERAÇÃO**: o POST logo abaixo é quem manda o snapshot
+   * multicanal para o modelo e faz o texto existir. `NexoDoDia`, nos quatro
+   * canais, só LÊ o ponteiro que esta chamada escreveu
+   * (`ultimaNarracao`, em `api/central/briefing/route.ts`).
+   *
+   * **Quem limpar isto achando que é código morto quebra a leitura do dia dos
+   * QUATRO canais de uma vez** — e o sintoma vai aparecer longe daqui, numa tela
+   * que não foi tocada, como "a mensagem do NEXO sumiu". O `setNarracao` e o
+   * `narracaoCarregando` existem para o dia em que a faixa voltar; a chamada
+   * existe para hoje.
+   */
   const [narracao, setNarracao] = useState<string | null>(null);
   // Sem este estado a faixa do NEXO simplesmente não existia até o texto chegar,
   // e a central ficava com um buraco silencioso onde depois aparece um bloco —

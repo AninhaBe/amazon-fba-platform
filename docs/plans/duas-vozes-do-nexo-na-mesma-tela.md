@@ -78,3 +78,63 @@ multicanal pertence.
 
 **A decisão de qual fica não é minha** — as duas peças existem por desenho e
 alguém escolheu pôr as duas ali.
+
+---
+
+## Achado próprio: a central gera o texto que ela mesma não mostra
+
+`src/app/page.tsx` tem `narracao`, `narracaoCarregando` e o import de
+`NexoMensagem` — e **não renderiza nenhum deles**. Parece sobra. **Não é.**
+
+A faixa do NEXO saiu da Visão geral em **24/08/2026, a pedido dela**: a central é
+tela de passagem, e a leitura do dia mora no dashboard de cada canal. O que ficou
+na central é a **geração**: o `POST /api/central/briefing` manda o snapshot
+multicanal, e é ele que faz o texto existir. `NexoDoDia`, nos quatro canais, só
+**lê o ponteiro** que essa chamada escreveu.
+
+> ⚠️ **Quem limpar aquilo achando que é código morto quebra a leitura do dia dos
+> quatro canais de uma vez** — e o sintoma aparece longe dali, numa tela que
+> ninguém tocou, como *"a mensagem do NEXO sumiu"*.
+
+O aviso está escrito **ao lado do código**, não só aqui: doc não é lido por quem
+está apagando uma linha que o editor marca como não usada.
+
+## ⚠️ A recomendação mudou depois deste achado
+
+A primeira versão deste documento recomendava **(a)**: tirar `NexoDoDia` das
+telas de canal e devolver a voz multicanal à central. **Isso desfaria a decisão
+dela de 24/08.** A informação estava a um comentário de distância, no arquivo que
+eu só fui abrir depois.
+
+**Quem chegou depois foi a narração do `BriefingLead`**, que passou a usar o
+mesmo rosto (`NexoMensagem`) e o mesmo rótulo de CTA da voz que ela já tinha
+mandado para lá. A peça nova é a do canal — e é ela que deve ceder.
+
+**(a-1), a recomendação corrigida:** fica a multicanal; o `BriefingLead` deixa de
+renderizar `NexoMensagem` e volta à frase calculada (`montarFrase`), que já é o
+fallback dele hoje. Uma voz por tela, e é a que ela escolheu.
+
+### O que ela perde, com as palavras (conta dela, ws `1803d1fe`, últimos 30 dias)
+
+Amazon:
+
+> **"51 vendas e R$ 777,46 nos últimos 30 dias."**
+> *"Quanto sobrou ainda não dá para dizer — falta custo ou tarifa. O lucro fica
+> em branco até fechar."*
+
+Mercado Livre:
+
+> **"45 vendas e R$ 2.035,95 nos últimos 30 dias."**
+> *"Quanto sobrou ainda não dá para dizer — falta custo ou tarifa. O lucro fica
+> em branco até fechar."*
+
+E quando o lucro está fechado, a segunda linha some e a primeira vira
+*"45 vendas e R$ 2.035,95 nos últimos 30 dias — sobraram R$ X."*, com a variação
+contra o período anterior como segunda linha quando ela existe.
+
+📌 **Faturamento e contagem são reais** (lidos do canônico). O valor de "sobraram"
+é ilustrativo: o lucro sai do cálculo canônico e não de uma coluna. O ramo **sem
+lucro** acima é integralmente real — e é o ramo em que a conta dela está hoje.
+
+📌 E a Amazon dela aparece com pedidos **sem estar em `workspace_integrations`**:
+a conexão caiu (token revogado) e as vendas antigas continuam no canônico.
