@@ -169,5 +169,25 @@ test("a TELA consome a composicao do widget, e nao os cards", async () => {
       `${caminho}: o lucro do periodo estoura o centro do widget`);
     assert.ok(!texto.includes("result: resultIncomplete ? null : overview.profit.estimatedProfit"),
       `${caminho}: idem`);
+
+    // ⚠️ E A LISTA DE FLUXO TAMBEM — o painel tem DOIS consumidores dos mesmos
+    // numeros, e eu consertei so a rosquinha em 01/09/2026. A vendedora reprovou
+    // no mesmo dia: a lista mostrava "Lucro estimado R$ 4.503" (universo total)
+    // abaixo de uma "Receita paga" de R$ 14.097. DOIS CONSUMIDORES, DUAS GUARDAS.
+    //
+    // 📌 E AS ASSERCOES SAO POSITIVAS, nao proibicoes de string. Duas tentativas
+    // com lista negativa reprovaram o codigo CERTO: `profit.revenueProcessed` e
+    // `profit.marginPct` aparecem tambem nos CARDS DO TOPO, que falam do universo
+    // total de proposito e devem continuar falando. Proibir a string no arquivo
+    // nao distingue o card legitimo da linha errada — exigir o nome CERTO nas
+    // linhas do painel, sim.
+    for (const doPainel of [
+      "composicaoDaReceitaPaga.receita",
+      "composicaoDaReceitaPaga.lucro",
+      "margemDaReceitaPaga",
+    ]) {
+      assert.ok(texto.includes(doPainel),
+        `${caminho}: a lista de fluxo do painel nao usa ${doPainel}`);
+    }
   }
 });

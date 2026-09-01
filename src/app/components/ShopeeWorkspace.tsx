@@ -745,6 +745,12 @@ function Dashboard({ overview, sync, onPage, periodoLabel, periodoQuery }: { ove
   // O que continua bloqueando é COMPONENTE DESCONHECIDO: `fees == null` não é
   // "não cobraram", é "não sei quanto", e aí o lucro seria otimista.
   // Ausência de componente ≠ ausência de cobertura.
+  // A margem do painel de composicao: o residuo sobre o centro DELE.
+  const margemDaReceitaPaga =
+    overview.profit.composicaoDaReceitaPaga.lucro != null
+    && overview.profit.composicaoDaReceitaPaga.receita > 0
+      ? (overview.profit.composicaoDaReceitaPaga.lucro / overview.profit.composicaoDaReceitaPaga.receita) * 100
+      : null;
   const resultIncomplete = overview.profit.fees == null || overview.profit.sellerShipping == null || overview.profit.ads == null || overview.profit.taxesWithheld == null || overview.profit.refunds == null || overview.profit.cogs == null || overview.profit.estimatedProfit == null || overview.profit.marginPct == null;
   const knownCosts = resultIncomplete ? null : overview.profit.fees! + overview.profit.sellerShipping! + overview.profit.ads! + overview.profit.taxesWithheld! + overview.profit.refunds! + overview.profit.cogs! + (overview.profit.taxes ?? 0);
   const ordersAwaitingCapture = Math.max(0, overview.metrics.revenueCoverage.totalOrders - overview.metrics.revenueCoverage.capturedOrders);
@@ -1009,28 +1015,41 @@ function Dashboard({ overview, sync, onPage, periodoLabel, periodoQuery }: { ove
             </>
           )}
         >
-            <Flow label={profitCoverage.complete ? "Receita paga" : "Receita processada"} value={money(overview.profit.revenueProcessed, overview.metrics.currency)} />
+            {/* ⚠️ A LISTA DE FLUXO INTEIRA FALA DO UNIVERSO DA RECEITA PAGA.
+                Ela lia os CARDS (universo total, com pendentes) enquanto a linha
+                de cima e a rosquinha falavam da receita paga — a subtracao nao
+                fechava na cara de quem le, e foi o que a vendedora reprovou em
+                01/09/2026: "Lucro estimado R$ 4.503" numa lista que comeca em
+                R$ 14.097. O 4.503 era o lucro do PERIODO.
+                Eu tinha consertado a rosquinha e dado o painel por pronto — sem
+                procurar OUTRO consumidor dos mesmos numeros no MESMO componente.
+                Dois consumidores exigem duas guardas. */}
+            <Flow label={profitCoverage.complete ? "Receita paga" : "Receita processada"} value={money(overview.profit.composicaoDaReceitaPaga.receita, overview.metrics.currency)} />
             <FlowExpandable
               label="Custos do canal e do produto"
               value={knownCosts == null ? "—" : money(knownCosts, overview.metrics.currency)}
               open={costsOpen}
               onToggle={() => setCostsOpen((open) => !open)}
               items={[
-                { label: "Taxas da Shopee", value: overview.profit.fees == null ? "—" : money(overview.profit.fees, overview.metrics.currency) },
-                { label: "Frete pago pelo vendedor", value: overview.profit.sellerShipping == null ? "—" : money(overview.profit.sellerShipping, overview.metrics.currency) },
-                { label: "Anúncios", value: overview.profit.ads == null ? "—" : money(overview.profit.ads, overview.metrics.currency) },
-                { label: "Impostos retidos", value: overview.profit.taxesWithheld == null ? "—" : money(overview.profit.taxesWithheld, overview.metrics.currency) },
-                { label: "Estornos", value: overview.profit.refunds == null ? "—" : money(overview.profit.refunds, overview.metrics.currency) },
-                { label: "Custo dos produtos", value: overview.profit.cogs == null ? "—" : money(overview.profit.cogs, overview.metrics.currency) },
-                { label: shopeeTaxLabel(overview.profit.taxRate), value: overview.profit.taxes == null ? "—" : money(overview.profit.taxes, overview.metrics.currency) },
+                { label: "Taxas da Shopee", value: overview.profit.composicaoDaReceitaPaga.fees == null ? "—" : money(overview.profit.composicaoDaReceitaPaga.fees, overview.metrics.currency) },
+                { label: "Frete pago pelo vendedor", value: overview.profit.composicaoDaReceitaPaga.sellerShipping == null ? "—" : money(overview.profit.composicaoDaReceitaPaga.sellerShipping, overview.metrics.currency) },
+                { label: "Anúncios", value: overview.profit.composicaoDaReceitaPaga.ads == null ? "—" : money(overview.profit.composicaoDaReceitaPaga.ads, overview.metrics.currency) },
+                { label: "Impostos retidos", value: overview.profit.composicaoDaReceitaPaga.taxesWithheld == null ? "—" : money(overview.profit.composicaoDaReceitaPaga.taxesWithheld, overview.metrics.currency) },
+                { label: "Estornos", value: overview.profit.composicaoDaReceitaPaga.refunds == null ? "—" : money(overview.profit.composicaoDaReceitaPaga.refunds, overview.metrics.currency) },
+                { label: "Custo dos produtos", value: overview.profit.composicaoDaReceitaPaga.cogs == null ? "—" : money(overview.profit.composicaoDaReceitaPaga.cogs, overview.metrics.currency) },
+                { label: shopeeTaxLabel(overview.profit.taxRate), value: overview.profit.composicaoDaReceitaPaga.taxes == null ? "—" : money(overview.profit.composicaoDaReceitaPaga.taxes, overview.metrics.currency) },
               ]}
             />
-            <Flow label={overview.profit.estimatedProfit == null ? "Lucro indisponível" : comSemImposto("Lucro estimado", semAliquota)} value={overview.profit.estimatedProfit == null ? "—" : <>{money(overview.profit.estimatedProfit, overview.metrics.currency)}</>} sign="=" accent tone={overview.profit.estimatedProfit == null ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
+            <Flow label={overview.profit.composicaoDaReceitaPaga.lucro == null ? "Lucro indisponível" : comSemImposto("Lucro estimado", semAliquota)} value={overview.profit.composicaoDaReceitaPaga.lucro == null ? "—" : <>{money(overview.profit.composicaoDaReceitaPaga.lucro, overview.metrics.currency)}</>} sign="=" accent tone={overview.profit.composicaoDaReceitaPaga.lucro == null ? "default" : overview.profit.composicaoDaReceitaPaga.lucro > 0 ? "positive" : overview.profit.composicaoDaReceitaPaga.lucro < 0 ? "danger" : "default"} />
+            {/* A margem DESTE painel e a do universo dele: lucro / centro.
+                Usar `profit.marginPct` traria a margem do periodo — outro
+                numerador sobre outro denominador, dentro de uma lista que acabou
+                de mostrar os dois valores da receita paga. */}
             <Flow
               label={comSemImposto("Margem", semAliquota)}
-              value={overview.profit.marginPct == null ? "—" : <>{percent(overview.profit.marginPct)}</>}
+              value={margemDaReceitaPaga == null ? "—" : <>{percent(margemDaReceitaPaga)}</>}
               accent
-              tone={overview.profit.marginPct == null ? "default" : marginMetricTone(overview.profit.marginPct)}
+              tone={margemDaReceitaPaga == null ? "default" : marginMetricTone(margemDaReceitaPaga)}
             />
         </FinancialSummaryPanel>
       </section>

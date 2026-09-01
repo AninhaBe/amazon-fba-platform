@@ -182,6 +182,11 @@ function ShopeeMonitorContent({body,params,update,connectionId}:{body:Payload;pa
   const semAliquota=profit?.taxRate==null;
   // A MESMA régua do dashboard: lucro só é afirmado com tudo identificado.
   // ⚠️ 30/08/2026: `custoIncompleto` saiu daqui — virou SINAL, nao trava.
+  // A margem do painel de composicao: o residuo sobre o centro DELE.
+  const margemDaReceitaPaga = profit && profit.composicaoDaReceitaPaga.lucro != null
+    && profit.composicaoDaReceitaPaga.receita > 0
+      ? (profit.composicaoDaReceitaPaga.lucro / profit.composicaoDaReceitaPaga.receita) * 100
+      : null;
   const resultIncomplete=!profit||!profit.coverage.complete||!profit.feesComplete||profit.fees==null||profit.sellerShipping==null||profit.ads==null||profit.taxesWithheld==null||profit.refunds==null||profit.cogs==null||profit.estimatedProfit==null||profit.marginPct==null;
   const knownCosts=!profit||resultIncomplete?null:profit.fees!+profit.sellerShipping!+profit.ads!+profit.taxesWithheld!+profit.refunds!+profit.cogs!+(profit.taxes??0);
   return <section className="channel-module-content" aria-live="polite">
@@ -214,7 +219,7 @@ function ShopeeMonitorContent({body,params,update,connectionId}:{body:Payload;pa
       widgets={[
         {id:"receita",label:"Receita processada",node:<Metric label="Receita processada" value={money(profit.revenueProcessed,currency)} sub={`${profit.coverage.processedOrders} de ${profit.coverage.paidOrders} venda(s) com repasse processado`}/>},
         // null nunca vira 0: tarifa desconhecida diz que ainda não foi conciliada.
-        {id:"tarifas",label:"Tarifas da Shopee",node:<Metric label="Tarifas da Shopee" value={profit.fees==null?"Ainda não conciliadas":money(profit.fees,currency)} sub="comissões e taxas do canal"/>},
+        {id:"tarifas",label:"Tarifas da Shopee",node:<Metric label="Tarifas da Shopee" value={profit.fees==null?"Ainda não conciliadas":money(profit.composicaoDaReceitaPaga.fees??0,currency)} sub="comissões e taxas do canal"/>},
         {id:"lucro",label:"Lucro estimado",node:<Metric label={comSemImposto("Lucro estimado",semAliquota)} value={profit.estimatedProfit==null?"—":money(profit.estimatedProfit,currency)} sub="no período selecionado" tone={profit.estimatedProfit==null?undefined:profit.estimatedProfit<0?"danger":"ok"}/>},
         {id:"margem",label:"Margem",node:<Metric label={comSemImposto("Margem",semAliquota)} value={profit.marginPct==null?"—":`${profit.marginPct.toLocaleString("pt-BR",{maximumFractionDigits:2})}%`} sub={baseDoResultado} tone={profit.marginPct==null?undefined:marginMetricTone(profit.marginPct)}/>},
       ]}
@@ -248,24 +253,26 @@ function ShopeeMonitorContent({body,params,update,connectionId}:{body:Payload;pa
         {profit.unitsWithoutCost>0&&<p className="text-xs leading-relaxed text-amber-700">{profit.unitsWithoutCost} unidade(s) vendida(s) ainda estão sem custo cadastrado.</p>}
       </>)}
     >
-      <Flow label={profit.coverage.complete?"Receita paga":"Receita processada"} value={money(profit.revenueProcessed,currency)} />
+      {/* A lista de fluxo fala do universo da RECEITA PAGA, igual a rosquinha — ver a nota no ShopeeWorkspace. */}
+      <Flow label={profit.coverage.complete?"Receita paga":"Receita processada"} value={money(profit.composicaoDaReceitaPaga.receita,currency)} />
       <FlowExpandable
         label="Custos do canal e do produto"
         value={knownCosts==null?"—":money(knownCosts,currency)}
         open={costsOpen}
         onToggle={()=>setCostsOpen(open=>!open)}
         items={[
-          {label:"Taxas da Shopee",value:profit.fees==null?"—":money(profit.fees,currency)},
-          {label:"Frete pago pelo vendedor",value:profit.sellerShipping==null?"—":money(profit.sellerShipping,currency)},
-          {label:"Anúncios",value:profit.ads==null?"—":money(profit.ads,currency)},
-          {label:"Impostos retidos",value:profit.taxesWithheld==null?"—":money(profit.taxesWithheld,currency)},
-          {label:"Estornos",value:profit.refunds==null?"—":money(profit.refunds,currency)},
-          {label:"Custo dos produtos",value:profit.cogs==null?"—":money(profit.cogs,currency)},
-          {label:shopeeTaxLabel(profit.taxRate),value:profit.taxes==null?"—":money(profit.taxes,currency)},
+          {label:"Taxas da Shopee",value:profit.composicaoDaReceitaPaga.fees==null?"—":money(profit.composicaoDaReceitaPaga.fees??0,currency)},
+          {label:"Frete pago pelo vendedor",value:profit.composicaoDaReceitaPaga.sellerShipping==null?"—":money(profit.composicaoDaReceitaPaga.sellerShipping??0,currency)},
+          {label:"Anúncios",value:profit.composicaoDaReceitaPaga.ads==null?"—":money(profit.composicaoDaReceitaPaga.ads??0,currency)},
+          {label:"Impostos retidos",value:profit.composicaoDaReceitaPaga.taxesWithheld==null?"—":money(profit.composicaoDaReceitaPaga.taxesWithheld??0,currency)},
+          {label:"Estornos",value:profit.composicaoDaReceitaPaga.refunds==null?"—":money(profit.composicaoDaReceitaPaga.refunds??0,currency)},
+          {label:"Custo dos produtos",value:profit.composicaoDaReceitaPaga.cogs==null?"—":money(profit.composicaoDaReceitaPaga.cogs??0,currency)},
+          {label:shopeeTaxLabel(profit.taxRate),value:profit.composicaoDaReceitaPaga.taxes==null?"—":money(profit.composicaoDaReceitaPaga.taxes??0,currency)},
         ]}
       />
-      <Flow label={profit.estimatedProfit==null?"Lucro indisponível":comSemImposto("Lucro estimado",semAliquota)} value={profit.estimatedProfit==null?"—":<>{money(profit.estimatedProfit,currency)}</>} sign="=" accent tone={profit.estimatedProfit==null?"default":profit.estimatedProfit>0?"positive":profit.estimatedProfit<0?"danger":"default"} />
-      <Flow label={comSemImposto("Margem",semAliquota)} value={profit.marginPct==null?"—":<>{`${profit.marginPct.toLocaleString("pt-BR",{maximumFractionDigits:2})}%`}</>} accent tone={profit.marginPct==null?"default":marginMetricTone(profit.marginPct)} />
+      <Flow label={profit.composicaoDaReceitaPaga.lucro==null?"Lucro indisponível":comSemImposto("Lucro estimado",semAliquota)} value={profit.composicaoDaReceitaPaga.lucro==null?"—":<>{money(profit.composicaoDaReceitaPaga.lucro,currency)}</>} sign="=" accent tone={profit.composicaoDaReceitaPaga.lucro==null?"default":profit.composicaoDaReceitaPaga.lucro>0?"positive":profit.composicaoDaReceitaPaga.lucro<0?"danger":"default"} />
+      {/* Margem DESTE painel: residuo sobre o centro dele, nao a margem do periodo. */}
+      <Flow label={comSemImposto("Margem",semAliquota)} value={margemDaReceitaPaga==null?"—":<>{`${margemDaReceitaPaga.toLocaleString("pt-BR",{maximumFractionDigits:2})}%`}</>} accent tone={margemDaReceitaPaga==null?"default":marginMetricTone(margemDaReceitaPaga)} />
     </FinancialSummaryPanel>
     :<EmptyState compact title="Composição indisponível" description="A sincronização ainda não materializou o resultado financeiro deste período."/>)}
     {secao==="pedidos"&&<>
