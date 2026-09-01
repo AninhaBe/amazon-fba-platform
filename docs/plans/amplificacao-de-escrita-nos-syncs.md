@@ -281,3 +281,28 @@ o instrumento ter sido moldado pela teoria é máxima.
   passou dez dias dependendo só do polling e ninguém soube.
 - **O desacoplamento continua valendo como PREVENÇÃO**, não como conserto de dano
   com vítima conhecida.
+
+## A quarta forma: código presente, comportamento ausente
+
+As três lições acima são sobre medir. Esta é sobre **verificar que o que está
+escrito acontece** — e ela apareceu quatro vezes no mesmo dia, em quatro camadas
+diferentes:
+
+| camada | o que parecia | o que era |
+|---|---|---|
+| Teste | assertiva casando o símbolo | não provava comportamento (`AGENTS.md`) |
+| Configuração | `deploymentId` configurado no `next.config` | a variável nunca chegava: **desligado desde sempre** |
+| Infraestrutura | campo `commit` no `/api/health` | mostrava id de máquina do Fly, não commit |
+| **Schema** | migration derrubando duas tabelas | **`db.ts` as recriaria no próximo boot** |
+
+> **Migration que o runtime desfaz é pior que migration não aplicada, porque
+> parece ter funcionado.** Ela fica registrada em `schema_migrations`, o portão
+> diz que está tudo aplicado, e as tabelas continuam lá.
+
+O padrão é sempre o mesmo: **quem lê o código conclui o comportamento em vez de
+observá-lo.** E cada uma dessas quatro passou por revisão sem ser notada, porque
+o código *lia* como se estivesse certo.
+
+A defesa que funcionou nos quatro casos foi a mesma: **ir olhar o efeito**, não a
+causa. `/api/health` respondendo; `grep` pelo `CREATE TABLE` depois de escrever o
+`DROP`; a consulta de elegibilidade depois do deploy.
