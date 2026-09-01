@@ -103,7 +103,7 @@ test("o componente é silencioso em silêncio e o alerta diz o ciclo esperado", 
 
 test("os quatro monitores renderizam o estado do sync (Shopee/TikTok só na aba monitor)", async () => {
   const monitores = [
-    ["../src/app/monitor/page.tsx", /<EstadoDoSync provider="amazon" \/>/],
+    ["../src/app/(app)/monitor/page.tsx", /<EstadoDoSync provider="amazon" \/>/],
     ["../src/app/components/MercadoLivreWorkspace.tsx", /<EstadoDoSync provider="mercado_livre" \/>/],
     // E3 (28/08/2026): o monitor virou componente próprio (ShopeeMonitorContent),
     // que só renderiza para kind=monitor — o gate mudou de forma, não de fato.

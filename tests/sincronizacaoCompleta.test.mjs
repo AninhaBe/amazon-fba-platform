@@ -26,7 +26,7 @@ test("os quatro dashboards exibem o aviso de sincronização completa", async ()
     "../src/app/components/ShopeeWorkspace.tsx",
     "../src/app/components/MercadoLivreWorkspace.tsx",
     "../src/app/components/TikTokWorkspace.tsx",
-    "../src/app/amazon/page.tsx",
+    "../src/app/(app)/amazon/page.tsx",
   ];
   for (const tela of telas) {
     const fonte = await readFile(new URL(tela, import.meta.url), "utf8");

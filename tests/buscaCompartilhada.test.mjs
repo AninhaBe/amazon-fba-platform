@@ -56,7 +56,7 @@ test("as tres perguntas repetidas da abertura usam o helper", async () => {
     ["src/app/components/useEhAdmin.ts", /buscaCompartilhada\("admin\/eu"/],
     ["src/app/components/TrialNotice.tsx", /buscaCompartilhada\("trial"/],
     ["src/app/components/AccountSwitcher.tsx", /buscaCompartilhada\("auth\/accounts"/],
-    ["src/app/amazon/page.tsx", /buscaCompartilhada\("auth\/accounts"/],
+    ["src/app/(app)/amazon/page.tsx", /buscaCompartilhada\("auth\/accounts"/],
   ];
   for (const [caminho, padrao] of casos) {
     const fonte = await readFile(new URL(`../${caminho}`, import.meta.url), "utf8");

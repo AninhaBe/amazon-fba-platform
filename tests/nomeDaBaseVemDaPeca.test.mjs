@@ -127,7 +127,7 @@ test("e a CENTRAL continua passando a causa — ela pode sumir em silencio", asy
   // `assert.match(fonte, /custoNaoCadastrado: true/)` fica verde depois de
   // alguem apagar a propriedade, porque a frase sobrevive no comentario logo
   // acima. Aconteceu neste repo, com `filaDeFundo: false`.
-  const codigo = (await readFile("src/app/page.tsx", "utf8"))
+  const codigo = (await readFile("src/app/(app)/page.tsx", "utf8"))
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .replace(/\/\/.*$/gm, "");
   const inicio = codigo.indexOf("nomeDaBase({");

@@ -69,7 +69,7 @@ test("null continua significando 'nao configurada' na leitura", () => {
 test("o erro de salvar mostra o motivo real, nao o palpite", () => {
   // Qualquer falha exibia "Informe um percentual entre 0 e 100" — culpando o
   // número digitado, que estava certo. Foi isso que escondeu o problema.
-  const pagina = arquivo("src/app/mercado-livre/produtos/page.tsx");
+  const pagina = arquivo("src/app/(app)/mercado-livre/produtos/page.tsx");
   assert.match(pagina, /setTaxError\(reason instanceof Error \? reason\.message/);
   assert.match(pagina, /taxError \?\? "Não foi possível salvar a alíquota\."/);
 });
@@ -77,7 +77,7 @@ test("o erro de salvar mostra o motivo real, nao o palpite", () => {
 test("a calculadora nao tem como salvar - por isso a dica avisa", () => {
   // Documenta a dependência: se um dia a calculadora ganhar um POST para
   // /settings, a dica pode voltar a dizer "configurada" ao digitar.
-  const calc = arquivo("src/app/mercado-livre/calculadora/page.tsx");
+  const calc = arquivo("src/app/(app)/mercado-livre/calculadora/page.tsx");
   const posts = calc.split('method: "POST"').length - 1;
   assert.ok(posts > 0, "a calculadora faz POST, mas para /calculator");
   const paraSettings = /settings"[^}]*method: "POST"|method: "POST"[^}]*settings"/.test(calc);
@@ -131,7 +131,7 @@ test("campo vazio limpa (null), e 0% continua sendo isencao declarada", () => {
 });
 
 test("o painel esta montado na Visao geral", () => {
-  const central = arquivo("src/app/page.tsx");
+  const central = arquivo("src/app/(app)/page.tsx");
   assert.match(central, /import \{ AliquotasPorCanal \}/);
   assert.match(central, /<AliquotasPorCanal \/>/);
 });

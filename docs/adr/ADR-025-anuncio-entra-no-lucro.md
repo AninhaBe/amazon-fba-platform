@@ -191,6 +191,6 @@ minha, e mudança de schema em produção não é passo técnico óbvio.
 
 - `migrations/0012_metricas_de_anuncio.sql`
 - `src/lib/integrations/amazonAdsSync.ts`
-- `src/app/amazon/amazonFinancialCards.ts`
+- `src/app/(app)/amazon/amazonFinancialCards.ts`
 - `docs/amazon-ads.md` → "Changelog observado — Ads API"
 - [ADR-001] modelo canônico · [ADR-016] ciclo de vida do dado · [ADR-020] definição única de faturamento

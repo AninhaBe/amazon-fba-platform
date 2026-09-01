@@ -80,7 +80,7 @@ test("o rodape das Taxas nunca fala em espera quando esta completo", () => {
 const TELAS = [
   ["src/app/components/ShopeeWorkspace.tsx", "Shopee"],
   ["src/app/components/ShopeeModulePage.tsx", "Shopee monitor"],
-  ["src/app/amazon/page.tsx", "Amazon"],
+  ["src/app/(app)/amazon/page.tsx", "Amazon"],
   ["src/app/components/MercadoLivreWorkspace.tsx", "Mercado Livre"],
   ["src/app/components/TikTokWorkspace.tsx", "TikTok"],
 ];

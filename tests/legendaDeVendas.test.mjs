@@ -15,7 +15,7 @@ const fonte = (caminho) => readFileSync(new URL(`../${caminho}`, import.meta.url
 // foi o que ela cobrou em 24/08/2026: "você tá pecando na regra de deixar os
 // marketplaces atualizados".
 const TELAS = [
-  ["src/app/amazon/page.tsx", "Amazon"],
+  ["src/app/(app)/amazon/page.tsx", "Amazon"],
   ["src/app/components/MercadoLivreWorkspace.tsx", "Mercado Livre"],
   ["src/app/components/ShopeeWorkspace.tsx", "Shopee"],
   ["src/app/components/TikTokWorkspace.tsx", "TikTok Shop"],
@@ -70,7 +70,7 @@ test("a legenda aparece quando ha pedido, mesmo sem pendente", () => {
 });
 
 test("o monitor tem as mesmas tres abas nos dois canais", () => {
-  const amazon = fonte("src/app/monitor/page.tsx");
+  const amazon = fonte("src/app/(app)/monitor/page.tsx");
   const ml = fonte("src/app/components/MercadoLivreWorkspace.tsx");
   // "Transações" faltava no ML: o extrato do Mercado Pago existia só no card do
   // dashboard, e quem abria o monitor não achava onde ver quando o dinheiro cai.

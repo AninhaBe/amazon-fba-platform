@@ -96,7 +96,7 @@ test("arquivo SEM DONO junto nao faz a verificacao passar batido", () => {
       "docs/adr/ADR-032.md",              // compartilhado
       "tests/algum.test.mjs",             // compartilhado
       "README.md",                        // sem regra nenhuma
-      "src/app/amazon/page.tsx",          // ponto cego declarado: fora do mapa
+      "src/app/(app)/amazon/page.tsx",          // ponto cego declarado: fora do mapa
     ],
     mensagem: "feat: lote grande sem escape",
     regras,

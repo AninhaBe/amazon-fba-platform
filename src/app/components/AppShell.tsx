@@ -43,41 +43,23 @@ function usarSemSessao(): boolean {
 }
 
 /**
- * A RAIZ NÃO RENDERIZA CASCA NO SERVIDOR — e esta linha é a correção de um
- * defeito que EU introduzi (01/09/2026), medido no HTML servido.
+ * ⚠️ O INTERINO `cascaIndecidivelNoServidor` SAIU DAQUI EM 01/09/2026, junto com
+ * a limitação que o justificava — que é o que este projeto exige de toda recusa
+ * temporária: ela é dívida com prazo, não desenho.
  *
- * `usarSemSessao()` devolve `false` no servidor ("assuma que há sessão"), e eu
- * escolhi isso pensando nas telas autenticadas — para o HTML pré-renderizado
- * delas bater com o que o cliente monta. **Não pensei na raiz reescrita.**
+ * Ele existia porque a raiz reescrita servia a landing DENTRO desta casca: no
+ * servidor `usarSemSessao()` devolve `false` ("assuma que há sessão"), nenhuma
+ * linha da lista de caminhos públicos casa `/`, e o resultado medido foram
+ * 6.663 bytes de sidebar entregues a um visitante anônimo. O remendo era não
+ * renderizar casca no servidor quando o pathname fosse `/`, ao custo declarado
+ * de um flash na Visão geral para quem TEM sessão.
  *
- * Com o rewrite, `/` serve a landing e o `pathname` que o React vê continua
- * sendo `/`: nenhuma linha da lista de caminhos públicos casa, e a regra de
- * sessão não existe no servidor. Resultado medido com `curl` sem cookie: 6.663
- * bytes de `<aside class="nexo-sidebar">` — 42% do markup do body — entregues a
- * um visitante anônimo, com o nome e a descrição de cada aba do produto. Mais o
- * flash: a casca vinha no HTML e só saía depois da hidratação.
- *
- * ⚠️ A LIÇÃO, e ela é maior que este arquivo: **defesa que só existe de um lado
- * da fronteira não é defesa.** A minha regra de sessão vale no cliente e não
- * existe no servidor, e o defeito que eu tinha achado antes de existir voltou
- * pela porta do SSR.
- *
- * ⚠️ ISTO É INTERINO, e o custo está declarado: quem TEM sessão vê a casca
- * aparecer na hidratação **na Visão geral** (só nela). É o troco de não entregar
- * a navegação inteira para quem nunca criou conta. A correção definitiva é
- * tirar o `AppShell` do layout raiz e pô-lo num route group só das telas
- * autenticadas — aí a landing não pode ser envolvida nem por engano, e ninguém
- * paga flash nenhum.
- *
- * ⚠️ E NÃO É "um layout próprio para a landing": layout aninhado no App Router
- * COMPÕE com o raiz, não o substitui (doc do Next, route-groups.md). O caminho é
- * route group — `(app)/layout.tsx` com as telas autenticadas dentro —, e ele
- * move ~19 diretórios de rota. Está combinado para uma janela com a árvore
- * quieta; a medição do vazamento está em `docs/achado-medir-html-servido.md`.
+ * A condição de saída estava escrita no próprio comentário — *"a correção
+ * definitiva é tirar o AppShell do layout raiz e pô-lo num route group"* — e foi
+ * cumprida: este componente agora só é montado por `(app)/layout.tsx`. A landing
+ * não passa por aqui, então não há o que decidir no servidor, e o flash sai
+ * junto com o remendo.
  */
-function cascaIndecidivelNoServidor(pathname: string): boolean {
-  return typeof document === "undefined" && pathname === "/";
-}
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const semSessao = usarSemSessao();
@@ -137,7 +119,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // próximo endereço público entra protegido sem ninguém editar nada.
   if (
     semSessao ||
-    cascaIndecidivelNoServidor(pathname) ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/landing") ||
     pathname.startsWith("/privacidade") ||

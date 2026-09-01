@@ -17,7 +17,7 @@ import { readFile } from "node:fs/promises";
 // sem registrar no snapshot), nao verifica logica. A fronteira entre os dois
 // tipos de teste esta no ADR-017.
 
-const CAMINHO = "src/app/amazon/page.tsx";
+const CAMINHO = "src/app/(app)/amazon/page.tsx";
 const fonte = await readFile(new URL(`../${CAMINHO}`, import.meta.url), "utf8");
 
 test("toda fatia aplicada do payload tambem entra no snapshot do periodo", () => {

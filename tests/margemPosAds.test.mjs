@@ -68,7 +68,7 @@ test("a conta mora em src/lib, alcancavel por quem nao e tela", async () => {
   // A regra que fecha a licao das tres copias do lucro: conta vive onde
   // qualquer consumidor alcanca. Se so a tela alcanca, a segunda tela escreve a
   // segunda copia — foi assim que o lucro da Amazon virou tres.
-  const pagina = await readFile(new URL("../src/app/ads/page.tsx", import.meta.url), "utf8");
+  const pagina = await readFile(new URL("../src/app/(app)/ads/page.tsx", import.meta.url), "utf8");
   assert.match(pagina, /from "@\/lib\/margemPosAds"/, "a tela importa a conta, nao reimplementa");
   assert.ok(
     !/receitaPeriodo\s*-\s*/.test(pagina),
@@ -100,7 +100,7 @@ test("a aba de Ads NUNCA parte do lucro do canal — seria desconto duplo", asyn
   for (const caminho of [
     "src/lib/margemPosAds.ts",
     "src/lib/adsMultiCanal.ts",
-    "src/app/ads/page.tsx",
+    "src/app/(app)/ads/page.tsx",
     "src/app/api/ads/route.ts",
   ]) {
     const arquivo = await readFile(new URL(`../${caminho}`, import.meta.url), "utf8");

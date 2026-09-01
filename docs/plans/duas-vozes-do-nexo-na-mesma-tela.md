@@ -83,7 +83,7 @@ alguém escolheu pôr as duas ali.
 
 ## Achado próprio: a central gera o texto que ela mesma não mostra
 
-`src/app/page.tsx` tem `narracao`, `narracaoCarregando` e o import de
+`src/app/(app)/page.tsx` tem `narracao`, `narracaoCarregando` e o import de
 `NexoMensagem` — e **não renderiza nenhum deles**. Parece sobra. **Não é.**
 
 A faixa do NEXO saiu da Visão geral em **24/08/2026, a pedido dela**: a central é

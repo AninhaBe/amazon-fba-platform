@@ -112,7 +112,7 @@ test("a fila de fundo e OPCIONAL, e /ads NAO a liga", async () => {
   // logo acima da chamada contem essa mesma frase. Apagar a propriedade deixava
   // o teste VERDE. Peguei na rodada de quebras, que e exatamente para isso.
   assert.match(
-    await fonte("src/app/ads/page.tsx"),
+    await fonte("src/app/(app)/ads/page.tsx"),
     /usePrefetchDePeriodos\(\{[\s\S]{0,600}filaDeFundo: false,\s*\}\);/,
     "/ads ligou a fila de fundo sem necessidade",
   );
@@ -124,7 +124,7 @@ test("a busca da propria tela de /ads passa pelo controle de voo", async () => {
   // dessa vez pelo lado de fora do hook, onde o teste do hook nao alcanca. O
   // hover antecipa e o clique busca com 120ms de diferenca: e o caso comum, nao
   // o raro.
-  const pagina = await fonte("src/app/ads/page.tsx");
+  const pagina = await fonte("src/app/(app)/ads/page.tsx");
   assert.match(
     pagina,
     /controleDoEscopo\(ESCOPO_DE_ADS\)\.umaVezSo\(chaveDeVoo\(ESCOPO_DE_ADS, query\)/,
@@ -150,7 +150,7 @@ test("nas telas que ja tinham cache, o PONTEIRO nao antecipa — so o foco", asy
   // que a antecipacao tem.
   assert.match(filtro, /onFocus=\{\(\) => onIntent\?\.\(`days=\$\{option\.value\}`\)\}/);
 
-  for (const tela of ["src/app/monitor/page.tsx", "src/app/page.tsx"]) {
+  for (const tela of ["src/app/(app)/monitor/page.tsx", "src/app/(app)/page.tsx"]) {
     const codigo = await fonte(tela);
     // ⚠️ ANCORADO NA TAG, nao numa frase solta: `intencaoPor="foco"` aparece
     // tambem no comentario que explica a escolha, e casar a frase deixaria o
@@ -172,11 +172,11 @@ test("a busca da propria tela do monitor e da central passa pelo controle", asyn
   // Sem isso, o aquecimento por foco e o clique saem juntos com 120ms de
   // diferenca: no monitor seriam SEIS requisicoes no lugar de tres, e na
   // central duas coletas dos quatro canais.
-  const monitor = await fonte("src/app/monitor/page.tsx");
+  const monitor = await fonte("src/app/(app)/monitor/page.tsx");
   assert.match(monitor, /controleDoEscopo\(ESCOPO_DO_MONITOR\)\.umaVezSo\(chaveDeVoo\(ESCOPO_DO_MONITOR, periodQuery\)/);
   assert.ok(!/fetch\(`\/api\/profit\?\$\{periodQuery\}`\)[\s\S]{0,80}setProfit/.test(monitor), "o monitor voltou a buscar direto do componente");
 
-  const central = await fonte("src/app/page.tsx");
+  const central = await fonte("src/app/(app)/page.tsx");
   assert.match(central, /controleDoEscopo\(ESCOPO_DA_CENTRAL\)\.umaVezSo\(chaveDeVoo\(ESCOPO_DA_CENTRAL, query\)/);
   assert.ok(!/await gatherCentralChannels\(\s*\(\{ channels: parciais/.test(central), "a central voltou a coletar por fora do controle");
 });

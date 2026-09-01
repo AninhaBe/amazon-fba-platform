@@ -49,8 +49,8 @@ renderização. Território de dois donos vira linha no mapa, não exceção no 
 quem escreveu o código — barrar um commit por causa de um `.md` seria o tipo de
 atrito que faz a cerca virar coisa que se contorna.
 
-⚠️ **As telas de canal** (`src/app/amazon/`, `src/app/mercado-livre/`,
-`src/app/shopee/`, `src/app/tiktok/`) ficam de fora do mapa **de propósito**: são
+⚠️ **As telas de canal** (`src/app/(app)/amazon/`, `src/app/(app)/mercado-livre/`,
+`src/app/(app)/shopee/`, `src/app/(app)/tiktok/`) ficam de fora do mapa **de propósito**: são
 o ponto onde a conta do backend encontra a composição do front, e é justamente
 ali que os lotes legítimos cruzam. Marcá-las forçaria o escape em toda mudança
 normal, e escape que se usa sempre não é escape — é ruído.
@@ -126,8 +126,8 @@ entre ele e uma allowlist muda.
 
 ## O que este portão NÃO pega
 
-⚠️ **PONTO CEGO DECLARADO: as telas de canal.** `src/app/amazon/`,
-`src/app/mercado-livre/`, `src/app/shopee/` e `src/app/tiktok/` estão fora do
+⚠️ **PONTO CEGO DECLARADO: as telas de canal.** `src/app/(app)/amazon/`,
+`src/app/(app)/mercado-livre/`, `src/app/(app)/shopee/` e `src/app/(app)/tiktok/` estão fora do
 mapa de propósito (ver a nota acima) — e a consequência é que **colisão naquelas
 quatro pastas não vai ser pega**.
 

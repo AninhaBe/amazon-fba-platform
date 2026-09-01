@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-import { amazonFinancialCards } from "../src/app/amazon/amazonFinancialCards.ts";
+import { amazonFinancialCards } from "../src/app/(app)/amazon/amazonFinancialCards.ts";
 import { procedenciaDaEstimativa } from "../src/app/components/procedenciaDaEstimativa.ts";
 
 const fonte = (caminho) => readFile(new URL(`../${caminho}`, import.meta.url), "utf8");
@@ -75,7 +75,7 @@ test("a procedencia diz de onde veio e que o oficial substitui — nunca 'parcia
 });
 
 test("a tela RENDERIZA a marca, e a condicao e o campo do construtor", async () => {
-  const pagina = await fonte("src/app/amazon/page.tsx");
+  const pagina = await fonte("src/app/(app)/amazon/page.tsx");
   // Casar a RAMIFICACAO, nao o identificador: `MarcaDeEstimativa` continuaria
   // aparecendo no import depois de alguem apagar o uso.
   assert.match(

@@ -12,12 +12,12 @@ const fonte = (caminho) => readFile(new URL(`../${caminho}`, import.meta.url), "
 // face as tres frases que mudam a leitura; fica no tooltip a que so complementa.
 
 test("as tres frases que mudam a leitura estao na FACE", async () => {
-  const amazon = await fonte("src/app/amazon/page.tsx");
+  const amazon = await fonte("src/app/(app)/amazon/page.tsx");
 
   // 1. Faturamento: o cupom ja abatido explica por que este valor e MENOR que
   //    "Pedidos feitos". A frase e montada no construtor dos cards, para a tela
   //    ter UMA linha por card sem decidir qual.
-  const cards = await fonte("src/app/amazon/amazonFinancialCards.ts");
+  const cards = await fonte("src/app/(app)/amazon/amazonFinancialCards.ts");
   assert.match(cards, /baseDeclarada: \(f\?\.promotions \?\? 0\) > 0[\s\S]{0,160}de cupom\./);
 
   // 2. Pedidos feitos: distingue DUAS receitas que convivem na tela.
@@ -29,7 +29,7 @@ test("as tres frases que mudam a leitura estao na FACE", async () => {
 });
 
 test("nenhuma das tres sobrou no tooltip", async () => {
-  const amazon = await fonte("src/app/amazon/page.tsx");
+  const amazon = await fonte("src/app/(app)/amazon/page.tsx");
   const codigo = amazon.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
   const infos = [...codigo.matchAll(/info=\{?([^\n]*)/g)].map((m) => m[1]).join("\n");
   assert.ok(!/de cupom\./.test(infos), "o cupom abatido voltou para o 'i'");
@@ -40,7 +40,7 @@ test("nenhuma das tres sobrou no tooltip", async () => {
 test("UMA linha por card na face — a que muda a leitura", async () => {
   // A trava contra a poluicao: dois avisos empilhados no mesmo card viram ruido,
   // e ruido tem o mesmo efeito de estarem escondidos, so que ocupando espaco.
-  const amazon = await fonte("src/app/amazon/page.tsx");
+  const amazon = await fonte("src/app/(app)/amazon/page.tsx");
 
   // O card de Cupom mostra a ressalva OU a explicacao — nunca as duas.
   assert.match(amazon, /hint=\{faturamento\?\.couponPartial[\s\S]{0,200}info=\{faturamento\?\.couponPartial \? undefined :/);

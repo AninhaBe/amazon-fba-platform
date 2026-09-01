@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-const { amazonFinancialCards } = await import("../src/app/amazon/amazonFinancialCards.ts");
+const { amazonFinancialCards } = await import("../src/app/(app)/amazon/amazonFinancialCards.ts");
 
 // ═══ O DEFEITO QUE ESTE ARQUIVO REPROVA, com os numeros que ele teve ═════════
 //
@@ -306,7 +306,7 @@ test("o codigo-fonte nao guarda mais o mecanismo da base apurada", async () => {
   // Ramificacao, nao identificador: o que nao pode voltar e a base cair para
   // `finance.revenue`. Enquanto essa expressao existir, alguem religa.
   const fonte = await readFile(
-    new URL("../src/app/amazon/amazonFinancialCards.ts", import.meta.url),
+    new URL("../src/app/(app)/amazon/amazonFinancialCards.ts", import.meta.url),
     "utf8",
   );
   // A ramificacao, nao a palavra: o que nao pode voltar e a variavel SER DECLARADA

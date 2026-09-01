@@ -23,7 +23,7 @@ test("CORTE 1 — os sinais aparecem UMA vez por tela, nao um por cartao", async
   for (const tela of [
     "src/app/components/MercadoLivreWorkspace.tsx",
     "src/app/components/ShopeeWorkspace.tsx",
-    "src/app/amazon/page.tsx",
+    "src/app/(app)/amazon/page.tsx",
     "src/app/components/TikTokWorkspace.tsx",
   ]) {
     const codigo = semComentarios(await fonte(tela));
@@ -47,7 +47,7 @@ test("e NENHUM sinal desapareceu — a lista continua na tela", async () => {
   for (const tela of [
     "src/app/components/MercadoLivreWorkspace.tsx",
     "src/app/components/ShopeeWorkspace.tsx",
-    "src/app/amazon/page.tsx",
+    "src/app/(app)/amazon/page.tsx",
     "src/app/components/TikTokWorkspace.tsx",
     "src/app/components/ShopeeModulePage.tsx",
   ]) {
@@ -66,7 +66,7 @@ test("CORTE 2 — conexao caida cala os sinais, e so onde ela EMPILHA", async ()
 
   // Amazon e ML: a faixa de conexao caida convive com o conteudo.
   for (const [tela, condicao] of [
-    ["src/app/amazon/page.tsx", "Boolean(brokenConnection)"],
+    ["src/app/(app)/amazon/page.tsx", "Boolean(brokenConnection)"],
     ["src/app/components/MercadoLivreWorkspace.tsx", "conexaoCaida"],
   ]) {
     const codigo = semComentarios(await fonte(tela));

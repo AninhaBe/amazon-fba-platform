@@ -18,7 +18,7 @@ Legenda: ✅ = critério de verificação.
 
 ## Estágio 2 — Briefing (página + ciclo)
 - [ ] `src/app/api/briefing/route.ts`: `GET` = roda detecção (no protótipo) + devolve insights abertos; `PATCH` = `dispensar | adiar | resolver`.
-- [ ] `src/app/briefing/page.tsx`: "Bom dia. N coisas.", lista curta, cards com evidência · impacto · recomendação · [ver/agir] + [dispensar][adiar][resolver].
+- [ ] `src/app/(app)/briefing/page.tsx`: "Bom dia. N coisas.", lista curta, cards com evidência · impacto · recomendação · [ver/agir] + [dispensar][adiar][resolver].
 - [ ] Entrada no menu (`Nav.tsx`).
 - ✅ `/briefing` mostra a ruptura e os três botões funcionam (persistem estado).
 

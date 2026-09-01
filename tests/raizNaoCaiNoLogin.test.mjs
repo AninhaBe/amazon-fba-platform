@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 
 const fonte = (caminho) => readFile(new URL(`../${caminho}`, import.meta.url), "utf8");
@@ -116,7 +117,7 @@ test("a landing NAO foi redesenhada — as duas rotas seguem a mesma peca", asyn
   }
 });
 
-test("a casca NAO e renderizada no SERVIDOR para a raiz", async () => {
+test("a casca so existe DENTRO do grupo (app) — a landing nao pode ser envolvida", async () => {
   // ⚠️ O DEFEITO QUE ESTA GUARDA REPROVA — medido no HTML servido em
   // 01/09/2026, DEPOIS de o rewrite subir:
   //
@@ -125,17 +126,33 @@ test("a casca NAO e renderizada no SERVIDOR para a raiz", async () => {
   //   nos 4 canais", "Contas e canais"), para um visitante anonimo. Mais o
   //   flash: a casca vinha no HTML e so saia depois da hidratacao.
   //
-  // A causa foi uma decisao minha: `usarSemSessao()` devolve `false` no
-  // servidor, e eu escolhi isso pensando nas telas autenticadas — nao na raiz
-  // reescrita, onde o pathname continua sendo "/" e nenhuma lista casa.
+  // ⚠️ ESTE TESTE MUDOU DE INTENCAO, e o registro fica porque a inversao e o
+  // ponto. A primeira versao EXIGIA a existencia de `cascaIndecidivelNoServidor`
+  // — o remendo que nao renderizava casca no servidor quando o pathname era "/".
+  // Enquanto o remendo era a unica defesa, exigi-lo estava certo. Depois que a
+  // casca saiu do layout raiz, o mesmo teste passaria a DEFENDER O REMENDO:
+  // quem removesse o codigo morto quebraria a suite, e o vermelho diria que a
+  // CORRECAO estava errada. E a familia de "recusa temporaria morre junto com a
+  // limitacao que a justificou" (AGENTS.md).
   //
-  // ⚠️ A LICAO: defesa que so existe de um lado da fronteira NAO E DEFESA. A
-  // regra de sessao valia no cliente e nao existia no servidor.
-  const shell = await fonte("src/app/components/AppShell.tsx");
-  assert.match(
-    shell,
-    /function cascaIndecidivelNoServidor\(pathname: string\): boolean \{\s*return typeof document === "undefined" && pathname === "\/";/,
-    "a raiz voltou a renderizar a casca no servidor",
+  // A garantia agora e ESTRUTURAL e nao condicional: o `AppShell` e montado por
+  // um lugar so, o layout do grupo `(app)`, e a landing nao esta no grupo. Nao
+  // ha decisao a tomar no servidor porque a landing nao passa por la.
+  const layoutDoGrupo = await fonte("src/app/(app)/layout.tsx");
+  assert.match(layoutDoGrupo, /<AppShell>\{children\}<\/AppShell>/, "o grupo (app) deixou de montar a casca");
+
+  const layoutRaiz = await fonte("src/app/layout.tsx");
+  const raizSemComentarios = layoutRaiz.replace(/\{\/\*[\s\S]*?\*\/\}/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
+  assert.ok(
+    !/<AppShell>/.test(raizSemComentarios),
+    "a casca voltou para o layout RAIZ — de la ela envolve a landing e o login tambem",
   );
-  assert.match(shell, /cascaIndecidivelNoServidor\(pathname\) \|\|/, "a guarda existe mas nao esta ligada");
+
+  // E a landing NAO pode estar dentro do grupo, senao o resto nao vale nada.
+  for (const publica of ["landing", "landing-v2", "login", "privacidade"]) {
+    assert.ok(
+      !existsSync(new URL(`../src/app/(app)/${publica}`, import.meta.url)),
+      `${publica} entrou no grupo (app) e passou a ser envolvida pela casca`,
+    );
+  }
 });

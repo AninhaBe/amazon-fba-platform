@@ -188,7 +188,7 @@ test("central consulta cada loja Shopee pelo connection_id explícito", () => {
   assert.doesNotMatch(coleta, /shopee\/overview\?\$\{q\}["`]/, "sem connection_id a rota cairia na conexao implicita");
   assert.match(coleta, /const shopeeReadState = centralProviderReadState\(shopeeProvider\)/);
   assert.match(coleta, /const tiktokReadState = centralProviderReadState\(tiktokProvider\)/);
-  const page = fs.readFileSync(new URL("../src/app/page.tsx", import.meta.url), "utf8");
+  const page = fs.readFileSync(new URL("../src/app/(app)/page.tsx", import.meta.url), "utf8");
   assert.match(page, /channel\.attention \? "Atenção"/);
   assert.match(page, /channel\.attention \? "Revisar integração"/);
 });

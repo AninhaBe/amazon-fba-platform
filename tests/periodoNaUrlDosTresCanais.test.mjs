@@ -21,7 +21,7 @@ test("AS TRES telas escrevem o periodo no endereco", async () => {
   // As quatro, contando o TikTok que ja fazia — a licao do BriefingLead e que
   // uma tela de fora nao aparece, porque as outras funcionam.
   for (const [tela, params] of [
-    ["src/app/amazon/page.tsx", "searchParams"],
+    ["src/app/(app)/amazon/page.tsx", "searchParams"],
     ["src/app/components/MercadoLivreWorkspace.tsx", "searchParams"],
     ["src/app/components/ShopeeWorkspace.tsx", "searchParams"],
   ]) {
@@ -74,6 +74,6 @@ test("os dois modos continuam excludentes", () => {
 });
 
 test("a Amazon ganhou a fronteira de Suspense que useSearchParams exige", async () => {
-  const amazon = await fonte("src/app/amazon/page.tsx");
+  const amazon = await fonte("src/app/(app)/amazon/page.tsx");
   assert.match(amazon, /<Suspense fallback=\{<DashboardSkeleton \/>\}>\s*<Dashboard \/>\s*<\/Suspense>/);
 });

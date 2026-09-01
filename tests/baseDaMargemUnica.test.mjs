@@ -40,7 +40,7 @@ test("a frase e composta em UM lugar — nenhum canal escreve a propria", async 
   // A trava contra a segunda declaracao. Se a Shopee (ou ML, ou TikTok) montar
   // "apurados de" por conta propria, as duas divergem sem ninguem perceber.
   for (const caminho of [
-    "src/app/amazon/amazonFinancialCards.ts",
+    "src/app/(app)/amazon/amazonFinancialCards.ts",
     "src/app/components/ShopeeWorkspace.tsx",
     "src/app/components/MercadoLivreWorkspace.tsx",
     "src/app/components/TikTokWorkspace.tsx",
@@ -58,14 +58,14 @@ test("a frase e composta em UM lugar — nenhum canal escreve a propria", async 
   // A trava acima — nenhum canal monta "apurados de" a mao — continua valendo
   // para os quatro, inclusive para a Amazon, que agora nao pode nem consumir
   // nem reescrever a frase.
-  const amazon = await readFile(new URL("../src/app/amazon/amazonFinancialCards.ts", import.meta.url), "utf8");
+  const amazon = await readFile(new URL("../src/app/(app)/amazon/amazonFinancialCards.ts", import.meta.url), "utf8");
   assert.ok(!/declaracaoDeBase\(/.test(amazon), "a Amazon nao declara mais base — ver AGENTS.md, uma base so");
 });
 
 test("a declaracao vai na FACE do card, nunca no tooltip", async () => {
   // O defeito nao era a frase faltar: era ela estar num lugar que exige hover.
   // `sub` renderiza sem interacao; `info` e o "i".
-  const pagina = await readFile(new URL("../src/app/amazon/page.tsx", import.meta.url), "utf8");
+  const pagina = await readFile(new URL("../src/app/(app)/amazon/page.tsx", import.meta.url), "utf8");
   assert.match(pagina, /sub=\{card\.baseDeclarada\}/);
   assert.ok(!/info=\{card\.baseDeclarada\}/.test(pagina), "declaracao dentro do 'i' nao declara nada");
 });

@@ -67,7 +67,7 @@ test("TikTok deriva receita e contagem do mesmo conjunto de pedidos", () => {
 });
 
 test("Amazon: ticket e faturamento saem do par conciliado", () => {
-  const s = fonte("src/app/amazon/page.tsx");
+  const s = fonte("src/app/(app)/amazon/page.tsx");
   assert.match(s, /faturamentoConciliado \/ vendasConciliadas/);
   // `revenue`/`salesCount` sao do orderMetrics — base diferente da exibida.
   assert.doesNotMatch(s, /const ticketMedio = salesCount > 0 \? revenue \/ salesCount/);

@@ -14,7 +14,7 @@ import { readFile } from "node:fs/promises";
 //      dado da loja anterior na tela, que seria a mentira de hoje elevada de
 //      "outro periodo" para "outra loja".
 
-const CAMINHO = "src/app/amazon/page.tsx";
+const CAMINHO = "src/app/(app)/amazon/page.tsx";
 const fonte = await readFile(new URL(`../${CAMINHO}`, import.meta.url), "utf8");
 
 function efeitoQueContem(trecho) {

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { amazonFinancialCards } from "../src/app/amazon/amazonFinancialCards.ts";
+import { amazonFinancialCards } from "../src/app/(app)/amazon/amazonFinancialCards.ts";
 
 // DECISAO DELA, 31/08/2026, verbatim: "estorno reduz o resultado do periodo".
 //

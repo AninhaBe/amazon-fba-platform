@@ -36,7 +36,7 @@ test("paginação avança e volta sem ser sobrescrita, enquanto filtros e loja r
 test("UI usa status canônicos e explica schema financeiro bloqueado",async()=>{
   const source=await import("node:fs/promises").then(fs=>fs.readFile(new URL("../src/app/components/TikTokModulePage.tsx",import.meta.url),"utf8"));
   const dashboard=await import("node:fs/promises").then(fs=>fs.readFile(new URL("../src/app/components/TikTokWorkspace.tsx",import.meta.url),"utf8"));
-  const financePage=await import("node:fs/promises").then(fs=>fs.readFile(new URL("../src/app/tiktok/financeiro/page.tsx",import.meta.url),"utf8"));
+  const financePage=await import("node:fs/promises").then(fs=>fs.readFile(new URL("../src/app/(app)/tiktok/financeiro/page.tsx",import.meta.url),"utf8"));
   const nav=await import("node:fs/promises").then(fs=>fs.readFile(new URL("../src/app/components/Nav.tsx",import.meta.url),"utf8"));
   const workspaceModel=await import("node:fs/promises").then(fs=>fs.readFile(new URL("../src/app/components/TikTokWorkspace.tsx",import.meta.url),"utf8"));
   assert.match(source,/TIKTOK_CATALOG_STATUSES/);

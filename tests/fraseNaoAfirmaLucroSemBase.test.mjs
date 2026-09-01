@@ -24,7 +24,7 @@ const fonte = (caminho) => readFile(new URL(`../${caminho}`, import.meta.url), "
 // como "hoje". A narracao do modelo e prosa e diz "nos ultimos 30 dias".
 
 test("a frase do topo nao afirma lucro quando a base financeira nao existe", async () => {
-  const amazon = await fonte("src/app/amazon/page.tsx");
+  const amazon = await fonte("src/app/(app)/amazon/page.tsx");
   // Casar a RAMIFICACAO: o lucro so passa quando `finance` existe — a MESMA
   // condicao de que os cards dependem. Sem isso os dois podem discordar de novo.
   assert.match(
@@ -51,6 +51,6 @@ test("os cards e a frase leem a MESMA condicao de base", async () => {
   // Os cards saem de `finance`; a frase agora tambem depende dele. Enquanto os
   // dois olharem o mesmo campo, nao existe estado em que um afirme e o outro
   // fique em branco.
-  const amazon = await fonte("src/app/amazon/page.tsx");
+  const amazon = await fonte("src/app/(app)/amazon/page.tsx");
   assert.match(amazon, /finance: profit\?\.finance \?\? null,/, "os cards deixaram de sair de finance");
 });

@@ -135,7 +135,7 @@ webhook depois.
   `shopeeFetch` com refresh automático, OAuth (`authorizationUrl`,
   `exchangeShopeeCode`, `refreshShopeeConnection`), `getShopeeShopInfo`.
 - ✅ `src/app/api/integrations/shopee/{connect,callback}/route.ts`
-- ✅ UI: `src/app/shopee/page.tsx` + `components/ShopeeWorkspace.tsx`
+- ✅ UI: `src/app/(app)/shopee/page.tsx` + `components/ShopeeWorkspace.tsx`
 - ✅ Registro: `registry.ts` (`available` + `connectHref`), `api/integrations/route.ts`
   (`shopeeConfigured()`), `ChannelRail.tsx`, `ChannelSwitcher.tsx`, `workspaces.ts`
   (`WorkspaceId` + rota), `AppShell.tsx`, `Nav.tsx`, `PageHeader.tsx`, `globals.css`.

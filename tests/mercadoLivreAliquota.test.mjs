@@ -61,7 +61,7 @@ test("a tela nao afirma isencao quando a aliquota falta", () => {
 });
 
 test("a calculadora nao pre-preenche zero nem escreve 'null' no campo", () => {
-  const s = fonte("src/app/mercado-livre/calculadora/page.tsx");
+  const s = fonte("src/app/(app)/mercado-livre/calculadora/page.tsx");
   assert.doesNotMatch(s, /useState\("0"\);\s*$/m, "campo com 0 afirma isencao antes de a pessoa informar");
   assert.doesNotMatch(s, /setTaxRate\(String\(data\.taxRate\)\)/, "String(null) escreve 'null' no input");
   assert.match(s, /data\.taxRate == null \? "" : String\(data\.taxRate\)/);

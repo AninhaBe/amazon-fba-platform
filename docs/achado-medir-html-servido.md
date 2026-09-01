@@ -64,9 +64,27 @@ E a regra irmã, que vale para qualquer medição: **um número que confirma o q
 você queria ver merece uma segunda conferida, não menos.** Este deu 40× melhor
 que o real e passou perto de ser reportado.
 
-## Pendente
+## Resolvido em 01/09/2026 — o route group
 
-O interino que produziu o "depois" troca o vazamento por um flash da casca **na
-Visão geral**, para quem tem sessão. A correção definitiva é mover o `AppShell`
-do layout raiz para um route group das telas autenticadas — **combinada para uma
-janela com a árvore quieta**, porque move ~19 diretórios de rota.
+O interino saiu: o `AppShell` deixou o layout raiz e passou a ser montado por
+`(app)/layout.tsx`. Dezoito diretórios de rota mais a Visão geral entraram no
+grupo; landing, login, privacidade, `lab`, recuperação de senha e `auth` ficaram
+fora. Nenhuma URL mudou — grupo entre parênteses não entra no caminho —, e isso
+foi conferido rota a rota: **64 rotas antes, as mesmas 64 depois.**
+
+Medido de novo no HTML servido, com o método acima (`next start` local, `curl`
+sem cookie):
+
+| | interino | com o grupo |
+|---|---|---|
+| markup sem `<script>` | 28.570 b | 27.952 b |
+| `app-shell` / `nexo-sidebar` | não | **não** |
+| rótulos de navegação | 0 | **0** |
+| marcas de sessão | — | **0** |
+| landing no markup | sim ✅ | **sim ✅** |
+
+E o prerender ficou igual: 146 rotas no build, **nenhuma mudou de tipo**, 61
+estáticas antes e 61 depois, com `/` seguindo `○`.
+
+O flash na Visão geral acabou junto: a casca volta a ser renderizada no
+servidor para quem tem sessão, porque a landing já não passa por ela.

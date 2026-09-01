@@ -41,7 +41,7 @@ test("o coletor emite resultado parcial a cada canal", () => {
 });
 
 test("a tela consome o parcial e sai do estado de carregando", () => {
-  const s = fonte("src/app/page.tsx");
+  const s = fonte("src/app/(app)/page.tsx");
   // ⚠️ O CAMINHO GANHOU UM DEGRAU em 31/08/2026: a coleta passou a sair por
   // `coletarCentral`, que a envolve no controle de voo para o aquecimento por
   // foco nao duplicar os quatro canais. O que esta guarda garante continua o
@@ -78,7 +78,7 @@ test("a leitura do NEXO vive nos dashboards de CANAL, nao na Visao geral", () =>
   // saber que algo vai aparecer? ela vai ficar navegando em outras telas". Por
   // isso o componente de canal só LÊ o texto pronto; nunca fica esperando.
   const canais = [
-    ["src/app/amazon/page.tsx", "Amazon"],
+    ["src/app/(app)/amazon/page.tsx", "Amazon"],
     ["src/app/components/MercadoLivreWorkspace.tsx", "Mercado Livre"],
     ["src/app/components/ShopeeWorkspace.tsx", "Shopee"],
     ["src/app/components/TikTokWorkspace.tsx", "TikTok Shop"],
@@ -86,7 +86,7 @@ test("a leitura do NEXO vive nos dashboards de CANAL, nao na Visao geral", () =>
   for (const [caminho, canal] of canais) {
     assert.match(fonte(caminho), /<NexoDoDia \/>/, `${canal} não mostra a leitura do NEXO`);
   }
-  const central = fonte("src/app/page.tsx");
+  const central = fonte("src/app/(app)/page.tsx");
   assert.doesNotMatch(central, /<NexoMensagem/, "a faixa voltou para a Visão geral");
 });
 
@@ -105,5 +105,5 @@ test("o componente de canal nao gera narracao nem fica esperando", () => {
 test("a Visao geral continua DISPARANDO a geracao", () => {
   // Ela saiu da tela, não do fluxo: se a central parar de gerar, os quatro
   // canais ficam sem texto para exibir.
-  assert.match(fonte("src/app/page.tsx"), /method: "POST"[\s\S]{0,120}central\/briefing|central\/briefing[\s\S]{0,120}method: "POST"/);
+  assert.match(fonte("src/app/(app)/page.tsx"), /method: "POST"[\s\S]{0,120}central\/briefing|central\/briefing[\s\S]{0,120}method: "POST"/);
 });

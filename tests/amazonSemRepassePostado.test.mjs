@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { amazonFinancialCards } from "../src/app/amazon/amazonFinancialCards.ts";
+import { amazonFinancialCards } from "../src/app/(app)/amazon/amazonFinancialCards.ts";
 
 // ZERO SEM REPASSE POSTADO É AUSÊNCIA, NÃO FATO.
 //

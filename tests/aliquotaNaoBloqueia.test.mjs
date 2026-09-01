@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import "../scripts/ts-resolver.mjs";
 
-const { amazonFinancialCards } = await import("../src/app/amazon/amazonFinancialCards.ts");
+const { amazonFinancialCards } = await import("../src/app/(app)/amazon/amazonFinancialCards.ts");
 const { calculateTiktokFinancialV2 } = await import("../src/lib/integrations/tiktokFinancialV2.ts");
 const { SUFIXO_SEM_IMPOSTO, comSemImposto } = await import("../src/lib/semImposto.ts");
 
@@ -208,14 +208,19 @@ test("Shopee: a tela rotula e mantém o CTA; dado do canal continua bloqueando",
 
 test("os quatro canais usam o MESMO rótulo, nenhum escreve o texto à mão", () => {
   const arquivos = [
-    "src/app/amazon/amazonFinancialCards.ts",
+    "src/app/(app)/amazon/amazonFinancialCards.ts",
     "src/app/components/MercadoLivreWorkspace.tsx",
     "src/app/components/ShopeeWorkspace.tsx",
     "src/app/components/TikTokWorkspaceModel.ts",
   ];
   for (const arquivo of arquivos) {
     const s = fonte(arquivo);
-    assert.match(s, /from "(@\/lib|\.\.\/\.\.\/lib)\/semImposto"/, `${arquivo} precisa importar o rótulo compartilhado`);
+    // ⚠️ A ANCORA E O MODULO, NAO A PROFUNDIDADE DO CAMINHO. A versao anterior
+    // casava exatamente `../../lib` e ficou vermelha quando as telas desceram um
+    // nivel para dentro do route group `(app)` — reprovando um movimento que nao
+    // toca em imposto nenhum. Guarda que casa a aparencia pune quem mexe na
+    // estrutura; ver docs/achado-guarda-que-depende-da-forma.md.
+    assert.match(s, /from "(@\/lib|(?:\.\.\/)+lib)\/semImposto"/, `${arquivo} precisa importar o rótulo compartilhado`);
     assert.doesNotMatch(semComentarios(s), /"\(sem imposto\)"/, `${arquivo} não pode escrever o rótulo à mão`);
   }
 });

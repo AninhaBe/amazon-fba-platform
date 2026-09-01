@@ -50,7 +50,7 @@ test("AS QUATRO telas passam a janela — nao tres", async () => {
   // A licao do defeito: uma tela de fora nao aparece, porque as outras
   // funcionam. Entao o teste cobre as quatro, sempre.
   for (const [tela, esperado] of [
-    ["src/app/amazon/page.tsx", /janela=\{period\.query\}/],
+    ["src/app/(app)/amazon/page.tsx", /janela=\{period\.query\}/],
     ["src/app/components/TikTokWorkspace.tsx", /janela=\{period\.query\}/],
     ["src/app/components/MercadoLivreWorkspace.tsx", /janela=\{periodoQuery\}/],
     ["src/app/components/ShopeeWorkspace.tsx", /janela=\{periodoQuery\}/],
@@ -64,12 +64,12 @@ test("AS QUATRO telas passam a janela — nao tres", async () => {
 test("a query e o MESMO valor que decide o que a tela busca", async () => {
   // Se a narracao olhasse uma copia (um label, um estado proprio), as duas
   // poderiam discordar. `period.query` e o que vai para a API.
-  const amazon = await fonte("src/app/amazon/page.tsx");
+  const amazon = await fonte("src/app/(app)/amazon/page.tsx");
   assert.match(amazon, /fetch\(`\/api\/amazon\/dashboard\?\$\{[^}]*\}`|periodQuery/, "a Amazon busca por outra coisa que nao a query do hook");
 });
 
 test("a central rotula o card de Pedidos com o periodo selecionado", async () => {
-  const central = await fonte("src/app/page.tsx");
+  const central = await fonte("src/app/(app)/page.tsx");
   assert.match(
     central,
     /<Metric label="Pedidos" value=\{totals\.orders\.toLocaleString\("pt-BR"\)\} sub=\{period\.label\[0\]\.toUpperCase\(\) \+ period\.label\.slice\(1\)\} \/>/,

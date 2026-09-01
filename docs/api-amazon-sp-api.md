@@ -54,7 +54,7 @@ Consequência para o cálculo: enquanto está `Pending`, a Amazon **omite `Order
 no pedido e `ItemPrice` nos itens**. Não é falha de sync — o pedido entra no modelo
 canônico com `gross` 0 e sem fees porque não há valor a capturar. Como não há
 expedição, também não existe transação financeira, e o lucro conciliado fica
-**vazio (desconhecido), nunca zero** — ver o card em `src/app/amazon/page.tsx`.
+**vazio (desconhecido), nunca zero** — ver o card em `src/app/(app)/amazon/page.tsx`.
 
 ## Financeiro
 

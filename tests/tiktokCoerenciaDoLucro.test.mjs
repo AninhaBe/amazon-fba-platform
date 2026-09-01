@@ -118,7 +118,7 @@ test("a central manda a causa do travessão do TikTok, e não um zero no lugar d
   const { readFile } = await import("node:fs/promises");
   const [central, visao] = await Promise.all([
     readFile(new URL("../src/app/centralChannels.ts", import.meta.url), "utf8"),
-    readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/app/(app)/page.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(central, /if \(tiktok\.profit == null\) \{\s*\n\s*tiktok\.motivoSemLucro = tiktokMotivoSemLucro\(/);
   assert.match(visao, /faturamento30d: totals\.revenueSources \? totals\.revenue : null/);

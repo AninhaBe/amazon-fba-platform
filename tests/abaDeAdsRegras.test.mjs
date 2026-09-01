@@ -15,7 +15,7 @@ test("NAO existe total dos quatro canais — nem no payload, nem na tela", async
   // engano daqui a tres meses.
   const rota = await fonte("src/app/api/ads/route.ts");
   const lib = await fonte("src/lib/adsMultiCanal.ts");
-  const pagina = await fonte("src/app/ads/page.tsx");
+  const pagina = await fonte("src/app/(app)/ads/page.tsx");
   for (const [nome, arquivo] of [["rota", rota], ["lib", lib], ["pagina", pagina]]) {
     assert.ok(
       !/\bgastoTotal\b|\btotalGeral\b|\btotalDosCanais\b/.test(arquivo),
@@ -26,7 +26,7 @@ test("NAO existe total dos quatro canais — nem no payload, nem na tela", async
 });
 
 test("a janela de cada canal fica colada ao numero, nao num rodape", async () => {
-  const pagina = await fonte("src/app/ads/page.tsx");
+  const pagina = await fonte("src/app/(app)/ads/page.tsx");
   const cartao = pagina.slice(pagina.indexOf("function CartaoDoCanal"), pagina.indexOf("function OQueOAnuncioDeixou"));
   assert.match(cartao, /ads-canal-valor[\s\S]{0,200}<Janela/, "a janela vem logo depois do valor no cartao");
   const cascata = pagina.slice(pagina.indexOf("function OQueOAnuncioDeixou"), pagina.indexOf("function TabelaDeProdutos"));
@@ -34,7 +34,7 @@ test("a janela de cada canal fica colada ao numero, nao num rodape", async () =>
 });
 
 test("canal sem dado mostra o estado real e o dono da espera — nunca R$ 0,00", async () => {
-  const pagina = await fonte("src/app/ads/page.tsx");
+  const pagina = await fonte("src/app/(app)/ads/page.tsx");
   assert.match(pagina, /sem dado/, "a ausencia tem texto proprio");
   // Sem os comentarios: o codigo EXPLICA por que nao escreve R$ 0,00, e a
   // explicacao nao pode reprovar a propria regra que ela documenta.
@@ -57,7 +57,7 @@ test("os quatro canais aparecem SEMPRE, mesmo sem linha no banco", () => {
 test("a tela nao se desculpa: nada de 'parcial' nem 'indisponivel'", async () => {
   // AGENTS.md: a pendencia diz O QUE falta, com numero e dono. Adjetivo que se
   // desculpa explica ao vendedor uma coisa que ele ja sabe.
-  for (const caminho of ["src/app/ads/page.tsx", "src/app/ads/como-ligar/page.tsx"]) {
+  for (const caminho of ["src/app/(app)/ads/page.tsx", "src/app/(app)/ads/como-ligar/page.tsx"]) {
     const arquivo = await fonte(caminho);
     const visivel = arquivo.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
     assert.ok(!/parcial|incompleto|indispon[ií]vel/i.test(visivel), `${caminho}: adjetivo que se desculpa`);
@@ -67,7 +67,7 @@ test("a tela nao se desculpa: nada de 'parcial' nem 'indisponivel'", async () =>
 test("o aviso do GMV Max sobrevive ao resumo do guia", async () => {
   // O guia tem 105 linhas e nao cabe na aba; o unico ponto onde um clique errado
   // APAGA campanha em producao nao pode ser o que se perde no resumo.
-  const guia = await fonte("src/app/ads/como-ligar/page.tsx");
+  const guia = await fonte("src/app/(app)/ads/como-ligar/page.tsx");
   assert.match(guia, /GMV Max/);
   assert.match(guia, /encerra as campanhas/i);
   assert.match(guia, /ads-aviso-forte/, "e ele tem hierarquia visual propria");
@@ -108,7 +108,7 @@ test("dia que ainda se move e MARCADO, e a marca some quando ele fecha", () => {
 });
 
 test("a marca de consolidacao nao usa 'parcial' nem promete numero final", async () => {
-  const pagina = await fonte("src/app/ads/page.tsx");
+  const pagina = await fonte("src/app/(app)/ads/page.tsx");
   const visivel = pagina.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
   assert.ok(!/parcial/i.test(visivel));
   assert.match(visivel, /pode mudar/, "a promessa e honesta: o valor ainda muda");
@@ -131,7 +131,7 @@ test("linha que cobre mais de um dia NAO e somada — a tela diz o que esta erra
   assert.match(lib, /estado: "dado-em-recoleta"/);
   assert.match(lib, /if \(acumuladas > 0\) \{[\s\S]{0,1600}gasto: null/, "sem numero enquanto houver linha acumulada");
 
-  const pagina = await fonte("src/app/ads/page.tsx");
+  const pagina = await fonte("src/app/(app)/ads/page.tsx");
   // "sem dado" seria mentira: o dado existe e esta errado, que e outra coisa.
   assert.match(pagina, /recolhendo de novo/);
 
@@ -151,7 +151,7 @@ test("a aba usa o FRAME da casa, e nao uma classe inventada", async () => {
   // acao ("Ver como ligar"). Conteudo cortado que nao anuncia o corte e pior
   // que conteudo ausente.
   const css = await fonte("src/app/globals.css");
-  for (const caminho of ["src/app/ads/page.tsx", "src/app/ads/como-ligar/page.tsx"]) {
+  for (const caminho of ["src/app/(app)/ads/page.tsx", "src/app/(app)/ads/como-ligar/page.tsx"]) {
     const pagina = await fonte(caminho);
     const jsx = pagina.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
     assert.ok(!/className="dashboard-shell"/.test(jsx), `${caminho}: classe de layout inexistente`);

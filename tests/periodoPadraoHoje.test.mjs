@@ -25,7 +25,7 @@ test("o padrao dos QUATRO canais e Hoje, e vem de um lugar so", async () => {
   assert.ok(!/"days=30"/.test(hook), "o 30 nao pode sobreviver escondido no estado inicial");
 
   for (const caminho of [
-    "src/app/amazon/page.tsx",
+    "src/app/(app)/amazon/page.tsx",
     "src/app/components/MercadoLivreWorkspace.tsx",
     "src/app/components/ShopeeWorkspace.tsx",
     "src/app/components/TikTokWorkspace.tsx",
@@ -72,8 +72,10 @@ test("a central usa O MESMO seletor dos canais, e nao um parecido", async () => 
   // ⚠️ O pedido revelou um buraco: a central NAO usava o hook — ela buscava os
   // quatro canais com `days=30` escrito no codigo. Por isso a troca do padrao
   // para Hoje nao tinha alcancado esta tela.
-  const central = await fonte("src/app/page.tsx");
-  assert.match(central, /import \{ DashboardPeriodFilter, useDashboardPeriod \} from ".\/components\/DashboardPeriodFilter"/);
+  const central = await fonte("src/app/(app)/page.tsx");
+  // A ancora e o modulo; a profundidade do caminho mudou quando a central
+  // entrou no route group `(app)` e nao e o que este teste garante.
+  assert.match(central, /import \{ DashboardPeriodFilter, useDashboardPeriod \} from "[.\/]*components\/DashboardPeriodFilter"/);
   // ⚠️ `[^>]*` de proposito: o que esta guarda garante e que a central usa a
   // PECA COMPARTILHADA com o espalhamento de `period.filterProps`, nao que a
   // tag seja identica para sempre. Em 31/08/2026 ela ganhou `onIntent` e
@@ -90,7 +92,7 @@ test("a central usa O MESMO seletor dos canais, e nao um parecido", async () => 
 test("trocar o periodo REBUSCA, e o cache nao mistura recortes", async () => {
   // Cache sem periodo na chave pintaria o numero de 30 dias sob o rotulo "Hoje"
   // no primeiro quadro: numero certo, recorte errado.
-  const central = await fonte("src/app/page.tsx");
+  const central = await fonte("src/app/(app)/page.tsx");
   assert.match(central, /centralCache = new Map</, "o cache e por periodo");
   assert.match(central, /centralCache\.get\(period\.query\)/);
   assert.match(central, /\}, \[period\.query\]\);/, "o efeito depende do periodo");

@@ -41,7 +41,7 @@ test("o que nao e periodo sobrevive", () => {
 });
 
 test("a aba de Ads LIGA o filtro na URL — os dois argumentos, nao so o import", async () => {
-  const pagina = await fonte("src/app/ads/page.tsx");
+  const pagina = await fonte("src/app/(app)/ads/page.tsx");
 
   // Casar a CHAMADA COM ARGUMENTOS, nao o identificador: `useDashboardPeriod`
   // aparece no import de qualquer jeito, e foi exatamente assim que a chamada

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { amazonFinancialCards } from "../src/app/amazon/amazonFinancialCards.ts";
+import { amazonFinancialCards } from "../src/app/(app)/amazon/amazonFinancialCards.ts";
 
 // A MARGEM IMPOSSIVEL (achada por ela em 30/08/2026).
 //
@@ -12,7 +12,7 @@ import { amazonFinancialCards } from "../src/app/amazon/amazonFinancialCards.ts"
 // fechava era 263,94 / 418,43 = 63,08% — e os 418,43 nao estavam em lugar nenhum
 // da tela. Ela olhou, nao fechou, e concluiu que estava errado. Estava CERTA.
 //
-// A CAUSA (`src/app/amazon/page.tsx`): a pagina sobrescrevia o VALOR do card
+// A CAUSA (`src/app/(app)/amazon/page.tsx`): a pagina sobrescrevia o VALOR do card
 // "Faturamento" mantendo o ROTULO, enquanto `amazonFinancialCards` seguia
 // calculando a margem sobre `finance.revenue`, a base apurada. Lucro e margem de
 // um universo, exibidos ao lado do faturamento de outro.
@@ -103,7 +103,7 @@ test("bases iguais NAO produzem campo — ruido tambem e defeito", () => {
 test("a tela RENDERIZA a base, e nao so no tooltip", async () => {
   // A trava no lugar onde o defeito estava: `sub` aparece sem interacao, `info`
   // exige hover. Se `baseDeclarada` voltar a sair so pelo `info`, isto quebra.
-  const page = await fonte("src/app/amazon/page.tsx");
+  const page = await fonte("src/app/(app)/amazon/page.tsx");
   const ocorrencias = (page.match(/sub=\{card\.baseDeclarada\}/g) ?? []).length;
   assert.equal(ocorrencias, 2, "os dois ramos de card (lucro e demais) precisam renderizar a base");
   // E ela nunca pode sair pelo "i": foi ali que a frase ficou invisivel o dia
@@ -124,7 +124,7 @@ test("a tela nao pode voltar a sobrescrever o valor de um card", async () => {
   // A trava no lugar onde o defeito nasceu. O numero do card sai do modulo que
   // tambem calcula a margem; trocar o valor na renderizacao recria as duas
   // definicoes que este teste existe para impedir.
-  const page = await fonte("src/app/amazon/page.tsx");
+  const page = await fonte("src/app/(app)/amazon/page.tsx");
   assert.doesNotMatch(
     page,
     /value=\{faturamento\?\.revenue \?\? card\.raw/,

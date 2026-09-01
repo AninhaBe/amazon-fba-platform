@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { amazonFinancialCards, diasSemAnuncio } from "../src/app/amazon/amazonFinancialCards.ts";
+import { amazonFinancialCards, diasSemAnuncio } from "../src/app/(app)/amazon/amazonFinancialCards.ts";
 
 const brl = (v) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 const carta = (cards, key) => cards.find((c) => c.key === key);
@@ -236,7 +236,7 @@ test("a rota devolve anuncio, janela e conexao", () => {
 });
 
 test("a pagina LE os tres campos ao montar ProfitData", () => {
-  const pagina = arquivo("src/app/amazon/page.tsx");
+  const pagina = arquivo("src/app/(app)/amazon/page.tsx");
   const i = pagina.indexOf("const profit: ProfitData = {");
   assert.ok(i > 0, "a montagem de ProfitData precisa existir");
   // ⚠️ A JANELA VAI ATE O FIM DO OBJETO, nao um numero fixo de caracteres.
@@ -251,7 +251,7 @@ test("a pagina LE os tres campos ao montar ProfitData", () => {
 });
 
 test("os cards de anuncio estao na faixa principal", () => {
-  const pagina = arquivo("src/app/amazon/page.tsx");
+  const pagina = arquivo("src/app/(app)/amazon/page.tsx");
   const i = pagina.indexOf("PRIMARY_FINANCIAL_CARDS = new Set(");
   const faixa = pagina.slice(i, i + 400);
   for (const k of ["ads", "acos", "tacos"]) {

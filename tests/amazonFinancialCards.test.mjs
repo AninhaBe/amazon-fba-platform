@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 const brl = (v) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
-import { amazonFinancialCards } from "../src/app/amazon/amazonFinancialCards.ts";
+import { amazonFinancialCards } from "../src/app/(app)/amazon/amazonFinancialCards.ts";
 
 const carta = (cards, key) => cards.find((c) => c.key === key);
 

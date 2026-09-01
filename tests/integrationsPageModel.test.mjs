@@ -5,7 +5,7 @@ import {
   connectionRemovalCopy,
   isRemovableProvider,
   providerState,
-} from "../src/app/integracoes/IntegrationsPageModel.ts";
+} from "../src/app/(app)/integracoes/IntegrationsPageModel.ts";
 
 test("estado do provider respeita o status operacional das conexões", () => {
   assert.equal(providerState([{ status: "connected" }], { planned: false, configured: true }), "connected");

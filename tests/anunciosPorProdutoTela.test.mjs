@@ -39,7 +39,7 @@ test("ajuste 1: 'margem desconhecida' vira pendência com link para AQUELE SKU",
   assert.match(tela, /href=\{`\$\{baseDeProdutos\}\?q=\$\{encodeURIComponent\(linha\.sku \?\? linha\.productId\)\}`\}/,
     "o link cai no produto, não na lista inteira — e na página de custo DO CANAL");
   // E a página de produtos precisa saber ler esse parâmetro.
-  const produtos = await readFile(new URL("../src/app/produtos/page.tsx", import.meta.url), "utf8");
+  const produtos = await readFile(new URL("../src/app/(app)/produtos/page.tsx", import.meta.url), "utf8");
   assert.match(produtos, /useSearchParams\(\)\.get\("q"\)/);
   assert.match(produtos, /useState\(buscaInicial\)/);
 });

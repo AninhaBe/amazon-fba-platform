@@ -16,11 +16,11 @@ import { readFile } from "node:fs/promises";
 // a prop, e foi a unica que continuou mentindo. Por isso ela virou teste.
 
 const TELAS_COM_PERIODO = [
-  "src/app/amazon/page.tsx",
+  "src/app/(app)/amazon/page.tsx",
   "src/app/components/MercadoLivreWorkspace.tsx",
   "src/app/components/ShopeeWorkspace.tsx",
   "src/app/components/TikTokWorkspace.tsx",
-  "src/app/page.tsx",
+  "src/app/(app)/page.tsx",
 ];
 
 async function ler(caminho) {

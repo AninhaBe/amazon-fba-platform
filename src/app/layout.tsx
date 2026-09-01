@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import { AppShell } from "./components/AppShell";
 import "./globals.css";
 
 // Inter variável: desenhada para UI densa de números — excelente legibilidade
@@ -34,7 +33,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <a href="#main-content" className="skip-link">
           Pular para o conteúdo
         </a>
-        <AppShell>{children}</AppShell>
+        {/* ⚠️ AQUI NAO HA MAIS CASCA. Ela mora em `(app)/layout.tsx`, o grupo
+            das telas autenticadas — ver a nota de cabecalho de la. O layout
+            raiz serve TODA rota, inclusive a landing e o login, entao tudo que
+            entra aqui e entregue tambem a quem nunca criou conta. */}
+        {children}
       </body>
     </html>
   );

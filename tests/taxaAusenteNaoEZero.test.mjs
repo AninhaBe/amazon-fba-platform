@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { amazonFinancialCards } from "../src/app/amazon/amazonFinancialCards.ts";
+import { amazonFinancialCards } from "../src/app/(app)/amazon/amazonFinancialCards.ts";
 
 // O DEFEITO (achado por ela em 30/08/2026): a tela da Amazon mostrava
 // "Taxas R$ 0,00 · Total do período conciliado" num dia com 63 vendas.

@@ -77,7 +77,7 @@ test("a página de custo de cada canal usa o seletor e o aviso", async () => {
   for (const caminho of [
     "../src/app/components/ShopeeModulePage.tsx",
     "../src/app/components/TikTokModulePage.tsx",
-    "../src/app/mercado-livre/produtos/page.tsx",
+    "../src/app/(app)/mercado-livre/produtos/page.tsx",
   ]) {
     const fonte = await readFile(new URL(caminho, import.meta.url), "utf8");
     assert.match(fonte, /FiltroDeAtividade/, `${caminho} sem o seletor`);

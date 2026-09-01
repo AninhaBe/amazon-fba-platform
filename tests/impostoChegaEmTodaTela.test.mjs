@@ -112,7 +112,7 @@ test("a rota do dashboard entrega aliquota e imposto para a tela", async () => {
   // O furo (c): o cadastro existia, o canonico passou a calcular, e o numero
   // ainda nao chegaria se a rota nao carregasse os campos. Este objeto e montado
   // campo a campo e o TypeScript nao reclama do que falta.
-  const pagina = await fonte("src/app/amazon/page.tsx");
+  const pagina = await fonte("src/app/(app)/amazon/page.tsx");
   const i = pagina.indexOf("const profit: ProfitData = {");
   const montagem = pagina.slice(i, pagina.indexOf("      };", i));
   assert.match(montagem, /taxRate: payload\.profit\.taxRate/);
@@ -122,6 +122,6 @@ test("a rota do dashboard entrega aliquota e imposto para a tela", async () => {
 test("'(sem imposto)' so aparece quando NAO ha aliquota cadastrada", async () => {
   // Com aliquota, a frase seria mentira sobre o proprio calculo. Sem aliquota,
   // ela e informacao acionavel — "falta cadastrar" —, nao desculpa.
-  const cards = await fonte("src/app/amazon/amazonFinancialCards.ts");
+  const cards = await fonte("src/app/(app)/amazon/amazonFinancialCards.ts");
   assert.match(cards, /comSemImposto\([^)]*input\.taxRate == null\)/);
 });

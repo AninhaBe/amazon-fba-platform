@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { amazonFinancialCards, lucroDoPeriodo } from "../src/app/amazon/amazonFinancialCards.ts";
+import { amazonFinancialCards, lucroDoPeriodo } from "../src/app/(app)/amazon/amazonFinancialCards.ts";
 
 // O DEFEITO (relatado por ela em 29/08/2026): a mesma tela da Amazon exibia
 // DOIS numeros chamados lucro com sinais OPOSTOS — -R$ 35,61 na faixa de cards e
@@ -100,7 +100,7 @@ test("quem nao anuncia tem lucro conhecido", () => {
 test("a tela da Amazon nao recalcula o anuncio por conta propria", async () => {
   // A trava contra o defeito voltar: a pagina tem que CHAMAR a funcao, e nao
   // reescrever a subtracao. Duas copias da conta foi o que deixou uma para tras.
-  const page = await fonte("src/app/amazon/page.tsx");
+  const page = await fonte("src/app/(app)/amazon/page.tsx");
   // A fonte unica cresceu: era `gastoComAnuncioDoPeriodo` (so o gasto) e virou
   // `lucroDoPeriodo` (a conta inteira), quando ficou claro que a SUBTRACAO
   // tambem estava duplicada.
@@ -116,7 +116,7 @@ test("a cascata escrita fecha no MESMO lucro da rosca e da faixa", async () => {
   // passou a descontar o anuncio, mas as linhas logo abaixo dela ainda somavam
   // ate `estimatedProfit` — o numero antigo, maior e positivo. Lucro e margem
   // da cascata agora leem `lucroComAnuncio`, como todo o resto da tela.
-  const page = await fonte("src/app/amazon/page.tsx");
+  const page = await fonte("src/app/(app)/amazon/page.tsx");
   // ⚠️ O PORTAO MUDOU EM 30/08/2026 (decisao da vendedora): custo faltando nao
   // apaga mais o lucro. A exigencia deste teste NAO mudou — a cascata continua
   // tendo que fechar em `lucroComAnuncio`, a fonte unica. So o rotulo passou a
@@ -150,7 +150,7 @@ test("as tres superficies leem o lucro da MESMA funcao", async () => {
   // 2 e 3) ROSCA e CASCATA vivem em JSX e nao dao para instanciar aqui. O que da
   // para exigir e que nenhuma das duas REFACA a conta: a tela chama a funcao uma
   // vez, guarda em `lucroComAnuncio`, e as duas leem essa variavel.
-  const page = await fonte("src/app/amazon/page.tsx");
+  const page = await fonte("src/app/(app)/amazon/page.tsx");
   assert.match(page, /const anuncio = lucroDoPeriodo\(\{/, "a tela precisa chamar a fonte unica");
   assert.match(page, /const lucroComAnuncio = anuncio\.lucro;/, "a tela nao pode recalcular o lucro");
   assert.match(page, /result: lucroComAnuncio,/, "a rosca precisa fechar no lucro da funcao");
@@ -161,8 +161,8 @@ test("as tres superficies leem o lucro da MESMA funcao", async () => {
 test("a subtracao do anuncio existe em UM lugar no codigo inteiro", async () => {
   // A trava contra a quarta copia. Nao basta as tres concordarem hoje: a conta
   // precisa ser impossivel de duplicar sem quebrar isto.
-  const cards = await fonte("src/app/amazon/amazonFinancialCards.ts");
-  const page = await fonte("src/app/amazon/page.tsx");
+  const cards = await fonte("src/app/(app)/amazon/amazonFinancialCards.ts");
+  const page = await fonte("src/app/(app)/amazon/page.tsx");
   // ⚠️ MUDOU EM 30/08/2026: antes o teto era UMA subtracao na camada de tela
   // (dentro de `lucroDoPeriodo`). Agora e ZERO — a conta subiu para o produtor.
   assert.ok(

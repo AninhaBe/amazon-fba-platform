@@ -18,10 +18,10 @@ test("a lateral de cada canal aponta para o briefing DO CANAL; a Visão geral ma
 
 test("as 4 rotas de canal renderizam o BriefingView com o provider certo", async () => {
   const rotas = [
-    ["../src/app/amazon/briefing/page.tsx", "amazon"],
-    ["../src/app/mercado-livre/briefing/page.tsx", "mercado_livre"],
-    ["../src/app/shopee/briefing/page.tsx", "shopee"],
-    ["../src/app/tiktok/briefing/page.tsx", "tiktok_shop"],
+    ["../src/app/(app)/amazon/briefing/page.tsx", "amazon"],
+    ["../src/app/(app)/mercado-livre/briefing/page.tsx", "mercado_livre"],
+    ["../src/app/(app)/shopee/briefing/page.tsx", "shopee"],
+    ["../src/app/(app)/tiktok/briefing/page.tsx", "tiktok_shop"],
   ];
   for (const [rota, provider] of rotas) {
     const fonte = await readFile(new URL(rota, import.meta.url), "utf8");
