@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { dbQuery, hasDb } from "@/lib/db";
+import { medirSilencioDoWebhook } from "@/lib/integrations/silencioDoWebhook";
 
 /**
  * Health check — e ele TOCA O BANCO, de propósito.
@@ -35,6 +36,20 @@ export const dynamic = "force-dynamic";
 /** Curto de propósito: ver a nota acima. */
 const TIMEOUT_MS = 3_000;
 
+/**
+ * O COMMIT QUE ESTÁ NO AR — para "a versão X contém o commit Y?" ser FATO.
+ *
+ * ⚠️ Nasceu de um caso concreto (01/09/2026): perguntado se a v220 continha um
+ * commit, a resposta só podia ser inferência ("o deploy saiu de uma worktree
+ * naquele commit"). A inferência estava certa — e ir verificar pelo COMPORTAMENTO
+ * em vez de aceitá-la foi o que revelou 7 pedidos perdidos. Expor o hash mata
+ * essa classe inteira de dúvida.
+ *
+ * Só o hash CURTO: `/api/health` é rota pública, e mais que isso é superfície
+ * sem ganho.
+ */
+const COMMIT = (process.env.FLY_MACHINE_VERSION || process.env.COMMIT_SHA || "desconhecido").slice(0, 12);
+
 export async function GET() {
   if (!hasDb()) {
     return NextResponse.json({ ok: true, banco: "nao-configurado" });
@@ -48,7 +63,23 @@ export async function GET() {
         setTimeout(() => reject(new Error(`banco nao respondeu em ${TIMEOUT_MS}ms`)), TIMEOUT_MS)
       ),
     ]);
-    return NextResponse.json({ ok: true, banco: "ok", bancoMs: Date.now() - inicio });
+    // ⚠️ O SILÊNCIO DO WEBHOOK É DEGRADAÇÃO, NÃO FALHA — e isso é deliberado.
+    //
+    // `ok` continua sendo sobre o BANCO. Se o silêncio derrubasse o health, uma
+    // parada do Mercado Livre viraria reinício da máquina pelo orquestrador do
+    // Fly, e o remédio pioraria a doença — o mesmo mecanismo do incidente de
+    // 29/08 descrito acima, por outra porta.
+    //
+    // Ele também não pode DERRUBAR a resposta se falhar: uma consulta a mais no
+    // health não vale um 503. Por isso o catch devolve `null` em vez de propagar.
+    const webhook = await medirSilencioDoWebhook().catch(() => null);
+    return NextResponse.json({
+      ok: true,
+      banco: "ok",
+      bancoMs: Date.now() - inicio,
+      commit: COMMIT,
+      ...(webhook ? { webhook } : {}),
+    });
   } catch (erro) {
     // 503 é o ponto da mudança: sem isso o monitoramento continua vendo verde.
     return NextResponse.json(
