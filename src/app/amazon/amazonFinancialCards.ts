@@ -150,9 +150,19 @@ export interface AmazonCard {
    * treina a pessoa a ignorar a frase no dia em que ela importa.
    */
   baseDeclarada?: string;
+  /**
+   * Procedencia da estimativa (ADR-027), para o selo colado ao numero.
+   *
+   * ⚠️ CAMPO SEPARADO DE `baseDeclarada`, e nao a mesma frase: a frase diz
+   * QUANTO do total e estimado e renderiza na face; o selo diz que ESTE numero
+   * ainda nao e o oficial, e existe para quem olha rapido sem ler o rodape.
+   * `undefined` quando nao ha pedido estimado — marca permanente vira decoracao.
+   */
+  marcaEstimativa?: string;
 }
 
 import { declaracaoDeBase, BASE_SEM_DIFERENCA } from "../components/baseDaMargem";
+import { procedenciaDaEstimativa } from "../components/procedenciaDaEstimativa";
 
 const money = (v: number, currency: string) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(v);
@@ -469,6 +479,10 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
       // concorrente exibe tarifa calculada sem marca nenhuma, como se fosse
       // oficial; a marca é o que nos separa dele. Some quando não há estimativa.
       baseDeclarada: quantoEstimado ?? undefined,
+      // O selo acompanha a MESMA condicao da frase — os dois nascem e somem
+      // juntos. Separa-los criaria o estado em que o numero esta marcado e nada
+      // explica a marca, ou o inverso.
+      marcaEstimativa: quantoEstimado ? procedenciaDaEstimativa({ moeda: currency }) : undefined,
     },
     { key: "fbaShipping", label: "Logística FBA", ...num(logistica, "Aguardando tarifas de logística no extrato", undefined, "A Amazon não cobrou logística no período") },
     { key: "buyerShipping", label: "Frete do comprador", ...num(f?.buyerShipping, "Aguardando frete pago pelo comprador", undefined, "Nenhum frete pago pelo comprador") },

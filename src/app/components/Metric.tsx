@@ -40,6 +40,16 @@ export interface MetricProps {
    * vendedora SABER e a vendedora RESOLVER e o href.
    */
   sub?: React.ReactNode;
+  /**
+   * Selo colado ao NÚMERO, para quem olha rápido sem ler o rodapé — hoje só a
+   * marca de estimativa da ADR-027 (`MarcaDeEstimativa`).
+   *
+   * Opcional de propósito: cartão que não passa nada continua exatamente igual.
+   * Fica ao lado do valor e não no rodapé porque o que ele qualifica é o valor;
+   * no rodapé viraria mais uma linha de texto, e a face já tem UMA linha, que é
+   * a que muda a leitura.
+   */
+  marca?: React.ReactNode;
   tone?: "default" | "ok" | "warn" | "danger" | "positive";
   loading?: boolean;
   icon?: React.ReactNode;
@@ -81,7 +91,7 @@ export function MetricInfo({ texto }: { texto: string }) {
   );
 }
 
-export function Metric({ label, value, sub, info, tone = "default", loading, icon, trend, href, className }: MetricProps & { info?: string }) {
+export function Metric({ label, value, sub, marca, info, tone = "default", loading, icon, trend, href, className }: MetricProps & { info?: string }) {
   const toneCls =
     tone === "danger" ? " metric-tone-danger"
       : tone === "warn" ? " metric-tone-warn"
@@ -107,6 +117,7 @@ export function Metric({ label, value, sub, info, tone = "default", loading, ico
       </div>
       <p className={`metric-value${toneCls}`}>
         {loading ? <span className="metric-loading">···</span> : value}
+        {loading ? null : marca}
       </p>
       {sub && <p className="metric-sub">{sub}</p>}
     </>

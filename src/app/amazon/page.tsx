@@ -11,6 +11,7 @@ import { EmptyState } from "../components/EmptyState";
 import { DashboardPeriodFilter, useDashboardPeriod } from "../components/DashboardPeriodFilter";
 import type { OperationPendingItem } from "../components/OperationPending";
 import { Metric as Kpi, CompactMetric, getRevenueTrend } from "../components/Metric";
+import { MarcaDeEstimativa } from "../components/MarcaDeEstimativa";
 import { amazonFinancialCards, lucroDoPeriodo, diasSemAnuncio, type AmazonAdsInput } from "./amazonFinancialCards";
 import { AnimatedNumber, identidadeDePeriodo } from "../components/AnimatedNumber";
 import { buscaCompartilhada } from "../components/buscaCompartilhada";
@@ -893,6 +894,11 @@ export default function Dashboard() {
                   // construtor (`amazonFinancialCards`): o Faturamento recebe o
                   // cupom ja abatido, os demais recebem a base declarada.
                   sub={card.baseDeclarada}
+                  // A marca da ADR-027, colada ao numero. So aparece quando o
+                  // construtor disse que ha estimativa embutida — sem pedido
+                  // estimado o campo vem `undefined` e o cartao fica igual ao
+                  // que era.
+                  marca={card.marcaEstimativa ? <MarcaDeEstimativa procedencia={card.marcaEstimativa} /> : undefined}
                   // ⚠️ O CARD NÃO É MAIS SOBRESCRITO AQUI (30/08/2026).
                   //
                   // Esta linha trocava o VALOR do card "Faturamento" mantendo o

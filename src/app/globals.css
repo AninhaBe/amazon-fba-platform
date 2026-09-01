@@ -5890,3 +5890,34 @@ summary:hover { background: var(--paper-soft); }
 @media (max-width: 720px) {
   .ads-produto-titulo { max-width: 20ch; }
 }
+
+/* ===== MARCA DE ESTIMATIVA (ADR-027, 31/08/2026) ============================
+   O selo que diz que o número ao lado ainda não é o oficial.
+
+   ⚠️ NÃO É COR DE ALARME, e a escolha é deliberada: estimativa não é pendência
+   da vendedora — não há nada para ela fazer, e o número se corrige sozinho na
+   liquidação. Vermelho ou âmbar aqui competiriam com os avisos que de fato
+   pedem ação, e é assim que se treina alguém a ignorar aviso.
+
+   Fica COLADO ao número (dentro de `.metric-value`), nunca em faixa: é o valor
+   que ele qualifica. Alinhado pela linha de base do número, com o mesmo respiro
+   dos outros selos da casa. */
+.marca-estimativa {
+  display: inline-flex;
+  align-items: center;
+  margin-inline-start: 7px;
+  border: 1px solid var(--line-strong, var(--line));
+  border-radius: 999px;
+  padding: 1px 7px;
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--track-s);
+  line-height: 16px;
+  white-space: nowrap;
+  vertical-align: middle;
+  cursor: help;
+}
+.marca-estimativa:hover,
+.marca-estimativa:focus-visible { border-color: var(--ink); color: var(--ink); }
+.marca-estimativa:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ink-08); }
