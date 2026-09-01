@@ -13,6 +13,10 @@ defeito escrito de um jeito só**.
 
 ## Os seis casos
 
+Os seis são sobre **onde a guarda ancora**. No fim há uma sétima família, irmã e
+diferente: **unidade implícita**, em que nenhuma guarda dispara porque não há
+nada de errado no código — só no significado.
+
 | # | a guarda casava | o que a derrubou | o que ela protegia de verdade |
 |---|---|---|---|
 | 1 | o **texto do fonte cru**, numa asserção que PROÍBE | o comentário que explica a proibição **cita a coisa proibida** — `assert.ok(!/useSearchParams/)` reprovava a nota que documentava a remoção | quase nada: ficava verde com a chamada apagada e o import de pé |
@@ -102,6 +106,70 @@ recorrente, mas quando **a busca manual é propensa a ponto cego** — condiçã
 escondida em ternário, fallback que só aparece num estado raro, arquivo com
 extensão fora do recorte (`.ts` numa varredura de `.tsx` — foi assim que o quarto
 sítio escapou).
+
+## A família irmã: unidade implícita — o valor está certo, o significado não
+
+Todas as anteriores são sobre **onde a guarda ancora**. Esta é sobre um defeito
+que **nenhuma guarda pega**, porque não há nada de errado no código: o número é o
+número, o tipo é `number`, o teste é verde. O que está errado é o **significado**
+dele na travessia do banco para a tela.
+
+**O caso, pego antes de existir (01/09/2026).** O backend definiu
+`percentualDaCategoria = amount / unit_price` — uma **fração**: comissão de 12,01%
+chega como `0.1201`. A peça da tela chamava o mesmo dado de
+`percentualDaComissao` e o formatava cru. Se o campo tivesse sido entregue e a
+peça ligada, a tela diria **"0,12%"** onde a Amazon cobra **12,01%**.
+
+Por que é o pior tipo de defeito:
+
+- **`tsc` fica verde** — `number` de um lado, `number` do outro;
+- **teste fica verde** — o valor que entra é o valor que sai;
+- **revisão de código fica verde** — as duas linhas estão certas, cada uma no seu
+  contexto;
+- **quem descobre é o cliente**, conferindo contra a fonte externa e concluindo,
+  com razão, que o produto está errado.
+
+Erro de unidade não parece erro. **Ele parece um número pequeno.**
+
+### A regra
+
+> **Todo campo que atravessa a fronteira banco → tela carrega a unidade no nome,
+> ou converte num ponto único declarado.**
+
+Na prática, as duas metades, e as duas foram aplicadas neste caso:
+
+1. **Nome igual dos dois lados.** `percentualDaCategoria` aqui e lá. Nome
+   diferente para o mesmo dado é um convite a repassar um pelo outro sem
+   converter — e ninguém repassa errado de propósito: repassa porque os dois se
+   chamam "percentual" e parecem a mesma coisa.
+2. **A conversão mora num lugar só**, no ponto em que a unidade do banco encontra
+   a unidade da tela. Espalhar `* 100` pelos pontos de render é exatamente como
+   este erro nasce: basta um ponto novo esquecer.
+
+Quando o nome não puder mudar, que ele **diga a unidade**: `fracaoDaCategoria`,
+`valorEmCentavos`, `duracaoEmMs`, `pesoEmGramas`. Um nome que diz a unidade
+transforma um erro invisível num erro que a leitura pega.
+
+### O que dá para guardar, mesmo sem guarda de forma
+
+O que se testa aqui não é o código, é a **travessia**: chame a conversão com o
+valor como ele vem do banco e confira a saída como ela aparece na tela — e
+escreva a asserção que **proíbe o valor cru**:
+
+```js
+assert.match(procedenciaDaFonte({ fonte: "tabela", percentualDaCategoria: 0.1201 }).texto, /12,01%/);
+assert.ok(!/0,12%/.test(procedenciaDaFonte({ fonte: "tabela", percentualDaCategoria: 0.1201 }).texto));
+```
+
+📌 **A segunda linha não amplia a cobertura — e vale a pena mesmo assim.** Medido:
+o primeiro `assert` já reprova os dois erros (o valor cru dá `"0,12%"` e a
+conversão dobrada dá `"1.201,00%"`, e nenhum dos dois contém `12,01`). O que a
+segunda acrescenta é **a mensagem**: quem vir o vermelho lê *"a fração foi
+repassada crua — erro de 100×"* em vez de *"string não casou"*, e vai olhar a
+unidade em vez de olhar a formatação.
+
+Guarda também comunica. Duas asserções que reprovam o mesmo estado não são
+redundância quando uma delas **diz qual é o estado**.
 
 ## Antes de escrever guarda nova, duas perguntas
 
