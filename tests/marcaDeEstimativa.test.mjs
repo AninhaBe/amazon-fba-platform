@@ -94,3 +94,62 @@ test("a tela RENDERIZA a marca, e a condicao e o campo do construtor", async () 
   const bloco = css.slice(css.indexOf(".marca-estimativa"));
   assert.ok(!/var\(--danger\)|var\(--warning\)/.test(bloco.slice(0, 700)), "estimativa nao e alarme");
 });
+
+// ===== A MARCA NA LINHA DO PEDIDO (ADR-027 §2, ligada em 01/09/2026) =========
+//
+// O agregado ja marcava desde 91f35ab; a LINHA era a metade que dependia do
+// contrato por pedido (b161b4f: feesEstimadas, comissaoEstimada, fbaEstimada).
+// Sem ela, a Rentabilidade exibia margem calculada com tarifa de tabela sem
+// dizer que era tabela — exatamente o que o concorrente faz e o que a ADR
+// existe para NAO copiar.
+
+test("a linha so marca quando a procedencia diz que e estimativa", async () => {
+  const tabela = await fonte("src/app/components/OrderProfitabilityTable.tsx");
+  // ⚠️ A condicao e o campo de PROCEDENCIA, nunca o valor. Zero estimado
+  // continua estimado (Product Fees API respondeu Success com Amount 0 nos tres
+  // pedidos de 31/08 na conta AO62LVXJMX3AA).
+  assert.match(
+    tabela,
+    /function marcaDaLinha\(line: ProfitabilityLine\) \{\s*if \(!line\.feesEstimadas\) return null;/,
+    "a linha voltou a decidir a marca por outra coisa que nao a procedencia",
+  );
+  assert.ok(
+    !/comissaoEstimada\s*[><]|marketplaceFees\s*[><]\s*0/.test(tabela),
+    "voltou a condicionar a marca ao valor da tarifa",
+  );
+});
+
+test("parcela ausente NAO vira zero na procedencia da linha", async () => {
+  // A Amazon posta em partes: 95,3% dos pedidos com tarifa real tem comissao e
+  // nenhuma logistica. `null` tem de chegar como `null` em procedenciaDaEstimativa,
+  // que omite a parcela — quem escreve "FBA R$ 0,00" afirma um fato falso.
+  const tabela = await fonte("src/app/components/OrderProfitabilityTable.tsx");
+  assert.match(tabela, /comissao: line\.comissaoEstimada \?\? null,\s*fba: line\.fbaEstimada \?\? null,/);
+  // E a funcao que recebe isso ja e testada por comportamento acima.
+  assert.ok(!/FBA R\$ 0/.test(procedenciaDaEstimativa({ comissao: 3.47, fba: null })));
+});
+
+test("a marca fica COLADA ao numero, na face e no detalhe", async () => {
+  const tabela = await fonte("src/app/components/OrderProfitabilityTable.tsx");
+  // Face: dentro do <strong> do valor, nao numa terceira linha do cartao.
+  assert.match(
+    tabela,
+    /<strong>\{money\(line\.contribution, line\.currency\)\}\{marcaDaLinha\(line\)\}<\/strong>/,
+    "a marca saiu de perto do numero na face da linha",
+  );
+  // Detalhe: colada a TARIFA, que e a parcela que a estimativa substitui.
+  assert.match(
+    tabela,
+    /− \{money\(line\.marketplaceFees, line\.currency\)\}\{marcaDaLinha\(line\)\}/,
+    "a tarifa estimada deixou de ser marcada onde ela mora",
+  );
+});
+
+test("linha sem tarifa nenhuma continua dizendo o que falta — nao marca ausencia", async () => {
+  // `feesEstimadas: false` NAO e "tudo oficial": pode nao haver tarifa alguma.
+  // Quem distingue e `marketplaceFees == null`, e nesse caso a tela diz
+  // "Ainda nao conciliadas" / "Tarifas nao postadas", sem selo.
+  const tabela = await fonte("src/app/components/OrderProfitabilityTable.tsx");
+  assert.match(tabela, /\{line\.marketplaceFees == null \? "Ainda não conciliadas" :/);
+  assert.match(tabela, /titulo: "Tarifas não postadas", ajuda: "Entram quando o canal liquida o pedido"/);
+});

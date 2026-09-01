@@ -6,6 +6,8 @@ import type { ProfitabilityLine } from "@/lib/profitability";
 import { brDate } from "@/lib/datetime";
 import { marginTone } from "@/lib/marginTone";
 import { EmptyState } from "./EmptyState";
+import { MarcaDeEstimativa } from "./MarcaDeEstimativa";
+import { procedenciaDaEstimativa } from "./procedenciaDaEstimativa";
 import { TableLoading } from "./LoadingState";
 import { Pagination } from "./Pagination";
 import styles from "./OrderProfitabilityTable.module.css";
@@ -44,6 +46,29 @@ function motivoPendente(line: ProfitabilityLine): { titulo: string; ajuda: strin
   return { titulo: "Tarifas não postadas", ajuda: "Entram quando o canal liquida o pedido", deNos: false };
 }
 
+/**
+ * A MARCA DE ESTIMATIVA DESTA LINHA — ADR-027 §2, ligada em 01/09/2026.
+ *
+ * ⚠️ A CONDIÇÃO É `feesEstimadas`, e não "a tarifa é maior que zero". O campo
+ * diz PROCEDÊNCIA; o valor pode ser zero e ainda assim ser estimativa (a
+ * Product Fees API respondeu `Success` com `Amount: 0` nos três pedidos de
+ * 31/08 na conta AO62LVXJMX3AA). É a mesma condição do agregado, e ela existe
+ * para o zero estimado não passar por oficial.
+ *
+ * ⚠️ E as duas parcelas são INDEPENDENTES: a Amazon posta em partes — 95,3% dos
+ * pedidos com tarifa real têm comissão e nenhuma logística. Parcela ausente vai
+ * como `null` para `procedenciaDaEstimativa`, que a omite da frase em vez de
+ * escrever "FBA R$ 0,00" (`null` ≠ `0`).
+ */
+function marcaDaLinha(line: ProfitabilityLine) {
+  if (!line.feesEstimadas) return null;
+  return <MarcaDeEstimativa procedencia={procedenciaDaEstimativa({
+    comissao: line.comissaoEstimada ?? null,
+    fba: line.fbaEstimada ?? null,
+    moeda: line.currency,
+  })} />;
+}
+
 function Margin({ line }: { line: ProfitabilityLine }) {
   if (line.contribution == null || line.marginPct == null) {
     const motivo = motivoPendente(line);
@@ -53,7 +78,9 @@ function Margin({ line }: { line: ProfitabilityLine }) {
     </div>;
   }
   const tone = profitabilityMarginTone(line);
-  return <div className={`profit-result ${styles.result} is-${tone}`}><strong>{money(line.contribution, line.currency)}</strong><span>{percent(line.marginPct)}</span></div>;
+  // A marca vai COLADA AO NÚMERO, não numa terceira linha: é o valor que ela
+  // qualifica, e a face desta linha já tem duas informações (valor e %).
+  return <div className={`profit-result ${styles.result} is-${tone}`}><strong>{money(line.contribution, line.currency)}{marcaDaLinha(line)}</strong><span>{percent(line.marginPct)}</span></div>;
 }
 
 function profitabilityMarginTone(line: ProfitabilityLine): "positive" | "warning" | "negative" | "pending" {
@@ -72,11 +99,13 @@ function Breakdown({ line }: { line: ProfitabilityLine }) {
     <div><span>{line.promotions ? "Pago pelo comprador" : "Receita da venda"}</span><strong>{line.revenueKnown === false || line.revenue == null ? "Aguardando envio" : money(line.revenue, line.currency)}</strong></div>
     {line.buyerShipping != null && <div><span>Frete pago pelo comprador</span><strong>{line.buyerShippingIsRevenue === false ? "" : "+ "}{money(line.buyerShipping, line.currency)}</strong></div>}
     <div><span>Custo dos produtos</span><strong>{line.productCost == null ? "Não cadastrado" : `− ${money(line.productCost, line.currency)}`}</strong></div>
-    <div><span>Tarifas do canal</span><strong>{line.marketplaceFees == null ? "Ainda não conciliadas" : `− ${money(line.marketplaceFees, line.currency)}`}</strong></div>
+    {/* A tarifa é a parcela que a estimativa substitui, então é aqui que a
+        procedência completa aparece — a face leva a marca; o detalhe, o porquê. */}
+    <div><span>Tarifas do canal</span><strong>{line.marketplaceFees == null ? "Ainda não conciliadas" : <>− {money(line.marketplaceFees, line.currency)}{marcaDaLinha(line)}</>}</strong></div>
     {line.sellerShipping != null && <div><span>Frete assumido pelo vendedor</span><strong>− {money(line.sellerShipping, line.currency)}</strong></div>}
     {line.netReceived != null && <div className="is-subtotal"><span>Líquido repassado antes do produto</span><strong>{money(line.netReceived, line.currency)}</strong></div>}
     {line.tax != null && <div><span>Impostos</span><strong>− {money(line.tax, line.currency)}</strong></div>}
-    <div className={`is-total ${styles.total} ${styles[tone]}`}><span>Margem de contribuição</span><strong>{line.contribution == null ? motivoPendente(line).titulo : money(line.contribution, line.currency)}</strong></div>
+    <div className={`is-total ${styles.total} ${styles[tone]}`}><span>Margem de contribuição</span><strong>{line.contribution == null ? motivoPendente(line).titulo : <>{money(line.contribution, line.currency)}{marcaDaLinha(line)}</>}</strong></div>
   </div>;
 }
 
