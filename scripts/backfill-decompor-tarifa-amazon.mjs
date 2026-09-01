@@ -1,4 +1,16 @@
 /**
+ * ⚠️ SCRIPT DE CURA — ITERA TODOS OS INQUILINOS POR PADRAO (01/09/2026).
+ *
+ * Todo script de cura varre TODAS as conexoes do canal, em TODOS os workspaces.
+ * Rodar numa conta so e a excecao, e exige `--conexao <id>` explicito.
+ *
+ * O erro que criou a regra: este script nasceu com workspace e seller FIXOS,
+ * porque o defeito apareceu numa conta. Medido no mesmo dia — a conta da propria
+ * dona do produto vive em OUTRO workspace, e ficou de fora de todas as curas do
+ * dia sem que nada ficasse vermelho. A doutrina de 23/08/2026 nao mudou: o app e
+ * multi-inquilino, curar dado e na tabela inteira.
+ */
+/**
  * BACKFILL: troca o agregado colado pela tarifa DECOMPOSTA, por rubrica.
  *
  * ⚠️ O DEFEITO QUE ISTO CONSERTA, medido em 01/09/2026 na conexao
@@ -62,9 +74,6 @@ import { runWithAccount } from "../src/lib/accountContext.ts";
 import { periodFromRange } from "../src/lib/period.ts";
 import { naturezaDaTarifa } from "../src/lib/integrations/amazonSync.ts";
 
-const WS = "22ae3d9d-6f28-4ec2-96dd-a106b2b3e40d";
-const SELLER = "A15NQMF7A6J1Y0";
-const CONN = `amazon:${SELLER}`;
 const LIMITE_DE_CRESCIMENTO_MB = 8;
 
 const arg = (nome, padrao) => {
@@ -73,12 +82,27 @@ const arg = (nome, padrao) => {
 };
 const DIAS = Number(arg("--dias", 60));
 const APLICAR = process.argv.includes("--aplicar");
+const SO_ESTA_CONEXAO = arg("--conexao", null);
 const brl = (v) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(v));
 
 const tamanhoDoBanco = async () =>
   Number((await dbQuery(`SELECT pg_database_size(current_database())::text AS b`))[0].b);
 
-await runWithWorkspace(WS, async () => {
+const conexoes = await dbQuery(
+  `SELECT DISTINCT o.workspace_id, o.connection_id
+     FROM workspace_channel_orders o
+    WHERE o.provider = 'amazon' AND o.connection_id <> 'amazon:demo'
+    ORDER BY 1, 2`);
+const alvosDeConexao = SO_ESTA_CONEXAO
+  ? conexoes.filter((c) => c.connection_id === SO_ESTA_CONEXAO)
+  : conexoes;
+console.log(`conexoes Amazon: ${conexoes.length} | a processar: ${alvosDeConexao.length}`);
+
+for (const { workspace_id: WS, connection_id: CONN } of alvosDeConexao) {
+  const SELLER = CONN.replace("amazon:", "");
+  console.log(`
+===== ${CONN} (workspace ${WS.slice(0, 8)}) =====`);
+  await runWithWorkspace(WS, async () => {
   const inicial = await tamanhoDoBanco();
   console.log(`modo: ${APLICAR ? "APLICANDO" : "SECO (nada e escrito)"} | janela: ${DIAS} dias`);
   console.log(`banco no inicio: ${(inicial / 1048576).toFixed(1)} MB\n`);
@@ -135,6 +159,13 @@ await runWithWorkspace(WS, async () => {
 
   const { getAccounts } = await import("../src/lib/accountStore.ts");
   const conta = (await getAccounts()).find((c) => c.sellerId === SELLER);
+  // Duas vias de credencial convivem: token guardado (app-dash) dentro de
+  // `runWithAccount`, e o par do `.env` FORA dele — `getAccessToken` so cai no
+  // segundo quando `currentAccount()` e nulo.
+  const comCredencial = (fn) =>
+    conta
+      ? runWithAccount({ workspaceId: WS, sellerId: SELLER, refreshToken: conta.refreshToken }, fn)
+      : fn();
 
   const total = { trocados: 0, semDecomposicao: 0, semResposta: 0, linhas: 0, fatias: 0 };
 
@@ -143,7 +174,7 @@ await runWithWorkspace(WS, async () => {
   // escrito aqui — e a leitura que torna a escrita correta, porque so ao final
   // da varredura se sabe o conjunto completo de rubricas de um pedido.
   const acumulado = new Map(); // externalOrderId -> Map(tipoDaAmazon -> valor)
-  await runWithAccount({ workspaceId: WS, sellerId: SELLER, refreshToken: conta.refreshToken }, async () => {
+  await comCredencial(async () => {
     const { getOrderFinancialsFromTransactions } = await import("../src/lib/transactions.ts");
     for (const { dia } of dias) {
       let fin;
@@ -229,5 +260,6 @@ await runWithWorkspace(WS, async () => {
       GROUP BY 1 ORDER BY 2::numeric DESC`, [WS, CONN]);
   console.log("\ntarifa REAL de 30 dias, por rubrica:");
   for (const r of depois) console.log(`  ${r.fee_type.padEnd(14)} ${brl(r.total).padStart(13)}  (${r.linhas} linhas)`);
-});
+  });
+}
 process.exit(0);

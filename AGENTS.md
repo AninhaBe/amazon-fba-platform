@@ -286,6 +286,45 @@ filtros de `workspace_id` neutralizados** — quem separava era o `connection_id
 Se qualquer outra coluna distingue os inquilinos, o teste mede essa outra coluna.
 
 
+# Script de cura itera inquilinos por padrão
+
+**Todo script que CURA dado — backfill, re-sync, reprocessamento, correção em
+massa — varre todas as conexões do canal, em todos os workspaces.** Rodar numa
+conta só é a **exceção**, exige um parâmetro explícito (`--conexao <id>`) e um
+motivo escrito. Nunca o contrário.
+
+⚠️ **A regra nasceu de um erro real, em 01/09/2026.** Os backfills daquele dia
+nasceram com `workspace_id` e `seller_id` **fixos no código**, porque o defeito
+apareceu numa conta. A conta da própria dona do produto vive em **outro
+workspace** — e ficou de fora de todas as curas do dia. Nada ficou vermelho: os
+scripts rodaram, disseram "concluído", e cobriram uma fração.
+
+A doutrina dela é de 23/08/2026 e não mudou: *"o app é multi-inquilino; curar
+dado é na tabela inteira, não só na conta dela"*. Constante de workspace num
+script de cura viola isso **em silêncio**.
+
+**Na prática:**
+
+- o alvo sai de uma **consulta**, não de uma constante:
+  `SELECT DISTINCT workspace_id, connection_id FROM workspace_channel_orders
+   WHERE provider = $1`;
+- o relatório final diz **quantas conexões existem e quantas foram
+  processadas** — as duas, para que cobrir uma de três seja visível;
+- e **conta de demonstração fica de fora** por nome, não por acaso: ela não tem
+  token e falharia no meio do laço.
+
+📌 E o corolário que vale além do script: **o defeito aparece numa conta; a
+causa mora no código.** Se a correção é de código, ela já é global — mas o dado
+que o defeito produziu enquanto existia está em todas as contas que passaram
+por ele.
+
+⚠️ **Duas vias de credencial convivem, e ignorar isso quebra a conta dona.**
+Conexão com token guardado em `workspace_accounts` usa o par do app-dash, dentro
+de `runWithAccount`. A conta dona é atendida pelo par do `.env`, e
+`getAccessToken` só cai nesse caminho quando `currentAccount()` é **nulo** — ou
+seja, **fora** de `runWithAccount`. Envolver as duas do mesmo jeito estoura em
+`conta.refreshToken` de `undefined`.
+
 # Como este projeto trata dado incerto
 
 Três regras que atravessam o código todo e não são negociáveis sem ADR:

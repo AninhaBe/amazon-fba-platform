@@ -1,4 +1,21 @@
 /**
+ * ⚠️ SCRIPT DE CURA — ITERA TODOS OS INQUILINOS POR PADRAO (01/09/2026).
+ *
+ * A regra, e ela nasceu de um erro real: todo script de cura varre TODAS as
+ * conexoes do canal, em TODOS os workspaces. Rodar numa conta so e a excecao, e
+ * exige `--conexao <id>` explicito — nunca o contrario.
+ *
+ * O erro: este script nasceu com workspace e seller FIXOS no codigo, porque o
+ * defeito apareceu numa conta. Medido no mesmo dia: a conta da propria dona do
+ * produto (`amazon:AO62LVXJMX3AA`) vive em OUTRO workspace (`1803d1fe-...`,
+ * contra o `22ae3d9d-...` que estava no fonte) e ficou de fora das curas do dia
+ * sem que nada ficasse vermelho.
+ *
+ * A doutrina e de 23/08/2026 e nao mudou: o app e multi-inquilino, curar dado e
+ * na tabela inteira. Constante de workspace em script de cura viola isso em
+ * silencio — o script roda, diz "concluido", e cobre uma fracao.
+ */
+/**
  * Captura a CATEGORIA de cada ASIN vendido, pela Catalog Items API.
  *
  * ⚠️ POR QUE ISTO EXISTE: a fonte de tarifa `tabela` (ADR-027) precisa da cadeia
@@ -25,11 +42,12 @@ import { dbQuery } from "../src/lib/db.ts";
 import { runWithWorkspace } from "../src/lib/workspaceScope.ts";
 import { runWithAccount } from "../src/lib/accountContext.ts";
 
-const WS = "22ae3d9d-6f28-4ec2-96dd-a106b2b3e40d";
-const SELLER = "A15NQMF7A6J1Y0";
-const CONN = `amazon:${SELLER}`;
 const MKT = "A2Q3Y263D00KWC";
 const APLICAR = process.argv.includes("--aplicar");
+const SO_ESTA_CONEXAO = (() => {
+  const i = process.argv.indexOf("--conexao");
+  return i === -1 ? null : process.argv[i + 1];
+})();
 const INTERVALO_MS = 500; // 2 req/s, o teto que o cabecalho devolveu
 
 const espera = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -41,7 +59,22 @@ const trilha = (no) => {
   return nomes;
 };
 
-await runWithWorkspace(WS, async () => {
+/** Descobre TODA conexao Amazon real (a demo fica de fora: nao tem token). */
+const conexoes = await dbQuery(
+  `SELECT DISTINCT o.workspace_id, o.connection_id
+     FROM workspace_channel_orders o
+    WHERE o.provider = 'amazon' AND o.connection_id <> 'amazon:demo'
+    ORDER BY 1, 2`);
+const alvos = SO_ESTA_CONEXAO
+  ? conexoes.filter((c) => c.connection_id === SO_ESTA_CONEXAO)
+  : conexoes;
+console.log(`conexoes Amazon encontradas: ${conexoes.length} | a processar: ${alvos.length}`);
+
+for (const { workspace_id: WS, connection_id: CONN } of alvos) {
+  const SELLER = CONN.replace("amazon:", "");
+  console.log(`
+===== ${CONN} (workspace ${WS.slice(0, 8)}) =====`);
+  await runWithWorkspace(WS, async () => {
   const asins = (await dbQuery(
     `SELECT DISTINCT i.external_product_id AS asin
        FROM workspace_channel_order_items i
@@ -56,7 +89,23 @@ await runWithWorkspace(WS, async () => {
   const porCategoria = new Map();
   let capturados = 0, semClassificacao = 0, falhas = 0, limiteVisto = null;
 
-  await runWithAccount({ workspaceId: WS, sellerId: SELLER, refreshToken: conta.refreshToken }, async () => {
+  // ⚠️ DUAS VIAS DE CREDENCIAL CONVIVEM, e ignorar isso quebra a conta da dona.
+  //
+  // Conexao com token guardado em `workspace_accounts` usa o par do app-dash,
+  // dentro de `runWithAccount`. Ja a conta DONA nao esta naquela tabela: ela e
+  // atendida pelo par do `.env`, e `getAccessToken` so cai nesse caminho quando
+  // `currentAccount()` e nulo — ou seja, FORA de `runWithAccount`.
+  //
+  // Medido em 01/09/2026: das duas conexoes Amazon reais, so uma esta em
+  // `workspace_accounts`. Envolver as duas em `runWithAccount` faria a segunda
+  // estourar em `conta.refreshToken` de `undefined`.
+  const comCredencial = (fn) =>
+    conta
+      ? runWithAccount({ workspaceId: WS, sellerId: SELLER, refreshToken: conta.refreshToken }, fn)
+      : fn();
+  console.log(`credencial: ${conta ? "token guardado (app-dash)" : "par do .env (conta dona)"}`);
+
+  await comCredencial(async () => {
     const { getAccessToken } = await import("../src/lib/spapi.ts");
     const token = await getAccessToken();
 
@@ -113,5 +162,6 @@ await runWithWorkspace(WS, async () => {
   console.log(`teto informado pela API: ${limiteVisto} req/s`);
   console.log("\ncategoria raiz, por quantidade de ASIN:");
   for (const [cat, n] of [...porCategoria].sort((a, b) => b[1] - a[1])) console.log(`  ${String(cat).padEnd(24)} ${n}`);
-});
+  });
+}
 process.exit(0);
