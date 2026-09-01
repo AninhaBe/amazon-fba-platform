@@ -1,7 +1,15 @@
 import test from "node:test"; import assert from "node:assert/strict";
 import { moduleApiQuery,moduleConnectionHref,moduleError,moduleHref,moduleMoney,updatedModuleQuery } from "../src/app/components/TikTokModulesModel.ts";
 test("links preserve connection and filters",()=>{const href=moduleHref("/tiktok/monitor","q=sku&status=paid&connection_id=tiktok_shop%3A1","tiktok_shop:2");const p=new URL(href,"http://x");assert.equal(p.searchParams.get("q"),"sku");assert.equal(p.searchParams.get("status"),"paid");assert.equal(p.searchParams.get("connection_id"),"tiktok_shop:2")});
-test("API query isolates connection and retains only visible filters",()=>{const monitor=new URLSearchParams(moduleApiQuery("q=hidden&status=paid&order_id=o1&sku=s1&connection_id=tiktok_shop%3Aold&unsafe=no","tiktok_shop:new","monitor"));assert.equal(monitor.get("connection_id"),"tiktok_shop:new");assert.equal(monitor.get("order_id"),"o1");assert.equal(monitor.get("sku"),"s1");assert.equal(monitor.has("q"),false);assert.equal(monitor.has("unsafe"),false);assert.match(monitor.get("from"),/^\d{4}-\d{2}-\d{2}$/);const catalog=new URLSearchParams(moduleApiQuery("q=x&status=active&order_id=hidden","tiktok_shop:new","catalog"));assert.equal(catalog.get("q"),"x");assert.equal(catalog.get("status"),"active");assert.equal(catalog.has("order_id"),false)});
+// ⚠️ A LINHA DO `from` VIROU O OPOSTO EM 01/09/2026, e a troca e o conserto de
+// um defeito que esta guarda protegia: ela exigia que o contrato INVENTASSE uma
+// janela quando a URL nao tivesse periodo. Esse fallback era o que fazia a tela
+// abrir com 30 dias de movimento sob o rotulo "Hoje" — e, de quebra, montava as
+// datas com toISOString (UTC), deslocando o dia das 21h a meia-noite. Agora quem
+// resolve periodo e o servidor (periodRequest aceita days e assume "today").
+// O resto do que este teste garante — isolamento de conexao e lista de filtros
+// visiveis — continua identico.
+test("API query isolates connection and retains only visible filters",()=>{const monitor=new URLSearchParams(moduleApiQuery("q=hidden&status=paid&order_id=o1&sku=s1&connection_id=tiktok_shop%3Aold&unsafe=no","tiktok_shop:new","monitor"));assert.equal(monitor.get("connection_id"),"tiktok_shop:new");assert.equal(monitor.get("order_id"),"o1");assert.equal(monitor.get("sku"),"s1");assert.equal(monitor.has("q"),false);assert.equal(monitor.has("unsafe"),false);assert.equal(monitor.has("from"),false,"o contrato voltou a INVENTAR a janela");const catalog=new URLSearchParams(moduleApiQuery("q=x&status=active&order_id=hidden","tiktok_shop:new","catalog"));assert.equal(catalog.get("q"),"x");assert.equal(catalog.get("status"),"active");assert.equal(catalog.has("order_id"),false)});
 test("module links discard filters not exposed by their target",()=>{const catalog=new URL(moduleHref("/tiktok/catalogo","q=x&status=active&order_id=hidden&sku=hidden","tiktok_shop:1"),"http://x");assert.equal(catalog.searchParams.get("q"),"x");assert.equal(catalog.searchParams.has("order_id"),false);assert.equal(catalog.searchParams.has("sku"),false)});
 test("ownership and invalid connection have explicit states",()=>{assert.match(moduleError("OWNERSHIP_CONFLICT"),/conflitante/);assert.match(moduleError("INVALID_CONNECTION_ID"),/não é válida/)});
 test("financeiro preserva somente loja, período e paginação",()=>{

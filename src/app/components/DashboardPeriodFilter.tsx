@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { ArrowRight, CalendarRange } from "lucide-react";
 
-import { diaEmBrasilia } from "./janelaDeDias";
+import { diaEmBrasilia } from "./diaEmBrasilia";
 
 export type DashboardPeriodOption = "today" | "7" | "15" | "30" | "custom";
 
