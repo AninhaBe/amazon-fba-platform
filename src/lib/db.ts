@@ -570,6 +570,9 @@ export function ensureFinancialLedgerSchema(): Promise<void> {
  */
 const CARIMBO_DE_INQUILINO = "app.workspace_id";
 
+/** Formato canônico. Ver a nota em `consultaCarimbada`: o valor vira literal. */
+const UUID_ESTRITO = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * COMO A FLAG LIGA E DESLIGA — e por que existe o modo `arquivo`.
  *
@@ -663,12 +666,28 @@ export async function dbQuery<T = Record<string, unknown>>(
 async function consultaCarimbada<T>(text: string, params: unknown[]): Promise<T[] | null> {
   const workspaceId = optionalWorkspaceId();
   if (!workspaceId) return null;
+  // ⚠️ UUID ESTRITO ANTES DE VIRAR LITERAL. O `BEGIN` e o `set_config` vão numa
+  // ida só (protocolo simples), e protocolo simples não aceita parâmetro — o
+  // valor entra no texto. Só entra depois de casar o formato canônico de UUID,
+  // que é o que os 99.420 workspaces do banco são (medido em 31/08/2026). Sem
+  // esta checagem, o carimbo seria caminho de injeção.
+  if (!UUID_ESTRITO.test(workspaceId)) {
+    throw new Error("BLOQUEADO: workspace fora do formato UUID nao pode virar carimbo.");
+  }
   const client = await getPool().connect();
   try {
-    await client.query("BEGIN");
-    // O `true` é o `SET LOCAL`: o carimbo morre no COMMIT e não viaja junto com
-    // a conexão devolvida ao pool.
-    await client.query("SELECT set_config($1, $2, true)", [CARIMBO_DE_INQUILINO, workspaceId]);
+    // ⚠️ DUAS DECLARAÇÕES, UMA IDA — e a economia é medida, não estética.
+    //
+    // Com uma ida por comando, a rota da Amazon ia de 17 para 68 idas ao banco
+    // (medido em 01/09/2026: p50 da camada de dados subiu de 186ms para 647ms,
+    // 3,2× o orçamento de 200ms da ADR-017). Juntar `BEGIN` e `set_config` num
+    // único `query` de protocolo simples tira **17 dessas idas** — uma por
+    // consulta —, e vale mesmo que o resto do desenho mude.
+    //
+    // O `true` do `set_config` é o `SET LOCAL`: o carimbo morre no COMMIT e não
+    // viaja com a conexão devolvida ao pool. Isso é o critério 1 da ADR-036 e
+    // não pode ser afrouxado por nenhuma otimização.
+    await client.query(`BEGIN; SELECT set_config('${CARIMBO_DE_INQUILINO}', '${workspaceId}', true)`);
     const res = await client.query(text, params);
     await client.query("COMMIT");
     return res.rows as T[];

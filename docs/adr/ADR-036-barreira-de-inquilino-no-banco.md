@@ -325,6 +325,63 @@ o contrato passa a **nomear** `nexo_runtime` como única role de aplicação no
 ledger, com policy por workspace obrigatória. **A etapa 3 não sai do bloqueio
 antes de essa verificação existir e ser vista reprovando o estado de hoje.**
 
+## 🔴 Resultado da Etapa 1 (01/09/2026): a transação por consulta NÃO cabe
+
+Medido na camada de dados da rota da Amazon — o conjunto real de consultas, na
+estrutura real de 4 `Promise.all` —, alternando a flag OFF/ON/OFF/ON/OFF/ON na
+mesma janela, 18 amostras de cada estado.
+
+| pool | flag | p50 | p95 |
+|---|---|---|---|
+| 4 | **off** | **223 ms** | 244 ms |
+| 1 | off | 311 ms | 381 ms |
+| 4 | **on** | **592 ms** | 665 ms |
+| 1 | on | 894 ms | 999 ms |
+
+**Controle** (`SELECT 1` numa conexão fora do pool, imune à flag): 18 ms em todos
+os blocos. O ambiente não se moveu, então a diferença é da flag.
+
+### O número que vale é em IDAS, não em milissegundos
+
+Esta medição roda de fora da região do banco; a produção roda em São Paulo, ao
+lado dele. O milissegundo **não é transferível** — mas a ida de rede é, e é ela
+que a flag multiplica:
+
+| forma | idas ao banco na rota |
+|---|---|
+| hoje | **17** |
+| `BEGIN` + `set_config` + query + `COMMIT` | **68** |
+| `BEGIN;set_config` numa ida só (implementado) | **51** |
+| uma transação por grupo de `Promise.all` | ~29, **não medido** |
+
+Colapsar `BEGIN` e `set_config` numa ida foi implementado e medido: o delta de
+p50 caiu de **+461 ms para +309 ms**, e o de p95 de **+593 ms para +284 ms**.
+
+### O custo de serializar, medido como teto
+
+Uma transação por grupo economiza idas mas serializa dentro do grupo. O teto
+desse custo foi medido forçando o pool a **uma** conexão, o que serializa tudo:
+**+88 ms** (223 → 311, com a flag desligada). Como a serialização parcial custa
+menos que a total, a opção parece líquida positiva — **mas não foi medida**, e
+medi-la exige refatorar a rota. Não estimo o ganho.
+
+### 🔴 O que isto muda na Etapa 3
+
+**A barreira NÃO entra enquanto a rota da Amazon fizer 17 consultas.** Não é
+preguiça: a matemática não fecha. Qualquer forma de carimbo multiplica idas, e
+multiplicar 17 estoura o orçamento de 200 ms da camada de dados (ADR-017) em
+todas as formas conhecidas — inclusive a melhor delas.
+
+**Pré-requisito explícito da Etapa 3:** reduzir as idas ao banco da rota.
+Isso reclassifica um trabalho que já existia: "reduzir as 28 idas por carga de
+tela" (nota em `db.ts`, incidente de 29/08) deixa de ser otimização e vira
+**pré-requisito de segurança**.
+
+⚠️ **E um achado que vale além desta ADR:** com a flag DESLIGADA, o p50 da camada
+de dados já é **223 ms**, acima dos 200 ms que a ADR-017 reserva para ela — e
+isso antes de auth, proxy e Sales API. **A rota dela já está apertada hoje**, sem
+barreira nenhuma.
+
 ## Pendente antes de implementar
 
 1. Portão do cérebro sobre este ADR.
