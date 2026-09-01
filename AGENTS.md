@@ -69,6 +69,20 @@ mudar, **pare, explique e proponha um novo ADR** (`docs/adr/`) antes de codar.
 
 # APIs dos marketplaces
 
+**Cada API tem seus próprios endpoints e seu próprio calendário de dados — não
+assuma a regra de um marketplace como se fosse global.** Regra da dona do
+produto, 02/09/2026, verbatim: *"as apis tem seus proprios endpoints e nao faz
+sentido fazer alterações globais, exemplo a amazon, ela nao disponibiliza o
+faturamento na hora, mas shopee sim, nao assuma regras de outros marketplaces
+como se fosse algo global"*.
+
+Na prática: replicar uma correção entre canais é replicar a **garantia** (ex.:
+"lucro não some por dado que ainda não chegou"), nunca o **mecanismo** — e antes
+de portar qualquer mecanismo, **meça o que a API daquele canal realmente entrega
+e quando**. A Amazon precisa de tarifa estimada porque publica preço e tarifa
+tarde; um canal que publica na hora pode não precisar de estimativa nenhuma — e
+implantá-la lá seria resolver um problema que o canal não tem.
+
 Antes de mexer em qualquer integração, leia a documentação interna — ela registra os endpoints usados e as pegadinhas já pagas caro (semântica de PATCH da Amazon, regra de faturamento do ML, etc.):
 
 - `docs/api-amazon-sp-api.md` — SP-API: endpoints, selectors do PATCH, orderMetrics vs Transactions, FNSKU/FBA
