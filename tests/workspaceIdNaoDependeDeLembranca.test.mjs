@@ -39,6 +39,11 @@ const SEM_ESCOPO_PERMITIDO = [
       "Expurgo por IDADE (ADR-016). Retencao e global por natureza: apagar so o do inquilino da vez deixaria a tabela crescendo para todos os outros.",
   },
   {
+    arquivo: "lib/integrations/silencioDoWebhook.ts",
+    motivo:
+      "Pergunta de PLATAFORMA, nao de inquilino: 'o webhook do ML esta entregando?'. Le so max(received_at) — um TIMESTAMP agregado, sem id, sem valor, sem pedido. E o /api/health nao tem workspace autenticado para filtrar, por construcao. Escopar por inquilino aqui nao tornaria nada mais seguro e tornaria o alarme cego ao que ele existe para ver: o canal parou para TODO MUNDO. Justificativa medida em 01/09/2026 — cinco silencios acima de 60h em 41 dias, o maior de 236h, que custou 7 pedidos.",
+  },
+  {
     arquivo: "lib/watchlist.ts",
     motivo: "Calculo de datas de corte no banco (CURRENT_DATE). Nao toca tabela nenhuma.",
   },
