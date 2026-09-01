@@ -364,3 +364,183 @@ export async function carimbarEstimativasSubstituidas(connectionId: string): Pro
   );
   return Number(linhas[0]?.n ?? 0);
 }
+
+/**
+ * ESTIMA PELA TARIFA QUE A AMAZON JÁ COBROU NAQUELE ASIN — sem chamar API.
+ *
+ * ═══ POR QUE ESTA FONTE EXISTE, e por que ela é a primeira da fila ═══
+ *
+ * A vendedora pediu, em 31/08/2026: *"Pegar a TABELA de comissão por porcentagem
+ * da amazon […] e usar a tarifa FBA referente à regra daquele produto"*. Nós
+ * traduzimos "tabela" para Product Fees API — leitura defensável, porque a API
+ * devolve o valor publicado pela própria Amazon. **E quebrou exatamente onde a
+ * tabela não quebraria:** a Product Fees responde POR VENDEDOR e a conta que ela
+ * confere (`A15NQMF7A6J1Y0`) está com o **token revogado**. Resultado medido em
+ * 01/09/2026: 1 pedido com tarifa estimada e travessão nos outros 18.
+ *
+ * Esta fonte não chama ninguém. Ela lê o que a Amazon **já cobrou** naquele
+ * mesmo ASIN, no nosso próprio extrato.
+ *
+ * ⚠️ NÃO É MÉDIA HISTÓRICA NOSSA, e a distinção é a que a ADR-027 protege. Não
+ * se projeta o desconhecido a partir de uma tendência: pega-se **o valor de UMA
+ * cobrança real**, a mais recente daquele ASIN, e usa-se ele enquanto o oficial
+ * daquele pedido não chega. A procedência fica gravada com a **data da
+ * observação**, então a tela pode dizer "estimado pela tarifa de 30/08".
+ *
+ * ⚠️ E É UM TOTAL, NÃO DUAS PARCELAS — isto precisa estar claro para quem for
+ * comparar com o software concorrente. O que temos gravado do passado é
+ * `transactions_total`: a soma de tudo que a Amazon cobrou no pedido, incluindo
+ * **armazenagem e anúncio**, que a decomposição do concorrente ignora. Medido:
+ * ASIN `B0FNYMSTRL` a R$ 13,90 tem tarifa observada de **R$ 7,54**, contra os
+ * R$ 7,32 que "12% + FBA 5,65" daria. Somos R$ 0,22 mais conservadores, e mais
+ * corretos — o excedente é armazenagem real.
+ *
+ * Por isso o `fee_type` é `other`, e não `commission`: chamar um agregado de
+ * comissão foi o defeito corrigido em `amazonSync.ts` no mesmo dia. Quando o
+ * token voltar, a ingestão passa a gravar decomposto e esta fonte cede lugar.
+ *
+ * ⚠️ O PREÇO IMPORTA. Tarifa de comissão é percentual, então a observação só
+ * vale para um preço parecido. A janela é de ±20%: fora disso a linha fica SEM
+ * estimativa e a tela diz o que falta — inventar seria o que a regra proíbe.
+ */
+export async function estimarPelaTarifaObservada(
+  connectionId: string,
+  limite = 400,
+): Promise<{ pedidos: number; linhas: number; asins: number; semObservacao: number }> {
+  const { dbQuery } = await import("../db");
+  const { currentWorkspaceId } = await import("../workspaceScope");
+  const workspaceId = currentWorkspaceId();
+
+  /**
+   * A tarifa observada por ASIN, normalizada POR UNIDADE.
+   *
+   * ⚠️ `SUM(fee) / SUM(qty)` e não `AVG(fee)`: um pedido de 3 unidades paga
+   * tarifa de 3 unidades, e tratar isso como uma observação de unidade única
+   * triplicaria a estimativa. Foi o erro que a primeira consulta desta medição
+   * cometeu — juntar pedidos com itens multiplica a tarifa pelo número de linhas.
+   */
+  const observadas = await dbQuery<{
+    asin: string; tarifa_por_unidade: string; preco_por_unidade: string; visto_em: string;
+  }>(
+    `WITH pedidos AS (
+       SELECT o.external_order_id, o.occurred_at,
+              (SELECT SUM(f.amount) FROM workspace_channel_order_fees f
+                WHERE f.workspace_id = o.workspace_id AND f.provider = o.provider
+                  AND f.connection_id = o.connection_id
+                  AND f.external_order_id = o.external_order_id
+                  AND f.fee_type NOT IN ('refund', 'estimated')) AS tarifa
+         FROM workspace_channel_orders o
+        WHERE o.workspace_id = $1 AND o.provider = 'amazon' AND o.connection_id = $2
+          AND o.status <> 'cancelled'
+     ),
+     -- Só pedido de UM ASIN: com dois produtos diferentes não há como saber
+     -- quanto da tarifa é de cada um, e ratear seria inventar.
+     unicos AS (
+       SELECT p.external_order_id, p.occurred_at, p.tarifa,
+              MIN(i.external_product_id) AS asin,
+              SUM(i.qty) AS qtd,
+              SUM(i.qty * i.unit_price) AS receita
+         FROM pedidos p
+         JOIN workspace_channel_order_items i
+           ON i.workspace_id = $1 AND i.provider = 'amazon' AND i.connection_id = $2
+          AND i.external_order_id = p.external_order_id
+        WHERE p.tarifa IS NOT NULL AND i.unit_price IS NOT NULL
+        GROUP BY 1, 2, 3
+       HAVING COUNT(DISTINCT i.external_product_id) = 1 AND SUM(i.qty) > 0
+     ),
+     ranqueadas AS (
+       SELECT asin, tarifa / qtd AS tarifa_por_unidade, receita / qtd AS preco_por_unidade,
+              occurred_at,
+              ROW_NUMBER() OVER (PARTITION BY asin ORDER BY occurred_at DESC) AS recencia
+         FROM unicos
+     )
+     SELECT asin, tarifa_por_unidade::text, preco_por_unidade::text,
+            occurred_at::date::text AS visto_em
+       FROM ranqueadas WHERE recencia = 1`,
+    [workspaceId, connectionId],
+  );
+  const porAsin = new Map(observadas.map((o) => [o.asin, o]));
+
+  // As linhas que ainda não têm tarifa NENHUMA — nem real, nem estimativa vigente.
+  const linhas = await dbQuery<{
+    external_order_id: string; line_no: number; external_product_id: string;
+    qty: number; unit_price: string | null; preco_de_tabela: string | null;
+  }>(
+    `SELECT i.external_order_id, i.line_no, i.external_product_id, i.qty, i.unit_price,
+            (o.ordered_gross / NULLIF(SUM(i.qty) OVER (PARTITION BY i.external_order_id), 0))::text AS preco_de_tabela
+       FROM workspace_channel_order_items i
+       JOIN workspace_channel_orders o
+         ON o.workspace_id = i.workspace_id AND o.provider = i.provider
+        AND o.connection_id = i.connection_id AND o.external_order_id = i.external_order_id
+      WHERE i.workspace_id = $1 AND i.provider = 'amazon' AND i.connection_id = $2
+        AND o.status <> 'cancelled'
+        AND NOT EXISTS (
+          SELECT 1 FROM workspace_channel_order_fees f
+           WHERE f.workspace_id = i.workspace_id AND f.provider = i.provider
+             AND f.connection_id = i.connection_id
+             AND f.external_order_id = i.external_order_id
+             AND f.fee_type NOT IN ('refund', 'estimated')
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM workspace_channel_order_fee_estimates e
+           WHERE e.workspace_id = i.workspace_id AND e.provider = i.provider
+             AND e.connection_id = i.connection_id
+             AND e.external_order_id = i.external_order_id
+             AND e.line_no = i.line_no AND e.superseded_at IS NULL
+        )
+      ORDER BY o.occurred_at DESC
+      LIMIT $3`,
+    [workspaceId, connectionId, limite],
+  );
+
+  const precoDe = (linha: (typeof linhas)[number]) => {
+    const real = linha.unit_price == null ? null : Number(linha.unit_price);
+    if (real != null && real > 0) return real;
+    const tabela = linha.preco_de_tabela == null ? null : Number(linha.preco_de_tabela);
+    return tabela != null && tabela > 0 ? tabela : null;
+  };
+
+  const pedidosTocados = new Set<string>();
+  const asinsUsados = new Set<string>();
+  let gravadas = 0;
+  let semObservacao = 0;
+
+  for (const linha of linhas) {
+    const preco = precoDe(linha);
+    const observada = porAsin.get(linha.external_product_id);
+    if (preco == null || !observada) { semObservacao += 1; continue; }
+
+    const precoObservado = Number(observada.preco_por_unidade);
+    // Janela de preço: comissão é percentual, então observação de outro patamar
+    // não vale. Fora dela, a linha fica SEM estimativa — e a tela aponta.
+    if (precoObservado > 0 && Math.abs(preco - precoObservado) / precoObservado > 0.2) {
+      semObservacao += 1;
+      continue;
+    }
+    const valor = +(Number(observada.tarifa_por_unidade) * linha.qty).toFixed(2);
+    if (!Number.isFinite(valor) || valor < 0) { semObservacao += 1; continue; }
+
+    await dbQuery(
+      `INSERT INTO workspace_channel_order_fee_estimates
+         (workspace_id, provider, connection_id, external_order_id, line_no, fee_type,
+          provider_fee_code, amount, currency, unit_price, qty, source)
+       VALUES ($1, 'amazon', $2, $3, $4, 'other', $5, $6, 'BRL', $7, $8, 'observada')
+       ON CONFLICT (workspace_id, provider, connection_id, external_order_id, line_no, fee_type)
+       DO UPDATE SET amount = EXCLUDED.amount, provider_fee_code = EXCLUDED.provider_fee_code,
+                     unit_price = EXCLUDED.unit_price, qty = EXCLUDED.qty,
+                     source = EXCLUDED.source, estimated_at = now()
+        WHERE workspace_channel_order_fee_estimates.superseded_at IS NULL`,
+      [
+        workspaceId, connectionId, linha.external_order_id, linha.line_no,
+        // A procedência verificável: de qual observação este número veio.
+        `observada:${observada.visto_em}`,
+        valor, preco, linha.qty,
+      ],
+    );
+    gravadas += 1;
+    pedidosTocados.add(linha.external_order_id);
+    asinsUsados.add(linha.external_product_id);
+  }
+
+  return { pedidos: pedidosTocados.size, linhas: gravadas, asins: asinsUsados.size, semObservacao };
+}

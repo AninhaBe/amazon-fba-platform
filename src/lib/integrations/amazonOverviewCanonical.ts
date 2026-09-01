@@ -675,7 +675,20 @@ export async function getAmazonOverviewFromCanonical(
           AND o.connection_id = i.connection_id AND o.external_order_id = i.external_order_id
         WHERE i.workspace_id = $1 AND i.provider = $2 AND i.connection_id = $3
           AND o.occurred_at >= $4 AND o.occurred_at <= $5
-          AND o.status <> 'cancelled' AND NOT (o.status = ANY($6))`,
+          AND o.status <> 'cancelled' AND NOT (o.status = ANY($6))
+          -- ⚠️ SÓ O PEDIDO QUE ESTÁ NA BASE ENTRA COM CUSTO (01/09/2026).
+          --
+          -- Pedido sem valor conhecido fica FORA da receita (é o null != 0 da
+          -- base). Se o custo dele entrasse assim mesmo, o resultado teria
+          -- subtração de um universo maior que o da receita — a quinta forma do
+          -- mesmo defeito, e a mais brutal: medido na Silveiras Import com o
+          -- token revogado, base de R$ 12,89 (1 pedido com valor) contra custo
+          -- de R$ 222,95 (28 pedidos) dava margem de -1692,4%.
+          --
+          -- A regra que fecha isso e vale para os quatro canais: CUSTO E TARIFA
+          -- SÓ EXISTEM PARA O PEDIDO CUJA RECEITA EXISTE. O que falta é
+          -- sinalizado com número, nunca subtraído de uma receita que não tem.
+          AND COALESCE(NULLIF(o.gross, 0), o.ordered_gross) IS NOT NULL`,
       [...scopeParams(connectionId, period), REVENUE_STATUSES],
     ),
   ]);
@@ -829,7 +842,10 @@ export async function getAmazonOverviewFromCanonical(
       WHERE f.workspace_id = $1 AND f.provider = $2 AND f.connection_id = $3
         AND f.fee_type <> 'refund'
         AND o.occurred_at >= $4 AND o.occurred_at <= $5
-        AND o.status <> 'cancelled'`,
+        AND o.status <> 'cancelled'
+        -- Mesma regra do custo: tarifa de pedido cuja receita nao esta na base
+        -- seria subtracao sem a receita correspondente.
+        AND COALESCE(NULLIF(o.gross, 0), o.ordered_gross) IS NOT NULL`,
     scopeParams(connectionId, period),
   );
   const tarifaDoLucro = +Number(tarifaRows[0]?.total ?? 0).toFixed(2);
