@@ -203,6 +203,27 @@ async function computeAbc(connection: IntegrationConnection, period: MercadoLivr
       tax: +tax.toFixed(2),
       contribution,
       // Divide pela APURADA — dividir pela total inverteria o erro em vez de corrigi-lo.
+      //
+      // ⚠️ ESTE PONTO FOI REVISADO EM 01/09/2026, quando lucro e margem dos
+      // quatro canais passaram a sair do FATURAMENTO, e a conclusão foi MANTER
+      // a apurada aqui. O motivo não é inércia:
+      //
+      // No dashboard, o pendente entra com receita E custo E tarifa — na Amazon
+      // a tarifa vem estimada da Product Fees API (ADR-027). O ML **não tem
+      // tarifa estimada**: `acc.fees` só existe para pedido com repasse postado.
+      // Dividir a contribuição pela receita TOTAL somaria receita sem a tarifa
+      // correspondente e INFLARIA a margem por produto — que é exatamente o
+      // defeito que a decisão de 29/08/2026 corrigiu aqui.
+      //
+      // 📌 MEDIDO ANTES DE DECIDIR, e é por isso que a decisão é barata: em
+      // 01/09/2026 as duas contas reais tinham ZERO pedidos sem repasse
+      // (R$ 1.927,82 e R$ 234.802,87 em 30 dias, apurado == total). Ou seja, a
+      // troca não mudaria número nenhum hoje e só criaria risco no dia em que
+      // o ML atrasar o repasse.
+      //
+      // O QUE DESTRAVA A MUDANÇA: tarifa estimada no ML. No dia em que existir,
+      // esta linha passa a dividir pela total, como os outros — e aí a mudança
+      // é segura porque o numerador também cobre o pendente.
       marginPct: contribution != null && acc.revenueApurada > 0 ? +(contribution / acc.revenueApurada * 100).toFixed(2) : null,
       costMissing,
       complete: acc.feesKnown && acc.costKnown,
