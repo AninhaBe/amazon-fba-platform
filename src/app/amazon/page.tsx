@@ -735,11 +735,25 @@ function Dashboard() {
   // Antes disso, porém, tenta o número REAL: quando ainda não há venda conciliada
   // mas o período tem faturamento (pendente com valor de tabela), o ticket existe
   // e é faturamento ÷ vendas — mostrar zero ali seria esconder um número que temos.
+  // ⚠️ O SEGUNDO RAMO DIVIDIA UMA RECEITA PARCIAL POR TODAS AS VENDAS
+  // (01/09/2026). Ele usava `faturamento.revenue` — o campo `billing`, que só
+  // soma pedido com valor JÁ publicado pela Amazon — sobre `salesCount`, que
+  // conta TODOS os pedidos. Numerador de um conjunto, denominador de outro: a
+  // mesma família da base misturada, agora no ticket.
+  //
+  // Medido às 12:22 na Silveiras Import: R$ 12,89 (de 1 pedido com valor) ÷ 19
+  // vendas = **R$ 0,68**, ao lado de um Faturamento de R$ 348,07. O ticket real
+  // era 348,07 ÷ 19 = R$ 18,32.
+  //
+  // A base do ticket passa a ser a MESMA do card de Faturamento — o
+  // `orderMetrics`, que cobre todos os pedidos e é o que bate com o Seller
+  // Central. `billing` não serve para isto e não deve ser lido aqui.
+  const faturamentoDaTela = pedidosFeitos?.revenue ?? null;
   const ticketMedio =
     vendasConciliadas > 0
       ? faturamentoConciliado / vendasConciliadas
-      : (faturamento?.revenue ?? 0) > 0 && salesCount > 0
-        ? (faturamento?.revenue ?? 0) / salesCount
+      : (faturamentoDaTela ?? 0) > 0 && salesCount > 0
+        ? (faturamentoDaTela ?? 0) / salesCount
         : 0;
   // Quanto dos pedidos recebidos a Amazon ainda não confirmou. As duas bases só
   // podem ser subtraídas no MESMO critério: `revenue` (orderMetrics) é preço de
@@ -808,8 +822,13 @@ function Dashboard() {
       <BriefingLead
         periodo={period.label}
         janela={period.query}
-        faturamento={faturamento?.revenue ?? null}
-        pedidos={faturamento?.orders ?? 0}
+                // ⚠️ A FRASE LE A MESMA BASE DO CARD (01/09/2026). Ela lia o `billing`,
+        // que so soma pedido com valor ja publicado: as 12:22 disse "R$ 12,89
+        // hoje" com o card ao lado em R$ 348,07 e o Seller Central em R$ 348.
+        // Texto e card discordando na mesma tela e o defeito que a vendedora
+        // detecta primeiro — e o que ela cobrou.
+        faturamento={faturamentoDaTela}
+        pedidos={salesCount}
         /**
          * ⚠️ A FRASE NAO AFIRMA LUCRO QUE A TELA NAO MOSTRA (01/09/2026).
          *

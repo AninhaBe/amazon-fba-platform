@@ -206,13 +206,21 @@ export async function GET(req: NextRequest) {
                   -- produzia "R$ 0,00 · 1 pedido", que se contradiz na própria
                   -- linha (visto em 22/08/2026, com o único pedido do dia ainda
                   -- pendente). O cartão precisa poder dizer quantos faltam.
-                  COUNT(COALESCE(gross, ordered_gross))::text AS pedidos_com_valor,
+                  COUNT(COALESCE(NULLIF(gross, 0), ordered_gross))::text AS pedidos_com_valor,
                   -- COALESCE com ordered_gross: a Amazon omite OrderTotal enquanto
                   -- o pedido está Pending, mas o valor de TABELA foi capturado do
                   -- relatório (migrations/0010). Sem isto, a tela mostrava
                   -- "R$ 0,00" para uma venda que o Seller Central já exibia com
                   -- valor — 22/08/2026, venda de R$ 21,90 às 17:32.
-                  COALESCE(SUM(COALESCE(gross, ordered_gross)), 0)::text AS receita,
+                  -- ⚠️ NULLIF(gross, 0) — SEM ELE ESTE CAMPO VALIA QUASE ZERO.
+                  -- O sync grava gross = 0.00 (nao NULL) enquanto a Amazon omite
+                  -- OrderTotal no pendente, entao o COALESCE sozinho NUNCA caia
+                  -- para o preco de tabela. Medido em 01/09/2026 as 12:22: este
+                  -- campo devolvia R$ 12,89 num dia de R$ 348,07, e os dois
+                  -- numeros errados da tela sairam dele — o Ticket (12,89/19 =
+                  -- R$ 0,68) e a frase do topo. Mesma correcao ja aplicada no
+                  -- canonico.
+                  COALESCE(SUM(COALESCE(NULLIF(gross, 0), ordered_gross)), 0)::text AS receita,
                   COALESCE(SUM(buyer_shipping), 0)::text AS frete,
                   -- CUPOM RESGATADO — a diferença que fazia o Seller Central e o
                   -- NEXO discordarem sem explicação (22/08/2026): "Vendas de
@@ -227,7 +235,7 @@ export async function GET(req: NextRequest) {
                   -- no próprio ordered_gross pelo COALESCE acima. Assim a linha
                   -- exibida é exatamente Pedidos feitos − Faturamento, sem
                   -- inventar desconto que ainda não foi apurado.
-                  COALESCE(SUM(ordered_gross - COALESCE(gross, ordered_gross)), 0)::text AS cupom,
+                  COALESCE(SUM(ordered_gross - COALESCE(NULLIF(gross, 0), ordered_gross)), 0)::text AS cupom,
                   -- Quantos pedidos NÃO têm preço de tabela. Sem ele o cupom
                   -- daquele pedido é desconhecido, e o total exibido vira um
                   -- PISO, não a diferença exata entre os dois cartões. Medido em
