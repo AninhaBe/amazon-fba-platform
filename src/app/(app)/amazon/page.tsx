@@ -972,7 +972,12 @@ function Dashboard() {
                   // construtor disse que ha estimativa embutida — sem pedido
                   // estimado o campo vem `undefined` e o cartao fica igual ao
                   // que era.
-                  marca={card.marcaEstimativa ? <MarcaDeEstimativa procedencia={card.marcaEstimativa} /> : undefined}
+                  // `origemConhecida` e SEMPRE verdadeiro no agregado, e isso
+                  // nao e atalho: o agregado nunca AFIRMA uma fonte — ele soma
+                  // linhas de origens diferentes e diz so que ha estimativa
+                  // embutida. "Origem desconhecida" e um estado da LINHA, onde a
+                  // procedencia e verificavel e onde a falta dela e defeito.
+                  marca={card.marcaEstimativa ? <MarcaDeEstimativa procedencia={card.marcaEstimativa} origemConhecida /> : undefined}
                   // ⚠️ O CARD NÃO É MAIS SOBRESCRITO AQUI (30/08/2026).
                   //
                   // Esta linha trocava o VALOR do card "Faturamento" mantendo o

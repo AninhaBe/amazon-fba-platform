@@ -168,7 +168,7 @@ export interface AmazonCard {
   marcaEstimativa?: string;
 }
 
-import { procedenciaDaEstimativa } from "../../components/procedenciaDaEstimativa";
+import { PROCEDENCIA_DO_AGREGADO } from "../../components/procedenciaDaEstimativa";
 
 const money = (v: number, currency: string) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(v);
@@ -575,7 +575,7 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
       // O selo acompanha a MESMA condicao da frase — os dois nascem e somem
       // juntos. Separa-los criaria o estado em que o numero esta marcado e nada
       // explica a marca, ou o inverso.
-      marcaEstimativa: quantoEstimado ? procedenciaDaEstimativa({ moeda: currency }) : undefined,
+      marcaEstimativa: quantoEstimado ? PROCEDENCIA_DO_AGREGADO : undefined,
     },
     { key: "fbaShipping", label: "Logística FBA", ...num(logistica, "Aguardando tarifas de logística no extrato", undefined, "A Amazon não cobrou logística no período") },
     { key: "buyerShipping", label: "Frete do comprador", ...num(f?.buyerShipping, "Aguardando frete pago pelo comprador", undefined, "Nenhum frete pago pelo comprador") },

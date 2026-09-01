@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { procedenciaDaFonte, rotuloDaMarca } from "../src/app/components/procedenciaDaEstimativa.ts";
+import { fonteDaLinha, procedenciaDaFonte, rotuloDaMarca } from "../src/app/components/procedenciaDaEstimativa.ts";
 
 // A ESTIMATIVA DEIXOU DE TER UMA FONTE SO (01/09/2026). Sao tres que produzem
 // numero — observada, tabela e api — e uma que faz a marca SUMIR (oficial).
@@ -112,4 +112,49 @@ test("'oficial' NAO e uma quarta procedencia — quando o extrato chega, nao ha 
   // E "oficial" cai no ramo de origem desconhecida se alguem mandar mesmo assim
   // — visivel, em vez de virar um selo novo.
   assert.equal(procedenciaDaFonte({ fonte: "oficial" }).origemConhecida, false);
+});
+
+test("o MAPEADOR: valor do banco vira variante da tela, e o que ele nao conhece vira DESCONHECIDO", () => {
+  // ⚠️ ESTES DOIS DEFEITOS PASSARAM PELA RODADA DE QUEBRAS DE 01/09/2026
+  // sem nenhum teste reclamar, e sao exatamente os que a peca existe para
+  // impedir. Foram escritos DEPOIS de ver as duas quebras ficarem verdes.
+  //
+  // Defeito 1: a origem desconhecida caindo em "api" por padrao. A tela passaria
+  // a afirmar "Estimado pela Amazon" para um valor cuja origem ela nao sabe ler
+  // — a familia do zero fabricado, um valor que passa por informacao sem ter
+  // procedencia.
+  const desconhecida = fonteDaLinha({ origemDaTarifa: "fonte_que_ainda_nao_existe", comissao: 3.47 });
+  assert.equal(desconhecida, null, "valor fora dos tres conhecidos nao pode virar uma variante qualquer");
+  assert.equal(procedenciaDaFonte(desconhecida).origemConhecida, false);
+  assert.match(rotuloDaMarca(false), /origem n[\u00e3a]o informada/);
+
+  // Sem origem nenhuma (linha sem estimativa que chegou ate aqui) — mesmo trato.
+  assert.equal(fonteDaLinha({ origemDaTarifa: null }), null);
+
+  // Defeito 2: "observada" SEM a data passando como conhecida. A frase da origem
+  // observada E a data ("a Amazon ja cobrou isto neste produto no pedido de
+  // 30/08"); sem ela sobra um rotulo que ninguem confere. E a data sumia por
+  // defeito real: ate 01/09/2026 a extracao usava uma expressao sem as barras
+  // invertidas, que nao casava data nenhuma.
+  assert.equal(fonteDaLinha({ origemDaTarifa: "observada", observadaEm: null }), null,
+    "observada sem data tem de ficar VISIVEL como desconhecida, nao virar rotulo vazio");
+
+  // E os tres caminhos que funcionam, com o vocabulario EXATO do banco.
+  assert.deepEqual(fonteDaLinha({ origemDaTarifa: "observada", observadaEm: "2026-08-30", comissao: 3.47, fba: null, moeda: "BRL" }),
+    { fonte: "observada", diaDoPedido: "2026-08-30", comissao: 3.47, fba: null, moeda: "BRL" });
+  assert.equal(fonteDaLinha({ origemDaTarifa: "product_fees_api" }).fonte, "api",
+    "o nome do banco e product_fees_api; a tela chama de api, e a traducao mora no mapeador");
+  assert.equal(fonteDaLinha({ origemDaTarifa: "tabela" }).fonte, "tabela");
+});
+
+test("tabela SEM percentual nao fica torta — e hoje e 100% dos casos", () => {
+  // A fonte tabela esta parada por falta da categoria por ASIN, entao
+  // `percentualDaCategoria` vem null em todas as linhas. A frase precisa
+  // aguentar isso: omite a clausula, nunca escreve "0,00%".
+  const p = procedenciaDaFonte(fonteDaLinha({ origemDaTarifa: "tabela", percentualDaCategoria: null, comissao: 3.47 }));
+  assert.equal(p.origemConhecida, true, "tabela sem percentual continua sendo uma origem conhecida");
+  assert.match(p.texto, /tabela da Amazon/);
+  assert.ok(!/0,00%/.test(p.texto), "percentual ausente virou zero — o null virou fato");
+  assert.ok(!/%/.test(p.texto), "sem percentual, a clausula do percentual nao pode aparecer vazia");
+  assert.match(p.texto, /liquida[\u00e7c][\u00e3a]o/i);
 });

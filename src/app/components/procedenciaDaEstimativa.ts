@@ -3,26 +3,22 @@
 // COMPORTAMENTO — chamando a função e conferindo a saída — e não por casamento no
 // fonte, que é a família de teste decorativo que o AGENTS.md proíbe.
 /**
- * A frase de procedência, montada a partir do que a Amazon devolveu.
+ * A PROCEDÊNCIA DO AGREGADO — o card que soma muitas linhas.
  *
- * Fica no `title`/`aria-label` da marca — é COMPLEMENTO, não a frase que muda a
- * leitura. A que muda a leitura ("inclui R$ X estimados de N pedidos") já
- * renderiza na face do card, sem interação.
+ * ⚠️ ESTA FRASE SUBSTITUI UMA QUE ERA FALSA (01/09/2026). A anterior dizia
+ * *"Estimado pela tabela da Amazon"*, e o agregado soma linhas de origens
+ * diferentes: medido contra o banco no dia em que os campos chegaram, das 1.006
+ * linhas de 30 dias, 165 tinham estimativa — **164 da Product Fees API, 1
+ * observada, e nenhuma de tabela**. A frase nomeava a única fonte que não tinha
+ * uma linha sequer.
+ *
+ * Não é possível nomear a fonte de um número que soma fontes distintas sem
+ * contá-las, e contar é campo que o agregado não recebe. Então a frase diz o que
+ * é verdade para qualquer mistura: que ainda não é o oficial, e o que a
+ * substitui. **A procedência específica vive na LINHA**, onde ela é verificável.
  */
-export function procedenciaDaEstimativa(partes: { comissao?: number | null; fba?: number | null; moeda?: string }): string {
-  const moeda = partes.moeda ?? "BRL";
-  const dinheiro = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: moeda }).format(v);
-  const detalhe = [
-    partes.comissao == null ? null : `comissão ${dinheiro(partes.comissao)}`,
-    partes.fba == null ? null : `FBA ${dinheiro(partes.fba)}`,
-  ].filter(Boolean).join(" + ");
-  // Sem as parcelas, a frase ainda precisa dizer as duas coisas que importam:
-  // que é estimativa da Amazon e que o oficial substitui. Detalhe ausente não
-  // vira zero nem some com a explicação.
-  return detalhe
-    ? `Estimado pela Amazon: ${detalhe} — a tarifa oficial entra na liquidação.`
-    : "Estimado pela tabela da Amazon — a tarifa oficial entra na liquidação.";
-}
+export const PROCEDENCIA_DO_AGREGADO =
+  "Inclui tarifa estimada enquanto a Amazon não posta a oficial — a oficial entra na liquidação e substitui a estimativa.";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // QUATRO PROCEDÊNCIAS — peça preparada, ainda NÃO ligada na tela (01/09/2026)
@@ -108,7 +104,7 @@ export type FonteDaEstimativa =
        * Amazon cobra 12,01%. Erro de unidade não fica vermelho em lugar nenhum:
        * ele só parece um número pequeno.
        */
-      percentualDaCategoria: number;
+      percentualDaCategoria: number | null;
       comissao?: number | null; fba?: number | null; moeda?: string;
     }
   | { fonte: "api"; comissao?: number | null; fba?: number | null; moeda?: string };
@@ -175,8 +171,15 @@ export function procedenciaDaFonte(estimativa: FonteDaEstimativa | null | undefi
     }
     case "tabela": {
       const detalhe = composicao(estimativa, moeda);
+      // Percentual ausente OMITE a cláusula, nunca vira "0,00%": é o `null ≠ 0`
+      // aplicado ao texto. Hoje ele vem null em 100% dos casos — a fonte tabela
+      // está parada por falta da categoria por ASIN —, e a frase precisa
+      // aguentar isso sem ficar torta.
+      const comissao = estimativa.percentualDaCategoria == null
+        ? ""
+        : `: comissão de ${percentual(estimativa.percentualDaCategoria)} da categoria + tarifa FBA`;
       return {
-        texto: `Estimado pela tabela da Amazon: comissão de ${percentual(estimativa.percentualDaCategoria)} da categoria + tarifa FBA${detalhe ? ` (${detalhe})` : ""}. ${fim}`,
+        texto: `Estimado pela tabela da Amazon${comissao}${detalhe ? ` (${detalhe})` : ""}. ${fim}`,
         origemConhecida: true,
       };
     }
@@ -204,4 +207,59 @@ export function procedenciaDaFonte(estimativa: FonteDaEstimativa | null | undefi
  */
 export function rotuloDaMarca(origemConhecida: boolean): string {
   return origemConhecida ? "estimado" : "estimado · origem não informada";
+}
+
+/**
+ * O MAPEADOR DA FRONTEIRA — o valor que o banco grava vira a variante da tela.
+ *
+ * ⚠️ ELE MORA AQUI, num lugar só, pelo mesmo motivo que a conversão de unidade:
+ * é o ponto em que o vocabulário do banco (`product_fees_api`) encontra o da
+ * tela. Espalhar `origem === "product_fees_api"` pelos pontos de render é como
+ * nasce o dia em que um deles não conhece um valor novo e mostra o nome cru.
+ *
+ * ⚠️ VALOR FORA DOS TRÊS CONHECIDOS VIRA DESCONHECIDO, nunca texto cru. A tela
+ * não inventa nome para o que não sabe ler — e desconhecido é VISÍVEL, não
+ * silencioso: `rotuloDaMarca` muda a palavra na face.
+ */
+export function fonteDaLinha(linha: {
+  origemDaTarifa?: string | null;
+  observadaEm?: string | null;
+  percentualDaCategoria?: number | null;
+  comissao?: number | null;
+  fba?: number | null;
+  moeda?: string;
+}): FonteDaEstimativa | null {
+  const comum = { comissao: linha.comissao ?? null, fba: linha.fba ?? null, moeda: linha.moeda };
+  switch (linha.origemDaTarifa) {
+    case "observada":
+      /**
+       * ⚠️ SEM A DATA, A ORIGEM OBSERVADA VIRA DESCONHECIDA — de propósito.
+       *
+       * A frase da origem observada É a data: *"a Amazon já cobrou isto neste
+       * produto no pedido de 30/08"*. Sem ela não há afirmação a fazer, só um
+       * rótulo que ninguém confere. E ela some por defeito real: até 01/09/2026
+       * a extração da data vinha de uma expressão sem as barras invertidas, que
+       * não casava data nenhuma — `observadaEm` teria sido `null` para sempre,
+       * inclusive nas linhas que tinham observação.
+       *
+       * Tratar como desconhecida deixa esse defeito VISÍVEL na tela. Renderizar
+       * "estimado pela tarifa observada" sem a data o esconderia.
+       */
+      return linha.observadaEm ? { fonte: "observada", diaDoPedido: linha.observadaEm, ...comum } : null;
+    case "product_fees_api":
+      return { fonte: "api", ...comum };
+    case "tabela":
+      /**
+       * O percentual é COMPLEMENTO aqui, e não a afirmação inteira: *"estimado
+       * pela tabela da Amazon"* já é uma frase completa e checável (ela abre a
+       * tabela). Por isso `tabela` sem percentual continua com origem conhecida,
+       * ao contrário de `observada` sem data.
+       *
+       * E ele vem `null` em 100% dos casos hoje: a fonte tabela está parada por
+       * falta da categoria por ASIN, que não existe no nosso banco.
+       */
+      return { fonte: "tabela", percentualDaCategoria: linha.percentualDaCategoria ?? null, ...comum };
+    default:
+      return null;
+  }
 }

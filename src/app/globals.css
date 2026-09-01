@@ -5916,3 +5916,27 @@ summary:hover { background: var(--paper-soft); }
 .marca-estimativa:hover,
 .marca-estimativa:focus-visible { border-color: var(--ink); color: var(--ink); }
 .marca-estimativa:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ink-08); }
+
+/* ESTIMATIVA SEM ORIGEM — o unico estado da marca que muda de tinta.
+
+   Nao e uma quarta procedencia: e DEFEITO. As tres origens conhecidas (a tarifa
+   ja cobrada, a tabela e a Product Fees API) usam a mesma marca neutra, porque
+   nao ha nada para a vendedora fazer com a diferenca entre elas. Origem
+   desconhecida e outra coisa: um valor estimado que ninguem consegue conferir.
+
+   Por isso a palavra da face ja muda ("estimado - origem nao informada", em
+   `rotuloDaMarca`) e a tinta acompanha. A regra da casa continua valendo — nao e
+   cor de alarme vermelha, que treinaria a ignorar alarme; e a tinta de atencao,
+   um degrau acima da neutra, do mesmo jeito que as pendencias da tela.
+
+   Tudo isso porque defeito que so aparece no hover NAO APARECE. */
+.marca-estimativa--sem-origem {
+  border-color: var(--warning);
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+.marca-estimativa--sem-origem:hover,
+.marca-estimativa--sem-origem:focus-visible {
+  border-color: var(--warning);
+  color: var(--warning);
+}

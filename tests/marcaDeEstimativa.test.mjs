@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 import { amazonFinancialCards } from "../src/app/(app)/amazon/amazonFinancialCards.ts";
-import { procedenciaDaEstimativa } from "../src/app/components/procedenciaDaEstimativa.ts";
+import { PROCEDENCIA_DO_AGREGADO, procedenciaDaFonte } from "../src/app/components/procedenciaDaEstimativa.ts";
 
 const fonte = (caminho) => readFile(new URL(`../${caminho}`, import.meta.url), "utf8");
 const carta = (cards, key) => cards.find((c) => c.key === key);
@@ -55,21 +55,30 @@ test("o selo e a frase nascem e somem JUNTOS", () => {
 });
 
 test("a procedencia diz de onde veio e que o oficial substitui — nunca 'parcial'", () => {
-  const completa = procedenciaDaEstimativa({ comissao: 3.47, fba: 5.65 });
+  // ⚠️ MIGRADO EM 01/09/2026, quando os campos de procedencia chegaram do
+  // backend: `procedenciaDaEstimativa` foi APAGADA e as garantias passaram para
+  // `procedenciaDaFonte`. As asserções são as mesmas — o que mudou foi de onde
+  // a frase sai, não o que ela precisa dizer.
+  const completa = procedenciaDaFonte({ fonte: "api", comissao: 3.47, fba: 5.65 }).texto;
   assert.match(completa, /comiss[ãa]o R\$\s?3,47/);
   assert.match(completa, /FBA R\$\s?5,65/);
-  assert.match(completa, /oficial entra na liquida[çc][ãa]o/);
+  assert.match(completa, /oficial entra na liquida[çc][ãa]o/i);
 
   // Parcela ausente NAO vira zero (AGENTS.md) e nao apaga a explicacao.
-  const soComissao = procedenciaDaEstimativa({ comissao: 3.47, fba: null });
+  const soComissao = procedenciaDaFonte({ fonte: "api", comissao: 3.47, fba: null }).texto;
   assert.ok(!/FBA/.test(soComissao), "FBA desconhecido nao pode virar 'FBA R$ 0,00'");
-  assert.match(soComissao, /liquida[çc][ãa]o/);
+  assert.match(soComissao, /liquida[çc][ãa]o/i);
 
-  const semDetalhe = procedenciaDaEstimativa({});
-  assert.match(semDetalhe, /tabela da Amazon/);
-  assert.match(semDetalhe, /liquida[çc][ãa]o/);
+  // ⚠️ O AGREGADO NAO NOMEIA MAIS FONTE, e isto reprova a volta da frase
+  // que ele tinha: "Estimado pela tabela da Amazon". Ela era FALSA — medido
+  // contra o banco no dia em que os campos chegaram, das 165 linhas com
+  // estimativa em 30 dias, 164 eram da Product Fees API, 1 observada e NENHUMA
+  // de tabela. O agregado soma origens diferentes e nao pode nomear uma.
+  assert.ok(!/tabela da Amazon/.test(PROCEDENCIA_DO_AGREGADO), "o agregado voltou a nomear uma fonte que ele nao sabe qual e");
+  assert.match(PROCEDENCIA_DO_AGREGADO, /liquida[çc][ãa]o/i);
+  assert.match(PROCEDENCIA_DO_AGREGADO, /estimad/i, "o agregado precisa dizer que ha estimativa embutida");
 
-  for (const frase of [completa, soComissao, semDetalhe]) {
+  for (const frase of [completa, soComissao, PROCEDENCIA_DO_AGREGADO]) {
     assert.ok(!/parcial|incompleto/i.test(frase), "adjetivo que se desculpa e proibido");
   }
 });
@@ -78,10 +87,19 @@ test("a tela RENDERIZA a marca, e a condicao e o campo do construtor", async () 
   const pagina = await fonte("src/app/(app)/amazon/page.tsx");
   // Casar a RAMIFICACAO, nao o identificador: `MarcaDeEstimativa` continuaria
   // aparecendo no import depois de alguem apagar o uso.
+  // ⚠️ A ANCORA E A RAMIFICACAO, NAO A LISTA DE PROPS. A versao anterior
+  // casava a chamada com as props exatas e ficou vermelha quando a marca ganhou
+  // `origemConhecida` — reprovando um acrescimo, nao um defeito. E o caso 5 do
+  // catalogo (docs/achado-guarda-que-depende-da-forma.md): guarda que casa uma
+  // lista reprova a primeira melhora que acrescenta um item a lista.
+  //
+  // O que este teste garante e que a marca so aparece QUANDO O CONSTRUTOR DIZ
+  // que ha estimativa, e que ela cai em `undefined` quando nao ha — apagar a
+  // condicao, trocar por `true`, ou tirar a marca da face deixa vermelho.
   assert.match(
     pagina,
-    /marca=\{card\.marcaEstimativa \? <MarcaDeEstimativa procedencia=\{card\.marcaEstimativa\} \/> : undefined\}/,
-    "a marca saiu da face do card",
+    /marca=\{card\.marcaEstimativa \? <MarcaDeEstimativa [^>]*\/> : undefined\}/,
+    "a marca saiu da face do card, ou deixou de depender do campo do construtor",
   );
 
   const metric = await fonte("src/app/components/Metric.tsx");
@@ -125,8 +143,12 @@ test("parcela ausente NAO vira zero na procedencia da linha", async () => {
   // que omite a parcela — quem escreve "FBA R$ 0,00" afirma um fato falso.
   const tabela = await fonte("src/app/components/OrderProfitabilityTable.tsx");
   assert.match(tabela, /comissao: line\.comissaoEstimada \?\? null,\s*fba: line\.fbaEstimada \?\? null,/);
+  // E a origem tem de chegar junto, senao a marca sabe o valor e nao sabe de
+  // onde ele veio — que e o estado que `origemConhecida: false` denuncia.
+  assert.match(tabela, /origemDaTarifa: line\.origemDaTarifa,/);
+  assert.match(tabela, /observadaEm: line\.observadaEm,/);
   // E a funcao que recebe isso ja e testada por comportamento acima.
-  assert.ok(!/FBA R\$ 0/.test(procedenciaDaEstimativa({ comissao: 3.47, fba: null })));
+  assert.ok(!/FBA R\$ 0/.test(procedenciaDaFonte({ fonte: "api", comissao: 3.47, fba: null }).texto));
 });
 
 test("a marca fica COLADA ao numero, na face e no detalhe", async () => {

@@ -1,4 +1,4 @@
-import { procedenciaDaEstimativa } from "./procedenciaDaEstimativa";
+import { rotuloDaMarca } from "./procedenciaDaEstimativa";
 
 /**
  * MARCA DE ESTIMATIVA — o selo que diz que este número ainda não é o oficial.
@@ -34,12 +34,27 @@ import { procedenciaDaEstimativa } from "./procedenciaDaEstimativa";
  * fonte é um fato, e um fato estimado continua sendo estimado — sem a marca, a
  * tela mostraria lucro sem tarifa nenhuma sem dizer que aquilo pode mudar.
  */
-export function MarcaDeEstimativa({ procedencia }: { procedencia: string }) {
+/**
+ * ⚠️ `origemConhecida` MUDA A PALAVRA DA FACE, e por isso ela e obrigatoria.
+ *
+ * Estimativa com origem e informacao; estimativa SEM origem e defeito — nao da
+ * para saber se o numero veio de um pedido antigo, de uma tabela ou de lugar
+ * nenhum. Defeito que so aparece no hover nao aparece, e por isso a distincao
+ * sobe para a face em vez de ficar so no `title`. As tres procedencias
+ * conhecidas continuam com UMA marca so: a distincao entre elas e que vive no
+ * tooltip.
+ */
+export function MarcaDeEstimativa({ procedencia, origemConhecida }: { procedencia: string; origemConhecida: boolean }) {
+  const rotulo = rotuloDaMarca(origemConhecida);
   return (
-    <span className="marca-estimativa" tabIndex={0} role="note" aria-label={`Valor estimado. ${procedencia}`} title={procedencia}>
-      estimado
+    <span
+      className={`marca-estimativa${origemConhecida ? "" : " marca-estimativa--sem-origem"}`}
+      tabIndex={0}
+      role="note"
+      aria-label={`Valor estimado. ${procedencia}`}
+      title={procedencia}
+    >
+      {rotulo}
     </span>
   );
 }
-
-export { procedenciaDaEstimativa };

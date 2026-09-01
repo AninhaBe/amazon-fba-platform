@@ -7,7 +7,7 @@ import { brDate } from "@/lib/datetime";
 import { marginTone } from "@/lib/marginTone";
 import { EmptyState } from "./EmptyState";
 import { MarcaDeEstimativa } from "./MarcaDeEstimativa";
-import { procedenciaDaEstimativa } from "./procedenciaDaEstimativa";
+import { fonteDaLinha, procedenciaDaFonte } from "./procedenciaDaEstimativa";
 import { TableLoading } from "./LoadingState";
 import { Pagination } from "./Pagination";
 import styles from "./OrderProfitabilityTable.module.css";
@@ -62,11 +62,18 @@ function motivoPendente(line: ProfitabilityLine): { titulo: string; ajuda: strin
  */
 function marcaDaLinha(line: ProfitabilityLine) {
   if (!line.feesEstimadas) return null;
-  return <MarcaDeEstimativa procedencia={procedenciaDaEstimativa({
+  // A procedencia vem da LINHA — e o unico lugar onde ela e verificavel. O
+  // agregado nao consegue nomear fonte porque soma origens diferentes; ver
+  // `PROCEDENCIA_DO_AGREGADO`.
+  const procedencia = procedenciaDaFonte(fonteDaLinha({
+    origemDaTarifa: line.origemDaTarifa,
+    observadaEm: line.observadaEm,
+    percentualDaCategoria: line.percentualDaCategoria,
     comissao: line.comissaoEstimada ?? null,
     fba: line.fbaEstimada ?? null,
     moeda: line.currency,
-  })} />;
+  }));
+  return <MarcaDeEstimativa procedencia={procedencia.texto} origemConhecida={procedencia.origemConhecida} />;
 }
 
 function Margin({ line }: { line: ProfitabilityLine }) {
