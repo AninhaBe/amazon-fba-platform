@@ -25,14 +25,23 @@ valores, é defeito.
 Banco em **471 MB de um teto de 500** — **29 MB de folga**. Índices somam
 **~137 MB**, e duas tabelas têm mais índice que dado:
 
-| tabela | dado | índice | razão | nº índices |
-|---|---|---|---|---|
-| `workspace_channel_order_fees` | 24 MB | **35 MB** | **1,46** | 1 |
-| `workspace_marketplace_orders` | 11 MB | **20 MB** | **1,81** | 3 |
-| `workspace_channel_orders` | 93 MB | 34 MB | 0,36 | 4 |
-| `workspace_channel_order_items` | 30 MB | 21 MB | 0,71 | 2 |
-| `workspace_marketplace_events` | 21 MB | 12 MB | 0,59 | 2 |
-| `workspace_rank_history` | 1,6 MB | 3,2 MB | **1,95** | 2 |
+| tabela | heap | TOAST | índice | razão idx/heap | total |
+|---|---|---|---|---|---|
+| `workspace_channel_orders` | 93 MB | — | 34 MB | 0,36 | **127 MB** |
+| `workspace_marketplace_orders` | 11 MB | **93 MB** | 20 MB | **1,81** | **124 MB** |
+| `workspace_channel_order_fees` | 24 MB | — | **35 MB** | **1,46** | 58 MB |
+| `workspace_channel_order_items` | 30 MB | — | 21 MB | 0,71 | 51 MB |
+| `workspace_marketplace_shipments` | 35 MB | — | 6,9 MB | 0,19 | 42 MB |
+| `workspace_marketplace_events` | 21 MB | — | 12 MB | 0,59 | 33 MB |
+| `workspace_rank_history` | 1,6 MB | — | 3,2 MB | **1,95** | 4,9 MB |
+
+⚠️ **Correção de 01/09/2026.** A primeira versão desta tabela usava
+`pg_relation_size`, que **exclui o TOAST**, e por isso mostrava
+`workspace_marketplace_orders` com 11 MB de dado. O `payload` dela é jsonb
+toastado: são **93 MB fora do heap**, e a tabela é a segunda maior do banco, não
+uma tabela de 31 MB. Os picos de reescrita citados adiante já estão corrigidos.
+A `workspace_channel_orders` é o oposto — TOAST de 8 kB, ou seja o `raw` dela
+mora **inline no heap**, comprimido.
 
 Uma tabela com **um único índice** — a PK — e razão 1,46 não tem excesso de
 índices. Tem a chave errada.
@@ -139,7 +148,12 @@ As duas operações que recuperam espaço **precisam de espaço para rodar**:
 - `REINDEX CONCURRENTLY` constrói o índice novo ao lado do velho. Pico = tamanho
   do índice. O `fees_pkey` tem **34 MB** — **não cabe nos 29 MB de hoje**.
 - `ALTER COLUMN TYPE` reescreve tabela e índices. Pico de `workspace_channel_orders`:
-  **127 MB**. Não chega perto.
+  **127 MB**; o de `workspace_marketplace_orders`, **124 MB**. Não chega perto.
+
+📌 Estes dois números foram para
+[`espaco-no-teto.md`](./espaco-no-teto.md), que trata do problema maior que este
+documento destapou: com 29 MB de folga, **nenhuma operação de reescrita cabe**, e
+o expurgo do bronze sozinho não resolve.
 
 Por isso a recomendação é uma **sequência**, e essa é a parte que vale mais que
 qualquer um dos achados isolados:
@@ -149,17 +163,44 @@ qualquer um dos achados isolados:
 Migration trivial, reversível, sem tocar em dado. Folga vai a **~37 MB**.
 
 ```sql
+-- Medido em 01/09/2026, contra `pg_stat_user_indexes`, numa janela de 63 dias
+-- (estatisticas do banco resetadas em 30/06/2026). Os numeros abaixo sao a
+-- decisao inteira: quem for recriar um destes daqui a seis meses precisa saber
+-- que o drop teve medida, e nao palpite.
+
+-- 17 scans em 63 dias (1 a cada 4 dias) para 1.152 kB de indice.
 DROP INDEX IF EXISTS workspace_channel_offer_history_idx;
+
+-- 97 scans em 63 dias (1,5 por dia) para 6.496 kB de indice. Alem do desuso, a
+-- PK da mesma tabela ja cobre o prefixo (workspace_id, provider, connection_id);
+-- este indice so acrescenta occurred_at DESC.
 DROP INDEX IF EXISTS workspace_marketplace_orders_period_idx;
 ```
 
+⚠️ **Aplicar só depois que a 0022 estiver aplicada** — decisão do cérebro em
+01/09/2026, pelo mesmo motivo de este DDL ainda não estar em `migrations/`: duas
+migrations não aplicadas na árvore ao mesmo tempo.
+
 ### Passo 2 — `REINDEX CONCURRENTLY`, do menor para o maior `+20 a 30 MB`
 
-Um por vez, medindo a folga entre cada um. Com 37 MB, o `fees_pkey` (34 MB)
-passa. Não é migration: é manutenção, não muda schema, mas **escreve** — precisa
-de aprovação e janela.
+Um por vez, medindo a folga **antes e depois de cada um**. Com 37 MB, o
+`fees_pkey` (34 MB) passa. Não é migration: é manutenção, não muda schema, mas
+**escreve** — aprovado pelo cérebro em 01/09/2026 com três condições:
+
+1. do menor para o maior, um por vez, com a folga medida antes e depois;
+2. 🛑 **regra de parada, escrita antes de começar:** se a folga cair abaixo do
+   tamanho do próximo índice, **para e chama o cérebro**. Não tentar o próximo
+   "porque provavelmente cabe";
+3. avisar antes de começar — é escrita em produção num banco com 6% de folga, e
+   ele quer saber a hora.
 
 ### Passo 3 — `workspace_id` para `uuid` `+20 a 28 MB`
+
+🔴 **BLOQUEADO POR ESPAÇO, não por dúvida técnica.** Decisão do cérebro em
+01/09/2026: o passo 3 não vira ADR agora. A medição está fechada e a direção está
+certa — o que falta é folga para executá-lo. **O desbloqueio é o expurgo do
+bronze**, e nada além dele. ADR que não pode ser executada vira dívida com
+aparência de plano.
 
 ⚠️ **Ainda não cabe depois do passo 2.** Mesmo com ~65 MB de folga,
 `workspace_channel_orders` pede pico de 127 MB. Duas saídas:
