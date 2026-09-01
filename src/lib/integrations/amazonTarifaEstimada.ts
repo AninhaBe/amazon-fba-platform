@@ -698,7 +698,7 @@ export async function estimarPelaTabela(
   const linhas = await dbQuery<{
     external_order_id: string; line_no: number; external_product_id: string;
     qty: number; unit_price: string | null; preco_de_tabela: string | null;
-    folha: string | null; raiz: string | null;
+    folha: string | null; raiz: string | null; preco_de_anuncio: string | null;
     tem_comissao: boolean; tem_logistica: boolean;
   }>(
     `SELECT i.external_order_id, i.line_no, i.external_product_id, i.qty, i.unit_price,
@@ -706,6 +706,17 @@ export async function estimarPelaTabela(
               AS preco_de_tabela,
             p.payload->>'categoria'     AS folha,
             p.payload->>'categoriaRaiz' AS raiz,
+            -- O PRECO DO ANUNCIO, terceira e ultima fonte de preco.
+            --
+            -- ⚠️ A tabela e chaveada por SKU apesar de a coluna se chamar
+            -- external_product_id: ela guarda CADARCO-BRANCO, nao B0GWFRV9RN.
+            -- Casar por ASIN aqui devolveria NULL em 100% das linhas, em
+            -- silencio. (Sem crase neste bloco: ele mora num template literal.)
+            (SELECT h.price FROM workspace_channel_offer_history h
+              WHERE h.workspace_id = i.workspace_id AND h.provider = i.provider
+                AND h.connection_id = i.connection_id
+                AND h.external_product_id = i.sku AND h.price IS NOT NULL
+              ORDER BY h.captured_on DESC LIMIT 1)::text AS preco_de_anuncio,
             -- ⚠️ OS DOIS SINAIS SAO SEPARADOS, e e o que preserva a ordem de
             -- preferencia POR RUBRICA. A Amazon posta em partes: 95,3% dos
             -- pedidos com tarifa real tem comissao e nenhuma logistica. Um
@@ -764,9 +775,34 @@ export async function estimarPelaTabela(
     // Amazon, e inflaria em 50% quem paga 10%.
     if (!resolvida) { semCategoria += 1; continue; }
 
+    /**
+     * TRES FONTES DE PRECO, da mais forte para a mais fraca:
+     *  1. `unit_price` — o que a Amazon publicou para ESTE pedido;
+     *  2. `ordered_gross / qty` — o valor de tabela do proprio pedido;
+     *  3. o PRECO DO ANUNCIO vigente — o que ela pratica hoje naquele SKU.
+     *
+     * ⚠️ A terceira e uma simulacao, e por isso ela e MARCADA na procedencia
+     * (sufixo `:preco-anuncio`). E o que o concorrente faz para mostrar numero
+     * no pedido pendente, e o que a dona do produto pediu em 01/09/2026 — mas o
+     * preco do anuncio nao e o preco da venda: cupom, promocao e mudanca de
+     * preco separam os dois. Quando o pedido despachar e a Amazon publicar o
+     * valor, a real substitui.
+     *
+     * 📌 E o valor USADO fica gravado na linha (`unit_price` da estimativa),
+     * nunca uma referencia ao anuncio: o preco do anuncio muda, e a estimativa
+     * precisa continuar explicavel depois disso.
+     */
     const real = linha.unit_price == null ? null : Number(linha.unit_price);
     const tabela = linha.preco_de_tabela == null ? null : Number(linha.preco_de_tabela);
-    const preco = real != null && real > 0 ? real : (tabela != null && tabela > 0 ? tabela : null);
+    const anuncio = linha.preco_de_anuncio == null ? null : Number(linha.preco_de_anuncio);
+    const preco = real != null && real > 0 ? real
+      : (tabela != null && tabela > 0 ? tabela
+      : (anuncio != null && anuncio > 0 ? anuncio : null));
+    // Simulado = o preco veio do ANUNCIO, porque nenhuma das duas fontes do
+    // proprio pedido existia. E o que a marca `:preco-anuncio` declara na tela.
+    const simulado = preco != null && anuncio != null && preco === anuncio
+      && !(real != null && real > 0) && !(tabela != null && tabela > 0);
+    const marcaDoPreco = simulado ? ":preco-anuncio" : "";
     const comissao = linha.tem_comissao ? null : comissaoPelaTabela(resolvida.categoria, preco);
     // A LOGISTICA nao depende de categoria, so de preco (e de peso acima de
     // R$ 79) — por isso e calculada mesmo quando a comissao ja existe.
@@ -803,12 +839,12 @@ export async function estimarPelaTabela(
     if (comissao) {
       // A procedencia verificavel: qual categoria e qual percentual.
       await gravar("commission", comissao.valor,
-        `tabela:${resolvida.categoria.nome}:${(comissao.percentual * 100).toFixed(0)}%`);
+        `tabela:${resolvida.categoria.nome}:${(comissao.percentual * 100).toFixed(0)}%${marcaDoPreco}`);
     }
     if (logistica) {
       // E a da logistica diz qual REGRA da tabela produziu o numero — faixa de
       // preco, matriz, ou matriz mais quilo adicional.
-      await gravar("fulfillment", logistica.valor, `tabela-fba:${logistica.regra}`);
+      await gravar("fulfillment", logistica.valor, `tabela-fba:${logistica.regra}${marcaDoPreco}`);
     }
   }
 
