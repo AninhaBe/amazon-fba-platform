@@ -399,7 +399,19 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
     (input.refunds ?? 0) > 0
       ? `inclui ${money(input.refunds!, currency)} de ${input.refundCount ?? 0} devolução(ões), pela data da venda`
       : null;
-  const faturamentoExibido = input.faturamentoTotal ?? f?.revenue ?? null;
+  // ⚠️ O FALLBACK NÃO PODE CAIR NO APURADO (01/09/2026).
+  //
+  // Era `input.faturamentoTotal ?? f?.revenue`. Quando a Sales API falha,
+  // `faturamentoTotal` vem `null` e o `??` caía em `f.revenue` — a receita
+  // APURADA — exibida sob o rótulo "Faturamento", em silêncio. Medido no mesmo
+  // dia: apurado R$ 12,89 contra R$ 348,07 de faturamento real. Seria a
+  // definição dela voltando atrás por um caminho de exceção, que é onde ninguém
+  // olha.
+  //
+  // A ordem agora é: o número do Seller Central; se ele falhar, a base do
+  // produtor (o mesmo faturamento, calculado do banco); e só então `null` — que
+  // a tela mostra como "—" com o motivo, nunca como um número de outro universo.
+  const faturamentoExibido = input.faturamentoTotal ?? input.baseDoLucro ?? null;
   // ═══ UMA BASE SÓ: O FATURAMENTO (31/08/2026, decisão final dela) ═══════════
   //
   // *"fazer o cálculo em cima de tudo que é considerado faturamento (pendentes e
@@ -423,7 +435,17 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
   // diferentes ao longo do mesmo dia. Sem o mecanismo, não há o que religar.
   //
   // A base é o faturamento, e ela é a MESMA do card ao lado, por construção.
-  const base = input.baseDoLucro ?? faturamentoExibido;
+  // ⚠️ A BASE DA MARGEM E O NÚMERO DO CARD SÃO CAMPOS DIFERENTES, e a diferença
+  // é só no ÚLTIMO recurso.
+  //
+  // O card não pode EXIBIR o apurado sob o rótulo "Faturamento" — seria a
+  // definição dela voltando atrás por um caminho de exceção (ver
+  // `faturamentoExibido`). Já a MARGEM precisa de um denominador para existir:
+  // sem `baseDoLucro` nem faturamento, cair em `f.revenue` mantém o
+  // comportamento anterior em vez de apagar a margem de quem não informa a base
+  // nova. Numerador e denominador continuam do mesmo universo — é só o universo
+  // que fica menor.
+  const base = input.baseDoLucro ?? faturamentoExibido ?? f?.revenue ?? null;
   const margem =
     resultadoValido && lucroReal != null && base != null && base > 0
       ? (lucroReal / base) * 100

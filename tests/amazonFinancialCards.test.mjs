@@ -33,7 +33,13 @@ test("componente sem dado mostra o que falta, nunca zero", () => {
 
 test("mostra os componentes conhecidos e marca os ausentes", () => {
   const cards = amazonFinancialCards({ finance: FINANCE, cogs: 13.64, estimatedProfit: 20.04, unitsWithoutCost: 0 });
-  assert.equal(carta(cards, "revenue").value, brl(39.8));
+  // ⚠️ MUDOU EM 01/09/2026: sem `faturamentoTotal` nem `baseDoLucro`, o card de
+  // Faturamento agora mostra "—" em vez de exibir a receita APURADA sob o
+  // rotulo "Faturamento". Exibir o apurado ali era a definicao dela ("todos os
+  // pedidos, pendentes inclusive") voltando atras por um caminho de excecao —
+  // medido no mesmo dia: apurado R$ 12,89 contra R$ 348,07 de faturamento real.
+  // A pagina passa os dois campos sempre; este caso so existe nos testes.
+  assert.equal(carta(cards, "revenue").value, "—");
   assert.equal(carta(cards, "ads").value, brl(6.12));
   assert.equal(carta(cards, "profit").value, brl(20.04));
   // Com extrato conciliado, a AUSÊNCIA da tarifa é um fato: a Amazon não cobrou.
@@ -57,7 +63,12 @@ test("SKU sem custo invalida custo, lucro, margem e ROI — e diz quantos faltam
     assert.match(carta(cards, k).context, /3 unidade/);
   }
   // O que não depende de custo continua visível.
-  assert.equal(carta(cards, "revenue").value, brl(39.8));
+  //
+  // ⚠️ O Faturamento sai "—" aqui porque este caso não informa `faturamentoTotal`
+  // nem `baseDoLucro` — e desde 01/09/2026 o card não exibe a receita APURADA
+  // sob o rótulo "Faturamento". A página passa os dois campos sempre; o que este
+  // teste guarda é o CUSTO invalidando o resultado, e isso continua valendo.
+  assert.equal(carta(cards, "revenue").value, "—");
   assert.equal(carta(cards, "fees").value, brl(6.12));
 });
 
