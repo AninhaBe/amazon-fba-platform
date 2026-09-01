@@ -406,6 +406,20 @@ export async function carimbarEstimativasSubstituidas(connectionId: string): Pro
 export async function estimarPelaTarifaObservada(
   connectionId: string,
   limite = 400,
+  /**
+   * Janela em dias, contada da data do PEDIDO. Fora dela nao se estima.
+   *
+   * ⚠️ ISTO NAO E UMA OTIMIZACAO — E O ESCOPO DA FEATURE (01/09/2026). Sem
+   * janela, uma passada deste estimador escreveu 12.901 linhas e R$ 123.414 em
+   * estimativa, e 100% disso caiu em pedidos com MAIS DE 60 DIAS: historico
+   * profundo que a tela nao alcanca, que ninguem pediu, e que a politica
+   * acordada no mesmo dia excluia de proposito ("mais antigo que 60 dias fica
+   * com tarifa null, que e a verdade: nao capturado").
+   *
+   * Estimar o passado profundo nao ajuda ninguem a decidir nada — e enche o
+   * banco de numero que parece medido.
+   */
+  janelaEmDias = 60,
 ): Promise<{
   pedidos: number; linhas: number; asins: number; semObservacao: number;
   /** Linhas que o BANCO recusou — a passada segue, e quem chamou decide. */
@@ -510,6 +524,7 @@ export async function estimarPelaTarifaObservada(
         AND o.connection_id = i.connection_id AND o.external_order_id = i.external_order_id
       WHERE i.workspace_id = $1 AND i.provider = 'amazon' AND i.connection_id = $2
         AND o.status <> 'cancelled'
+        AND o.occurred_at >= now() - ($4 || ' days')::interval
         AND NOT EXISTS (
           SELECT 1 FROM workspace_channel_order_fees f
            WHERE f.workspace_id = i.workspace_id AND f.provider = i.provider
@@ -526,7 +541,7 @@ export async function estimarPelaTarifaObservada(
         )
       ORDER BY o.occurred_at DESC
       LIMIT $3`,
-    [workspaceId, connectionId, limite],
+    [workspaceId, connectionId, limite, janelaEmDias],
   );
 
   const precoDe = (linha: (typeof linhas)[number]) => {
@@ -578,6 +593,19 @@ export async function estimarPelaTarifaObservada(
 
     let gravouAlguma = false;
     for (const observada of rubricas) {
+      // ⚠️ SO COMISSAO E LOGISTICA VIRAM ESTIMATIVA POR UNIDADE.
+      //
+      // As duas sao recorrentes e proporcionais ao que foi vendido: toda venda
+      // daquele ASIN paga comissao, e toda unidade enviada paga FBA. Ja o que
+      // cai em `other` — medido no extrato da Silveiras: `ShippingChargeback` e
+      // `AmazonForAllFee` — sao eventos INCIDENTAIS. Multiplicar um estorno de
+      // frete que aconteceu uma vez pela quantidade de todo pedido daquele ASIN
+      // e extrapolacao, e produziu R$ 41.368,54 de tarifa inventada numa
+      // passada de 01/09/2026 — mais que o total de tarifa REAL do periodo.
+      //
+      // A regra da casa: nao extrapolar. A excecao da ADR-027 e para numero
+      // PUBLICADO pela fonte, nao para evento isolado repetido por nos.
+      if (observada.fee_type !== "commission" && observada.fee_type !== "fulfillment") continue;
       const valor = +(Number(observada.tarifa_por_unidade) * linha.qty).toFixed(2);
       if (!Number.isFinite(valor) || valor < 0) continue;
 
