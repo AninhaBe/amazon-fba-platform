@@ -134,3 +134,49 @@ test("a busca da propria tela de /ads passa pelo controle de voo", async () => {
   assert.ok(!/fetch\(`\/api\/ads/.test(pagina.slice(pagina.indexOf("function Ads()"))), "voltou um fetch direto dentro do componente");
   assert.match(pagina, /onIntent=\{aquecerAgora\}/, "a antecipacao saiu do filtro");
 });
+
+test("nas telas que ja tinham cache, o PONTEIRO nao antecipa — so o foco", async () => {
+  // MEDIDO em 31/08/2026: numa tela que ja guarda por periodo, antecipar por
+  // ponteiro soma uma requisicao por hover que para mais de 120 ms sobre o
+  // botao e nao vira clique (3 -> 4). Com o banco em 6% de folga isso exigiria
+  // saber quantos hovers convertem, e esse dado nao existe.
+  const filtro = await fonte("src/app/components/DashboardPeriodFilter.tsx");
+  assert.match(
+    filtro,
+    /onPointerEnter=\{intencaoPor === "foco" \? undefined : \(\) => onIntent\?\.\(`days=\$\{option\.value\}`\)\}/,
+    "o ponteiro voltou a antecipar mesmo no modo so-foco",
+  );
+  // O foco continua disparando SEMPRE: e a unica cobertura de acessibilidade
+  // que a antecipacao tem.
+  assert.match(filtro, /onFocus=\{\(\) => onIntent\?\.\(`days=\$\{option\.value\}`\)\}/);
+
+  for (const tela of ["src/app/monitor/page.tsx", "src/app/page.tsx"]) {
+    const codigo = await fonte(tela);
+    // ⚠️ ANCORADO NA TAG, nao numa frase solta: `intencaoPor="foco"` aparece
+    // tambem no comentario que explica a escolha, e casar a frase deixaria o
+    // teste verde depois de alguem apagar a prop (AGENTS.md, 31/08/2026).
+    assert.match(
+      codigo,
+      /<DashboardPeriodFilter \{\.\.\.period\.filterProps\} onIntent=\{aquecerAgora\} intencaoPor="foco" \/>/,
+      `${tela} perdeu a antecipacao por foco`,
+    );
+    assert.match(
+      codigo,
+      /usePrefetchDePeriodos\(\{[\s\S]{0,700}filaDeFundo: false,\s*\}\);/,
+      `${tela} ligou a fila de fundo, que custa tres idas por sessao`,
+    );
+  }
+});
+
+test("a busca da propria tela do monitor e da central passa pelo controle", async () => {
+  // Sem isso, o aquecimento por foco e o clique saem juntos com 120ms de
+  // diferenca: no monitor seriam SEIS requisicoes no lugar de tres, e na
+  // central duas coletas dos quatro canais.
+  const monitor = await fonte("src/app/monitor/page.tsx");
+  assert.match(monitor, /controleDoEscopo\(ESCOPO_DO_MONITOR\)\.umaVezSo\(chaveDeVoo\(ESCOPO_DO_MONITOR, periodQuery\)/);
+  assert.ok(!/fetch\(`\/api\/profit\?\$\{periodQuery\}`\)[\s\S]{0,80}setProfit/.test(monitor), "o monitor voltou a buscar direto do componente");
+
+  const central = await fonte("src/app/page.tsx");
+  assert.match(central, /controleDoEscopo\(ESCOPO_DA_CENTRAL\)\.umaVezSo\(chaveDeVoo\(ESCOPO_DA_CENTRAL, query\)/);
+  assert.ok(!/await gatherCentralChannels\(\s*\(\{ channels: parciais/.test(central), "a central voltou a coletar por fora do controle");
+});

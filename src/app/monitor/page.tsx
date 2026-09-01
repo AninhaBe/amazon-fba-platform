@@ -9,6 +9,8 @@ import { OrderProfitabilityTable } from "../components/OrderProfitabilityTable";
 import { Flow, FlowExpandable, Metric } from "../components/Metric";
 import { CustomizableMetricGrid } from "../components/CustomizableMetricGrid";
 import { DashboardPeriodFilter, useDashboardPeriod } from "../components/DashboardPeriodFilter";
+import { usePrefetchDePeriodos } from "../components/prefetchDePeriodos";
+import { chaveDeVoo, controleDoEscopo } from "../components/controleDeVoo";
 import type { ProfitabilityLine } from "@/lib/profitability";
 import { readJson } from "@/lib/readJson";
 import { brDate } from "@/lib/datetime";
@@ -116,6 +118,76 @@ function useSecaoInicial(): MonitorSection {
 // primeiro paint e a revalidação roda em segundo plano.
 const monitorCache = new Map<string, MonitorSnapshot>();
 
+const ESCOPO_DO_MONITOR = "monitor";
+
+/**
+ * As TRÊS rotas do monitor, numa ida só por período.
+ *
+ * ⚠️ PASSA PELO `controleDoEscopo`, e isso é condição: o aquecimento por foco e
+ * o clique acontecem com 120 ms de diferença, e sem a porta compartilhada as
+ * duas idas sairiam juntas — SEIS requisições no lugar de três, no arquivo cuja
+ * tela já era a que mais pesa.
+ *
+ * Os avisos são OPCIONAIS de propósito: quem aquece não tem tela esperando e
+ * não pinta nada; quem clicou pinta cada rota assim que ela chega. Uma rota que
+ * falha não derruba as outras — cada uma tem o seu próprio aviso de erro, como
+ * era antes.
+ */
+function buscarMonitor(periodQuery: string, ao?: {
+  profit?: (resumo: ProfitSummary) => void;
+  transactions?: (resumo: TransactionSummary) => void;
+  profitability?: (linhas: ProfitabilityLine[], escopo: string | undefined) => void;
+  erroFinanceiro?: (mensagem: string) => void;
+  erroTransacoes?: (mensagem: string) => void;
+  erroRentabilidade?: (mensagem: string) => void;
+}) {
+  return controleDoEscopo(ESCOPO_DO_MONITOR).umaVezSo(chaveDeVoo(ESCOPO_DO_MONITOR, periodQuery), async () => {
+    const cached = monitorCache.get(periodQuery);
+    // Write-through: cada fetch que completa atualiza o snapshot do período.
+    const snap: MonitorSnapshot = cached ? { ...cached } : {
+      finance: null, profit: null, transactions: null, profitabilityLines: [],
+    };
+    const store = () => monitorCache.set(periodQuery, { ...snap });
+    // Financeiro (repasse + custos), transações e rentabilidade por venda em
+    // paralelo; um não derruba o outro.
+    const profitReq = fetch(`/api/profit?${periodQuery}`)
+      .then((r) => readJson(r).then((data) => ({ ok: r.ok, data })))
+      .then(({ ok, data }) => {
+        if (!ok) throw new Error(data.error || "Erro ao carregar financeiro.");
+        snap.profit = data.summary;
+        snap.finance = data.summary.finance;
+        store();
+        ao?.profit?.(data.summary);
+      })
+      .catch((err) => ao?.erroFinanceiro?.(err instanceof Error ? err.message : "Erro desconhecido."));
+
+    const transactionsReq = fetch(`/api/transactions?${periodQuery}`)
+      .then((r) => readJson(r).then((data) => ({ ok: r.ok, data })))
+      .then(({ ok, data }) => {
+        if (!ok) throw new Error(data.error || "Erro ao carregar transações.");
+        snap.transactions = data.summary;
+        store();
+        ao?.transactions?.(data.summary);
+      })
+      .catch((err) => ao?.erroTransacoes?.(err instanceof Error ? err.message : "Erro desconhecido."));
+
+    const profitabilityReq = fetch(`/api/order-profitability?${periodQuery}`)
+      .then((r) => readJson(r).then((data) => ({ ok: r.ok, data })))
+      .then(({ ok, data }) => {
+        if (!ok) throw new Error(data.error || "Não foi possível calcular as vendas.");
+        const scope = data.scope?.completePeriod ? undefined : `Exibindo os ${data.scope?.processedOrders ?? data.lines.length} pedidos mais recentes. Os totais financeiros acima consideram o período completo.`;
+        snap.profitabilityLines = data.lines;
+        snap.profitabilityScope = scope;
+        store();
+        ao?.profitability?.(data.lines, scope);
+      })
+      .catch((err) => ao?.erroRentabilidade?.(err instanceof Error ? err.message : "Erro desconhecido."));
+
+    await Promise.all([profitReq, transactionsReq, profitabilityReq]);
+    return monitorCache.get(periodQuery) ?? snap;
+  });
+}
+
 function MonitorPage({ secaoInicial }: { secaoInicial: MonitorSection }) {
   const period = useDashboardPeriod();
   const [initialCached] = useState(() => monitorCache.get(period.query));
@@ -135,72 +207,58 @@ function MonitorPage({ secaoInicial }: { secaoInicial: MonitorSection }) {
     const cached = monitorCache.get(periodQuery);
     if (cached) {
       // Pinta o que já foi visto na hora; a revalidação continua em fundo.
-      setFinance(cached.finance);
-      setProfit(cached.profit);
-      setTransactions(cached.transactions);
-      setProfitabilityLines(cached.profitabilityLines);
-      setProfitabilityScope(cached.profitabilityScope);
+      pintar(cached);
       setProfitabilityLoading(false);
     } else {
       setProfitabilityLoading(true);
     }
-    // Write-through: cada fetch que completa atualiza o snapshot do período.
-    const snap: MonitorSnapshot = cached ? { ...cached } : {
-      finance: null, profit: null, transactions: null, profitabilityLines: [],
-    };
-    const store = () => monitorCache.set(periodQuery, { ...snap });
     setFinanceError(null);
     setTransactionsError(null);
     setProfitabilityError(null);
-    // Financeiro (repasse + custos), transações e rentabilidade por venda em
-    // paralelo; um não derruba o outro. Cada um tem o seu próprio estado de erro.
-    const profitReq = fetch(`/api/profit?${periodQuery}`)
-      .then((r) => readJson(r).then((data) => ({ ok: r.ok, data })))
-      .then(({ ok, data }) => {
-        if (!ok) throw new Error(data.error || "Erro ao carregar financeiro.");
-        setProfit(data.summary);
-        setFinance(data.summary.finance);
-        snap.profit = data.summary;
-        snap.finance = data.summary.finance;
-        store();
-      })
-      .catch((err) =>
-        setFinanceError(err instanceof Error ? err.message : "Erro desconhecido.")
-      );
+    await buscarMonitor(periodQuery, {
+      profit: (resumo) => { setProfit(resumo); setFinance(resumo.finance); },
+      transactions: setTransactions,
+      profitability: (linhas, escopo) => { setProfitabilityLines(linhas); setProfitabilityScope(escopo); },
+      erroFinanceiro: setFinanceError,
+      erroTransacoes: setTransactionsError,
+      erroRentabilidade: setProfitabilityError,
+    });
+    // ⚠️ PINTA DO CACHE DEPOIS DO `await`, e não é redundante: se esta chamada
+    // entrou de CARONA numa ida que já estava no ar (o aquecimento por foco),
+    // os avisos acima não foram chamados — quem os passou foi a primeira. A ida
+    // sempre grava no cache, então é dele que se pinta.
+    const pronto = monitorCache.get(periodQuery);
+    if (pronto) pintar(pronto);
+    setProfitabilityLoading(false);
+  }
 
-    const transactionsReq = fetch(`/api/transactions?${periodQuery}`)
-      .then((r) => readJson(r).then((data) => ({ ok: r.ok, data })))
-      .then(({ ok, data }) => {
-        if (!ok) throw new Error(data.error || "Erro ao carregar transações.");
-        setTransactions(data.summary);
-        snap.transactions = data.summary;
-        store();
-      })
-      .catch((err) =>
-        setTransactionsError(err instanceof Error ? err.message : "Erro desconhecido.")
-      );
-
-    const profitabilityReq = fetch(`/api/order-profitability?${periodQuery}`)
-      .then((r) => readJson(r).then((data) => ({ ok: r.ok, data })))
-      .then(({ ok, data }) => {
-        if (!ok) throw new Error(data.error || "Não foi possível calcular as vendas.");
-        const scope = data.scope?.completePeriod ? undefined : `Exibindo os ${data.scope?.processedOrders ?? data.lines.length} pedidos mais recentes. Os totais financeiros acima consideram o período completo.`;
-        setProfitabilityLines(data.lines);
-        setProfitabilityScope(scope);
-        snap.profitabilityLines = data.lines;
-        snap.profitabilityScope = scope;
-        store();
-      })
-      .catch((err) => setProfitabilityError(err instanceof Error ? err.message : "Erro desconhecido."))
-      .finally(() => setProfitabilityLoading(false));
-
-    await Promise.all([profitReq, transactionsReq, profitabilityReq]);
+  function pintar(snap: MonitorSnapshot) {
+    setFinance(snap.finance);
+    setProfit(snap.profit);
+    setTransactions(snap.transactions);
+    setProfitabilityLines(snap.profitabilityLines);
+    setProfitabilityScope(snap.profitabilityScope);
   }
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(period.query), 0);
     return () => window.clearTimeout(timer);
   }, [period.query]);
+
+  /**
+   * ANTECIPAÇÃO SÓ PELO TECLADO, como na central e pelo mesmo motivo medido em
+   * 31/08/2026: o monitor já guarda por período, então antecipar por ponteiro
+   * somaria uma requisição por hover que não vira clique (3 → 4 na sessão
+   * medida) — e cada ida daqui são TRÊS rotas. Foco não tem hover perdido.
+   */
+  const { aquecerAgora } = usePrefetchDePeriodos({
+    ativo: !profitabilityLoading,
+    atual: period.query,
+    escopo: ESCOPO_DO_MONITOR,
+    jaTem: (janela) => monitorCache.has(janela),
+    buscar: async (janela) => { await buscarMonitor(janela); },
+    filaDeFundo: false,
+  });
 
   const costsIncomplete = (profit?.unitsWithoutCost ?? 0) > 0;
   // ⚠️ 30/08/2026: o lucro chega COM anúncio dentro, e chega `null` quando o
@@ -216,7 +274,7 @@ function MonitorPage({ secaoInicial }: { secaoInicial: MonitorSection }) {
 
   return (
     <div className="monitor-page">
-      <DashboardPeriodFilter {...period.filterProps} />
+      <DashboardPeriodFilter {...period.filterProps} onIntent={aquecerAgora} intencaoPor="foco" />
 
       <PageHeader
         eyebrow="Pedidos e financeiro Amazon"

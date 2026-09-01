@@ -57,7 +57,12 @@ test("a central usa O MESMO seletor dos canais, e nao um parecido", async () => 
   // para Hoje nao tinha alcancado esta tela.
   const central = await fonte("src/app/page.tsx");
   assert.match(central, /import \{ DashboardPeriodFilter, useDashboardPeriod \} from ".\/components\/DashboardPeriodFilter"/);
-  assert.match(central, /<DashboardPeriodFilter \{\.\.\.period\.filterProps\} \/>/, "o Personalizado vem da peca compartilhada");
+  // ⚠️ `[^>]*` de proposito: o que esta guarda garante e que a central usa a
+  // PECA COMPARTILHADA com o espalhamento de `period.filterProps`, nao que a
+  // tag seja identica para sempre. Em 31/08/2026 ela ganhou `onIntent` e
+  // `intencaoPor="foco"`, e casar a tag fechada reprovava um acrescimo que nao
+  // viola nada — teste vermelho por motivo que nao e o produto.
+  assert.match(central, /<DashboardPeriodFilter \{\.\.\.period\.filterProps\}[^>]*\/>/, "o Personalizado vem da peca compartilhada");
   assert.match(central, /useDashboardPeriod\(\)/);
 
   const coletor = await fonte("src/app/centralChannels.ts");

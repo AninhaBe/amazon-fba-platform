@@ -13,6 +13,8 @@ import { AnimatedNumber } from "./components/AnimatedNumber";
 // novo anima; recorte diferente nao. Por isso ela agora carrega a query.
 import { PageHeader, pageIcons } from "./components/PageHeader";
 import { DashboardPeriodFilter, useDashboardPeriod } from "./components/DashboardPeriodFilter";
+import { usePrefetchDePeriodos } from "./components/prefetchDePeriodos";
+import { chaveDeVoo, controleDoEscopo } from "./components/controleDeVoo";
 import { DashboardSkeleton } from "./components/LoadingState";
 import { MarketplaceIcon } from "./components/MarketplaceIcon";
 import { Metric } from "./components/Metric";
@@ -69,6 +71,35 @@ function QuickReadItem({
 // de errar mais difícil de perceber.
 const centralCache = new Map<string, { channels: ChannelSnapshot[]; series: DailyPoint[]; updatedAt: Date }>();
 
+const ESCOPO_DA_CENTRAL = "central";
+
+/**
+ * UMA ida por período, com ou sem quem esteja olhando.
+ *
+ * A central junta os quatro canais numa coleta só, então duas idas do mesmo
+ * período são quatro requisições duplicadas — o pior lugar do produto para
+ * duplicar. `umaVezSo` faz a segunda esperar a primeira em vez de repetir.
+ *
+ * `aoParcial` é opcional de propósito: quem AQUECE não pinta nada (não há tela
+ * esperando), e quem clicou pinta a cada canal que chega. Quem entra de carona
+ * numa ida que já estava no ar não recebe os parciais — e por isso quem chama
+ * pinta do cache depois do `await`, que é onde a ida sempre grava.
+ */
+function coletarCentral(
+  query: string,
+  aoParcial?: (parcial: { channels: ChannelSnapshot[]; series: DailyPoint[] }) => void,
+) {
+  return controleDoEscopo(ESCOPO_DA_CENTRAL).umaVezSo(chaveDeVoo(ESCOPO_DA_CENTRAL, query), async () => {
+    const { channels, series } = await gatherCentralChannels(
+      (parcial) => aoParcial?.(parcial),
+      query,
+    );
+    const updatedAt = new Date();
+    centralCache.set(query, { channels, series, updatedAt });
+    return { channels, series, updatedAt };
+  });
+}
+
 export default function OverviewDashboard() {
   const period = useDashboardPeriod();
   const emCache = centralCache.get(period.query);
@@ -85,6 +116,25 @@ export default function OverviewDashboard() {
   // ainda mais visível desde que os cards passaram a pintar rápido. O briefing
   // já fazia certo; era a central que não replicava.
   const [narracaoCarregando, setNarracaoCarregando] = useState(false);
+  /**
+   * ANTECIPAÇÃO SÓ PELO TECLADO nesta tela, e a razão é medida.
+   *
+   * A central já guarda por período, então antecipar por PONTEIRO somaria uma
+   * requisição por hover que não vira clique (3 → 4 na sessão medida em
+   * 31/08/2026) — e cada ida daqui são os quatro canais. Foco não tem esse
+   * problema: quem chega ao botão pelo teclado está indo ativá-lo.
+   *
+   * `filaDeFundo: false` pelo mesmo motivo: a fila custa três coletas por
+   * sessão, sempre, mesmo que a pessoa nunca troque de período.
+   */
+  const { aquecerAgora } = usePrefetchDePeriodos({
+    ativo: !loading,
+    atual: period.query,
+    escopo: ESCOPO_DA_CENTRAL,
+    jaTem: (janela) => centralCache.has(janela),
+    buscar: async (janela) => { await coletarCentral(janela); },
+    filaDeFundo: false,
+  });
 
   useEffect(() => {
     const timer = window.setTimeout(async () => {
@@ -95,7 +145,8 @@ export default function OverviewDashboard() {
         // `/api/profit` — que pagina a SP-API ao vivo. Media 8 a 10 segundos de
         // esqueleto na primeira tela que o vendedor abre (24/08/2026). Agora os
         // cards aparecem de imediato e cada número entra no lugar dele.
-        const { channels: coletados, series: merged } = await gatherCentralChannels(
+        const { channels: coletados, series: merged, updatedAt: refreshedAt } = await coletarCentral(
+          period.query,
           ({ channels: parciais, series: parcial }) => {
             // Cópia rasa: o coletor muta os mesmos objetos entre as emissões, e
             // sem isto o React não vê mudança de identidade e não redesenha.
@@ -103,10 +154,7 @@ export default function OverviewDashboard() {
             setSeries(parcial);
             setLoading(false);
           },
-          period.query
         );
-        const refreshedAt = new Date();
-        centralCache.set(period.query, { channels: coletados, series: merged, updatedAt: refreshedAt });
         setChannels(coletados);
         setSeries(merged);
         setUpdatedAt(refreshedAt);
@@ -214,7 +262,7 @@ export default function OverviewDashboard() {
       {/* O MESMO seletor dos quatro canais, não um parecido: dois seletores com
           o mesmo desenho e comportamentos diferentes divergem em três meses, e
           foi assim que nasceu o `days || "30"` que sobreviveu escondido. */}
-      <DashboardPeriodFilter {...period.filterProps} />
+      <DashboardPeriodFilter {...period.filterProps} onIntent={aquecerAgora} intencaoPor="foco" />
       {loading ? <DashboardSkeleton label="Consolidando seus canais" chart={false} rows={2} /> : channels.length === 0 ? (
         <section className="central-empty"><span>NEXO</span><div><p className="section-kicker">Primeira conexão</p><h2>Monte sua central de vendas</h2><p>Conecte Amazon, Mercado Livre, Shopee ou TikTok Shop para começar a consolidar faturamento e pedidos.</p></div><Link href="/integracoes">Conectar um canal <b aria-hidden="true">→</b></Link></section>
       ) : <div className="dashboard-sections channel-dashboard-sections">

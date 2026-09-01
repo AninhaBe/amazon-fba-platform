@@ -42,9 +42,16 @@ test("o coletor emite resultado parcial a cada canal", () => {
 
 test("a tela consome o parcial e sai do estado de carregando", () => {
   const s = fonte("src/app/page.tsx");
-  assert.match(s, /gatherCentralChannels\(\s*\(\{ channels: parciais/, "a página não passa o callback");
+  // ⚠️ O CAMINHO GANHOU UM DEGRAU em 31/08/2026: a coleta passou a sair por
+  // `coletarCentral`, que a envolve no controle de voo para o aquecimento por
+  // foco nao duplicar os quatro canais. O que esta guarda garante continua o
+  // mesmo — a tela recebe o PARCIAL e sai do carregando —, entao ela cobre os
+  // dois degraus em vez de casar a chamada antiga.
+  assert.match(s, /gatherCentralChannels\(\s*\(parcial\) => aoParcial\?\.\(parcial\)/, "coletarCentral não repassa o parcial");
+  assert.match(s, /await coletarCentral\(\s*period\.query,\s*\(\{ channels: parciais/, "a página não passa o callback");
   // Sem cópia rasa o React não redesenha: o coletor muta os mesmos objetos.
   assert.match(s, /parciais\.map\(\(canal\) => \(\{ \.\.\.canal \}\)\)/);
+  assert.match(s, /setLoading\(false\);/);
 });
 
 test("lucro que falhou nao vira lucro zero", () => {

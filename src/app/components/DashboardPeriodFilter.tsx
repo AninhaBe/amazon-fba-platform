@@ -117,7 +117,7 @@ export function useDashboardPeriod(initialQuery = "", onQueryChange?: (query: st
   };
 }
 
-export function DashboardPeriodFilter({ selected, from, to, error, onPreset, onCustom, onFrom, onTo, onApply, onIntent, meta }: {
+export function DashboardPeriodFilter({ selected, from, to, error, onPreset, onCustom, onFrom, onTo, onApply, onIntent, intencaoPor = "ponteiro-e-foco", meta }: {
   selected: DashboardPeriodOption;
   from: string;
   to: string;
@@ -142,6 +142,35 @@ export function DashboardPeriodFilter({ selected, from, to, error, onPreset, onC
    * Opcional de propósito: tela que não passa nada continua exatamente igual.
    */
   onIntent?: (query: string) => void;
+  /**
+   * QUEM DISPARA A INTENÇÃO. `"ponteiro-e-foco"` (padrão) mantém as telas que
+   * já tinham; `"foco"` liga só o teclado.
+   *
+   * ⚠️ A DIFERENÇA É DE CUSTO, e ela foi MEDIDA em 31/08/2026 — não é
+   * preferência de desenho:
+   *
+   * | tela | requisições antes → depois |
+   * |---|---|
+   * | sem cache por período (era o caso de `/ads`) | 4 → 4, não sobe |
+   * | com cache por período (`/monitor`, central, módulos) | 3 → **4** |
+   *
+   * Numa tela que já guarda o período, a antecipação por PONTEIRO não tem o que
+   * compensar: ela soma exatamente uma requisição por vez que o ponteiro PARA
+   * mais de 120 ms sobre um botão e depois não clica. Com o banco em 6% de
+   * folga, aceitar isso exigiria saber quantos hovers viram clique — e esse
+   * dado não existe. Chutar seria dado inventado, a mesma proibição que vale
+   * para número na tela.
+   *
+   * O FOCO não tem esse problema: quem chega num botão pelo teclado está
+   * navegando até ele para ativá-lo. Custa zero requisição a mais e é a única
+   * cobertura de acessibilidade que a antecipação tem.
+   *
+   * 📌 REABERTURA CONDICIONADA (decidida em 31/08/2026, não esquecida): ligar o
+   * ponteiro nas telas com cache volta à mesa **quando existir telemetria de
+   * hover** que diga a taxa de conversão. Antes disso, não — e quem ligar sem o
+   * número está trocando uma medição por um palpite.
+   */
+  intencaoPor?: "ponteiro-e-foco" | "foco";
   meta?: ReactNode;
 }) {
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
@@ -171,7 +200,7 @@ export function DashboardPeriodFilter({ selected, from, to, error, onPreset, onC
           aria-pressed={selected === option.value}
           className={selected === option.value ? "is-active" : ""}
           onClick={() => onPreset(option.value)}
-          onPointerEnter={() => onIntent?.(`days=${option.value}`)}
+          onPointerEnter={intencaoPor === "foco" ? undefined : () => onIntent?.(`days=${option.value}`)}
           onFocus={() => onIntent?.(`days=${option.value}`)}
         >
           {option.label}
