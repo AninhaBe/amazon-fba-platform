@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef } from "react";
 
-import { chaveDeVoo, criaControleDeVoo } from "./controleDeVoo";
+import { chaveDeVoo, controleDoEscopo } from "./controleDeVoo";
 
 /**
  * Aquece os períodos padrão em segundo plano, para a PRIMEIRA troca já ser
@@ -46,7 +46,7 @@ export const PERIODOS_PADRAO = ["days=today", "days=7", "days=15", "days=30"] as
  */
 const ESPERA_DA_INTENCAO_MS = 120;
 
-export function usePrefetchDePeriodos({ ativo, atual, escopo, jaTem, buscar }: {
+export function usePrefetchDePeriodos({ ativo, atual, escopo, jaTem, buscar, filaDeFundo = true }: {
   /** `false` enquanto a tela não pintou, não há conexão, ou o sync inicial roda. */
   ativo: boolean;
   /** Período que a pessoa está vendo — não se aquece o que já está na tela. */
@@ -55,6 +55,16 @@ export function usePrefetchDePeriodos({ ativo, atual, escopo, jaTem, buscar }: {
   escopo: string;
   jaTem: (periodo: string) => boolean;
   buscar: (periodo: string, signal: AbortSignal) => Promise<void>;
+  /**
+   * Aquecer as quatro janelas em segundo plano.
+   *
+   * ⚠️ `false` nas telas que ganharam só a ANTECIPAÇÃO (31/08/2026). A fila de
+   * fundo custa três requisições por sessão, sempre — e a condição do cérebro
+   * ao aprovar o acréscimo foi que o número de requisições NÃO subisse. A
+   * antecipação sozinha só busca o que a pessoa está prestes a pedir, então ela
+   * troca uma requisição de lugar no tempo em vez de somar três.
+   */
+  filaDeFundo?: boolean;
 }) {
   // Um aquecimento por escopo por sessão. Sem isto, cada revalidação dispararia
   // a fila de novo.
@@ -64,8 +74,10 @@ export function usePrefetchDePeriodos({ ativo, atual, escopo, jaTem, buscar }: {
   // fundo não fazia nem uma coisa nem outra. Passar o mouse sobre a janela que a
   // fila já estava buscando emitia uma SEGUNDA requisição simultânea da mesma
   // janela — duas conexões do mesmo pool que este arquivo existe para poupar.
-  // Agora as duas bocas passam pelo mesmo `tentar`, e a invariante é código.
-  const voo = useRef(criaControleDeVoo());
+  //
+  // O controle vive POR ESCOPO, fora do componente, porque a terceira boca é a
+  // própria tela: a busca do clique precisa passar pela mesma porta, senão o
+  // defeito volta pelo lado de fora do hook.
   const intencao = useRef<{ timer: number; chave: string } | null>(null);
   // O que a intenção precisa saber quando o temporizador dispara, 120ms depois.
   // Atualizado por efeito, não no render: `react-hooks/refs` proíbe escrever em
@@ -75,11 +87,12 @@ export function usePrefetchDePeriodos({ ativo, atual, escopo, jaTem, buscar }: {
   useEffect(() => { contexto.current = { ativo, atual, escopo, jaTem, buscar }; });
 
   useEffect(() => {
-    if (!ativo || !escopo || feitos.current.has(escopo)) return;
+    if (!filaDeFundo || !ativo || !escopo || feitos.current.has(escopo)) return;
     feitos.current.add(escopo);
 
     const controller = new AbortController();
     let cancelado = false;
+    const voo = controleDoEscopo(escopo);
 
     const aquecer = async () => {
       for (const periodo of PERIODOS_PADRAO) {
@@ -89,18 +102,16 @@ export function usePrefetchDePeriodos({ ativo, atual, escopo, jaTem, buscar }: {
         // fila não emite a segunda. Sem este `tentar`, as duas bocas pediam a
         // mesma coisa ao mesmo tempo.
         const chave = chaveDeVoo(escopo, periodo);
-        if (!voo.current.tentar(chave)) continue;
+        // Já no ar (pelo hover ou pela própria tela): aquecer não espera nem
+        // duplica — passa para a próxima janela.
+        if (voo.noAr(chave)) continue;
         try {
           // `await` dentro do laço é DE PROPÓSITO: uma por vez.
-          await buscar(periodo, controller.signal);
+          await voo.umaVezSo(chave, () => buscar(periodo, controller.signal));
         } catch {
           // Aquecer é oportunista: uma falha aqui não vira erro de tela, porque
           // o clique na aba faz a busca de verdade e trata o erro lá.
           return;
-        } finally {
-          // Libera com ou sem sucesso: janela que falhou tem de poder ser
-          // tentada de novo pelo clique.
-          voo.current.concluir(chave);
         }
       }
     };
@@ -117,7 +128,7 @@ export function usePrefetchDePeriodos({ ativo, atual, escopo, jaTem, buscar }: {
       }
       window.clearTimeout(agendar as number);
     };
-  }, [ativo, atual, escopo, jaTem, buscar]);
+  }, [ativo, atual, escopo, jaTem, buscar, filaDeFundo]);
 
   // ⚠️ ADITIVO: a fila de fundo acima continua idêntica. Isto só ANTECIPA a
   // janela que a pessoa está prestes a pedir; janela já aquecida não é buscada
@@ -132,14 +143,14 @@ export function usePrefetchDePeriodos({ ativo, atual, escopo, jaTem, buscar }: {
       if (!atualCtx.ativo || !atualCtx.escopo) return;
       if (periodo === atualCtx.atual || atualCtx.jaTem(periodo)) return;
       const chave = chaveDeVoo(atualCtx.escopo, periodo);
-      if (!voo.current.tentar(chave)) return;
+      if (controleDoEscopo(atualCtx.escopo).noAr(chave)) return;
       const controller = new AbortController();
-      void atualCtx.buscar(periodo, controller.signal)
+      void controleDoEscopo(atualCtx.escopo)
+        .umaVezSo(chave, () => atualCtx.buscar(periodo, controller.signal))
         .catch(() => {
           // Antecipar é oportunista: falha aqui não vira erro de tela, porque o
           // clique faz a busca de verdade e trata o erro lá.
-        })
-        .finally(() => { voo.current.concluir(chave); });
+        });
     }, ESPERA_DA_INTENCAO_MS);
     intencao.current = { timer, chave: periodo };
   }, []);

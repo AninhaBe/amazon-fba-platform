@@ -10,6 +10,8 @@ import { MarketplaceIcon } from "../components/MarketplaceIcon";
 import { EmptyState } from "../components/EmptyState";
 import { InlineLoading } from "../components/LoadingState";
 import { IntegrationDashboardFrame } from "../components/IntegrationDashboardFrame";
+import { usePrefetchDePeriodos } from "../components/prefetchDePeriodos";
+import { chaveDeVoo, controleDoEscopo } from "../components/controleDeVoo";
 import { periodoNaUrl } from "../components/periodoNaUrl";
 import { margemPosAds, margemPosAdsDoCanal, type ProdutoAnunciado } from "@/lib/margemPosAds";
 import { avaliarAnuncio } from "@/lib/anuncioContraMargem";
@@ -33,6 +35,41 @@ import type { AdsMultiCanal, CanalDeAdsResumo, CampanhaDeAds, CanalDeAds } from 
  *    O que só nós fazemos é cruzar o anúncio com o CUSTO e a TARIFA reais — a
  *    coluna "Sobrou".
  */
+
+/**
+ * O QUE JA FOI LIDO, POR PERIODO — e a UNICA porta de saida para /api/ads.
+ *
+ * ⚠️ Escopo de modulo, como nos outros canais: sobrevive a navegacao, entao
+ * voltar para a aba nao repete a ida. E, principalmente, e o que permite a
+ * ANTECIPACAO existir: sem lugar para guardar, aquecer nao teria efeito nenhum.
+ *
+ * ⚠️ E o que a tela guarda e o PAYLOAD CRU, nao um recorte montado. Segunda
+ * copia derivada e como o dado de um periodo acaba sob o rotulo de outro.
+ */
+const adsPorPeriodo = new Map<string, AdsMultiCanal>();
+
+const ESCOPO_DE_ADS = "ads";
+
+/**
+ * Uma ida por periodo, mesmo com tres bocas pedindo.
+ *
+ * ⚠️ PASSA PELO MESMO `controleDoEscopo` DO HOOK, e isso e condicao, nao zelo:
+ * o hover antecipa e o clique busca, e as duas coisas acontecem com 120ms de
+ * diferenca. Sem a porta compartilhada, ligar a antecipacao nesta tela
+ * recriaria exatamente a duplicacao corrigida em 31/08/2026 — dessa vez pelo
+ * lado de fora do hook, onde o teste do hook nao alcanca.
+ */
+function buscarAds(query: string, signal?: AbortSignal): Promise<AdsMultiCanal> {
+  const guardado = adsPorPeriodo.get(query);
+  if (guardado) return Promise.resolve(guardado);
+  return controleDoEscopo(ESCOPO_DE_ADS).umaVezSo(chaveDeVoo(ESCOPO_DE_ADS, query), async () => {
+    const resposta = await fetch(`/api/ads?${query}`, { cache: "no-store", signal });
+    const corpo = await resposta.json();
+    if (!resposta.ok) throw new Error(corpo.error || "Não foi possível ler os anúncios.");
+    adsPorPeriodo.set(query, corpo as AdsMultiCanal);
+    return corpo as AdsMultiCanal;
+  });
+}
 
 const NOME_DO_CANAL: Record<string, string> = {
   amazon: "Amazon",
@@ -336,12 +373,8 @@ function Ads() {
   useEffect(() => {
     let cancelado = false;
     const query = period.query;
-    fetch(`/api/ads?${query}`, { cache: "no-store" })
-      .then(async (resposta) => {
-        const corpo = await resposta.json();
-        if (!resposta.ok) throw new Error(corpo.error || "Não foi possível ler os anúncios.");
-        if (!cancelado) setResultado({ query, dados: corpo, erro: null });
-      })
+    buscarAds(query)
+      .then((corpo) => { if (!cancelado) setResultado({ query, dados: corpo, erro: null }); })
       .catch((motivo) => {
         if (!cancelado) setResultado({ query, dados: null, erro: motivo instanceof Error ? motivo.message : "Falha ao carregar." });
       });
@@ -349,6 +382,25 @@ function Ads() {
   }, [period.query]);
 
   const carregando = resultado?.query !== period.query;
+  /**
+   * ANTECIPA a janela que a pessoa esta prestes a pedir (ponteiro em cima ou
+   * foco pelo teclado). Sem isto, o clique paga a ida inteira TODA VEZ — nesta
+   * tela nao havia cache nenhum, entao ate voltar para um periodo ja visto
+   * custava outra requisicao.
+   *
+   * ⚠️ `filaDeFundo: false` de proposito. Aquecer as quatro janelas custaria
+   * tres requisicoes por sessao, sempre; a antecipacao so busca o que ela esta
+   * prestes a pedir. A condicao para este acrescimo foi que o numero de
+   * requisicoes NAO subisse, e o cache acima ainda o derruba.
+   */
+  const { aquecerAgora } = usePrefetchDePeriodos({
+    ativo: !carregando,
+    atual: period.query,
+    escopo: ESCOPO_DE_ADS,
+    jaTem: (janela) => adsPorPeriodo.has(janela),
+    buscar: async (janela, signal) => { await buscarAds(janela, signal); },
+    filaDeFundo: false,
+  });
   const dados = resultado?.dados ?? null;
   const erro = resultado?.erro ?? null;
   const canais = dados?.canais ?? [];
@@ -374,7 +426,7 @@ function Ads() {
      */
     <IntegrationDashboardFrame
       className="channel-dashboard"
-      period={<DashboardPeriodFilter {...period.filterProps} />}
+      period={<DashboardPeriodFilter {...period.filterProps} onIntent={aquecerAgora} />}
       header={<PageHeader
         eyebrow="Todos os canais"
         title="Ads"
