@@ -54,6 +54,21 @@ SUPABASE_KEY="$(read_env NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY)"
 # NEXT_PUBLIC entra no bundle NO BUILD — esquecer o build-arg aqui foi o que já
 # quebrou o login uma vez; por isso toda env nova do bundle passa por este script.
 CRISP_ID="$(read_env NEXT_PUBLIC_CRISP_WEBSITE_ID)"
+
+# O COMMIT QUE ESTA SUBINDO — e ele estava FALTANDO ate 01/09/2026.
+#
+# O Dockerfile ja declarava `ARG DEPLOYMENT_VERSION` com o comentario dizendo
+# "passar o SHA do commit", e este script NUNCA passava. Duas consequencias, as
+# duas silenciosas: a deteccao de version skew do Next (que recarrega a aba de
+# quem esta com o produto aberto quando sai versao nova) nunca teve o carimbo, e
+# `/api/health` nao tinha como dizer que commit esta no ar.
+#
+# Achado ao conferir se a v222 continha um commit especifico: o campo respondia
+# com FLY_MACHINE_VERSION, que e identificador do Fly e nao do repositorio.
+COMMIT="$(git rev-parse --short=12 HEAD 2>/dev/null || echo desconhecido)"
+if [ "$COMMIT" = "desconhecido" ]; then
+  echo "AVISO: sem git aqui — a imagem sobe sem carimbo de commit."
+fi
 [ -n "$SUPABASE_URL" ] || { echo "ERRO: NEXT_PUBLIC_SUPABASE_URL vazia em $ENV_FILE"; exit 1; }
 [ -n "$SUPABASE_KEY" ] || { echo "ERRO: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY vazia em $ENV_FILE"; exit 1; }
 echo "ok: URL (${#SUPABASE_URL} chars) e KEY (${#SUPABASE_KEY} chars) lidas de $ENV_FILE"
@@ -117,7 +132,8 @@ set +e
 fly deploy "$MODO" "${APP_ARGS[@]:-}" \
   --build-arg NEXT_PUBLIC_SUPABASE_URL="$SUPABASE_URL" \
   --build-arg NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$SUPABASE_KEY" \
-  --build-arg NEXT_PUBLIC_CRISP_WEBSITE_ID="$CRISP_ID"
+  --build-arg NEXT_PUBLIC_CRISP_WEBSITE_ID="$CRISP_ID" \
+  --build-arg DEPLOYMENT_VERSION="$COMMIT"
 SAIDA_DEPLOY=$?
 set -e
 

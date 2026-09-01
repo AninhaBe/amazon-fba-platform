@@ -48,7 +48,12 @@ const TIMEOUT_MS = 3_000;
  * Só o hash CURTO: `/api/health` é rota pública, e mais que isso é superfície
  * sem ganho.
  */
-const COMMIT = (process.env.FLY_MACHINE_VERSION || process.env.COMMIT_SHA || "desconhecido").slice(0, 12);
+// ⚠️ `DEPLOYMENT_VERSION` PRIMEIRO, e a ordem importa: a primeira versão disto
+// lia `FLY_MACHINE_VERSION` antes, e o campo saiu em produção mostrando
+// "01M1F1S15ZKZ" — identificador de máquina do Fly, que NÃO responde "qual
+// commit está no ar". Um campo que parece responder e não responde é pior que
+// campo nenhum, porque quem lê para de perguntar.
+const COMMIT = (process.env.DEPLOYMENT_VERSION || "desconhecido").slice(0, 12);
 
 export async function GET() {
   if (!hasDb()) {
