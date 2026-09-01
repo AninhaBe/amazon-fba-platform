@@ -138,18 +138,12 @@ test("sinal NAO mora dentro do value de um Flow", async () => {
     }
     return false;
   };
-  // ⚠️ A AMAZON E A UNICA QUE AINDA POE O SINAL DENTRO DO `value` (do Flow de
-  // Margem, `amazon/page.tsx`). Achado de 01/09/2026, DEPOIS de o TikTok ser
-  // alinhado: a ordem partia de "os outros tres ja estao certos" e isso era
-  // falso — os outros tres sao ML, Shopee e o modulo da Shopee. Mover peca da
-  // tela dela nao entrou em nenhuma aprovacao, entao a excecao fica NOMEADA
-  // aqui em vez de a guarda ser afrouxada em silencio.
-  //
-  // A excecao SE LIMPA SOZINHA: a assercao logo abaixo exige que a Amazon
-  // continue nesse estado. No dia em que alguem mover o sinal para um bloco
-  // proprio, este teste fica vermelho pedindo para APAGAR a excecao — nunca o
-  // contrario. Excecao que sobrevive ao defeito e o jeito de a guarda morrer.
-  const PENDENTE = ["amazon/page.tsx"];
+  // ⚠️ A AMAZON FOI A ULTIMA A SAIR DESSA FORMA (01/09/2026) e por um tempo
+  // ficou aqui como excecao NOMEADA, porque mover peca da tela dela nao estava
+  // aprovado. A excecao se limpou sozinha: ao mover, o teste ficou vermelho
+  // dizendo "APAGUE a entrada de PENDENTE" — nunca o contrario. Fica o registro
+  // de que a lista existiu e de como ela morreu, porque excecao que sobrevive
+  // ao conserto e o jeito de a guarda morrer no lugar do defeito.
   const dentroDoValue = [];
   for (const arquivo of await arquivosDeTela()) {
     const codigo = semComentarios(await readFile(arquivo, "utf8"));
@@ -159,12 +153,5 @@ test("sinal NAO mora dentro do value de um Flow", async () => {
       de = codigo.indexOf("<SinaisDoResultado", de + 1);
     }
   }
-  const novos = dentroDoValue.filter((n) => !PENDENTE.includes(n));
-  assert.deepEqual(novos, [], `sinal dentro do value de um Flow em: ${novos.join(", ")}`);
-  for (const pendente of PENDENTE) {
-    assert.ok(
-      dentroDoValue.includes(pendente),
-      `${pendente} ja nao poe o sinal dentro do value — APAGUE a entrada de PENDENTE`,
-    );
-  }
+  assert.deepEqual(dentroDoValue, [], `sinal dentro do value de um Flow em: ${dentroDoValue.join(", ")}`);
 });

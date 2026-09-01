@@ -1256,28 +1256,32 @@ function Dashboard() {
               {!loading && lucroComAnuncio != null && (profit?.finance.revenue ?? 0) > 0 && (
                 <Flow
                   label="Margem"
-                  value={<>
-                    {`${((lucroComAnuncio / (profit?.finance.revenue || 1)) * 100).toFixed(1).replace(".", ",")}%`}
-                    {/* ⚠️ CORTE 2 DA AUDITORIA (01/09/2026): CONEXAO CAIDA CALA OS SINAIS.
-
-                        Sem dado, "3 SKUs sem custo cadastrado" nao e o problema
-                        dela: cadastrar o custo nao traz o numero de volta,
-                        reconectar traz. Os dois lado a lado pedem duas acoes e
-                        so uma resolve — e e assim que a pessoa escolhe a errada.
-
-                        A Amazon e o ML sao os unicos canais onde isto importa:
-                        na Shopee e no TikTok a conexao caida e TAKEOVER, ela
-                        substitui a tela e nao ha o que empilhar.
-
-                        Nada some do produto: os sinais voltam inteiros quando a
-                        conexao volta, porque a condicao e o ESTADO da conexao. */}
-                    {!sinaisSilenciadosPorAlarme(Boolean(brokenConnection)) && sinais.length > 0 && <SinaisDoResultado sinais={sinais} />}
-                  </>}
+                  value={`${((lucroComAnuncio / (profit?.finance.revenue || 1)) * 100).toFixed(1).replace(".", ",")}%`}
                   accent
                   tone={marginMetricTone((lucroComAnuncio / (profit?.finance.revenue || 1)) * 100)}
                 />
               )}
         </FinancialSummaryPanel>
+        {/* ⚠️ OS SINAIS SAIRAM DE DENTRO DO `value` DO FLOW DE MARGEM (01/09/2026).
+            Eram o ultimo canal nessa forma: ML, Shopee, o modulo da Shopee e o
+            TikTok ja os traziam em bloco proprio. O sinal e do RESULTADO, nao de
+            um numero — dentro do `value` ele vira parte do dado. E a Amazon e a
+            tela mais olhada, entao e a que mais serve de modelo para copia: era
+            daqui que a forma errada ia se espalhar.
+
+            ⚠️ E ELES DEIXARAM DE DEPENDER DO RAMO DA MARGEM. Dentro do `value`
+            a condicao era `lucroComAnuncio != null && revenue > 0` — ou seja,
+            "3 SKUs sem custo cadastrado" so aparecia quando o lucro JA fechava.
+            A pendencia ficava escondida exatamente quando ela e a causa do
+            numero que falta. Acoplamento acidental do lugar, nao decisao.
+
+            CORTE 2 DA AUDITORIA: conexao caida cala os sinais. Sem dado,
+            "3 SKUs sem custo cadastrado" nao e o problema dela — cadastrar o
+            custo nao traz o numero de volta, reconectar traz. Os dois lado a
+            lado pedem duas acoes e so uma resolve. Nada some do produto: os
+            sinais voltam inteiros quando a conexao volta, porque a condicao e o
+            ESTADO da conexao. */}
+        {!loading && !sinaisSilenciadosPorAlarme(Boolean(brokenConnection)) && sinais.length > 0 && <SinaisDoResultado sinais={sinais} />}
       </section>
 
       {/* O ranking ocupa a mesma posição em todos os canais: depois da leitura
