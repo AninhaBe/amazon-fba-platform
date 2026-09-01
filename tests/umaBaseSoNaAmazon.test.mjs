@@ -226,7 +226,15 @@ test("a leitura da Amazon NAO reproduz a regra de substituicao — quem decide e
   // formas de comentario saem antes da assercao.
   const codigo = fonte
     .split("\n")
-    .map((linha) => linha.replace(/\s*--.*$/, "").replace(/\s*\/\/.*$/, ""))
+    // ⚠️ O CARRIAGE RETURN SAI ANTES, e nao e detalhe (01/09/2026). Em JS o
+    // ponto NAO casa carriage return — ele e terminador de linha —, entao num
+    // arquivo salvo com CRLF a linha termina em CR e o removedor de comentario
+    // nao casa NADA: ele vira no-op e a guarda acusa o proprio comentario que
+    // documenta a correcao que ela existe para proteger. Foi o que aconteceu
+    // aqui — vermelho por fim de linha, sem o produto ter mudado. Vermelho por
+    // motivo que nao e o produto ensina a ignorar vermelho (AGENTS.md), entao o
+    // consertado foi a FRAGILIDADE, nao a assercao.
+    .map((linha) => linha.replace(/\r$/, "").replace(/\s*--.*$/, "").replace(/\s*\/\/.*$/, ""))
     .filter((linha) => !linha.trim().startsWith("*"))
     .join("\n");
   // ⚠️ A LISTA NEGRA MORREU. Blacklist e modo de falha invertido: fee_type novo

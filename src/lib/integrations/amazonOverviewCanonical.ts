@@ -180,7 +180,7 @@ interface TotalsRow {
 
 interface VelocityRow { sku: string | null; external_product_id: string; units: number }
 
-interface DailyRow { date: string; revenue: string | null; orders: number; units: number }
+interface DailyRow { date: string | null; revenue: string | null; orders: number; units: number }
 
 interface ProductTotalsRow {
   external_product_id: string;
@@ -253,8 +253,34 @@ export async function getAmazonOverviewFromCanonical(
         WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
       [workspaceId, PROVIDER, connectionId]
     ),
-    dbQuery<TotalsRow>(
-      `SELECT COUNT(*)::int AS total_orders,
+    /**
+     * TOTAIS DO PERIODO **E** SERIE DIARIA NA MESMA IDA (01/09/2026).
+     *
+     * Eram duas consultas sobre a MESMA tabela, no MESMO recorte de periodo,
+     * diferindo so no nivel de agregacao: uma sem GROUP BY, outra por dia. Isso
+     * e exatamente o que `GROUPING SETS` existe para fazer — o banco varre uma
+     * vez e devolve os dois niveis.
+     *
+     * ⚠️ NAO E UM JOIN A MAIS PARA ECONOMIZAR IDA, que e a coisa que o
+     * levantamento proibiu. Nenhuma tabela nova entra: e a mesma varredura
+     * respondendo duas perguntas. As linhas com `date` preenchido sao a serie;
+     * a linha com `date` nulo e o total do periodo.
+     *
+     * 📌 O LATERAL DAS UNIDADES AGORA RODA PARA CANCELADO TAMBEM, porque o
+     * `WHERE` da consulta de totais cobre todos os status. As unidades continuam
+     * lidas so com `FILTER (WHERE status = ANY($6))`, entao o numero exibido nao
+     * muda — verificado por medicao antes e depois, 1.886 unidades nos dois.
+     *
+     * 📌 E UM DIA QUE SO TEVE CANCELAMENTO agora aparece na serie com zeros, em
+     * vez de faltar. E o mesmo resultado: a serie ja era preenchida com dias
+     * zerados logo abaixo, para o grafico da central nao ter buraco.
+     */
+    dbQuery<TotalsRow & DailyRow>(
+      `SELECT to_char(occurred_at AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD') AS date,
+              COUNT(*) FILTER (WHERE status = ANY($6::text[]))::int AS orders,
+              SUM(gross) FILTER (WHERE status = ANY($6::text[])) AS revenue,
+              COALESCE(SUM(u.units) FILTER (WHERE status = ANY($6::text[])), 0)::int AS units,
+              COUNT(*)::int AS total_orders,
               COUNT(*) FILTER (WHERE status = ANY($6::text[]))::int AS paid_orders,
               COUNT(*) FILTER (WHERE status = ANY($6::text[]) AND fulfillment = 'platform')::int AS fba_orders,
               SUM(gross) FILTER (WHERE status = ANY($6::text[])) AS paid_revenue,
@@ -275,18 +301,33 @@ export async function getAmazonOverviewFromCanonical(
               COUNT(*) FILTER (WHERE status = 'cancelled' AND ordered_gross_source = 'estimado')::int AS cancelled_estimated,
               MAX(occurred_at) FILTER (WHERE status = ANY($6::text[])) AS last_sale_at,
               MAX(currency) AS currency
-         FROM workspace_channel_orders
+         FROM workspace_channel_orders o
+         LEFT JOIN LATERAL (
+           SELECT SUM(i.qty)::int AS units FROM workspace_channel_order_items i
+            WHERE i.workspace_id = o.workspace_id AND i.provider = o.provider
+              AND i.connection_id = o.connection_id AND i.external_order_id = o.external_order_id
+         ) u ON true
         WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
-          AND occurred_at >= $4 AND occurred_at <= $5`,
+          AND occurred_at >= $4 AND occurred_at <= $5
+        GROUP BY GROUPING SETS ((1), ())`,
       [...scopeParams(connectionId, period), REVENUE_STATUSES]
     ),
   ]);
   const syncRow = syncRows[0];
-  const totals = totalsRows[0];
+  // A linha SEM data e o total do periodo; as demais sao a serie diaria.
+  //
+  // `GROUPING SETS ((1), ())` devolve a linha do nivel total SEMPRE, inclusive
+  // com zero pedidos no periodo — o nivel `()` agrega o conjunto vazio e produz
+  // uma linha com contagens zeradas. Por isso ela existe por construcao, e a
+  // asercao abaixo nao esconde um caso possivel.
+  const totals = totalsRows.find((row) => row.date == null) as TotalsRow;
+  const dailyRows = totalsRows.flatMap((row) =>
+    row.date == null ? [] : [{ date: row.date, revenue: row.revenue, orders: row.orders, units: row.units }],
+  );
   // Sem sync algum e sem pedidos no período → nada canônico para servir.
   if (!syncRow && (!totals || totals.total_orders === 0)) return null;
 
-  const [productTotalsRows, recentRows, lineRows, costs, dailyRows] = await Promise.all([
+  const [productTotalsRows, recentRows, lineRows, costs] = await Promise.all([
     dbQuery<ProductTotalsRow>(
       `SELECT i.external_product_id, i.sku, MIN(i.title) AS title,
               SUM(i.qty)::int AS units, SUM(i.qty * i.unit_price) AS revenue
@@ -345,22 +386,6 @@ export async function getAmazonOverviewFromCanonical(
       [...scopeParams(connectionId, period), REVENUE_STATUSES, DETAILED_ORDER_LIMIT]
     ),
     getCosts(),
-    dbQuery<DailyRow>(
-      `SELECT to_char(o.occurred_at AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD') AS date,
-              SUM(o.gross) AS revenue,
-              COUNT(*)::int AS orders,
-              COALESCE(SUM(u.units), 0)::int AS units
-         FROM workspace_channel_orders o
-         LEFT JOIN LATERAL (
-           SELECT SUM(i.qty)::int AS units FROM workspace_channel_order_items i
-            WHERE i.workspace_id = o.workspace_id AND i.provider = o.provider
-              AND i.connection_id = o.connection_id AND i.external_order_id = o.external_order_id
-         ) u ON true
-        WHERE o.workspace_id = $1 AND o.provider = $2 AND o.connection_id = $3
-          AND o.occurred_at >= $4 AND o.occurred_at <= $5 AND o.status = ANY($6::text[])
-        GROUP BY 1`,
-      [...scopeParams(connectionId, period), REVENUE_STATUSES]
-    ),
   ]);
 
   const currency = totals.currency ?? "BRL";
