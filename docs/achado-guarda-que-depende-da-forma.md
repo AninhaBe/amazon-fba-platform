@@ -56,6 +56,43 @@ A correção é sempre a mesma e é a frase acima: ancore na **estrutura**. A li
 exata virou a **ramificação** (o rótulo sai do campo usado); o import exato virou
 o **caminho do módulo**; a lista de telas virou a **árvore**.
 
+### O padrão que sai das três
+
+> **Toda guarda que casa uma LISTA — de nomes, de imports, de arquivos, de pares
+> `chave: valor` — reprova a primeira melhora que acrescentar um item à lista.**
+
+Ancore no **módulo**, na **chamada**, na **ramificação**. Nunca na lista.
+
+## Guarda também ACHA — não só impede
+
+O quinto sítio da declaração de base (`ShopeeWorkspace.tsx:899`, um *fallback*
+constante escondido dentro de um ternário, visível só quando **não** havia
+divergência) passou por **três medições manuais** sem ser visto. Quem o achou foi
+a guarda, depois de pronta.
+
+A varredura manual escolhe o que parece relevante e se cansa; a guarda não faz
+nem uma coisa nem outra. Cada estreitamento do escopo encontrou um sítio que o
+recorte anterior não via.
+
+📌 **Isso muda quando vale escrever guarda:** não só quando o defeito é
+recorrente, mas quando **a busca manual é propensa a ponto cego** — condição
+escondida em ternário, fallback que só aparece num estado raro, arquivo com
+extensão fora do recorte (`.ts` numa varredura de `.tsx` — foi assim que o quarto
+sítio escapou).
+
+## Verde por não ter encontrado nada é o pior verde
+
+Uma guarda que varre a árvore passa **silenciosamente** se o andador quebrar: a
+lista vem vazia e todas as asserções ficam verdes sem olhar arquivo nenhum. Por
+isso cada varredura carrega um **piso**:
+
+```js
+if (achados.length < 40) throw new Error(`achou so ${achados.length} telas — o andador quebrou`);
+```
+
+Folgado de propósito: ele reprova a árvore **vazia**, não uma tela a menos. Piso
+apertado quebra por refatoração, que é o outro jeito de a guarda ser desligada.
+
 ## O corolário que decide guarda nova
 
 Antes de escrever uma guarda, pergunte: **de quantos jeitos dá para escrever este

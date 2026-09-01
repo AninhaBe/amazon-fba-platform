@@ -50,9 +50,14 @@ test("a peca sabe nomear AS DUAS razoes de a base ser menor", () => {
   const comum = { baseApurada: 748.56, faturamentoExibido: 1068.37, moeda: "BRL" };
   assert.match(nomeDaBase({ ...comum, rotuloDaBase: "o faturamento", custoNaoCadastrado: true }), / — a parte com custo cadastrado$/);
   assert.match(nomeDaBase({ ...comum, rotuloDaBase: "o faturamento", pedidosAguardando: 3 }), / — 3 pedidos aguardando confirmação$/);
-  // Pedidos aguardando ganha quando as duas existem: e a causa que se resolve
-  // sozinha com o tempo, entao dizer "espere" e mais util que "cadastre".
-  assert.match(nomeDaBase({ ...comum, rotuloDaBase: "o faturamento", pedidosAguardando: 3, custoNaoCadastrado: true }), /aguardando confirmação$/);
+  // ⚠️ CUSTO NAO CADASTRADO GANHA quando as duas existem, e este teste ja
+  // afirmou o CONTRARIO: a primeira versao dizia que "aguardando" vinha
+  // primeiro, com o argumento de que e a causa que se resolve sozinha. E o
+  // inverso — "aguardando" NAO E ACIONAVEL, e a linha da tela nao pode ser
+  // gasta explicando o que ela nao controla. Fica registrado porque o teste
+  // mudou de intencao: quem o vir vermelho amanha precisa saber que a ordem foi
+  // decidida, nao herdada.
+  assert.match(nomeDaBase({ ...comum, rotuloDaBase: "o faturamento", pedidosAguardando: 3, custoNaoCadastrado: true }), /a parte com custo cadastrado$/);
 });
 
 test("o PREFIXO diz QUAL numero esta sendo declarado", () => {

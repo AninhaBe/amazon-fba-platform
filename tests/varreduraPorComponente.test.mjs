@@ -27,6 +27,17 @@ async function arquivosDeTela() {
     }
   }
   await andar(RAIZ);
+  // ⚠️ VERDE POR NAO TER ENCONTRADO NADA E O PIOR TIPO DE VERDE, e e assim que
+  // esta guarda morreria em silencio: um erro no andador, uma pasta que muda de
+  // lugar, e as quatro assercoes passam sem olhar arquivo nenhum. O piso mora
+  // AQUI, e nao em cada teste, porque todas dependem desta lista.
+  //
+  // O numero e folgado de proposito: ele reprova a arvore VAZIA ou quase, nao
+  // uma tela a menos. Piso apertado vira teste que quebra por refatoracao,
+  // que e o outro jeito de a guarda ser desligada.
+  if (achados.length < 40) {
+    throw new Error(`a varredura achou so ${achados.length} telas — o andador quebrou, e as assercoes passariam vazias`);
+  }
   return achados;
 }
 

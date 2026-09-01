@@ -59,10 +59,23 @@ export function declaracaoDeBase(entrada: BaseDaMargem): string | null {
   if (faturamentoExibido <= baseApurada) return null;
 
   const aguardando = entrada.pedidosAguardando ?? 0;
-  const causa = aguardando > 0
-    ? ` — ${aguardando} pedido${aguardando > 1 ? "s" : ""} aguardando confirmação`
-    : entrada.custoNaoCadastrado
-      ? " — a parte com custo cadastrado"
+  /**
+   * ⚠️ CUSTO NÃO CADASTRADO GANHA DE PEDIDOS AGUARDANDO, e a ordem é decisão de
+   * produto (01/09/2026), não empate técnico.
+   *
+   * "Aguardando confirmação" **não é acionável**: não há nada que ela possa
+   * fazer, e a frase só informa. "A parte com custo cadastrado" é a única das
+   * duas que ela pode RESOLVER agora. Entre uma causa que passa sozinha e uma
+   * que depende dela, a que depende dela vem primeiro — senão a linha é gasta
+   * explicando o que ela não controla.
+   *
+   * É a doutrina da casa aplicada à ordem: a pendência diz O QUE FALTA, com
+   * número e link, em vez de se desculpar pelo número.
+   */
+  const causa = entrada.custoNaoCadastrado
+    ? " — a parte com custo cadastrado"
+    : aguardando > 0
+      ? ` — ${aguardando} pedido${aguardando > 1 ? "s" : ""} aguardando confirmação`
       : "";
   return `sobre ${dinheiro(baseApurada, moeda)} apurados de ${dinheiro(faturamentoExibido, moeda)}${causa}`;
 }
