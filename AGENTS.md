@@ -178,6 +178,49 @@ subiu — prova só que existe middleware.
 É a mesma família de **"ausência de escrita não é ausência de tentativa"**: um
 sintoma compatível com a hipótese não é prova dela.
 
+# Migration que muda ONDE o dado mora: "quem lê isso agora?" ANTES do apply
+
+Toda migration que **move** dado — tabela nova, view nova, coluna que troca de
+lugar, linhas apagadas — passa por uma pergunta antes de ser aplicada:
+
+> **Quem lê isso hoje, e esse leitor já sabe ler no lugar novo?**
+
+Se a resposta for "ainda não", o apply e a troca do leitor são **um passo só**,
+não dois — mesmo que estejam em commits diferentes, precisam entrar na mesma
+janela, com o leitor pronto antes.
+
+⚠️ **O ESTADO QUE ISSO EVITA JÁ ACONTECEU (01/09/2026, `migrations/0022`).** A
+migration criou `workspace_channel_order_fee_estimates` e apagou as 552 linhas
+de `workspace_channel_order_fees` com `fee_type = 'estimated'`. O leitor da tela
+ainda apontava para as linhas apagadas. Resultado, em produção, entre o apply e
+a correção: **as Taxas da Amazon ficaram subestimadas** — a estimativa existia no
+banco e não entrava em nenhuma conta.
+
+Ninguém errou uma decisão: a migration estava certa, o leitor estava certo para o
+mundo anterior, e o portão de migration confere *árvore limpa e plano assinado*,
+não *coerência entre schema e leitor*. **É um estado que nenhuma das duas
+revisões pega sozinha**, e por isso vira passo explícito.
+
+**Na prática, antes de autorizar o apply:**
+
+1. liste o que a migration **remove ou move** (não o que ela cria — criar é
+   aditivo e não quebra ninguém);
+2. `grep` por cada nome removido em `src/` — tabela, coluna, valor de enum. O
+   `fee_type = 'estimated'` deste caso aparecia em três lugares;
+3. para cada ocorrência, decida: **troca junto** ou **por que pode esperar**;
+4. se a troca for junto, combine a ordem na janela — normalmente
+   *apply → leitor → reprocessamento* — e diga qual é o **estado intermediário
+   visível** e quanto ele dura. No caso da 0022 era "Tarifas não postadas" no
+   pendente, que é o modo de falha correto da ADR-027, mas é visível para a
+   vendedora;
+5. e diga o que **NÃO** pode aparecer nesse intervalo. Ali era `R$ 0,00`:
+   desconhecido é ausência de linha, zero é fato da fonte.
+
+📌 O corolário, que vale além de migration: **quando o dado muda de casa, o
+silêncio do leitor antigo não é erro — ele lê o lugar certo, que ficou vazio.**
+Nada fica vermelho. Só a tela fica errada.
+
+
 # Isolamento entre inquilinos — as duas garantias que sustentam tudo
 
 O NEXO é multi-inquilino, e a pergunta da dona do produto em 31/08/2026 é o
