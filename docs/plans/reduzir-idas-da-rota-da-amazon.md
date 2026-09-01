@@ -80,7 +80,24 @@ está inflando alguma coisa — e aí o achado vale mais que a economia.
 
 **Ganho: até −2 idas**, condicionado à verificação.
 
-### D. Recentes derivados dos detalhados (#5, #6) — **risco baixo, com uma condição**
+### D. Recentes derivados dos detalhados (#5, #6) — 🔴 **REFUTADO em 01/09/2026**
+
+**Não faça.** A pré-condição escrita abaixo não passa, e o estado de hoje é a
+prova: os 10 pedidos recentes da Silveiras são **todos `pending`**, e a consulta
+do detalhado filtra `paid`/`shipped`/`delivered` (`REVENUE_STATUSES`). Derivar a
+lista de recentes do detalhado **esvaziaria a lista inteira** — 10 de 10 sumiriam
+da tela.
+
+⚠️ E há uma lição de método junto, registrada por quem mediu: a primeira medição
+usou uma lista de status **citada de memória**, com `pending` dentro, e deu
+"sumiriam 0 de 10". Lida a constante `REVENUE_STATUSES` no código — `paid`,
+`shipped`, `delivered`, sem `pending` —, o número virou **10 de 10**.
+**Constante se lê, não se lembra.**
+
+O texto original fica abaixo porque a pré-condição que ele previu foi exatamente
+a que reprovou — a análise estava certa, o candidato é que não passa.
+
+### ~~D. Recentes derivados dos detalhados (#5, #6)~~ — risco baixo, com uma condição
 
 `#6` já traz os pedidos ordenados por `occurred_at DESC` até
 `DETAILED_ORDER_LIMIT`. Os 10 mais recentes de `#5` são o prefixo disso.
@@ -112,7 +129,13 @@ de otimização.
 | C — escalares somados do diário | até −2 | médio, verificar fan-out do lateral |
 | D — recentes derivados dos detalhados | −1 | baixo, condicionado ao limite e ao status |
 
-**17 → 11 no melhor caso**, sendo **−3 sem risco nenhum**.
+**17 → 12 no melhor caso**, sendo **−3 sem risco nenhum** (D caiu).
+
+📌 **C JÁ ENTROU** (commit `0cd5c35`, pelo backend): totais do período e série
+diária numa ida só, por `GROUPING SETS`. **15 idas / 443 ms → 14 / 270 ms**, com
+todos os valores idênticos — inclusive a soma da série (32.488,61), os 1.564
+pedidos e as 1.886 unidades. É a prova pelo produtor de que o `LATERAL` não
+infla, batendo com a verificação por fora.
 
 ⚠️ **E isso ainda não basta para a barreira.** Com 11 idas, o carimbo em três
 idas por consulta daria 33 — ainda acima do que o orçamento comporta. Este
