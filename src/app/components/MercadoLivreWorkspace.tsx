@@ -33,6 +33,7 @@ import { BriefingLead } from "./BriefingLead";
 import { NexoDoDia } from "./NexoDoDia";
 import { IntegrationDashboardFrame } from "./IntegrationDashboardFrame";
 import { marginMetricTone } from "@/lib/marginTone";
+import { BASE_SEM_DIFERENCA, declaracaoDeBase } from "./baseDaMargem";
 import { comSemImposto } from "@/lib/semImposto";
 import { BaseDeData, ProgressoDaImportacao } from "./BaseDeData";
 import { EstadoDoSync } from "./EstadoDoSync";
@@ -55,7 +56,20 @@ interface Overview {
   account: { id: string; nickname: string; siteId: string; };
   period: { from: string; to: string; label: string; };
   metrics: { activeListings: number; productsWithoutCost: number; orders30d: number; paidOrders: number; revenue30d: number; approvedRevenue: number; cancelledRevenue: number; cancelledOrders: number; pendingOrders: number; pendingRevenue: number | null; lastSaleAt: string | null; currency: string; revenueCoverage: { capturedOrders: number; totalOrders: number; complete: boolean; sincronizadoAte?: string | null; historicoDesde?: string | null }; };
-  profit: { fees: number; cogs: number; taxes: number | null; taxRate: number | null; sellerShipping: number; buyerShipping: number; shippingCostsComplete: boolean; revenueProcessed: number; coverage: { processedOrders: number; paidOrders: number; complete: boolean; }; estimatedProfit: number | null; marginPct: number | null; unitsWithoutCost: number; skusWithoutCost: number; };
+  profit: { fees: number; cogs: number; taxes: number | null; taxRate: number | null; sellerShipping: number; buyerShipping: number; shippingCostsComplete: boolean; revenueProcessed: number;
+    /**
+     * A receita que REALMENTE entrou na conta de lucro e margem.
+     *
+     * ⚠️ Opcional enquanto o backend nao a expoe (01/09/2026). Ate la a tela cai
+     * em `revenueProcessed`, que e o denominador de hoje — e assim a declaracao
+     * ja diz a verdade, em vez de esperar. Quando o denominador virar o
+     * faturamento, este campo passa a vir igual a ele e a frase some sozinha,
+     * porque `declaracaoDeBase` devolve `null` quando as bases coincidem.
+     */
+    revenueDoLucro?: number | null;
+    /** Pedidos que ainda nao entraram na base — a causa da diferenca. */
+    pedidosSemApuracao?: number | null;
+    coverage: { processedOrders: number; paidOrders: number; complete: boolean; }; estimatedProfit: number | null; marginPct: number | null; unitsWithoutCost: number; skusWithoutCost: number; };
   dailySales: DailyPoint[];
   topProducts: Array<{ id: string; sku: string | null; title: string; units: number; revenue: number; cost: number; contribution: number; complete: boolean; marginPct: number | null; }>;
   stockRadar: Array<{ id: string; sku: string | null; title: string; thumbnail: string | null; availableQuantity: number; unitsSold: number; calculationDays: number; daysRemaining: number | null; status: StockStatus; }>;
@@ -355,9 +369,33 @@ function avaliarResultado(overview: Overview) {
   // proíbe, e ela só apareceria quando o Ads falhasse, que é justo quando
   // importa. Mesmo padrão do arquivo vizinho (`ShopeeWorkspace`).
   const resultIncomplete = resultParcial || overview.profit.estimatedProfit == null;
+  // ⚠️ A FRASE DIZIA "sobre o faturamento" E A CONTA NAO ERA SOBRE ELE.
+  //
+  // Achado em 01/09/2026: o denominador de lucro e margem do ML e
+  // `revenueProcessed` — o APURADO —, e o card ao lado exibe `revenue30d`, o
+  // faturamento. A tela afirmava a base errada em texto fixo, que e pior que
+  // nao declarar nada: nao declarar deixa a pessoa desconfiar, declarar errado
+  // desliga a desconfianca. Foi exatamente o defeito da Amazon em 31/08 —
+  // numeros certos de universos diferentes lado a lado —, so que aqui com uma
+  // frase confirmando o universo errado.
+  //
+  // A peca e a MESMA dos outros canais (`declaracaoDeBase`), e ela devolve
+  // `null` quando as bases coincidem: no dia em que o backend trocar o
+  // denominador para o faturamento, a frase vira "sobre o faturamento" sozinha,
+  // sem ninguem precisar lembrar de vir aqui apagar.
+  //
+  // E vai no `sub` do card, VISIVEL SEM INTERACAO — nunca no "i". Declaracao
+  // que exige hover nao declara (tem teste que reprova a ida para o tooltip).
+  const baseDoResultado = declaracaoDeBase({
+    baseApurada: overview.profit.revenueDoLucro ?? overview.profit.revenueProcessed,
+    faturamentoExibido: overview.metrics.revenue30d,
+    moeda: overview.metrics.currency,
+    pedidosAguardando: overview.profit.pedidosSemApuracao
+      ?? Math.max(0, overview.profit.coverage.paidOrders - overview.profit.coverage.processedOrders),
+  });
   const margemSub = resultParcial
     ? `falta ${faltas.join(", ")}`
-    : comSemImposto("sobre o faturamento", semAliquota);
+    : comSemImposto(baseDoResultado ?? BASE_SEM_DIFERENCA, semAliquota);
   return { semAliquota, resultParcial, resultIncomplete, margemSub };
 }
 

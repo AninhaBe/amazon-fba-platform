@@ -142,7 +142,12 @@ test("ML: a alíquota saiu da condição de bloqueio e virou rótulo", () => {
   assert.match(tela, /comSemImposto\("Margem", semAliquota\)/);
   assert.match(tela, /comSemImposto\("Margem de contribuição", semAliquota\)/);
   assert.match(tela, /comSemImposto\("após todos os custos", semAliquota\)/);
-  assert.match(tela, /comSemImposto\("sobre o faturamento", semAliquota\)/);
+  // ⚠️ ESTA LINHA EXIGIA A FRASE ERRADA ate 01/09/2026. O que ela garante e que
+  // a MARGEM leva o rotulo "sem imposto" quando nao ha aliquota — o texto da
+  // base era incidental, e era mentira: dizia "sobre o faturamento" enquanto a
+  // conta saia do apurado. Agora a base vem da peca compartilhada
+  // (`declaracaoDeBase`) e a guarda casa o envelope, nao o recheio.
+  assert.match(tela, /comSemImposto\(baseDoResultado \?\? BASE_SEM_DIFERENCA, semAliquota\)/);
 });
 
 test("ML: o que bloqueia continua sendo pedido, custo e frete do canal", () => {
