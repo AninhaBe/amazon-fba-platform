@@ -1,0 +1,33 @@
+# Bytes de arquivo versionado não podem depender do sistema operacional de quem
+# clona. Escrito em 01/09/2026, depois de um incidente concreto.
+#
+# ⚠️ O QUE ACONTECEU. O runner de migrations calcula o SHA-256 do arquivo e grava
+# esse hash em `schema_migrations`. Três migrations — 0018, 0020 e 0022 — foram
+# aplicadas a partir de uma cópia de trabalho no Windows, onde estavam com CRLF,
+# enquanto o repositório guardava as mesmas linhas com LF. Bytes diferentes,
+# hashes diferentes:
+#
+#   0022  disco (CRLF) bbf67bc8…   git (LF) 0f144ce7…   gravado em produção: bbf67bc8…
+#
+# `git status` não avisa, porque trata diferença de fim de linha como igual. O
+# resultado é que **de qualquer checkout limpo — CI, outra máquina, worktree — o
+# runner recusava aplicar qualquer migration nova**. O fluxo ficou preso a uma
+# cópia de trabalho, numa máquina. Isso é risco de continuidade, não formatação.
+#
+# Detalhes e a reconciliação: `docs/migrations.md` → "Fim de linha e hash".
+* text=auto eol=lf
+
+# Explícito para migrations: é o hash DESTES arquivos que vira registro de
+# auditoria em produção. Não deixar para a heurística.
+*.sql text eol=lf
+
+# Binários não são normalizados.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.pdf binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.xlsx binary

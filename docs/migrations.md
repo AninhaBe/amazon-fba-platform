@@ -224,3 +224,56 @@ depois.
 As migrations `0003_oauth_refresh_leases.sql` e `0004_tiktok_shop_tax_rate.sql` ficam **ratificadas quanto à permanência**: este incidente não autoriza rollback nem remoção de seus objetos. O processo histórico que as aplicou **não foi validado** e não deve ser tratado como evidência de execução segura. A ratificação é de estado desejado, não do procedimento anterior.
 
 Os testes do runner usam apenas funções puras, fakes e chaves efêmeras em memória; nenhum teste recebe `DATABASE_URL`, conecta ou muta banco.
+
+## Fim de linha e hash — o incidente de 01/09/2026
+
+**O runner faz SHA-256 do ARQUIVO DE TRABALHO, não do blob commitado.** Esse hash
+vira registro de auditoria em `schema_migrations`. E `git status` **não** avisa
+quando disco e repositório diferem só no fim de linha — o git trata isso como
+igual.
+
+Resultado medido em 01/09/2026: três migrations tinham sido aplicadas a partir de
+uma cópia de trabalho no Windows, com CRLF, enquanto o repositório guardava LF.
+
+| migration | disco (CRLF), gravado em produção | repositório (LF) |
+|---|---|---|
+| `0018_model_id_no_item_de_pedido.sql` | `eeee91cb…` | `a318ce7c…` |
+| `0020_estoque_desconhecido_e_null.sql` | `fd59ac7f…` | `c3b105b0…` |
+| `0022_previsto_e_real_convivendo.sql` | `bbf67bc8…` | `0f144ce7…` |
+
+**A consequência não era cosmética.** De qualquer checkout limpo — CI, outra
+máquina, `git worktree`, o laptop de um terceiro — o runner recalculava os hashes
+do repositório, encontrava divergência com o gravado e recusava aplicar
+**qualquer** migration nova. O fluxo estava preso a uma cópia de trabalho, numa
+máquina. Se ela se perdesse, não haveria de onde aplicar.
+
+Foi descoberto porque um `git worktree` — criado justamente para ter uma árvore
+limpa garantida — foi o primeiro checkout limpo a tentar aplicar.
+
+### O que foi feito
+
+1. **Provado primeiro que a diferença era só de fim de linha**, antes de qualquer
+   escrita: normalizando CRLF→LF a versão do disco, o hash bateu **exatamente**
+   com o do repositório nos três arquivos. Se algum tivesse divergido, o assunto
+   deixaria de ser formatação e passaria a ser "aplicamos SQL que ninguém
+   revisou" — e a reconciliação estaria proibida.
+2. **`.gitattributes`** com `* text=auto eol=lf` e `*.sql text eol=lf`.
+3. **Os 23 arquivos de `migrations/` normalizados para LF.**
+4. **`schema_migrations` reconciliada** para os hashes do repositório — escrita
+   pontual e auditada, com os seis hashes acima registrados antes e depois.
+
+### O defeito de origem, que continua lá
+
+O runner segue hashando o arquivo de trabalho. O `.gitattributes` remove a causa
+mais provável, mas não a possibilidade. **A correção de raiz é hashar o blob
+commitado** (`git show HEAD:<arquivo>`) em vez do arquivo em disco, ou comparar os
+dois e recusar quando divergirem.
+
+⚠️ **A janela entre `plan` e `apply` foi verificada e está FECHADA.** Em
+`migration-safety.mjs:50-52`, `loadMigrations` lê o arquivo **uma vez** e deriva
+`sql` e `hash` da mesma string em memória; no `migrate-cli.mjs`, o `apply`
+recarrega tudo (linha 28), reconstrói o plano (44) e o compara com o plano
+assinado (53) **antes** de executar (57) — e o SQL executado é a mesma string que
+foi hashada. Editar o `.sql` entre o `plan` e o `apply` faz o hash recalculado
+divergir e o apply é barrado. *Não exercitei isso de ponta a ponta: a única forma
+de fazê-lo neste ambiente seria arriscar um apply não intencional em produção.*
