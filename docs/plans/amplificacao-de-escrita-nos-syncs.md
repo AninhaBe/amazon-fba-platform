@@ -15,6 +15,26 @@ com **1.178.864 updates para 14 linhas vivas** e
 | `IS DISTINCT FROM` resolve? | **Não.** A hipótese de "escrita de valor idêntico" está errada aqui |
 | Aparece no perfil do pool? | **Sim** — foi ~46% das escritas na janela medida |
 
+
+## A lição de método, e ela vale além daqui
+
+> **Contador acumulado não é taxa.** `pg_stat_user_tables` conta desde o último
+> reset das estatísticas — aqui, **30/06/2026**. Ele diz o que *já aconteceu*, não
+> o que *acontece*. A diferença decide se algo é **emergência ou arqueologia**.
+
+Os 2.986.272 updates de `overview_snapshots` levaram o número a ser tratado como
+problema atual. Uma amostragem de 120 s mostrou **zero**. O mesmo instrumento, lido
+como taxa em vez de acumulado, dá a resposta certa em dois minutos.
+
+⚠️ **E a armadilha pegou duas vezes no mesmo dia.** Ao provar que as tabelas
+mortas não tinham leitor, o acumulado mostrava **248.848 `seq_scan`** em
+`overview_snapshots` — o que teria matado a proposta de remoção. Amostrado:
+**0 leituras em 120 s**. Se eu tivesse lido o acumulado como taxa nas duas
+direções, teria concluído o oposto do certo nas duas.
+
+**Na prática:** antes de chamar um número de `pg_stat_*` de problema *ou* de
+prova, amostre-o duas vezes com intervalo. Sempre.
+
 ## `overview_snapshots`: história morta, não custo
 
 O acumulado de `pg_stat_user_tables` conta desde **30/06/2026** — 63 dias. Ele diz
@@ -119,3 +139,27 @@ e isso aparece no mesmo dia.
 - **Tratar isto como problema de disco.** As duas tabelas somam 648 kB e o
   autovacuum dá conta. O custo é WAL, I/O e **slot de pool** — que é o que
   importa num projeto com 13 conexões e dois esgotamentos no histórico.
+
+## As duas tabelas mortas — prova de que não há LEITOR
+
+Escritor ausente não basta: **tabela sem escritor mas com leitor vira tela vazia
+em vez de erro**, e isso demora meses para aparecer. Provado nos quatro lugares
+onde um leitor poderia se esconder:
+
+| onde | `overview_snapshots` | `materialization_leases` |
+|---|---|---|
+| `SELECT` em `src/`, `scripts/`, `tests/` | **nenhum** | **nenhum** |
+| Views ou materialized views que as citem | **nenhuma** | **nenhuma** |
+| Chaves estrangeiras apontando para elas | **nenhuma** | **nenhuma** |
+| Leituras registradas (amostra de 120 s) | **0 `seq_scan`, 0 `idx_scan`** | **0 e 0** |
+
+As três referências que existem no código **não leem**: `shopeeRemoval.ts` e
+`trial-account.mjs` apenas as incluem em listas de `DELETE` ao remover uma conta,
+e `db.ts` as cria. Remover as tabelas exige tirá-las dessas duas listas junto.
+
+⚠️ **O argumento para remover não é o espaço.** São 584 kB — irrelevante. É que
+**tabela morta no schema é armadilha para quem chegar depois**: a próxima pessoa
+que precisar de um snapshot de visão geral vai encontrar uma tabela com nome
+perfeito, 12 linhas dentro e nenhum escritor, e vai gastar um dia entendendo por
+que ela não atualiza.
+

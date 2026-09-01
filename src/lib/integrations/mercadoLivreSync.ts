@@ -47,9 +47,37 @@ const SHIPMENT_BATCH_SIZE = 5;
  * e não trazer nada. Antes eram dois literais soltos; agora é um número só.
  *
  * O custo é baixo porque a janela é INCREMENTAL: cada passada cobre de
- * `covered_to` até agora, ou seja, ~2 minutos de pedidos.
+ * `covered_to` até agora — a janela mudou de 2 para 10 minutos em 01/09/2026,
+ * pelo motivo escrito logo abaixo.
  */
-export const FRESH_FOR_MS = 2 * 60_000;
+/**
+ * ⚠️ 2 → 10 MINUTOS em 01/09/2026, e o motivo é medição, não economia de gosto.
+ *
+ * MEDIDO: `workspace_marketplace_syncs` recebia **9.559 updates por hora em 14
+ * linhas** — 683 por linha, uma a cada 5 segundos. E 13 dessas 14 linhas estavam
+ * `complete`: não eram escritas redundantes, eram **ciclos inteiros de
+ * sincronização** recomeçando porque o dado passava de "fresco" a cada 2 minutos.
+ * Na janela amostrada, isso foi **~46% de todas as escritas do banco** — sobre 14
+ * linhas de controle, num projeto com 13 conexões de pool e dois esgotamentos
+ * registrados em 29/08 (ADR-030).
+ *
+ * ⚠️ E POR QUE AQUI ISSO NÃO CUSTA ATRASO NA TELA: **o webhook do ML já entrega**.
+ * Medido em 01/09/2026: 447 eventos na última hora, o mais recente havia 0
+ * segundos. Pesquisar de 2 em 2 minutos um canal que **empurra** mudança é pagar
+ * duas vezes pela mesma informação — o pedido novo chega pelo webhook, não por
+ * esta janela. Alinhado aos 10 minutos que Shopee e TikTok já usavam.
+ *
+ * ⚠️ O QUE ISTO PASSA A DEPENDER, E QUE NÃO É COBERTO HOJE: se o webhook parar de
+ * chegar, esta janela vira o único caminho, e o canal fica 10 minutos atrasado em
+ * vez de 2. **Não existe alarme de silêncio do webhook** (medido: `/api/health`
+ * não olha, e `metricas.ts` só conta por status). Está registrado como item
+ * próprio em `docs/plans/amplificacao-de-escrita-nos-syncs.md`.
+ *
+ * ⚠️ NÃO REPLIQUE ISTO NA AMAZON SEM DECISÃO DA DONA DO PRODUTO. Lá não há
+ * webhook equivalente, então a janela **é** o atraso percebido: ela olha "Hoje"
+ * de manhã e conta pedido.
+ */
+export const FRESH_FOR_MS = 10 * 60_000;
 const COVERAGE_TOLERANCE_MS = 15 * 60_000;
 
 interface SyncRow {
