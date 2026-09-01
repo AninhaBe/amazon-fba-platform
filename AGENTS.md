@@ -152,6 +152,16 @@ depois de alguém apagar a chamada e deixar o import.
   no mundo real. Teste sem essa frase vira o primeiro a ser afrouxado quando
   ficar vermelho por outro motivo.
 
+**Guarda esperta que erra a fronteira prova menos que guarda burra que acerta.**
+Três guardas de tela ficaram verdes com o defeito reintroduzido num mesmo dia
+(02/09/2026), cada uma por um recorte "inteligente" do fonte: cortar até o
+primeiro fechamento, contar parênteses, e uma RegExp montada em template literal
+— onde `\b` vira BACKSPACE e a expressão deixa de casar o que promete, embora o
+teste pareça certo lido em voz alta. Nenhuma caiu por leitura; as três caíram ao
+RODAR a quebra. Prefira comparação de string literal, sem recorte e sem regex
+montada — chata e verificável. É a razão material de "ver vermelho" não ser
+zelo: a forma da guarda falha em silêncio de mais jeitos do que a revisão pega.
+
 **Casar o nome de uma variável não prova de onde ela vem.** Guarda que confere
 que o cálculo usa `faturamentoDaTela` continua verde quando alguém troca a
 FONTE dessa variável uma linha acima — o nome não muda, a origem sim
