@@ -22,10 +22,28 @@ test("observada: diz a DATA do pedido de onde o numero veio", () => {
   assert.match(p.texto, /oficial entra na liquida/);
 });
 
+test("tabela: a FRACAO do banco vira PORCENTAGEM na tela — sem erro de 100x", () => {
+  // ⚠️ O DEFEITO QUE ISTO REPROVA e de UNIDADE, e erro de unidade nao fica
+  // vermelho em lugar nenhum: ele so parece um numero pequeno. O backend define
+  // `percentualDaCategoria = amount / unit_price`, entao comissao de 12,01%
+  // chega como 0.1201. Repassar direto escreveria "0,12%" na tela onde a Amazon
+  // cobra 12,01% — e a vendedora conferiria contra a tabela e concluiria que o
+  // NEXO esta errado, com razao.
+  assert.match(
+    procedenciaDaFonte({ fonte: "tabela", percentualDaCategoria: 0.1201 }).texto,
+    /12,01%/,
+    "a fracao do banco nao virou porcentagem na tela",
+  );
+  assert.ok(
+    !/0,12%/.test(procedenciaDaFonte({ fonte: "tabela", percentualDaCategoria: 0.1201 }).texto),
+    "a fracao foi repassada crua — erro de 100x",
+  );
+});
+
 test("tabela: diz o PERCENTUAL usado", () => {
   // E o que ela confere contra a tabela da Amazon. Sem o percentual, "estimado
   // pela tabela" e uma afirmacao que ninguem consegue checar.
-  const p = procedenciaDaFonte({ fonte: "tabela", percentualDaComissao: 12.01, fba: 5.65 });
+  const p = procedenciaDaFonte({ fonte: "tabela", percentualDaCategoria: 0.1201, fba: 5.65 });
   assert.equal(p.origemConhecida, true);
   assert.match(p.texto, /12,01%/);
   assert.match(p.texto, /categoria/);
@@ -43,7 +61,7 @@ test("parcela ausente NAO vira zero em nenhuma das tres", () => {
   // nenhuma logistica. Escrever "FBA R$ 0,00" afirma um fato falso.
   for (const e of [
     { fonte: "observada", diaDoPedido: "2026-08-12", comissao: 3.47, fba: null },
-    { fonte: "tabela", percentualDaComissao: 12.01, comissao: 3.47, fba: null },
+    { fonte: "tabela", percentualDaCategoria: 0.1201, comissao: 3.47, fba: null },
     { fonte: "api", comissao: 3.47, fba: null },
   ]) {
     const p = procedenciaDaFonte(e);
@@ -78,7 +96,7 @@ test("UMA marca so para as tres procedencias — a face nao ganha quatro selos",
   // dois dias depois da auditoria que tirou 9-12 marcas da tela.
   const rotulos = new Set([
     procedenciaDaFonte({ fonte: "observada", diaDoPedido: "2026-08-12" }),
-    procedenciaDaFonte({ fonte: "tabela", percentualDaComissao: 12.01 }),
+    procedenciaDaFonte({ fonte: "tabela", percentualDaCategoria: 0.1201 }),
     procedenciaDaFonte({ fonte: "api" }),
   ].map((p) => rotuloDaMarca(p.origemConhecida)));
   assert.equal(rotulos.size, 1, "a face passou a ter um selo por procedencia");

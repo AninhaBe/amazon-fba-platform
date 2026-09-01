@@ -49,14 +49,68 @@ export function procedenciaDaEstimativa(partes: { comissao?: number | null; fba?
 // vive no tooltip. Um selo por procedência seria empilhamento novo dois dias
 // depois da auditoria que tirou 9–12 marcas da tela.
 //
-// ⚠️ NÃO LIGADA AINDA: o nome do campo de procedência é do backend e ainda não
-// foi definido. Quando existir, as chamadas migram de `procedenciaDaEstimativa`
-// para `procedenciaDaFonte` num commit só e a função de cima sai. Até lá as duas
+// ⚠️ NÃO LIGADA AINDA, e o que falta é PRECISO (medido em 01/09/2026): o
+// vocabulário já foi definido pelo backend — `origemDaTarifa`, `observadaEm` em
+// `provider_fee_code` no formato `observada:2026-08-30`, e `percentualDaCategoria`
+// —, mas **nada disso chega até aqui**. A consulta que monta a marca da linha
+// (`amazonOverviewCanonical.ts`, o SELECT de `workspace_channel_order_fee_estimates`)
+// traz `external_order_id`, `line_no`, `fee_type` e `amount`, e mais nada: nem
+// `source`, nem `provider_fee_code`.
+//
+// Ligar antes disso renderizaria "origem não informada" em TODA linha, com o
+// teste verde — a família de defeito que este projeto passou 01/09/2026
+// inteiro caçando. Falta o produtor ler as duas colunas e devolver
+// `origemDaTarifa` e `observadaEm` na marca da linha.
+//
+// Quando existir, as chamadas migram de `procedenciaDaEstimativa` para
+// `procedenciaDaFonte` num commit só e a função de cima sai. Até lá as duas
 // convivem, e é ESTA que tem o contrato novo.
 
+/**
+ * AS TRÊS FONTES QUE CHEGAM À TELA — e por que `oficial` não é uma delas.
+ *
+ * ⚠️ `oficial` EXISTE NO VOCABULÁRIO DO BANCO E NÃO CHEGA AQUI, e isso é prova
+ * de comportamento, não opinião. Quando a tarifa oficial é postada:
+ *
+ *   1. o produtor carimba `superseded_at` na estimativa
+ *      (`amazonTarifaEstimada.ts`, o UPDATE que fecha a estimativa daquele tipo);
+ *   2. o leitor filtra `superseded_at IS NULL`
+ *      (`amazonOverviewCanonical.ts`, no SELECT das estimativas por linha).
+ *
+ * Ou seja: estimativa substituída **deixa de ser marca**, porque o número
+ * daquela linha passou a ser o real. `oficial` descreve o ciclo de vida da linha
+ * no banco; esta peça descreve o que a tela mostra. **A ausência é o contrato** —
+ * quem acrescentar `oficial` aqui está modelando um estado que a tela nunca vê,
+ * e a marca que ele produziria seria uma marca de estimativa sobre um número que
+ * já não é estimado.
+ *
+ * ⚠️ E `tabela` AINDA NÃO TEM PRODUTOR — **não apague**. Hoje só existem
+ * `source='observada'` e `source='product_fees_api'`. A ausência de `tabela` não
+ * é variante morta: é o pedido original da Ana (*"pegar a TABELA de comissão por
+ * porcentagem da Amazon"*, 31/08/2026) que foi traduzido para a Product Fees API
+ * por conveniência — e a tradução quebrou exatamente onde a tabela não
+ * quebraria: a Product Fees responde POR VENDEDOR, a conta está com o token
+ * revogado, e o resultado medido foi 1 pedido com estimativa e travessão nos
+ * outros 18. O ramo fica esperando o produtor.
+ */
 export type FonteDaEstimativa =
   | { fonte: "observada"; diaDoPedido: string; comissao?: number | null; fba?: number | null; moeda?: string }
-  | { fonte: "tabela"; percentualDaComissao: number; comissao?: number | null; fba?: number | null; moeda?: string }
+  | {
+      fonte: "tabela";
+      /**
+       * A FRAÇÃO, não o número da porcentagem — o backend define
+       * `percentualDaCategoria = amount / unit_price`, então comissão de 12,01%
+       * chega como `0.1201`.
+       *
+       * ⚠️ O NOME SEGUE O DO BACKEND DE PROPÓSITO: um `percentualDaComissao`
+       * aqui e um `percentualDaCategoria` lá convidam alguém a repassar um pelo
+       * outro sem converter, e o erro seria de 100× — "0,12%" na tela onde a
+       * Amazon cobra 12,01%. Erro de unidade não fica vermelho em lugar nenhum:
+       * ele só parece um número pequeno.
+       */
+      percentualDaCategoria: number;
+      comissao?: number | null; fba?: number | null; moeda?: string;
+    }
   | { fonte: "api"; comissao?: number | null; fba?: number | null; moeda?: string };
 
 export interface ProcedenciaLida {
@@ -87,9 +141,15 @@ function composicao(partes: { comissao?: number | null; fba?: number | null }, m
   ].filter(Boolean).join(" + ");
 }
 
-/** O percentual como ela lê na tabela da Amazon: "12,01%". */
-function percentual(valor: number): string {
-  return `${valor.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
+/**
+ * A fração vira o percentual como ela lê na tabela da Amazon: `0.1201` → "12,01%".
+ *
+ * A conversão mora AQUI, num lugar só, porque é o ponto em que a unidade do
+ * banco (fração) encontra a unidade da tela (porcentagem). Espalhar `* 100`
+ * pelos pontos de render é como o erro de 100× nasce.
+ */
+function percentual(fracao: number): string {
+  return `${(fracao * 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
 }
 
 /** `2026-08-31` → `31/08/2026`, o formato em que ela procura o pedido. */
@@ -116,7 +176,7 @@ export function procedenciaDaFonte(estimativa: FonteDaEstimativa | null | undefi
     case "tabela": {
       const detalhe = composicao(estimativa, moeda);
       return {
-        texto: `Estimado pela tabela da Amazon: comissão de ${percentual(estimativa.percentualDaComissao)} da categoria + tarifa FBA${detalhe ? ` (${detalhe})` : ""}. ${fim}`,
+        texto: `Estimado pela tabela da Amazon: comissão de ${percentual(estimativa.percentualDaCategoria)} da categoria + tarifa FBA${detalhe ? ` (${detalhe})` : ""}. ${fim}`,
         origemConhecida: true,
       };
     }
