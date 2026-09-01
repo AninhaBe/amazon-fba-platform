@@ -271,17 +271,47 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
 
   // Zero tem significado próprio e merece explicação: "não cobraram" é notícia,
   // e o card que só diz "Total do período conciliado" desperdiça a informação.
+  /**
+   * ⚠️ `independeDoExtrato` EXISTE POR CAUSA DE UMA TELA EM BRANCO (01/09/2026).
+   *
+   * O guard `semRepassePostado` apagava TODOS os cards quando a Amazon ainda não
+   * tinha postado repasse de nenhum pedido — o que é o estado normal de uma
+   * manhã, com tudo pendente. Medido às 11:38 na conta dela: Faturamento em
+   * BRANCO enquanto "Pedidos feitos" exibia R$ 348,07, o mesmo número que o
+   * Seller Central mostrava. **O número certo estava na tela, no card de baixo,
+   * e o card que ela olha estava vazio.**
+   *
+   * O guard está certo para o que vem do EXTRATO — Taxas, Logística, Frete do
+   * comprador, Repasse líquido. Ali "não postou" é mesmo "não sei quanto".
+   *
+   * Mas Faturamento e Custo NÃO vêm do extrato: o faturamento é a base de
+   * pedidos (a mesma do Seller Central) e o custo é cadastro dela. Apagá-los
+   * porque a Amazon não liquidou confunde os dois universos de novo — é a mesma
+   * família do defeito da base misturada, agora em forma de ausência.
+   *
+   * ⚠️ Este defeito é ANTERIOR à unificação da base: o guard e este `num` já
+   * eram assim em `e8fee24`. Ele só não aparecia porque quase sempre havia ao
+   * menos um pedido liquidado no período.
+   */
   const num = (
     v: number | null | undefined,
     contextoQuandoFalta: string,
     tone?: "positive" | "danger",
-    contextoQuandoZero?: string
+    contextoQuandoZero?: string,
+    independeDoExtrato = false
   ): Omit<AmazonCard, "key" | "label"> =>
-    v == null || semRepassePostado
-      ? { value: "—", context: semRepassePostado ? semExtrato : contextoQuandoFalta, raw: null }
+    v == null || (semRepassePostado && !independeDoExtrato)
+      ? { value: "—", context: semRepassePostado && !independeDoExtrato ? semExtrato : contextoQuandoFalta, raw: null }
       : {
           value: money(v, currency),
-          context: v === 0 && contextoQuandoZero ? contextoQuandoZero : "Total do período conciliado",
+          // ⚠️ "Total do período CONCILIADO" só vale para o que veio do extrato.
+          // Dizer isso do Faturamento — que é a base de pedidos, com pendente
+          // dentro — seria afirmar uma conciliação que não aconteceu. Rótulo que
+          // promete mais do que o número é da mesma família da declaração falsa
+          // que a Vitrine achou no ML em 01/09/2026.
+          context: v === 0 && contextoQuandoZero
+            ? contextoQuandoZero
+            : independeDoExtrato ? "Todos os pedidos do período" : "Total do período conciliado",
           tone,
           raw: v,
         };
@@ -468,7 +498,9 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
   return [
     {
       key: "revenue", label: "Faturamento",
-      ...num(faturamentoExibido, "Aguardando cobertura completa do período"),
+      // O ultimo argumento e o que impede o card de sumir numa manha de pedidos
+      // pendentes: o faturamento nao vem do extrato.
+      ...num(faturamentoExibido, "Aguardando cobertura completa do período", undefined, undefined, true),
       // ⚠️ NA FACE, NAO NO "i" (31/08/2026). E o cupom que explica por que este
       // valor e MENOR que "Pedidos feitos"; escondido no tooltip, os dois cards
       // pareciam se contradizer. O Faturamento nao tem base declarada (a base
@@ -535,9 +567,13 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
       key: "cogs", label: "Custo dos produtos",
       // Sem período conciliado não há como afirmar custo zero: "não houve venda" e
       // "ainda não sei o que foi vendido" dariam o mesmo R$ 0,00 na tela.
-      ...(f == null || custoIncompleto || semRepassePostado
-        ? { value: "—", context: semRepassePostado ? semExtrato : faltaCusto }
-        : num(input.cogs, faltaCusto)),
+      // ⚠️ `semRepassePostado` SAIU DAQUI (01/09/2026): o custo e CADASTRO DELA,
+      // nao extrato da Amazon. Apagar um numero que ela mesma preencheu porque a
+      // Amazon nao liquidou e esconder o trabalho dela — e era o que a tela
+      // fazia numa manha inteira de pedidos pendentes.
+      ...(f == null || custoIncompleto
+        ? { value: "—", context: faltaCusto }
+        : num(input.cogs, faltaCusto, undefined, undefined, true)),
     },
     {
       key: "profit", label: "Lucro",

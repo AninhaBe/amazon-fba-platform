@@ -33,11 +33,22 @@ test("sem repasse postado, os valores derivados sao desconhecidos", () => {
     taxRate: null,
     taxes: null,
   });
-  for (const chave of ["fees", "cogs", "profit", "marginPct", "roiPct", "refunds"]) {
+  // ⚠️ `cogs` SAIU DESTA LISTA EM 01/09/2026, e a intenção anterior fica escrita.
+  //
+  // O guard apagava TODOS os cards quando a Amazon não tinha postado repasse de
+  // nenhum pedido. Medido às 11:38 na conta dela: Faturamento em BRANCO enquanto
+  // o card "Pedidos feitos" logo abaixo exibia R$ 348,07 — o MESMO número do
+  // Seller Central. O número certo estava na tela e o card que ela olha estava
+  // vazio. É o estado normal de uma manhã: tudo pendente, nada liquidado.
+  //
+  // O guard continua certo para o que vem do EXTRATO. Faturamento é a base de
+  // PEDIDOS e custo é CADASTRO DELA — nenhum dos dois depende de a Amazon ter
+  // liquidado. Apagar o custo que ela mesma preencheu porque a Amazon não pagou
+  // ainda é esconder o trabalho dela.
+  for (const chave of ["fees", "profit", "marginPct", "roiPct", "refunds"]) {
     const c = carta(cards, chave);
     assert.equal(c.value, "—", `"${c.label}" mostrou ${c.value} em vez de desconhecido`);
   }
-  assert.match(carta(cards, "cogs").context, /repasse postado/i);
   assert.match(carta(cards, "profit").context, /repasse postado/i);
 });
 
@@ -80,4 +91,33 @@ test("origem que nao informa orderCount continua funcionando como antes", () => 
     taxes: null,
   });
   assert.equal(carta(cards, "profit").raw, 50, "a trava não pode disparar sem a contagem");
+});
+
+test("🔑 o FATURAMENTO nao pode sumir por falta de repasse — ele nao vem do extrato", () => {
+  // O defeito de 01/09/2026, com o numero que ele teve: Faturamento em branco e
+  // "Pedidos feitos" R$ 348,07 na linha de baixo, batendo com o Seller Central.
+  //
+  // Desfazer a correcao (tirar o `true` do ultimo argumento de `num` no card de
+  // revenue) reprova aqui.
+  const cards = amazonFinancialCards({
+    finance: SEM_REPASSE,
+    cogs: 16.39,
+    estimatedProfit: null,
+    unitsWithoutCost: 0,
+    taxRate: null,
+    taxes: null,
+    faturamentoTotal: 348.07,
+    baseDoLucro: 348.07,
+  });
+  const faturamento = carta(cards, "revenue");
+  assert.equal(faturamento.raw, 348.07, "o faturamento sumiu numa manha de pedidos pendentes");
+  assert.match(faturamento.value, /348,07/);
+  // ⚠️ E o rotulo nao pode prometer conciliacao que nao houve.
+  assert.doesNotMatch(faturamento.context, /conciliado/i);
+  assert.match(faturamento.context, /todos os pedidos/i);
+  // O custo cadastrado por ela tambem aparece.
+  assert.equal(carta(cards, "cogs").raw, 16.39);
+  // E o que DEPENDE do extrato continua desconhecido, pelo motivo certo.
+  assert.equal(carta(cards, "fees").value, "—");
+  assert.match(carta(cards, "fees").context, /repasse postado/i);
 });
