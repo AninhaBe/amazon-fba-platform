@@ -115,3 +115,27 @@ test("a landing NAO foi redesenhada — as duas rotas seguem a mesma peca", asyn
     assert.match(await fonte(tela), /return <LandingV2Experience \/>;/, `${tela}: a landing mudou de conteudo`);
   }
 });
+
+test("a casca NAO e renderizada no SERVIDOR para a raiz", async () => {
+  // ⚠️ O DEFEITO QUE ESTA GUARDA REPROVA — medido no HTML servido em
+  // 01/09/2026, DEPOIS de o rewrite subir:
+  //
+  //   curl na raiz, sem cookie -> 6.663 bytes de <aside class="nexo-sidebar">
+  //   no markup, com o nome e a descricao de cada aba do produto ("Publicidade
+  //   nos 4 canais", "Contas e canais"), para um visitante anonimo. Mais o
+  //   flash: a casca vinha no HTML e so saia depois da hidratacao.
+  //
+  // A causa foi uma decisao minha: `usarSemSessao()` devolve `false` no
+  // servidor, e eu escolhi isso pensando nas telas autenticadas — nao na raiz
+  // reescrita, onde o pathname continua sendo "/" e nenhuma lista casa.
+  //
+  // ⚠️ A LICAO: defesa que so existe de um lado da fronteira NAO E DEFESA. A
+  // regra de sessao valia no cliente e nao existia no servidor.
+  const shell = await fonte("src/app/components/AppShell.tsx");
+  assert.match(
+    shell,
+    /function cascaIndecidivelNoServidor\(pathname: string\): boolean \{\s*return typeof document === "undefined" && pathname === "\/";/,
+    "a raiz voltou a renderizar a casca no servidor",
+  );
+  assert.match(shell, /cascaIndecidivelNoServidor\(pathname\) \|\|/, "a guarda existe mas nao esta ligada");
+});

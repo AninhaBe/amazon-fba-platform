@@ -42,6 +42,37 @@ function usarSemSessao(): boolean {
   return !/(^|;\s*)sb-[^=]*-auth-token=/.test(document.cookie);
 }
 
+/**
+ * A RAIZ NÃO RENDERIZA CASCA NO SERVIDOR — e esta linha é a correção de um
+ * defeito que EU introduzi (01/09/2026), medido no HTML servido.
+ *
+ * `usarSemSessao()` devolve `false` no servidor ("assuma que há sessão"), e eu
+ * escolhi isso pensando nas telas autenticadas — para o HTML pré-renderizado
+ * delas bater com o que o cliente monta. **Não pensei na raiz reescrita.**
+ *
+ * Com o rewrite, `/` serve a landing e o `pathname` que o React vê continua
+ * sendo `/`: nenhuma linha da lista de caminhos públicos casa, e a regra de
+ * sessão não existe no servidor. Resultado medido com `curl` sem cookie: 6.663
+ * bytes de `<aside class="nexo-sidebar">` — 42% do markup do body — entregues a
+ * um visitante anônimo, com o nome e a descrição de cada aba do produto. Mais o
+ * flash: a casca vinha no HTML e só saía depois da hidratação.
+ *
+ * ⚠️ A LIÇÃO, e ela é maior que este arquivo: **defesa que só existe de um lado
+ * da fronteira não é defesa.** A minha regra de sessão vale no cliente e não
+ * existe no servidor, e o defeito que eu tinha achado antes de existir voltou
+ * pela porta do SSR.
+ *
+ * ⚠️ ISTO É INTERINO, e o custo está declarado: quem TEM sessão vê a casca
+ * aparecer na hidratação **na Visão geral** (só nela). É o troco de não entregar
+ * a navegação inteira para quem nunca criou conta. A correção definitiva é
+ * tirar o `AppShell` do layout raiz e pô-lo num route group só das telas
+ * autenticadas — aí a landing não pode ser envolvida nem por engano, e ninguém
+ * paga flash nenhum. Ver `docs/plans/` e o commit que trouxer o grupo.
+ */
+function cascaIndecidivelNoServidor(pathname: string): boolean {
+  return typeof document === "undefined" && pathname === "/";
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const semSessao = usarSemSessao();
   const pathname = usePathname();
@@ -100,6 +131,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // próximo endereço público entra protegido sem ninguém editar nada.
   if (
     semSessao ||
+    cascaIndecidivelNoServidor(pathname) ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/landing") ||
     pathname.startsWith("/privacidade") ||
