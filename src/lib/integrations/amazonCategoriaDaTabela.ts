@@ -23,7 +23,7 @@ import { TABELA_DE_COMISSAO_AMAZON_BR, type CategoriaDaTabela } from "./amazonTa
  * Por RAIZ da árvore. Cobre o caso comum, em que a raiz já determina a tarifa.
  *
  * As chaves são exatamente como a Catalog Items escreve — medidas nos 76 ASINs
- * capturados em 01–02/09/2026, não inventadas.
+ * capturados em 01/09/2026, não inventadas.
  */
 const POR_RAIZ: Record<string, string> = {
   "Automotivo": "Peças automotivas",

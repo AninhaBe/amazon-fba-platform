@@ -3,7 +3,10 @@
  *
  * **Fonte:** https://venda.amazon.com.br/precos — página pública de preços para
  * vendedores, não área logada, não raspagem.
- * **Capturada em:** 02/09/2026.
+ * **Capturada em:** 31/08/2026.
+ *
+ * (A data e a da CAPTURA DA PAGINA, nao a da escrita deste arquivo — foram
+ * dias diferentes, e a que prova alguma coisa e a primeira.)
  *
  * ⚠️ **ESTA TABELA NÃO É AUTORIDADE PRÓPRIA — ELA É UMA CÓPIA COM DATA.** A
  * Amazon muda percentual sem aviso, e no dia em que mudar esta constante passa a
