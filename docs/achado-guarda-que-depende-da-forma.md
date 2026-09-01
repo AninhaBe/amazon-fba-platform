@@ -1,67 +1,90 @@
-# Achado: guarda que depende da FORMA do código protege menos do que parece
+# Ancoragem de guardas: o catálogo dos seis casos de 01/09/2026
 
-**Data:** 01/09/2026 · **Onde:** ciclo da auditoria de empilhamento de avisos
-**Aparições no mesmo ciclo:** 3, em três disfarces diferentes
+**O que este documento é:** a lista completa das guardas que ficaram vermelhas
+**pelo motivo errado** num único dia, o que cada uma casava, o que a derrubou, e
+a regra que sai do conjunto. Escrito de uma vez, com os seis frescos, porque
+guarda mal ancorada não é erro de quem a escreveu: é o resultado padrão de
+escrever guarda com pressa.
 
-## A família
+**A frase que resume:** uma guarda pode casar **o comportamento** (chame a
+função, confira a saída) ou **a forma do código**. A segunda é sempre mais fácil
+de escrever, e é a que dá falsa sensação de cobertura — ela protege contra **o
+defeito escrito de um jeito só**.
 
-Uma guarda pode casar duas coisas: **o comportamento** (chame a função, confira a
-saída) ou **a forma do código** (o texto do fonte, o nome do símbolo, a posição).
-A segunda é sempre mais fácil de escrever — e é a que dá a falsa sensação de
-cobertura, porque ela protege contra **o defeito escrito de um jeito só**.
+## Os seis casos
 
-As três deste ciclo:
+| # | a guarda casava | o que a derrubou | o que ela protegia de verdade |
+|---|---|---|---|
+| 1 | o **texto do fonte cru**, numa asserção que PROÍBE | o comentário que explica a proibição **cita a coisa proibida** — `assert.ok(!/useSearchParams/)` reprovava a nota que documentava a remoção | quase nada: ficava verde com a chamada apagada e o import de pé |
+| 2 | o **nome da variável** (`sinais={sinais}`) e uma **lista escrita à mão** de 3 telas | o `ShopeeModulePage` chama a lista de `sinaisDaTela`, e o TikTok não estava na lista — **apagar os sinais dos dois não ficava vermelho** | 3 das 5 telas, e só com um nome de variável |
+| 3 | uma **janela fixa de caracteres** (`value={[\s\S]{0,400}?}`) | o casamento atravessava a expressão e reprovava **outro arquivo**, que estava certo | pior que nada: acusava inocente |
+| 4 | a **linha exata** de um ternário | a frase passou a sair da peça compartilhada e o teste acusou *"a base voltou a ser constante"* — **o oposto do que aconteceu** | a forma da linha, não a propriedade |
+| 5 | o **import exato** `import { declaracaoDeBase }` | a tela passou a importar **também** `nomeDaBase` | a lista de nomes, não a procedência |
+| 6 | a **profundidade do caminho** (`../../lib/semImposto`, `./components/Dash…`) | as telas desceram um nível para dentro do route group `(app)` | a posição na árvore, não o módulo |
 
-| # | a guarda casava | e o defeito passava assim |
-|---|---|---|
-| 1 | o **texto do fonte** cru | o comentário que explica a proibição **cita a coisa proibida** — `assert.ok(!/useSearchParams/)` reprovava a nota que documentava a remoção |
-| 2 | o **nome da variável** (`sinais={sinais}`) e uma **lista de 3 telas** | o `ShopeeModulePage` chama a lista de `sinaisDaTela` e o TikTok não estava na lista: **apagar os sinais dos dois não ficava vermelho** |
-| 3 | uma **janela fixa de caracteres** (`[\s\S]{0,400}`) | o casamento atravessava a expressão e reprovava **outro arquivo**, que estava certo |
-
-O #3 é o mais perigoso dos três, e não por reprovar de menos: ele reprova **o
-arquivo errado**. Guarda que acusa inocente é desligada na primeira semana, e aí
-os outros dois defeitos passam junto.
-
-## As correções, e por que cada uma é a mesma correção
-
-- **#1** → tirar comentário antes de asserção que **proíbe** (regra já no
-  `AGENTS.md`). Asserção que **exige** pode casar o fonte cru: comentário a mais
-  nunca fez `assert.match` passar indevidamente.
-- **#2** → a guarda passou a ser **agnóstica ao nome** (`sinais=\{\w+\}`) e a
-  varrer **a árvore inteira**, não uma lista escrita à mão. Lista à mão envelhece
-  no dia em que nasce a quinta tela.
-- **#3** → a detecção passou a **andar para trás contando chaves** até achar a
-  chave que envolve a posição. Não é heurística: é a estrutura real do código.
-
-As três viram a mesma frase: **quando a guarda tem de olhar a forma, que ela
-olhe a ESTRUTURA (a árvore, a chave que fecha, a ramificação), nunca a
-APARÊNCIA (o nome, a distância em caracteres, a lista de arquivos).**
+Os casos 4, 5 e 6 têm uma propriedade que os separa dos outros três, e é a mais
+cara: **eles ficaram vermelhos por causa de uma melhora.**
 
 ## O caso que vale mais que os outros: a guarda que pune quem conserta
 
-Três vezes no mesmo dia uma guarda ficou vermelha **por causa de uma melhora**:
-
-| a guarda casava | o que a deixou vermelha |
-|---|---|
-| a linha exata do ternário da base, no módulo da Shopee | a frase passou a sair da peça — e o teste acusou *"a base voltou a ser constante"*, o oposto do que aconteceu |
-| `import { declaracaoDeBase }` exato, no `ShopeeWorkspace` | a tela passou a importar **também** `nomeDaBase` |
-| a lista de três telas com sinais | nasceu a quarta e a quinta |
-
 Um exemplo em que a guarda **pune o conserto** ensina mais que dez em que ela
-pune o defeito: no segundo caso a pessoa lê o vermelho e corrige o código; no
+pune o defeito. No segundo caso a pessoa lê o vermelho e corrige o código. No
 primeiro ela lê o vermelho, não entende, e **desfaz a melhora** — ou desliga a
 guarda. As duas saídas são piores que não ter guarda nenhuma.
 
-A correção é sempre a mesma e é a frase acima: ancore na **estrutura**. A linha
-exata virou a **ramificação** (o rótulo sai do campo usado); o import exato virou
-o **caminho do módulo**; a lista de telas virou a **árvore**.
+O sintoma é reconhecível: **a mensagem do teste descreve o contrário do que
+aconteceu.** *"A base voltou a ser constante"* apareceu no exato commit em que a
+base deixou de ser constante. Quando o vermelho contradiz o que você acabou de
+fazer, suspeite da âncora antes de suspeitar do código.
 
-### O padrão que sai das três
+## A regra, em duas listas
 
-> **Toda guarda que casa uma LISTA — de nomes, de imports, de arquivos, de pares
-> `chave: valor` — reprova a primeira melhora que acrescentar um item à lista.**
+**Ancore em:**
 
-Ancore no **módulo**, na **chamada**, na **ramificação**. Nunca na lista.
+| âncora | quando | exemplo deste dia |
+|---|---|---|
+| **comportamento** | sempre que houver função pura para chamar | `nomeDaBase({…})` devolve `"sobre a receita"` |
+| **o módulo** | import, procedência de uma peça | `from "[./]*components/baseDaMargem"` |
+| **a chamada inteira** | propriedade que precisa existir num objeto | `usePrefetchDePeriodos({ … filaDeFundo: false, })` |
+| **a ramificação** | valor que precisa vir do dado, não de constante | `rotuloDaBase:x!=null?"o faturamento":"a receita processada"` |
+| **a estrutura da árvore** | posição no JSX, escopo de um bloco | contagem de chaves até a chave que envolve a posição |
+| **a árvore de arquivos** | cobertura de telas | andar `src/app` inteiro, nunca uma lista |
+
+**Nunca ancore em:**
+
+| nunca | porque |
+|---|---|
+| **o nome** de uma variável | renomear foge da guarda sem mudar comportamento |
+| **uma lista** (de nomes, de imports, de arquivos, de pares `chave: valor`) | **toda guarda que casa uma lista reprova a primeira melhora que acrescentar um item à lista** |
+| **a profundidade** de um caminho relativo | mover pasta é refatoração, não defeito |
+| **a distância em caracteres** | a janela atravessa a expressão e acusa o arquivo errado |
+| **o comentário** | asserção que PROÍBE casa o texto que explica a proibição |
+| **a linha exata** | qualquer melhora na linha vira vermelho |
+
+## Duas regras operacionais que vêm junto
+
+**1. Asserção que PROÍBE lê o fonte sem comentários — sempre.** Não é zelo: o
+comentário que explica por que algo é proibido **cita a coisa proibida**. Uma
+linha resolve:
+
+```js
+const codigo = fonte.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+```
+
+Asserção que EXIGE pode casar o fonte cru — comentário a mais nunca fez
+`assert.match` passar indevidamente.
+
+**2. Verde por não ter encontrado nada é o pior verde.** Uma guarda que varre a
+árvore passa **silenciosamente** se o andador quebrar: a lista vem vazia e todas
+as asserções ficam verdes sem olhar arquivo nenhum. Cada varredura carrega um
+piso, folgado de propósito:
+
+```js
+if (achados.length < 40) throw new Error("achou telas de menos — o andador quebrou");
+```
+
+Piso apertado quebra por refatoração, que é o outro jeito de a guarda ser
+desligada.
 
 ## Guarda também ACHA — não só impede
 
@@ -80,30 +103,57 @@ escondida em ternário, fallback que só aparece num estado raro, arquivo com
 extensão fora do recorte (`.ts` numa varredura de `.tsx` — foi assim que o quarto
 sítio escapou).
 
-## Verde por não ter encontrado nada é o pior verde
+## Antes de escrever guarda nova, duas perguntas
 
-Uma guarda que varre a árvore passa **silenciosamente** se o andador quebrar: a
-lista vem vazia e todas as asserções ficam verdes sem olhar arquivo nenhum. Por
-isso cada varredura carrega um **piso**:
+**1. De quantos jeitos dá para escrever este defeito?** Se a resposta for
+"muitos", casar a forma não vai cobrir os outros — e a guarda vai *parecer* que
+cobre. Foi com esse critério que a guarda de frases explicativas foi medida e
+**reprovada** antes de existir
+(`docs/achado-frase-com-validade-nao-vira-guarda.md`: 84 achados, 95% de falso
+positivo).
+
+**2. Ela pegaria os casos que a motivaram?** É o **teste de recall**, e ele vale
+para toda guarda: precisão alta com recall zero é decoração cara. A guarda de
+frases mediu 0 de 2 — não teria pego nenhum dos dois casos reais do dia. Rode a
+guarda contra o estado ANTERIOR ao conserto; se ela passar, ela não guarda o que
+você acha que guarda.
+
+## Estreitar o escopo ganha de listar exceção
+
+A guarda do vocabulário de base reprovava, na primeira versão, *"Gasto com
+anúncio sobre o faturamento total"* (a definição do TACOS, que **é** sobre o
+faturamento total) e *"X% sobre o faturamento"* (a base da alíquota). As duas
+saídas eram: listar as duas como exceção, ou **estreitar o escopo** para o cartão
+de Margem.
+
+Estreitando, TACOS e alíquota saem **por construção** — e a guarda nasce com zero
+exceções. Guarda sem exceção é guarda; com exceção já nasce negociável.
+
+## E quando a exceção for inevitável, que ela se limpe sozinha
+
+A exceção do `amazon/page.tsx` durou algumas horas. Ao mover o sinal, o teste
+ficou vermelho dizendo *"APAGUE a entrada de PENDENTE"* — nunca o contrário.
 
 ```js
-if (achados.length < 40) throw new Error(`achou so ${achados.length} telas — o andador quebrou`);
+const PENDENTE = ["amazon/page.tsx"];
+const novos = achados.filter((n) => !PENDENTE.includes(n));
+assert.deepEqual(novos, []);
+for (const p of PENDENTE) assert.ok(achados.includes(p), "ja foi corrigido — APAGUE a entrada");
 ```
 
-Folgado de propósito: ele reprova a árvore **vazia**, não uma tela a menos. Piso
-apertado quebra por refatoração, que é o outro jeito de a guarda ser desligada.
+Exceção que só morre quando alguém lembra não é exceção, é dívida.
 
-## O corolário que decide guarda nova
+## A família vizinha, que não é esta
 
-Antes de escrever uma guarda, pergunte: **de quantos jeitos dá para escrever este
-defeito?** Se a resposta for "muitos", casar a forma não vai cobrir os outros — e
-a guarda vai *parecer* que cobre. Foi com esse critério que a guarda de frases
-explicativas foi medida antes de ser escrita (ver
-`docs/achado-frase-com-validade-nao-vira-guarda.md`).
+**Recusa temporária cujo teste passa a defender o defeito** parece o mesmo
+problema e não é. Ali a âncora está certa: o teste exige exatamente o que o
+código faz. O que mudou foi **a intenção** — a limitação que justificava a recusa
+caiu, e o teste que a guardava virou o guardião do remendo.
 
-## E a exceção nomeada, que é o outro lado
+Aconteceu duas vezes: a recusa de período personalizado da Shopee (31/08) e o
+interino `cascaIndecidivelNoServidor` (01/09). Nos dois, a correção é **inverter
+a intenção e registrar a inversão no próprio teste**, para quem o vir vermelho
+amanhã saber que a mudança foi decidida, não herdada.
 
-Guarda estrita precisa de válvula, e a válvula tem prazo. A exceção do
-`amazon/page.tsx` durou algumas horas e **se limpou sozinha**: ao mover o sinal,
-o teste ficou vermelho dizendo *"APAGUE a entrada de PENDENTE"* — nunca o
-contrário. Exceção que só morre quando alguém lembra não é exceção, é dívida.
+O sinal de que você está nesta família e não na outra: a guarda está vermelha
+porque **o mundo mudou**, não porque a âncora era frágil.
