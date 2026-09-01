@@ -1,4 +1,4 @@
-import { rotuloDaMarca } from "./procedenciaDaEstimativa";
+
 
 /**
  * MARCA DE ESTIMATIVA — o selo que diz que este número ainda não é o oficial.
@@ -35,23 +35,29 @@ import { rotuloDaMarca } from "./procedenciaDaEstimativa";
  * tela mostraria lucro sem tarifa nenhuma sem dizer que aquilo pode mudar.
  */
 /**
- * ⚠️ `origemConhecida` MUDA A PALAVRA DA FACE, e por isso ela e obrigatoria.
+ * ⚠️ A FACE DIZ A ORIGEM, NAO A PALAVRA "ESTIMADO" (01/09/2026).
  *
- * Estimativa com origem e informacao; estimativa SEM origem e defeito — nao da
- * para saber se o numero veio de um pedido antigo, de uma tabela ou de lugar
- * nenhum. Defeito que so aparece no hover nao aparece, e por isso a distincao
- * sobe para a face em vez de ficar so no `title`. As tres procedencias
- * conhecidas continuam com UMA marca so: a distincao entre elas e que vive no
- * tooltip.
+ * A vendedora leu o rotulo antigo e disse: *"nao e estimado, e a tabela
+ * oficial"*. Ela esta certa sobre o que ele vendia — as tres fontes sao numero
+ * PUBLICADO PELA AMAZON, e "estimado" sugeria conta nossa. O rotulo agora nomeia
+ * a fonte, e quem decide o texto e a peca (`rotuloDaMarca`), nunca este
+ * componente: um lugar so para os quatro canais.
+ *
+ * ⚠️ A MARCA EM SI FICOU. Ela e o diferencial da ADR-027 — diz que o
+ * pedido ainda nao liquidou e que o valor vai ser substituido —, e essa promessa
+ * mora no `title`. Tirar a palavra e manter a marca e a diferenca entre "o dado
+ * e oficial" e "o pedido ja fechou".
+ *
+ * `origemConhecida` continua obrigatoria porque muda a TINTA: origem que a tela
+ * nao sabe ler e defeito nosso, e defeito nao mora em tooltip.
  */
-export function MarcaDeEstimativa({ procedencia, origemConhecida }: { procedencia: string; origemConhecida: boolean }) {
-  const rotulo = rotuloDaMarca(origemConhecida);
+export function MarcaDeEstimativa({ procedencia, rotulo, origemConhecida }: { procedencia: string; rotulo: string; origemConhecida: boolean }) {
   return (
     <span
       className={`marca-estimativa${origemConhecida ? "" : " marca-estimativa--sem-origem"}`}
       tabIndex={0}
       role="note"
-      aria-label={`Valor estimado. ${procedencia}`}
+      aria-label={`${rotulo}. ${procedencia}`}
       title={procedencia}
     >
       {rotulo}

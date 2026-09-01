@@ -18,7 +18,17 @@
  * substitui. **A procedência específica vive na LINHA**, onde ela é verificável.
  */
 export const PROCEDENCIA_DO_AGREGADO =
-  "Inclui tarifa estimada enquanto a Amazon não posta a oficial — a oficial entra na liquidação e substitui a estimativa.";
+  "Inclui tarifa ainda não liquidada — o valor que a Amazon postar na liquidação substitui este.";
+
+/**
+ * O RÓTULO DA FACE DO AGREGADO.
+ *
+ * ⚠️ Ele não pode nomear origem, pelo mesmo motivo da frase acima: o card
+ * soma linhas de fontes diferentes. O que ele diz é o que vale para qualquer
+ * mistura — que aquele total ainda vai mudar na liquidação. É a marca da
+ * ADR-027 sem a palavra que a vendedora recusou.
+ */
+export const ROTULO_DO_AGREGADO = "ainda não liquidado";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // QUATRO PROCEDÊNCIAS — peça preparada, ainda NÃO ligada na tela (01/09/2026)
@@ -154,18 +164,21 @@ function diaBR(iso: string): string {
   return ano && mes && dia ? `${dia}/${mes}/${ano}` : iso;
 }
 
-const SEM_ORIGEM = "Valor estimado sem origem informada — não dá para conferir de onde ele saiu. A tarifa oficial entra na liquidação.";
+const SEM_ORIGEM = "Origem não informada — não dá para conferir de onde este valor saiu. O valor que a Amazon postar na liquidação substitui este.";
 
 export function procedenciaDaFonte(estimativa: FonteDaEstimativa | null | undefined): ProcedenciaLida {
   if (!estimativa || !("fonte" in estimativa)) return { texto: SEM_ORIGEM, origemConhecida: false };
   const moeda = estimativa.moeda ?? "BRL";
-  const fim = "A tarifa oficial entra na liquidação.";
+  // ⚠️ A PROMESSA DA ADR-027 CONTINUA EM TODAS AS FRASES, e é ela que
+  // sobrou depois de a palavra "estimado" sair: o número muda na liquidação. A
+  // marca visual existe para isso, e some quando o valor postado chega.
+  const fim = "O valor que a Amazon postar na liquidação substitui este.";
 
   switch (estimativa.fonte) {
     case "observada": {
       const detalhe = composicao(estimativa, moeda);
       return {
-        texto: `Estimado pela tarifa que a Amazon já cobrou neste produto no pedido de ${diaBR(estimativa.diaDoPedido)}${detalhe ? ` (${detalhe})` : ""}. ${fim}`,
+        texto: `Tarifa que a Amazon já cobrou neste mesmo produto, no pedido de ${diaBR(estimativa.diaDoPedido)}${detalhe ? ` (${detalhe})` : ""}. ${fim}`,
         origemConhecida: true,
       };
     }
@@ -175,18 +188,22 @@ export function procedenciaDaFonte(estimativa: FonteDaEstimativa | null | undefi
       // aplicado ao texto. Hoje ele vem null em 100% dos casos — a fonte tabela
       // está parada por falta da categoria por ASIN —, e a frase precisa
       // aguentar isso sem ficar torta.
+      // O percentual que chega é o EFETIVO SOBRE O PREÇO (fração), não a
+      // alíquota nominal da categoria — por isso a frase diz "sobre o preço".
+      // Nomear "da categoria" afirmaria um número que ninguém publicou com esse
+      // recorte, e é conferível pela vendedora contra o pedido.
       const comissao = estimativa.percentualDaCategoria == null
         ? ""
-        : `: comissão de ${percentual(estimativa.percentualDaCategoria)} da categoria + tarifa FBA`;
+        : `: comissão de ${percentual(estimativa.percentualDaCategoria)} sobre o preço + tarifa FBA`;
       return {
-        texto: `Estimado pela tabela da Amazon${comissao}${detalhe ? ` (${detalhe})` : ""}. ${fim}`,
+        texto: `Tarifa da tabela oficial da Amazon${comissao}${detalhe ? ` (${detalhe})` : ""}. ${fim}`,
         origemConhecida: true,
       };
     }
     case "api": {
       const detalhe = composicao(estimativa, moeda);
       return {
-        texto: detalhe ? `Estimado pela Amazon: ${detalhe} — ${fim.toLowerCase()}` : `Estimado pela Product Fees API da Amazon. ${fim}`,
+        texto: detalhe ? `Tarifa calculada pela Amazon (Product Fees API): ${detalhe}. ${fim}` : `Tarifa calculada pela Amazon (Product Fees API). ${fim}`,
         origemConhecida: true,
       };
     }
@@ -198,15 +215,39 @@ export function procedenciaDaFonte(estimativa: FonteDaEstimativa | null | undefi
 }
 
 /**
- * O texto da marca na FACE.
+ * O TEXTO DA MARCA NA FACE — a ORIGEM, não a palavra "estimado".
  *
- * Uma só para as três procedências — a distinção vive no tooltip. O ÚNICO caso
- * que muda a palavra é a origem desconhecida, e não porque seja uma quarta
- * procedência: é porque é DEFEITO, e defeito que só aparece no hover não
- * aparece (a lição do v207 e a do `emVoo`).
+ * ⚠️ A PALAVRA SAIU A PEDIDO DA VENDEDORA (01/09/2026), com estas
+ * palavras: *"não é estimado, é a tabela oficial"*. E ela tem razão sobre o que
+ * o rótulo estava vendendo: "estimado" sugere conta nossa, chute, média — e
+ * nenhuma das três fontes é isso. Todas são número **publicado pela Amazon**:
+ * uma é o que ela já cobrou neste produto, outra é a tabela dela, a terceira é
+ * a resposta da API dela. Chamar isso de estimativa depreciava o dado.
+ *
+ * ⚠️ O QUE **NÃO** SAIU FOI A MARCA. A pílula continua ali, e ela é o
+ * diferencial da ADR-027: diz que aquele número ainda não é o do extrato e vai
+ * ser substituído na liquidação. O concorrente mostra o valor de tabela **sem
+ * marca nenhuma**, como se fosse final, e nunca troca pelo extrato (medido em
+ * 31/08/2026). Tirar a palavra e manter a marca é exatamente a diferença entre
+ * as duas coisas: o dado é oficial, o pedido é que ainda não liquidou.
+ *
+ * A promessa migrou para o tooltip e para o rótulo do agregado
+ * (`ROTULO_DO_AGREGADO`), que é onde ela cabe sem nomear fonte.
  */
-export function rotuloDaMarca(origemConhecida: boolean): string {
-  return origemConhecida ? "estimado" : "estimado · origem não informada";
+export function rotuloDaMarca(fonte: FonteDaEstimativa | null | undefined): string {
+  switch (fonte?.fonte) {
+    case "observada":
+      return "tarifa já cobrada neste produto";
+    case "tabela":
+      return "tabela oficial Amazon";
+    case "api":
+      return "calculada pela Amazon (API)";
+    default:
+      // Origem desconhecida continua VISÍVEL na face — é defeito nosso, não
+      // estado do dado, e defeito não mora em tooltip. Também aqui sem a
+      // palavra "estimado": ela afirmaria uma procedência que não existe.
+      return "origem não informada";
+  }
 }
 
 /**

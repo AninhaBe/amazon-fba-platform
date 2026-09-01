@@ -62,7 +62,7 @@ test("a procedencia diz de onde veio e que o oficial substitui — nunca 'parcia
   const completa = procedenciaDaFonte({ fonte: "api", comissao: 3.47, fba: 5.65 }).texto;
   assert.match(completa, /comiss[ãa]o R\$\s?3,47/);
   assert.match(completa, /FBA R\$\s?5,65/);
-  assert.match(completa, /oficial entra na liquida[çc][ãa]o/i);
+  assert.match(completa, /liquida[çc][ãa]o substitui este/i);
 
   // Parcela ausente NAO vira zero (AGENTS.md) e nao apaga a explicacao.
   const soComissao = procedenciaDaFonte({ fonte: "api", comissao: 3.47, fba: null }).texto;
@@ -76,7 +76,7 @@ test("a procedencia diz de onde veio e que o oficial substitui — nunca 'parcia
   // de tabela. O agregado soma origens diferentes e nao pode nomear uma.
   assert.ok(!/tabela da Amazon/.test(PROCEDENCIA_DO_AGREGADO), "o agregado voltou a nomear uma fonte que ele nao sabe qual e");
   assert.match(PROCEDENCIA_DO_AGREGADO, /liquida[çc][ãa]o/i);
-  assert.match(PROCEDENCIA_DO_AGREGADO, /estimad/i, "o agregado precisa dizer que ha estimativa embutida");
+  assert.match(PROCEDENCIA_DO_AGREGADO, /n[ãa]o liquidada/i, "o agregado precisa dizer que aquele total ainda muda");
 
   for (const frase of [completa, soComissao, PROCEDENCIA_DO_AGREGADO]) {
     assert.ok(!/parcial|incompleto/i.test(frase), "adjetivo que se desculpa e proibido");
@@ -174,4 +174,23 @@ test("linha sem tarifa nenhuma continua dizendo o que falta — nao marca ausenc
   const tabela = await fonte("src/app/components/OrderProfitabilityTable.tsx");
   assert.match(tabela, /\{line\.marketplaceFees == null \? "Ainda não conciliadas" :/);
   assert.match(tabela, /titulo: "Tarifas não postadas", ajuda: "Entram quando o canal liquida o pedido"/);
+});
+
+test("o ROTULO da face sai da MESMA fonte que o tooltip — nunca de uma constante", async () => {
+  // ⚠️ ESTA QUEBRA FICOU VERDE NA PRIMEIRA RODADA (01/09/2026): trocar
+  // `rotulo={rotuloDaMarca(fonte)}` por uma string fixa passava por todos os
+  // testes. E o defeito mais grave possivel nesta feature — a face diria
+  // "tabela oficial Amazon" numa linha cuja tarifa veio de OUTRA origem, que e
+  // exatamente a queixa que originou a mudanca: o rotulo vendendo errado.
+  //
+  // Casar a CHAMADA, nao o par `chave: valor` avulso: o par sobrevive num
+  // comentario logo acima (ja pegou este repo com `filaDeFundo: false`).
+  const tabela = await fonte("src/app/components/OrderProfitabilityTable.tsx");
+  assert.match(
+    tabela,
+    /rotulo=\{rotuloDaMarca\(fonte\)\}/,
+    "o rotulo da face deixou de sair da fonte da linha",
+  );
+  // E o tooltip tem de sair da MESMA variavel, senao os dois podem divergir.
+  assert.match(tabela, /const procedencia = procedenciaDaFonte\(fonte\);/);
 });

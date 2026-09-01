@@ -7,7 +7,7 @@ import { brDate } from "@/lib/datetime";
 import { marginTone } from "@/lib/marginTone";
 import { EmptyState } from "./EmptyState";
 import { MarcaDeEstimativa } from "./MarcaDeEstimativa";
-import { fonteDaLinha, procedenciaDaFonte } from "./procedenciaDaEstimativa";
+import { fonteDaLinha, procedenciaDaFonte, rotuloDaMarca } from "./procedenciaDaEstimativa";
 import { TableLoading } from "./LoadingState";
 import { Pagination } from "./Pagination";
 import styles from "./OrderProfitabilityTable.module.css";
@@ -65,15 +65,18 @@ function marcaDaLinha(line: ProfitabilityLine) {
   // A procedencia vem da LINHA — e o unico lugar onde ela e verificavel. O
   // agregado nao consegue nomear fonte porque soma origens diferentes; ver
   // `PROCEDENCIA_DO_AGREGADO`.
-  const procedencia = procedenciaDaFonte(fonteDaLinha({
+  const fonte = fonteDaLinha({
     origemDaTarifa: line.origemDaTarifa,
     observadaEm: line.observadaEm,
     percentualDaCategoria: line.percentualDaCategoria,
     comissao: line.comissaoEstimada ?? null,
     fba: line.fbaEstimada ?? null,
     moeda: line.currency,
-  }));
-  return <MarcaDeEstimativa procedencia={procedencia.texto} origemConhecida={procedencia.origemConhecida} />;
+  });
+  const procedencia = procedenciaDaFonte(fonte);
+  // O rotulo da face sai da MESMA fonte que o tooltip — nao ha como um dizer
+  // "tabela oficial" e o outro falar de outra origem.
+  return <MarcaDeEstimativa procedencia={procedencia.texto} rotulo={rotuloDaMarca(fonte)} origemConhecida={procedencia.origemConhecida} />;
 }
 
 function Margin({ line }: { line: ProfitabilityLine }) {
