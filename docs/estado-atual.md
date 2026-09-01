@@ -838,6 +838,50 @@ existe e nunca foi elegível, ou não existe?
 
 ---
 
+## 🗄️ Infraestrutura de banco — cota e uso
+
+**Cada número aqui traz a fonte e a data.** Isso não é formalidade: até 01/09/2026
+este doc alimentava um limite de **500 MB** transcrito de painel em agosto, sem
+data nem origem, e ele foi repetido o dia inteiro em decisões de expurgo, de
+prioridade e de risco — inclusive numa matriz que quase virou "quanto histórico
+da vendedora a gente apaga". Constante sem procedência envelhece em silêncio.
+
+| o quê | valor | fonte | data |
+|---|---|---|---|
+| `pg_database_size` do banco da aplicação | **482 MB** | **medido** por SQL | 02/09/2026 01:53Z |
+| soma de todos os bancos da instância | 496 MB | **medido** por SQL | 02/09/2026 01:53Z |
+| WAL em disco | 128 MB | **medido** (`pg_ls_waldir`) | 02/09/2026 01:53Z |
+| **Limite do plano** | **8 GB** de disco GP3 por projeto | **painel do Supabase, lido pelo cérebro** | 01/09/2026 |
+| Disco provisionado hoje | **2 GB**, com auto-scale | painel do Supabase | 01/09/2026 |
+| Plano | **Pro**, org "AninhaBe's Org", ciclo 01/09–01/10/2026 | painel do Supabase | 01/09/2026 |
+| Compute | **Nano** (inalterado pelo upgrade) | medido: `max_connections` 60, `shared_buffers` 224 MB | 02/09/2026 |
+
+O disco **escala sozinho** ao se aproximar do tamanho provisionado; o excedente
+custa US$ 0,125/GB/mês. Ou seja: **não há mais teto rígido**, há custo marginal.
+
+### ⚠️ Plano e compute são coisas separadas — e isso custou uma validação errada
+
+O upgrade para Pro **não reinicia a instância nem muda os parâmetros**, porque o
+compute continua Nano. Em 01/09/2026 tentou-se validar o upgrade pelo *uptime* e
+pelos parâmetros de memória — **e o sinal não serve**: 48 dias de uptime
+ininterrupto e `shared_buffers` idêntico eram compatíveis com o upgrade ter dado
+certo. O sinal media **compute**; a pergunta era sobre **cota**.
+
+**Não existe sinal de cota legível por SQL.** Conferido: nenhuma view, função ou
+extensão devolve o limite do plano. Quem sabe é o painel, e só ele.
+
+### O que foi aposentado com o upgrade
+
+A **regra de parada por crescimento de disco** (parar um job em lote se o banco
+crescer mais de 8 MB acumulados) foi criada quando a folga era de dezenas de
+megabytes contra um teto rígido. Com 8 GB e auto-scale, **ela vira monitoramento
+normal — sem freio.**
+
+📌 O que ela deixa como método, e vale além do disco: **limite de
+ordem-de-grandeza precisa de folga de ordem-de-grandeza.** O valor foi de 5 para
+8 MB quando o alvo do job mudou, porque a 2,5× do previsto um alarme dispara por
+variação legítima e ensina a ser ignorado.
+
 ## Ambiente e credenciais
 
 - Produção: **Fly.io**, app `nexo`, região `gru` (São Paulo), em
