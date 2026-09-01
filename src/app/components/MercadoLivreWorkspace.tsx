@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { Suspense, useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatedNumber, identidadeDePeriodo } from "./AnimatedNumber";
 import { EmptyState } from "./EmptyState";
 import { DashboardSkeleton } from "./LoadingState";
 import { PageHeader, pageIcons } from "./PageHeader";
 import { RevenueChart, type DailyPoint } from "./RevenueChart";
 import { DashboardPeriodFilter, useDashboardPeriod } from "./DashboardPeriodFilter";
+import { periodoNaUrl } from "./periodoNaUrl";
 import { OrderProfitabilityTable } from "./OrderProfitabilityTable";
 import { ConnectionBroken, isBrokenConnection } from "./ConnectionBroken";
 import { CustomizableMetricGrid } from "./CustomizableMetricGrid";
@@ -165,10 +166,36 @@ export function MercadoLivreWorkspace(props: { view: keyof typeof views }) {
 }
 
 function MercadoLivreWorkspaceInterno({ view }: { view: keyof typeof views }) {
-  const bruta = useSearchParams().get("secao");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const bruta = searchParams.get("secao");
   const secaoInicial: SecaoDoMonitor =
     bruta === "vendas" || bruta === "profitability" ? "profitability" : bruta === "transacoes" || bruta === "transactions" ? "transactions" : "composition";
-  const period = useDashboardPeriod();
+  /**
+   * O PERIODO MORA NA URL — mesmo contrato do TikTok, dos modulos e da aba de Ads.
+   *
+   * ⚠️ Ate 01/09/2026 esta tela chamava `useDashboardPeriod()` SEM argumento, e
+   * isso nao era so higiene: significava que o periodo nao existia no endereco.
+   * Tres consequencias, e a terceira ja custou um defeito:
+   *
+   *   • `?days=30` no endereco era descartado em silencio;
+   *   • recarregar ou voltar pelo historico perdia a escolha;
+   *   • **qualquer coisa que leia o periodo pela URL nasce quebrada aqui.** Foi
+   *     assim que o guard do `BriefingLead` morreu: ele lia `useSearchParams()`,
+   *     nunca achava `days`, e a narracao saia em qualquer periodo rotulando os
+   *     numeros como "nos ultimos 30 dias".
+   *
+   * Quem JA escolheu mantem a escolha: o hook le a URL pelo primeiro argumento e
+   * o padrao so decide quando nao ha nada la.
+   */
+  const period = useDashboardPeriod(
+    searchParams.toString(),
+    useCallback(
+      (query: string) =>
+        router.push(`${location.pathname}?${periodoNaUrl(searchParams.toString(), query)}`, { scroll: false }),
+      [router, searchParams],
+    ),
+  );
   // Ao voltar de outro canal, o período já visto renderiza no primeiro paint
   // (sem flash de skeleton); a revalidação segue em segundo plano.
   const [initialCached] = useState(() => periodCache.get(`${view}:${period.query}`));

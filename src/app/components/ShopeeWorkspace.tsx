@@ -10,6 +10,7 @@ import { PageHeader } from "./PageHeader";
 import { RevenueChart, type DailyPoint } from "./RevenueChart";
 import { LegendaDeVendas } from "./LegendaDeVendas";
 import { DashboardPeriodFilter, useDashboardPeriod } from "./DashboardPeriodFilter";
+import { periodoNaUrl } from "./periodoNaUrl";
 import { OrderProfitabilityTable } from "./OrderProfitabilityTable";
 import { TopProductsRanking } from "./TopProductsRanking";
 import { BriefingLead } from "./BriefingLead";
@@ -145,9 +146,52 @@ function chaveDoPeriodo(connectionId: string, periodQuery: string, offset: strin
 }
 
 export function ShopeeWorkspace() {
-  const period = useDashboardPeriod();
   const router = useRouter();
   const searchParams = useSearchParams();
+  /**
+   * O PERIODO MORA NA URL — mesmo contrato do TikTok, dos modulos e da aba de Ads.
+   *
+   * ⚠️ Ate 01/09/2026 esta tela chamava `useDashboardPeriod()` SEM argumento, e
+   * isso nao era so higiene: significava que o periodo nao existia no endereco.
+   * Tres consequencias, e a terceira ja custou um defeito:
+   *
+   *   • `?days=30` no endereco era descartado em silencio;
+   *   • recarregar ou voltar pelo historico perdia a escolha;
+   *   • **qualquer coisa que leia o periodo pela URL nasce quebrada aqui.** Foi
+   *     assim que o guard do `BriefingLead` morreu: ele lia `useSearchParams()`,
+   *     nunca achava `days`, e a narracao saia em qualquer periodo rotulando os
+   *     numeros como "nos ultimos 30 dias".
+   *
+   * Quem JA escolheu mantem a escolha: o hook le a URL pelo primeiro argumento e
+   * o padrao so decide quando nao ha nada la.
+   */
+  const period = useDashboardPeriod(
+    searchParams.toString(),
+    useCallback(
+      (query: string) =>
+        // ⚠️ O `offset=0` VAI NA MESMA NAVEGACAO, e nao numa segunda.
+      //
+      // O efeito logo abaixo ja zerava a pagina ao trocar de periodo, com um
+      // `router.replace` proprio. Com o periodo indo para a URL, o mesmo clique
+      // produziria DUAS navegacoes.
+      //
+      // ⚠️ E NAO uma requisicao a mais — a primeira versao deste comentario
+      // afirmava isso e a medicao desmentiu: a chave de busca
+      // (`chaveDoPeriodo`) so muda quando o offset muda, e na navegacao
+      // intermediaria ele ainda e o antigo. Duas navegacoes, duas chaves, duas
+      // requisicoes? Nao: duas navegacoes e DUAS chaves distintas, as mesmas
+      // que ja existiam antes. O ganho e outro e continua valendo: uma entrada
+      // no historico por troca de periodo em vez de duas, para o botao voltar
+      // desfazer um clique com um clique.
+      //
+      // O efeito continua onde esta: ele cobre a troca de periodo que vem da
+      // URL (voltar pelo historico), onde nao ha clique nenhum para carregar o
+      // offset junto. Aqui ele encontra o offset ja zerado e sai na primeira
+      // linha.
+      router.push(`${location.pathname}?${periodoNaUrl(searchParams.toString(), query, { offset: "0" })}`, { scroll: false }),
+      [router, searchParams],
+    ),
+  );
   const previousPeriod = useRef(period.query);
   const [status, setStatus] = useState<ProviderStatus | null>(null);
   const [carregado, setCarregado] = useState<{ chave: string; overview: Overview; sync: ShopeeSyncStatus | null; updatedAt: Date } | null>(null);

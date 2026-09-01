@@ -118,6 +118,22 @@ depois de alguém apagar a chamada e deixar o import.
   `usePrefetchDePeriodos({ … filaDeFundo: false, });` —, não o par
   `chave: valor` avulso. E só apareceu porque as quebras foram rodadas uma a
   uma: **confiar no verde é como o teste decorativo sobrevive.**
+- **Asserção que PROÍBE uma string tem de olhar o fonte SEM COMENTÁRIOS** —
+  sempre, sem exceção. Isto não é zelo: em 01/09/2026 a mesma armadilha pegou
+  quatro vezes em dois dias, com a regra acima já escrita. O motivo é
+  estrutural, e por isso não adianta lembrar-se dela: **o comentário que explica
+  por que algo é proibido cita a coisa proibida.** `assert.ok(!/useSearchParams/)`
+  reprova o texto que documenta a remoção do `useSearchParams`; `!/janelaDeDias/`
+  reprova a nota que conta por que o arquivo foi apagado. O mínimo obrigatório é
+  uma linha:
+
+  ```js
+  const codigo = fonte.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+  ```
+
+  Asserção que EXIGE uma string pode casar o fonte cru — comentário a mais nunca
+  fez `assert.match` passar indevidamente. É só a proibição que precisa da
+  limpeza.
 - e diga no próprio teste **qual defeito ele reprova**, com o número que ele teve
   no mundo real. Teste sem essa frase vira o primeiro a ser afrouxado quando
   ficar vermelho por outro motivo.

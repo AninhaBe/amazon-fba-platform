@@ -1,14 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { RevenueChart, type DailyPoint } from "../components/RevenueChart";
 import { PageHeader, pageIcons } from "../components/PageHeader";
-import { InlineLoading } from "../components/LoadingState";
+import { DashboardSkeleton, InlineLoading } from "../components/LoadingState";
 import { LegendaDeVendas } from "../components/LegendaDeVendas";
 import { NexoDoDia } from "../components/NexoDoDia";
 import { EmptyState } from "../components/EmptyState";
 import { DashboardPeriodFilter, useDashboardPeriod } from "../components/DashboardPeriodFilter";
+import { periodoNaUrl } from "../components/periodoNaUrl";
 import type { OperationPendingItem } from "../components/OperationPending";
 import { Metric as Kpi, CompactMetric, getRevenueTrend } from "../components/Metric";
 import { MarcaDeEstimativa } from "../components/MarcaDeEstimativa";
@@ -325,8 +327,34 @@ function legendaFaturamento(
   return `${plural(pedidos)} · ${semValor} ainda sem valor informado`;
 }
 
-export default function Dashboard() {
-  const period = useDashboardPeriod();
+function Dashboard() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  /**
+   * O PERIODO MORA NA URL — mesmo contrato do TikTok, dos modulos e da aba de Ads.
+   *
+   * ⚠️ Ate 01/09/2026 esta tela chamava `useDashboardPeriod()` SEM argumento, e
+   * isso nao era so higiene: significava que o periodo nao existia no endereco.
+   * Tres consequencias, e a terceira ja custou um defeito:
+   *
+   *   • `?days=30` no endereco era descartado em silencio;
+   *   • recarregar ou voltar pelo historico perdia a escolha;
+   *   • **qualquer coisa que leia o periodo pela URL nasce quebrada aqui.** Foi
+   *     assim que o guard do `BriefingLead` morreu: ele lia `useSearchParams()`,
+   *     nunca achava `days`, e a narracao saia em qualquer periodo rotulando os
+   *     numeros como "nos ultimos 30 dias".
+   *
+   * Quem JA escolheu mantem a escolha: o hook le a URL pelo primeiro argumento e
+   * o padrao so decide quando nao ha nada la.
+   */
+  const period = useDashboardPeriod(
+    searchParams.toString(),
+    useCallback(
+      (query: string) =>
+        router.push(`${location.pathname}?${periodoNaUrl(searchParams.toString(), query)}`, { scroll: false }),
+      [router, searchParams],
+    ),
+  );
   const [initialDash] = useState(() => dashCache.get(period.query));
   const [loadingBruto, setLoading] = useState(!initialDash);
   // De qual periodo sao as fatias em `*Bruto`. Sem isto nao da para saber, no
@@ -1504,4 +1532,16 @@ function useAmazonPendencias({ products, productsLoading, missingCosts }: { prod
   if (products > 0 && missingCosts > 0) items.push({ label: `Cadastrar custo de ${missingCosts} produto(s)`, href: "/amazon/produtos" });
 
   return items;
+}
+
+/**
+ * `useSearchParams` obriga a fronteira de Suspense em rota prerenderizada — a
+ * mesma razao do monitor, dos modulos da Shopee e da aba de Ads.
+ */
+export default function AmazonDashboardPage() {
+  return (
+    <Suspense fallback={<DashboardSkeleton />}>
+      <Dashboard />
+    </Suspense>
+  );
 }

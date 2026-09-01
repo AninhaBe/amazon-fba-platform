@@ -22,8 +22,14 @@
  * `resolvePeriod` prefere `from`/`to`, o filtro prefere o que ele acabou de
  * escolher, e a pessoa veria o número de um período com o botão de outro.
  */
-export function periodoNaUrl(atual: string, escolha: string): string {
+export function periodoNaUrl(atual: string, escolha: string, tambem?: Record<string, string>): string {
   const proxima = new URLSearchParams(atual);
+  // Outros parâmetros que a tela quer trocar NA MESMA navegação. Existe para o
+  // `offset=0` da Shopee: sem isso, trocar de período produz duas entradas no
+  // histórico, e o botão voltar precisa de dois cliques para desfazer um.
+  // (Medido: NÃO produz busca a mais — a chave de busca de lá só muda quando o
+  // offset muda, e na navegação intermediária ele ainda é o antigo.)
+  for (const [chave, valor] of Object.entries(tambem ?? {})) proxima.set(chave, valor);
   const escolhida = new URLSearchParams(escolha);
   const de = escolhida.get("from");
   const ate = escolhida.get("to");
