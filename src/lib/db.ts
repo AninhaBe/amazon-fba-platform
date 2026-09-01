@@ -1,5 +1,6 @@
 import { Pool } from "pg";
 import { readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { assertFinancialLedgerContract, financialLedgerContractHash, FINANCIAL_LEDGER_CONTRACT_SQL } from "../../scripts/migration-contracts.mjs";
 import { inspectFinancialLedgerContract } from "../../scripts/migration-safety.mjs";
@@ -569,6 +570,64 @@ export function ensureFinancialLedgerSchema(): Promise<void> {
  */
 const CARIMBO_DE_INQUILINO = "app.workspace_id";
 
+/**
+ * COMO A FLAG LIGA E DESLIGA — e por que existe o modo `arquivo`.
+ *
+ * ⚠️ O MOTIVO É MEDIDO, NÃO PREFERÊNCIA. No Fly, variável de ambiente entra por
+ * `fly secrets set`, que **reinicia a máquina** — e o app `nexo` tem UMA máquina
+ * só. Ligar e desligar pela variável custaria **dois cortes na tela** por rodada
+ * de medição, e a comparação honesta exige alternar ligado/desligado várias
+ * vezes dentro da MESMA janela de tráfego (senão a variação do dia se mistura ao
+ * efeito da flag). Pela variável, isso seriam dez reinícios.
+ *
+ * Os três estados:
+ *
+ * | `DB_CARIMBO_DE_INQUILINO` | comportamento |
+ * |---|---|
+ * | ausente ou qualquer outro valor | **desligado, e sem tocar em disco** — ver abaixo |
+ * | `"1"` | ligado sempre |
+ * | `"arquivo"` | ligado enquanto o arquivo existir no volume; alterna por `fly ssh console`, sem reinício |
+ *
+ * ⚠️ NO ESTADO PADRÃO NÃO HÁ ACESSO A DISCO NENHUM, e isso é deliberado. A
+ * condição era "com a variável e o arquivo ausentes, o caminho é BIT A BIT o de
+ * hoje". Se a checagem do arquivo rodasse sempre, haveria um `stat` a cada 5s
+ * por processo mesmo em produção normal — pouco, mas não *nada*, e "quase igual"
+ * não era o combinado. Por isso o modo `arquivo` é OPT-IN: quem não pediu não
+ * paga.
+ */
+const TTL_DA_FLAG_MS = 5_000;
+const ARQUIVO_DA_FLAG = "carimbo-de-inquilino.ligado";
+let flagEmCache: { valor: boolean; lidoEm: number } | null = null;
+
+/**
+ * ⚠️ O TTL É DE 5 SEGUNDOS, e ele é o tempo que a alternância demora a valer.
+ * Criar ou apagar o arquivo não tem efeito imediato: até 5s por processo. Curto
+ * o bastante para intercalar numa medição, longo o bastante para não transformar
+ * cada consulta num acesso a disco. Quem alternar precisa esperar isso antes de
+ * confiar no que está medindo.
+ */
+export function transporteDeInquilinoLigado(agora = Date.now()): boolean {
+  const modo = process.env.DB_CARIMBO_DE_INQUILINO;
+  if (modo === "1") return true;
+  if (modo !== "arquivo") return false;
+  if (flagEmCache && agora - flagEmCache.lidoEm < TTL_DA_FLAG_MS) return flagEmCache.valor;
+  let valor = false;
+  try {
+    valor = existsSync(path.join(process.env.DATA_DIR || "/data", ARQUIVO_DA_FLAG));
+  } catch {
+    // Volume indisponível não pode LIGAR a flag por acidente: o modo de falha é
+    // o comportamento de hoje, que é o seguro.
+    valor = false;
+  }
+  flagEmCache = { valor, lidoEm: agora };
+  return valor;
+}
+
+/** Só para teste: o cache é por processo e mascararia a alternância. */
+export function esquecerFlagDeInquilino(): void {
+  flagEmCache = null;
+}
+
 /** Executa uma query e retorna as linhas (cria o schema na primeira chamada). */
 export async function dbQuery<T = Record<string, unknown>>(
   text: string,
@@ -576,7 +635,7 @@ export async function dbQuery<T = Record<string, unknown>>(
 ): Promise<T[]> {
   await ensureSchema();
   const comecou = performance.now();
-  if (process.env.DB_CARIMBO_DE_INQUILINO === "1") {
+  if (transporteDeInquilinoLigado()) {
     const linhas = await consultaCarimbada<T>(text, params);
     // Uma transação inteira é UM checkout, igual `dbTransaction` — a contagem
     // continua medindo disputa de slot, e não número de statements.
