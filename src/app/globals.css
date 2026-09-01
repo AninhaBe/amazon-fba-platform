@@ -4094,10 +4094,6 @@ summary:hover { background: var(--paper-soft); }
 
 /* Curva ABC compartilhada: quadrantes viram uma faixa comparável; o gráfico e
    a tabela formam um único fluxo analítico com filtro local persistente. */
-.abc-period-tabs { display: flex; min-height: 42px; align-items: center; gap: 2px; border-block-end: 1px solid var(--ink-08); }
-.abc-period-tabs button { min-height: 34px; padding-inline: 10px; border: 0; border-radius: var(--radius-sm) var(--radius-sm) 0 0; background: transparent; color: var(--ink-muted); font-size: 12px; cursor: pointer; }
-.abc-period-tabs button:hover { background: var(--ink-03); color: var(--ink); transform: none !important; }
-.abc-period-tabs button[aria-selected="true"] { color: var(--ink); font-weight: var(--weight-semibold); box-shadow: inset 0 -2px var(--ink); }
 .abc-results { display: flex; min-width: 0; flex-direction: column; gap: 20px; }
 .abc-results > p:first-child { margin: 0; padding-block: 4px; color: var(--ink-soft); font-size: 14px !important; line-height: 20px; }
 .abc-quadrant-band { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-block: 1px solid var(--ink-08); }
@@ -4139,7 +4135,6 @@ summary:hover { background: var(--paper-soft); }
 }
 
 @media (max-width: 600px) {
-  .abc-period-tabs button { min-height: 44px; }
   .abc-quadrant-band { grid-template-columns: 1fr; }
   .abc-quadrant-band .abc-quad { min-height: 116px; border-block-end: 1px solid var(--ink-08); border-inline-end: 0; }
   .abc-quadrant-band .abc-quad:last-child { border-block-end: 0; }

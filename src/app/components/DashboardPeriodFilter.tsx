@@ -45,11 +45,35 @@ export type DashboardPeriodOption = "today" | "7" | "15" | "30" | "custom";
  */
 const PERIODO_PADRAO: Exclude<DashboardPeriodOption, "custom"> = "today";
 
-export function useDashboardPeriod(initialQuery = "", onQueryChange?: (query: string) => void) {
+export function useDashboardPeriod(
+  initialQuery = "",
+  onQueryChange?: (query: string) => void,
+  /**
+   * O QUE ESTA TELA OFERECE. Sem isto, unificar o seletor de uma tela que não é
+   * dashboard mudaria em silêncio o que ela mostra.
+   *
+   * ⚠️ Existe por causa da Curva ABC (01/09/2026). Ela tinha um SEGUNDO seletor,
+   * escrito à mão com `useState`, com 7/15/30 e padrão 30 — a divergência que a
+   * gente já viu virar defeito no default do servidor. Trocar pela peça
+   * compartilhada sem esta opção traria dois efeitos que ninguém pediu:
+   *
+   *   • **padrão viraria "Hoje"**, e uma curva ABC de um dia classifica produto
+   *     por uma amostra de um dia. O pedido do "Hoje" foi para os DASHBOARDS de
+   *     canal ("saber o lucro de hoje"); ABC é tela de análise, e volume é a
+   *     matéria-prima dela;
+   *   • **apareceria "Personalizado"**, e as rotas de ABC leem só `days`. A
+   *     tela mostraria o botão marcado exibindo outro período — exatamente o
+   *     defeito do `from`/`to` da Shopee.
+   *
+   * Então: uma implementação só, e cada tela declara o que oferece.
+   */
+  opcoes?: { padrao?: Exclude<DashboardPeriodOption, "custom">; presets?: readonly Exclude<DashboardPeriodOption, "custom">[] },
+) {
+  const padrao = opcoes?.padrao ?? PERIODO_PADRAO;
   const initial = new URLSearchParams(initialQuery);
   const hasCustomPeriod = Boolean(initial.get("from") && initial.get("to"));
-  const [selected, setSelected] = useState<DashboardPeriodOption>(hasCustomPeriod ? "custom" : PERIODO_PADRAO);
-  const [query, setQuery] = useState(hasCustomPeriod ? new URLSearchParams({ from: initial.get("from")!, to: initial.get("to")! }).toString() : `days=${PERIODO_PADRAO}`);
+  const [selected, setSelected] = useState<DashboardPeriodOption>(hasCustomPeriod ? "custom" : padrao);
+  const [query, setQuery] = useState(hasCustomPeriod ? new URLSearchParams({ from: initial.get("from")!, to: initial.get("to")! }).toString() : `days=${padrao}`);
   const [from, setFrom] = useState(hasCustomPeriod ? initial.get("from")! : "");
   const [to, setTo] = useState(hasCustomPeriod ? initial.get("to")! : "");
   const [error, setError] = useState<string | null>(null);
@@ -113,11 +137,11 @@ export function useDashboardPeriod(initialQuery = "", onQueryChange?: (query: st
   return {
     query,
     label,
-    filterProps: { selected, from, to, error, onPreset: selectPreset, onCustom: selectCustom, onFrom: setFrom, onTo: setTo, onApply: applyCustom },
+    filterProps: { selected, from, to, error, onPreset: selectPreset, onCustom: selectCustom, onFrom: setFrom, onTo: setTo, onApply: applyCustom, presets: opcoes?.presets },
   };
 }
 
-export function DashboardPeriodFilter({ selected, from, to, error, onPreset, onCustom, onFrom, onTo, onApply, onIntent, intencaoPor = "ponteiro-e-foco", meta }: {
+export function DashboardPeriodFilter({ selected, from, to, error, onPreset, onCustom, onFrom, onTo, onApply, onIntent, intencaoPor = "ponteiro-e-foco", presets, meta }: {
   selected: DashboardPeriodOption;
   from: string;
   to: string;
@@ -161,9 +185,33 @@ export function DashboardPeriodFilter({ selected, from, to, error, onPreset, onC
    * dado não existe. Chutar seria dado inventado, a mesma proibição que vale
    * para número na tela.
    *
-   * O FOCO não tem esse problema: quem chega num botão pelo teclado está
-   * navegando até ele para ativá-lo. Custa zero requisição a mais e é a única
-   * cobertura de acessibilidade que a antecipação tem.
+   * ⚠️ O FOCO NÃO É GRÁTIS POR CONSTRUÇÃO — e isto está escrito porque a
+   * primeira versão desta nota dizia que era. **Foco e ponteiro são
+   * MECANICAMENTE IGUAIS:** os dois só disparam quando o cursor PARA mais de
+   * 120 ms sobre o botão (o debounce do hook), e os dois somam uma requisição
+   * quando a parada não vira ativação. Tab que passa reto não custa nada, do
+   * mesmo jeito que varrer a faixa com o mouse não custa nada. Medido:
+   *
+   * | sessão de teclado | requisições |
+   * |---|---|
+   * | todo foco vira Enter | 3 → 3, zero a mais |
+   * | um foco parado sem Enter | 3 → **4** |
+   *
+   * O que separa os dois não é estrutura, é **FREQUÊNCIA**. E por isso o modo
+   * `"foco"` está ligado sob **SUPOSIÇÃO COMPORTAMENTAL DECLARADA**, aceita
+   * pelo cérebro em 01/09/2026 e não confundida com medição:
+   *
+   * > *quem chega a um controle pelo teclado chega para usá-lo.*
+   *
+   * Com ponteiro, parar sobre um controle sem ativar é comportamento normal —
+   * ler, hesitar, seguir para outro lugar. Com teclado, o foco é o cursor.
+   *
+   * **O custo real, se a suposição não valer, é +1 requisição por foco que não
+   * vira ativação.** Quem medir e derrubar a suposição volta atrás com um
+   * commit: basta tirar `intencaoPor="foco"` das telas. Não reabra isto achando
+   * que descobriu que o foco custa alguma coisa — está aqui, com o número.
+   *
+   * E é a única cobertura de acessibilidade que a antecipação tem.
    *
    * 📌 REABERTURA CONDICIONADA (decidida em 31/08/2026, não esquecida): ligar o
    * ponteiro nas telas com cache volta à mesa **quando existir telemetria de
@@ -171,10 +219,24 @@ export function DashboardPeriodFilter({ selected, from, to, error, onPreset, onC
    * número está trocando uma medição por um palpite.
    */
   intencaoPor?: "ponteiro-e-foco" | "foco";
+  /**
+   * Quais presets a tela oferece. Ausente = os quatro, e o "Personalizado"
+   * junto — o comportamento de todos os dashboards.
+   *
+   * ⚠️ Uma lista sem os quatro ESCONDE o "Personalizado", e não é economia de
+   * botão: a tela que declara um subconjunto é a que tem rota lendo só `days`,
+   * e oferecer intervalo ali mostraria o botão marcado sobre outro período.
+   * Quando a rota aceitar `from`/`to`, some com a lista e os dois voltam juntos.
+   */
+  presets?: readonly Exclude<DashboardPeriodOption, "custom">[];
   meta?: ReactNode;
 }) {
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-  const options = [{ value: "today", label: "Hoje" }, { value: "7", label: "7 dias" }, { value: "15", label: "15 dias" }, { value: "30", label: "30 dias" }] as const;
+  const TODAS = [{ value: "today", label: "Hoje" }, { value: "7", label: "7 dias" }, { value: "15", label: "15 dias" }, { value: "30", label: "30 dias" }] as const;
+  const options = presets ? TODAS.filter((o) => presets.includes(o.value)) : TODAS;
+  // O intervalo só é oferecido quando a tela oferece os quatro presets — ver a
+  // nota em `presets`.
+  const ofereceIntervalo = !presets;
 
   // O filtro é a interação principal do dashboard: fica sticky no desktop e
   // ganha elevação quando "cola" no topo. A sentinela 1px acima dele detecta
@@ -206,9 +268,9 @@ export function DashboardPeriodFilter({ selected, from, to, error, onPreset, onC
           {option.label}
         </button>
       ))}
-      <button type="button" aria-pressed={selected === "custom"} className={selected === "custom" ? "is-active" : ""} onClick={onCustom}>Personalizado</button>
+      {ofereceIntervalo && <button type="button" aria-pressed={selected === "custom"} className={selected === "custom" ? "is-active" : ""} onClick={onCustom}>Personalizado</button>}
     </div>
-    {selected === "custom" && <div className="dashboard-custom-period">
+    {ofereceIntervalo && selected === "custom" && <div className="dashboard-custom-period">
       <div className="dashboard-custom-period-intro">
         <span><CalendarRange aria-hidden="true" /></span>
         <div><strong>Escolha o intervalo</strong><small>Até 365 dias</small></div>

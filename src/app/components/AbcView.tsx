@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+
+import { DashboardPeriodFilter, useDashboardPeriod } from "./DashboardPeriodFilter";
 import { EmptyState } from "./EmptyState";
 import { PanelLoading } from "./LoadingState";
 import { PageHeader } from "./PageHeader";
@@ -91,8 +93,26 @@ function frasePendencia(p: AbcProduct, currency: string): string {
   return "Sem repasse postado";
 }
 
+/** 7, 15 e 30 — o que esta tela sempre ofereceu. Ver a nota em `period`. */
+const PRESETS_DO_ABC = ["7", "15", "30"] as const;
+
 export function AbcView({ endpoint, eyebrow, subtitle, costsHref, ordersHref }: { endpoint: string; eyebrow: string; subtitle: string; costsHref: string; ordersHref: string }) {
-  const [days, setDays] = useState(30);
+  /**
+   * O MESMO seletor dos dashboards — não um parecido.
+   *
+   * ⚠️ Até 01/09/2026 esta tela tinha o SEGUNDO seletor do produto: `useState`
+   * próprio, botões próprios, e a lista 7/15/30 escrita aqui. Não havia mentira
+   * na tela (ela não oferecia intervalo, e a rota lê `days`), mas era a forma
+   * exata de divergência que já custou caro no default do servidor: dois
+   * lugares decidindo a mesma coisa, e um deles esquecido quando o outro muda.
+   *
+   * O que a tela oferece continua idêntico — 7, 15 e 30, abrindo em 30 —, e é
+   * por isso que o hook recebe `presets` e `padrao`. Quando as rotas de ABC
+   * aceitarem `from`/`to`, some com as duas opções e a tela ganha "Hoje" e
+   * "Personalizado" pelo mesmo caminho dos outros.
+   */
+  const period = useDashboardPeriod("", undefined, { padrao: "30", presets: PRESETS_DO_ABC });
+  const days = Number(new URLSearchParams(period.query).get("days") ?? 30);
   const requestKey = `${endpoint}:${days}`;
   const [request, setRequest] = useState<AbcRequestState>({ key: "", data: null, error: null });
   const [quad, setQuad] = useState<Quadrant | null>(null);
@@ -101,12 +121,6 @@ export function AbcView({ endpoint, eyebrow, subtitle, costsHref, ordersHref }: 
   const loading = currentRequest == null;
   const error = currentRequest?.error ?? null;
   const data = currentRequest?.data ?? null;
-
-  function selectDays(nextDays: number) {
-    if (nextDays === days) return;
-    setRequest({ key: "", data: null, error: null });
-    setDays(nextDays);
-  }
 
   useEffect(() => {
     let active = true;
@@ -124,19 +138,7 @@ export function AbcView({ endpoint, eyebrow, subtitle, costsHref, ordersHref }: 
     <div className="dashboard-page analysis-page abc-page">
       <PageHeader eyebrow={eyebrow} title="Curva ABC por lucro" subtitle={subtitle} />
 
-      <div className="abc-period-tabs" role="tablist" aria-label="Período da curva ABC">
-          {[7, 15, 30].map((d) => (
-            <button
-              key={d}
-              type="button"
-              onClick={() => selectDays(d)}
-              role="tab"
-              aria-selected={days === d}
-            >
-              {d} dias
-            </button>
-          ))}
-      </div>
+      <DashboardPeriodFilter {...period.filterProps} />
 
       {loading ? (
         <PanelLoading label="Classificando seus produtos por lucro…" />

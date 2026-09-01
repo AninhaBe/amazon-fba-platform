@@ -14,8 +14,14 @@ test("o padrao dos QUATRO canais e Hoje, e vem de um lugar so", async () => {
   // canais seria a inconsistencia que a regra de replicar existe para impedir.
   const hook = await fonte("src/app/components/DashboardPeriodFilter.tsx");
   assert.match(hook, /const PERIODO_PADRAO: Exclude<DashboardPeriodOption, "custom"> = "today";/);
-  assert.match(hook, /useState<DashboardPeriodOption>\(hasCustomPeriod \? "custom" : PERIODO_PADRAO\)/);
-  assert.match(hook, /`days=\$\{PERIODO_PADRAO\}`/);
+  // ⚠️ EM 01/09/2026 O HOOK PASSOU A ACEITAR UM PADRAO POR TELA, para a Curva
+  // ABC largar o seletor proprio dela sem mudar o que oferece. A guarda ficou
+  // MAIS FORTE, nao mais fraca: alem de exigir que o padrao venha de
+  // PERIODO_PADRAO quando ninguem sobrescreve, ela agora proibe os quatro
+  // canais de sobrescrever. Antes isso nem era possivel, e nem era vigiado.
+  assert.match(hook, /const padrao = opcoes\?\.padrao \?\? PERIODO_PADRAO;/, "o padrao da casa deixou de ser a base");
+  assert.match(hook, /useState<DashboardPeriodOption>\(hasCustomPeriod \? "custom" : padrao\)/);
+  assert.match(hook, /`days=\$\{padrao\}`/);
   assert.ok(!/"days=30"/.test(hook), "o 30 nao pode sobreviver escondido no estado inicial");
 
   for (const caminho of [
@@ -26,6 +32,17 @@ test("o padrao dos QUATRO canais e Hoje, e vem de um lugar so", async () => {
   ]) {
     const tela = await fonte(caminho);
     assert.match(tela, /useDashboardPeriod\(/, `${caminho}: precisa usar o hook compartilhado`);
+    // Nenhum dos QUATRO pode declarar padrao proprio: o "Hoje" deles e o da
+    // casa, e um canal com padrao escrito na tela e a divergencia de volta.
+    //
+    // ⚠️ ANCORADO NA CHAMADA, e a primeira versao desta linha nao estava — ela
+    // procurava /padrao:/ no arquivo inteiro e reprovou o dashboard da Amazon
+    // por causa do COMENTARIO "Aquecimento dos periodos padrao:". E a regra do
+    // AGENTS.md pegando quem acabou de escreve-la, no mesmo dia.
+    for (const chamada of tela.match(/useDashboardPeriod\([\s\S]{0,400}?\);/g) ?? []) {
+      assert.ok(!/padrao:/.test(chamada), `${caminho}: canal nao pode ter padrao proprio`);
+      assert.ok(!/presets:/.test(chamada), `${caminho}: canal oferece os quatro presets e o intervalo`);
+    }
   }
 });
 
@@ -116,4 +133,30 @@ test("a rota da Shopee USA from/to — nao apenas os le", async () => {
   const ramo = rota.slice(rota.indexOf("if (fromValue || toValue) {"), rota.indexOf('if (daysParam === "today")'));
   assert.match(ramo, /return \{[\s\S]*from,[\s\S]*to: ate/, "o ramo tem de devolver as datas pedidas");
   assert.match(ramo, /RangeError/, "uma data so e pedido malformado, nao meio periodo");
+});
+
+test("a Curva ABC usa a peca compartilhada, e nao um segundo seletor", async () => {
+  // Ate 01/09/2026 esta tela tinha o SEGUNDO seletor do produto: useState
+  // proprio, botoes proprios e a lista 7/15/30 escrita nela. Nao havia mentira
+  // na tela — ela nao oferecia intervalo e a rota le `days` —, mas era a forma
+  // exata de divergencia que ja custou caro no default do servidor.
+  const abc = await fonte("src/app/components/AbcView.tsx");
+  assert.match(abc, /<DashboardPeriodFilter \{\.\.\.period\.filterProps\}[^>]*\/>/, "voltou o seletor proprio");
+  assert.match(abc, /useDashboardPeriod\("", undefined, \{ padrao: "30", presets: PRESETS_DO_ABC \}\)/);
+
+  // ⚠️ E o que a tela OFERECE nao pode ter mudado junto. Trocar a peca era para
+  // matar a divergencia, nao para redesenhar a tela: 7/15/30, abrindo em 30.
+  assert.match(abc, /const PRESETS_DO_ABC = \["7", "15", "30"\] as const;/);
+  assert.ok(!/useState\(30\)/.test(abc), "sobrou o estado do seletor antigo");
+  assert.ok(!/abc-period-tabs/.test(abc), "sobrou a marcacao do seletor antigo");
+});
+
+test("tela com presets proprios NAO oferece intervalo personalizado", async () => {
+  // As rotas de ABC leem so `days`. Se o filtro mostrasse "Personalizado" ali,
+  // a pessoa escolheria um intervalo, o botao ficaria marcado e a tela exibiria
+  // OUTRO periodo — o defeito do from/to da Shopee, de novo.
+  const filtro = await fonte("src/app/components/DashboardPeriodFilter.tsx");
+  assert.match(filtro, /const ofereceIntervalo = !presets;/);
+  assert.match(filtro, /\{ofereceIntervalo && <button type="button" aria-pressed=\{selected === "custom"\}/);
+  assert.match(filtro, /\{ofereceIntervalo && selected === "custom" && <div className="dashboard-custom-period">/);
 });
