@@ -406,7 +406,11 @@ export async function carimbarEstimativasSubstituidas(connectionId: string): Pro
 export async function estimarPelaTarifaObservada(
   connectionId: string,
   limite = 400,
-): Promise<{ pedidos: number; linhas: number; asins: number; semObservacao: number }> {
+): Promise<{
+  pedidos: number; linhas: number; asins: number; semObservacao: number;
+  /** Linhas que o BANCO recusou — a passada segue, e quem chamou decide. */
+  recusadas: number; motivos: Record<string, number>;
+}> {
   const { dbQuery } = await import("../db");
   const { currentWorkspaceId } = await import("../workspaceScope");
   const workspaceId = currentWorkspaceId();
@@ -536,6 +540,8 @@ export async function estimarPelaTarifaObservada(
   const asinsUsados = new Set<string>();
   let gravadas = 0;
   let semObservacao = 0;
+  let recusadas = 0;
+  const motivoDaRecusa = new Map<string, number>();
 
   for (const linha of linhas) {
     const preco = precoDe(linha);
@@ -575,6 +581,18 @@ export async function estimarPelaTarifaObservada(
       const valor = +(Number(observada.tarifa_por_unidade) * linha.qty).toFixed(2);
       if (!Number.isFinite(valor) || valor < 0) continue;
 
+      // ⚠️ UMA LINHA RECUSADA NAO DERRUBA O LOTE (01/09/2026).
+      //
+      // Sem este `try`, o primeiro INSERT que o banco recusa aborta a passada
+      // inteira — e foi exatamente o que aconteceu: as linhas saem ordenadas por
+      // data DECRESCENTE, os pedidos sem preco de hoje vem primeiro, e
+      // `unit_price NOT NULL` matou a re-estimativa na primeira delas. Resultado
+      // medido: 1.532 estimativas apagadas para regravar e ZERO regravadas.
+      //
+      // A recusa e informacao, nao acidente: o lote continua e quem chamou
+      // recebe `recusadas` com o motivo para decidir. Perder 1.500 linhas boas
+      // por causa de uma ruim e o oposto do que este estimador existe para fazer.
+      try {
       await dbQuery(
         `INSERT INTO workspace_channel_order_fee_estimates
            (workspace_id, provider, connection_id, external_order_id, line_no, fee_type,
@@ -598,10 +616,18 @@ export async function estimarPelaTarifaObservada(
       gravadas += 1;
       gravouAlguma = true;
       asinsUsados.add(linha.external_product_id);
+      } catch (erro) {
+        recusadas += 1;
+        const motivo = erro instanceof Error ? erro.message : String(erro);
+        motivoDaRecusa.set(motivo, (motivoDaRecusa.get(motivo) ?? 0) + 1);
+      }
     }
     if (gravouAlguma) pedidosTocados.add(linha.external_order_id);
     else semObservacao += 1;
   }
 
-  return { pedidos: pedidosTocados.size, linhas: gravadas, asins: asinsUsados.size, semObservacao };
+  return {
+    pedidos: pedidosTocados.size, linhas: gravadas, asins: asinsUsados.size, semObservacao,
+    recusadas, motivos: Object.fromEntries(motivoDaRecusa),
+  };
 }
