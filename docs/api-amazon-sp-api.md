@@ -208,6 +208,39 @@ Amazon*. Se o papel for concedido, o caminho é `transportationOptions` da 2024-
 
 ## Changelog observado (mais recente primeiro)
 
+- **2026-08-31 (noite)** — **E eles NUNCA substituem pelo oficial.** Segunda
+  medição na mesma tela do Gestor Seller, que fecha a pergunta deixada em aberto
+  na entrada abaixo. Pedido **`702-9124025-9780207`**, criado em **31/07** e
+  **aprovado em 10/08**: três semanas depois da aprovação, a tela seguia exibindo
+  comissão de **12,01%** — valor de tabela, não de extrato. E o mesmo SKU vendido
+  em **julho (consolidado)** e **hoje (pendente)** mostra o **mesmo líquido ao
+  centavo**: 21,90 → 13,62 nos dois.
+
+  **O que isso significa para nós:** o número de tabela entra no minuto zero e
+  fica para sempre. Se a Amazon cobrar diferente da tabela — promoção, mudança de
+  categoria, ajuste, reembolso —, o lucro deles fica errado permanentemente.
+  Estimar é o padrão do mercado; **reconciliar com o extrato é o que ninguém
+  faz.** É a razão de existir da substituição na
+  [ADR-027](adr/ADR-027-tarifa-estimada-ate-a-liquidacao.md).
+
+- **2026-08-31 (noite)** — **`getMyFeesEstimateForASIN` devolve `Success` com
+  `Amount: 0` na conta `AO62LVXJMX3AA`.** Medido com chamada real, dois ASINs
+  (`B0HBGQNBD4` a R$ 28,90 e `B0HBGLBL6Y` a R$ 22,11), com `IsAmazonFulfilled`
+  verdadeiro **e** falso. Em todos: `ReferralFee` 0, `FBAFees` 0 e — o detalhe que
+  importa — **`FeePromotion` também 0**, e não uma promoção descontando um valor
+  cheio. A resposta traz `SellerId: AO62LVXJMX3AA`, confirmando a conta.
+
+  ⚠️ **Isto não prova que a conta não paga tarifa.** O nosso extrato tem apenas
+  **3 pedidos com tarifa real capturada, somando R$ 2,39**, contra R$ 2.014,26 de
+  receita em agosto — cobertura fina demais para confirmar ou refutar o zero.
+  Fica como medição, não como conclusão. Na conta do colega, a mesma tabela dá
+  12% cravado (entrada abaixo), então zero não é comportamento global da API.
+
+  **O que a tela faz com isso:** a marca de estimativa aparece quando **existe
+  pedido estimado**, não quando o valor é maior que zero — senão um lucro sem
+  tarifa nenhuma apareceria sem dizer que aquele zero é estimativa sujeita a
+  substituição na liquidação.
+
 - **2026-08-31** — **O software concorrente calcula comissão e FBA NO MOMENTO DO
   PEDIDO, por tabela, e mostra na tela sem esperar aprovação nem liquidação.**
   Não é observação da SP-API: é medição da tela do **Gestor Seller**, feita pelo
@@ -246,9 +279,9 @@ Amazon*. Se o papel for concedido, o caminho é `transportationOptions` da 2024-
   a ideia de que exibir tarifa calculada antes da liquidação seria heterodoxo: o
   software que a Ana usa como referência faz isso desde o minuto zero do pedido.
 
-  **O que NÃO foi provado, e não pode ser afirmado:** se eles **substituem** o
-  calculado pelo oficial quando a liquidação chega. O medido é que calculam
-  antes; a substituição ficou sem prova.
+  **O que ficou sem prova nesta medição — e foi medido depois:** se eles
+  substituem o calculado pelo oficial. A resposta está na entrada de 31/08 (noite),
+  no topo: **não substituem.**
 
   Uma observação lateral que vale para o nosso defeito de hoje: o lucro deles
   fecha exatamente sobre o **total de itens do próprio pedido**

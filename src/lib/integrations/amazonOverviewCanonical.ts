@@ -89,7 +89,7 @@ export interface AmazonCanonicalOverview {
     estimatedProfit: number | null;
     /** Alíquota declarada pela vendedora. `null` = não cadastrada. */
     taxRate: number | null;
-    /** Imposto do período sobre a receita apurada. `null` sem alíquota. */
+    /** Imposto do período sobre a MESMA base do lucro. `null` sem alíquota. */
     taxes: number | null;
     /**
      * Estorno do período, pela data do PEDIDO original. Já descontado do lucro.
@@ -98,12 +98,19 @@ export interface AmazonCanonicalOverview {
     refunds: number;
     /** Quantas devoluções compõem o valor acima — a tela avisa quando muda o passado. */
     refundCount: number;
-    /** Base do lucro: receita apurada + pendente valorizado. */
+    /**
+     * A BASE, e é uma só: o faturamento do período — todo pedido não cancelado
+     * pelo valor do próprio pedido, pendente ou confirmado. Lucro, margem e
+     * imposto saem daqui. Ver a decisão dela de 31/08/2026 na ADR-027.
+     */
     revenueDoLucro: number;
-    /** Pedidos pendentes no período — deles a tarifa ainda não foi postada. */
-    pedidosPendentes: number;
-    /** Pendentes que a Amazon ainda não valorizou: ficam de fora da receita. */
-    pendentesSemValor: number;
+    /** Quantos pedidos compõem a base. */
+    pedidosNaBase: number;
+    /**
+     * Pedidos que a Amazon ainda não valorizou — sem `OrderTotal` e sem preço de
+     * tabela. Ficam FORA da base (não valem zero) e a tela os aponta com número.
+     */
+    pedidosSemValor: number;
     /** Parte de `fees` que é estimativa publicada pela Amazon (ADR-027). */
     feesEstimadas: number;
     /** Quantos pedidos têm tarifa estimada em vez de postada. */
@@ -490,13 +497,19 @@ export async function getAmazonOverviewFromCanonical(period: Period): Promise<Am
   // telas é o defeito que a vendedora detecta sozinha e depois do qual ela não
   // confia em nenhum dos dois.
   //
-  // ⚠️ A BASE É A RECEITA APURADA, não o faturamento com pendentes. Pedido
-  // pendente não tem receita reconhecida aqui (`gross` nulo, sem item), e cobrar
-  // imposto de receita que não capturamos inventaria despesa — o espelho exato
-  // da tarifa fabricada em zero. É também a base que o `profit.ts` já usa:
-  // alinhar não é decisão nova, inventar uma terceira base seria.
+  // ⚠️ O IMPOSTO SAI DA MESMA BASE DO LUCRO — O FATURAMENTO (31/08/2026).
+  //
+  // Aqui estava `processedRevenue`, e o comentário anterior defendia isso com um
+  // argumento que a decisão dela derrubou: "pedido pendente não tem receita
+  // reconhecida". Passou a ter. Enquanto a receita do pendente entrava no lucro
+  // e o imposto ficava só sobre o apurado, o imposto era o de um universo e a
+  // receita a de outro — a mesma família de defeito que levou a margem a
+  // −90,5%, só que na linha do imposto. Medido na conta A15NQMF7A6J1Y0 em
+  // 31/08: 5% sobre 130,09 (R$ 6,50) descontados de uma receita de 456,86.
+  //
+  // A base é calculada mais abaixo (`faturamentoDoLucro`), então o imposto é
+  // calculado lá junto — aqui fica só a alíquota.
   const taxRate = await getAmazonTaxRateSetting(dbQuery, workspaceId, currentAccountId()).catch(() => null);
-  const taxes = amazonTaxAmount(processedRevenue, taxRate);
 
   // ═══ ESTORNO REDUZ O RESULTADO DO PERÍODO (decisão dela, 31/08/2026) ═══════
   //
@@ -541,17 +554,44 @@ export async function getAmazonOverviewFromCanonical(period: Period): Promise<Am
   // — *"mostra o número e sinaliza o que falta ao lado"* — o lucro aparece e a
   // tela diz de quantos pedidos falta tarifa. Estimá-la é a ADR-027, que precisa
   // de coluna própria para persistir previsto × real.
-  const [pendenteRows, pendenteLinhas] = await Promise.all([
-    dbQuery<{ receita: string | null; pedidos: number; sem_valor: number }>(
-      `SELECT COALESCE(SUM(o.ordered_gross), 0)::text             AS receita,
-              COUNT(*)::int                                        AS pedidos,
-              COUNT(*) FILTER (WHERE o.ordered_gross IS NULL)::int AS sem_valor
+  const [faturamentoRows, pendenteLinhas] = await Promise.all([
+    // ═══ A BASE, UMA SÓ: O FATURAMENTO (31/08/2026, decisão final dela) ═══════
+    //
+    // *"fazer dessa forma o cálculo em cima de tudo que é considerado
+    // faturamento (pendentes e confirmados). Apenas isso."*
+    //
+    // Todo pedido não cancelado do período entra, com o valor do PRÓPRIO pedido.
+    //
+    // ⚠️ `NULLIF(gross, 0)` E NÃO `COALESCE(gross, ordered_gross)` — a diferença
+    // vale o faturamento inteiro do pendente. O sync grava `gross = 0.00` (não
+    // `NULL`) enquanto a Amazon omite `OrderTotal`, então o `COALESCE` sozinho
+    // NUNCA caía para `ordered_gross`: medido em 31/08 na conta A15NQMF7A6J1Y0,
+    // 32 pendentes com preço de tabela conhecido somavam zero. `NULLIF` traduz o
+    // zero em ausência e deixa o preço de tabela ocupar o lugar.
+    //
+    // ⚠️ E PEDIDO SEM PREÇO NENHUM NÃO VALE ZERO: fica fora da base e é CONTADO
+    // em `sem_valor`, que a tela exibe com número. Somá-lo como zero afirmaria
+    // "vendeu e não faturou" — o `null ≠ 0` do AGENTS.md.
+    dbQuery<{ receita: string | null; pedidos: number; sem_valor: number; frete: string | null }>(
+      `SELECT COALESCE(SUM(COALESCE(NULLIF(o.gross, 0), o.ordered_gross)), 0)::text AS receita,
+              COUNT(*)::int                                                         AS pedidos,
+              COUNT(*) FILTER (WHERE COALESCE(NULLIF(o.gross, 0), o.ordered_gross) IS NULL)::int AS sem_valor,
+              COALESCE(SUM(o.buyer_shipping), 0)::text                              AS frete
          FROM workspace_channel_orders o
         WHERE o.workspace_id = $1 AND o.provider = $2 AND o.connection_id = $3
           AND o.occurred_at >= $4 AND o.occurred_at <= $5
-          AND o.status = 'pending'`,
+          AND o.status <> 'cancelled'`,
       scopeParams(connectionId, period),
     ),
+    // O CUSTO COBRE EXATAMENTE O MESMO CONJUNTO DA BASE, e é por isso que este
+    // filtro é o COMPLEMENTO do detalhado, não `status = 'pending'`.
+    //
+    // ⚠️ Numerador e denominador têm de cobrir o mesmo universo. Enquanto aqui
+    // estava `'pending'` e a base somava só o apurado, o custo de um universo
+    // caía sobre a receita de outro — foi assim que a margem foi a −90,5% na
+    // conta A15NQMF7A6J1Y0 em 31/08/2026 (custo de 46 unidades pendentes contra
+    // a receita de 13 dos 32 pedidos). Qualquer status novo que a Amazon
+    // invente entra aqui sozinho, em vez de somar receita sem custo.
     dbQuery<{ sku: string | null; external_product_id: string; qty: number; occurred_at: string }>(
       `SELECT i.sku, i.external_product_id, i.qty, o.occurred_at
          FROM workspace_channel_order_items i
@@ -560,14 +600,32 @@ export async function getAmazonOverviewFromCanonical(period: Period): Promise<Am
           AND o.connection_id = i.connection_id AND o.external_order_id = i.external_order_id
         WHERE i.workspace_id = $1 AND i.provider = $2 AND i.connection_id = $3
           AND o.occurred_at >= $4 AND o.occurred_at <= $5
-          AND o.status = 'pending'`,
-      scopeParams(connectionId, period),
+          AND o.status <> 'cancelled' AND NOT (o.status = ANY($6))`,
+      [...scopeParams(connectionId, period), REVENUE_STATUSES],
     ),
   ]);
   // Tarifa ESTIMADA do período, somada à parte da real (ADR-027). Separada de
   // propósito: a tela precisa dizer quanto do número é estimativa, e juntar as
   // duas numa coluna só apagaria essa distinção — que é a única coisa que
   // impede a estimativa de ser lida como oficial.
+  //
+  // ═══ A OFICIAL SUBSTITUI A ESTIMADA (ADR-027 item 3, e o que ninguém faz) ══
+  //
+  // ⚠️ O `NOT EXISTS` ABAIXO NÃO É ENFEITE — SEM ELE A TARIFA CONTA DUAS VEZES.
+  // A linha `estimated` continua gravada depois que a Amazon posta a real (de
+  // propósito: é ela que permite medir a pontaria). Mas a leitura soma as duas
+  // colunas, e o detalhado já traz a REAL: o pedido liquidado entrava com
+  // comissão real + comissão estimada, e o lucro caía por um custo que não
+  // existe. Substituir é EXCLUIR a estimativa na LEITURA, nunca apagar a linha.
+  //
+  // ⚠️ E É POR ISTO QUE A ADR-027 EXISTE. Medido em 31/08/2026 na tela do
+  // Gestor Seller: o concorrente calcula a tarifa no minuto do pedido e NUNCA
+  // substitui — o pedido `702-9124025-9780207`, criado 31/07 e aprovado em
+  // 10/08, seguia mostrando 12,01% de tabela três semanas depois. Se a Amazon
+  // cobrar diferente (promoção, mudança de categoria, ajuste, reembolso), o
+  // lucro deles fica errado para sempre. O nosso conserta na liquidação, e é
+  // esta cláusula que faz isso acontecer. Quem remover para "simplificar"
+  // reintroduz o defeito do concorrente e a dupla contagem de uma vez só.
   const estimadaRows = await dbQuery<{ total: string | null; pedidos: number }>(
     `SELECT COALESCE(SUM(f.amount), 0)::text AS total,
             COUNT(DISTINCT f.external_order_id)::int AS pedidos
@@ -577,15 +635,22 @@ export async function getAmazonOverviewFromCanonical(period: Period): Promise<Am
         AND o.connection_id = f.connection_id AND o.external_order_id = f.external_order_id
       WHERE f.workspace_id = $1 AND f.provider = $2 AND f.connection_id = $3
         AND f.fee_type = 'estimated'
-        AND o.occurred_at >= $4 AND o.occurred_at <= $5`,
+        AND o.occurred_at >= $4 AND o.occurred_at <= $5
+        AND NOT EXISTS (
+          SELECT 1 FROM workspace_channel_order_fees real
+           WHERE real.workspace_id = f.workspace_id AND real.provider = f.provider
+             AND real.connection_id = f.connection_id
+             AND real.external_order_id = f.external_order_id
+             AND real.fee_type NOT IN ('refund', 'estimated')
+        )`,
     scopeParams(connectionId, period),
   );
   const feesEstimadas = Number(estimadaRows[0]?.total ?? 0);
   const pedidosComTarifaEstimada = estimadaRows[0]?.pedidos ?? 0;
 
-  const receitaPendente = Number(pendenteRows[0]?.receita ?? 0);
-  const pedidosPendentes = pendenteRows[0]?.pedidos ?? 0;
-  const pendentesSemValor = pendenteRows[0]?.sem_valor ?? 0;
+  const faturamentoDoLucro = Number(faturamentoRows[0]?.receita ?? 0);
+  const pedidosNaBase = faturamentoRows[0]?.pedidos ?? 0;
+  const pedidosSemValor = faturamentoRows[0]?.sem_valor ?? 0;
 
   // Custo do pendente pela MESMA regra do apurado: custo cadastrado vigente na
   // data da compra. Unidade sem custo cadastrado conta em `unitsWithoutCost` e
@@ -629,8 +694,17 @@ export async function getAmazonOverviewFromCanonical(period: Period): Promise<Am
   // pendente entram JUNTOS, para o numerador cobrir o mesmo universo do
   // denominador. Descontar custo de pendente sem somar a receita dele, ou o
   // contrário, produziria um viés só que o outro.
-  const receitaDoLucro = +(processedRevenue + receitaPendente).toFixed(2);
+  //
+  // ⚠️ E A BASE É UMA SÓ, MEDIDA NO PEDIDO — não mais `processedRevenue` somado
+  // ao pendente (31/08/2026). Aquela soma juntava duas contagens diferentes: a
+  // apurada vinha das LINHAS de item (linha sem preço valia zero) e a pendente
+  // vinha do PEDIDO. O resultado somava universos que não fechavam entre si.
+  // Agora todo pedido não cancelado entra pelo próprio valor, uma vez só.
+  const receitaDoLucro = faturamentoDoLucro;
   const cogsDoLucro = +(cogs + cogsPendente).toFixed(2);
+  // O imposto acompanha a base, e não a receita apurada — ver a nota na leitura
+  // da alíquota, acima.
+  const taxes = amazonTaxAmount(receitaDoLucro, taxRate);
   // A tarifa da conta é a REAL mais a ESTIMADA — sem a estimada, a receita do
   // pendente entraria sem custo de canal e o lucro inflaria: medido em 31/08,
   // a margem ia a 93,2% justamente por isso. Trocar um número enviesado para
@@ -688,6 +762,8 @@ export async function getAmazonOverviewFromCanonical(period: Period): Promise<Am
       revenueProcessed: +processedRevenue.toFixed(2),
       /** A base que o LUCRO usa: apurado + pendente valorizado pela Amazon. */
       revenueDoLucro: receitaDoLucro,
+      pedidosNaBase,
+      pedidosSemValor,
       fees: tarifaDoLucro,
       /** Quanto de `fees` é estimativa da Product Fees API, não tarifa postada. */
       feesEstimadas: +feesEstimadas.toFixed(2),
@@ -698,8 +774,6 @@ export async function getAmazonOverviewFromCanonical(period: Period): Promise<Am
       taxes,
       refunds: +refunds.toFixed(2),
       refundCount,
-      pedidosPendentes,
-      pendentesSemValor,
       ads: lucro.ads,
       adsDesconhecido: lucro.adsDesconhecido,
       adsAteDia: lucro.ateDia,

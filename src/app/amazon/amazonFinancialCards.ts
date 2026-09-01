@@ -75,6 +75,28 @@ export interface AmazonCardsInput {
   /** Quantos pedidos do período ainda não têm valor/custo/tarifa apurados. */
   pedidosAguardando?: number;
   /**
+   * A BASE DE LUCRO E MARGEM — o faturamento do período (`profit.revenueDoLucro`).
+   *
+   * ⚠️ É ESTE CAMPO, e não `finance.revenue`, que fecha o defeito de 31/08/2026.
+   * O produtor passou a calcular o lucro sobre o faturamento inteiro e esta
+   * camada continuou dividindo por `finance.revenue` (o apurado): numerador de um
+   * universo, denominador de outro. Na conta A15NQMF7A6J1Y0 isso exibiu −90,5%
+   * de margem — −108,82 / 120,19 — enquanto o lucro cobria R$ 456,86.
+   *
+   * `null` = o produtor não informou; a margem então volta ao comportamento
+   * antigo em vez de inventar base.
+   */
+  baseDoLucro?: number | null;
+  /**
+   * Pedidos que a Amazon ainda não valorizou — ficam FORA da base. A tela os
+   * aponta com número, nunca com a palavra "parcial".
+   */
+  pedidosSemValor?: number;
+  /** Quanto do total de tarifas é estimativa da Amazon (ADR-027). */
+  feesEstimadas?: number | null;
+  /** Quantos pedidos entraram com tarifa estimada em vez de postada. */
+  pedidosComTarifaEstimada?: number;
+  /**
    * Estorno do período, já descontado do lucro (decisão dela em 31/08/2026:
    * "estorno reduz o resultado do período"). `0` = não houve devolução.
    */
@@ -339,13 +361,33 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
       ? `inclui ${money(input.refunds!, currency)} de ${input.refundCount ?? 0} devolução(ões), pela data da venda`
       : null;
   const faturamentoExibido = input.faturamentoTotal ?? f?.revenue ?? null;
-  const baseApurada = f?.revenue ?? null;
-  const margem = resultadoValido && lucroReal != null && f.revenue > 0 ? (lucroReal / f.revenue) * 100 : null;
+  // ═══ UMA BASE SÓ: O FATURAMENTO (31/08/2026, decisão final dela) ═══════════
+  //
+  // *"fazer o cálculo em cima de tudo que é considerado faturamento (pendentes e
+  // confirmados). Apenas isso."*
+  //
+  // ⚠️ O DENOMINADOR ERA `f.revenue` — O APURADO — E O NUMERADOR JÁ COBRIA O
+  // FATURAMENTO. Essa combinação exibiu −90,5% na conta A15NQMF7A6J1Y0 em
+  // 31/08/2026 (−108,82 sobre 120,19, com o lucro cobrindo R$ 456,86) e +120,9%
+  // na conta AO62LVXJMX3AA no mesmo instante (34,94 sobre 28,90, cobrindo
+  // 73,12). Margem acima de 100% e margem abaixo de −90% eram o MESMO defeito
+  // visto pelos dois lados: dividir o resultado de um universo pela receita de
+  // outro. Quem trocar de volta para `f.revenue` reintroduz os dois.
+  const baseApurada = input.baseDoLucro ?? f?.revenue ?? null;
+  const margem =
+    resultadoValido && lucroReal != null && baseApurada != null && baseApurada > 0
+      ? (lucroReal / baseApurada) * 100
+      : null;
   /** A frase que impede a leitura "o lucro não sai do faturamento, logo está errado". */
   // A frase sai de `declaracaoDeBase`, compartilhada com os outros canais: a
   // Shopee recebe o mesmo desbloqueio de margem e ML e TikTok têm a mesma
   // diferença entre faturamento exibido e base apurada. Quatro canais
   // escrevendo a própria versão divergem na primeira vez que alguém ajusta uma.
+  //
+  // ⚠️ E AGORA ELA SOME QUANDO AS BASES COINCIDEM — que passa a ser o caso
+  // normal. `declaracaoDeBase` devolve `null` quando faturamento exibido ≤ base,
+  // e a base virou o próprio faturamento. Ela sobra só onde a Amazon ainda não
+  // valorizou algum pedido, e aí é a linha abaixo que diz quantos são.
   const baseDeclarada =
     declaracaoDeBase({
       baseApurada,
@@ -353,8 +395,31 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
       moeda: currency,
       pedidosAguardando: input.pedidosAguardando,
     }) ?? BASE_SEM_DIFERENCA;
-  /** A linha visível do card de Lucro: base quando difere, e a devolução quando houver. */
-  const notaDoLucro = [baseDeclarada === "sobre vendas" ? null : baseDeclarada, devolucao]
+  // O QUE FALTA, COM NÚMERO — nunca a palavra "parcial" (AGENTS.md). Pedido que
+  // a Amazon ainda não valorizou fica fora da base; a tela diz quantos são, para
+  // ela saber que o número sobe sozinho quando a Amazon publicar.
+  const semValor = input.pedidosSemValor ?? 0;
+  const faltaValor =
+    semValor > 0
+      ? `${semValor} pedido${semValor > 1 ? "s" : ""} sem valor publicado pela Amazon`
+      : null;
+  // Quanto do total de tarifas é estimativa (ADR-027).
+  //
+  // ⚠️ A CONDIÇÃO É "HÁ PEDIDO ESTIMADO", NÃO "O VALOR É MAIOR QUE ZERO".
+  // Medido em 31/08/2026 na conta AO62LVXJMX3AA: a Product Fees API respondeu
+  // `Status: Success` com `Amount: 0` (e `FeePromotion: 0`) para os 3 pedidos do
+  // dia. Com o teste em `estimadas > 0` a marca sumia — e o que a tela mostrava
+  // era um lucro sem tarifa nenhuma, sem dizer que aquele zero é ESTIMATIVA que
+  // a liquidação pode substituir. É o `null ≠ 0` do AGENTS.md pelo avesso:
+  // aqui o zero é um fato publicado pela fonte, e um fato merece ser declarado.
+  const estimadas = input.feesEstimadas ?? 0;
+  const pedidosEstimados = input.pedidosComTarifaEstimada ?? 0;
+  const quantoEstimado =
+    pedidosEstimados > 0
+      ? `inclui ${money(estimadas, currency)} de tarifa estimada pela Amazon em ${pedidosEstimados} pedido(s) — a oficial entra na liquidação`
+      : null;
+  /** A linha visível do card de Lucro: base quando difere, o que falta, e a devolução. */
+  const notaDoLucro = [baseDeclarada === "sobre vendas" ? null : baseDeclarada, faltaValor, devolucao]
     .filter(Boolean)
     .join(" · ") || undefined;
   const roi = resultadoValido && lucroReal != null && input.cogs > 0 ? (lucroReal / input.cogs) * 100 : null;
@@ -398,7 +463,13 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
         ? `O que o comprador pagou, já sem ${money(f?.promotions ?? 0, currency)} de cupom.`
         : undefined,
     },
-    { key: "fees", label: "Taxas", ...num(f?.fees, semExtrato) },
+    {
+      key: "fees", label: "Taxas", ...num(f?.fees, semExtrato),
+      // A MARCA DA ESTIMATIVA VAI NA FACE, NÃO NO "i" (ADR-027 item 5). O
+      // concorrente exibe tarifa calculada sem marca nenhuma, como se fosse
+      // oficial; a marca é o que nos separa dele. Some quando não há estimativa.
+      baseDeclarada: quantoEstimado ?? undefined,
+    },
     { key: "fbaShipping", label: "Logística FBA", ...num(logistica, "Aguardando tarifas de logística no extrato", undefined, "A Amazon não cobrou logística no período") },
     { key: "buyerShipping", label: "Frete do comprador", ...num(f?.buyerShipping, "Aguardando frete pago pelo comprador", undefined, "Nenhum frete pago pelo comprador") },
     // Fonte é a Ads API, NÃO o extrato — anúncio não é tarifa de pedido.

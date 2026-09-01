@@ -104,6 +104,18 @@ interface ProfitData {
     feeBreakdown?: { type: string; amount: number }[];
   };
   cogs: number;
+  /**
+   * A BASE de lucro, margem e imposto: o faturamento do período (pendentes e
+   * confirmados). É o denominador da margem — ver a nota em
+   * `amazonFinancialCards.ts`, onde a divergência entre base e numerador exibiu
+   * −90,5% e +120,9% no mesmo dia.
+   */
+  revenueDoLucro?: number;
+  /** Pedidos que a Amazon ainda não valorizou — fora da base, apontados com número. */
+  pedidosSemValor?: number;
+  /** Quanto das tarifas é estimativa da Amazon (ADR-027), para a marca na tela. */
+  feesEstimadas?: number;
+  pedidosComTarifaEstimada?: number;
   /** Já com o anúncio dentro (fronteira em `src/lib/financialMath.ts`). */
   estimatedProfit: number | null;
   /** O anúncio que o produtor já descontou acima — a tela escreve, não subtrai. */
@@ -211,7 +223,7 @@ interface DashboardPayload {
   metrics: { totalOrders: number; paidOrders: number; fbaOrders: number; revenue: number };
   dailySales: Array<{ date: string; revenue: number; orders: number; units: number }>;
   topProducts: Array<{ sku: string; title: string; units: number; revenue: number; marginPct: number | null }>;
-  profit: { revenueProcessed: number; fees: number; cogs: number; estimatedProfit: number | null; taxRate?: number | null; taxes?: number | null; refunds?: number; refundCount?: number; ads?: number | null; unitsWithCost: number; unitsWithoutCost: number; skusWithoutCost: number; coverage?: { processedOrders: number; paidOrders: number; complete: boolean } };
+  profit: { revenueProcessed: number; revenueDoLucro?: number; pedidosNaBase?: number; pedidosSemValor?: number; feesEstimadas?: number; pedidosComTarifaEstimada?: number; fees: number; cogs: number; estimatedProfit: number | null; taxRate?: number | null; taxes?: number | null; refunds?: number; refundCount?: number; ads?: number | null; unitsWithCost: number; unitsWithoutCost: number; skusWithoutCost: number; coverage?: { processedOrders: number; paidOrders: number; complete: boolean } };
   ads?: AmazonAdsInput | null;
   adsJanela?: { inicioDia: string; esperadoAte: string; incluiHoje?: boolean } | null;
   adsConectado?: boolean;
@@ -469,6 +481,10 @@ export default function Dashboard() {
       const profit: ProfitData = {
         finance: payload.finance,
         cogs: payload.profit.cogs,
+        revenueDoLucro: payload.profit.revenueDoLucro,
+        pedidosSemValor: payload.profit.pedidosSemValor,
+        feesEstimadas: payload.profit.feesEstimadas,
+        pedidosComTarifaEstimada: payload.profit.pedidosComTarifaEstimada,
         estimatedProfit: payload.profit.estimatedProfit,
         adsNoLucro: payload.profit.ads ?? null,
         // ⚠️ CAMPO NOVO TEM QUE SER LIDO AQUI — este objeto é montado campo a
@@ -820,6 +836,12 @@ export default function Dashboard() {
           // com "Vendas hoje até agora" do Seller Central.
           faturamentoTotal: pedidosFeitos?.revenue ?? null,
           pedidosAguardando,
+          // A MESMA BASE DO NUMERADOR (31/08/2026). Sem isto a margem volta a
+          // sair sobre o apurado e reaparecem os −90,5% / +120,9%.
+          baseDoLucro: profit?.revenueDoLucro ?? null,
+          pedidosSemValor: profit?.pedidosSemValor ?? 0,
+          feesEstimadas: profit?.feesEstimadas ?? null,
+          pedidosComTarifaEstimada: profit?.pedidosComTarifaEstimada ?? 0,
           refunds: profit?.refunds ?? 0,
           refundCount: profit?.refundCount ?? 0,
         });

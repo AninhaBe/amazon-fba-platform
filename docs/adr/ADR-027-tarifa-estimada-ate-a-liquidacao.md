@@ -164,15 +164,78 @@ O que **não** muda, e não está em discussão:
   Nossa vantagem sobre eles passa a ser exatamente a marca e a substituição, não
   a ausência do número.
 
-### O que NÃO foi provado
+### Segunda medição, 31/08/2026 à noite: eles NUNCA substituem
 
-Não foi possível provar que o concorrente **substitui** o calculado pelo oficial
-depois da liquidação. O medido é que ele **calcula antes**. Nada neste ADR pode
-se apoiar na substituição deles — a nossa substituição (item 3 acima) continua
-sendo decisão nossa, sustentada pelo acompanhamento de pontaria (item 5), e não
-por imitação.
+O que ficara sem prova na primeira medição foi medido depois, e o resultado é o
+oposto do que a dúvida supunha: **o concorrente não substitui pelo oficial.**
 
-### Aberto em 31/08/2026, e é dívida desta emenda
+- Pedido **`702-9124025-9780207`**, criado em **31/07**, **aprovado em 10/08** —
+  três semanas depois, a tela seguia mostrando comissão de **12,01%**, valor de
+  tabela e não de extrato.
+- O mesmo SKU vendido em **julho (já consolidado)** e **hoje (pendente)** exibe o
+  **mesmo líquido ao centavo**: 21,90 → 13,62 nos dois.
+
+Ou seja: o número de tabela entra no minuto zero e **fica para sempre**.
+
+### O risco que eles têm e nós não podemos ter
+
+É esta a razão de existir do item 3 (substituição), e ela agora tem prova:
+
+> Se a Amazon cobrar **diferente da tabela** — promoção, mudança de categoria,
+> ajuste, reembolso —, o lucro deles fica errado **para sempre**, porque nada
+> nunca reconcilia. O nosso conserta na liquidação.
+
+Estimar não é concessão: é o padrão do mercado. **A reconciliação com o extrato é
+o que ninguém faz**, e é onde ficamos melhores, não piores. Quem for "simplificar"
+removendo a substituição não está economizando código — está adotando o defeito
+do concorrente.
+
+Escrito também no código, junto da cláusula que faz a substituição acontecer
+(`amazonOverviewCanonical.ts`, a consulta de `fee_type = 'estimated'`), porque
+essa cláusula parece removível para quem não conhece esta medição.
+
+### Medição de 31/08/2026 que a implementação precisa carregar
+
+Na conta **`AO62LVXJMX3AA`** (a dela), a Product Fees API respondeu
+`Status: "Success"` com **`Amount: 0`** — e `FeePromotion: 0`, não uma promoção
+descontando um valor cheio — para os dois ASINs do dia, em FBA e não-FBA. Os 40
+pedidos com estimativa gravada na conta somam **R$ 0,00** de tarifa.
+
+Não é possível afirmar que a conta dela realmente não paga tarifa: o extrato tem
+apenas **3 pedidos com tarifa real capturada, somando R$ 2,39** contra
+R$ 2.014,26 de receita em agosto — cobertura fina demais para confirmar ou
+refutar. Fica registrado como **medição, não como conclusão**.
+
+Consequência para a tela, já implementada: a marca de estimativa aparece quando
+**existe pedido estimado**, e não quando o valor é maior que zero. Um zero
+publicado pela fonte é um fato que a liquidação pode substituir — esconder a
+marca porque o valor é zero exibiria lucro sem tarifa nenhuma sem dizer que
+aquilo é estimativa.
+
+### Fechado em 31/08/2026 — a base virou uma só
+
+A dívida registrada abaixo foi paga na mesma noite. `revenueDoLucro` passou a ser
+o **faturamento do período** — todo pedido não cancelado pelo valor do próprio
+pedido — e lucro, margem e **imposto** saem dele. Medido antes e depois:
+
+| conta | antes | depois |
+|---|---|---|
+| `A15NQMF7A6J1Y0` | lucro −109,31 · margem **−90,5%** · base do lucro 456,86 contra denominador 130,09 | lucro −36,10 · margem **−6,5%** · base 551,13 nos dois |
+| `AO62LVXJMX3AA` (dela) | lucro 34,94 · margem **+120,9%** (impossível) · base 73,12 contra denominador 28,90 | lucro 33,88 · margem **46,3%** · base 73,12 nos dois |
+
+Três correções sustentam isso, e cada uma foi vista vermelha antes de contar
+(`tests/umaBaseSoNaAmazon.test.mjs`):
+
+1. **`NULLIF(gross, 0)`** — o sync grava `gross = 0.00` (não `NULL`) enquanto a
+   Amazon omite `OrderTotal`, então o `COALESCE(gross, ordered_gross)` **nunca**
+   caía para o preço de tabela e 30 pendentes com preço conhecido somavam zero.
+2. **O custo cobre o complemento exato da base**, e não `status = 'pending'`.
+3. **O imposto sai da base do lucro**, não da receita apurada.
+
+Pedido que a Amazon ainda não valorizou continua **fora** da base — nunca zero —
+e a tela o aponta com número ("18 pedidos sem valor publicado pela Amazon").
+
+### A dívida que originou o item acima (31/08/2026)
 
 A implementação que já está no ar (`e8fee24`) grava a tarifa estimada como
 `fee_type = 'estimated'` e a soma ao lucro do período. Medido no mesmo dia, na
