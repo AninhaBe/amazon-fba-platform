@@ -4,7 +4,7 @@ import { resolvePeriod } from "@/lib/period";
 import { withAccountContext } from "@/lib/withAccount";
 import { getAmazonOverviewCanonicalCached } from "@/lib/integrations/amazonOverviewCanonical";
 import { getStockRadar } from "@/lib/radar";
-import { dbQuery } from "@/lib/db";
+import { checkoutsDoPool, dbQuery } from "@/lib/db";
 import { currentWorkspaceId, runWithWorkspace } from "@/lib/workspaceScope";
 import { currentAccount, runWithAccount } from "@/lib/accountContext";
 import { runAmazonSyncBatch } from "@/lib/integrations/amazonSync";
@@ -117,6 +117,7 @@ export async function GET(req: NextRequest) {
     try {
       const period = resolvePeriod(req.nextUrl.searchParams);
       const t0 = performance.now();
+      const checkoutsAntes = checkoutsDoPool();
 
       // ═══ O FATURAMENTO VEM ANTES DO LUCRO, E ISSO É DE PROPÓSITO ═══════════
       //
@@ -313,8 +314,26 @@ export async function GET(req: NextRequest) {
       // a única ida externa que sobrou (inventário FBA, SWR de 10 min): quando o
       // cache expira, ela entra no caminho da tela.
       const acima = durationMs > 800 ? " ⚠️ ACIMA DO ORÇAMENTO" : "";
+      // IDAS AO BANCO NESTA REQUISIÇÃO — o número que faltava para medir a
+      // barreira de inquilino (ADR-036) na rota inteira, e não em consulta
+      // isolada. `checkoutsDoPool()` é acumulado do PROCESSO; o que interessa é
+      // a diferença em volta do handler.
+      //
+      // ⚠️ E ELA SÓ É EXATA COM UMA REQUISIÇÃO POR VEZ. Com duas em paralelo os
+      // checkouts de uma entram na diferença da outra. Serve para medição
+      // sintética controlada, que é o caso; num pico de tráfego real este número
+      // é um limite superior, não a contagem daquela requisição. Quem ler isto
+      // sem saber disso conclui coisa errada — por isso está escrito aqui e não
+      // só na mensagem de quem mediu.
+      //
+      // ⚠️ E ELE NÃO MEDE O CUSTO DA FLAG. Com `DB_CARIMBO_DE_INQUILINO=1` cada
+      // `dbQuery` vira BEGIN + set_config + query + COMMIT, mas continua sendo
+      // UM checkout — o contador não se move e as idas de rede TRIPLICAM. O
+      // efeito da flag aparece no TEMPO, nunca nesta contagem.
+      const idasAoBanco = checkoutsDoPool() - checkoutsAntes;
       console.log(
-        `[dashboard/amazon] ${durationMs}ms (radar ${radarMs}ms, ${canonical.metrics.totalOrders} pedidos no período)${acima}`
+        `[dashboard/amazon] ${durationMs}ms (radar ${radarMs}ms, ${idasAoBanco} idas ao banco, ` +
+        `${canonical.metrics.totalOrders} pedidos no período)${acima}`
       );
 
       // Busca sob demanda, DEPOIS de responder — `after` não entra no orçamento
