@@ -18,6 +18,7 @@ import { shopeeProviderIssueContent, type ShopeeProviderIssue } from "./ShopeeWo
 import { useAnchoredField } from "./useAnchoredField";
 import { rotuloStatusProduto, rotuloStatusShopee } from "./statusDeExibicao";
 import { BaseDeData } from "./BaseDeData";
+import { nomeDaBase } from "./baseDaMargem";
 import { CustomizableMetricGrid } from "./CustomizableMetricGrid";
 import { Flow, FlowExpandable, Metric } from "./Metric";
 import { buildFinancialComposition, FinancialSummaryPanel } from "./FinancialSummaryPanel";
@@ -163,7 +164,16 @@ function ShopeeMonitorContent({body,params,update,connectionId}:{body:Payload;pa
    * regra que já vale para a janela — quando o nome precisa ser dito, ele vem do
    * mesmo lugar que decide o número, nunca de uma string.
    */
-  const baseDoResultado=profit?.revenueDoLucro!=null?"sobre o faturamento":"sobre a receita processada";
+  const baseDoResultado=profit==null?null:nomeDaBase({
+    // O denominador do modulo e `revenueProcessed` ate o backend mandar
+    // `revenueDoLucro`. Nao ha faturamento exibido ao lado para divergir, entao
+    // a peca so NOMEIA a base — e o nome acompanha o campo que foi de fato
+    // usado, que era o ponto da correcao anterior. Texto na tela inalterado.
+    baseApurada:profit.revenueDoLucro??profit.revenueProcessed,
+    faturamentoExibido:profit.revenueDoLucro??profit.revenueProcessed,
+    moeda:currency,
+    rotuloDaBase:profit.revenueDoLucro!=null?"o faturamento":"a receita processada",
+  });
   const sinaisDaTela=sinaisDoResultado({
     skusWithoutCost:profit?.skusWithoutCost??0,
     ordersWithFees:profit?.coverage.ordersWithFees,

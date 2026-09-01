@@ -59,3 +59,30 @@ export function declaracaoDeBase(entrada: BaseDaMargem): string | null {
  * inventarem cada um o seu ("sobre vendas", "sobre o faturamento", "da receita").
  */
 export const BASE_SEM_DIFERENCA = "sobre vendas";
+
+/**
+ * O NOME DA BASE — a frase que responde "esta porcentagem sai de quê".
+ *
+ * ⚠️ NÃO É A MESMA PERGUNTA DE `declaracaoDeBase`, e confundir as duas foi o que
+ * a medição de 01/09/2026 encontrou. `declaracaoDeBase` responde *"por que este
+ * número é menor do que o faturamento ao lado"* — e devolve `null` quando não há
+ * divergência, de propósito. Três telas (o monitor, a central e o módulo da
+ * Shopee) não têm divergência nenhuma para declarar: elas só precisam **nomear o
+ * denominador**. Roteá-las pela peça errada trocaria "sobre a receita
+ * processada" por "sobre vendas" — perda de especificidade travestida de
+ * refatoração.
+ *
+ * As duas moram no mesmo arquivo porque o que se quer garantir é a
+ * **procedência**: o vocabulário de base sai daqui, de lugar nenhum mais. É o
+ * que permite à guarda nascer sem exceção — ver
+ * `docs/achado-frase-com-validade-nao-vira-guarda.md`.
+ *
+ * `rotuloDaBase` é o nome do denominador NA TELA — o mesmo do cartão ao lado,
+ * porque é assim que a pessoa liga os dois ("a receita conciliada", e o cartão
+ * diz "Receita conciliada"). Ele não é texto livre: é o rótulo que já existe.
+ */
+export function nomeDaBase(
+  entrada: BaseDaMargem & { rotuloDaBase: string },
+): string {
+  return declaracaoDeBase(entrada) ?? `sobre ${entrada.rotuloDaBase}`;
+}

@@ -6,6 +6,7 @@ import { nomeDaTarifa } from "@/lib/nomeDaTarifa";
 import { PageHeader, pageIcons } from "../components/PageHeader";
 import { PanelLoading } from "../components/LoadingState";
 import { OrderProfitabilityTable } from "../components/OrderProfitabilityTable";
+import { nomeDaBase } from "../components/baseDaMargem";
 import { Flow, FlowExpandable, Metric } from "../components/Metric";
 import { CustomizableMetricGrid } from "../components/CustomizableMetricGrid";
 import { DashboardPeriodFilter, useDashboardPeriod } from "../components/DashboardPeriodFilter";
@@ -330,7 +331,16 @@ function MonitorPage({ secaoInicial }: { secaoInicial: MonitorSection }) {
               {
                 id: "margem-pct",
                 label: "Margem",
-                node: <Metric label="Margem" value={costsIncomplete || marginPct == null ? "—" : percent(marginPct)} sub={costsIncomplete ? "aguardando todos os custos" : "sobre a receita"} tone={costsIncomplete ? "default" : marginMetricTone(marginPct)} />,
+                node: <Metric label="Margem" value={costsIncomplete || marginPct == null ? "—" : percent(marginPct)} sub={costsIncomplete ? "aguardando todos os custos" : nomeDaBase({
+                  // A margem do monitor sai de `finance.revenue`, que e o valor do
+                  // cartao "Receita conciliada" logo ao lado — nao ha divergencia a
+                  // declarar, so o denominador a nomear. O texto na tela nao muda:
+                  // continua "sobre a receita".
+                  baseApurada: finance.revenue,
+                  faturamentoExibido: finance.revenue,
+                  moeda: finance.currency,
+                  rotuloDaBase: "a receita",
+                })} tone={costsIncomplete ? "default" : marginMetricTone(marginPct)} />,
               },
             ]}
           />

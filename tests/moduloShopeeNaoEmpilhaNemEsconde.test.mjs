@@ -51,11 +51,22 @@ test("⚠️ FRASE VERDADEIRA COM VALIDADE: a base sai do campo USADO, nao de um
   // vira mentira) ou texto generico (que perde a especificidade hoje). As duas
   // tratavam o texto como CONSTANTE. Ele e propriedade do DADO.
   const codigo = semComentarios(await fonte("src/app/components/ShopeeModulePage.tsx"));
+  // ⚠️ ESTE TESTE JA CASOU A LINHA EXATA — e por isso reprovou a MELHORA dela
+  // (01/09/2026): quando a frase passou a sair da peca `nomeDaBase`, o teste
+  // ficou vermelho dizendo que a base "voltou a ser constante", que era o
+  // oposto do que tinha acontecido. E a familia inteira descrita em
+  // `docs/achado-guarda-que-depende-da-forma.md`: guarda que casa a APARENCIA
+  // do codigo reprova quem conserta.
+  //
+  // O que importa nao e a forma da linha: e que o NOME da base venha do CAMPO
+  // que foi de fato usado. E isso que a ramificacao abaixo prova — trocar o
+  // ternario por qualquer um dos dois lados fixos deixa vermelho.
   assert.match(
     codigo,
-    /const baseDoResultado=profit\?\.revenueDoLucro!=null\?"sobre o faturamento":"sobre a receita processada";/,
-    "a frase da base voltou a ser constante",
+    /rotuloDaBase:profit\.revenueDoLucro!=null\?"o faturamento":"a receita processada"/,
+    "a frase da base voltou a ser constante — o rotulo tem de sair do campo usado",
   );
+  assert.match(codigo, /nomeDaBase\(\{/, "a frase da base saiu da peca e virou texto local");
   // E o campo tem de existir no contrato, mesmo antes de o backend mandar.
   assert.match(codigo, /revenueDoLucro\?:number\|null;/, "o campo saiu do contrato do modulo");
 });
