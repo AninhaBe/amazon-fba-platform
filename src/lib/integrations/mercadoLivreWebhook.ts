@@ -183,7 +183,26 @@ async function saveProduct(workspaceId: string, connectionId: string, product: M
            FROM workspace_marketplace_products
           WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
        ) counts
-      WHERE sync.workspace_id = $1 AND sync.provider = $2 AND sync.connection_id = $3`,
+      WHERE sync.workspace_id = $1 AND sync.provider = $2 AND sync.connection_id = $3
+        -- ⚠️ SÓ ESCREVE SE O NÚMERO MUDOU — medido, não suposto (01/09/2026).
+        --
+        -- Este UPDATE roda a cada evento de item e RECALCULA o mesmo total quase
+        -- sempre: nas duas conexões reais do ML, products_total era 393 contra
+        -- 393 produtos no banco, e 14 contra 14. O valor só muda quando um
+        -- produto entra, sai ou troca de status.
+        --
+        -- Em 24 h foram 544 eventos de items — ~544 escritas por dia que passam
+        -- a não acontecer. Não é o grosso (os 2.125 de shipments e 1.125 de
+        -- orders_v2 passam por outro UPDATE), mas é barato e sem risco.
+        --
+        -- ⚠️ products_synced_at e updated_at FICAM DE FORA da comparação, de
+        -- propósito: são now() e mudariam sempre, então incluí-los faria o guard
+        -- nunca disparar. É também por isso que o mesmo truque NÃO serve para o
+        -- outro UPDATE deste arquivo, onde TODAS as colunas são now() — lá o
+        -- problema não é escrita desperdiçada, é o acoplamento com a varredura
+        -- periódica (docs/plans/amplificacao-de-escrita-nos-syncs.md).
+        AND (sync.products_total, sync.active_products)
+            IS DISTINCT FROM (counts.total, counts.active)`,
     [workspaceId, PROVIDER, connectionId]
   );
 }
