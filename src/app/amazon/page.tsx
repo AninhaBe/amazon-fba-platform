@@ -810,7 +810,29 @@ function Dashboard() {
         janela={period.query}
         faturamento={faturamento?.revenue ?? null}
         pedidos={faturamento?.orders ?? 0}
-        lucro={profit?.estimatedProfit ?? null}
+        /**
+         * ⚠️ A FRASE NAO AFIRMA LUCRO QUE A TELA NAO MOSTRA (01/09/2026).
+         *
+         * Achado num print dela das 11:38: os cards de Faturamento, Ads, Custo,
+         * Repasse e Margem estavam TODOS em branco — porque `profit.finance`
+         * veio `null`, e e dele que os cards saem — e a frase do topo dizia
+         * "15 vendas e R$ 12,89 hoje — sobraram R$ 234,71".
+         *
+         * Duas mentiras na mesma linha:
+         *   • afirmava LUCRO numa tela onde o lucro esta em branco;
+         *   • afirmava um lucro MAIOR que o faturamento que ela acabara de
+         *     dizer — 234,71 sobre 12,89 —, porque os dois numeros vem de
+         *     universos diferentes: `billing.revenue` e `profit.estimatedProfit`.
+         *
+         * A frase e o fallback calculado (`montarFrase`), nao a narracao do
+         * modelo. Ela ja tem o ramo certo para isto: sem lucro, escreve "quanto
+         * sobrou ainda nao da para dizer — falta custo ou tarifa". O que faltava
+         * era CAIR nele quando a base financeira nao existe.
+         *
+         * Amarrar a frase a MESMA condicao dos cards e o que impede os dois de
+         * discordarem de novo: sem `finance`, nem card nem frase afirmam lucro.
+         */
+        lucro={profit?.finance ? profit?.estimatedProfit ?? null : null}
         loading={loading}
         format={(v) => money(v, currency)}
         escopo="amazon"
