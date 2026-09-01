@@ -48,7 +48,23 @@ RUN npm run build
 # ---- runner: só o necessário para servir ----
 FROM node:22-alpine AS runner
 WORKDIR /app
-ENV NODE_ENV=production \
+
+# ⚠️ O ARG PRECISA SER REDECLARADO AQUI, e esquecer isso foi um defeito real.
+#
+# `ARG`/`ENV` do estágio `builder` NÃO atravessam para o `runner`: são imagens
+# diferentes. Em 01/09/2026 o carimbo do commit chegou ao build (o bundle recebeu
+# a variável) e o RUNTIME ficou sem ela — `/api/health` respondeu
+# `commit: "desconhecido"` depois de o build-arg já estar correto.
+#
+# Foram TRÊS camadas do mesmo defeito, e cada uma parecia consertada até a
+# próxima ser verificada: (1) `fly-deploy.sh` não passava o build-arg;
+# (2) a rota lia `FLY_MACHINE_VERSION`, que é id de máquina do Fly e não commit;
+# (3) o ENV não existia neste estágio. Conferir no `/api/health` depois de cada
+# tentativa foi o que separou as três — supor que a anterior bastava teria
+# deixado o campo mentindo.
+ARG DEPLOYMENT_VERSION
+ENV DEPLOYMENT_VERSION=$DEPLOYMENT_VERSION \
+    NODE_ENV=production \
     PORT=3000 \
     HOSTNAME=0.0.0.0 \
     NEXT_TELEMETRY_DISABLED=1
