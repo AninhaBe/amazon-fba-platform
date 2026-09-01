@@ -10,7 +10,7 @@ import {
   normalizeAmazonOrderHeader,
   normalizeAmazonOrderItems,
 } from "./amazonCanonical";
-import type { CanonicalFee } from "./canonical";
+import type { CanonicalFee, CanonicalFeeType } from "./canonical";
 import { ingerirRelatorioDePedidos } from "./amazonOrdersReport";
 import {
   applyCanonicalOrderItems,
@@ -31,6 +31,32 @@ import { inicioDoMesVigente } from "./inicioDoMes";
 // "não processado" na cobertura de lucro.
 
 const PROVIDER = "amazon";
+
+/**
+ * O `breakdownType` da Amazon traduzido para a taxonomia canônica.
+ *
+ * ⚠️ É ESTA TRADUÇÃO QUE FAZ PREVISTO E REAL TEREM A MESMA CHAVE (ADR-027
+ * Emenda II). A estimativa grava `commission`/`fulfillment`; se o real chegasse
+ * com outro vocabulário, a substituição por `(pedido, fee_type)` nunca casaria —
+ * foi exatamente o defeito que o Delta mediu quando `ReferralFee` caía em
+ * `other` e `Commission` em `commission`.
+ *
+ * ⚠️ O DESCONHECIDO VAI PARA `other`, E ISSO É DELIBERADO. A Amazon cria tipo
+ * novo sem avisar. Mandar o desconhecido para `commission` inflaria a comissão
+ * com armazenagem e anúncio — o defeito que existia até 01/09/2026. `other`
+ * soma no total, aparece no detalhamento com o nome original em
+ * `provider_fee_code`, e não contamina nenhuma das duas parcelas que a tela
+ * exibe separadas.
+ */
+function naturezaDaTarifa(tipoDaAmazon: string): CanonicalFeeType {
+  const t = tipoDaAmazon.toLowerCase();
+  if (t.includes("referral") || t.includes("commission")) return "commission";
+  if (t.includes("fba") || t.includes("fulfillment") || t.includes("pick") || t.includes("weight")) {
+    return "fulfillment";
+  }
+  return "other";
+}
+
 const DAY = 86_400_000;
 const WINDOW_DAYS = 7;
 const PAGE_SIZE = 100;
@@ -290,7 +316,7 @@ async function syncMissingOrderFees(connectionId: string): Promise<void> {
   // Pequena no regime permanente, larga só durante o backfill.
   const ymd = (date: Date) => new Date(date.getTime() - 3 * 3_600_000).toISOString().slice(0, 10);
   const oldest = new Date(rows[rows.length - 1].occurred_at);
-  let financials: Record<string, { fees: number; refunds: number; currency: string }>;
+  let financials: Record<string, { fees: number; refunds: number; currency: string; porTipo?: Record<string, number> }>;
   try {
     financials = await getOrderFinancialsFromTransactions(periodFromRange(ymd(oldest), ymd(new Date())));
   } catch (erro) {
@@ -315,7 +341,39 @@ async function syncMissingOrderFees(connectionId: string): Promise<void> {
     if (!fin) continue;
     const currency = fin.currency || row.currency || "BRL";
     const fees: CanonicalFee[] = [];
-    if (fin.fees > 0) fees.push({ feeType: "commission", providerFeeCode: "transactions_total", amount: fin.fees, currency });
+    // ═══ UMA LINHA POR TARIFA NOMEADA, E NÃO UM TOTAL (01/09/2026) ══════════
+    //
+    // ⚠️ AQUI SE PERDIA A DECOMPOSIÇÃO QUE A AMAZON JÁ MANDAVA. Este bloco
+    // gravava `commission / transactions_total` com a SOMA de tudo — comissão,
+    // FBA, armazenagem e anúncio no mesmo balde, com nome de comissão. Medido na
+    // conta `A15NQMF7A6J1Y0`: 5.266 pedidos, R$ 51.782,74, e nenhuma linha de
+    // `fulfillment` em lugar nenhum.
+    //
+    // Custava duas coisas ao mesmo tempo: o card "Taxas" somava armazenagem e
+    // anúncio como se fossem tarifa de pedido, e não havia como saber a comissão
+    // nem a tarifa FBA de nenhuma venda — que é o número que a vendedora pediu
+    // para estimar por tabela, e o que o concorrente exibe separado.
+    //
+    // O `feeMap` do parser já trazia isso desde sempre; só não era gravado.
+    const porTipo = Object.entries(fin.porTipo ?? {}).filter(([, valor]) => valor > 0);
+    if (porTipo.length > 0) {
+      for (const [tipoDaAmazon, valor] of porTipo) {
+        fees.push({
+          feeType: naturezaDaTarifa(tipoDaAmazon),
+          // O rótulo da Amazon fica preservado: é a procedência que a tela mostra
+          // e o que permite reconhecer um tipo novo sem adivinhar.
+          providerFeeCode: tipoDaAmazon,
+          amount: valor,
+          currency,
+        });
+      }
+    } else if (fin.fees > 0) {
+      // Sem decomposição (transação antiga, ou formato que o parser não abriu):
+      // o total continua entrando, e o `provider_fee_code` diz que é agregado.
+      // ⚠️ `other`, não `commission`: chamar um agregado de comissão foi o
+      // defeito que este bloco existe para não repetir.
+      fees.push({ feeType: "other", providerFeeCode: "transactions_total", amount: fin.fees, currency });
+    }
     if (fin.refunds > 0) fees.push({ feeType: "refund", providerFeeCode: "transactions_refund", amount: fin.refunds, currency });
     if (fees.length) applications.push({ externalOrderId: row.external_order_id, fees });
   }

@@ -356,23 +356,59 @@ export interface OrderFinancials {
   fees: number;    // total de taxas da Amazon no pedido, positivo
   refunds: number; // produto reembolsado no pedido, positivo
   currency: string;
+  /**
+   * CADA TARIFA NOMEADA PELA AMAZON, por `breakdownType` — o que ela cobrou e
+   * por quê.
+   *
+   * ⚠️ ISTO EXISTIA E ERA JOGADO FORA NA GRAVAÇÃO (achado em 01/09/2026). O
+   * parser já montava este mapa (`transactionsBreakdown.ts`), e o sync gravava
+   * só a SOMA, como uma linha `commission / transactions_total`. Duas
+   * consequências medidas na conta `A15NQMF7A6J1Y0`:
+   *
+   * 1. **O card "Taxas" incluía armazenagem e anúncio dentro de "comissão"** —
+   *    o comentário do próprio tipo dizia "comissão, FBA, armazenagem, ads…" e
+   *    tudo ia para um campo chamado comissão;
+   * 2. **não dava para saber a comissão nem a tarifa FBA de nenhum pedido**, que
+   *    é exatamente o que a vendedora pediu para estimar por tabela — e o que o
+   *    software concorrente exibe separado.
+   *
+   * A decomposição vinha da Amazon o tempo todo. Guardá-la é o que torna a
+   * tarifa OBSERVADA por ASIN utilizável como fonte de estimativa (ADR-027).
+   */
+  porTipo: Record<string, number>;
 }
 
-function computeOrderFinancials(rawTransactions: ApiTransaction[]): Record<string, OrderFinancials> {
+/**
+ * Exportada para TESTE: e a funcao pura que transforma transacao crua em tarifa
+ * por pedido. Testar pela versao com `swr` + rede exigiria mock de HTTP e
+ * mediria a rede, nao a regra — e a regra aqui e a que decide se a decomposicao
+ * da tarifa sobrevive.
+ */
+export function computeOrderFinancials(rawTransactions: ApiTransaction[]): Record<string, OrderFinancials> {
   const byOrder: Record<string, OrderFinancials> = {};
   for (const transaction of rawTransactions) {
     if (!isPeriodSale(transaction)) continue;
     const orderId = orderIdOf(transaction);
     if (!orderId) continue;
     const parsed = parseTransactionFinancials(transaction);
-    const entry = byOrder[orderId] ?? { fees: 0, refunds: 0, currency: transaction.totalAmount?.currencyCode ?? "BRL" };
+    const entry = byOrder[orderId] ?? {
+      fees: 0, refunds: 0, currency: transaction.totalAmount?.currencyCode ?? "BRL", porTipo: {},
+    };
     entry.fees += parsed.fees;
     entry.refunds += parsed.refunds;
+    // A decomposição segue junto do total — o total continua sendo a soma dela,
+    // e é essa igualdade que o teste cobra.
+    for (const [tipo, valor] of parsed.feeMap) {
+      entry.porTipo[tipo] = (entry.porTipo[tipo] ?? 0) + valor;
+    }
     byOrder[orderId] = entry;
   }
   for (const orderId of Object.keys(byOrder)) {
     byOrder[orderId].fees = round(byOrder[orderId].fees);
     byOrder[orderId].refunds = round(byOrder[orderId].refunds);
+    for (const tipo of Object.keys(byOrder[orderId].porTipo)) {
+      byOrder[orderId].porTipo[tipo] = round(byOrder[orderId].porTipo[tipo]);
+    }
   }
   return byOrder;
 }
