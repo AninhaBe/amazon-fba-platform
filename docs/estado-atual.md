@@ -48,7 +48,7 @@ Estado dos cadastros de OAuth/webhook por portal (todos feitos em 19–20/08):
 
 | Canal | Situação | Verificado |
 |---|---|---|
-| **Amazon** | Em produção, vendendo, com Ads no ar. ⚠️ **As duas contas seguem com o refresh token revogado** — o app opera pelo `LWA_REFRESH_TOKEN` do ambiente. Ver "Amazon: autorização". | 16/08 |
+| **Amazon** | Em produção, vendendo, com Ads no ar. Tokens das duas contas **OK** (medido 01/09 — a "revogação" era medição velha; ver seção 2). Tarifa estimada com origem nomeada na tela; pendentes com comissão+FBA. | 01/09 |
 | **Mercado Livre** | Em produção e sincronizando. Faturamento validado ao centavo contra o painel do ML. Saldo/liberação e auditoria de frete no ar. | 16/08 |
 | **Shopee** | Implementação local completa (OAuth, dashboard multi-loja, ingestão fail-closed/retomável, settings por loja, remoção local). **Go Live: último estado comprovado é "under review" em 07/08** — nunca reconferido; a extensão do navegador não tem permissão para `open.shopee.com`, então a checagem depende dela abrir o console. IP de saída do Fly já medido (ver seção 5). Credenciais, autorização e payload Live seguem **BLOCKED**. | 07/08 |
 | **TikTok Shop** | OAuth, sync paginado, cron, modelo canônico, overview, Dashboard, Financeiro e ledger de extratos **implementados**. **App público SUBMETIDO em 27/08** para App review + Listing review — ver seção 4. Lucro, margem e ROI aparecem quando o extrato liquidado cobre o período. ⚠️ A conciliação financeira real segue parcial: 330 pedidos no backlog e o recurso `payments` com erro (seção 4). | 27/08 |
