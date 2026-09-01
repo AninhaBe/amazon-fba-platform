@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
 
 // ⚠️ ESTA GUARDA VARRE A ARVORE, NAO UMA LISTA DE ARQUIVOS — e essa e a coisa
 // mais importante dela.
