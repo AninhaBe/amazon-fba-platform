@@ -37,6 +37,25 @@ As três viram a mesma frase: **quando a guarda tem de olhar a forma, que ela
 olhe a ESTRUTURA (a árvore, a chave que fecha, a ramificação), nunca a
 APARÊNCIA (o nome, a distância em caracteres, a lista de arquivos).**
 
+## O caso que vale mais que os outros: a guarda que pune quem conserta
+
+Três vezes no mesmo dia uma guarda ficou vermelha **por causa de uma melhora**:
+
+| a guarda casava | o que a deixou vermelha |
+|---|---|
+| a linha exata do ternário da base, no módulo da Shopee | a frase passou a sair da peça — e o teste acusou *"a base voltou a ser constante"*, o oposto do que aconteceu |
+| `import { declaracaoDeBase }` exato, no `ShopeeWorkspace` | a tela passou a importar **também** `nomeDaBase` |
+| a lista de três telas com sinais | nasceu a quarta e a quinta |
+
+Um exemplo em que a guarda **pune o conserto** ensina mais que dez em que ela
+pune o defeito: no segundo caso a pessoa lê o vermelho e corrige o código; no
+primeiro ela lê o vermelho, não entende, e **desfaz a melhora** — ou desliga a
+guarda. As duas saídas são piores que não ter guarda nenhuma.
+
+A correção é sempre a mesma e é a frase acima: ancore na **estrutura**. A linha
+exata virou a **ramificação** (o rótulo sai do campo usado); o import exato virou
+o **caminho do módulo**; a lista de telas virou a **árvore**.
+
 ## O corolário que decide guarda nova
 
 Antes de escrever uma guarda, pergunte: **de quantos jeitos dá para escrever este
