@@ -57,7 +57,14 @@ test("a declaracao vai no SUB, nunca no tooltip", async () => {
   // nao declara. `margemSub` alimenta o `sub` do card de Margem.
   const ml = await fonte("src/app/components/MercadoLivreWorkspace.tsx");
   assert.match(ml, /const margemSub = resultParcial/);
-  assert.match(ml, /<Metric label="Margem"[^>]*sub=\{sinais\.length > 0 \? <SinaisDoResultado sinais=\{sinais\} \/> : margemSub\}/);
+  // ⚠️ A FORMA MUDOU EM 01/09/2026 e a guarda ficou MAIS DIRETA. O `sub` era
+  // `sinais.length > 0 ? <SinaisDoResultado/> : margemSub` — ou seja, a
+  // declaracao de base so aparecia QUANDO NAO HAVIA SINAL. A auditoria de
+  // empilhamento tirou os sinais dos cartoes (eles aparecem uma vez por tela,
+  // nao uma por numero), e com isso a declaracao passou a estar sempre no sub.
+  // O que esta guarda existe para garantir — a base VISIVEL SEM INTERACAO — so
+  // ficou mais forte.
+  assert.match(ml, /<Metric label="Margem"[^>]*sub=\{margemSub\}/);
   // O `info` do card de Margem nao pode receber a base.
   const codigo = ml.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
   assert.ok(!/info=\{margemSub\}|info=\{baseDoResultado\}/.test(codigo), "a base foi parar no 'i'");

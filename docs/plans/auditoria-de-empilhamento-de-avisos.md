@@ -1,6 +1,6 @@
 # Auditoria de empilhamento de avisos — quatro canais e a central
 
-**Status:** inventário e medição. **Nada corrigido.** · **Data:** 01/09/2026
+**Status:** cortes 1 e 2 aplicados; corte 3 dispensado (ver §6). · **Data:** 01/09/2026
 
 ## Por que agora
 
@@ -8,6 +8,37 @@ Em dois dias estas telas ganharam declaração de base, marca de estimativa (no
 agregado e na linha), sinalização de custo não cadastrado, pendências por canal,
 a mensagem do NEXO e as faixas de estado. **Cada um entrou certo, um de cada
 vez, e ninguém olhou o conjunto.**
+
+## 0. O nome do problema
+
+**NÃO ERA EXCESSO DE INFORMAÇÃO. ERA A MESMA INFORMAÇÃO REPETIDA.** Nove a doze
+marcas dizendo **três** coisas. Repetição ensina a varrer a faixa sem ler
+nenhuma — e é por isso que o conserto **não tira informação**.
+
+⚠️ **A condição que atravessa os três cortes: NADA DESAPARECE.** Os três sinais
+continuam visíveis, uma vez cada, com número e link. O que sai é a repetição. Se
+em algum ponto um corte fizer um sinal sumir de vez, o corte está errado — vira
+o oposto do que ela pediu, que é apontar o que falta com número.
+
+## 0.1. O critério que esta auditoria produziu
+
+> **Hierarquia não é propriedade de cada peça; é do conjunto.**
+
+A marca de estimativa foi desenhada para não competir com alarme — tinta
+terciária, sem cor de aviso, colada ao número. Ela cumpre a regra e mesmo assim
+sumia, porque acima dela havia faixas e nove "⚠". **Cada peça respeitou a regra
+sozinha e o conjunto violou.**
+
+É assim que se chega aqui fazendo tudo certo, um de cada vez. Por isso esta
+auditoria **precisa acontecer de novo toda vez que uma tela ganhar mais de duas
+peças novas**: nenhuma revisão de peça isolada consegue ver este defeito, por
+construção.
+
+## 0.2. A referência é a CENTRAL
+
+**As telas de canal se alinham ao formato da central, e não o contrário.** A
+Visão geral já estava certa: uma frase de alerta escolhida por prioridade, mais
+a narração. **Quem for criar tela nova olha para lá.**
 
 ## 1. Inventário — o que pede atenção hoje
 
@@ -110,3 +141,59 @@ entram na conta de quanto se atravessa antes do primeiro número.
 - a janela colada ao valor na aba de Ads: é a única defesa contra somar recortes
   diferentes;
 - a central: já está no formato que as outras deveriam ter.
+
+---
+
+## 6. Depois dos cortes — e duas correções ao meu próprio inventário
+
+### O que foi aplicado
+
+- **Corte 1 (sinais uma vez por tela):** aplicado. ML de **3 pontos de render
+  para 1**, Shopee de **4 para 1**. Amazon e TikTok já tinham 1.
+- **Corte 2 (alarme por prioridade):** aplicado **na Amazon e no ML**.
+
+### ⚠️ Correção 1: o corte 2 só faz sentido em duas telas, não em quatro
+
+Na **Shopee e no TikTok a conexão caída é TAKEOVER** — ela substitui a tela
+inteira (`return <ConnectionBroken/>`). Não há conteúdo embaixo, então não há o
+que calar. Meu inventário disse "os quatro" sem verificar; aplicar a supressão
+ali seria código que não muda nada.
+
+### ⚠️ Correção 2: o corte 3 não tinha o que cortar
+
+Eu listei `EstadoDoSync` e `SincronizacaoCompleta` como duas faixas de progresso
+empilhadas no ML. **Não são:** `EstadoDoSync` está na view do **Monitor**, não no
+dashboard. E no TikTok, `SincronizacaoCompleta` só age com `status === "complete"`
+enquanto `AvisoDeSyncInterrompido` só aparece com erro de sync — **mutuamente
+exclusivos por construção**.
+
+O corte foi aprovado com base num erro meu de inventário. Implementá-lo seria
+entregar código que não move número nenhum, então não foi implementado. A peça
+`progressoQueAparece` fica como contrato para quando um terceiro estado de
+progresso aparecer — hoje ela não tem dois candidatos para escolher.
+
+### O pior caso REAL, antes e depois
+
+Conta da Ana, dashboard do **Mercado Livre**, período "Hoje", conexão caída:
+
+| | antes | depois |
+|---|---|---|
+| faixas antes do primeiro número | 4 | 4 |
+| marcas "⚠" na faixa de KPIs | **9** | **0** (caladas pelo alarme) |
+| marcas "⚠" com a conexão OK | **9** | **3** |
+| declaração de base visível nos cartões | escondida pelos sinais | **visível** |
+
+**O que ela atravessa antes do primeiro número continua sendo 4** —
+`ConnectionBroken`, `NexoDoDia`, `BriefingLead`, `SincronizacaoCompleta`. Os
+cortes não mexeram nisso, porque `NexoDoDia` e `BriefingLead` são conteúdo e não
+aviso. Fica o número na mesa: **se 4 ainda for muito, decide-se sobre eles com
+este número e não por impressão.**
+
+### O efeito colateral que não estava no plano
+
+Tirar os sinais dos cartões **devolveu a declaração de base**. O `sub` era
+`sinais.length > 0 ? <SinaisDoResultado/> : declaração` — ou seja, a declaração
+só aparecia quando não havia sinal nenhum. A peça que existe para impedir a
+leitura *"o lucro não sai do faturamento, logo está errado"* estava sendo
+escondida justamente nas contas com pendência, que são as que mais precisam
+dela.

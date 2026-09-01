@@ -24,6 +24,7 @@ import { TopProductsRanking } from "../components/TopProductsRanking";
 import { buildFinancialComposition, FinancialSummaryPanel } from "../components/FinancialSummaryPanel";
 import { sinaisDoResultado } from "../components/oQueFaltaNoResultado";
 import { SinaisDoResultado } from "../components/SinaisDoResultado";
+import { sinaisSilenciadosPorAlarme } from "../components/hierarquiaDeAvisos";
 import { BriefingLead } from "../components/BriefingLead";
 import { nomeDaTarifa } from "@/lib/nomeDaTarifa";
 import { IntegrationDashboardFrame } from "../components/IntegrationDashboardFrame";
@@ -1216,7 +1217,20 @@ function Dashboard() {
                   label="Margem"
                   value={<>
                     {`${((lucroComAnuncio / (profit?.finance.revenue || 1)) * 100).toFixed(1).replace(".", ",")}%`}
-                    {sinais.length > 0 && <SinaisDoResultado sinais={sinais} />}
+                    {/* ⚠️ CORTE 2 DA AUDITORIA (01/09/2026): CONEXAO CAIDA CALA OS SINAIS.
+
+                        Sem dado, "3 SKUs sem custo cadastrado" nao e o problema
+                        dela: cadastrar o custo nao traz o numero de volta,
+                        reconectar traz. Os dois lado a lado pedem duas acoes e
+                        so uma resolve — e e assim que a pessoa escolhe a errada.
+
+                        A Amazon e o ML sao os unicos canais onde isto importa:
+                        na Shopee e no TikTok a conexao caida e TAKEOVER, ela
+                        substitui a tela e nao ha o que empilhar.
+
+                        Nada some do produto: os sinais voltam inteiros quando a
+                        conexao volta, porque a condicao e o ESTADO da conexao. */}
+                    {!sinaisSilenciadosPorAlarme(Boolean(brokenConnection)) && sinais.length > 0 && <SinaisDoResultado sinais={sinais} />}
                   </>}
                   accent
                   tone={marginMetricTone((lucroComAnuncio / (profit?.finance.revenue || 1)) * 100)}

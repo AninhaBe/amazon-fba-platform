@@ -22,6 +22,7 @@ import { CompactMetric, Flow, FlowExpandable, Metric, getRevenueTrend } from "./
 import { buildFinancialComposition, FinancialSummaryPanel } from "./FinancialSummaryPanel";
 import { sinaisDoResultado } from "./oQueFaltaNoResultado";
 import { SinaisDoResultado } from "./SinaisDoResultado";
+import { sinaisSilenciadosPorAlarme } from "./hierarquiaDeAvisos";
 import { brDate, brTime } from "@/lib/datetime";
 import { coberturaDoPeriodo } from "@/lib/coberturaPeriodo";
 import { SincronizacaoCompleta } from "./SincronizacaoCompleta";
@@ -351,7 +352,7 @@ function MercadoLivreWorkspaceInterno({ view }: { view: keyof typeof views }) {
         </div>
       ) : !overview ? (
         <EmptyState title="Conecte sua conta do Mercado Livre" description="Autorize o NEXO para começar a importar anúncios e pedidos." action={<Link href="/integracoes" className="meli-primary-action">Gerenciar integração <span aria-hidden="true">→</span></Link>} />
-      ) : view === "dashboard" ? <Dashboard overview={overview} syncStatus={syncStatus} periodoLabel={period.label} periodoQuery={period.query} connectionId={connectionId} /> : view === "estoque" ? <Inventory overview={overview} /> : <Monitor overview={overview} secaoInicial={secaoInicial} />}
+      ) : view === "dashboard" ? <Dashboard overview={overview} syncStatus={syncStatus} periodoLabel={period.label} periodoQuery={period.query} connectionId={connectionId} conexaoCaida={Boolean(brokenConnection)} /> : view === "estoque" ? <Inventory overview={overview} /> : <Monitor overview={overview} secaoInicial={secaoInicial} />}
     </IntegrationDashboardFrame>
   );
 }
@@ -426,7 +427,7 @@ function avaliarResultado(overview: Overview) {
   return { semAliquota, resultParcial, resultIncomplete, margemSub };
 }
 
-function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectionId }: { overview: Overview; syncStatus: SyncStatus | null; periodoLabel: string; periodoQuery: string; connectionId: string | null }) {
+function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectionId, conexaoCaida }: { overview: Overview; syncStatus: SyncStatus | null; periodoLabel: string; periodoQuery: string; conexaoCaida: boolean; connectionId: string | null }) {
   const [costsOpen, setCostsOpen] = useState(false);
   const profitCoverage = overview.profit.coverage;
   const units = overview.dailySales.reduce((total, point) => total + point.units, 0);
@@ -529,9 +530,28 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
       <Metric label="Faturamento" value={<AnimatedNumber periodo={identidadeDePeriodo(overview.period.from, overview.period.to)} id="ml-dash-revenue" value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={`${overview.metrics.paidOrders} aprovadas + ${overview.metrics.cancelledOrders} canceladas`} trend={getRevenueTrend(overview.dailySales)} />
       <Metric label="Taxas" value={money(overview.profit.fees, overview.metrics.currency)} sub={`${profitCoverage.processedOrders} venda(s) processada(s)`} />
       <Metric label="Custo dos produtos" value={money(overview.profit.cogs, overview.metrics.currency)} sub={overview.profit.unitsWithoutCost > 0 ? `${overview.profit.unitsWithoutCost} unidade(s) sem custo` : "custos cadastrados"} tone={overview.profit.unitsWithoutCost > 0 ? "warn" : "default"} />
-      <Metric label={overview.profit.estimatedProfit == null ? "Resultado processado" : resultParcial ? "Resultado processado" : "Lucro estimado"} value={overview.profit.estimatedProfit == null ? "—" : <AnimatedNumber periodo={identidadeDePeriodo(overview.period.from, overview.period.to)} id="ml-dash-profit" value={overview.profit.estimatedProfit} format={(amount) => money(amount, overview.metrics.currency)} />} sub={sinais.length > 0 ? <SinaisDoResultado sinais={sinais} /> : comSemImposto("após todos os custos", semAliquota)} tone={overview.profit.estimatedProfit == null ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
-      <Metric label="Margem" value={percent(overview.profit.marginPct)} sub={sinais.length > 0 ? <SinaisDoResultado sinais={sinais} /> : margemSub} tone={marginMetricTone(overview.profit.marginPct)} />
+      <Metric label={overview.profit.estimatedProfit == null ? "Resultado processado" : resultParcial ? "Resultado processado" : "Lucro estimado"} value={overview.profit.estimatedProfit == null ? "—" : <AnimatedNumber periodo={identidadeDePeriodo(overview.period.from, overview.period.to)} id="ml-dash-profit" value={overview.profit.estimatedProfit} format={(amount) => money(amount, overview.metrics.currency)} />} sub={comSemImposto("após todos os custos", semAliquota)} tone={overview.profit.estimatedProfit == null ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
+      <Metric label="Margem" value={percent(overview.profit.marginPct)} sub={margemSub} tone={marginMetricTone(overview.profit.marginPct)} />
     </section>
+      {/*
+        ⚠️ OS SINAIS APARECEM UMA VEZ POR TELA — corte 1 da auditoria de
+        empilhamento (01/09/2026).
+
+        A MESMA lista era passada para tres cartoes desta faixa, e como ela tem
+        ate 3 sinais, a tela mostrava ate 9 marcas dizendo TRES coisas. Nao era
+        excesso de informacao: era a mesma informacao repetida, e repeticao
+        ensina a varrer a faixa sem ler nenhuma.
+
+        Nada sumiu — os tres sinais continuam aqui, uma vez cada, com numero e
+        link. O que saiu foi a repeticao, e os cartoes voltaram a mostrar o sub
+        deles, que e a declaracao de base: informacao que a repeticao escondia.
+
+        ⚠️ CORTE 2: CONEXAO CAIDA CALA OS SINAIS. Sem dado, "3 SKUs sem custo
+        cadastrado" nao e o problema dela — cadastrar o custo nao traz o numero
+        de volta, reconectar traz. Os sinais voltam inteiros quando a conexao
+        volta, porque a condicao e o ESTADO da conexao.
+      */}
+      {!sinaisSilenciadosPorAlarme(conexaoCaida) && sinais.length > 0 && <SinaisDoResultado sinais={sinais} />}
 
     <section className="secondary-metrics" aria-label="Indicadores operacionais Mercado Livre">
       <CompactMetric label="Vendas" value={overview.metrics.paidOrders.toLocaleString("pt-BR")} />
@@ -736,6 +756,17 @@ function Monitor({ overview, secaoInicial }: { overview: Overview; secaoInicial:
         isso, "Monitor da conta" parece a mesma coisa nos dois canais. */}
     <BaseDeData base="pedido" />
     <EstadoDoSync provider="mercado_livre" />
+    {/*
+      Os sinais aparecem UMA vez aqui tambem — o Monitor e outra tela, e quem
+      esta nela precisa saber o que falta do mesmo jeito. O que o corte 1 proibe
+      e repetir a MESMA lista em varios cartoes da MESMA tela, nao mostra-la nas
+      telas que a usam.
+
+      ⚠️ Sem esta linha, `sinais` viraria calculo sem consumidor: a auditoria
+      teria trocado repeticao por codigo morto, e a pessoa que abre o Monitor
+      perderia o aviso de custo nao cadastrado — o oposto de "nada desaparece".
+    */}
+    {sinais.length > 0 && <SinaisDoResultado sinais={sinais} />}
     <CustomizableMetricGrid
       viewKey="mercado-livre-monitor"
       ariaLabel="Resumo do monitor Mercado Livre"
@@ -764,7 +795,7 @@ function Monitor({ overview, secaoInicial }: { overview: Overview; secaoInicial:
         {
           id: "margem-pct",
           label: "Margem",
-          node: <Metric label="Margem" value={percent(overview.profit.marginPct)} sub={sinais.length > 0 ? <SinaisDoResultado sinais={sinais} /> : margemSub} tone={marginMetricTone(overview.profit.marginPct)} />,
+          node: <Metric label="Margem" value={percent(overview.profit.marginPct)} sub={margemSub} tone={marginMetricTone(overview.profit.marginPct)} />,
         },
       ]}
     />

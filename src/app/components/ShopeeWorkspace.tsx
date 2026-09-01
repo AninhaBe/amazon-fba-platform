@@ -895,9 +895,21 @@ function Dashboard({ overview, sync, onPage, periodoLabel, periodoQuery }: { ove
         <Metric label="Faturamento" value={<AnimatedNumber periodo={identidadeDePeriodo(overview.period.from, overview.period.to)} id="shopee-dash-revenue" value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={`${overview.metrics.paidOrders} pedido(s) no período`} trend={getRevenueTrend(overview.dailySales)} />
         <Metric label="Taxas" value={overview.profit.fees == null ? "—" : money(overview.profit.fees, overview.metrics.currency)} sub={rodapeDasTaxas({ feesComplete: overview.profit.feesComplete, ordersWithFees: profitCoverage.ordersWithFees, ordersProcessed: profitCoverage.processedOrders })} />
         <Metric label="Custo dos produtos" value={overview.profit.cogs == null ? "—" : money(overview.profit.cogs, overview.metrics.currency)} sub={costsIncomplete ? `${overview.profit.unitsWithoutCost} unidade(s) sem custo` : "custos cadastrados"} tone={costsIncomplete ? "warn" : "default"} />
-        <Metric label={overview.profit.estimatedProfit == null ? "Resultado processado" : "Lucro estimado"} value={overview.profit.estimatedProfit == null ? "—" : <AnimatedNumber periodo={identidadeDePeriodo(overview.period.from, overview.period.to)} id="shopee-dash-profit" value={overview.profit.estimatedProfit} format={(amount) => money(amount, overview.metrics.currency)} />} sub={<>{baseDoResultado && <>{baseDoResultado} · </>}{sinais.length > 0 ? <SinaisDoResultado sinais={sinais} /> : comSemImposto("após todos os custos", semAliquota)}</>} tone={overview.profit.estimatedProfit == null ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
-        <Metric label="Margem" value={overview.profit.marginPct == null ? "—" : percent(overview.profit.marginPct)} sub={<>{baseDoResultado && <>{baseDoResultado} · </>}{sinais.length > 0 ? <SinaisDoResultado sinais={sinais} /> : comSemImposto(baseDoResultado ? "" : "sobre o faturamento", semAliquota)}</>} tone={overview.profit.marginPct == null ? "default" : marginMetricTone(overview.profit.marginPct)} />
+        <Metric label={overview.profit.estimatedProfit == null ? "Resultado processado" : "Lucro estimado"} value={overview.profit.estimatedProfit == null ? "—" : <AnimatedNumber periodo={identidadeDePeriodo(overview.period.from, overview.period.to)} id="shopee-dash-profit" value={overview.profit.estimatedProfit} format={(amount) => money(amount, overview.metrics.currency)} />} sub={<>{baseDoResultado && <>{baseDoResultado} · </>}{comSemImposto("após todos os custos", semAliquota)}</>} tone={overview.profit.estimatedProfit == null ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
+        <Metric label="Margem" value={overview.profit.marginPct == null ? "—" : percent(overview.profit.marginPct)} sub={<>{baseDoResultado && <>{baseDoResultado} · </>}{comSemImposto(baseDoResultado ? "" : "sobre o faturamento", semAliquota)}</>} tone={overview.profit.marginPct == null ? "default" : marginMetricTone(overview.profit.marginPct)} />
       </section>
+      {/* ⚠️ OS SINAIS APARECEM UMA VEZ POR TELA — corte 1 da auditoria de
+          empilhamento (01/09/2026).
+
+          A MESMA lista era passada para QUATRO pontos desta tela, e como ela tem
+          até 3 sinais, a Shopee mostrava até 12 marcas "⚠" dizendo TRÊS coisas.
+          Não era excesso de informação: era a mesma informação repetida, e
+          repetição ensina a varrer a faixa sem ler nenhuma.
+
+          Nada sumiu — os três sinais continuam aqui, uma vez cada, com número e
+          link. O que saiu foi a repetição, e os cartões voltaram a mostrar a
+          declaração de base que ela escondia. */}
+      {sinais.length > 0 && <SinaisDoResultado sinais={sinais} />}
 
       <section className="secondary-metrics" aria-label="Indicadores operacionais Shopee">
         <CompactMetric label="Vendas" value={overview.metrics.paidOrders.toLocaleString("pt-BR")} />
@@ -1000,10 +1012,10 @@ function Dashboard({ overview, sync, onPage, periodoLabel, periodoQuery }: { ove
                 { label: shopeeTaxLabel(overview.profit.taxRate), value: overview.profit.taxes == null ? "—" : money(overview.profit.taxes, overview.metrics.currency) },
               ]}
             />
-            <Flow label={overview.profit.estimatedProfit == null ? "Lucro indisponível" : comSemImposto("Lucro estimado", semAliquota)} value={overview.profit.estimatedProfit == null ? "—" : <>{money(overview.profit.estimatedProfit, overview.metrics.currency)}{sinais.length > 0 && <SinaisDoResultado sinais={sinais} />}</>} sign="=" accent tone={overview.profit.estimatedProfit == null ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
+            <Flow label={overview.profit.estimatedProfit == null ? "Lucro indisponível" : comSemImposto("Lucro estimado", semAliquota)} value={overview.profit.estimatedProfit == null ? "—" : <>{money(overview.profit.estimatedProfit, overview.metrics.currency)}</>} sign="=" accent tone={overview.profit.estimatedProfit == null ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
             <Flow
               label={comSemImposto("Margem", semAliquota)}
-              value={overview.profit.marginPct == null ? "—" : <>{percent(overview.profit.marginPct)}{sinais.length > 0 && <SinaisDoResultado sinais={sinais} />}</>}
+              value={overview.profit.marginPct == null ? "—" : <>{percent(overview.profit.marginPct)}</>}
               accent
               tone={overview.profit.marginPct == null ? "default" : marginMetricTone(overview.profit.marginPct)}
             />
