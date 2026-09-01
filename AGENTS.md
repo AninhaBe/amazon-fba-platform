@@ -138,6 +138,18 @@ depois de alguém apagar a chamada e deixar o import.
   no mundo real. Teste sem essa frase vira o primeiro a ser afrouxado quando
   ficar vermelho por outro motivo.
 
+**Dado que não exercita a regra não testa a regra.** Quando a amostra real fica
+inteira de UM lado de uma fronteira (teto de faixa, kg adicional, limite de
+paginação), a fronteira nunca é exercida — e o teste que só usa dados reais fica
+verde com a regra errada dos dois lados. Aconteceu em 01/09/2026: a faixa de
+comissão foi implementada como alíquota única quando a página diz marginal
+("15% até R$ 100; 10% **no excedente**" — progressiva, como imposto de renda);
+todos os produtos da conta custam R$ 14–38, abaixo do teto, onde as duas
+leituras coincidem — o defeito nasceria calado no primeiro produto caro. É o
+irmão do "desconfie de zero": ali o número não aparecia, aqui o CASO não
+aparecia. **Teste de regra com fronteira usa valores fabricados dos dois lados
+da fronteira**, não só os dados que a conta tem hoje.
+
 **Teste vermelho por motivo que não é o produto** — formatação, corte de string,
 uma janela de `slice` fixa — ensina a ignorar teste vermelho, e é tão ruim quanto
 teste que nunca falha. Conserte a fragilidade, não o sintoma.
