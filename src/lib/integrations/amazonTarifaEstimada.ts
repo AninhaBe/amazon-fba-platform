@@ -692,18 +692,51 @@ export async function estimarPelaTabela(
   const { currentWorkspaceId } = await import("../workspaceScope");
   const { categoriaDaTabela } = await import("./amazonCategoriaDaTabela");
   const { comissaoPelaTabela } = await import("./amazonTabelaDeComissao");
+  const { tarifaFbaPelaTabela } = await import("./amazonTabelaDeFba");
   const workspaceId = currentWorkspaceId();
 
   const linhas = await dbQuery<{
     external_order_id: string; line_no: number; external_product_id: string;
     qty: number; unit_price: string | null; preco_de_tabela: string | null;
     folha: string | null; raiz: string | null;
+    tem_comissao: boolean; tem_logistica: boolean;
   }>(
     `SELECT i.external_order_id, i.line_no, i.external_product_id, i.qty, i.unit_price,
             (o.ordered_gross / NULLIF(SUM(i.qty) OVER (PARTITION BY i.external_order_id), 0))::text
               AS preco_de_tabela,
             p.payload->>'categoria'     AS folha,
-            p.payload->>'categoriaRaiz' AS raiz
+            p.payload->>'categoriaRaiz' AS raiz,
+            -- ⚠️ OS DOIS SINAIS SAO SEPARADOS, e e o que preserva a ordem de
+            -- preferencia POR RUBRICA. A Amazon posta em partes: 95,3% dos
+            -- pedidos com tarifa real tem comissao e nenhuma logistica. Um
+            -- unico sinal "ja tem tarifa" deixaria a logistica sem estimativa
+            -- para sempre nesses pedidos.
+            EXISTS (
+              SELECT 1 FROM workspace_channel_order_fees f
+               WHERE f.workspace_id = i.workspace_id AND f.provider = i.provider
+                 AND f.connection_id = i.connection_id
+                 AND f.external_order_id = i.external_order_id
+                 AND f.fee_type = 'commission')
+            OR EXISTS (
+              SELECT 1 FROM workspace_channel_order_fee_estimates e2
+               WHERE e2.workspace_id = i.workspace_id AND e2.provider = i.provider
+                 AND e2.connection_id = i.connection_id
+                 AND e2.external_order_id = i.external_order_id
+                 AND e2.line_no = i.line_no AND e2.fee_type = 'commission'
+                 AND e2.superseded_at IS NULL) AS tem_comissao,
+            EXISTS (
+              SELECT 1 FROM workspace_channel_order_fees f
+               WHERE f.workspace_id = i.workspace_id AND f.provider = i.provider
+                 AND f.connection_id = i.connection_id
+                 AND f.external_order_id = i.external_order_id
+                 AND f.fee_type = 'fulfillment')
+            OR EXISTS (
+              SELECT 1 FROM workspace_channel_order_fee_estimates e3
+               WHERE e3.workspace_id = i.workspace_id AND e3.provider = i.provider
+                 AND e3.connection_id = i.connection_id
+                 AND e3.external_order_id = i.external_order_id
+                 AND e3.line_no = i.line_no AND e3.fee_type = 'fulfillment'
+                 AND e3.superseded_at IS NULL) AS tem_logistica
        FROM workspace_channel_order_items i
        JOIN workspace_channel_orders o
          ON o.workspace_id = i.workspace_id AND o.provider = i.provider
@@ -714,21 +747,6 @@ export async function estimarPelaTabela(
       WHERE i.workspace_id = $1 AND i.provider = 'amazon' AND i.connection_id = $2
         AND o.status <> 'cancelled'
         AND o.occurred_at >= now() - ($4 || ' days')::interval
-        AND NOT EXISTS (
-          SELECT 1 FROM workspace_channel_order_fees f
-           WHERE f.workspace_id = i.workspace_id AND f.provider = i.provider
-             AND f.connection_id = i.connection_id
-             AND f.external_order_id = i.external_order_id
-             AND f.fee_type = 'commission'
-        )
-        AND NOT EXISTS (
-          SELECT 1 FROM workspace_channel_order_fee_estimates e
-           WHERE e.workspace_id = i.workspace_id AND e.provider = i.provider
-             AND e.connection_id = i.connection_id
-             AND e.external_order_id = i.external_order_id
-             AND e.line_no = i.line_no AND e.fee_type = 'commission'
-             AND e.superseded_at IS NULL
-        )
       ORDER BY o.occurred_at DESC
       LIMIT $3`,
     [workspaceId, connectionId, limite, janelaEmDias],
@@ -739,6 +757,7 @@ export async function estimarPelaTabela(
   const motivoDaRecusa = new Map<string, number>();
 
   for (const linha of linhas) {
+    if (linha.tem_comissao && linha.tem_logistica) continue;
     const resolvida = categoriaDaTabela(linha.folha, linha.raiz);
     // Sem mapeamento, NADA. Ver a nota em `amazonCategoriaDaTabela.ts`: cair em
     // "Demais categorias" transformaria uma lacuna nossa numa afirmacao sobre a
@@ -748,36 +767,48 @@ export async function estimarPelaTabela(
     const real = linha.unit_price == null ? null : Number(linha.unit_price);
     const tabela = linha.preco_de_tabela == null ? null : Number(linha.preco_de_tabela);
     const preco = real != null && real > 0 ? real : (tabela != null && tabela > 0 ? tabela : null);
-    const comissao = comissaoPelaTabela(resolvida.categoria, preco);
-    // Pendente sem preco publicado nao tem comissao por tabela: o percentual
-    // depende do valor, e a faixa tambem. A logistica observada segue valendo.
-    if (!comissao) { semPreco += 1; continue; }
+    const comissao = linha.tem_comissao ? null : comissaoPelaTabela(resolvida.categoria, preco);
+    // A LOGISTICA nao depende de categoria, so de preco (e de peso acima de
+    // R$ 79) — por isso e calculada mesmo quando a comissao ja existe.
+    const logistica = linha.tem_logistica ? null : tarifaFbaPelaTabela(preco);
+    // Pendente sem preco publicado nao tem tarifa por tabela NENHUMA: a comissao
+    // e percentual do valor, e ate a faixa fixa da logistica depende do preco.
+    if (!comissao && !logistica) { semPreco += 1; continue; }
 
-    const valor = +(comissao.valor * linha.qty).toFixed(2);
-    try {
-      await dbQuery(
-        `INSERT INTO workspace_channel_order_fee_estimates
-           (workspace_id, provider, connection_id, external_order_id, line_no, fee_type,
-            provider_fee_code, amount, currency, unit_price, qty, source)
-         VALUES ($1, 'amazon', $2, $3, $4, 'commission', $5, $6, 'BRL', $7, $8, 'tabela')
-         ON CONFLICT (workspace_id, provider, connection_id, external_order_id, line_no, fee_type)
-         DO UPDATE SET amount = EXCLUDED.amount, provider_fee_code = EXCLUDED.provider_fee_code,
-                       unit_price = EXCLUDED.unit_price, qty = EXCLUDED.qty,
-                       source = EXCLUDED.source, estimated_at = now()
-          WHERE workspace_channel_order_fee_estimates.superseded_at IS NULL`,
-        [
-          workspaceId, connectionId, linha.external_order_id, linha.line_no,
-          // A procedencia verificavel: qual categoria e qual percentual.
-          `tabela:${resolvida.categoria.nome}:${(comissao.percentual * 100).toFixed(0)}%`,
-          valor, preco, linha.qty,
-        ],
-      );
-      gravadas += 1;
-      pedidosTocados.add(linha.external_order_id);
-    } catch (erro) {
-      recusadas += 1;
-      const motivo = erro instanceof Error ? erro.message : String(erro);
-      motivoDaRecusa.set(motivo, (motivoDaRecusa.get(motivo) ?? 0) + 1);
+    const gravar = async (feeType: string, valorUnitario: number, codigo: string) => {
+      const valor = +(valorUnitario * linha.qty).toFixed(2);
+      try {
+        await dbQuery(
+          `INSERT INTO workspace_channel_order_fee_estimates
+             (workspace_id, provider, connection_id, external_order_id, line_no, fee_type,
+              provider_fee_code, amount, currency, unit_price, qty, source)
+           VALUES ($1, 'amazon', $2, $3, $4, $5, $6, $7, 'BRL', $8, $9, 'tabela')
+           ON CONFLICT (workspace_id, provider, connection_id, external_order_id, line_no, fee_type)
+           DO UPDATE SET amount = EXCLUDED.amount, provider_fee_code = EXCLUDED.provider_fee_code,
+                         unit_price = EXCLUDED.unit_price, qty = EXCLUDED.qty,
+                         source = EXCLUDED.source, estimated_at = now()
+            WHERE workspace_channel_order_fee_estimates.superseded_at IS NULL`,
+          [workspaceId, connectionId, linha.external_order_id, linha.line_no,
+           feeType, codigo, valor, preco, linha.qty],
+        );
+        gravadas += 1;
+        pedidosTocados.add(linha.external_order_id);
+      } catch (erro) {
+        recusadas += 1;
+        const motivo = erro instanceof Error ? erro.message : String(erro);
+        motivoDaRecusa.set(motivo, (motivoDaRecusa.get(motivo) ?? 0) + 1);
+      }
+    };
+
+    if (comissao) {
+      // A procedencia verificavel: qual categoria e qual percentual.
+      await gravar("commission", comissao.valor,
+        `tabela:${resolvida.categoria.nome}:${(comissao.percentual * 100).toFixed(0)}%`);
+    }
+    if (logistica) {
+      // E a da logistica diz qual REGRA da tabela produziu o numero — faixa de
+      // preco, matriz, ou matriz mais quilo adicional.
+      await gravar("fulfillment", logistica.valor, `tabela-fba:${logistica.regra}`);
     }
   }
 
