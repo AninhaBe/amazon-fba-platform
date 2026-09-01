@@ -7,8 +7,13 @@ import { avaliarSilencio, LIMITE_DE_SILENCIO_MS } from "../src/lib/integrations/
 // QUAL DEFEITO ESTE ARQUIVO REPROVA, com o número que ele teve no mundo real:
 // medido em 01/09/2026 sobre 41,7 dias, o webhook do Mercado Livre teve CINCO
 // silêncios acima de 60 horas — o maior de 236 HORAS, de 15/08 a 25/08. Ninguém
-// soube, porque não havia nada olhando. Custou 7 pedidos da conta CRYSTALFANCY
-// (seis `paid`) criados nos últimos 30 minutos daquele apagão.
+// soube, porque não havia nada olhando.
+//
+// ⚠️ NÃO custou pedido nenhum, e a primeira versão deste comentário dizia que
+// sim. A hipótese de 7 pedidos perdidos foi levantada e derrubada no mesmo dia:
+// procurados por id, sem filtro de janela, estavam todos no banco. O que
+// justifica o alarme é o silêncio em si — dez dias de ingestão dependendo só do
+// polling, sem ninguém saber.
 //
 // ⚠️ O CASO QUE MAIS IMPORTA AQUI É O DA MADRUGADA, e ele é o motivo de o alarme
 // medir INTERVALO e não VOLUME. O volume varia 7× ao longo do dia (307/h no pico,
@@ -35,7 +40,7 @@ test("o pior silêncio de uma semana saudável (18 min) ainda NÃO alarma", () =
   assert.equal(avaliarSilencio(18).estado, "ok");
 });
 
-test("APAGÃO alarma — o caso que custou 7 pedidos", () => {
+test("APAGÃO alarma — o silêncio de dez dias que ninguém viu", () => {
   const r = avaliarSilencio(236);
   assert.equal(r.estado, "silencioso");
   assert.match(r.mensagem, /236 minutos/);

@@ -10,10 +10,23 @@ import { dbQuery } from "../db";
  * dias** (15/08 21:20 → 25/08 17:37). Ninguém soube, porque não havia nada
  * olhando.
  *
- * E custou: **7 pedidos da conta CRYSTALFANCY, criados em 25/08 entre 17:06 e
- * 17:38, nunca entraram no banco** — seis deles `paid`. Foram criados nos
- * últimos 30 minutos do apagão, e a varredura que os pegaria foi desligada pela
- * própria retomada do webhook. Ver
+ * ⚠️ E A JUSTIFICATIVA NÃO É PERDA DE PEDIDO — essa hipótese foi levantada e
+ * DERRUBADA no mesmo dia, e fica registrada aqui para ninguém ressuscitá-la.
+ *
+ * Chegou-se a afirmar que 7 pedidos da CRYSTALFANCY se perderam na borda da
+ * retomada de 25/08. **Falso.** O método comparava o que o ML lista numa janela
+ * com o que o banco tem *na mesma janela*, e a API devolve pedidos ligeiramente
+ * fora da borda pedida — a diferença media a discordância dos FILTROS, não a
+ * ausência do DADO. Procurados por id, sem janela, **os 7 estavam todos no
+ * banco**, e os 125 de uma varredura maior também.
+ *
+ * A VARREDURA PERIÓDICA FUNCIONOU durante os cinco apagões: é por isso que nada
+ * se perdeu. Isso é evidência a favor do desenho atual, não contra.
+ *
+ * O QUE JUSTIFICA ESTE ALARME, e basta: **a ingestão passou dez dias dependendo
+ * só do polling, e ninguém soube.** Silêncio longo sem aviso é ruim mesmo quando
+ * nada se perde — porque a próxima vez pode coincidir com uma varredura parada,
+ * e aí não haveria segunda rede. Ver
  * `docs/plans/amplificacao-de-escrita-nos-syncs.md`.
  *
  * ═══ POR QUE INTERVALO E NÃO VOLUME ═══

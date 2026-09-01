@@ -232,3 +232,52 @@ ao que serve hoje; ele só deixa de mandar em quem o vigia.
 —"a v220 contém o commit X?"— foi respondida **por verificação de comportamento e
 não por inferência**. A inferência ("a worktree era daquele commit, logo contém")
 estava correta e não teria produzido nada.
+
+---
+
+# Correção II de 01/09/2026 — o "dano" não existia
+
+⚠️ Este documento afirmou, em versão anterior, que **7 pedidos** (e depois **125**,
+somando **R$ 4.278,16**) tinham se perdido. **Os dois números eram falsos.** O
+texto anterior fica porque o erro é o que ensina.
+
+## O que era falso, e por quê
+
+O método comparava **o que o ML lista numa janela** com **o que o banco tem na
+mesma janela**. A API do ML devolve pedidos ligeiramente **fora** da borda pedida
+em `order.date_created.from/to`, e a consulta ao banco aplicava a janela ao pé da
+letra.
+
+Procurados **por id, sem filtro de janela**: os 7 estavam no banco. Os 125
+também. **Zero ausentes.**
+
+> **Diferença de conjunto entre duas consultas com filtros de data diferentes
+> mede a discordância dos FILTROS, não a ausência do DADO.**
+
+## As duas armadilhas que fizeram o número passar
+
+> **IDADE NÃO É AUSÊNCIA.** Os 7 foram "confirmados" checando que eram antigos —
+> criados 7 dias antes, não recentes — e daí se concluiu que eram perda real. A
+> checagem que valia, procurar o id sem filtro, custava um comando e só foi feita
+> depois.
+
+> **DETALHE NÃO É EVIDÊNCIA.** O relato trazia os 7 ids, a data, o status e o
+> intervalo de 32 minutos. Precisão de descrição fez o número *parecer* sólido, e
+> ele foi repassado com ênfase. Descrever bem não é provar que existe.
+
+E a terceira, que é de quem recebeu: **explicação que encaixa é o momento de mais
+desconfiar, não de menos.** O mecanismo descrito de manhã — a retomada do webhook
+fechando o portão da varredura — explicava perfeitamente 7 pedidos na borda da
+retomada. Quando o dado confirma a teoria que se acabou de escrever, a chance de
+o instrumento ter sido moldado pela teoria é máxima.
+
+## O que continua verdadeiro
+
+- **Os cinco apagões são reais** — 236h, 143h, 89h, 66h, 63h — medidos por gaps
+  na própria tabela de eventos, sem API no meio.
+- **A varredura periódica funcionou durante eles**, e é por isso que nada se
+  perdeu. Isso é evidência **a favor** do desenho atual, não contra.
+- **O alarme de silêncio continua justificado**, por um motivo melhor: a ingestão
+  passou dez dias dependendo só do polling e ninguém soube.
+- **O desacoplamento continua valendo como PREVENÇÃO**, não como conserto de dano
+  com vítima conhecida.
