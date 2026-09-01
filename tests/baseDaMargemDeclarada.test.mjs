@@ -40,48 +40,61 @@ test("o card Faturamento mostra TODOS os pedidos — decisao dela de 30/08/2026"
   assert.equal(carta(cards, "revenue").raw, 1270.13);
 });
 
-test("a margem continua na base APURADA — somar pendente sem custo inflaria o lucro", () => {
-  // Pedido pendente na Amazon nao tem valor, nem item, nem tarifa (medido em
-  // 30/08: 40 pendentes, zero itens, zero tarifas). Se o lucro seguisse o
-  // faturamento, ele somaria receita sem o custo correspondente.
-  const cards = amazonFinancialCards(base);
-  assert.equal(carta(cards, "marginPct").raw, (263.94 / 418.43) * 100);
+test("a margem sai do FATURAMENTO — a base apurada foi abolida em 31/08/2026", () => {
+  // ⚠️ ESTE TESTE MUDOU DE INTENCAO, e a anterior fica registrada.
+  //
+  // ATE 31/08/2026 ele exigia o CONTRARIO: margem sobre `finance.revenue` (a
+  // base apurada), com o argumento "somar pendente sem custo inflaria o lucro".
+  // O argumento era honesto e a vendedora o derrubou explicitamente, na quarta
+  // vez que pediu a mesma coisa e a primeira em caixa alta:
+  //
+  //   "TEM QUE ESQUECER O APURADO E LEVAR EM CONSIDERACAO SOMENTE O FATURAMENTO."
+  //
+  // O que ela respondeu ao argumento: o pendente sem custo NAO reduz a base —
+  // ele vira SINAL ao lado do numero, com quantidade. O erro do dado que falta
+  // nao e dela e nao justifica encolher a conta.
+  const cards = amazonFinancialCards({ ...base, baseDoLucro: 1270.13 });
+  assert.equal(carta(cards, "marginPct").raw, (263.94 / 1270.13) * 100);
 });
 
-test("e a base APARECE na tela, com numero — nunca em silencio", () => {
-  const cards = amazonFinancialCards(base);
+test("a margem diz sobre o que ela e, e nao inventa uma segunda base", () => {
+  // ⚠️ ESTE TESTE MUDOU DE INTENCAO, e a anterior fica registrada.
+  //
+  // ATE 31/08/2026 ele exigia OS DOIS numeros no contexto ("418,43 apurados de
+  // 1.270,13"), porque havia duas bases e o SILENCIO entre elas era o defeito.
+  // A vendedora aboliu a segunda base — "TEM QUE ESQUECER O APURADO" — entao
+  // declarar duas agora reintroduziria a confusao que a frase resolvia.
+  const cards = amazonFinancialCards({ ...base, baseDoLucro: 1270.13 });
   const contexto = carta(cards, "marginPct").context;
-  assert.match(contexto, /418,43/, "a base apurada precisa estar escrita");
-  assert.match(contexto, /1\.270,13/, "e o total de onde ela sai tambem");
-  // A invariante e "o que falta, COM NUMERO" — nao a tipografia do plural. A
-  // frase saiu de `amazonFinancialCards` para `baseDaMargem` (compartilhada com
-  // os quatro canais) e passou a flexionar de verdade: "1 pedido" / "40
-  // pedidos", no lugar de "pedido(s)".
-  assert.match(contexto, /40 pedidos? aguardando/, "e o que falta, com numero");
-  // AGENTS.md: "parcial" explica ao vendedor o que ele ja sabe, em vez de dizer
-  // o que falta. A frase acima diz o que falta, com numero.
+  assert.match(contexto, /faturamento/i, "a margem precisa dizer sobre o que ela e");
+  assert.doesNotMatch(contexto, /apurados de/, "duas bases nao existem mais");
   assert.doesNotMatch(contexto, /parcial|incompleto/i);
 });
 
-test("a base vem em CAMPO PROPRIO, para a tela poder renderizar sem hover", () => {
-  // ⚠️ ESTE TESTE NASCEU DE UMA FALHA DO TESTE ACIMA (31/08/2026).
+test("o que FALTA vem em campo proprio, para a tela renderizar sem hover", () => {
+  // ⚠️ ESTE TESTE NASCEU DE UMA FALHA DO TESTE ACIMA (31/08/2026), e a parte
+  // que importa dele NAO mudou: o que a tela precisa dizer vai num campo
+  // RENDERIZADO SEM INTERACAO, nunca no "i".
   //
   // O de cima passava — a frase existia — e mesmo assim a vendedora olhou a
-  // tela, viu lucro e margem sobre R 748,56 ao lado de um Faturamento de
-  // R 1.068,37, e concluiu que estava errado. A declaracao morava no
-  // `context`, que a pagina joga no "i": um tooltip que ninguem abre.
+  // tela, viu lucro e margem sobre R 748,56 ao lado de um Faturamento de
+  // R 1.068,37, e concluiu que estava errado. A declaracao morava no `context`,
+  // que a pagina joga no tooltip. "O teste garantiu a frase, nao a leitura."
   //
-  // "O teste garantiu a frase, nao a leitura." O criterio passou a ser: existir
-  // num campo que a tela RENDERIZA SEM INTERACAO.
-  const cards = amazonFinancialCards(base);
+  // O QUE MUDOU e o CONTEUDO: nao ha segunda base para declarar. O campo passa
+  // a carregar o que FALTA — pedidos ainda sem custo e tarifa apurados, com
+  // numero. Eles seguem DENTRO da base; o sinal existe porque tornam o lucro
+  // otimista, nunca porque encolhem a conta.
+  const cards = amazonFinancialCards({ ...base, baseDoLucro: 1270.13, pedidosSemValor: 40 });
   for (const key of ["marginPct", "profit"]) {
-    assert.ok(carta(cards, key).baseDeclarada, `${key} precisa expor a base em campo proprio`);
-    assert.match(carta(cards, key).baseDeclarada, /418,43[\s\S]*1\.270,13/);
+    assert.ok(carta(cards, key).baseDeclarada, `${key} precisa expor em campo proprio`);
+    assert.match(carta(cards, key).baseDeclarada, /40 pedidos ainda sem custo e tarifa/);
+    assert.doesNotMatch(carta(cards, key).baseDeclarada, /apurados de/);
   }
 });
 
 test("bases iguais NAO produzem campo — ruido tambem e defeito", () => {
-  const cards = amazonFinancialCards({ ...base, faturamentoTotal: 418.43, pedidosAguardando: 0 });
+  const cards = amazonFinancialCards({ ...base, faturamentoTotal: 418.43, baseDoLucro: 418.43, pedidosSemValor: 0 });
   for (const key of ["marginPct", "profit"]) {
     assert.equal(carta(cards, key).baseDeclarada, undefined);
   }
@@ -103,7 +116,7 @@ test("bases IGUAIS nao ganham declaracao — ruido tambem e defeito", () => {
   // Quando todo o periodo esta apurado, nao ha duas bases e nao ha o que
   // declarar. Explicar uma diferenca que nao existe treina a pessoa a ignorar a
   // frase justamente no dia em que ela importa.
-  const cards = amazonFinancialCards({ ...base, faturamentoTotal: 418.43, pedidosAguardando: 0 });
+  const cards = amazonFinancialCards({ ...base, faturamentoTotal: 418.43, baseDoLucro: 418.43, pedidosSemValor: 0 });
   assert.doesNotMatch(carta(cards, "marginPct").context, /apurados de/);
 });
 

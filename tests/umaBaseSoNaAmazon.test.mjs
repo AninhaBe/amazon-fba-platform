@@ -103,7 +103,7 @@ test("pedido sem valor publicado e APONTADO com numero, nunca somado como zero",
     pedidosSemValor: 19,
   });
   const lucro = cards.find((c) => c.key === "profit");
-  assert.match(lucro.baseDeclarada ?? "", /19 pedidos sem valor publicado/);
+  assert.match(lucro.baseDeclarada ?? "", /19 pedidos ainda sem custo e tarifa apurados/);
   assert.doesNotMatch(lucro.baseDeclarada ?? "", /parcial|incompleto/i);
 });
 
@@ -116,7 +116,7 @@ test("sem pedido sem valor, a frase do que falta NAO aparece", () => {
     pedidosSemValor: 0,
   });
   const lucro = cards.find((c) => c.key === "profit");
-  assert.doesNotMatch(lucro.baseDeclarada ?? "", /sem valor publicado/);
+  assert.doesNotMatch(lucro.baseDeclarada ?? "", /ainda sem custo e tarifa/);
 });
 
 test("a tarifa estimada e MARCADA na face do card, com quanto e de quantos pedidos", () => {
@@ -216,4 +216,138 @@ test("a base do faturamento traduz gross=0 em ausencia, nao em zero", async () =
     "utf8",
   );
   assert.match(fonte, /COALESCE\(NULLIF\(o\.gross, 0\), o\.ordered_gross\)/);
+});
+
+// ═══ A QUARTA FORMA DO MESMO DEFEITO (31/08/2026, 23:16) ════════════════════
+//
+// A base do lucro tinha virado a soma do BANCO (R$ 551,13) enquanto o card de
+// Faturamento exibia o `orderMetrics` (R$ 1.017,98). As tarifas (281,95) e o
+// custo (282,02) vinham dos 53 pedidos inteiros. Numerador de um universo com
+// subtracoes de outro — de novo, pela quarta vez, na quarta forma.
+//
+// A vendedora fez a aritmetica na mao e estava certa:
+//   1.017,98 - 281,95 - 282,02 = 454,01, POSITIVO.
+// A tela mostrava -R$ 40,40 e margem -7,3%.
+//
+// Ordem dela, em caixa alta: "TEM QUE ESQUECER O APURADO E LEVAR EM
+// CONSIDERACAO SOMENTE O FATURAMENTO."
+
+test("a conta que ELA fez na mao fecha na tela", () => {
+  // Sem imposto e sem ads, o lucro e exatamente faturamento - tarifas - custo.
+  const cards = amazonFinancialCards({
+    finance: { currency: "BRL", revenue: 551.13, fees: 281.95, refunds: 0, orderCount: 16 },
+    cogs: 282.02,
+    taxRate: null,
+    taxes: null,
+    adsConectado: false,
+    unitsWithoutCost: 0,
+    estimatedProfit: +(1017.98 - 281.95 - 282.02).toFixed(2),
+    baseDoLucro: 1017.98,
+    faturamentoTotal: 1017.98,
+  });
+  const lucro = cards.find((c) => c.key === "profit");
+  const margem = cards.find((c) => c.key === "marginPct");
+  assert.equal(lucro.raw, 454.01, "o lucro e o que sobra do FATURAMENTO");
+  assert.ok(lucro.raw > 0, `1.017,98 - 281,95 - 282,02 e positivo, e veio ${lucro.raw}`);
+  // 454,01 / 1.017,98 = 44,6%. Sobre a base apurada de 551,13 daria 82,4%.
+  assert.equal(margem.raw.toFixed(1), "44.6");
+});
+
+test("nenhum card volta a declarar base apurada", () => {
+  // ⚠️ O MECANISMO FOI APAGADO, nao so a frase: enquanto o conceito existir,
+  // basta religar um `?? f?.revenue` para o defeito voltar — e ele voltou em
+  // QUATRO formas diferentes no mesmo dia.
+  const cards = amazonFinancialCards({
+    finance: { currency: "BRL", revenue: 551.13, fees: 281.95, refunds: 0, orderCount: 16 },
+    cogs: 282.02,
+    taxRate: null,
+    taxes: null,
+    adsConectado: false,
+    unitsWithoutCost: 0,
+    estimatedProfit: 454.01,
+    baseDoLucro: 1017.98,
+    faturamentoTotal: 1017.98,
+    pedidosSemValor: 19,
+  });
+  for (const card of cards) {
+    // O proibido e a DECLARACAO DE DUAS BASES ("sobre X apurados de Y"), nao a
+    // palavra solta: a frase do que falta usa "apurados" com outro sentido.
+    assert.doesNotMatch(card.baseDeclarada ?? "", /apurados de/i, `card ${card.key} declara duas bases`);
+    assert.doesNotMatch(card.context ?? "", /apurados de/i, `o "i" do card ${card.key} declara duas bases`);
+  }
+});
+
+test("o codigo-fonte nao guarda mais o mecanismo da base apurada", async () => {
+  // Ramificacao, nao identificador: o que nao pode voltar e a base cair para
+  // `finance.revenue`. Enquanto essa expressao existir, alguem religa.
+  const fonte = await readFile(
+    new URL("../src/app/amazon/amazonFinancialCards.ts", import.meta.url),
+    "utf8",
+  );
+  // A ramificacao, nao a palavra: o que nao pode voltar e a variavel SER DECLARADA
+  // e a peca de declaracao SER CHAMADA. Comentario que conta a historia fica.
+  assert.doesNotMatch(fonte, /const baseApuradas*=/, "a variavel voltou");
+  assert.doesNotMatch(fonte, /declaracaoDeBase\(/, "a Amazon voltou a declarar base");
+  assert.match(fonte, /const base = input\.baseDoLucro \?\? faturamentoExibido/);
+});
+
+test("os 19 pedidos sem valor sinalizam, e NAO encolhem a base", () => {
+  const cards = amazonFinancialCards({
+    finance: { currency: "BRL", revenue: 551.13, fees: 281.95, refunds: 0, orderCount: 16 },
+    cogs: 282.02,
+    taxRate: null,
+    taxes: null,
+    adsConectado: false,
+    unitsWithoutCost: 0,
+    estimatedProfit: 454.01,
+    baseDoLucro: 1017.98,
+    faturamentoTotal: 1017.98,
+    pedidosSemValor: 19,
+  });
+  const margem = cards.find((c) => c.key === "marginPct");
+  const lucro = cards.find((c) => c.key === "profit");
+  // A base continua sendo o faturamento INTEIRO, com os 19 dentro.
+  assert.equal(margem.raw.toFixed(1), "44.6");
+  // E a tela diz o que falta, com numero, sem a palavra proibida.
+  assert.match(lucro.baseDeclarada ?? "", /19 pedidos ainda sem custo e tarifa/);
+  assert.doesNotMatch(lucro.baseDeclarada ?? "", /parcial|incompleto/i);
+});
+
+test("a rota INJETA o faturamento no produtor, e nao o recalcula depois", async () => {
+  // ⚠️ Recalcular o lucro na rota criaria uma SEGUNDA definicao de lucro da
+  // Amazon — o defeito que o commit 21a0540 removeu. A base entra ANTES, no
+  // unico lugar que calcula.
+  const rota = await readFile(
+    new URL("../src/app/api/amazon/dashboard/route.ts", import.meta.url),
+    "utf8",
+  );
+  const iSales = rota.indexOf("getDailySales(period, defaultMarketplaceId())");
+  const iCanon = rota.indexOf("getAmazonOverviewCanonicalCached(period");
+  assert.ok(iSales !== -1 && iCanon !== -1, "as duas chamadas precisam existir");
+  assert.ok(iSales < iCanon, "o faturamento tem de ser buscado ANTES do produtor");
+  assert.match(rota, /faturamentoDoPeriodo: pedidosFeitos\?\.totalRevenue \?\? null/);
+});
+
+test("o produtor prefere o faturamento injetado ao piso do banco", async () => {
+  const fonte = await readFile(
+    new URL("../src/lib/integrations/amazonOverviewCanonical.ts", import.meta.url),
+    "utf8",
+  );
+  // Ramificacao: existe um caminho que escolhe o injetado quando ele existe.
+  assert.match(
+    fonte,
+    /opcoes\.faturamentoDoPeriodo != null && opcoes\.faturamentoDoPeriodo > 0\s*\n?\s*\?\s*opcoes\.faturamentoDoPeriodo\s*\n?\s*:\s*pisoDoBanco/,
+  );
+});
+
+test("a chave do cache carrega a base — senao o radar envenena o dashboard", async () => {
+  // ⚠️ radar, top-products e rentabilidade chamam o mesmo produtor SEM base.
+  // Sem a base na chave, o primeiro deles gravaria um overview com o piso do
+  // banco e o dashboard leria esse resultado — o defeito voltando por caminho
+  // indireto, intermitente, dependente de quem chegou primeiro.
+  const fonte = await readFile(
+    new URL("../src/lib/integrations/amazonOverviewCanonical.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(fonte, /amazon-overview-canonical:\$\{cacheScope\(\)\}:\$\{period\.key\}:\$\{base\}/);
 });

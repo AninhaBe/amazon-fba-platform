@@ -161,7 +161,6 @@ export interface AmazonCard {
   marcaEstimativa?: string;
 }
 
-import { declaracaoDeBase, BASE_SEM_DIFERENCA } from "../components/baseDaMargem";
 import { procedenciaDaEstimativa } from "../components/procedenciaDaEstimativa";
 
 const money = (v: number, currency: string) =>
@@ -353,7 +352,7 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
   // tarifas. Somar essa receita sem o custo correspondente INFLARIA o lucro, que
   // é o defeito que passamos o dia inteiro removendo da tela.
   //
-  // Então o lucro fica na base apurada e a tela DECLARA a base, com número —
+  // ⚠️ O PARÁGRAFO ACIMA DESCREVE O QUE VALIA ATÉ 31/08/2026. O lucro NÃO fica
   // nunca com a palavra "parcial", que explica ao vendedor uma coisa que ele já
   // sabe em vez de dizer o que falta (AGENTS.md).
   // ⚠️ QUANDO UM PERÍODO PASSADO MUDA DE VALOR, A TELA DIZ POR QUÊ.
@@ -383,35 +382,40 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
   // 73,12). Margem acima de 100% e margem abaixo de −90% eram o MESMO defeito
   // visto pelos dois lados: dividir o resultado de um universo pela receita de
   // outro. Quem trocar de volta para `f.revenue` reintroduz os dois.
-  const baseApurada = input.baseDoLucro ?? f?.revenue ?? null;
-  const margem =
-    resultadoValido && lucroReal != null && baseApurada != null && baseApurada > 0
-      ? (lucroReal / baseApurada) * 100
-      : null;
-  /** A frase que impede a leitura "o lucro não sai do faturamento, logo está errado". */
-  // A frase sai de `declaracaoDeBase`, compartilhada com os outros canais: a
-  // Shopee recebe o mesmo desbloqueio de margem e ML e TikTok têm a mesma
-  // diferença entre faturamento exibido e base apurada. Quatro canais
-  // escrevendo a própria versão divergem na primeira vez que alguém ajusta uma.
+  // ═══ NÃO EXISTE MAIS BASE APURADA NESTA TELA (31/08/2026) ══════════════════
   //
-  // ⚠️ E AGORA ELA SOME QUANDO AS BASES COINCIDEM — que passa a ser o caso
-  // normal. `declaracaoDeBase` devolve `null` quando faturamento exibido ≤ base,
-  // e a base virou o próprio faturamento. Ela sobra só onde a Amazon ainda não
-  // valorizou algum pedido, e aí é a linha abaixo que diz quantos são.
-  const baseDeclarada =
-    declaracaoDeBase({
-      baseApurada,
-      faturamentoExibido,
-      moeda: currency,
-      pedidosAguardando: input.pedidosAguardando,
-    }) ?? BASE_SEM_DIFERENCA;
-  // O QUE FALTA, COM NÚMERO — nunca a palavra "parcial" (AGENTS.md). Pedido que
-  // a Amazon ainda não valorizou fica fora da base; a tela diz quantos são, para
-  // ela saber que o número sobe sozinho quando a Amazon publicar.
+  // ⚠️ ORDEM DELA, a quarta vez pedindo e a primeira em caixa alta: *"TEM QUE
+  // ESQUECER O APURADO E LEVAR EM CONSIDERAÇÃO SOMENTE O FATURAMENTO."*
+  //
+  // A variável `baseApurada` FOI APAGADA de propósito, e não só a frase que ela
+  // alimentava. Enquanto o conceito existisse aqui, bastava alguém religar o
+  // `?? f?.revenue` para o defeito voltar — e ele voltou em quatro formas
+  // diferentes ao longo do mesmo dia. Sem o mecanismo, não há o que religar.
+  //
+  // A base é o faturamento, e ela é a MESMA do card ao lado, por construção.
+  const base = input.baseDoLucro ?? faturamentoExibido;
+  const margem =
+    resultadoValido && lucroReal != null && base != null && base > 0
+      ? (lucroReal / base) * 100
+      : null;
+  // ⚠️ A DECLARAÇÃO DE BASE MORREU AQUI, e o motivo é que ela não tem mais o que
+  // declarar: lucro, margem e imposto saem do mesmo número que o card exibe.
+  // Uma frase que explica uma diferença inexistente treina a pessoa a ignorar a
+  // frase — e esta, especificamente, ficou quatro dias afirmando que o lucro era
+  // "sobre R$ X apurados" enquanto ela pedia o contrário.
+  //
+  // A peça compartilhada (`baseDaMargem.ts`) CONTINUA VIVA para Shopee, ML e
+  // TikTok, que ainda têm bases diferentes de verdade. Quem trouxer a frase de
+  // volta para a Amazon precisa primeiro trazer de volta duas bases.
+  //
+  // O QUE FALTA, COM NÚMERO — nunca a palavra "parcial" (AGENTS.md). Os pedidos
+  // que a Amazon ainda não valorizou ENTRAM no faturamento (o `orderMetrics` já
+  // os conta) e não têm custo nem tarifa nossa. Isso NÃO encolhe a base: torna o
+  // lucro otimista, e o jeito certo de tratar é DIZER isso ao lado.
   const semValor = input.pedidosSemValor ?? 0;
   const faltaValor =
     semValor > 0
-      ? `${semValor} pedido${semValor > 1 ? "s" : ""} sem valor publicado pela Amazon`
+      ? `${semValor} pedido${semValor > 1 ? "s" : ""} ainda sem custo e tarifa apurados — o lucro tende a melhorar quando entrarem`
       : null;
   // Quanto do total de tarifas é estimativa (ADR-027).
   //
@@ -429,7 +433,7 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
       ? `inclui ${money(estimadas, currency)} de tarifa estimada pela Amazon em ${pedidosEstimados} pedido(s) — a oficial entra na liquidação`
       : null;
   /** A linha visível do card de Lucro: base quando difere, o que falta, e a devolução. */
-  const notaDoLucro = [baseDeclarada === "sobre vendas" ? null : baseDeclarada, faltaValor, devolucao]
+  const notaDoLucro = [faltaValor, devolucao]
     .filter(Boolean)
     .join(" · ") || undefined;
   const roi = resultadoValido && lucroReal != null && input.cogs > 0 ? (lucroReal / input.cogs) * 100 : null;
@@ -577,10 +581,10 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
       value: margem == null ? "—" : percent(margem),
       context: margem == null
         ? (custoIncompleto ? faltaCusto : "Aguardando receita e lucro completos")
-        : comSemImposto(`Lucro ${baseDeclarada}`, input.taxRate == null),
+        : comSemImposto("Lucro sobre o faturamento do período", input.taxRate == null),
       tone: margem == null ? "default" : margem > 0 ? "positive" : margem < 0 ? "danger" : "default",
       raw: margem,
-      baseDeclarada: baseDeclarada === "sobre vendas" ? undefined : baseDeclarada,
+      baseDeclarada: notaDoLucro,
     },
     {
       key: "roiPct", label: "ROI",

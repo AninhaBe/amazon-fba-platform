@@ -48,8 +48,18 @@ test("a frase e composta em UM lugar — nenhum canal escreve a propria", async 
     const fonte = await readFile(new URL(`../${caminho}`, import.meta.url), "utf8");
     assert.ok(!/apurados de \$\{|apurados de R\$/.test(fonte), `${caminho}: montou a propria declaracao`);
   }
+  // ⚠️ A AMAZON SAIU DESTA LISTA EM 31/08/2026, e a razao e o oposto de
+  // regressao: ela nao declara mais base nenhuma. A vendedora aboliu a base
+  // apurada do canal ("TEM QUE ESQUECER O APURADO"), entao lucro, margem e
+  // imposto saem do mesmo numero que o card exibe e nao ha diferenca para
+  // explicar. A peca compartilhada segue viva para Shopee, ML e TikTok, que
+  // ainda tem duas bases de verdade.
+  //
+  // A trava acima — nenhum canal monta "apurados de" a mao — continua valendo
+  // para os quatro, inclusive para a Amazon, que agora nao pode nem consumir
+  // nem reescrever a frase.
   const amazon = await readFile(new URL("../src/app/amazon/amazonFinancialCards.ts", import.meta.url), "utf8");
-  assert.match(amazon, /declaracaoDeBase\(\{/, "a Amazon consome a peca compartilhada");
+  assert.ok(!/declaracaoDeBase\(/.test(amazon), "a Amazon nao declara mais base — ver AGENTS.md, uma base so");
 });
 
 test("a declaracao vai na FACE do card, nunca no tooltip", async () => {

@@ -118,7 +118,37 @@ export async function GET(req: NextRequest) {
       const period = resolvePeriod(req.nextUrl.searchParams);
       const t0 = performance.now();
 
-      const canonical = await getAmazonOverviewCanonicalCached(period);
+      // ═══ O FATURAMENTO VEM ANTES DO LUCRO, E ISSO É DE PROPÓSITO ═══════════
+      //
+      // ⚠️ DECISÃO DELA, repetida QUATRO vezes, a última em caixa alta
+      // (31/08/2026): *"TEM QUE ESQUECER O APURADO E LEVAR EM CONSIDERAÇÃO
+      // SOMENTE O FATURAMENTO."*
+      //
+      // O lucro sai do MESMO número que o card de Faturamento exibe. Esse número
+      // é o `orderMetrics` da Sales API — o que bate com o Seller Central e o que
+      // ela confere. O canônico sozinho não o conhece (a Amazon omite
+      // `OrderTotal` no pendente e o relatório All Orders se espaça a cada ~3h),
+      // então ele é BUSCADO PRIMEIRO e INJETADO no produtor.
+      //
+      // ⚠️ POR QUE INJETAR E NÃO RECALCULAR DEPOIS: recalcular na rota criaria uma
+      // SEGUNDA definição de lucro da Amazon, que é exatamente o defeito que o
+      // commit 21a0540 removeu ("uma definição só"). Duas definições divergem na
+      // primeira vez que alguém ajusta uma — e foi assim que a tela passou o dia
+      // exibindo o resultado de um universo ao lado da receita de outro.
+      //
+      // Custo desta escolha, assumido: esta chamada sai do `Promise.all` e vira
+      // serial. `getDailySales` tem SWR de 10 min, então o caminho quente não
+      // paga nada; o frio paga uma ida a mais dentro do orçamento do ADR-017.
+      const pedidosFeitos = await getDailySales(period, defaultMarketplaceId()).catch((error) => {
+        console.error("[dashboard/amazon] orderMetrics indisponivel", error);
+        return null;
+      });
+
+      const canonical = await getAmazonOverviewCanonicalCached(period, {
+        // `null` = a Sales API não respondeu; o produtor cai na soma do banco e
+        // a tela segue com a base que ele conseguir provar. Nunca zero.
+        faturamentoDoPeriodo: pedidosFeitos?.totalRevenue ?? null,
+      });
       if (!canonical) {
         // Sem cobertura canônica não há o que agregar. Dizer isso é melhor que
         // cair silenciosamente na SP-API — é o gap aparecendo (ADR-017).
@@ -135,7 +165,7 @@ export async function GET(req: NextRequest) {
       // Tarifas por tipo e frete do comprador, em paralelo com o radar. Os nomes
       // canônicos (commission, fulfillment, refund) casam com os padrões que os
       // cartões financeiros usam para categorizar (amazonFinancialCards.ts).
-      const [feeRows, billingRows, radar, pedidosFeitos, frescorRows] = await Promise.all([
+      const [feeRows, billingRows, radar, frescorRows] = await Promise.all([
         dbQuery<FeeRow>(
           `SELECT f.fee_type, SUM(f.amount)::text AS total
              FROM workspace_channel_order_fees f
@@ -214,23 +244,6 @@ export async function GET(req: NextRequest) {
           radarMs = Math.round(performance.now() - t);
           return r;
         })(),
-        // PEDIDOS FEITOS — o número do Seller Central ("Vendas de produtos
-        // solicitadas"), que INCLUI pendentes e cancelados.
-        //
-        // Vem da Sales API porque o canônico não consegue produzir este número: a
-        // Amazon omite `OrderTotal` enquanto o pedido está `Pending`, então os
-        // pendentes existem no banco sem valor. Medido em 21/08/2026 na conta dela:
-        // R$ 360,99 conciliado contra R$ 516,27 no Seller Central — a diferença
-        // eram 4 pedidos sem valor, e ela passou a noite conferindo à mão porque a
-        // tela mostrava um número só, sem dizer qual era.
-        //
-        // Não fura o orçamento de 1s (ADR-017): `getDailySales` já tem SWR de 10
-        // min, então o caminho quente lê do cache. Falha aqui devolve `null` e a
-        // tela mostra só o conciliado — degradação limpa, nunca zero.
-        getDailySales(period, defaultMarketplaceId()).catch((error) => {
-          console.error("[dashboard/amazon] orderMetrics indisponivel", error);
-          return null;
-        }),
         // Frescor e cobertura do sync desta conexão. Vai no mesmo Promise.all
         // das outras consultas para não somar ida ao banco no caminho da tela.
         // covered_from/status/processed_orders alimentam a faixa de cobertura

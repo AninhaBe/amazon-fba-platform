@@ -220,7 +220,26 @@ function scopeParams(connectionId: string, period: Period): unknown[] {
   return [currentWorkspaceId(), PROVIDER, connectionId, new Date(period.startISO), new Date(period.endISO)];
 }
 
-export async function getAmazonOverviewFromCanonical(period: Period): Promise<AmazonCanonicalOverview | null> {
+export interface OpcoesDoOverview {
+  /**
+   * O FATURAMENTO DO PERÍODO — a base única de lucro, margem e imposto.
+   *
+   * ⚠️ Vem de fora porque o canônico não consegue produzi-lo: a Amazon omite
+   * `OrderTotal` enquanto o pedido está `Pending` e o relatório All Orders, que
+   * traz o preço de tabela, se espaça a cada ~3h. Quem tem o número é o
+   * `orderMetrics` da Sales API — o mesmo que o card de Faturamento exibe e que
+   * bate com o Seller Central.
+   *
+   * `null`/ausente = a Sales API não respondeu; caímos na soma do banco, que é
+   * um PISO do faturamento. Nunca zero.
+   */
+  faturamentoDoPeriodo?: number | null;
+}
+
+export async function getAmazonOverviewFromCanonical(
+  period: Period,
+  opcoes: OpcoesDoOverview = {},
+): Promise<AmazonCanonicalOverview | null> {
   if (!hasDb()) return null;
   const resolved = await resolveConnection();
   if (!resolved) return null;
@@ -648,8 +667,31 @@ export async function getAmazonOverviewFromCanonical(period: Period): Promise<Am
   const feesEstimadas = Number(estimadaRows[0]?.total ?? 0);
   const pedidosComTarifaEstimada = estimadaRows[0]?.pedidos ?? 0;
 
-  const faturamentoDoLucro = Number(faturamentoRows[0]?.receita ?? 0);
+  // ═══ A BASE É O FATURAMENTO, E SÓ ELE (31/08/2026, quarta vez que ela pede) ══
+  //
+  // *"TEM QUE ESQUECER O APURADO E LEVAR EM CONSIDERAÇÃO SOMENTE O FATURAMENTO."*
+  //
+  // A soma do banco é o PISO: ela só enxerga os pedidos cujo valor a Amazon já
+  // publicou. O número que a tela mostra — e que bate com o Seller Central — é o
+  // `orderMetrics`, injetado por quem tem credencial. Quando ele existe, é ele.
+  //
+  // ⚠️ Medido na conta A15NQMF7A6J1Y0 em 31/08/2026, 23:16: o piso do banco dava
+  // R$ 551,13 enquanto o card exibia R$ 1.017,98. O lucro rodava sobre 551,13 e
+  // as tarifas e o custo vinham dos 53 pedidos inteiros — numerador de um
+  // universo com subtrações de outro, que é o defeito na sua QUARTA forma.
+  // 1.017,98 − 281,95 − 282,02 é POSITIVO; a tela mostrava −40,40.
+  const pisoDoBanco = Number(faturamentoRows[0]?.receita ?? 0);
+  const faturamentoDoLucro =
+    opcoes.faturamentoDoPeriodo != null && opcoes.faturamentoDoPeriodo > 0
+      ? opcoes.faturamentoDoPeriodo
+      : pisoDoBanco;
   const pedidosNaBase = faturamentoRows[0]?.pedidos ?? 0;
+  // Pedidos que a Amazon ainda não valorizou POR PEDIDO. Eles ENTRAM na base
+  // (o `orderMetrics` já os conta) e não têm custo nem tarifa nossa — então a
+  // tela SINALIZA isso ao lado, com número, e a base não encolhe. Regra dela de
+  // 29/08: *"o user sabe o que está cadastrado; se tem venda e não tem custo,
+  // fica apontado lá"*. Encolher a base para "proteger" o número é justamente o
+  // que ela mandou parar de fazer.
   const pedidosSemValor = faturamentoRows[0]?.sem_valor ?? 0;
 
   // Custo do pendente pela MESMA regra do apurado: custo cadastrado vigente na
@@ -808,6 +850,24 @@ export async function getAmazonOverviewFromCanonical(period: Period): Promise<Am
 // Deduplica a computação canônica entre as rotas do dashboard que a consomem
 // no mesmo carregamento (radar + top-products + rentabilidade). Namespaced por
 // conta/workspace pelo próprio `cached`.
-export function getAmazonOverviewCanonicalCached(period: Period): Promise<AmazonCanonicalOverview | null> {
-  return cached(`amazon-overview-canonical:${cacheScope()}:${period.key}`, 60_000, () => getAmazonOverviewFromCanonical(period));
+export function getAmazonOverviewCanonicalCached(
+  period: Period,
+  opcoes: OpcoesDoOverview = {},
+): Promise<AmazonCanonicalOverview | null> {
+  // ⚠️ A BASE ENTRA NA CHAVE DO CACHE, e isso não é zelo.
+  //
+  // O radar, o top-products e a rentabilidade chamam esta função SEM base (eles
+  // não leem lucro). Se a chave ignorasse a base, a primeira dessas chamadas
+  // gravaria no cache um overview com o piso do banco, e o DASHBOARD leria esse
+  // resultado — voltando a exibir lucro sobre a base apurada por caminho
+  // indireto, de forma intermitente e dependente de quem chegou primeiro. É a
+  // pior versão do defeito: some quando se vai procurar.
+  const base = opcoes.faturamentoDoPeriodo != null && opcoes.faturamentoDoPeriodo > 0
+    ? opcoes.faturamentoDoPeriodo.toFixed(2)
+    : "piso-do-banco";
+  return cached(
+    `amazon-overview-canonical:${cacheScope()}:${period.key}:${base}`,
+    60_000,
+    () => getAmazonOverviewFromCanonical(period, opcoes),
+  );
 }
