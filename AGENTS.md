@@ -138,6 +138,15 @@ depois de alguém apagar a chamada e deixar o import.
   no mundo real. Teste sem essa frase vira o primeiro a ser afrouxado quando
   ficar vermelho por outro motivo.
 
+**Casar o nome de uma variável não prova de onde ela vem.** Guarda que confere
+que o cálculo usa `faturamentoDaTela` continua verde quando alguém troca a
+FONTE dessa variável uma linha acima — o nome não muda, a origem sim
+(02/09/2026, ticket médio). Ancore a asserção na **definição** (de onde o valor
+nasce), não no uso. E o padrão que gera esses defeitos, medido três vezes em
+dois dias: **nome plausível + tipo que não distingue + falha silenciosa** —
+TypeScript feliz, SQL sem erro, e só a medição do EFEITO (linhas atualizadas,
+divisão conferida) denuncia.
+
 **Dado que não exercita a regra não testa a regra.** Quando a amostra real fica
 inteira de UM lado de uma fronteira (teto de faixa, kg adicional, limite de
 paginação), a fronteira nunca é exercida — e o teste que só usa dados reais fica
