@@ -1,3 +1,4 @@
+import { janelaDeDias } from "./janelaDeDias";
 export function moduleHref(path: string, currentQuery: string, connectionId?: string | null) {
   const source = new URLSearchParams(currentQuery), params = new URLSearchParams();
   const allowed = path === "/tiktok/catalogo" ? ["q", "status", "limit", "offset"]
@@ -33,8 +34,11 @@ export function moduleApiQuery(currentQuery: string, connectionId: string, kind:
   allowed.forEach(k => source.getAll(k).forEach(v => out.append(k, v)));
   out.set("connection_id", connectionId);
   if (["monitor", "finance", "inventory", "abc"].includes(kind) && (!out.has("from") || !out.has("to"))) {
-    const to = new Date(), from = new Date(to); from.setDate(from.getDate() - 29);
-    out.set("from", from.toISOString().slice(0, 10)); out.set("to", to.toISOString().slice(0, 10));
+    // ⚠️ MESMO DEFEITO DE FUSO do `syncPeriod` (01/09/2026): `toISOString` é UTC,
+    // e das 21h às 23:59 de Brasília este fallback pedia uma janela deslocada um
+    // dia para a frente. Ver `janelaDeDias`.
+    const janela = janelaDeDias("30");
+    out.set("from", janela.from); out.set("to", janela.to);
   }
   return out.toString();
 }

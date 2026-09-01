@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { ArrowRight, CalendarRange } from "lucide-react";
 
+import { diaEmBrasilia } from "./janelaDeDias";
+
 export type DashboardPeriodOption = "today" | "7" | "15" | "30" | "custom";
 
 /**
@@ -231,7 +233,10 @@ export function DashboardPeriodFilter({ selected, from, to, error, onPreset, onC
   presets?: readonly Exclude<DashboardPeriodOption, "custom">[];
   meta?: ReactNode;
 }) {
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  // O teto dos campos de data é o dia de HOJE em Brasília, e a expressão disso
+  // mora num lugar só (`janelaDeDias`) desde 01/09/2026 — era uma cópia aqui e
+  // outra, errada, no módulo do TikTok.
+  const today = diaEmBrasilia();
   const TODAS = [{ value: "today", label: "Hoje" }, { value: "7", label: "7 dias" }, { value: "15", label: "15 dias" }, { value: "30", label: "30 dias" }] as const;
   const options = presets ? TODAS.filter((o) => presets.includes(o.value)) : TODAS;
   // O intervalo só é oferecido quando a tela oferece os quatro presets — ver a
