@@ -1,0 +1,53 @@
+-- Dois índices que não pagam o que ocupam saem. Devolve ~7,6 MB de disco REAL.
+--
+-- ⚠️ POR QUE ISTO É URGENTE E NÃO HIGIENE. Medido em 01/09/2026: o banco está em
+-- 471 MB de um teto de 500 — **29 MB de folga, 6%** — e cresce entre 0,75 e
+-- 2,1 MB/dia. O teto chega entre **15/09 e 10/10/2026**
+-- (`docs/plans/espaco-no-teto.md`).
+--
+-- E este é o ÚNICO ganho de disco que cabe hoje. Todas as outras operações que
+-- recuperariam espaço precisam de espaço para rodar, e não têm:
+--
+--   REINDEX do fees_pkey ................ pico  34 MB   folga 29 MB
+--   VACUUM FULL em marketplace_orders ... pico ~75 MB   folga 29 MB
+--   ALTER TYPE em channel_orders ........ pico 127 MB   folga 29 MB
+--
+-- Estes 7,6 MB compram entre 4 e 10 dias. Não resolvem o problema; compram tempo
+-- para a decisão de plano, que é da dona do produto.
+--
+-- ═══ A MEDIÇÃO QUE AUTORIZA CADA DROP ═══
+--
+-- `pg_stat_user_indexes`, numa janela de **63 dias** (estatísticas do banco
+-- resetadas em 30/06/2026 — longa o bastante para a conclusão valer). Os números
+-- abaixo SÃO a decisão: quem for recriar um destes daqui a seis meses precisa
+-- saber que o drop teve medida, e não palpite.
+
+-- 17 scans em 63 dias — um a cada quatro dias — para 1.152 kB de índice.
+DROP INDEX IF EXISTS workspace_channel_offer_history_idx;
+
+-- 97 scans em 63 dias (1,5 por dia) para 6.496 kB. Além do desuso, a PK da mesma
+-- tabela já cobre o prefixo (workspace_id, provider, connection_id); este índice
+-- só acrescenta `occurred_at DESC`.
+DROP INDEX IF EXISTS workspace_marketplace_orders_period_idx;
+
+-- ═══ O QUE NÃO SAI, E POR QUÊ — porque "índice grande" não é critério ═══
+--
+-- `workspace_rank_history_idx` tem 1.616 kB para uma tabela de 1.656 kB: índice
+-- do tamanho do dado. **Fica.** São 3.040 scans em 63 dias — 48 por dia. Uso real
+-- não se corta por estética de proporção.
+--
+-- `channel_orders_workspace_period_idx` tem 7.312 kB e parece redundante com
+-- `channel_orders_period_idx`. **Não é.** O prefixo (workspace_id, occurred_at)
+-- serve a consulta MULTICANAL ordenada por data, que o outro — prefixado por
+-- provider e connection_id — não serve. 14.849 scans.
+--
+-- ⚠️ REVERSÍVEL, e o comando está aqui para não precisar ser reconstruído sob
+-- pressão:
+--
+--   CREATE INDEX workspace_channel_offer_history_idx
+--     ON workspace_channel_offer_history (workspace_id, provider, connection_id, observed_at DESC);
+--   CREATE INDEX workspace_marketplace_orders_period_idx
+--     ON workspace_marketplace_orders (workspace_id, provider, connection_id, occurred_at DESC);
+--
+-- Se recriar, meça de novo antes: a razão de dropar foi o desuso medido, e uso
+-- muda quando a tela muda.
