@@ -717,7 +717,27 @@ export async function getShopeeOverviewFromCanonical(
     });
   }
 
-  const taxes = taxRateKnown ? processedRevenue * taxRate! / 100 : null;
+  /**
+   * ⚠️ O IMPOSTO INCIDE SOBRE A MESMA BASE DO LUCRO (01/09/2026).
+   *
+   * Ele incidia sobre `processedRevenue` enquanto o lucro partia do
+   * FATURAMENTO — numerador de um universo, subtracao de outro. E a SEGUNDA
+   * forma da familia, a mesma que a Amazon teve em 31/08, e chegou aqui por
+   * REPLICACAO INCOMPLETA: quando a base do lucro passou a ser o faturamento,
+   * o numerador se moveu e o imposto ficou.
+   *
+   * Achado pela vendedora em 01/09/2026, no Shopee: ela somou os tres cards da
+   * tela (15.734,08 - 4.306,24 - 7.020,48 = 4.407,36) e o lucro exibido era
+   * 4.266,39. A diferenca de R$ 140,97 era o imposto — e o imposto estava
+   * calculado sobre R$ 14.097,09 (pagos + enviados) em vez de R$ 15.734,08
+   * (com os pendentes), subestimado em ~R$ 16,37.
+   *
+   * 📌 A regra, que vale para TODO componente do lucro: quem subtrai tem de
+   * cobrir o mesmo universo de quem soma. Se a base mudar de novo, ESTE calculo
+   * muda junto — e e por isso que os dois leem a mesma variavel, em vez de duas
+   * variaveis que por acaso coincidem hoje.
+   */
+  const taxes = taxRateKnown ? faturamento * taxRate! / 100 : null;
 
   const coveredFrom = syncRow.covered_from ? new Date(syncRow.covered_from).getTime() : Number.POSITIVE_INFINITY;
   const coveredTo = syncRow.covered_to ? new Date(syncRow.covered_to).getTime() : 0;
