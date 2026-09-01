@@ -208,6 +208,47 @@ Amazon*. Se o papel for concedido, o caminho é `transportationOptions` da 2024-
 
 ## Changelog observado (mais recente primeiro)
 
+- **2026-09-01 (noite)** — **`getOrderItems` de um pedido `Pending` não traz
+  `ItemPrice`, e a chave sequer existe no payload.** Medido com UMA chamada de
+  leitura na conexão `amazon:A15NQMF7A6J1Y0`, pedido `701-7591488-7149810`,
+  criado às 19:01 do mesmo dia. As chaves devolvidas para o item são exatamente:
+
+  `ProductInfo, IsGift, BuyerInfo, QuantityShipped, IsTransparency,
+  QuantityOrdered, ASIN, SellerSKU, Title, OrderItemId`
+
+  Não há `ItemPrice`, `ItemTax` nem `PromotionDiscount` — **ausentes, não nulos
+  nem zerados**. Vem ASIN, SKU, título e quantidade; não vem dinheiro.
+
+  ⚠️ **Isto encerra uma investigação que custou um dia e passou por três causas
+  erradas.** A tela da vendedora mostrava, no recorte de "Hoje", faturamento de
+  31 pedidos e margem calculada sobre 1. As hipóteses que caíram, na ordem:
+
+  1. *"falta o ITEM do pedido pendente"* — falso: 30 dos 31 tinham item, com
+     ASIN e quantidade gravados;
+  2. *"o estimador de tarifa não roda ou não grava"* — falso: gravava, e
+     bastante; o que ele tinha era um portão de entrada por preço, corrigido no
+     mesmo dia;
+  3. *"os tokens da Amazon estão revogados e falta renovar o OAuth"* — **falso, e
+     o erro mais caro**: medido no mesmo dia, o refresh das duas vias devolve
+     HTTP 200 e a SP-API responde normalmente. Essa afirmação vinha de uma
+     medição do dia anterior tratada como fato do dia seguinte.
+
+  A causa é esta entrada: **a Amazon não publica o valor de um pedido enquanto
+  ele está pendente.** Não é defeito nosso, não é autorização, e não há ação da
+  vendedora que resolva — o preço aparece quando o pedido despacha.
+
+  📌 **O que isso decide no produto:** pedido pendente sem preço é o **ciclo
+  normal** da Amazon, não estado de erro. A ingestão está certa gravando `null`
+  (não há o que gravar), e a tela está certa dizendo *"N de M pedidos ainda sem
+  valor publicado pela Amazon"* em vez de exibir margem sobre a minoria. Nada a
+  consertar aqui — só a saber.
+
+  📌 **E o corolário para o estimador:** a tarifa observada por ASIN é absoluta
+  (R$ por unidade) e **não depende de preço**, então ela pode ser gravada para o
+  pendente e fica pronta e datada. O que ela **não** produz é lucro: sem receita
+  não há resultado, e somar tarifa a uma receita que não existe seria subtração
+  sem minuendo.
+
 - **2026-08-31 (noite)** — **E eles NUNCA substituem pelo oficial.** Segunda
   medição na mesma tela do Gestor Seller, que fecha a pergunta deixada em aberto
   na entrada abaixo. Pedido **`702-9124025-9780207`**, criado em **31/07** e
