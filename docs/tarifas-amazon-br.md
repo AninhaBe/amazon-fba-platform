@@ -175,8 +175,8 @@ menores que a tabela (ou zero)** — mais um motivo para `observada > tabela`.
 - **01/09/2026 (2)** — Seção 1 refeita com leitura ao vivo e verbatim da página
   pública. A versão de 31/08 (escrita neste arquivo em 01/09, de memória de uma
   captura anterior) continha erros de reconstrução: Beleza e Papelaria como 12%
-  (página diz 13%), Games consoles como 8% (página diz 11%), mínimos R\$ 1,00
-  onde a página diz R\$ 2,00, e tetos de faixa 750/1.500 (página diz 100/200).
+  (página diz 13%), Games consoles como 8% (página diz 11%), mínimos R$ 1,00
+  onde a página diz R$ 2,00, e tetos de faixa 750/1.500 (página diz 100/200).
   Detectado porque o backend comparou as duas capturas e elas divergiam entre
   si. Registrada a divergência página (13%) vs extrato medido (12%) em
   Papelaria e Beleza — em aberto.
