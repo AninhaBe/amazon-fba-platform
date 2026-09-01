@@ -1,7 +1,8 @@
 # Estado atual — onde cada frente parou
 
-**Última atualização: 27/08/2026** (submissão do TikTok, monetização, acesso, cron,
-baseline de testes e a frente de sync imediato pós-conexão — seção 12). Leia isto antes de continuar qualquer frente em andamento; o
+**Última atualização: 01/09/2026** (seção 2 refeita: OAuth da Amazon está OK — a
+"revogação" era medição de 06/08 nunca reconferida; tarifa estimada implementada com
+ordem observada > tabela > api; tabela oficial versionada em `tarifas-amazon-br.md`). Leia isto antes de continuar qualquer frente em andamento; o
 "porquê" das decisões está nos docs de cada área e nos ADRs.
 
 Este doc responde três perguntas: **o que está pronto**, **o que está no meio do
@@ -116,24 +117,43 @@ replicar é reimplementar a mesma *garantia* com os campos que aquele canal ofer
 **Aberto:** cupom não é custo (todos), pendência com dono (todos), ausência conciliada =
 zero (todos), categorizar tarifa por padrão (todos), saldo/retenção para TikTok e Shopee.
 
-### 2. Amazon: autorização revogada nas duas contas
+### 2. Amazon: autorização OK nas duas contas — a "revogação" era medição velha
 
-*Verificado em 06/08 — **reconferir antes de agir**.*
+*Verificado em 01/09/2026 — refresh retorna HTTP 200 nas duas contas e a SP-API responde.*
 
-`AO62LVXJMX3AA` (da Ana) e `A15NQMF7A6J1Y0` (do colega) retornam
-`invalid_grant: refresh_token ... User may have revoked or didn't grant the permission`.
-
-O `LWA_REFRESH_TOKEN` do ambiente **continua válido** — é por ele que os scripts leem
-estoque, catálogo e preço de concorrente. Ou seja: o app tem um caminho funcionando e
-outro quebrado.
-
-Caminho recomendado (ver [`conexoes-que-expiram.md`](./conexoes-que-expiram.md)):
-**self-authorization** pelo Solution Provider Portal / Seller Central, que a Amazon
-indica para app privado e **não exige publicar o app**. Reconectar pelo OAuth atual
-resolve na hora, mas pode cair de novo.
+A afirmação anterior ("revogada nas duas contas", medida em 06/08) ficou meses neste
+doc e induziu **três recomendações erradas de "renovar OAuth"**. Os tokens nunca
+caíram. Lição registrada: **estado de credencial se mede na hora, não se lembra** —
+data velha aqui embaixo significa "reconferir", nunca "fato".
 
 ⚠️ **Contas:** usar `AO62LVXJMX3AA` (dela). A `A15NQMF7A6J1Y0` é **do colega** e o
 acesso autorizado é **somente leitura**.
+
+#### Tarifa estimada até a liquidação ([ADR-027](adr/ADR-027-tarifa-estimada-ate-a-liquidacao.md)) — implementada, 01/09/2026
+
+O lucro da Amazon cobre o **faturamento inteiro** (pendentes + confirmados), com a
+tarifa estimada quando a oficial ainda não chegou. Ordem de preferência das fontes,
+implementada em `amazonTarifaEstimada.ts`: **observada > tabela > api**.
+
+- **observada** — a tarifa que a Amazon de fato cobrou naquele ASIN (valor absoluto
+  por unidade; não precisa de preço). Cobre a maioria dos ASINs com histórico.
+- **tabela** — a regra publicada pela Amazon, versionada em
+  [`tarifas-amazon-br.md`](./tarifas-amazon-br.md) (comissão por categoria +
+  logística FBA por preço/peso) e no código (`amazonTabelaDeComissao.ts`).
+  Mapeamento categoria→percentual **explícito**: não-mapeado devolve `null`, nunca
+  cai em "demais 15%". Valor prospectivo: dispara em ASIN sem histórico.
+- **api** — Product Fees API, quando houver token da conta.
+
+Na liquidação, a tarifa **oficial substitui** a estimativa por `fee_type` (view
+`workspace_channel_order_fees_efetivas`; `superseded_at` marca a substituída) — é o
+diferencial sobre o Gestor Seller, que estima e nunca reconcilia. Na tela, toda
+estimativa é **marcada com a procedência** na própria linha.
+
+**Fato medido que limita a tabela:** pedido `Pending` da Amazon vem **sem
+`ItemPrice`** (chave ausente do payload; o preço só publica no shipment). Comissão é
+percentual sobre preço → linha pendente sem preço não ganha estimativa por tabela.
+Peça em andamento: usar o **preço do anúncio** (nosso catálogo) como base marcada
+para pendentes — é o que o Gestor Seller faz.
 
 **Pendência aberta desde 07/08 — lucro da Amazon pelo canônico.** `/api/sales` e
 `/api/order-profitability` já caem no modelo canônico quando o workspace não tem nenhuma
