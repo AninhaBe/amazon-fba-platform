@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
 
 import { PageHeader, pageIcons } from "../components/PageHeader";
 import { DashboardPeriodFilter, useDashboardPeriod } from "../components/DashboardPeriodFilter";
@@ -9,6 +10,7 @@ import { MarketplaceIcon } from "../components/MarketplaceIcon";
 import { EmptyState } from "../components/EmptyState";
 import { InlineLoading } from "../components/LoadingState";
 import { IntegrationDashboardFrame } from "../components/IntegrationDashboardFrame";
+import { periodoNaUrl } from "../components/periodoNaUrl";
 import { margemPosAds, margemPosAdsDoCanal, type ProdutoAnunciado } from "@/lib/margemPosAds";
 import { avaliarAnuncio } from "@/lib/anuncioContraMargem";
 import type { AdsMultiCanal, CanalDeAdsResumo, CampanhaDeAds, CanalDeAds } from "@/lib/adsMultiCanal";
@@ -303,8 +305,24 @@ function TabelaDeCampanhas({ campanhas }: { campanhas: CampanhaDeAds[] }) {
   );
 }
 
-export default function AdsPage() {
-  const period = useDashboardPeriod();
+function Ads() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  /**
+   * O PERÍODO MORA NA URL — mesmo contrato da Shopee e do TikTok.
+   *
+   * Sem os dois argumentos o hook fica surdo e mudo: não lê `?days=30` do
+   * endereço e não avisa ninguém quando a pessoa clica. Ver `periodoNaUrl`
+   * para o defeito que isso produziu na revisão de 31/08/2026.
+   */
+  const period = useDashboardPeriod(
+    searchParams.toString(),
+    useCallback(
+      (query: string) =>
+        router.push(`${location.pathname}?${periodoNaUrl(searchParams.toString(), query)}`, { scroll: false }),
+      [router, searchParams],
+    ),
+  );
   /**
    * O resultado carrega A QUAL PERÍODO ele pertence.
    *
@@ -441,5 +459,17 @@ export default function AdsPage() {
         </div>
       )}
     </IntegrationDashboardFrame>
+  );
+}
+
+/**
+ * `useSearchParams` obriga a fronteira de Suspense em rota prerenderizada — a
+ * mesma razão do monitor e dos módulos da Shopee.
+ */
+export default function AdsPage() {
+  return (
+    <Suspense fallback={<InlineLoading label="Carregando anúncios dos canais" />}>
+      <Ads />
+    </Suspense>
   );
 }
