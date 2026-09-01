@@ -576,6 +576,7 @@ export function ShopeeWorkspace() {
         overview={overview}
         sync={sync}
         periodoLabel={period.label}
+        periodoQuery={period.query}
         onPage={(offset) => {
           const next = new URLSearchParams(searchParams.toString());
           next.set("offset", String(offset));
@@ -622,7 +623,7 @@ function ShopeeDemoNotice({ connectHref, compacto = false }: { connectHref?: str
   );
 }
 
-function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overview; sync: ShopeeSyncStatus | null; onPage: (offset: number) => void; periodoLabel: string }) {
+function Dashboard({ overview, sync, onPage, periodoLabel, periodoQuery }: { overview: Overview; sync: ShopeeSyncStatus | null; onPage: (offset: number) => void; periodoQuery: string; periodoLabel: string }) {
   const [costsOpen, setCostsOpen] = useState(false);
   // Saúde da conta é acessória aqui: alimenta as ações do BriefingLead com
   // número e o-que-fazer. Falha de leitura (ou demo) = sem ação — degradação
@@ -732,6 +733,7 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
           em vez de virar uma quarta variação. */}
       <BriefingLead
         periodo={periodoLabel}
+        janela={periodoQuery}
         faturamento={overview.metrics.revenue30d}
         pedidos={overview.metrics.paidOrders}
         // ⚠️ ERA `revenueCoverage.complete ? estimatedProfit : null`, com o

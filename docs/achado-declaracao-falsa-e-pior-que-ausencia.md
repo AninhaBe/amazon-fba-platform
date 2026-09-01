@@ -73,3 +73,51 @@ casar o envelope e não o recheio — nem afrouxada, nem fossilizada.
 Foi a segunda guarda no mesmo dia a proteger o defeito que deveria reprovar (a
 outra: `tiktokModulesFrontend.test.mjs` exigindo que o contrato *inventasse* uma
 janela de 30 dias).
+
+---
+
+## O critério operacional (01/09/2026, depois da varredura)
+
+A varredura das nove telas achou **duas** frases mentindo e absolveu todas as
+outras. A distinção que separou umas das outras é a regra que faltava, e ela é
+aplicável sem perguntar a ninguém:
+
+> **Texto fixo está CERTO quando descreve a NATUREZA do número — que não varia.
+> Está ERRADO quando descreve a JANELA, a BASE ou a COBERTURA — que variam.**
+
+| frase | descreve | veredito |
+|---|---|---|
+| "comissões e taxas do canal" (Shopee) | a natureza da tarifa | ✅ fixa, e sempre verdadeira |
+| "pagos, enviados ou entregues" (TikTok) | o que a contagem inclui | ✅ fixa |
+| "após tarifa e frete" (ML) | a composição do número | ✅ fixa |
+| "no período" (14 ocorrências) | a janela, **sem nomeá-la** | ✅ genérica de propósito |
+| "Últimos 30 dias" (central) | a **janela**, nomeada | ❌ mentia com o seletor em Hoje |
+| "sobre o faturamento" (ML) | a **base** | ❌ a conta saía do apurado |
+
+O padrão "no período" merece nota: é uma frase que declara **sem afirmar qual**,
+e por isso continua verdadeira quando o seletor muda. Quando a janela precisa
+ser nomeada, o nome tem de vir do mesmo lugar que decide a busca — nunca de uma
+string.
+
+## O padrão a imitar
+
+A melhor frase explicativa do produto hoje está na aba de Ads:
+
+> *"Receita, tarifa e custo são do período selecionado — não da janela de
+> atribuição do canal."*
+
+Ela **compra mais desconfiança do que gasta**: existe para a vendedora não ler o
+ACOS do canal contra os nossos totais, que é um erro que ela cometeria sozinha e
+que nenhum número na tela denunciaria. Frase explicativa é um gasto — só vale
+quando o que ela evita é maior do que a atenção que consome.
+
+## Corolário: uma tela que funciona pode esconder três que não
+
+O segundo defeito da varredura (`BriefingLead`) tinha guard escrito, correto e
+inoperante em três das quatro telas — porque ele lia a URL, e só o TikTok
+escreve o período lá. **O funcionamento numa tela mascarou a falha nas outras
+três.**
+
+Regra que fica: quando uma correção vale para os quatro canais, o teste cobre os
+**quatro**, sempre — mesmo que pareça repetição. Foi a única tela que testava a
+condição de verdade que manteve o defeito invisível por um mês.

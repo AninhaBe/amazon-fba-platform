@@ -324,7 +324,7 @@ function MercadoLivreWorkspaceInterno({ view }: { view: keyof typeof views }) {
         </div>
       ) : !overview ? (
         <EmptyState title="Conecte sua conta do Mercado Livre" description="Autorize o NEXO para começar a importar anúncios e pedidos." action={<Link href="/integracoes" className="meli-primary-action">Gerenciar integração <span aria-hidden="true">→</span></Link>} />
-      ) : view === "dashboard" ? <Dashboard overview={overview} syncStatus={syncStatus} periodoLabel={period.label} connectionId={connectionId} /> : view === "estoque" ? <Inventory overview={overview} /> : <Monitor overview={overview} secaoInicial={secaoInicial} />}
+      ) : view === "dashboard" ? <Dashboard overview={overview} syncStatus={syncStatus} periodoLabel={period.label} periodoQuery={period.query} connectionId={connectionId} /> : view === "estoque" ? <Inventory overview={overview} /> : <Monitor overview={overview} secaoInicial={secaoInicial} />}
     </IntegrationDashboardFrame>
   );
 }
@@ -399,7 +399,7 @@ function avaliarResultado(overview: Overview) {
   return { semAliquota, resultParcial, resultIncomplete, margemSub };
 }
 
-function Dashboard({ overview, syncStatus, periodoLabel, connectionId }: { overview: Overview; syncStatus: SyncStatus | null; periodoLabel: string; connectionId: string | null }) {
+function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectionId }: { overview: Overview; syncStatus: SyncStatus | null; periodoLabel: string; periodoQuery: string; connectionId: string | null }) {
   const [costsOpen, setCostsOpen] = useState(false);
   const profitCoverage = overview.profit.coverage;
   const units = overview.dailySales.reduce((total, point) => total + point.units, 0);
@@ -448,6 +448,7 @@ function Dashboard({ overview, syncStatus, periodoLabel, connectionId }: { overv
         compartilhada de propósito, para os quatro painéis não divergirem. */}
     <BriefingLead
       periodo={periodoLabel}
+      janela={periodoQuery}
       faturamento={overview.metrics.revenue30d}
       pedidos={overview.metrics.paidOrders}
       // `resultIncomplete` é a resposta honesta: enquanto falta custo, tarifa

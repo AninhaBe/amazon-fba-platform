@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { NexoMensagem } from "./NexoMensagem";
@@ -51,6 +50,17 @@ export interface BriefingAction {
 }
 
 export interface BriefingLeadProps {
+  /**
+   * A query do período selecionado (`period.query` do hook) — `"days=30"`,
+   * `"days=today"`, `"from=…&to=…"`.
+   *
+   * ⚠️ Obrigatória de propósito. Como opcional, uma tela que esquecesse de
+   * passar cairia em `undefined` e o guard voltaria a nunca disparar naquela
+   * tela — exatamente o defeito que esta prop existe para fechar, e de novo
+   * numa tela só, invisível para quem olha as outras.
+   */
+  janela: string;
+
   /** Rótulo do período ("ontem", "últimos 7 dias"). Entra na frase. */
   periodo: string;
   faturamento: number | null;
@@ -156,9 +166,33 @@ function useNexoResumo(props: BriefingLeadProps): string | null {
   // outro período o texto que já veio continua na tela, e ele DIZ a janela dele
   // (ver o FORMATO do modo resumo em `centralBriefing.ts`). Nada de narrar um
   // recorte com os números de outro.
-  const params = useSearchParams();
-  const dias = params.get("days");
-  const janelaDe30Dias = !params.get("from") && !params.get("to") && (dias == null || dias === "30");
+  // ⚠️ A JANELA VEM DO HOOK, NÃO DA URL — e esta linha é a correção de um guard
+  // que existia, estava escrito certo e NUNCA DISPARAVA (01/09/2026).
+  //
+  // A versão anterior lia `useSearchParams()`. Só que Amazon, ML e Shopee
+  // chamam `useDashboardPeriod()` SEM argumento: elas nunca escrevem o período
+  // na URL. `params.get("days")` era sempre `null`, o `dias == null` do fallback
+  // dava TRUE, e a narração saía em QUALQUER período — com os números do
+  // recorte atual sob a frase fixa "nos últimos 30 dias" (`centralBriefing.ts`
+  // obriga essa frase, porque os campos do payload são `faturamento30d`).
+  //
+  // E acontecia no PRIMEIRO carregamento, sem ninguém clicar em nada: o padrão
+  // é "Hoje". Foi isto que produziu o print de 31/08 — "nos últimos 30 dias o
+  // faturamento ficou em R$ 0,00" ao lado de um card de R$ 36.554,71. Na época
+  // tratamos como narração congelada de outra janela e consertamos a
+  // persistência: sintoma verdadeiro, causa errada.
+  //
+  // ⚠️ POR QUE NINGUÉM VIU, e é a parte que vale para a próxima vez: o TikTok
+  // SINCRONIZA o período na URL, então lá o guard sempre funcionou. **A mesma
+  // correção estava aplicada em quatro telas e só funcionava na única que
+  // testava a condição de verdade** — o funcionamento numa tela mascarou a
+  // falha nas outras três. É o símbolo-sem-comportamento do AGENTS.md na sua
+  // forma mais cara: o guard existe, está correto, um teste que casasse o nome
+  // passaria, e o comportamento nunca acontecia.
+  //
+  // `janela` é a query do próprio filtro (`period.query`), a mesma coisa que
+  // decide o que a tela busca. Não há como as duas discordarem.
+  const janelaDe30Dias = props.janela === "days=30";
 
   useEffect(() => {
     // ⚠️ TEXTO DE OUTRA JANELA NÃO FICA NA TELA (31/08/2026).

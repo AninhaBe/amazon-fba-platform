@@ -357,6 +357,7 @@ export function TikTokWorkspace() {
             desconhecido" logo acima do lucro que a própria tela exibia. */}
         <BriefingLead
           periodo={period.label}
+          janela={period.query}
           faturamento={data.overview?.revenue ?? null}
           pedidos={data.orders ?? 0}
           lucro={resultReady ? (data.overview?.profit ?? null) : null}

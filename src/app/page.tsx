@@ -312,7 +312,14 @@ export default function OverviewDashboard() {
             }
             tone={marginMetricTone(margemTotal.pct)}
           />
-          <Metric label="Pedidos" value={totals.orders.toLocaleString("pt-BR")} sub="Últimos 30 dias" />
+          {/* ⚠️ O RÓTULO ACOMPANHA O SELETOR (01/09/2026). Era `sub="Últimos 30
+              dias"` em texto fixo, escrito quando esta tela ainda não tinha
+              seletor de período. Ela ganhou um em 31/08, com padrão "Hoje" —
+              e desde então o card mostrava os pedidos de HOJE com a legenda de
+              um mês embaixo, na primeira tela que a vendedora abre.
+              `period.label` é a mesma prosa que o filtro usa ("hoje", "nos
+              últimos 7 dias"), então os dois não têm como discordar. */}
+          <Metric label="Pedidos" value={totals.orders.toLocaleString("pt-BR")} sub={period.label[0].toUpperCase() + period.label.slice(1)} />
           <Metric label="Canais ativos" value={`${totals.connected} de ${channels.length}`} sub="Contas conectadas agora" />
         </section>
 

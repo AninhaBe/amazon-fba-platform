@@ -778,6 +778,7 @@ export default function Dashboard() {
       {/* A leitura executiva abre todos os canais antes das métricas. */}
       <BriefingLead
         periodo={period.label}
+        janela={period.query}
         faturamento={faturamento?.revenue ?? null}
         pedidos={faturamento?.orders ?? 0}
         lucro={profit?.estimatedProfit ?? null}
