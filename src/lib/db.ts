@@ -5,6 +5,7 @@ import { assertFinancialLedgerContract, financialLedgerContractHash, FINANCIAL_L
 import { inspectFinancialLedgerContract } from "../../scripts/migration-safety.mjs";
 import { urlDoPoolDaAplicacao } from "./databaseUrl";
 import { ehFundo } from "./execucaoDeFundo";
+import { optionalWorkspaceId } from "./workspaceScope";
 
 // Camada Postgres (Supabase). Quando DATABASE_URL está definido, os dados que
 // precisam persistir (contas conectadas + custos) vão para o banco; senão, os
@@ -542,6 +543,32 @@ export function ensureFinancialLedgerSchema(): Promise<void> {
   return financialLedgerSchemaReady;
 }
 
+/**
+ * TRANSPORTE DA BARREIRA DE INQUILINO — Etapa 1 da ADR-036, atrás de flag.
+ *
+ * ⚠️ DESLIGADA POR PADRÃO, E COM ELA DESLIGADA O CAMINHO É O MESMO DE ANTES.
+ * Não "equivalente": o mesmo. As três linhas finais de `dbQuery` continuam
+ * sendo exatamente as que sempre foram, e nada antes delas roda além de um
+ * `process.env`. Flag que muda alguma coisa quando desligada deixa de ser
+ * experimento e vira risco.
+ *
+ * ⚠️ POR QUE `SET LOCAL` E NUNCA `SET`. A aplicação fala com o pooler na 6543,
+ * modo `transaction` (ADR-028, `databaseUrl.ts`): a conexão volta ao pool a cada
+ * transação e pode servir OUTRO inquilino. Um `SET` de sessão sobreviveria à
+ * devolução e carimbaria o workspace errado — seria o vazamento que a ADR-036
+ * existe para impedir, criado pelo próprio mecanismo de defesa.
+ *
+ * ⚠️ O QUE ESTA ETAPA MEDE, E O QUE ELA NÃO FAZ. Ela mede o CUSTO do transporte
+ * por rota, em produção. Não cria policy e não troca a role da aplicação — sem
+ * as duas, o carimbo não filtra nada, de propósito. Medido isoladamente em
+ * 01/09/2026: o predicado da policy custa **+0,2 ms** (o planejador o resolve
+ * como `One-Time Filter`, uma vez e não por linha), enquanto
+ * `BEGIN` + `set_config` + `COMMIT` custam **+48 ms** — três idas de rede a
+ * ~16 ms cada. É o transporte que precisa de medição, não a policy, e é por isso
+ * que esta etapa existe sozinha.
+ */
+const CARIMBO_DE_INQUILINO = "app.workspace_id";
+
 /** Executa uma query e retorna as linhas (cria o schema na primeira chamada). */
 export async function dbQuery<T = Record<string, unknown>>(
   text: string,
@@ -549,9 +576,49 @@ export async function dbQuery<T = Record<string, unknown>>(
 ): Promise<T[]> {
   await ensureSchema();
   const comecou = performance.now();
+  if (process.env.DB_CARIMBO_DE_INQUILINO === "1") {
+    const linhas = await consultaCarimbada<T>(text, params);
+    // Uma transação inteira é UM checkout, igual `dbTransaction` — a contagem
+    // continua medindo disputa de slot, e não número de statements.
+    if (linhas !== null) {
+      anotarCheckout(text, performance.now() - comecou);
+      return linhas;
+    }
+    // Sem workspace em escopo (cron, webhook antes de resolver o dono, scripts)
+    // não há o que carimbar, e cai no caminho de sempre em vez de inventar
+    // comportamento: esta etapa mede custo, não impõe barreira. Quando a policy
+    // entrar, este caso vira ERRO ALTO e não silêncio — ADR-036, "o modo de
+    // falha do trabalho de fundo precisa ser ALTO": sincronização que enxerga
+    // zero linhas e chama isso de sucesso é o pior desfecho possível.
+  }
   const res = await getPool().query(text, params);
   anotarCheckout(text, performance.now() - comecou);
   return res.rows as T[];
+}
+
+/**
+ * Roda a consulta numa transação com o workspace carimbado.
+ * Devolve `null` quando não há workspace em escopo — quem chama decide o que
+ * fazer com isso, porque a resposta certa muda entre etapas da ADR-036.
+ */
+async function consultaCarimbada<T>(text: string, params: unknown[]): Promise<T[] | null> {
+  const workspaceId = optionalWorkspaceId();
+  if (!workspaceId) return null;
+  const client = await getPool().connect();
+  try {
+    await client.query("BEGIN");
+    // O `true` é o `SET LOCAL`: o carimbo morre no COMMIT e não viaja junto com
+    // a conexão devolvida ao pool.
+    await client.query("SELECT set_config($1, $2, true)", [CARIMBO_DE_INQUILINO, workspaceId]);
+    const res = await client.query(text, params);
+    await client.query("COMMIT");
+    return res.rows as T[];
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export type DbQuery = <R = Record<string, unknown>>(
