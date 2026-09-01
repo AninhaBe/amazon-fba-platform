@@ -120,10 +120,34 @@ CREATE INDEX IF NOT EXISTS fee_estimates_vigentes_idx
 -- ganha do estimado. Nenhuma rota volta a escrever `NOT IN (...)`: a proibição
 -- de blacklist na leitura de tarifa da Amazon está registrada na ADR-027.
 --
--- ⚠️ A SUBSTITUIÇÃO É POR PEDIDO, NÃO POR fee_type. Se a liquidação postar só a
--- comissão, o pedido inteiro passa a ser real — não se mistura FBA estimado com
--- comissão oficial no mesmo pedido. É o defeito #3 da auditoria financeira de
--- agosto ("não misturar bases") aplicado aqui antes de ele acontecer.
+-- ⚠️ A SUBSTITUIÇÃO É POR (PEDIDO, fee_type) — E A PRIMEIRA VERSÃO DISTO ERRAVA.
+--
+-- O desenho original substituía POR PEDIDO, com o argumento de "não misturar
+-- bases" (defeito #3 da auditoria de agosto). O backend levantou a consequência
+-- em 01/09/2026 e a medição deu razão a ele, com folga:
+--
+--   pedidos Amazon com alguma tarifa real .......... 5.503
+--     com comissão E logística (completos) ......... 256   (4,7%)
+--     com comissão e NENHUMA logística ............. 5.247  (95,3%)
+--     só com logística ............................. 0
+--
+-- Ou seja: a Amazon posta a tarifa EM PARTES, e isso é a REGRA, não a exceção.
+-- Substituir por pedido faria a estimativa de FBA sumir da leitura no instante
+-- em que a comissão real chegasse — em 95% dos pedidos —, e a logística ainda
+-- não postada passaria a somar ZERO.
+--
+-- ⚠️ ISSO É O `null ≠ 0` DO AGENTS.md, VIOLADO PELO MEIO. Tarifa que não chegou
+-- é desconhecida; tratá-la como ausente dentro de uma soma é afirmar que ela é
+-- zero. O sintoma na tela seria o pior tipo: o custo do pedido ENCOLHE sozinho
+-- quando a comissão é postada, o lucro sobe, e cai de novo quando a logística
+-- entra. Número que se move sozinho já custou credibilidade duas vezes nesta
+-- semana.
+--
+-- E "não misturar bases" continua respeitado, porque a mistura fica VISÍVEL: a
+-- coluna `basis` é por linha, então o pedido que tem comissão real e FBA
+-- estimado aparece com as duas marcas, e o card diz quanto ali é estimado
+-- (ADR-027 §4). O que a regra proíbe é um total que finge ser de uma base só —
+-- não um total completo que declara a procedência de cada parte.
 --
 -- ⚠️ A LISTA POSITIVA DE fee_type APARECE DUAS VEZES NESTE ARQUIVO e em lugar
 -- nenhum além dele. Era a repetição em três rotas que fazia da blacklist um
@@ -146,6 +170,9 @@ CREATE OR REPLACE VIEW workspace_channel_order_fees_efetivas AS
             WHERE r.workspace_id = e.workspace_id AND r.provider = e.provider
               AND r.connection_id = e.connection_id
               AND r.external_order_id = e.external_order_id
+              -- 👇 É ESTA LINHA. Sem ela a substituição é por pedido, e a tarifa
+              -- que ainda não chegou vira zero em 95% dos casos.
+              AND r.fee_type = e.fee_type
               AND r.fee_type IN ('commission', 'fulfillment', 'shipping_seller',
                                  'taxes_withheld', 'other')
          )

@@ -338,10 +338,31 @@ lag estimar→liquidar, a marca de estimativa na tela (leitura de coluna, não
 subconsulta) e a saída dos pedidos com ambos do `NOT EXISTS`. **A linha da
 estimativa nunca é apagada** — é ela que permite medir a pontaria.
 
-**Substituição por pedido, não por `fee_type`.** Se a liquidação postar só a
-comissão, o pedido inteiro passa a ser real: não se mistura FBA estimado com
-comissão oficial no mesmo pedido. É o defeito #3 da auditoria financeira de
-agosto ("não misturar bases") aplicado antes de acontecer.
+**Substituição por `(pedido, fee_type)` — corrigido em 01/09/2026.**
+
+A primeira versão desta emenda substituía **por pedido**, com o argumento de não
+misturar bases. O backend levantou a consequência e a medição deu razão a ele:
+
+| pedidos Amazon com alguma tarifa real | 5.503 |
+|---|---|
+| com comissão **e** logística (completos) | 256 — **4,7%** |
+| com comissão e **nenhuma** logística | 5.247 — **95,3%** |
+| só com logística | 0 |
+
+**A Amazon posta a tarifa em partes, e isso é a regra.** Substituir por pedido
+faria a estimativa de FBA sumir da leitura no instante em que a comissão real
+chegasse, em 95% dos pedidos — e a logística ainda não postada passaria a somar
+**zero**.
+
+⚠️ Isso é o `null ≠ 0` violado pelo meio: tarifa que não chegou é desconhecida, e
+tratá-la como ausente dentro de uma soma afirma que ela é zero. O sintoma seria o
+pior tipo — o custo do pedido encolhendo sozinho quando a comissão é postada, o
+lucro subindo, e caindo de novo quando a logística entra.
+
+E "não misturar bases" continua respeitado, porque a mistura fica **visível**:
+`basis` é por linha, o pedido aparece com as duas marcas, e o card diz quanto ali
+é estimado (item 4). O que a regra proíbe é um total que **finge** ser de uma base
+só — não um total completo que declara a procedência de cada parte.
 
 **Pontaria por SKU sem rateio.** Dos 20.380 pedidos Amazon, **20.241 têm uma
 linha só** — nesses o desvio por SKU é exato. Nos 139 multi-item o SKU fica
