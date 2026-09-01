@@ -97,10 +97,38 @@ export async function updateSession(request: NextRequest) {
   const { data } = await supabase.auth.getClaims();
   const authenticated = !!data?.claims?.sub;
 
+  // ═══ A RAIZ SERVE A LANDING PARA QUEM NÃO TEM SESSÃO ══════════════════════
+  //
+  // Pedido dela (01/09/2026): *"https://nexoaihub.com.br/ essa url precisa cair
+  // na landing page por default"*. Até aqui, visitante sem sessão em `/` caía em
+  // `/login?next=/` — a primeira tela de quem nunca viu o produto era um
+  // formulário de login.
+  //
+  // ⚠️ REWRITE, NÃO REDIRECT, e a diferença é o pedido dela ao pé da letra: o
+  // endereço tem de continuar sendo a raiz, que é o que ela divulga. `redirect`
+  // trocaria a barra de endereços por `/landing` e quebraria o link divulgado.
+  //
+  // ⚠️ E A RAIZ NÃO ENTRA EM `publicPaths`, de propósito. `publicPaths` usa
+  // `startsWith`, então `"/"` casaria com TODA rota do app e abriria o produto
+  // inteiro. É por isso que esta regra é uma exceção explícita para o caminho
+  // exato `"/"`, e não uma entrada na lista.
+  //
+  // Quem ESTÁ logado em `/` continua indo para a Visão geral — ela vive no
+  // produto e não pode atravessar marketing toda vez que abre. Esta é a regra
+  // espelhada da que já manda quem está logado em `/login` de volta para `/`.
+  if (!authenticated && request.nextUrl.pathname === "/") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/landing";
+    return NextResponse.rewrite(url);
+  }
+
   if (!authenticated && !isPublic) {
     if (isApi) {
       return NextResponse.json({ error: "Faça login para continuar." }, { status: 401 });
     }
+    // ⚠️ O `?next=` continua sendo escrito para TODA rota protegida. A exceção
+    // acima é só para `"/"`, que nem chega aqui — as demais seguem voltando para
+    // a rota original depois do login.
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("next", request.nextUrl.pathname);
