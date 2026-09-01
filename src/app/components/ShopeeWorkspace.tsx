@@ -46,6 +46,7 @@ import { chaveDaBusca } from "./chaveDaBusca";
 import { usePrefetchDePeriodos } from "./prefetchDePeriodos";
 import { sinaisDoResultado, rodapeDasTaxas } from "./oQueFaltaNoResultado";
 import { SinaisDoResultado } from "./SinaisDoResultado";
+import { declaracaoDeBase } from "./baseDaMargem";
 
 interface Overview {
   account: { id: string; name: string; region: string };
@@ -68,6 +69,10 @@ interface Overview {
     cogs: number | null; taxes: number | null; taxRate: number | null;
     sellerShipping: number | null; buyerShipping: number | null; feesComplete: boolean;
     revenueProcessed: number;
+    /** A receita que o lucro cobre — o denominador da margem e a base declarada. */
+    revenueDoLucro?: number;
+    /** Pedidos pagos ainda sem tarifa apurada: o que falta, com número, na face do card. */
+    pedidosSemApuracao?: number;
     coverage: { processedOrders: number; paidOrders: number; ordersWithFees: number; complete: boolean };
     estimatedProfit: number | null; marginPct: number | null; unitsWithoutCost: number; skusWithoutCost: number;
   };
@@ -680,7 +685,16 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
   const semAliquota = overview.profit.taxRate == null;
   // ⚠️ `costsIncomplete` SAIU DAQUI em 30/08/2026 (decisao da vendedora): custo
   // faltando virou SINAL ao lado do numero, nao trava. Ver `sinaisDoResultado`.
-  const resultIncomplete = !profitCoverage.complete || !overview.profit.feesComplete || overview.profit.fees == null || overview.profit.sellerShipping == null || overview.profit.ads == null || overview.profit.taxesWithheld == null || overview.profit.refunds == null || overview.profit.cogs == null || overview.profit.estimatedProfit == null || overview.profit.marginPct == null;
+  // ⚠️ `!profitCoverage.complete` E `!feesComplete` SAIRAM DAQUI em 31/08/2026,
+  // pela mesma decisão que já tirou o custo em 30/08: cobertura incompleta vira
+  // SINAL ao lado do número, não trava. Era o último tudo-ou-nada dos quatro
+  // canais — na conta real dava travessão com 9.027 de 9.877 vendas apuradas
+  // (91% do período) e a tela não mostrava nada.
+  //
+  // O que continua bloqueando é COMPONENTE DESCONHECIDO: `fees == null` não é
+  // "não cobraram", é "não sei quanto", e aí o lucro seria otimista.
+  // Ausência de componente ≠ ausência de cobertura.
+  const resultIncomplete = overview.profit.fees == null || overview.profit.sellerShipping == null || overview.profit.ads == null || overview.profit.taxesWithheld == null || overview.profit.refunds == null || overview.profit.cogs == null || overview.profit.estimatedProfit == null || overview.profit.marginPct == null;
   const knownCosts = resultIncomplete ? null : overview.profit.fees! + overview.profit.sellerShipping! + overview.profit.ads! + overview.profit.taxesWithheld! + overview.profit.refunds! + overview.profit.cogs! + (overview.profit.taxes ?? 0);
   const ordersAwaitingCapture = Math.max(0, overview.metrics.revenueCoverage.totalOrders - overview.metrics.revenueCoverage.capturedOrders);
   // ⚠️ 29/08/2026 — ERA `paidOrders - processedOrders`, e os dois são o mesmo
@@ -689,6 +703,23 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
   // sem número — exatamente o que a regra da casa proíbe ("diga o que falta,
   // com número e link"). O que falta é tarifa, então a conta é sobre tarifa.
   const vendasSemTarifa = Math.max(0, profitCoverage.processedOrders - profitCoverage.ordersWithFees);
+  // ═══ A DECLARACAO DE BASE, A MESMA PECA DOS OUTROS TRES CANAIS ════════════
+  //
+  // ⚠️ ELA VEM JUNTO COM O DESBLOQUEIO, e não depois. Mostrar margem sobre uma
+  // receita menor que o card de Faturamento ao lado, sem dizer sobre o quê, é
+  // trocar travessão por número que se contradiz na própria tela — foi o que
+  // aconteceu na Amazon em 31/08/2026 e a vendedora concluiu, com razão, que a
+  // tela estava errada.
+  //
+  // `declaracaoDeBase` devolve `null` quando as bases coincidem: explicar
+  // diferença que não existe treina a pessoa a ignorar a frase no dia em que ela
+  // importa. E vai no `sub` (visível), nunca no tooltip.
+  const baseDoResultado = declaracaoDeBase({
+    baseApurada: overview.profit.revenueDoLucro ?? null,
+    faturamentoExibido: overview.metrics.revenue30d,
+    moeda: overview.metrics.currency,
+    pedidosAguardando: overview.profit.pedidosSemApuracao ?? 0,
+  });
 
   return (
     <div className="dashboard-sections integration-dashboard-sections shopee-dashboard-body">
@@ -703,9 +734,15 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
         periodo={periodoLabel}
         faturamento={overview.metrics.revenue30d}
         pedidos={overview.metrics.paidOrders}
-        // Cobertura parcial é motivo suficiente para não afirmar lucro: com
-        // pedidos faltando na captura, o número existiria mas estaria errado.
-        lucro={overview.metrics.revenueCoverage.complete ? overview.profit.estimatedProfit : null}
+        // ⚠️ ERA `revenueCoverage.complete ? estimatedProfit : null`, com o
+        // argumento "cobertura parcial é motivo suficiente para não afirmar
+        // lucro". A decisão dela derrubou isso em 31/08/2026, pela terceira vez
+        // no mesmo mês: o número sai e a tela DECLARA a base ao lado.
+        //
+        // A trava morava em dois lugares — aqui e no produtor. Consertar só um
+        // deixaria a narração muda com o card ao lado mostrando número, que é
+        // pior que os dois calados.
+        lucro={overview.profit.estimatedProfit}
         format={(v) => money(v, overview.metrics.currency)}
         escopo="shopee"
         canalNome="Shopee"
@@ -812,8 +849,8 @@ function Dashboard({ overview, sync, onPage, periodoLabel }: { overview: Overvie
         <Metric label="Faturamento" value={<AnimatedNumber periodo={identidadeDePeriodo(overview.period.from, overview.period.to)} id="shopee-dash-revenue" value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={`${overview.metrics.paidOrders} pedido(s) no período`} trend={getRevenueTrend(overview.dailySales)} />
         <Metric label="Taxas" value={overview.profit.fees == null ? "—" : money(overview.profit.fees, overview.metrics.currency)} sub={rodapeDasTaxas({ feesComplete: overview.profit.feesComplete, ordersWithFees: profitCoverage.ordersWithFees, ordersProcessed: profitCoverage.processedOrders })} />
         <Metric label="Custo dos produtos" value={overview.profit.cogs == null ? "—" : money(overview.profit.cogs, overview.metrics.currency)} sub={costsIncomplete ? `${overview.profit.unitsWithoutCost} unidade(s) sem custo` : "custos cadastrados"} tone={costsIncomplete ? "warn" : "default"} />
-        <Metric label={overview.profit.estimatedProfit == null ? "Resultado processado" : "Lucro estimado"} value={overview.profit.estimatedProfit == null ? "—" : <AnimatedNumber periodo={identidadeDePeriodo(overview.period.from, overview.period.to)} id="shopee-dash-profit" value={overview.profit.estimatedProfit} format={(amount) => money(amount, overview.metrics.currency)} />} sub={sinais.length > 0 ? <SinaisDoResultado sinais={sinais} /> : comSemImposto("após todos os custos", semAliquota)} tone={overview.profit.estimatedProfit == null ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
-        <Metric label="Margem" value={overview.profit.marginPct == null ? "—" : percent(overview.profit.marginPct)} sub={sinais.length > 0 ? <SinaisDoResultado sinais={sinais} /> : comSemImposto("sobre o faturamento", semAliquota)} tone={overview.profit.marginPct == null ? "default" : marginMetricTone(overview.profit.marginPct)} />
+        <Metric label={overview.profit.estimatedProfit == null ? "Resultado processado" : "Lucro estimado"} value={overview.profit.estimatedProfit == null ? "—" : <AnimatedNumber periodo={identidadeDePeriodo(overview.period.from, overview.period.to)} id="shopee-dash-profit" value={overview.profit.estimatedProfit} format={(amount) => money(amount, overview.metrics.currency)} />} sub={<>{baseDoResultado && <>{baseDoResultado} · </>}{sinais.length > 0 ? <SinaisDoResultado sinais={sinais} /> : comSemImposto("após todos os custos", semAliquota)}</>} tone={overview.profit.estimatedProfit == null ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
+        <Metric label="Margem" value={overview.profit.marginPct == null ? "—" : percent(overview.profit.marginPct)} sub={<>{baseDoResultado && <>{baseDoResultado} · </>}{sinais.length > 0 ? <SinaisDoResultado sinais={sinais} /> : comSemImposto(baseDoResultado ? "" : "sobre o faturamento", semAliquota)}</>} tone={overview.profit.marginPct == null ? "default" : marginMetricTone(overview.profit.marginPct)} />
       </section>
 
       <section className="secondary-metrics" aria-label="Indicadores operacionais Shopee">

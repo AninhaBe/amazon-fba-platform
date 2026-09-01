@@ -89,7 +89,19 @@ test("a Shopee ja subtraia o estorno — nao duplicar o termo la", async () => {
   // O defeito dela era o SINAL, nao a ausencia do termo. Acrescentar um segundo
   // desconto teria descontado duas vezes.
   const shopee = await fonte("src/lib/integrations/shopeeOverviewCanonical.ts");
-  const formula = shopee.slice(shopee.indexOf("const estimatedProfit = financialComplete"), shopee.indexOf("const marginPct = estimatedProfit"));
+  // ⚠️ A ANCORA E `const estimatedProfit =`, NAO a condicao que vem depois.
+  //
+  // Aqui estava `"const estimatedProfit = financialComplete"`, e em 31/08/2026 a
+  // condicao virou `componentesConhecidos` — a fatia ficou VAZIA, o `match`
+  // devolveu zero e o teste ficou vermelho por uma renomeacao, sem que o defeito
+  // que ele reprova (descontar estorno duas vezes) tivesse voltado.
+  //
+  // Teste que fica vermelho por motivo que nao e o produto ensina a ignorar
+  // vermelho (AGENTS.md). A ancora agora e a atribuicao, que so muda se a
+  // formula do lucro mudar de verdade.
+  const inicio = shopee.indexOf("const estimatedProfit =");
+  assert.notEqual(inicio, -1, "a formula do lucro da Shopee mudou de nome — reancore este teste");
+  const formula = shopee.slice(inicio, shopee.indexOf("const marginPct = estimatedProfit"));
   assert.equal((formula.match(/refunds/g) ?? []).length, 1, "um desconto de estorno, nao dois");
 });
 

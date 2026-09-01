@@ -139,12 +139,29 @@ test("override explícito false mantém o imposto desconhecido, mas o lucro sai 
   assert.equal(result.profit.estimatedProfit, 56, "o lucro sai sem imposto, como quando não há alíquota");
 });
 
-test("período parcial bloqueia lucro e completude", async () => {
+test("período parcial NAO bloqueia mais o lucro — declara a base e segue", async () => {
+  // ⚠️ ESTE TESTE MUDOU DE INTENCAO, e a anterior fica registrada.
+  //
+  // ATE 31/08/2026 ele exigia `estimatedProfit === null` quando o periodo nao
+  // estava totalmente coberto. Era o mesmo tudo-ou-nada que a vendedora ja
+  // derrubou em outros dois lugares: no custo em 29/08 (*"nao precisa mostrar
+  // que e parcial [...] se tem venda e nao tem custo, fica apontado la"*) e no
+  // faturamento da Amazon em 31/08 (*"o lucro tem que ser em cima do
+  // Faturamento"*). A Shopee era o quarto canal, o unico que ainda escondia.
+  //
+  // Na conta real isso dava travessao com 9.027 de 9.877 vendas apuradas — 91%
+  // do periodo — e a tela nao mostrava nada.
+  //
+  // O QUE CONTINUA VALENDO, e e o outro teste abaixo: componente DESCONHECIDO
+  // (`fees == null`) segue anulando. Ausencia de componente nao e ausencia de
+  // cobertura.
   const result = await overview({ taxRate: 10, covered: false });
   assert.equal(result.metrics.revenueCoverage.complete, false);
-  assert.equal(result.profit.coverage.complete, false);
-  assert.equal(result.profit.estimatedProfit, null);
-  assert.equal(result.profit.marginPct, null);
+  assert.equal(result.profit.coverage.complete, false, "a cobertura continua sendo relatada como incompleta");
+  assert.notEqual(result.profit.estimatedProfit, null, "o lucro sai com o que se sabe");
+  assert.notEqual(result.profit.marginPct, null, "e a margem tambem");
+  // A base do numero fica declarada, para a tela poder dizer sobre o que ele e.
+  assert.equal(result.profit.revenueDoLucro, 100);
 });
 
 test("COGS incompleto mostra a soma do que se sabe e NAO bloqueia mais o lucro", async () => {

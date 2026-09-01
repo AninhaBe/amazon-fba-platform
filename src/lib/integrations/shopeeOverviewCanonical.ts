@@ -227,6 +227,13 @@ export interface ShopeeOverview {
       complete: boolean;
     };
     estimatedProfit: number | null;
+    /**
+     * A receita que o lucro cobre. Quando menor que o faturamento do período, a
+     * tela DECLARA a diferença no card — nunca em tooltip, e nunca em silêncio.
+     */
+    revenueDoLucro: number;
+    /** Pedidos pagos ainda sem tarifa apurada — o que falta, com número. */
+    pedidosSemApuracao: number;
     marginPct: number | null;
     unitsWithoutCost: number;
     /** SKUs distintos sem custo — a unidade de ACAO da vendedora. */
@@ -742,8 +749,30 @@ export async function getShopeeOverviewFromCanonical(
   // `cogsValue ?? 0`: com NENHUMA unidade custeada o custo e desconhecido (null)
   // e o lucro sai sem ele — maior que a verdade, e por isso o sinal ao lado nao
   // e opcional. Ver `skusWithoutCost` no payload.
-  const estimatedProfit = financialComplete
-    ? processedRevenue - fees! - (cogsValue ?? 0) - (taxes ?? 0) - sellerShipping! - ads! - taxesWithheld! - refunds!
+  // ⚠️ COBERTURA INCOMPLETA DEIXA DE ANULAR O LUCRO (31/08/2026).
+  //
+  // Até aqui `financialComplete` era condição para EXISTIR lucro, e ele exige
+  // que todos os pedidos pagos tenham sido processados. Na conta real isso dava
+  // travessão com 9.027 de 9.877 vendas com tarifa: 91% do período apurado, e a
+  // tela mostrava nada.
+  //
+  // É o mesmo tudo-ou-nada que a vendedora já derrubou duas vezes — no custo em
+  // 29/08 (*"não precisa mostrar que é parcial... se tem venda e não tem custo,
+  // fica apontado lá"*) e no faturamento da Amazon em 31/08 (*"o lucro tem que
+  // ser em cima do Faturamento"*). A Shopee foi o canal que ficou para trás.
+  //
+  // ⚠️ E A BASE VAI DECLARADA, senão troco travessão por número que não fecha
+  // com o card ao lado: `revenueDoLucro` é a receita dos pedidos que compõem o
+  // resultado, e `ordersAwaitingCapture` diz quantos faltam. A tela cola isso no
+  // número — sem a palavra "parcial", que explica o que ela já sabe em vez de
+  // dizer o que falta.
+  //
+  // O que continua anulando: os cinco componentes da Shopee serem desconhecidos.
+  // `fees == null` não é "não cobraram", é "não sei quanto" — e aí o lucro seria
+  // otimista. Ausência de componente ≠ ausência de cobertura.
+  const componentesConhecidos = [fees, sellerShipping, ads, taxesWithheld, refunds].every((v) => v != null);
+  const estimatedProfit = componentesConhecidos
+    ? +(processedRevenue - fees! - (cogsValue ?? 0) - (taxes ?? 0) - sellerShipping! - ads! - taxesWithheld! - refunds!).toFixed(2)
     : null;
   const marginPct = estimatedProfit != null && processedRevenue > 0 ? (estimatedProfit / processedRevenue) * 100 : null;
 
@@ -867,6 +896,8 @@ export async function getShopeeOverviewFromCanonical(
         complete: financialComplete,
       },
       estimatedProfit,
+      revenueDoLucro: +processedRevenue.toFixed(2),
+      pedidosSemApuracao: Math.max(0, totals.paid_orders - ordersProcessed),
       marginPct,
       unitsWithoutCost,
       skusWithoutCost: skusSemCusto.size,
