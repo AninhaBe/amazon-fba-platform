@@ -67,7 +67,13 @@ function usarSemSessao(): boolean {
  * a navegação inteira para quem nunca criou conta. A correção definitiva é
  * tirar o `AppShell` do layout raiz e pô-lo num route group só das telas
  * autenticadas — aí a landing não pode ser envolvida nem por engano, e ninguém
- * paga flash nenhum. Ver `docs/plans/` e o commit que trouxer o grupo.
+ * paga flash nenhum.
+ *
+ * ⚠️ E NÃO É "um layout próprio para a landing": layout aninhado no App Router
+ * COMPÕE com o raiz, não o substitui (doc do Next, route-groups.md). O caminho é
+ * route group — `(app)/layout.tsx` com as telas autenticadas dentro —, e ele
+ * move ~19 diretórios de rota. Está combinado para uma janela com a árvore
+ * quieta; a medição do vazamento está em `docs/achado-medir-html-servido.md`.
  */
 function cascaIndecidivelNoServidor(pathname: string): boolean {
   return typeof document === "undefined" && pathname === "/";
