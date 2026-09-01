@@ -16,52 +16,77 @@ Este arquivo é a fonte da modalidade **tabela**.
 ## 1. Comissão (tarifa de indicação) por categoria
 
 **Fonte:** https://venda.amazon.com.br/precos (página pública)
-**Capturado em:** 31/08/2026
+**Capturado em:** 01/09/2026 — leitura direta da página ao vivo, verbatim.
+(A versão de 31/08 deste arquivo continha erros de reconstrução — ver changelog.)
 
-Percentual sobre o preço total do pedido (produto + frete cobrado do cliente),
-com **tarifa mínima por item** — cobra-se `max(percentual × preço, mínimo)`.
+O percentual incide sobre o **preço total de venda do produto (preço final do
+comprador)**, com **tarifa mínima por item** — cobra-se
+`max(percentual × preço, mínimo)`.
 
 | Categoria | Comissão | Mínimo por item |
 |---|---|---|
-| Acessórios para dispositivos Amazon | 45% | R$ 2,00 |
-| Bebês (exceto vestuário) | 12% | R$ 1,00 |
-| Beleza | 12% | R$ 1,00 |
-| Brinquedos e Jogos | 12% | R$ 1,00 |
-| Casa | 12% | R$ 1,00 |
-| Cozinha | 12% | R$ 1,00 |
-| Eletrodomésticos | 12% | R$ 1,00 |
-| Eletrônicos (inclui acessórios de PC) | 12% | R$ 1,00 |
-| Acessórios de eletrônicos¹ | 15% | R$ 1,00 |
-| Esporte, Aventura e Lazer | 12% | R$ 1,00 |
-| Ferramentas e Construção | 12% | R$ 1,00 |
-| Games (consoles) | 8% | R$ 1,00 |
-| Games (jogos e acessórios) | 12% | R$ 1,00 |
-| Informática | 12% | R$ 1,00 |
-| Instrumentos Musicais | 12% | R$ 1,00 |
-| Livros, e-books | 15% | R$ 1,00 |
-| Malas e Mochilas | 15% | R$ 2,00 |
-| Móveis² | 15% | R$ 2,00 |
-| Papelaria e Escritório | 12% | R$ 1,00 |
-| Pet Shop | 12% | R$ 1,00 |
-| Relógios | 15% | R$ 2,00 |
-| Roupas, Calçados, Joias e Acessórios | 15% | R$ 2,00 |
-| Saúde, Higiene e Cuidados Pessoais (HPC) | 12% | R$ 1,00 |
-| Automotivo | 12% | R$ 1,00 |
-| Alimentos e Bebidas | 12% | R$ 1,00 |
-| Mercado (Grocery) | 12% | R$ 1,00 |
-| Demais categorias | 15% | R$ 1,00 |
-
-¹ Acessórios de eletrônicos: 15% sobre a parcela do preço até R$ 750,00 e 8%
-sobre a parcela acima de R$ 750,00 (regra de faixa).
-² Móveis: 15% sobre a parcela até R$ 1.500,00 e 10% acima (regra de faixa).
+| Comidas e bebidas | 10% | R$ 1,00 |
+| Eletrodomésticos de linha branca | 11% | R$ 1,00 |
+| Saúde e cuidados pessoais | 12% | R$ 1,00 |
+| Bebidas alcoólicas | 11% | R$ 1,00 |
+| Pneus e rodas | 10% | R$ 1,00 |
+| Indústria e Ciência | 12% | R$ 2,00 |
+| Produtos para bebês | 12% | R$ 2,00 |
+| Produtos para animais de estimação | 12% | R$ 2,00 |
+| Eletroportáteis de cuidado pessoal | 12% | R$ 2,00 |
+| Cozinha | 12% | R$ 2,00 |
+| Jardim e Piscina | 12% | R$ 2,00 |
+| Brinquedos e jogos | 12% | R$ 2,00 |
+| TV, áudio e cinema em casa | 10% | R$ 2,00 |
+| PC | 12% | R$ 2,00 |
+| Eletrônicos portáteis | 13% | R$ 2,00 |
+| Peças e acessórios automotivos | 12% | R$ 2,00 |
+| Casa | 12% | R$ 2,00 |
+| Beleza | 13% | R$ 2,00 |
+| Beleza de luxo | 14% | R$ 2,00 |
+| Celulares | 11% | R$ 2,00 |
+| Câmera e fotografia | 11% | R$ 2,00 |
+| Videogames e consoles | 11% | R$ 2,00 |
+| Esportes, aventura e lazer | 12% | R$ 2,00 |
+| Ferramentas e Construção | 11% | R$ 2,00 |
+| Papelaria e Escritório | 13% | R$ 2,00 |
+| Bagagem e acessórios de viagem | 14% | R$ 2,00 |
+| Roupas e acessórios | 14% | R$ 2,00 |
+| Calçados, bolsas e óculos escuros | 14% | R$ 2,00 |
+| Relógios | 13% | R$ 2,00 |
+| Joias | 14% | R$ 2,00 |
+| Livros | 15% | R$ 2,00 |
+| Acessórios para eletrônicos e para PC | 15% até R$ 100,00; 10% no excedente | R$ 2,00 |
+| Móveis | 15% até R$ 200,00; 10% no excedente | R$ 2,00 |
+| Vídeo e DVD | 15% | R$ 2,00 |
+| Música (CDs, LPs etc.) | 15% | R$ 2,00 |
+| Instrumentos musicais e acessórios | 12% | R$ 2,00 |
+| Demais categorias | 15% | R$ 2,00 |
 
 ⚠️ **Regra de implementação combinada com o backend:** o mapeamento
 categoria→percentual é **explícito** — categoria não mapeada **não** cai
 automaticamente em "demais 15%"; ela fica sem estimativa (null) e aparece
 apontada na tela. Fallback silencioso esconderia categoria errada.
 
-**Números batidos contra a realidade (31/08/2026):** as comissões medidas nos
-pedidos consolidados da conta (12%, 14%, 15%) são consistentes com esta tabela.
+### Divergência aberta: a página diz 13%, o extrato mediu 12%
+
+Medição do backend em 01/09/2026, sobre comissões REAIS decompostas (pedidos de
+uma linha, preço conhecido, janela de 60 dias):
+
+| Categoria (nossa raiz) | Efetiva medida | Página hoje |
+|---|---|---|
+| Papelaria e Escritório | 12,03% (1.274 pedidos) | 13% |
+| Beleza | 12,01% (103) | 13% |
+| Roupas/Moda | 14,03% (701) | 14% ✓ |
+| Ferramentas | 11,56% (283) | 11% (≈, raiz mistura folhas) |
+| Cozinha / Saúde / Jardim / Pet / Brinquedos | 12,0x% | 12% ✓ |
+
+Hipóteses (não resolvidas): tarifa promocional/negociada da conta, mudança
+recente da página, ou a nossa raiz de classificação não corresponde à categoria
+de cobrança da Amazon. **A ordem `observada > tabela` protege o caso**: ASIN com
+histórico usa o percentual que a Amazon de fato cobrou; a tabela só alcança ASIN
+sem histórico, onde o número publicado hoje (13%) é o melhor disponível — e a
+primeira venda real substitui.
 
 ## 2. Tarifa de logística FBA (por unidade)
 
@@ -147,6 +172,13 @@ menores que a tabela (ou zero)** — mais um motivo para `observada > tabela`.
   que você precisa usar como regra pra calcular as tarifas de cada pedido antes
   da amazon fornecer esse dado". Registrada a promoção de isenção vigente e as
   duas ambiguidades da própria página (arredondamento e exemplo 3 divergente).
-- **31/08/2026** — Tabela de comissão capturada da página pública
-  venda.amazon.com.br/precos; percentuais conferem com os medidos nos pedidos
-  consolidados (12/14/15%).
+- **01/09/2026 (2)** — Seção 1 refeita com leitura ao vivo e verbatim da página
+  pública. A versão de 31/08 (escrita neste arquivo em 01/09, de memória de uma
+  captura anterior) continha erros de reconstrução: Beleza e Papelaria como 12%
+  (página diz 13%), Games consoles como 8% (página diz 11%), mínimos R\$ 1,00
+  onde a página diz R\$ 2,00, e tetos de faixa 750/1.500 (página diz 100/200).
+  Detectado porque o backend comparou as duas capturas e elas divergiam entre
+  si. Registrada a divergência página (13%) vs extrato medido (12%) em
+  Papelaria e Beleza — em aberto.
+- **31/08/2026** — Primeira captura da tabela de comissão da página pública
+  (superada pela leitura verbatim acima).
