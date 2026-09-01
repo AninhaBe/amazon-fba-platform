@@ -122,3 +122,59 @@ próprio.
   inteira — isso reduziria o pico e permitiria fatiar em várias janelas curtas.
   **É a pergunta que eu investigaria primeiro**, porque transforma uma operação
   que não cabe em várias que cabem.
+
+---
+
+# As três verificações, fechadas em 01/09/2026
+
+## A pergunta certa não era "por conexão" — era "quanto bruto fica"
+
+A reconstrução por troca tem pico igual ao tamanho do que **fica**. Medido, para
+`workspace_marketplace_orders`:
+
+| tabela nova conteria | pico | cabe nos ~30 MB? |
+|---|---|---|
+| base **sem payload nenhum** | **25 MB** | ✅ |
+| base + payload de **7 dias** | **27 MB** | ✅ |
+| base + payload de **15 dias** | **30 MB** | ⚠️ no limite exato |
+| base + payload de **30 dias** | **38 MB** | ❌ |
+| base + payload de 60 dias | 51 MB | ❌ |
+| base + payload inteiro (hoje) | 100 MB | ❌ |
+
+**Fatiar por conexão não muda nada**: o pico é o tamanho do dado retido, e ele é o
+mesmo somado em qualquer ordem. A variável que decide é a **janela de retenção**.
+
+## E quem lê o payload define a janela mínima — não somos nós
+
+Levantado: além do índice por `payload #>> '{shipping,id}'`, existe
+`mercadoLivreSync.ts:605`, que faz `SELECT payload` **inteiro**, filtrado por
+`occurred_at` **entre o início e o fim do período escolhido na tela**. É a fonte da
+visão do Mercado Livre.
+
+E a tela oferece **Hoje, 7, 15 e 30 dias** (`DashboardPeriodFilter.tsx:240`), mais
+período personalizado por `?from=&to=`.
+
+> **Logo, a janela mínima segura é 30 dias** — abaixo disso, escolher "30 dias" no
+> filtro devolve visão vazia ou incompleta do ML.
+
+## 🔴 O impasse, dito com precisão
+
+| | cabe hoje | preserva a tela |
+|---|---|---|
+| reter 7 dias de payload | ✅ | ❌ quebra 15 e 30 dias |
+| reter 30 dias de payload | ❌ (38 MB > 30) | ✅ |
+
+**A operação que cabe quebra a tela; a que preserva a tela não cabe.** Faltam
+~8 MB para a versão segura — e é por isso que o drop dos dois índices sem uso
+(7,6 MB) deixou de ser paliativo e virou quase exatamente a diferença.
+
+⚠️ **A saída que não é expurgo:** se a visão do ML lesse o **canônico** em vez do
+`payload` bruto, a janela de retenção deixaria de ser ditada pela tela e o expurgo
+ficaria livre. Isso é arquitetura — a mesma direção da ADR-001 — e não cabe neste
+esboço.
+
+## `marketplace_shipments`: não é candidata, e agora com número
+
+24 MB de `payload`, e **zero bytes acima de 60 dias** — é tudo recente. Somado ao
+fato de alimentar o custo de frete da tela, ela sai da lista por dois motivos
+independentes.
