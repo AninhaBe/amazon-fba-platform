@@ -74,9 +74,19 @@ test("nenhum canal calcula imposto sobre processedRevenue", async () => {
     "src/lib/integrations/mercadoLivreOverviewCanonical.ts",
     "src/lib/integrations/amazonOverviewCanonical.ts",
   ]) {
+    // ⚠️ A GUARDA OLHA A DECLARACAO DO IMPOSTO DOS CARDS, nao o arquivo inteiro.
+    //
+    // Proibir a string no arquivo ficou vermelho com o codigo CERTO: o widget
+    // "Repasses, taxas e lucro" da Shopee tem uma composicao PROPRIA, no universo
+    // da receita paga, e ali `processedRevenue * taxRate` e exatamente o certo —
+    // o widget mostra o imposto DA BASE DELE. Duas bases coexistindo e o desenho;
+    // misturar as duas e que era o defeito.
     const codigo = semComentario(await fonte(caminho));
-    assert.doesNotMatch(codigo, /processedRevenue \* tax/i, `${caminho}: imposto sobre a base errada`);
-    assert.doesNotMatch(codigo, /amazonTaxAmount\(processedRevenue/, `${caminho}: idem`);
+    const decl = /const tax(?:es)? = (?!.*ReceitaPaga)[^;]*;/.exec(codigo);
+    if (decl) {
+      assert.doesNotMatch(decl[0], /processedRevenue/, `${caminho}: imposto dos cards sobre a base errada`);
+      assert.doesNotMatch(decl[0], /amazonTaxAmount\(processedRevenue/, `${caminho}: idem`);
+    }
   }
 });
 
@@ -84,4 +94,80 @@ test("a AMAZON continua com imposto sobre a base do lucro (corrigido em 31/08)",
   const codigo = semComentario(await fonte("src/lib/integrations/amazonOverviewCanonical.ts"));
   assert.match(codigo, /amazonTaxAmount\(receitaDoLucro, taxRate\)/,
     "o imposto da Amazon parte da base do lucro, nao da receita apurada");
+});
+
+test("o WIDGET da Shopee e coerente no proprio universo — centro e fatias", async () => {
+  // ⚠️ O DEFEITO QUE ISTO REPROVA, achado pela vendedora em 01/09/2026: o widget
+  // "Repasses, taxas e lucro" exibia no centro a receita paga (R$ 14.097,09) e
+  // as fatias somavam R$ 15.734,08 — o universo total, com pendentes. O selo
+  // dizia "Composicao completa" enquanto a composicao ESTOURAVA o todo em
+  // R$ 1.636,99, exatamente o valor dos pendentes.
+  //
+  // 📌 Escrevi esta guarda DEPOIS de quebrar o codigo e ver as outras passarem:
+  // trocar o lucro do widget pelo lucro do periodo, e o imposto do widget pelo
+  // dos cards, reintroduzia a mistura inteira com TODAS as guardas verdes. Elas
+  // cobriam a base dos CARDS; ninguem cobria a coerencia do widget.
+  const codigo = semComentario(await fonte("src/lib/integrations/shopeeOverviewCanonical.ts"));
+
+  // 1. O imposto do widget nasce da base DELE, nao da base dos cards.
+  assert.match(codigo,
+    /const impostoDaReceitaPaga = taxRateKnown \? \+\(processedRevenue \* taxRate! \/ 100\)/,
+    "o imposto do widget tem de incidir sobre a receita paga, que e o centro dele");
+
+  // 2. E o lucro do widget e o RESIDUO do universo dele — nunca `estimatedProfit`,
+  //    que parte do faturamento e por isso nao fecha com o centro.
+  const comp = /const composicaoDaReceitaPaga = \{[\s\S]*?\};/.exec(codigo);
+  assert.ok(comp, "a composicao do widget sumiu — reancore esta guarda");
+  assert.match(comp[0], /lucro: lucroDaReceitaPaga,/,
+    "o lucro do widget e o residuo da receita paga, nao o lucro do periodo");
+  assert.doesNotMatch(comp[0], /estimatedProfit/,
+    "o lucro do periodo parte do faturamento e estoura o centro do widget");
+  assert.match(comp[0], /taxes: impostoDaReceitaPaga,/,
+    "e o imposto exibido e o do universo do widget");
+
+  // 3. O residuo subtrai do CENTRO, e nao de outra receita.
+  assert.match(codigo, /const lucroDaReceitaPaga = [\s\S]{0,200}\?\s*\+\(processedRevenue/,
+    "o residuo tem de partir da receita paga");
+});
+
+test("a TELA consome a composicao do widget, e nao os cards", async () => {
+  // De nada adianta o produtor estar coerente se a tela montar as fatias com os
+  // numeros do universo errado — que era exatamente o caso.
+  //
+  // ⚠️ ESTA GUARDA PRECISOU DE TRES TENTATIVAS, e as duas primeiras ficaram
+  // VERDES com o defeito reintroduzido:
+  //   1. recortar o bloco ate o primeiro `})}` — cortava no fechamento de um
+  //      item do array, e a linha quebrada ficava fora da fatia;
+  //   2. recortar contando parenteses — melhor, mas ainda terminava antes;
+  //   3. e a versao com RegExp montada em template literal, onde `\b` vira
+  //      BACKSPACE e a expressao deixa de casar o que promete.
+  // Nenhuma das tres foi apanhada por leitura; as tres cairam ao RODAR A QUEBRA.
+  //
+  // Agora e comparacao de string literal, sem recorte e sem regex montada: chato,
+  // e verificavel. Guarda esperta que erra a fronteira prova menos que guarda
+  // burra que acerta.
+  const fatiasDosCards = [
+    "value: overview.profit.cogs }", "value: overview.profit.taxes }",
+    "value: overview.profit.fees }", "value: overview.profit.sellerShipping }",
+    "value: overview.profit.ads }", "value: overview.profit.taxesWithheld }",
+    "value: overview.profit.refunds }",
+    "value:profit.cogs}", "value:profit.taxes}", "value:profit.fees}",
+    "value:profit.sellerShipping}", "value:profit.ads}",
+    "value:profit.taxesWithheld}", "value:profit.refunds}",
+  ];
+  for (const caminho of [
+    "src/app/components/ShopeeWorkspace.tsx",
+    "src/app/components/ShopeeModulePage.tsx",
+  ]) {
+    const texto = await fonte(caminho);
+    assert.ok(texto.includes("composicaoDaReceitaPaga.receita"), `${caminho}: o centro`);
+    assert.ok(texto.includes("composicaoDaReceitaPaga.lucro"), `${caminho}: o residuo`);
+    for (const fatia of fatiasDosCards) {
+      assert.ok(!texto.includes(fatia), `${caminho}: a fatia veio dos cards — ${fatia}`);
+    }
+    assert.ok(!texto.includes("result:resultIncomplete?null:profit.estimatedProfit"),
+      `${caminho}: o lucro do periodo estoura o centro do widget`);
+    assert.ok(!texto.includes("result: resultIncomplete ? null : overview.profit.estimatedProfit"),
+      `${caminho}: idem`);
+  }
 });

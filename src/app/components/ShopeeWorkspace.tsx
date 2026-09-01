@@ -76,6 +76,12 @@ interface Overview {
     pedidosSemApuracao?: number;
     coverage: { processedOrders: number; paidOrders: number; ordersWithFees: number; complete: boolean };
     estimatedProfit: number | null; marginPct: number | null; unitsWithoutCost: number; skusWithoutCost: number;
+    /** Fatias do widget, todas no universo da receita paga; o lucro e o residuo. */
+    composicaoDaReceitaPaga: {
+      receita: number; fees: number | null; sellerShipping: number | null;
+      ads: number | null; taxesWithheld: number | null; refunds: number | null;
+      cogs: number | null; taxes: number | null; lucro: number | null;
+    };
   };
   dailySales: DailyPoint[];
   topProducts: Array<{ id: string; sku: string | null; title: string; units: number; revenue: number; cost: number; contribution: number; complete: boolean; marginPct: number | null }>;
@@ -947,6 +953,13 @@ function Dashboard({ overview, sync, onPage, periodoLabel, periodoQuery }: { ove
           />
           <RevenueChart points={overview.dailySales} currency={overview.metrics.currency} explorable />
         </div>
+        {/* ⚠️ AS FATIAS VEM DA COMPOSICAO DA RECEITA PAGA, NAO DOS CARDS.
+            Achado pela vendedora em 01/09/2026: o centro exibia a receita paga
+            (R$ 14.097,09) e as fatias somavam R$ 15.734,08 — o universo total,
+            com pendentes. O selo dizia "Composicao completa" enquanto a
+            composicao estourava o todo em R$ 1.636,99, o valor dos pendentes.
+            O lucro daqui e o RESIDUO deste universo, nunca o lucro do periodo, e
+            o imposto e o desta base. Ver a nota longa no produtor. */}
         <FinancialSummaryPanel
           complete={!resultIncomplete}
           labelledBy="shopee-financial-summary-title"
@@ -955,17 +968,17 @@ function Dashboard({ overview, sync, onPage, periodoLabel, periodoQuery }: { ove
           totalLabel="Receita processada"
           format={(value) => money(value, overview.metrics.currency)}
           slices={buildFinancialComposition({
-            total: overview.profit.revenueProcessed,
+            total: overview.profit.composicaoDaReceitaPaga.receita,
             costs: [
-              { id: "fees", label: "Taxas da Shopee", value: overview.profit.fees },
-              { id: "shipping", label: "Frete do vendedor", value: overview.profit.sellerShipping },
-              { id: "ads", label: "Anúncios", value: overview.profit.ads },
-              { id: "withheld", label: "Impostos retidos", value: overview.profit.taxesWithheld },
-              { id: "refunds", label: "Estornos", value: overview.profit.refunds },
-              { id: "cogs", label: "Custo dos produtos", value: overview.profit.cogs },
-              { id: "taxes", label: "Impostos", value: overview.profit.taxes },
+              { id: "fees", label: "Taxas da Shopee", value: overview.profit.composicaoDaReceitaPaga.fees },
+              { id: "shipping", label: "Frete do vendedor", value: overview.profit.composicaoDaReceitaPaga.sellerShipping },
+              { id: "ads", label: "Anúncios", value: overview.profit.composicaoDaReceitaPaga.ads },
+              { id: "withheld", label: "Impostos retidos", value: overview.profit.composicaoDaReceitaPaga.taxesWithheld },
+              { id: "refunds", label: "Estornos", value: overview.profit.composicaoDaReceitaPaga.refunds },
+              { id: "cogs", label: "Custo dos produtos", value: overview.profit.composicaoDaReceitaPaga.cogs },
+              { id: "taxes", label: "Impostos", value: overview.profit.composicaoDaReceitaPaga.taxes },
             ],
-            result: resultIncomplete ? null : overview.profit.estimatedProfit,
+            result: overview.profit.composicaoDaReceitaPaga.lucro,
           })}
           footer={(
             <>

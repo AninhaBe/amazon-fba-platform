@@ -38,7 +38,10 @@ type Coverage={complete?:boolean;capturedOrders?:number;totalOrders?:number;proc
  * para o faturamento. Enquanto ele não vier, a tela cai no processado — e é a
  * PRESENÇA dele que faz a frase da base mudar sozinha. Ver `baseDoResultado`.
  */
-type ProfitBlock={revenueDoLucro?:number|null;fees:number|null;ads:number|null;taxesWithheld:number|null;refunds:number|null;cogs:number|null;taxes:number|null;taxRate:number|null;sellerShipping:number|null;buyerShipping:number|null;feesComplete:boolean;revenueProcessed:number;coverage:Coverage&{processedOrders:number;paidOrders:number;complete:boolean;ordersWithFees:number};estimatedProfit:number|null;marginPct:number|null;unitsWithoutCost:number;skusWithoutCost:number};
+type ProfitBlock={revenueDoLucro?:number|null;fees:number|null;ads:number|null;taxesWithheld:number|null;refunds:number|null;cogs:number|null;taxes:number|null;taxRate:number|null;sellerShipping:number|null;buyerShipping:number|null;feesComplete:boolean;revenueProcessed:number;
+  /** Fatias do widget, todas no universo da receita paga; o lucro e o residuo. */
+  composicaoDaReceitaPaga:{receita:number;fees:number|null;sellerShipping:number|null;ads:number|null;taxesWithheld:number|null;refunds:number|null;cogs:number|null;taxes:number|null;lucro:number|null};
+  coverage:Coverage&{processedOrders:number;paidOrders:number;complete:boolean;ordersWithFees:number};estimatedProfit:number|null;marginPct:number|null;unitsWithoutCost:number;skusWithoutCost:number};
 type Payload={items?:Record<string,unknown>[];orders?:Record<string,unknown>[];availability?:string;page?:{limit:number;offset:number;total:number;returned?:number;hasMore:boolean;complete?:boolean};coverage?:Coverage|null;profitSubset?:{reason?:string};profit?:ProfitBlock|null;currency?:string;error?:string;code?:string;atividade?:FiltroDeAtividadeValor;ocultados?:number;semEstoqueInformado?:{anuncios:number;varreduraEm:string|null};totalNoCanal?:number;ordenacao?:"volume"|"titulo"};
 const money=(value:unknown,currency="BRL")=>value==null?"—":new Intl.NumberFormat("pt-BR",{style:"currency",currency}).format(Number(value));
 const show=(value:unknown)=>value==null||value===""?"—":String(value);
@@ -228,17 +231,17 @@ function ShopeeMonitorContent({body,params,update,connectionId}:{body:Payload;pa
       totalLabel="Receita processada"
       format={(value)=>money(value,currency)}
       slices={buildFinancialComposition({
-        total:profit.revenueProcessed,
+        total:profit.composicaoDaReceitaPaga.receita,
         costs:[
-          {id:"fees",label:"Taxas da Shopee",value:profit.fees},
-          {id:"shipping",label:"Frete do vendedor",value:profit.sellerShipping},
-          {id:"ads",label:"Anúncios",value:profit.ads},
-          {id:"withheld",label:"Impostos retidos",value:profit.taxesWithheld},
-          {id:"refunds",label:"Estornos",value:profit.refunds},
-          {id:"cogs",label:"Custo dos produtos",value:profit.cogs},
-          {id:"taxes",label:"Impostos",value:profit.taxes},
+          {id:"fees",label:"Taxas da Shopee",value:profit.composicaoDaReceitaPaga.fees},
+          {id:"shipping",label:"Frete do vendedor",value:profit.composicaoDaReceitaPaga.sellerShipping},
+          {id:"ads",label:"Anúncios",value:profit.composicaoDaReceitaPaga.ads},
+          {id:"withheld",label:"Impostos retidos",value:profit.composicaoDaReceitaPaga.taxesWithheld},
+          {id:"refunds",label:"Estornos",value:profit.composicaoDaReceitaPaga.refunds},
+          {id:"cogs",label:"Custo dos produtos",value:profit.composicaoDaReceitaPaga.cogs},
+          {id:"taxes",label:"Impostos",value:profit.composicaoDaReceitaPaga.taxes},
         ],
-        result:resultIncomplete?null:profit.estimatedProfit,
+        result:profit.composicaoDaReceitaPaga.lucro,
       })}
       footer={(<>
         <Link href="/shopee/produtos" className="meli-financial-link">Configurar custos e imposto <span aria-hidden="true">→</span></Link>

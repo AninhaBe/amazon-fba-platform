@@ -101,8 +101,22 @@ test("a base do lucro e da margem e o FATURAMENTO, nao o apurado", async () => {
   // processado. Casar /faturamento/ ficaria verde com a variavel existindo e
   // nao sendo usada.
   const texto = await fonte("src/lib/integrations/shopeeOverviewCanonical.ts");
+  // ⚠️ A FATIA VAI DO `const estimatedProfit` ATE O `const marginPct`, e nao ate
+  // o `const daily` (01/09/2026). Entre os dois passou a existir a composicao do
+  // WIDGET, que usa `processedRevenue` de proposito — e uma base propria, do
+  // universo da receita paga, e nao a base do lucro do periodo.
+  //
+  // A guarda ficou vermelha com o codigo CERTO porque a fatia larga engolia um
+  // calculo vizinho e legitimo. Guarda que pega o bloco errado nao mede o que
+  // promete: aqui ela existe para provar que o LUCRO DO PERIODO nao voltou ao
+  // apurado, nao para proibir a palavra no arquivo.
   const inicio = texto.indexOf("const estimatedProfit =");
-  const formula = texto.slice(inicio, texto.indexOf("const daily = new Map"));
+  // A fatia vai do lucro ATE O FIM da linha da margem: o denominador mora la.
+  // Cortar no inicio do `const marginPct` deixava a assercao do denominador
+  // sem nada para casar — a guarda ficava vermelha por fatia estreita, que e o
+  // espelho do problema anterior (fatia larga engolindo o vizinho).
+  const fimDaMargem = texto.indexOf(";", texto.indexOf("const marginPct =", inicio));
+  const formula = texto.slice(inicio, fimDaMargem + 1);
   assert.match(formula, /faturamento - fees!/, "o numerador tem de sair do faturamento");
   assert.match(formula, /estimatedProfit \/ faturamento/, "e o denominador tambem");
   assert.doesNotMatch(formula, /processedRevenue/, "a base apurada voltou para a formula");

@@ -216,6 +216,12 @@ export interface ShopeeOverview {
     buyerShipping: number | null;
     feesComplete: boolean;
     revenueProcessed: number;
+    /** Fatias do widget, todas no universo da receita paga. O lucro e o residuo. */
+    composicaoDaReceitaPaga: {
+      receita: number; fees: number | null; sellerShipping: number | null;
+      ads: number | null; taxesWithheld: number | null; refunds: number | null;
+      cogs: number | null; taxes: number | null; lucro: number | null;
+    };
     coverage: {
       processedOrders: number;
       paidOrders: number;
@@ -820,6 +826,43 @@ export async function getShopeeOverviewFromCanonical(
   // resultado de um universo dividido pela receita de outro — foi assim que a
   // Amazon exibiu −90,5% e +120,9% no mesmo dia, e é o defeito que esta réplica
   // existe para não repetir aqui.
+  /**
+   * A COMPOSIÇÃO DA RECEITA PAGA — o universo do widget "Repasses, taxas e
+   * lucro", que é OUTRO e precisa ser coerente consigo mesmo.
+   *
+   * ⚠️ O DEFEITO QUE ISTO CONSERTA, achado pela vendedora em 01/09/2026: o
+   * widget exibia no centro a **receita paga** (R$ 14.097,09, pagos e enviados)
+   * e as fatias somavam R$ 15.734,08 — o universo TOTAL, com os pendentes. O
+   * selo dizia "Composição completa" enquanto a composição **estourava o todo em
+   * R$ 1.636,99**, que é exatamente o valor dos pendentes.
+   *
+   * As fatias de canal (tarifa, frete, anúncio, imposto retido, estorno) e o
+   * custo já vinham do universo certo — todas nascem do mesmo `scoped`, filtrado
+   * por `status = ANY(REVENUE_STATUSES)`. Os dois intrusos eram:
+   *  - o LUCRO, que é `estimatedProfit`, calculado sobre o faturamento;
+   *  - e o IMPOSTO, que passou a incidir sobre o faturamento no mesmo dia, para
+   *    os CARDS. O conserto de um universo não pode contaminar o outro.
+   *
+   * 📌 Por isso o lucro daqui é o RESÍDUO deste universo, e não o lucro do
+   * período: `receita paga − custo − tarifas − imposto − …`. Os dois números
+   * coexistem porque cada um é coerente consigo e diz de qual base fala — o
+   * defeito da família nunca foi *qual* base, foi MISTURAR.
+   */
+  const impostoDaReceitaPaga = taxRateKnown ? +(processedRevenue * taxRate! / 100).toFixed(2) : null;
+  const componentesDaReceitaPaga = [fees, sellerShipping, ads, taxesWithheld, refunds];
+  const lucroDaReceitaPaga = componentesDaReceitaPaga.every((v) => v != null)
+    ? +(processedRevenue
+        - fees! - sellerShipping! - ads! - taxesWithheld! - refunds!
+        - (cogsValue ?? 0) - (impostoDaReceitaPaga ?? 0)).toFixed(2)
+    : null;
+  const composicaoDaReceitaPaga = {
+    receita: processedRevenue,
+    fees, sellerShipping, ads, taxesWithheld, refunds,
+    cogs: cogsValue,
+    taxes: impostoDaReceitaPaga,
+    lucro: lucroDaReceitaPaga,
+  };
+
   const estimatedProfit = componentesConhecidos
     ? +(faturamento - fees! - (cogsValue ?? 0) - (taxes ?? 0) - sellerShipping! - ads! - taxesWithheld! - refunds!).toFixed(2)
     : null;
@@ -959,6 +1002,13 @@ export async function getShopeeOverviewFromCanonical(
       buyerShipping,
       feesComplete: periodCovered && allKnown(ordersWithFees),
       revenueProcessed: processedRevenue,
+      /**
+       * A composicao do widget "Repasses, taxas e lucro", coerente NO UNIVERSO
+       * DA RECEITA PAGA. Ver a nota longa em `composicaoDaReceitaPaga`: o widget
+       * nao pode misturar estas fatias com o lucro do periodo, que parte do
+       * faturamento e inclui pendente.
+       */
+      composicaoDaReceitaPaga,
       coverage: {
         processedOrders: ordersProcessed,
         paidOrders: totals.paid_orders,
