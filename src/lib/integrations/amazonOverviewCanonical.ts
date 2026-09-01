@@ -433,7 +433,15 @@ export async function getAmazonOverviewFromCanonical(
   // marca nenhuma — o número daquela linha passou a ser o real. A linha continua
   // no banco para medir pontaria, e é justamente por isso que o filtro precisa
   // estar aqui.
-  const estimativasPorLinha = await dbQuery<{
+  // ⚠️ NAO E `await` SOLTO: esta consulta corria SOZINHA, entre a montagem das
+  // linhas e o laco do lucro, somando uma ida INTEIRA ao caminho critico sem
+  // precisar. Ela nao depende de nada que veio antes — so do escopo e do
+  // periodo. Virou uma promessa disparada JUNTO e consumida onde e usada.
+  //
+  // Medido em 01/09/2026 na conta A15NQMF7A6J1Y0, 7 dias: o canonico fazia 18
+  // idas e mediana de 335ms. O custo aqui nao era o round-trip em si — era a
+  // SERIALIDADE: enquanto esta esperava, nenhuma outra corria.
+  const estimativasPorLinhaPromise = dbQuery<{
     external_order_id: string; line_no: number; fee_type: string; amount: string;
   }>(
     `SELECT e.external_order_id, e.line_no, e.fee_type, e.amount::text
@@ -446,6 +454,7 @@ export async function getAmazonOverviewFromCanonical(
         AND o.occurred_at >= $4 AND o.occurred_at <= $5`,
     scopeParams(connectionId, period),
   );
+  const estimativasPorLinha = await estimativasPorLinhaPromise;
   const marcasPorLinha = new Map<string, { comissao: number | null; fba: number | null }>();
   for (const linha of estimativasPorLinha) {
     const chave = `${linha.external_order_id}:${linha.line_no}`;
@@ -722,20 +731,41 @@ export async function getAmazonOverviewFromCanonical(
   // A supersessão não é mais reproduzida aqui: quem decide é a view, por
   // (pedido, fee_type). Repetir a regra em dois lugares é como as duas versões
   // divergem — e foi a versão duplicada que estava errada no dia do apply.
-  const estimadaRows = await dbQuery<{ total: string | null; pedidos: number }>(
-    `SELECT COALESCE(SUM(f.amount), 0)::text AS total,
-            COUNT(DISTINCT f.external_order_id)::int AS pedidos
+  // ═══ UMA IDA PARA AS DUAS PERGUNTAS SOBRE TARIFA (01/09/2026) ══════════════
+  //
+  // Eram DUAS consultas — o total do período e a parte estimada — na MESMA view,
+  // com o MESMO join e o MESMO escopo de conexão, uma esperando a outra. Duas
+  // idas ao banco para agregar as mesmas linhas.
+  //
+  // ⚠️ E JUNTAR EXPÔS UM DEFEITO DE ESCOPO, que é a razão de a fusão valer mais
+  // que a ida economizada: as duas NÃO filtravam igual. A do total exigia pedido
+  // não cancelado e COM valor na base; a da estimativa não exigia nada disso.
+  // Ou seja, `feesEstimadas` contava estimativa de pedido CANCELADO e de pedido
+  // fora da base — e a tela podia dizer "inclui R$ X estimados" com X MAIOR que
+  // o próprio total de Taxas. Número que não fecha com o vizinho, de novo.
+  //
+  // Agora as duas saem do mesmo `WHERE`, e a parte é sempre parte do todo por
+  // construção. `FILTER` mantém o grão: é a mesma linha contada de dois jeitos,
+  // não um join a mais — nenhum risco de inflar por fan-out.
+  const tarifaRows = await dbQuery<{ total: string | null; estimada: string | null; pedidos_estimados: number }>(
+    `SELECT COALESCE(SUM(f.amount) FILTER (WHERE f.fee_type <> 'refund'), 0)::text AS total,
+            COALESCE(SUM(f.amount) FILTER (WHERE f.fee_type <> 'refund' AND f.basis = 'estimated'), 0)::text AS estimada,
+            COUNT(DISTINCT f.external_order_id)
+              FILTER (WHERE f.fee_type <> 'refund' AND f.basis = 'estimated')::int AS pedidos_estimados
        FROM workspace_channel_order_fees_efetivas f
        JOIN workspace_channel_orders o
          ON o.workspace_id = f.workspace_id AND o.provider = f.provider
         AND o.connection_id = f.connection_id AND o.external_order_id = f.external_order_id
       WHERE f.workspace_id = $1 AND f.provider = $2 AND f.connection_id = $3
-        AND f.basis = 'estimated'
-        AND o.occurred_at >= $4 AND o.occurred_at <= $5`,
+        AND o.occurred_at >= $4 AND o.occurred_at <= $5
+        AND o.status <> 'cancelled'
+        -- Mesma regra do custo: tarifa de pedido cuja receita não está na base
+        -- seria subtração sem a receita correspondente.
+        AND COALESCE(NULLIF(o.gross, 0), o.ordered_gross) IS NOT NULL`,
     scopeParams(connectionId, period),
   );
-  const feesEstimadas = Number(estimadaRows[0]?.total ?? 0);
-  const pedidosComTarifaEstimada = estimadaRows[0]?.pedidos ?? 0;
+  const feesEstimadas = Number(tarifaRows[0]?.estimada ?? 0);
+  const pedidosComTarifaEstimada = tarifaRows[0]?.pedidos_estimados ?? 0;
 
   // ═══ A BASE É O FATURAMENTO, E SÓ ELE (31/08/2026, quarta vez que ela pede) ══
   //
@@ -833,21 +863,6 @@ export async function getAmazonOverviewFromCanonical(
   // cancelados — os apurados e os pendentes, que a consulta detalhada não
   // alcança. Uma pergunta, uma fonte. `feesEstimadas` continua existindo, mas só
   // para a tela DIZER quanto do total é estimativa (ADR-027 item 4).
-  const tarifaRows = await dbQuery<{ total: string | null }>(
-    `SELECT COALESCE(SUM(f.amount), 0)::text AS total
-       FROM workspace_channel_order_fees_efetivas f
-       JOIN workspace_channel_orders o
-         ON o.workspace_id = f.workspace_id AND o.provider = f.provider
-        AND o.connection_id = f.connection_id AND o.external_order_id = f.external_order_id
-      WHERE f.workspace_id = $1 AND f.provider = $2 AND f.connection_id = $3
-        AND f.fee_type <> 'refund'
-        AND o.occurred_at >= $4 AND o.occurred_at <= $5
-        AND o.status <> 'cancelled'
-        -- Mesma regra do custo: tarifa de pedido cuja receita nao esta na base
-        -- seria subtracao sem a receita correspondente.
-        AND COALESCE(NULLIF(o.gross, 0), o.ordered_gross) IS NOT NULL`,
-    scopeParams(connectionId, period),
-  );
   const tarifaDoLucro = +Number(tarifaRows[0]?.total ?? 0).toFixed(2);
   void fees; // segue alimentando o rateio POR LINHA, não o total do período
   const lucro = descontarAnuncio(
