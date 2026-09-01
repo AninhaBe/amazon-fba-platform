@@ -189,6 +189,22 @@ cortes não mexeram nisso, porque `NexoDoDia` e `BriefingLead` são conteúdo e 
 aviso. Fica o número na mesa: **se 4 ainda for muito, decide-se sobre eles com
 este número e não por impressão.**
 
+### ⚠️ O EFEITO COLATERAL É O ARGUMENTO DA AUDITORIA INTEIRA
+
+**O empilhamento não estava só poluindo: estava SUPRIMINDO INFORMAÇÃO.** E é o
+pior tipo de supressão — a que acontece exatamente no caso em que a informação é
+necessária.
+
+O `sub` do cartão era `sinais.length > 0 ? <SinaisDoResultado/> : declaração`. A
+declaração de base **só aparecia quando não havia sinal nenhum**. Ou seja: a peça
+que existe para impedir a leitura *"o lucro não sai do faturamento, logo está
+errado"* estava escondida justamente nas contas **com pendência** — as que mais
+precisam dela.
+
+Nenhuma revisão de peça isolada acharia isso. A declaração está correta; os
+sinais estão corretos; o `sub` que os multiplexa é que troca um pelo outro. **É
+por isso que se audita o conjunto, e não a peça.**
+
 ### O efeito colateral que não estava no plano
 
 Tirar os sinais dos cartões **devolveu a declaração de base**. O `sub` era
