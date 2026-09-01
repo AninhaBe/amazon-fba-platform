@@ -100,3 +100,47 @@ test("o vocabulario da estimativa e exigido pelo BANCO, nao pela disciplina de q
     );
   });
 });
+
+// ═══ E A TABELA REAL TAMBÉM (migration 0028) ═══════════════════════════════
+//
+// A tabela de tarifa REAL não tinha restrição nenhuma sobre `fee_type` — medido
+// em 01/09/2026, `pg_constraint` trazia só a chave primária. O tipo TypeScript
+// protegia o aplicativo; a tabela aceitava qualquer string vinda de script ou
+// `psql`. E o estrago ali é MAIOR que na tabela nova: a view carimba
+// `basis='actual'` em tudo que vem dela, então uma estimativa gravada ali vira
+// **tarifa oficial na tela**.
+
+test("a tabela REAL tambem exige vocabulario, e recusa procedencia", async () => {
+  await comCliente(async (cliente) => {
+    const gravarReal = async (feeType) => {
+      try {
+        await cliente.query(
+          `INSERT INTO workspace_channel_order_fees
+             (workspace_id, provider, connection_id, external_order_id, fee_type,
+              provider_fee_code, amount, currency)
+           VALUES ($1, 'amazon', $2, $3, $4, 'TesteFee', 1.23, 'BRL')`,
+          [WORKSPACE, CONEXAO, `real-${feeType}`, feeType],
+        );
+        return null;
+      } catch (erro) {
+        return erro;
+      }
+    };
+
+    await cliente.query(`DELETE FROM workspace_channel_order_fees WHERE workspace_id = $1`, [WORKSPACE]);
+
+    // Aceita a taxonomia inteira, inclusive `other` — que AQUI é legítimo:
+    // descartar um fato do extrato é pior que rotulá-lo grosseiramente.
+    assert.equal(await gravarReal("commission"), null);
+    assert.equal(await gravarReal("fulfillment"), null);
+    assert.equal(await gravarReal("other"), null, "'other' e permitido na tabela REAL, ao contrario da de estimativas");
+
+    // E recusa a PROCEDÊNCIA no lugar da natureza — o defeito que a 0022 desfez
+    // e que voltou a aparecer com 456 linhas antes da 0028.
+    const erro = await gravarReal("estimated");
+    assert.ok(erro, "'estimated' e procedencia, nao natureza: 456 linhas reais entraram assim");
+    assert.match(String(erro.message), /vocabulario_canonico|check/i);
+
+    await cliente.query(`DELETE FROM workspace_channel_order_fees WHERE workspace_id = $1`, [WORKSPACE]);
+  });
+});
