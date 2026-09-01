@@ -207,6 +207,8 @@ interface RecentRow {
 }
 
 interface DetailedLineRow {
+  /** O status CANONICO, para separar quem CONTA custo de quem so APARECE. */
+  status_canonico: string;
   external_order_id: string;
   occurred_at: Date | string;
   provider_status: string;
@@ -374,15 +376,34 @@ export async function getAmazonOverviewFromCanonical(
     ),
     dbQuery<DetailedLineRow>(
       `WITH detailed AS (
-         SELECT external_order_id, occurred_at, provider_status, currency, buyer_shipping, fulfillment
+         SELECT external_order_id, occurred_at, provider_status, currency, buyer_shipping,
+                fulfillment, status
            FROM workspace_channel_orders
           WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
-            AND occurred_at >= $4 AND occurred_at <= $5 AND status = ANY($6::text[])
+            AND occurred_at >= $4 AND occurred_at <= $5
+            -- O PENDENTE ENTRA NA TABELA DE RENTABILIDADE (01/09/2026).
+            --
+            -- Antes o filtro era status = ANY($6), que exclui pendente. A
+            -- consequencia, medida: das 5.317 estimativas de tarifa gravadas,
+            -- UMA chegava a esta lista em 30 dias. A tarifa observada existia no
+            -- banco, entrava no total de Taxas, e era invisivel na linha do
+            -- pedido — que e onde a vendedora olha pedido a pedido.
+            --
+            -- A decisao segue a doutrina dela: faturamento inclui pendente, e a
+            -- tela mostra o que existe sinalizando o que falta. Esconder o
+            -- pendente aqui era a mesma supressao ja tirada do resto.
+            --
+            -- E a lista de status SAI DOS PARAMETROS desta consulta: quem
+            -- separa "conta custo" de "so aparece" agora e o laco, pelo
+            -- status_canonico de cada linha (ver a nota la). Deixar o
+            -- parametro sem uso faz o Postgres recusar a consulta inteira com
+            -- "could not determine data type" — nao e sobra inofensiva.
+            AND status <> 'cancelled'
           ORDER BY occurred_at DESC
-          LIMIT $7
+          LIMIT $6
        )
        SELECT d.external_order_id, d.occurred_at, d.provider_status, d.currency,
-              d.buyer_shipping, d.fulfillment,
+              d.buyer_shipping, d.fulfillment, d.status AS status_canonico,
               i.line_no, i.external_product_id, i.sku, i.title, i.qty, i.unit_price,
               ff.amount AS fees
          FROM detailed d
@@ -406,7 +427,7 @@ export async function getAmazonOverviewFromCanonical(
               AND f.external_order_id = d.external_order_id AND f.fee_type <> 'refund'
          ) ff ON true
         ORDER BY d.occurred_at DESC, d.external_order_id, i.line_no`,
-      [...scopeParams(connectionId, period), REVENUE_STATUSES, DETAILED_ORDER_LIMIT]
+      [...scopeParams(connectionId, period), DETAILED_ORDER_LIMIT]
     ),
     getCosts(),
   ]);
@@ -621,8 +642,20 @@ export async function getAmazonOverviewFromCanonical(
         productCost: lineProductCost,
         marketplaceFees: lineFees,
       });
-      if (unitCost > 0) { cogs += unitCost * line.qty; unitsWithCost += line.qty; }
-      else { unitsWithoutCost += line.qty; skusSemCusto.add(line.sku ?? line.external_product_id ?? ""); }
+      // ⚠️ ESTA LISTA NAO SOMA CUSTO — ELA SO EXIBE (01/09/2026).
+      //
+      // O custo do periodo vem de UMA consulta propria, que cobre TODOS os
+      // pedidos nao cancelados do escopo. Esta lista e limitada a
+      // `DETAILED_ORDER_LIMIT` pedidos, e por isso nao pode ser fonte de total:
+      // seria um numero truncado em silencio.
+      //
+      // 📌 O DEFEITO QUE ISSO EVITA APARECEU NA HORA, medido: ao incluir o
+      // pendente aqui, os pendentes passaram a disputar as vagas do LIMIT e o
+      // custo do periodo CAIU R$ 229,81 sem nada ter mudado no mundo — o total
+      // encolheu porque a janela de exibicao encolheu. Duas responsabilidades na
+      // mesma consulta e a origem da familia inteira; agora sao duas fontes, com
+      // papeis declarados: a consulta de custo responde "quanto custou o
+      // periodo", esta lista responde "o que aconteceu em cada pedido".
 
       profitabilityLines.push({
         id: `${orderId}:${line.external_product_id}:${line.line_no}`,
@@ -777,7 +810,7 @@ export async function getAmazonOverviewFromCanonical(
           AND o.connection_id = i.connection_id AND o.external_order_id = i.external_order_id
         WHERE i.workspace_id = $1 AND i.provider = $2 AND i.connection_id = $3
           AND o.occurred_at >= $4 AND o.occurred_at <= $5
-          AND o.status <> 'cancelled' AND NOT (o.status = ANY($6))
+          AND o.status <> 'cancelled'
           -- ⚠️ SÓ O PEDIDO QUE ESTÁ NA BASE ENTRA COM CUSTO (01/09/2026).
           --
           -- Pedido sem valor conhecido fica FORA da receita (é o null != 0 da
@@ -810,8 +843,8 @@ export async function getAmazonOverviewFromCanonical(
           -- de cobrir o mesmo conjunto, senao volta a QUINTA forma (base de
           -- R$ 12,89 contra custo de R$ 222,95, margem de -1692,4%).
           -- Um universo, dois lados. E o parametro que diz qual universo e.
-          AND ($7::boolean OR COALESCE(NULLIF(o.gross, 0), o.ordered_gross) IS NOT NULL)`,
-      [...scopeParams(connectionId, period), REVENUE_STATUSES, baseCobreTodosOsPedidos],
+          AND ($6::boolean OR COALESCE(NULLIF(o.gross, 0), o.ordered_gross) IS NOT NULL)`,
+      [...scopeParams(connectionId, period), baseCobreTodosOsPedidos],
     ),
   ]);
   // Tarifa ESTIMADA do período, somada à parte da real (ADR-027). Separada de
@@ -948,12 +981,14 @@ export async function getAmazonOverviewFromCanonical(
   // data da compra. Unidade sem custo cadastrado conta em `unitsWithoutCost` e
   // vira sinal na tela — o custo que falta é cadastro dela, e a regra de 29/08
   // é mostrar o número e apontar o que falta, não apagar o resultado.
-  let cogsPendente = 0;
+  // O CUSTO DO PERIODO INTEIRO, de uma fonte so — apurado e pendente pela mesma
+  // regra: custo cadastrado vigente na data da compra.
+  let cogsDoPeriodo = 0;
   for (const linha of pendenteLinhas) {
     const entrada = costOf(linha.sku, linha.external_product_id);
     const custoUnitario = entrada ? costAt(entrada, new Date(linha.occurred_at).toISOString()) : 0;
     if (custoUnitario > 0) {
-      cogsPendente += custoUnitario * linha.qty;
+      cogsDoPeriodo += custoUnitario * linha.qty;
       unitsWithCost += linha.qty;
     } else {
       unitsWithoutCost += linha.qty;
@@ -997,7 +1032,8 @@ export async function getAmazonOverviewFromCanonical(
   // Agora todo pedido não cancelado entra pelo próprio valor, uma vez só.
   const receitaDoLucro = faturamentoDoLucro;
   void somaDoQueOBancoValoriza; // medida e nomeada; nenhum consumidor a usa como base
-  const cogsDoLucro = +(cogs + cogsPendente).toFixed(2);
+  const cogsDoLucro = +cogsDoPeriodo.toFixed(2);
+  void cogs; // segue alimentando o rateio POR LINHA, nunca o total do periodo
   // O imposto acompanha a base, e não a receita apurada — ver a nota na leitura
   // da alíquota, acima.
   // Sem base nao ha imposto calculavel: `null`, nunca zero — zero afirmaria

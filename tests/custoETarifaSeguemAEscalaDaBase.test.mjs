@@ -58,7 +58,7 @@ test("o CUSTO cobre todos os pedidos quando a base cobre — e so os valorizados
   const custo = consultaQueContem(s, "i.sku, i.external_product_id, i.qty, o.occurred_at");
   assert.match(
     custo,
-    /AND \(\$7::boolean OR COALESCE\(NULLIF\(o\.gross, 0\), o\.ordered_gross\) IS NOT NULL\)/,
+    /AND \(\$6::boolean OR COALESCE\(NULLIF\(o\.gross, 0\), o\.ordered_gross\) IS NOT NULL\)/,
     "sem o OR, o custo do pendente fica fora de uma base que ja o inclui (setima forma)",
   );
   // E o filtro NAO pode simplesmente sumir: sem ele volta a quinta forma.
@@ -87,6 +87,12 @@ test("os dois recebem o MESMO valor, nao dois flags independentes", async () => 
   const usos = [...s.matchAll(/baseCobreTodosOsPedidos/g)];
   assert.ok(usos.length >= 3,
     `esperado: a definicao mais um uso em cada consulta; achei ${usos.length}`);
-  assert.match(s, /REVENUE_STATUSES, baseCobreTodosOsPedidos\]/, "o custo recebe o flag");
-  assert.match(s, /scopeParams\(connectionId, period\), baseCobreTodosOsPedidos\]/, "a tarifa recebe o flag");
+  // ⚠️ OS DOIS PASSARAM A RECEBER A MESMA LISTA DE PARAMETROS EM 01/09/2026.
+  // A consulta de custo deixou de filtrar pelo complemento de REVENUE_STATUSES
+  // (ela cobre todo pedido nao cancelado do escopo agora, porque virou a UNICA
+  // fonte do custo do periodo), entao o parametro da lista saiu e o boolean
+  // desceu de $7 para $6. O que a guarda cobra continua sendo o mesmo flag nos
+  // dois lados — e agora a forma e literalmente identica, o que e melhor.
+  const usosDoFlag = s.match(/scopeParams\(connectionId, period\), baseCobreTodosOsPedidos\]/g) ?? [];
+  assert.equal(usosDoFlag.length, 2, "os DOIS (custo e tarifa) precisam receber o mesmo flag");
 });
