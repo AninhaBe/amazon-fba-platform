@@ -33,6 +33,7 @@ não re-deduza o que já foi decidido nem repita pegadinha já paga.
 | [`gate-continuo-de-saude.md`](./gate-continuo-de-saude.md) | Gatilhos, checklist integrado em `localhost:3000`, evidências, estados `PASS`/`FAIL`/`BLOCKED` e responsabilidades. |
 | [`migrations.md`](./migrations.md) | Runner fail-closed, plano, autorização curta e resposta ao incidente 0003/0004. |
 | [`tiktok-qa-evidence.md`](./tiktok-qa-evidence.md) | Evidência agregada e procedimento fail-closed para QA autenticado TikTok; atualmente bloqueado por ownership duplicado e pela 0005 ainda não aplicada. |
+| [`achado-o-processo-nao-se-audita.md`](./achado-o-processo-nao-se-audita.md) | **Como auditar backfill e reprocessamento.** Três defeitos que o relatório da execução deu por concluídos e a conferência contra a fonte pegou; e o fecho da família das sete formas — por que suprimir um número errado desliga o alarme da próxima causa. |
 
 ## APIs dos marketplaces (leia antes de mexer em integração)
 
