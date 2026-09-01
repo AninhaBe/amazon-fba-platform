@@ -52,6 +52,11 @@ interface TotalsRow {
   total_orders: number;
   paid_orders: number;
   paid_revenue: string | null;
+  /** O FATURAMENTO: todo pedido não cancelado, pelo valor do próprio pedido. */
+  faturamento: string | null;
+  pedidos_faturados: number;
+  /** Pedidos que a Shopee ainda não valorizou. Ficam FORA da base, nunca valem zero. */
+  sem_valor: number;
   cancelled_revenue: string | null;
   cancelled_orders: number;
   currency: string | null;
@@ -325,6 +330,12 @@ export async function getShopeeOverviewFromCanonical(
       `SELECT COUNT(*)::int AS total_orders,
               COUNT(*) FILTER (WHERE status = ANY($6::text[]))::int AS paid_orders,
               SUM(gross) FILTER (WHERE status = ANY($6::text[])) AS paid_revenue,
+              -- O FATURAMENTO: todo pedido nao cancelado, pelo valor do proprio
+              -- pedido. E a base de lucro, margem e imposto desde 01/09/2026 —
+              -- a mesma regra que a Amazon ja segue. Ver a nota em faturamento.
+              SUM(gross) FILTER (WHERE status <> 'cancelled') AS faturamento,
+              COUNT(*) FILTER (WHERE status <> 'cancelled')::int AS pedidos_faturados,
+              COUNT(*) FILTER (WHERE status <> 'cancelled' AND gross IS NULL)::int AS sem_valor,
               SUM(gross) FILTER (WHERE status = 'cancelled') AS cancelled_revenue,
               COUNT(*) FILTER (WHERE status = 'cancelled')::int AS cancelled_orders,
               MAX(occurred_at) FILTER (WHERE status = ANY($6::text[])) AS last_sale_at,
@@ -537,7 +548,20 @@ export async function getShopeeOverviewFromCanonical(
 
   const taxRate = configuredTaxRate;
   const currency = totals.currency ?? "BRL";
-  const revenue = Number(totals.paid_revenue ?? 0);
+  // ═══ A BASE É O FATURAMENTO, E SÓ ELE (01/09/2026) ═════════════════════════
+  //
+  // A mesma decisão que a Amazon aplicou em 31/08, nas palavras dela: *"TEM QUE
+  // ESQUECER O APURADO E LEVAR EM CONSIDERAÇÃO SOMENTE O FATURAMENTO."* A Shopee
+  // era o terceiro canal a dividir por `processedRevenue` — a receita já
+  // conciliada — enquanto o card ao lado exibia outro número.
+  //
+  // ⚠️ E O QUE FALTA NÃO ENCOLHE A BASE. Pedido sem custo cadastrado ou sem
+  // tarifa postada continua DENTRO do faturamento; a tela o aponta com número
+  // (regra dela de 29/08). Encolher a base para "proteger" o número é
+  // exatamente o que ela mandou parar de fazer.
+  const faturamento = Number(totals.faturamento ?? 0);
+  const pedidosFaturados = totals.pedidos_faturados ?? 0;
+  const pedidosSemValor = totals.sem_valor ?? 0;
 
   // Com busca ativa, o universo da paginação é o conjunto FILTRADO — hasMore
   // contra o total sem filtro afirmaria uma próxima página que não existe.
@@ -771,10 +795,15 @@ export async function getShopeeOverviewFromCanonical(
   // `fees == null` não é "não cobraram", é "não sei quanto" — e aí o lucro seria
   // otimista. Ausência de componente ≠ ausência de cobertura.
   const componentesConhecidos = [fees, sellerShipping, ads, taxesWithheld, refunds].every((v) => v != null);
+  // ⚠️ A BASE TROCOU DE `processedRevenue` PARA `faturamento` (01/09/2026), e o
+  // numerador e o denominador trocam JUNTOS. Trocar só o denominador daria
+  // resultado de um universo dividido pela receita de outro — foi assim que a
+  // Amazon exibiu −90,5% e +120,9% no mesmo dia, e é o defeito que esta réplica
+  // existe para não repetir aqui.
   const estimatedProfit = componentesConhecidos
-    ? +(processedRevenue - fees! - (cogsValue ?? 0) - (taxes ?? 0) - sellerShipping! - ads! - taxesWithheld! - refunds!).toFixed(2)
+    ? +(faturamento - fees! - (cogsValue ?? 0) - (taxes ?? 0) - sellerShipping! - ads! - taxesWithheld! - refunds!).toFixed(2)
     : null;
-  const marginPct = estimatedProfit != null && processedRevenue > 0 ? (estimatedProfit / processedRevenue) * 100 : null;
+  const marginPct = estimatedProfit != null && faturamento > 0 ? (estimatedProfit / faturamento) * 100 : null;
 
   const daily = new Map(dailyRows.map((row) => [row.date, { date: row.date, revenue: Number(row.revenue), orders: row.orders, units: row.units }]));
   const dailySales: ShopeeOverview["dailySales"] = [];
@@ -864,8 +893,29 @@ export async function getShopeeOverviewFromCanonical(
       // trabalho dela não serviu de nada.
       productsWithoutCost: vendidosSemCusto.size,
       orders30d: totals.total_orders,
-      paidOrders: totals.paid_orders,
-      revenue30d: revenue,
+      // ⚠️ O NÚMERO AO LADO DO FATURAMENTO CONTA O MESMO CONJUNTO QUE ELE.
+      //
+      // Era `paid_orders` — só os pagos — ao lado de um valor que agora soma
+      // todos os não cancelados. Card dizendo "R$ X · N pedidos" com o X de um
+      // conjunto e o N de outro é a mesma família da base misturada, só que na
+      // contagem: aparece quando alguém confere somando à mão, que é
+      // exatamente o que a vendedora faz.
+      //
+      // A cobertura do lucro (`profit.coverage.paidOrders`, abaixo) CONTINUA
+      // contando os pagos: lá a pergunta é "quantos já foram apurados", e essa
+      // é outra pergunta.
+      paidOrders: pedidosFaturados,
+      // ⚠️ O CARD DE FATURAMENTO PASSA A EXIBIR O FATURAMENTO (01/09/2026).
+      //
+      // Era `paid_revenue` — só os pedidos já pagos —, e por isso ele e o lucro
+      // discordavam por construção. Agora é o mesmo número da base: todo pedido
+      // não cancelado, pendente inclusive. É a decisão dela de 30/08 ("Faturamento
+      // deve significar todos os pedidos independente de status Confirmado"),
+      // que a Amazon já seguia e a Shopee não.
+      //
+      // `paid_revenue` continua vivo em `revenue` para a cascata do conciliado,
+      // que é pergunta diferente — e que o marketplace não responde.
+      revenue30d: faturamento,
       cancelledRevenue: Number(totals.cancelled_revenue ?? 0),
       cancelledOrders: totals.cancelled_orders,
       lastSaleAt: totals.last_sale_at ? new Date(totals.last_sale_at).toISOString() : null,
@@ -896,8 +946,18 @@ export async function getShopeeOverviewFromCanonical(
         complete: financialComplete,
       },
       estimatedProfit,
-      revenueDoLucro: +processedRevenue.toFixed(2),
-      pedidosSemApuracao: Math.max(0, totals.paid_orders - ordersProcessed),
+      // A BASE que lucro, margem e imposto usam — o faturamento, e é o mesmo
+      // número do card ao lado. Como as duas passam a coincidir, a declaração
+      // de base some sozinha da tela: `declaracaoDeBase` devolve `null` quando
+      // o faturamento exibido não é maior que a base.
+      revenueDoLucro: +faturamento.toFixed(2),
+      // ⚠️ O QUE FALTA, COM NÚMERO — e ele mede outra coisa desde 01/09/2026.
+      // Era "pagos menos processados" (cobertura de apuração). Como a base
+      // passou a ser o faturamento, o que interessa é quantos pedidos DELA a
+      // Shopee ainda não valorizou: esses ficam fora da soma e é isso que a
+      // tela precisa apontar. Somá-los como zero afirmaria "vendeu e não
+      // faturou" (`null` ≠ `0`).
+      pedidosSemApuracao: pedidosSemValor,
       marginPct,
       unitsWithoutCost,
       skusWithoutCost: skusSemCusto.size,

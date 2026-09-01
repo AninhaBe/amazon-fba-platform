@@ -36,6 +36,11 @@ function fakeQuery({ covered = true } = {}) {
     }];
     if (sql.includes("COUNT(*)::int AS total_orders")) return [{
       total_orders: 1, paid_orders: 1, paid_revenue: "100", cancelled_revenue: "0",
+      // ⚠️ COLUNAS DA BASE DO FATURAMENTO (01/09/2026). O fake precisa devolve-las
+      // porque a base do lucro deixou de ser paid_revenue: sem elas o overview
+      // calcula sobre zero e os testes falham por falta de dado do fake, nao por
+      // defeito do produto — vermelho pelo motivo errado.
+      faturamento: "100", pedidos_faturados: 1, sem_valor: 0,
       cancelled_orders: 0, currency: "BRL", last_sale_at: "2026-07-10T12:00:00.000Z",
     }];
     if (sql.includes("WITH scoped AS")) return [{

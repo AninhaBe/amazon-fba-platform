@@ -81,3 +81,42 @@ test("o lucro do briefing para de exigir cobertura completa", async () => {
     /lucro=\{overview\.metrics\.revenueCoverage\.complete \? overview\.profit\.estimatedProfit : null\}/,
   );
 });
+
+// ═══ A BASE DA SHOPEE PASSA A SER O FATURAMENTO (01/09/2026) ════════════════
+//
+// A terceira replica da decisao dela, com as palavras que ela ja repetiu quatro
+// vezes: "TEM QUE ESQUECER O APURADO E LEVAR EM CONSIDERACAO SOMENTE O
+// FATURAMENTO". A Shopee dividia por `processedRevenue` — a receita ja
+// conciliada — enquanto o card ao lado exibia `paid_revenue`. Duas bases, e o
+// silencio entre elas.
+
+test("a base do lucro e da margem e o FATURAMENTO, nao o apurado", async () => {
+  // Ramificacao, nao identificador: o que nao pode voltar e a divisao pelo
+  // processado. Casar /faturamento/ ficaria verde com a variavel existindo e
+  // nao sendo usada.
+  const texto = await fonte("src/lib/integrations/shopeeOverviewCanonical.ts");
+  const inicio = texto.indexOf("const estimatedProfit =");
+  const formula = texto.slice(inicio, texto.indexOf("const daily = new Map"));
+  assert.match(formula, /faturamento - fees!/, "o numerador tem de sair do faturamento");
+  assert.match(formula, /estimatedProfit \/ faturamento/, "e o denominador tambem");
+  assert.doesNotMatch(formula, /processedRevenue/, "a base apurada voltou para a formula");
+});
+
+test("o card de Faturamento e a base do lucro sao o MESMO numero", async () => {
+  // ⚠️ E por isso que a declaracao de base some sozinha aqui: `declaracaoDeBase`
+  // devolve null quando o faturamento exibido nao e MAIOR que a base. Se alguem
+  // separar os dois de novo, a frase reaparece — e ela so deveria aparecer
+  // quando ha diferenca de verdade.
+  const texto = await fonte("src/lib/integrations/shopeeOverviewCanonical.ts");
+  assert.match(texto, /revenue30d: faturamento/, "o card tem de exibir a mesma base");
+  assert.match(texto, /revenueDoLucro: \+faturamento\.toFixed\(2\)/, "e o produtor tem de declarar a mesma");
+});
+
+test("pedido que a Shopee nao valorizou fica FORA da base e e apontado com numero", async () => {
+  // Ele nao vale zero (null != 0) e nao encolhe a base dos outros: a tela diz
+  // quantos sao. `pedidosSemApuracao` passou a medir isso, e nao mais
+  // "pagos menos processados".
+  const texto = await fonte("src/lib/integrations/shopeeOverviewCanonical.ts");
+  assert.match(texto, /pedidosSemApuracao: pedidosSemValor/);
+  assert.match(texto, /gross IS NULL\)::int AS sem_valor/, "a contagem vem do banco, nao de estimativa");
+});
