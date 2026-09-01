@@ -110,28 +110,51 @@ test("a estimativa CONTINUA na tabela depois de substituida — e ela mede a pon
   assert.deepEqual(guardadas, [{ amount: "3.47" }], "a previsao foi apagada — a pontaria fica sem contra-prova");
 });
 
-test("⚠️ a substituicao e por PEDIDO, nao por tipo de tarifa", async () => {
-  // COMPORTAMENTO MEDIDO, e ele nao e obvio: basta UMA tarifa real de qualquer
-  // tipo da lista para TODAS as estimativas daquele pedido sairem da leitura.
+test("🔑 a substituicao e por (PEDIDO, TIPO) — a tarifa que nao chegou NAO vira zero", async () => {
+  // ⚠️ ESTE TESTE MUDOU DE INTENCAO EM 01/09/2026, e a anterior fica registrada
+  // porque ela quase foi para producao com aprovacao de todo mundo.
   //
-  // Isto e uma decisao com consequencia: se a Amazon postar so a comissao e
-  // ainda nao a logistica, o pedido passa a exibir SO a comissao real — a
-  // logistica estimada some, e o custo de canal fica MENOR do que era um
-  // instante antes. O lucro sobe sozinho e volta a cair na liquidacao completa.
+  // ATE 31/08/2026 ele exigia o CONTRARIO: que UMA tarifa real de qualquer tipo
+  // tirasse TODAS as estimativas daquele pedido. Eu descrevi isso como "um
+  // numero que oscila em alguns casos" e registrei como comportamento medido.
   //
-  // Fica registrado aqui porque e o tipo de coisa que vira "o numero mudou
-  // sozinho" na tela da vendedora. Se um dia doer, a correcao e tornar a
-  // supersessao por (pedido, fee_type) — e este teste e que vai mudar de
-  // intencao, com a anterior escrita.
+  // ERA MUITO PIOR, e a medicao do Delta no banco de producao mostrou o tamanho:
+  //
+  //   pedidos Amazon com alguma tarifa real ....... 5.503
+  //     com comissao E logistica (completos) ...... 256   (4,7%)
+  //     com comissao e NENHUMA logistica .......... 5.247 (95,3%)
+  //     so com logistica .......................... 0
+  //
+  // Postar em partes e a REGRA, nao a excecao. A supersessao por pedido apagaria
+  // a estimativa de FBA em 95% dos pedidos no instante em que a comissao real
+  // chegasse — e a logistica ainda nao postada passaria a somar ZERO.
+  //
+  // ISSO E O `null != 0` VIOLADO PELO MEIO: tarifa que nao chegou e DESCONHECIDA,
+  // e trata-la como ausente DENTRO DE UMA SOMA e afirmar que ela e zero. A regra
+  // estava escrita na propria migration que a quebrava na view seguinte.
+  //
+  // A correcao (`AND r.fee_type = e.fee_type`, commit f70915a) troca a pergunta:
+  // o real substitui o estimado DAQUELE TIPO, e so dele.
+  //
+  // E o argumento original de nao misturar bases continua valendo pelo outro
+  // lado: a mistura fica VISIVEL, porque `basis` e por linha — o pedido aparece
+  // com comissao actual e FBA estimated, e o card diz quanto ali e estimado
+  // (ADR-027 item 4). O que a regra proibe e um total que FINGE ser de uma base
+  // so. Um total INCOMPLETO e pior que um total de base mista.
   await estimada("P-3", 1, "commission", "ReferralFee", 3.47);
   await estimada("P-3", 1, "fulfillment", "FBAFees", 5.65);
+  // So a comissao e postada — o caso de 95,3% dos pedidos reais.
   await real("P-3", "commission", "Commission", 3.10);
   const linhas = await efetivas("P-3");
-  assert.deepEqual(linhas, [{ fee_type: "commission", amount: "3.10", basis: "actual" }]);
-  assert.ok(
-    !linhas.some((l) => l.fee_type === "fulfillment"),
-    "se a logistica estimada voltou a aparecer, a supersessao mudou de grao — releia a nota acima",
-  );
+  assert.equal(linhas.length, 2, `esperava DUAS linhas e vieram ${linhas.length}: ${JSON.stringify(linhas)}`);
+  assert.deepEqual(linhas, [
+    { fee_type: "commission", amount: "3.10", basis: "actual" },
+    { fee_type: "fulfillment", amount: "5.65", basis: "estimated" },
+  ]);
+  // A afirmacao que importa, dita sem rodeio: a logistica NAO virou zero.
+  const fba = linhas.find((l) => l.fee_type === "fulfillment");
+  assert.ok(fba, "a logistica estimada sumiu — a supersessao voltou a ser por pedido, e 95% dos pedidos perdem a tarifa de FBA");
+  assert.notEqual(fba.amount, "0.00", "logistica desconhecida virou zero dentro da soma");
 });
 
 test("o banco RECUSA gravar 'estimated' como natureza da tarifa", async () => {
@@ -165,9 +188,15 @@ test("estimativa de um inquilino nao aparece na leitura de outro", async () => {
   await dbQuery(`DELETE FROM workspace_channel_order_fee_estimates WHERE workspace_id = $1`, [outro]);
 });
 
-// ═══ VERMELHO CONFERIDO EM 31/08/2026 ═══════════════════════════════════════
+// ═══ VERMELHO CONFERIDO, DUAS VEZES ═════════════════════════════════════════
 //
-// Trocado o `NOT EXISTS` da view por `EXISTS` (uma palavra), o teste da chave
-// reprovou com DUAS linhas para o pedido P-2 — estimada e real somando, que e
-// exatamente o defeito que a migration existe para impedir. View restaurada em
-// seguida.
+// 31/08/2026 — trocado o `NOT EXISTS` da view por `EXISTS` (uma palavra), o
+// teste da chave reprovou com DUAS linhas para o pedido P-2: estimada e real
+// somando, que e o defeito que a migration existe para impedir.
+//
+// 01/09/2026 — removida a linha `AND r.fee_type = e.fee_type` (a correcao do
+// commit f70915a), o teste da supersessao por tipo reprovou com UMA linha no
+// lugar de duas: a logistica estimada desaparecendo porque a COMISSAO real
+// chegou. Em producao isso valeria para 95,3% dos pedidos com tarifa postada.
+//
+// View restaurada do proprio arquivo da migration nas duas vezes.
