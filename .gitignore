@@ -78,3 +78,12 @@ bash.exe.stackdump
 
 # Estado local do canvas Maestri (nunca commitar)
 .maestri/
+
+# Scratch de agente: scripts temporarios de medicao (prefixo _).
+# ⚠️ EXISTE PORQUE ARQUIVO NAO RASTREADO BARRA O APPLY DE MIGRATION:
+# migration-safety.mjs exige worktree limpo, e `git status --porcelain` conta
+# nao rastreado tambem. Em 01/09/2026 isso barrou tres applies em 40 minutos,
+# com scripts temporarios de dois agentes diferentes.
+# ⚠️ E ele ESCONDE arquivo que alguem queria commitar: script que for para ficar
+# nao pode usar o prefixo `_`.
+scripts/_*.mjs

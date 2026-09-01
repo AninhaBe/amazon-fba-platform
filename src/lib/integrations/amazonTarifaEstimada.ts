@@ -200,23 +200,46 @@ export async function estimarTarifasEmLote(
 }
 
 /**
- * Persiste a tarifa estimada dos pedidos que ainda não têm tarifa REAL.
+ * Persiste a tarifa PREVISTA na tabela própria, com GRÃO DE LINHA (ADR-027
+ * Emenda II, `migrations/0022`).
  *
- * ⚠️ COEXISTE COM A REAL, NÃO SOBRESCREVE (ADR-027). A chave primária de
- * `workspace_channel_order_fees` inclui `fee_type` e `provider_fee_code`, então
- * a estimativa entra como `fee_type = 'estimated'` ao lado da comissão real
- * quando ela chegar. É isso que permite medir a pontaria depois — e é por isso
- * que nenhuma migration foi necessária.
+ * ⚠️ ESTA FUNÇÃO ESCREVIA EM `workspace_channel_order_fees` COM
+ * `fee_type = 'estimated'`, E ISSO ACABOU EM 01/09/2026. O motivo é o que o
+ * Delta mediu: com a procedência ocupando o lugar da natureza, previsto e real
+ * não tinham chave comum ('ReferralFee' caía em `other`, 'Commission' em
+ * `commission`), e a substituição virava mapeamento à mão em JS em vez de join.
  *
- * ⚠️ SÓ PARA PEDIDO SEM TARIFA REAL. Um pedido já liquidado tem a tarifa da
- * Amazon; estimar por cima somaria duas vezes na leitura, que soma `fees` sem
- * distinguir. A consulta abaixo exclui quem já tem qualquer tarifa que não seja
- * estorno.
+ * ⚠️ E SE ALGUÉM APONTAR ISTO DE VOLTA PARA A TABELA ANTIGA, O ESTRAGO É MAIOR
+ * QUE ANTES: a primeira ramificação da view `..._efetivas` lê
+ * `workspace_channel_order_fees` INTEIRA e carimba `basis = 'actual'`. Uma linha
+ * `estimated` gravada lá voltaria à tela como se fosse tarifa OFICIAL da Amazon
+ * — exatamente a marca que nos separa do concorrente.
  *
- * ⚠️ E O PREÇO É O DO PEDIDO, NÃO O DE HOJE (ADR-027). Vem de `unit_price`
- * quando a Amazon já expôs, ou de `ordered_gross / qty` — o preço de tabela do
- * próprio pedido, capturado do relatório All Orders. Nunca o preço atual do
- * catálogo: a tarifa que interessa é a daquela venda.
+ * O que muda no comportamento, e é decisão da ADR:
+ * - grão de LINHA (`line_no`), não de pedido — é o que torna o desvio por SKU
+ *   possível quando a oficial chegar;
+ * - `fee_type` no vocabulário canônico: ReferralFee → `commission`, FBAFees →
+ *   `fulfillment`. O rótulo da Amazon vive em `provider_fee_code`;
+ * - `unit_price` e `qty` gravados junto: sem eles o desvio é inatribuível — não
+ *   dá para saber se erramos a tarifa ou se o preço mudou.
+ *
+ * ⚠️ E O FILTRO DE SELEÇÃO MUDOU JUNTO, senão a correção da view não serve para
+ * nada. Antes a consulta excluía o pedido que já tivesse QUALQUER tarifa real.
+ * Com a substituição agora sendo por (pedido, `fee_type`), esse filtro deixaria
+ * sem estimativa de FBA os 95,3% de pedidos que têm comissão real e nenhuma
+ * logística (5.247 de 5.503, medido em 01/09/2026). Agora a exclusão é POR
+ * TIPO: só não se estima o que a Amazon já postou.
+ *
+ * ⚠️ O PREÇO É O DO PEDIDO, NÃO O DE HOJE (ADR-027). Vem de `unit_price` quando
+ * a Amazon já expôs, ou de `ordered_gross / qty` — o preço de tabela do próprio
+ * pedido. Nunca o preço atual do catálogo.
+ *
+ * ⚠️ ZERO DA FONTE É FATO, E É GRAVADO. Medido em 31/08/2026 na conta
+ * `AO62LVXJMX3AA`: a Product Fees API responde `Success` com `Amount: 0` (e
+ * `FeePromotion: 0`) para os ASINs dela, enquanto devolve 12% + FBA R$ 5,65 nos
+ * ASINs do outro vendedor no mesmo minuto — o que aponta para isenção real da
+ * conta, não defeito da chamada. Desconhecido é LINHA AUSENTE; zero é uma linha
+ * com `amount = 0.00`. Confundir os dois é o `null != 0` do AGENTS.md.
  */
 export async function estimarTarifaDosPedidosSemTarifa(
   connectionId: string,
@@ -227,22 +250,28 @@ export async function estimarTarifaDosPedidosSemTarifa(
   const workspaceId = currentWorkspaceId();
 
   const linhas = await dbQuery<{
-    external_order_id: string; external_product_id: string; qty: number;
+    external_order_id: string; line_no: number; external_product_id: string; qty: number;
     unit_price: string | null; preco_de_tabela: string | null;
+    tem_comissao_real: boolean; tem_logistica_real: boolean;
   }>(
-    `SELECT i.external_order_id, i.external_product_id, i.qty, i.unit_price,
-            (o.ordered_gross / NULLIF(SUM(i.qty) OVER (PARTITION BY i.external_order_id), 0))::text AS preco_de_tabela
+    `SELECT i.external_order_id, i.line_no, i.external_product_id, i.qty, i.unit_price,
+            (o.ordered_gross / NULLIF(SUM(i.qty) OVER (PARTITION BY i.external_order_id), 0))::text AS preco_de_tabela,
+            EXISTS (SELECT 1 FROM workspace_channel_order_fees f
+                     WHERE f.workspace_id = i.workspace_id AND f.provider = i.provider
+                       AND f.connection_id = i.connection_id
+                       AND f.external_order_id = i.external_order_id
+                       AND f.fee_type = 'commission')  AS tem_comissao_real,
+            EXISTS (SELECT 1 FROM workspace_channel_order_fees f
+                     WHERE f.workspace_id = i.workspace_id AND f.provider = i.provider
+                       AND f.connection_id = i.connection_id
+                       AND f.external_order_id = i.external_order_id
+                       AND f.fee_type = 'fulfillment') AS tem_logistica_real
        FROM workspace_channel_order_items i
        JOIN workspace_channel_orders o
          ON o.workspace_id = i.workspace_id AND o.provider = i.provider
         AND o.connection_id = i.connection_id AND o.external_order_id = i.external_order_id
       WHERE i.workspace_id = $1 AND i.provider = 'amazon' AND i.connection_id = $2
-        AND NOT EXISTS (
-          SELECT 1 FROM workspace_channel_order_fees f
-           WHERE f.workspace_id = i.workspace_id AND f.provider = i.provider
-             AND f.connection_id = i.connection_id AND f.external_order_id = i.external_order_id
-             AND f.fee_type NOT IN ('refund', 'estimated')
-        )
+        AND o.status <> 'cancelled'
       ORDER BY o.occurred_at DESC
       LIMIT $3`,
     [workspaceId, connectionId, limite],
@@ -261,34 +290,77 @@ export async function estimarTarifaDosPedidosSemTarifa(
     comPreco.map((linha) => ({ asin: linha.external_product_id, preco: precoDe(linha)! })),
   );
 
-  // Soma por pedido e por tipo de tarifa da Amazon: uma linha por
-  // (pedido, 'estimated', ReferralFee/FBAFees/…), preservando a decomposição que
-  // vira a procedência no tooltip. Recalcular o total por fora daria outro número.
-  const porPedido = new Map<string, Map<string, number>>();
-  for (const linha of comPreco) {
-    const estimativa = estimativas.get(chaveDe({ asin: linha.external_product_id, preco: precoDe(linha)! }));
-    if (!estimativa) continue;
-    const tipos = porPedido.get(linha.external_order_id) ?? new Map<string, number>();
-    for (const detalhe of estimativa.detalhes) {
-      tipos.set(detalhe.tipo, +((tipos.get(detalhe.tipo) ?? 0) + detalhe.valor * linha.qty).toFixed(2));
-    }
-    porPedido.set(linha.external_order_id, tipos);
-  }
+  /**
+   * O vocabulário canônico, e ele é a razão de existir da tabela nova: é esta
+   * tradução que faz previsto e real terem a MESMA chave e a substituição virar
+   * join. Tipo fora do mapa cai em `other` — nunca em `estimated`, que o CHECK
+   * do banco recusa de propósito.
+   */
+  const NATUREZA: Record<string, string> = {
+    ReferralFee: "commission",
+    FBAFees: "fulfillment",
+    VariableClosingFee: "other",
+    PerItemFee: "other",
+  };
 
+  const pedidosTocados = new Set<string>();
   let gravadas = 0;
-  for (const [pedido, tipos] of porPedido) {
-    for (const [tipo, valor] of tipos) {
+  for (const linha of comPreco) {
+    const preco = precoDe(linha)!;
+    const estimativa = estimativas.get(chaveDe({ asin: linha.external_product_id, preco }));
+    if (!estimativa) continue;
+    for (const detalhe of estimativa.detalhes) {
+      const natureza = NATUREZA[detalhe.tipo] ?? "other";
+      // Só não se estima o que a Amazon JÁ POSTOU daquele tipo.
+      if (natureza === "commission" && linha.tem_comissao_real) continue;
+      if (natureza === "fulfillment" && linha.tem_logistica_real) continue;
       await dbQuery(
-        `INSERT INTO workspace_channel_order_fees
-           (workspace_id, provider, connection_id, external_order_id, fee_type, provider_fee_code, amount, currency)
-         VALUES ($1, 'amazon', $2, $3, 'estimated', $4, $5, 'BRL')
-         ON CONFLICT (workspace_id, provider, connection_id, external_order_id, fee_type, provider_fee_code)
-         DO UPDATE SET amount = EXCLUDED.amount
-          WHERE workspace_channel_order_fees.amount IS DISTINCT FROM EXCLUDED.amount`,
-        [workspaceId, connectionId, pedido, tipo, valor],
+        `INSERT INTO workspace_channel_order_fee_estimates
+           (workspace_id, provider, connection_id, external_order_id, line_no, fee_type,
+            provider_fee_code, amount, currency, unit_price, qty, source)
+         VALUES ($1, 'amazon', $2, $3, $4, $5, $6, $7, 'BRL', $8, $9, 'product_fees_api')
+         ON CONFLICT (workspace_id, provider, connection_id, external_order_id, line_no, fee_type)
+         DO UPDATE SET amount = EXCLUDED.amount, provider_fee_code = EXCLUDED.provider_fee_code,
+                       unit_price = EXCLUDED.unit_price, qty = EXCLUDED.qty, estimated_at = now()
+          WHERE workspace_channel_order_fee_estimates.superseded_at IS NULL`,
+        [workspaceId, connectionId, linha.external_order_id, linha.line_no, natureza,
+         detalhe.tipo, +(detalhe.valor * linha.qty).toFixed(2), preco, linha.qty],
       );
       gravadas += 1;
+      pedidosTocados.add(linha.external_order_id);
     }
   }
-  return { pedidos: porPedido.size, linhas: gravadas, chaves: estimativas.size };
+  return { pedidos: pedidosTocados.size, linhas: gravadas, chaves: estimativas.size };
+}
+
+/**
+ * Carimba `superseded_at` nas estimativas cujo tipo já foi postado pela Amazon.
+ *
+ * ⚠️ A LINHA NUNCA É APAGADA — é ela que permite medir a pontaria (ADR-027 §5).
+ * O carimbo separa "previsão vigente" de "previsão já conferida", e é lido por
+ * coluna em vez de subconsulta na tela.
+ *
+ * Por (pedido, `fee_type`), pela mesma razão do resto: a comissão oficial não
+ * substitui a estimativa de logística que a Amazon ainda não postou.
+ */
+export async function carimbarEstimativasSubstituidas(connectionId: string): Promise<number> {
+  const { dbQuery } = await import("../db");
+  const { currentWorkspaceId } = await import("../workspaceScope");
+  const linhas = await dbQuery<{ n: string }>(
+    `WITH carimbadas AS (
+       UPDATE workspace_channel_order_fee_estimates e
+          SET superseded_at = now()
+        WHERE e.workspace_id = $1 AND e.provider = 'amazon' AND e.connection_id = $2
+          AND e.superseded_at IS NULL
+          AND EXISTS (SELECT 1 FROM workspace_channel_order_fees r
+                       WHERE r.workspace_id = e.workspace_id AND r.provider = e.provider
+                         AND r.connection_id = e.connection_id
+                         AND r.external_order_id = e.external_order_id
+                         AND r.fee_type = e.fee_type)
+        RETURNING 1
+     )
+     SELECT COUNT(*)::text AS n FROM carimbadas`,
+    [currentWorkspaceId(), connectionId],
+  );
+  return Number(linhas[0]?.n ?? 0);
 }
