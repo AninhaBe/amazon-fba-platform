@@ -359,10 +359,17 @@ tratá-la como ausente dentro de uma soma afirma que ela é zero. O sintoma seri
 pior tipo — o custo do pedido encolhendo sozinho quando a comissão é postada, o
 lucro subindo, e caindo de novo quando a logística entra.
 
-E "não misturar bases" continua respeitado, porque a mistura fica **visível**:
-`basis` é por linha, o pedido aparece com as duas marcas, e o card diz quanto ali
-é estimado (item 4). O que a regra proíbe é um total que **finge** ser de uma base
-só — não um total completo que declara a procedência de cada parte.
+### A regra que sai daqui, e vale além da 0022
+
+> **Um total incompleto é pior que um total de base mista** — desde que a mistura
+> seja **visível**, com a procedência por linha e o card dizendo quanto ali é
+> estimado. O que a regra da casa proíbe é o total que **finge** ser de uma base
+> só.
+
+Aceita pelo cérebro em 01/09/2026, com estas palavras. `basis` é por linha, então
+o pedido com comissão oficial e FBA estimado aparece com as duas marcas — e o
+leitor sabe o que está olhando. Um total que omite a parcela desconhecida não
+avisa nada: ele só está errado, e errado para baixo.
 
 **Pontaria por SKU sem rateio.** Dos 20.380 pedidos Amazon, **20.241 têm uma
 linha só** — nesses o desvio por SKU é exato. Nos 139 multi-item o SKU fica

@@ -845,3 +845,29 @@ Relacionado: [ADR-001](./ADR-001-modelo-canonico.md) ·
 [ADR-002](./ADR-002-cache-swr.md) ·
 [ADR-016](./ADR-016-ciclo-de-vida-do-dado.md) ·
 [`../architecture/read-and-cache.md`](../architecture/read-and-cache.md)
+
+## Adendo de 01/09/2026 — revisão de desenho não substitui olhar a tela
+
+Registrado a pedido do cérebro, depois da terceira vez no mesmo dia em que a
+consequência na tela achou o que o raciocínio não achou.
+
+Na [ADR-027](./ADR-027-tarifa-estimada-ate-a-liquidacao.md), a view de tarifa
+efetiva substituía a estimativa **por pedido**. A justificativa soava certa e
+citava um princípio real da casa ("não misturar bases"). Ela passou pelo desenho
+de quem propôs, pelo portão de quem aprovou e pelo texto do ADR.
+
+Quem pegou o defeito foi quem foi **implementar**, e a pergunta que o pegou não
+foi sobre schema: foi **"o que a pessoa vê quando isso acontece?"**. A resposta
+era um custo que encolhe sozinho quando a comissão é postada, o lucro subindo, e
+caindo de novo quando a logística entra. Medido depois: aconteceria em **95,3%**
+dos pedidos.
+
+**A prática que fica:** antes de fechar um desenho que alimenta a tela, perguntar
+o que a pessoa vê em cada estado intermediário — não só se o modelo está correto
+no estado final. Estado transitório invisível na modelagem é visível para quem
+usa, e é lá que a credibilidade se perde.
+
+⚠️ E o corolário, que é sobre medir: quem achou o defeito o descreveu como "um
+número que oscila em alguns casos". Era 95,3% dos pedidos. **Errar o tamanho de
+um problema em duas ordens de grandeza decide se ele vira nota de rodapé ou
+bloqueio** — então a frequência se mede antes de classificar, não depois.
