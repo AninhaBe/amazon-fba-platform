@@ -88,7 +88,12 @@ test("o que FALTA vem em campo proprio, para a tela renderizar sem hover", () =>
   const cards = amazonFinancialCards({ ...base, baseDoLucro: 1270.13, pedidosSemValor: 40 });
   for (const key of ["marginPct", "profit"]) {
     assert.ok(carta(cards, key).baseDeclarada, `${key} precisa expor em campo proprio`);
-    assert.match(carta(cards, key).baseDeclarada, /40 pedidos ainda sem custo e tarifa/);
+  // ⚠️ A FRASE MUDOU DE PROPOSITO EM 01/09/2026, e este vermelho foi legitimo.
+  // Ela dizia "ainda sem custo e tarifa apurados" e apontava o componente
+  // ERRADO: o que falta nesses pedidos e o VALOR, que a Amazon nao publicou.
+  // Custo e tarifa nos temos — a tarifa observada cobria 12 dos 13 ASINs do dia.
+  // A frase antiga mandava cadastrar custo que ja estava cadastrado.
+    assert.match(carta(cards, key).baseDeclarada, /40 pedidos ainda sem valor publicado pela Amazon/);
     assert.doesNotMatch(carta(cards, key).baseDeclarada, /apurados de/);
   }
 });

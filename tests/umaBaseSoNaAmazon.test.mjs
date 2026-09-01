@@ -103,7 +103,15 @@ test("pedido sem valor publicado e APONTADO com numero, nunca somado como zero",
     pedidosSemValor: 19,
   });
   const lucro = cards.find((c) => c.key === "profit");
-  assert.match(lucro.baseDeclarada ?? "", /19 pedidos ainda sem custo e tarifa apurados/);
+  // ⚠️ A FRASE MUDOU DE PROPOSITO EM 01/09/2026, e este vermelho foi legitimo.
+  // Ela dizia "ainda sem custo e tarifa apurados" e apontava o componente
+  // ERRADO: o que falta nesses pedidos e o VALOR, que a Amazon nao publicou.
+  // Custo e tarifa nos temos — a tarifa observada cobria 12 dos 13 ASINs do dia.
+  // A frase antiga mandava cadastrar custo que ja estava cadastrado.
+  // Este caso NAO informa `pedidosNaBase`, e a frase sai sem o denominador de
+  // proposito: "19 de ?" seria pior que "19". O "N de M" tem guarda propria em
+  // tests/margemNaoAfirmaSobreMinoria.test.mjs, onde o total e informado.
+  assert.match(lucro.baseDeclarada ?? "", /^19 pedidos ainda sem valor publicado pela Amazon/);
   assert.doesNotMatch(lucro.baseDeclarada ?? "", /parcial|incompleto/i);
 });
 
@@ -116,7 +124,12 @@ test("sem pedido sem valor, a frase do que falta NAO aparece", () => {
     pedidosSemValor: 0,
   });
   const lucro = cards.find((c) => c.key === "profit");
-  assert.doesNotMatch(lucro.baseDeclarada ?? "", /ainda sem custo e tarifa/);
+  // ⚠️ A FRASE MUDOU DE PROPOSITO EM 01/09/2026, e este vermelho foi legitimo.
+  // Ela dizia "ainda sem custo e tarifa apurados" e apontava o componente
+  // ERRADO: o que falta nesses pedidos e o VALOR, que a Amazon nao publicou.
+  // Custo e tarifa nos temos — a tarifa observada cobria 12 dos 13 ASINs do dia.
+  // A frase antiga mandava cadastrar custo que ja estava cadastrado.
+  assert.doesNotMatch(lucro.baseDeclarada ?? "", /ainda sem valor publicado/);
 });
 
 test("a tarifa estimada e MARCADA na face do card, com quanto e de quantos pedidos", () => {
@@ -334,7 +347,12 @@ test("os 19 pedidos sem valor sinalizam, e NAO encolhem a base", () => {
   // A base continua sendo o faturamento INTEIRO, com os 19 dentro.
   assert.equal(margem.raw.toFixed(1), "44.6");
   // E a tela diz o que falta, com numero, sem a palavra proibida.
-  assert.match(lucro.baseDeclarada ?? "", /19 pedidos ainda sem custo e tarifa/);
+  // ⚠️ A FRASE MUDOU DE PROPOSITO EM 01/09/2026, e este vermelho foi legitimo.
+  // Ela dizia "ainda sem custo e tarifa apurados" e apontava o componente
+  // ERRADO: o que falta nesses pedidos e o VALOR, que a Amazon nao publicou.
+  // Custo e tarifa nos temos — a tarifa observada cobria 12 dos 13 ASINs do dia.
+  // A frase antiga mandava cadastrar custo que ja estava cadastrado.
+  assert.match(lucro.baseDeclarada ?? "", /19 pedidos ainda sem valor publicado pela Amazon/);
   assert.doesNotMatch(lucro.baseDeclarada ?? "", /parcial|incompleto/i);
 });
 

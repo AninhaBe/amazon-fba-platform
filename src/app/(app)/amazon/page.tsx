@@ -117,6 +117,7 @@ interface ProfitData {
   revenueDoLucro?: number;
   /** Pedidos que a Amazon ainda não valorizou — fora da base, apontados com número. */
   pedidosSemValor?: number;
+  pedidosNaBase?: number;
   /** Quanto das tarifas é estimativa da Amazon (ADR-027), para a marca na tela. */
   feesEstimadas?: number;
   pedidosComTarifaEstimada?: number;
@@ -513,6 +514,7 @@ function Dashboard() {
         cogs: payload.profit.cogs,
         revenueDoLucro: payload.profit.revenueDoLucro,
         pedidosSemValor: payload.profit.pedidosSemValor,
+        pedidosNaBase: payload.profit.pedidosNaBase,
         feesEstimadas: payload.profit.feesEstimadas,
         pedidosComTarifaEstimada: payload.profit.pedidosComTarifaEstimada,
         estimatedProfit: payload.profit.estimatedProfit,
@@ -912,6 +914,7 @@ function Dashboard() {
           // sair sobre o apurado e reaparecem os −90,5% / +120,9%.
           baseDoLucro: profit?.revenueDoLucro ?? null,
           pedidosSemValor: profit?.pedidosSemValor ?? 0,
+          pedidosNaBase: profit?.pedidosNaBase ?? 0,
           feesEstimadas: profit?.feesEstimadas ?? null,
           pedidosComTarifaEstimada: profit?.pedidosComTarifaEstimada ?? 0,
           refunds: profit?.refunds ?? 0,

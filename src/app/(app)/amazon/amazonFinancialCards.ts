@@ -93,6 +93,12 @@ export interface AmazonCardsInput {
    * aponta com número, nunca com a palavra "parcial".
    */
   pedidosSemValor?: number;
+  /**
+   * Total de pedidos do período na base. Serve para a tela dizer "30 de 31" em
+   * vez de "30" — sem o denominador, o número não diz se é quase tudo ou quase
+   * nada, e é dele que sai a decisão de afirmar ou não a margem.
+   */
+  pedidosNaBase?: number;
   /** Quanto do total de tarifas é estimativa da Amazon (ADR-027). */
   feesEstimadas?: number | null;
   /** Quantos pedidos entraram com tarifa estimada em vez de postada. */
@@ -466,10 +472,38 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
   // os conta) e não têm custo nem tarifa nossa. Isso NÃO encolhe a base: torna o
   // lucro otimista, e o jeito certo de tratar é DIZER isso ao lado.
   const semValor = input.pedidosSemValor ?? 0;
+  const naBase = input.pedidosNaBase ?? 0;
+  // ⚠️ A FRASE DIZIA A COISA ERRADA (01/09/2026). Estava "sem custo e tarifa
+  // apurados", e o que falta nesses pedidos e o VALOR: a Amazon ainda nao
+  // publicou preco para eles. Custo e tarifa nos ate temos — a tarifa observada
+  // cobre 12 dos 13 ASINs do dia. Apontar o componente errado manda a pessoa
+  // cadastrar custo que ja esta cadastrado.
   const faltaValor =
     semValor > 0
-      ? `${semValor} pedido${semValor > 1 ? "s" : ""} ainda sem custo e tarifa apurados — o lucro tende a melhorar quando entrarem`
+      ? `${semValor}${naBase > 0 ? ` de ${naBase}` : ""} pedido${semValor > 1 ? "s" : ""} ainda sem valor publicado pela Amazon`
       : null;
+  /**
+   * A MARGEM DEIXA DE SER AFIRMADA QUANDO A BASE COBRE A MINORIA (01/09/2026).
+   *
+   * ⚠️ O DEFEITO QUE ISTO REPROVA — a sexta forma da familia "numerador de um
+   * universo, denominador de outro", medida na Silveiras Import: a tela exibia
+   * Faturamento de 31 pedidos (que vem do `orderMetrics`, agregado) e afirmava
+   * "Margem 91,7%" calculada sobre UM pedido, o unico que a Amazon valorizou.
+   * Nenhum dos dois numeros estava errado sozinho; a afirmacao de que o segundo
+   * descreve o periodo do primeiro e que era falsa.
+   *
+   * 📌 O CORTE E A MAIORIA, e a escolha e deliberada: um percentual so descreve
+   * o periodo se cobrir mais do que omite. Nao e um limiar de tolerancia
+   * escolhido a dedo — e a fronteira em que a frase "a margem do periodo" para
+   * de ser verdadeira. Medido no mesmo dia: em 30 dias sao 1.625 pedidos na base
+   * e a margem de 21,3% segue afirmada, porque a cobertura la e quase total; e
+   * so o recorte "Hoje" que cai do lado errado da linha.
+   *
+   * E o numero continua na tela nos dois casos — o que sai e a AFIRMACAO, nao a
+   * informacao. Quem tem 30 de 31 pedidos sem valor precisa ler isso, nao um
+   * percentual que muda sozinho amanha.
+   */
+  const baseCobreAMinoria = naBase > 0 && semValor * 2 > naBase;
   // Quanto do total de tarifas é estimativa (ADR-027).
   //
   // ⚠️ A CONDIÇÃO É "HÁ PEDIDO ESTIMADO", NÃO "O VALOR É MAIOR QUE ZERO".
@@ -637,9 +671,11 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
     },
     {
       key: "marginPct", label: "Margem",
-      value: margem == null ? "—" : percent(margem),
-      context: margem == null
-        ? (custoIncompleto ? faltaCusto : "Aguardando receita e lucro completos")
+      value: margem == null || baseCobreAMinoria ? "—" : percent(margem),
+      context: margem == null || baseCobreAMinoria
+        ? (baseCobreAMinoria
+            ? faltaValor!
+            : custoIncompleto ? faltaCusto : "Aguardando receita e lucro completos")
         // A divergencia deste cartao ja e declarada em `baseDeclarada` logo
         // abaixo, entao aqui a peca so NOMEIA — e o prefixo guarda a palavra
         // "Lucro", sem a qual a frase fica ambigua sobre QUAL numero declara.
@@ -647,8 +683,13 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
             nomeDaBase({ prefixo: "Lucro", rotuloDaBase: "o faturamento do período" }),
             input.taxRate == null,
           ),
-      tone: margem == null ? "default" : margem > 0 ? "positive" : margem < 0 ? "danger" : "default",
-      raw: margem,
+      tone: margem == null || baseCobreAMinoria
+        ? "default"
+        : margem > 0 ? "positive" : margem < 0 ? "danger" : "default",
+      // `raw` continua com o numero: quem consome o dado bruto (export, teste,
+      // grafico) recebe o que foi calculado. O que a tela para de fazer e
+      // AFIRMAR que ele descreve o periodo.
+      raw: baseCobreAMinoria ? null : margem,
       baseDeclarada: notaDoLucro,
     },
     {
