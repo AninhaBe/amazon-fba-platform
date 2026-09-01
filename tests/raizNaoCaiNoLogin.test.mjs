@@ -16,25 +16,47 @@ const semComentarios = (codigo) => codigo.replace(/\/\*[\s\S]*?\*\//g, "").repla
 // ⚠️ ESTE E O TESTE QUE ALGUEM DESFAZ SEM PERCEBER ao mexer na lista de rotas
 // publicas do proxy. E por isso ele casa a RAIZ na lista, e nao o tamanho dela.
 
-// ⚠️ `todo` ENQUANTO A METADE DO BACKEND NAO CHEGA — e nao porque e opcional.
+// ⚠️ A PRIMEIRA VERSAO DESTA GUARDA PEDIA UMA IMPLEMENTACAO PERIGOSA.
 //
-// Tirar "/" da protecao e servir a landing mora em src/lib/supabase/proxy.ts,
-// que e do backend (docs/donos-da-arvore.md:33). Este teste ja descreve o
-// contrato acordado; ele fica VERMELHO de proposito ate a regra existir, e
-// `todo` e o unico jeito de registrar isso sem travar o portao de todo mundo.
+// Eu tinha escrito "a raiz precisa estar em publicPaths". O backend recusou, e
+// estava certo: `publicPaths` e avaliado com
+// `publicPaths.some((path) => pathname.startsWith(path))` — com "/" na lista,
+// TODA rota do app vira publica. /amazon, /configuracoes, /admin, tudo. Seria
+// trocar "a primeira tela e um formulario de login" por "o produto inteiro esta
+// aberto".
 //
-// QUANDO O BACKEND ENTREGAR: tire o `{ todo: ... }` e o teste passa a valer como
-// qualquer outro. Se alguem tirar a raiz da lista depois disso, ele fica
-// vermelho — que e o motivo de ele existir.
-test("a RAIZ e publica — visitante sem sessao nao cai no formulario de login", { todo: "aguardando a regra no proxy (backend)" }, async () => {
+// A assercao abaixo passou a casar a ramificacao REAL (excecao para o caminho
+// EXATO "/", antes do bloco de rota protegida) — e ganhou a linha que reprova a
+// implementacao que eu mesma tinha pedido. Guarda que aceita a versao insegura
+// de um conserto e pior que guarda nenhuma: ela CARIMBA a versao insegura.
+
+test("a RAIZ serve a landing — visitante sem sessao nao cai no formulario de login", async () => {
   const proxy = await fonte("src/lib/supabase/proxy.ts");
   const codigo = semComentarios(proxy);
-  // A raiz precisa estar entre os caminhos publicos. Sem isso, o `!isPublic`
-  // manda para /login?next=/ e o pedido dela volta a nao valer.
+
+  // A excecao e para o caminho EXATO, e so para quem nao tem sessao.
   assert.match(
     codigo,
-    /publicPaths[\s\S]{0,600}["']\/["']/,
-    "a raiz saiu da lista publica — o visitante voltou a cair no login",
+    /!authenticated && request\.nextUrl\.pathname === "\/"/,
+    "a raiz voltou a cair no bloco de rota protegida",
+  );
+
+  // REWRITE, nao redirect: o endereco tem de continuar sendo a raiz, que e o
+  // que ela divulga. `redirect` trocaria a barra por /landing e quebraria o
+  // link do cartao.
+  const ramo = codigo.slice(codigo.indexOf('!authenticated && request.nextUrl.pathname === "/"'));
+  assert.match(ramo.slice(0, 300), /NextResponse\.rewrite/, "a raiz voltou a redirecionar em vez de servir");
+  assert.ok(!/NextResponse\.redirect/.test(ramo.slice(0, 300)), "o endereco da raiz voltaria a mudar na barra");
+});
+
+test("⚠️ a raiz NAO pode entrar em publicPaths — seria abrir o app inteiro", async () => {
+  // A assercao mais importante deste arquivo, e a que nasceu de um erro meu.
+  // `startsWith("/")` casa com QUALQUER caminho.
+  const proxy = await fonte("src/lib/supabase/proxy.ts");
+  const lista = proxy.slice(proxy.indexOf("const publicPaths"), proxy.indexOf("];", proxy.indexOf("const publicPaths")));
+  assert.ok(
+    !/["']\/["']\s*[,\]]/.test(semComentarios(lista)),
+    "a raiz entrou em publicPaths: com startsWith isso torna TODAS as rotas publicas",
   );
 });
 
