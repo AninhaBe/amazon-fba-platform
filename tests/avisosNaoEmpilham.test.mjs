@@ -40,13 +40,23 @@ test("CORTE 1 — os sinais aparecem UMA vez por tela, nao um por cartao", async
 test("e NENHUM sinal desapareceu — a lista continua na tela", async () => {
   // A condicao que atravessa os tres cortes. Um corte que zera a lista e pior
   // que o empilhamento.
+  // ⚠️ O TIKTOK ENTROU AQUI EM 01/09/2026, e a ausencia dele era um buraco: a
+  // rodada de quebras mostrou que APAGAR os sinais do TikTok nao era pego por
+  // teste nenhum. A lista cobria tres canais e a regra vale para os quatro —
+  // exatamente o defeito que o guard do BriefingLead teve, numa tela de fora.
   for (const tela of [
     "src/app/components/MercadoLivreWorkspace.tsx",
     "src/app/components/ShopeeWorkspace.tsx",
     "src/app/amazon/page.tsx",
+    "src/app/components/TikTokWorkspace.tsx",
+    "src/app/components/ShopeeModulePage.tsx",
   ]) {
     const codigo = semComentarios(await fonte(tela));
-    assert.match(codigo, /<SinaisDoResultado sinais=\{sinais\} \/>/, `${tela}: os sinais sumiram de vez`);
+    // ⚠️ O NOME DA VARIAVEL NAO E PARTE DA REGRA: a primeira versao casava
+    // `sinais={sinais}` literal e reprovou o ShopeeModulePage, que chama a lista
+    // de `sinaisDaTela`. Guarda que so aceita um nome ensina a renomear para
+    // fugir dela.
+    assert.match(codigo, /<SinaisDoResultado\s+sinais=\{\w+\}\s*\/>/, `${tela}: os sinais sumiram de vez`);
   }
 });
 

@@ -102,3 +102,69 @@ test("componentes de atencao ausentes CONTINUAM ausentes onde ja se concluiu que
   assert.ok(!/<SinaisDoResultado/.test(codigo), "o modulo do TikTok ganhou sinais — passe pela regra do corte 1");
   assert.ok(!/<SincronizacaoCompleta/.test(codigo), "o modulo do TikTok ganhou uma segunda faixa de progresso");
 });
+
+test("sinal NAO mora dentro do value de um Flow", async () => {
+  // ⚠️ O TikTok era o unico canal assim, e a forma tinha chegado ali POR COPIA:
+  // ela existia no Flow da Shopee e saiu na auditoria de empilhamento. Tres
+  // canais de um jeito e um de outro e o que a regra de replicar nos quatro
+  // existe para impedir — inconsistencia entre canais cobra juros, porque quem
+  // mexer no canal amanha copia o padrao errado.
+  //
+  // O sinal e ALARME (pede acao). O lugar dele e um bloco proprio: dentro do
+  // `value` ele vira parte do dado, que e a categoria "informacao colada ao
+  // numero" e nao a dele.
+  //
+  // ⚠️ A DETECCAO ANDA PARA TRAS CONTANDO CHAVES, e nao por regex de janela
+  // fixa. A primeira versao casava `value={` ate 400 caracteres a frente e
+  // reprovou a Amazon, cujo sinal esta num bloco proprio — o regex tinha
+  // engolido codigo ate alcancar um `<SinaisDoResultado` distante. Guarda nova
+  // que nasce fragil e a forma mais rapida de ensinar o time a ignorar guarda.
+  const LIMITE = 2000; // ate onde vale procurar o `value` que envolve — alem disso o texto ja e outro componente
+  const dentroDeValue = (codigo, posicao) => {
+    let profundidade = 0;
+    for (let i = posicao - 1; i >= 0; i -= 1) {
+      const c = codigo[i];
+      if (c === "}") profundidade += 1;
+      else if (c === "{") {
+        if (profundidade > 0) { profundidade -= 1; continue; }
+        // Chave de nivel 0: ENVOLVE a posicao. Se for a do `value`, achamos; se
+        // nao, seguimos PARA FORA — o sinal pode estar dentro de um fragmento
+        // aninhado no value, que foi como a rodada de quebras o devolveu ali
+        // (`value={cond ? <>{numero}{sinal}</> : "—"}`). Parar na primeira
+        // chave deixava essa forma passar.
+        if (codigo.slice(Math.max(0, i - 6), i).endsWith("value=")) return true;
+        if (posicao - i > LIMITE) return false;
+      }
+    }
+    return false;
+  };
+  // ⚠️ A AMAZON E A UNICA QUE AINDA POE O SINAL DENTRO DO `value` (do Flow de
+  // Margem, `amazon/page.tsx`). Achado de 01/09/2026, DEPOIS de o TikTok ser
+  // alinhado: a ordem partia de "os outros tres ja estao certos" e isso era
+  // falso — os outros tres sao ML, Shopee e o modulo da Shopee. Mover peca da
+  // tela dela nao entrou em nenhuma aprovacao, entao a excecao fica NOMEADA
+  // aqui em vez de a guarda ser afrouxada em silencio.
+  //
+  // A excecao SE LIMPA SOZINHA: a assercao logo abaixo exige que a Amazon
+  // continue nesse estado. No dia em que alguem mover o sinal para um bloco
+  // proprio, este teste fica vermelho pedindo para APAGAR a excecao — nunca o
+  // contrario. Excecao que sobrevive ao defeito e o jeito de a guarda morrer.
+  const PENDENTE = ["amazon/page.tsx"];
+  const dentroDoValue = [];
+  for (const arquivo of await arquivosDeTela()) {
+    const codigo = semComentarios(await readFile(arquivo, "utf8"));
+    let de = codigo.indexOf("<SinaisDoResultado");
+    while (de >= 0) {
+      if (dentroDeValue(codigo, de)) dentroDoValue.push(nome(arquivo));
+      de = codigo.indexOf("<SinaisDoResultado", de + 1);
+    }
+  }
+  const novos = dentroDoValue.filter((n) => !PENDENTE.includes(n));
+  assert.deepEqual(novos, [], `sinal dentro do value de um Flow em: ${novos.join(", ")}`);
+  for (const pendente of PENDENTE) {
+    assert.ok(
+      dentroDoValue.includes(pendente),
+      `${pendente} ja nao poe o sinal dentro do value — APAGUE a entrada de PENDENTE`,
+    );
+  }
+});

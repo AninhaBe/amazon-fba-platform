@@ -480,7 +480,7 @@ export function TikTokWorkspace() {
                 onToggle={() => setCostsOpen((open) => !open)}
                 items={costCards.map((card) => ({ label: card.label, value: card.value }))}
               />
-              <Flow label={resultReady ? "Lucro" : "Lucro indisponível"} value={resultReady ? <>{primaryCards.find((card) => card.key === "profit")?.value ?? "—"}{sinais.length > 0 && <SinaisDoResultado sinais={sinais} />}</> : "—"} sign="=" accent tone={!resultReady ? "default" : data.overview.profit! > 0 ? "positive" : data.overview.profit! < 0 ? "danger" : "default"} />
+              <Flow label={resultReady ? "Lucro" : "Lucro indisponível"} value={resultReady ? primaryCards.find((card) => card.key === "profit")?.value ?? "—" : "—"} sign="=" accent tone={!resultReady ? "default" : data.overview.profit! > 0 ? "positive" : data.overview.profit! < 0 ? "danger" : "default"} />
               <Flow
                 label="Margem"
                 value={resultReady ? primaryCards.find((card) => card.key === "marginPct")?.value ?? "—" : "—"}
@@ -488,6 +488,21 @@ export function TikTokWorkspace() {
                 tone={!resultReady ? "default" : marginMetricTone(data.overview.marginPct)}
               />
           </FinancialSummaryPanel>
+          {/*
+            ⚠️ OS SINAIS SAIRAM DE DENTRO DO `value` DO FLOW (01/09/2026).
+
+            Era o unico canal onde o sinal morava DENTRO do numero, em vez de num
+            bloco proprio — e foi exatamente essa forma que saiu do Flow da
+            Shopee na auditoria de empilhamento. Tres canais de um jeito e um de
+            outro e o que a regra de replicar nos quatro existe para impedir.
+
+            Nao era urgente: aparecia uma vez so e nao suprimia nada. Mas
+            inconsistencia entre canais cobra juros — quem mexesse no TikTok
+            amanha copiaria o padrao errado, e a proxima varredura o acharia de
+            novo. A guarda de `varreduraPorComponente` passou a reprovar sinal
+            dentro do `value` de um Flow, para a forma nao voltar por copia.
+          */}
+          {sinais.length > 0 && <SinaisDoResultado sinais={sinais} />}
         </section>
         <div className="tiktok-dashboard-drilldowns">
           <details className="tiktok-financial-components">
