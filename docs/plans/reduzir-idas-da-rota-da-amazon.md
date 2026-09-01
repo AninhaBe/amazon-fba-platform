@@ -127,7 +127,7 @@ de otimização.
 | A — três de tarifa viram uma | −2 | nenhum |
 | B — duas de item viram uma | −1 | nenhum |
 | C — escalares somados do diário | até −2 | médio, verificar fan-out do lateral |
-| D — recentes derivados dos detalhados | −1 | baixo, condicionado ao limite e ao status |
+| ~~D — recentes derivados dos detalhados~~ | — | 🔴 **REFUTADO**: hoje 10 de 10 recentes sao `pending` e sumiriam da tela |
 
 **17 → 12 no melhor caso**, sendo **−3 sem risco nenhum** (D caiu).
 
@@ -137,8 +137,8 @@ todos os valores idênticos — inclusive a soma da série (32.488,61), os 1.564
 pedidos e as 1.886 unidades. É a prova pelo produtor de que o `LATERAL` não
 infla, batendo com a verificação por fora.
 
-⚠️ **E isso ainda não basta para a barreira.** Com 11 idas, o carimbo em três
-idas por consulta daria 33 — ainda acima do que o orçamento comporta. Este
+⚠️ **E isso ainda não basta para a barreira.** Com 12 idas, o carimbo em três
+idas por consulta daria 36 — ainda acima do que o orçamento comporta. Este
 levantamento é o primeiro passo, não o suficiente: a próxima pergunta é se parte
 do trabalho pode sair do caminho da requisição (cache com invalidação por evento,
 ou pré-agregação), e essa é uma decisão de arquitetura, não de consulta.
