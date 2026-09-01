@@ -50,6 +50,11 @@ interface TotalsRow {
   paid_orders: number;
   paid_revenue: string | null;
   approved_revenue: string | null;
+  /** A base do lucro: todo pedido não cancelado, pendente inclusive. */
+  faturamento: string | null;
+  pedidos_faturados: number;
+  /** Pedidos que o ML ainda não valorizou: ficam FORA da base, nunca valem zero. */
+  sem_valor: number;
   cancelled_revenue: string | null;
   cancelled_orders: number;
   pending_orders: number;
@@ -143,6 +148,15 @@ export async function getMercadoLivreOverviewFromCanonical(
               -- canceladas, só produto (sem frete).
               SUM(gross) FILTER (WHERE status = ANY($7::text[])) AS paid_revenue,
               SUM(gross) FILTER (WHERE status = ANY($6::text[])) AS approved_revenue,
+              -- A BASE DO LUCRO: todo pedido NAO CANCELADO, pendente inclusive.
+              -- Difere do paid_revenue acima DE PROPOSITO: aquele espelha as
+              -- "Vendas brutas" do painel do ML e inclui canceladas (ADR-020);
+              -- este e a base do lucro, e venda cancelada nao tem custo nem
+              -- tarifa. Ver a nota longa em faturamentoDoLucro, na formula.
+              -- (Sem crase neste bloco: ele mora dentro de um template literal.)
+              SUM(gross) FILTER (WHERE status <> 'cancelled') AS faturamento,
+              COUNT(*) FILTER (WHERE status <> 'cancelled')::int AS pedidos_faturados,
+              COUNT(*) FILTER (WHERE status <> 'cancelled' AND gross IS NULL)::int AS sem_valor,
               SUM(gross) FILTER (WHERE status = 'cancelled') AS cancelled_revenue,
               COUNT(*) FILTER (WHERE status = 'cancelled')::int AS cancelled_orders,
               -- AGUARDANDO PAGAMENTO = o que não é aprovado nem cancelado.
@@ -430,7 +444,30 @@ export async function getMercadoLivreOverviewFromCanonical(
   // (a janela pedida ao PADS é de 7 dias e o resultado é carimbado como UM dia).
   // A coleta continua rodando — o dado segue sendo gravado e a aba de Anúncios
   // continua lendo. O que saiu daqui é o LUCRO.
-  const estimatedProfit = processedRevenue - fees - cogs - (taxes ?? 0) - sellerShipping;
+  // ═══ A BASE É O FATURAMENTO, E NO ML ELA NÃO É O CARD (01/09/2026) ═════════
+  //
+  // A decisão dela, repetida quatro vezes: *"TEM QUE ESQUECER O APURADO E LEVAR
+  // EM CONSIDERAÇÃO SOMENTE O FATURAMENTO."* O ML dividia por `processedRevenue`
+  // — a receita já conciliada — como a Amazon e a Shopee faziam.
+  //
+  // ⚠️ MAS AQUI HÁ UMA DIFERENÇA QUE OS OUTROS TRÊS CANAIS NÃO TÊM, E ELA É
+  // DELIBERADA. O card de Faturamento do ML mostra "Vendas brutas" do painel
+  // deles: aprovadas **+ canceladas**, sem frete (ADR-020, e é assim que ela
+  // confere contra o ML). A base do LUCRO não pode incluir cancelada: venda
+  // cancelada não tem custo nem tarifa, e somá-la à receita inflaria o
+  // resultado com dinheiro que não entrou.
+  //
+  // Então, no ML, card e base divergem pelo valor das canceladas — e é o único
+  // canal onde a DECLARAÇÃO DE BASE continua aparecendo depois desta mudança.
+  // Isso não é o defeito de 31/08 voltando: lá as duas bases descreviam a mesma
+  // pergunta e uma estava errada; aqui são duas perguntas diferentes, e a tela
+  // diz qual é qual com número.
+  //
+  // Pendente ENTRA (é o que ela pediu), cancelada FICA FORA (é o que a conta
+  // exige), e o que falta é sinalizado sem encolher a base.
+  const faturamentoDoLucro = Number(totals.faturamento ?? 0);
+  const pedidosSemValor = totals.sem_valor ?? 0;
+  const estimatedProfit = faturamentoDoLucro - fees - cogs - (taxes ?? 0) - sellerShipping;
 
   // Cobertura: mesmo critério do loadMercadoLivreSource.
   const coveredFrom = syncRow.covered_from ? new Date(syncRow.covered_from).getTime() : Number.POSITIVE_INFINITY;
@@ -532,7 +569,13 @@ export async function getMercadoLivreOverviewFromCanonical(
       ads: null,
       adsDesconhecido: false,
       adsAteDia: null,
-      marginPct: processedRevenue > 0 ? estimatedProfit / processedRevenue * 100 : null,
+      // Numerador e denominador saem da MESMA base — trocar só um dos dois é o
+      // que produziu −90,5% e +120,9% na Amazon em 31/08/2026.
+      marginPct: faturamentoDoLucro > 0 ? estimatedProfit / faturamentoDoLucro * 100 : null,
+      // O contrato que a tela do ML já espera (a Vitrine deixou pronto): com
+      // estes dois campos ela declara a base e aponta o que falta, com número.
+      revenueDoLucro: +faturamentoDoLucro.toFixed(2),
+      pedidosSemApuracao: pedidosSemValor,
       unitsWithoutCost,
       skusWithoutCost: skusSemCusto.size,
     },

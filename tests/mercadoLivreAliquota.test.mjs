@@ -39,7 +39,17 @@ test("o lucro exibido nao muda para quem nunca configurou", () => {
     "src/lib/integrations/mercadoLivre.ts",
     "src/lib/integrations/mercadoLivreOverviewCanonical.ts",
   ]) {
-    assert.match(fonte(modulo), /processedRevenue - fees - cogs - \(taxes \?\? 0\) - sellerShipping/, modulo);
+    // ⚠️ A BASE NAO E FIXADA AQUI (01/09/2026). Esta assercao casava
+    // `processedRevenue` e ficou vermelha quando o canonico passou a calcular
+    // sobre o FATURAMENTO — vermelho por uma mudanca que ela nao existe para
+    // impedir. O que ela guarda e o `(taxes ?? 0)`: sem aliquota o lucro sai SEM
+    // imposto, nunca `null`. A base tem teste proprio.
+    //
+    // 📌 E os dois caminhos do ML tem bases DIFERENTES de proposito desde
+    // 01/09: o canonico usa o faturamento; o legado (API ao vivo) nao consegue
+    // produzi-lo e continua no apurado, declarando `revenueDoLucro: null` em vez
+    // de fingir que coincidem.
+    assert.match(fonte(modulo), /\w+ - fees - cogs - \(taxes \?\? 0\) - sellerShipping/, modulo);
   }
 });
 

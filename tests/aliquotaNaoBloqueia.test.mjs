@@ -175,7 +175,12 @@ test("ML: o lucro do canônico já sai sem imposto quando não há alíquota", (
   // canal em `financialMath.ts` → ANUNCIO_FORA_DO_LUCRO.
   // O que este teste cobra segue sendo `(taxes ?? 0)`: sem aliquota o lucro sai
   // SEM imposto, e nao vira `null`.
-  assert.match(canonico, /estimatedProfit = processedRevenue - fees - cogs - \(taxes \?\? 0\) - sellerShipping/);
+  // ⚠️ E A ASSERCAO NAO FIXA MAIS O NOME DA BASE (01/09/2026). Ela casava
+  // `processedRevenue` inteiro e ficou vermelha quando a base virou o
+  // FATURAMENTO — vermelho por uma troca que ela nao existe para impedir, que e
+  // o "teste vermelho por motivo que nao e o produto" do AGENTS.md. O que este
+  // teste guarda e o `(taxes ?? 0)`; a base tem teste proprio.
+  assert.match(canonico, /estimatedProfit = \w+ - fees - cogs - \(taxes \?\? 0\) - sellerShipping/);
 });
 
 // ── Shopee ──────────────────────────────────────────────────────────────────

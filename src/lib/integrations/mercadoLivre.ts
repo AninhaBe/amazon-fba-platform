@@ -1106,6 +1106,22 @@ export async function getMercadoLivreOverview(
       adsDesconhecido: false,
       adsAteDia: null,
       marginPct: processedRevenue > 0 ? estimatedProfit / processedRevenue * 100 : null,
+      // ⚠️ ESTE CAMINHO NÃO TEM A BASE DO FATURAMENTO, E ISSO É DECLARADO EM VEZ
+      // DE FINGIDO (01/09/2026).
+      //
+      // O canônico passou a calcular lucro e margem sobre o FATURAMENTO (todo
+      // pedido não cancelado, pendente inclusive), pela decisão dela. Este
+      // caminho legado lê a API ao vivo e só enxerga o conjunto que coletou — ele
+      // não consegue produzir aquela base sem uma varredura que a tela não pode
+      // pagar (é justamente o custo que o canônico existe para evitar).
+      //
+      // `null` aqui é a resposta honesta: a tela cai no comportamento anterior
+      // (margem sobre o apurado, com a base declarada) em vez de receber um
+      // número com o nome errado. Preencher com o apurado afirmaria que as bases
+      // coincidem quando elas não coincidem — a mentira que passamos dois dias
+      // tirando da tela.
+      revenueDoLucro: null as number | null,
+      pedidosSemApuracao: null as number | null,
       unitsWithoutCost,
       skusWithoutCost: skusSemCusto.size,
     },
