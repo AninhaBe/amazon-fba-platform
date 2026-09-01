@@ -123,6 +123,63 @@ terceiro), `/highlights/{site}/category/{id}` (top 20 da categoria, com
 - Imposto: percentual configurável do vendedor (`mercadoLivreTaxRate` — não vem da API).
 - Taxonomia canônica: `commission`, `shipping_seller`, `fulfillment`, `payment`, `ads`, `taxes_withheld`, `refund`, `other`.
 
+## A declaração de base SOBREVIVE no ML — e isso é correto
+
+⚠️ **Se você chegou aqui porque viu a frase "sobre R$ X apurados de R$ Y" na tela
+do Mercado Livre e achou que é conserto que faltou: não é.** O ML é o único dos
+quatro canais onde ela continua aparecendo depois da unificação de base de
+01/09/2026, e continuar é o comportamento certo.
+
+**O motivo é que o card e a base respondem a perguntas diferentes:**
+
+| o que | o que soma | por quê |
+|---|---|---|
+| **card de Faturamento** | aprovadas **+ canceladas**, só produto, sem frete | espelha "Vendas brutas" do painel do ML, que é o número que a vendedora confere contra eles (ADR-020) |
+| **base do lucro** | todo pedido **não cancelado**, pendente inclusive | venda cancelada **não tem custo nem tarifa**; somá-la à receita inflaria o resultado com dinheiro que não entrou |
+
+Nos outros três canais as duas coincidem depois da mudança e a frase some sozinha
+— `declaracaoDeBase` devolve `null` quando o faturamento exibido não é maior que
+a base. No ML elas divergem **pelo valor exato das canceladas**, e por isso a
+frase fica.
+
+📌 **A distinção que importa, e ela vale além deste caso:** em 31/08/2026 a
+Amazon tinha duas bases respondendo à **mesma** pergunta, e uma delas estava
+errada — ali a frase era o curativo de um defeito. Aqui são **duas perguntas
+diferentes**, cada uma com a resposta certa, e a frase é a informação que liga
+uma à outra. Declaração que explica diferença real informa; declaração que
+explica defeito esconde.
+
+Medido em 01/09/2026: as canceladas valiam R$ 11.272,10 em 30 dias na conta
+`1191100170` e R$ 108,13 na `648425194`.
+
+### E o caminho legado declara que NÃO tem essa base
+
+`getMercadoLivreOverview` (leitura ao vivo da API do ML) não consegue produzir o
+faturamento sem uma varredura que a tela não pode pagar — é justamente o custo
+que o canônico existe para evitar. Ele devolve **`revenueDoLucro: null`**, e a
+tela cai no comportamento anterior.
+
+⚠️ **Preencher esse campo com o apurado seria pior que deixá-lo nulo**: afirmaria
+que as duas bases coincidem quando elas não coincidem, e a declaração sumiria da
+tela exatamente no caminho onde ela é mais necessária.
+
+### O ABC continua no apurado, e há uma condição escrita para isso mudar
+
+`mercadoLivreAbc.ts` calcula a margem **por produto** sobre a receita apurada, e
+foi **revisado e mantido** em 01/09/2026. O ML **não tem tarifa estimada**:
+`acc.fees` só existe para pedido com repasse postado. Dividir a contribuição pela
+receita total somaria receita sem a tarifa correspondente e **inflaria a margem
+por produto** — o defeito que a decisão de 29/08/2026 corrigiu ali.
+
+Medido antes de decidir: **zero pedidos sem repasse** nas duas contas em 30 dias,
+então a troca não moveria número nenhum hoje e só criaria risco no dia em que o
+ML atrasar o repasse.
+
+**Destravador registrado:** tarifa estimada no ML. No dia em que existir, o ABC
+passa a dividir pela total como os outros — e aí é seguro, porque o numerador
+também cobre o pendente.
+
+
 ## Changelog observado (mais recente primeiro)
 
 - **2026-08-31** — **As duas visões do PADS consolidam em velocidades
