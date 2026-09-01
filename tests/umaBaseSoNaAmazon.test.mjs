@@ -188,23 +188,48 @@ test("o imposto sai da base do lucro, e nao da receita apurada", async () => {
   assert.doesNotMatch(fonte, /amazonTaxAmount\(\s*processedRevenue/);
 });
 
-test("a tarifa oficial SUBSTITUI a estimada na leitura — sem dupla contagem", async () => {
-  // O que ninguem faz, e a razao de existir da ADR-027 (item 4 da spec dela).
-  // Sem o NOT EXISTS, o pedido ja liquidado entrava com comissao real MAIS
-  // comissao estimada, e o lucro caia por um custo que nao existe.
+test("a leitura da Amazon NAO reproduz a regra de substituicao — quem decide e a view", async () => {
+  // ⚠️ ESTE TESTE MUDOU DE INTENCAO EM 01/09/2026, e a garantia NAO enfraqueceu:
+  // ela mudou de lugar, para um mais forte.
   //
-  // Ramificacao, nao identificador: a consulta tem de EXCLUIR a estimativa de
-  // quem ja tem tarifa real.
+  // ATE aqui ele exigia um NOT EXISTS DENTRO desta consulta — a regra de "o real
+  // ganha do estimado" escrita em SQL na aplicacao. Com o apply da 0022 a regra
+  // passou a viver na view workspace_channel_order_fees_efetivas, e a mesma
+  // regra escrita em DOIS lugares e como as duas versoes divergem: no dia do
+  // apply, a copia daqui estava ERRADA (substituia por pedido, nao por tipo).
+  //
+  // O que garante o comportamento agora e um teste COMPORTAMENTAL contra
+  // Postgres: tests-integracao/viewDaTarifaEfetiva.test.mjs, que insere estimada
+  // e real e confere o que a view devolve. Este aqui so cobra que a aplicacao
+  // LEIA a view e nao reescreva a regra por fora.
   const fonte = await readFile(
     new URL("../src/lib/integrations/amazonOverviewCanonical.ts", import.meta.url),
     "utf8",
   );
-  const consultaDaEstimada = fonte.slice(
-    fonte.indexOf("f.fee_type = 'estimated'"),
-    fonte.indexOf("const feesEstimadas"),
+  assert.match(fonte, /workspace_channel_order_fees_efetivas/, "a leitura tem de vir da view");
+  // ⚠️ COMENTARIO NAO E CODIGO, e este teste ja ficou vermelho por isso: o
+  // proprio comentario que EXPLICA a lista negra removida contem o texto dela.
+  // Casar o fonte cru reprovaria a documentacao da correcao. Aqui as duas
+  // formas de comentario saem antes da assercao.
+  const codigo = fonte
+    .split("\n")
+    .map((linha) => linha.replace(/\s*--.*$/, "").replace(/\s*\/\/.*$/, ""))
+    .filter((linha) => !linha.trim().startsWith("*"))
+    .join("\n");
+  // ⚠️ A LISTA NEGRA MORREU. Blacklist e modo de falha invertido: fee_type novo
+  // entraria somado como conhecido, sem ninguem decidir. A lista positiva vive
+  // dentro da view.
+  assert.doesNotMatch(
+    codigo,
+    /fee_type NOT IN \(/,
+    "voltou uma lista negra de fee_type na aplicacao — a lista positiva mora na view",
   );
-  assert.match(consultaDaEstimada, /NOT EXISTS/);
-  assert.match(consultaDaEstimada, /fee_type NOT IN \('refund', 'estimated'\)/);
+  // E a regra de supersessao nao pode ser reescrita aqui.
+  assert.doesNotMatch(
+    codigo,
+    /NOT EXISTS \([\s\S]{0,40}SELECT 1 FROM workspace_channel_order_fees real/,
+    "a regra do real-ganha-do-estimado voltou para a aplicacao",
+  );
 });
 
 test("a base do faturamento traduz gross=0 em ausencia, nao em zero", async () => {

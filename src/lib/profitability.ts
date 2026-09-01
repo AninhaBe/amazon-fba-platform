@@ -44,6 +44,28 @@ export interface ProfitabilityLine {
   contribution: number | null;
   marginPct: number | null;
   complete: boolean;
+  /**
+   * A LINHA CARREGA TARIFA ESTIMADA? (ADR-027 Emenda II, 01/09/2026)
+   *
+   * `true` quando alguma parte de `marketplaceFees` veio da Product Fees API em
+   * vez do extrato. A tela usa isto para o selo colado ao número — e o selo é o
+   * que nos separa do concorrente, que exibe tarifa de tabela sem marca nenhuma
+   * e nunca reconcilia (medido no Gestor Seller em 31/08/2026).
+   *
+   * ⚠️ `false` NÃO É "tudo oficial": pode ser que a Amazon não tenha postado
+   * nada e não tenhamos conseguido estimar. Quem distingue é `marketplaceFees`
+   * ser `null` — ausência —, e não este campo.
+   */
+  feesEstimadas?: boolean;
+  /**
+   * Quanto da comissão desta linha é estimativa. `null` = a comissão é oficial,
+   * ou não há comissão conhecida. Serve para a procedência do tooltip
+   * ("comissão R$ X + FBA R$ Y"), com o número que a fonte devolveu.
+   */
+  comissaoEstimada?: number | null;
+  /** Idem para a logística (FBA). Os dois são independentes: a Amazon posta em
+   * partes — 95,3% dos pedidos com tarifa real têm comissão e nenhuma logística. */
+  fbaEstimada?: number | null;
 }
 
 export function allocateByWeight(total: number, weights: number[]): number[] {

@@ -336,10 +336,21 @@ export async function getAmazonOverviewFromCanonical(
          JOIN workspace_channel_order_items i
            ON i.workspace_id = $1 AND i.provider = $2 AND i.connection_id = $3
           AND i.external_order_id = d.external_order_id
+         -- ⚠️ LE A VIEW, E A LISTA NEGRA MORREU AQUI (01/09/2026, ADR-027 II).
+         -- Era fee_type NOT IN ('refund','estimated'). Blacklist e modo de falha
+         -- invertido: fee_type novo da Amazon entrava somado como tarifa
+         -- conhecida, sem ninguem decidir isso. A lista POSITIVA agora vive
+         -- dentro da view, num lugar so, e ela ja devolve o real substituindo o
+         -- estimado por (pedido, fee_type). E esta troca que faz a linha do
+         -- pedido pendente deixar de exibir "Tarifas nao postadas".
+         --
+         -- (Sem crase neste bloco de proposito: ele mora dentro de um template
+         -- literal, e uma crase aqui FECHA a string — foi o que quebrou o build
+         -- na primeira versao desta troca.)
          LEFT JOIN LATERAL (
-           SELECT SUM(amount) AS amount FROM workspace_channel_order_fees f
+           SELECT SUM(amount) AS amount FROM workspace_channel_order_fees_efetivas f
             WHERE f.workspace_id = $1 AND f.provider = $2 AND f.connection_id = $3
-              AND f.external_order_id = d.external_order_id AND f.fee_type NOT IN ('refund', 'estimated')
+              AND f.external_order_id = d.external_order_id AND f.fee_type <> 'refund'
          ) ff ON true
         ORDER BY d.occurred_at DESC, d.external_order_id, i.line_no`,
       [...scopeParams(connectionId, period), REVENUE_STATUSES, DETAILED_ORDER_LIMIT]
@@ -410,6 +421,48 @@ export async function getAmazonOverviewFromCanonical(
     group.push(row);
     linesByOrder.set(row.external_order_id, group);
   }
+
+  // ═══ A MARCA DE ESTIMATIVA, POR LINHA DE PEDIDO ════════════════════════════
+  //
+  // Lida da tabela de estimativas com o grão que ela tem — (pedido, line_no,
+  // fee_type). É por isso que a 0022 gravou em grão de linha em vez de pedido:
+  // sem `line_no`, um pedido de dois SKUs não teria como dizer QUAL deles está
+  // com tarifa estimada.
+  //
+  // ⚠️ `superseded_at IS NULL`: estimativa já substituída pela oficial não é
+  // marca nenhuma — o número daquela linha passou a ser o real. A linha continua
+  // no banco para medir pontaria, e é justamente por isso que o filtro precisa
+  // estar aqui.
+  const estimativasPorLinha = await dbQuery<{
+    external_order_id: string; line_no: number; fee_type: string; amount: string;
+  }>(
+    `SELECT e.external_order_id, e.line_no, e.fee_type, e.amount::text
+       FROM workspace_channel_order_fee_estimates e
+       JOIN workspace_channel_orders o
+         ON o.workspace_id = e.workspace_id AND o.provider = e.provider
+        AND o.connection_id = e.connection_id AND o.external_order_id = e.external_order_id
+      WHERE e.workspace_id = $1 AND e.provider = $2 AND e.connection_id = $3
+        AND e.superseded_at IS NULL
+        AND o.occurred_at >= $4 AND o.occurred_at <= $5`,
+    scopeParams(connectionId, period),
+  );
+  const marcasPorLinha = new Map<string, { comissao: number | null; fba: number | null }>();
+  for (const linha of estimativasPorLinha) {
+    const chave = `${linha.external_order_id}:${linha.line_no}`;
+    const atual = marcasPorLinha.get(chave) ?? { comissao: null, fba: null };
+    if (linha.fee_type === "commission") atual.comissao = Number(linha.amount);
+    if (linha.fee_type === "fulfillment") atual.fba = Number(linha.amount);
+    marcasPorLinha.set(chave, atual);
+  }
+  const marcaDaLinha = (orderId: string, lineNo: number) => {
+    const marca = marcasPorLinha.get(`${orderId}:${lineNo}`);
+    if (!marca) return { feesEstimadas: false, comissaoEstimada: null, fbaEstimada: null };
+    return {
+      feesEstimadas: marca.comissao != null || marca.fba != null,
+      comissaoEstimada: marca.comissao,
+      fbaEstimada: marca.fba,
+    };
+  };
 
   let fees = 0;
   let cogs = 0;
@@ -489,6 +542,9 @@ export async function getAmazonOverviewFromCanonical(
         contribution: result.contribution,
         marginPct: result.marginPct,
         complete: result.complete,
+        // A marca por linha (ADR-027 Emenda II). Vem do grão de linha da tabela
+        // de estimativas — é para isso que `line_no` existe lá.
+        ...marcaDaLinha(orderId, line.line_no),
       });
     });
   }
@@ -645,23 +701,24 @@ export async function getAmazonOverviewFromCanonical(
   // lucro deles fica errado para sempre. O nosso conserta na liquidação, e é
   // esta cláusula que faz isso acontecer. Quem remover para "simplificar"
   // reintroduz o defeito do concorrente e a dupla contagem de uma vez só.
+  // ⚠️ A CONSULTA INTEIRA MUDOU DE FONTE (01/09/2026, apply da 0022). Ela lia
+  // `workspace_channel_order_fees` com `fee_type = 'estimated'` — linhas que a
+  // migration APAGOU. Sem esta troca, `feesEstimadas` viraria 0 para sempre e a
+  // marca de estimativa sumiria da tela com a estimativa existindo no banco.
+  //
+  // A supersessão não é mais reproduzida aqui: quem decide é a view, por
+  // (pedido, fee_type). Repetir a regra em dois lugares é como as duas versões
+  // divergem — e foi a versão duplicada que estava errada no dia do apply.
   const estimadaRows = await dbQuery<{ total: string | null; pedidos: number }>(
     `SELECT COALESCE(SUM(f.amount), 0)::text AS total,
             COUNT(DISTINCT f.external_order_id)::int AS pedidos
-       FROM workspace_channel_order_fees f
+       FROM workspace_channel_order_fees_efetivas f
        JOIN workspace_channel_orders o
          ON o.workspace_id = f.workspace_id AND o.provider = f.provider
         AND o.connection_id = f.connection_id AND o.external_order_id = f.external_order_id
       WHERE f.workspace_id = $1 AND f.provider = $2 AND f.connection_id = $3
-        AND f.fee_type = 'estimated'
-        AND o.occurred_at >= $4 AND o.occurred_at <= $5
-        AND NOT EXISTS (
-          SELECT 1 FROM workspace_channel_order_fees real
-           WHERE real.workspace_id = f.workspace_id AND real.provider = f.provider
-             AND real.connection_id = f.connection_id
-             AND real.external_order_id = f.external_order_id
-             AND real.fee_type NOT IN ('refund', 'estimated')
-        )`,
+        AND f.basis = 'estimated'
+        AND o.occurred_at >= $4 AND o.occurred_at <= $5`,
     scopeParams(connectionId, period),
   );
   const feesEstimadas = Number(estimadaRows[0]?.total ?? 0);
@@ -751,7 +808,32 @@ export async function getAmazonOverviewFromCanonical(
   // pendente entraria sem custo de canal e o lucro inflaria: medido em 31/08,
   // a margem ia a 93,2% justamente por isso. Trocar um número enviesado para
   // cima por outro enviesado para baixo é o que este passo existe para evitar.
-  const tarifaDoLucro = +(fees + feesEstimadas).toFixed(2);
+  // ⚠️ `fees + feesEstimadas` VIROU DUPLA CONTAGEM EM 01/09/2026, e é o tipo de
+  // defeito que só aparece quando duas mudanças certas se encontram.
+  //
+  // `fees` acumula o total POR PEDIDO da consulta detalhada, e aquela consulta
+  // passou a ler a view `..._efetivas` — que já devolve real E estimado. Somar
+  // `feesEstimadas` por cima contaria a estimativa dos pedidos apurados duas
+  // vezes. Cada troca estava certa sozinha; juntas, erravam.
+  //
+  // A soma do período agora vem da PRÓPRIA VIEW, para todos os pedidos não
+  // cancelados — os apurados e os pendentes, que a consulta detalhada não
+  // alcança. Uma pergunta, uma fonte. `feesEstimadas` continua existindo, mas só
+  // para a tela DIZER quanto do total é estimativa (ADR-027 item 4).
+  const tarifaRows = await dbQuery<{ total: string | null }>(
+    `SELECT COALESCE(SUM(f.amount), 0)::text AS total
+       FROM workspace_channel_order_fees_efetivas f
+       JOIN workspace_channel_orders o
+         ON o.workspace_id = f.workspace_id AND o.provider = f.provider
+        AND o.connection_id = f.connection_id AND o.external_order_id = f.external_order_id
+      WHERE f.workspace_id = $1 AND f.provider = $2 AND f.connection_id = $3
+        AND f.fee_type <> 'refund'
+        AND o.occurred_at >= $4 AND o.occurred_at <= $5
+        AND o.status <> 'cancelled'`,
+    scopeParams(connectionId, period),
+  );
+  const tarifaDoLucro = +Number(tarifaRows[0]?.total ?? 0).toFixed(2);
+  void fees; // segue alimentando o rateio POR LINHA, não o total do período
   const lucro = descontarAnuncio(
     +(receitaDoLucro - tarifaDoLucro - cogsDoLucro - (taxes ?? 0) - refunds).toFixed(2),
     anuncio,
