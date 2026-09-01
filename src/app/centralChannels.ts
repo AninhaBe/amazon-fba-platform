@@ -160,14 +160,23 @@ export async function gatherCentralChannels(
 ): Promise<{ channels: ChannelSnapshot[]; series: DailyPoint[] }> {
   const periodo = new URLSearchParams(periodQuery);
   /**
-   * ⚠️ PERÍODO PERSONALIZADO NA SHOPEE: a rota dela ainda não lê `from`/`to`
-   * (`/api/integrations/shopee/overview` só aceita `days`), e mandar o intervalo
-   * assim mesmo faria a rota cair no padrão de 30 dias e devolver OUTRO período
-   * com cara de resposta certa. Converter o intervalo em `days` no cliente seria
-   * pior: um número plausível e errado. Enquanto o backend não aceitar o
-   * intervalo, a Shopee sai sem número e a tela diz por quê.
+   * ⚠️ A RECUSA DA SHOPEE AO PERÍODO PERSONALIZADO SAIU DAQUI (31/08/2026).
+   *
+   * Existia por um motivo verdadeiro: a rota dela lia só `days`, então mandar o
+   * intervalo faria a resposta cair no padrão de 30 dias e devolver OUTRO
+   * período com cara de resposta certa. Enquanto isso valeu, a central preferiu
+   * ficar sem número e dizer por quê — que é o certo.
+   *
+   * A rota passou a ler `from`/`to` no mesmo dia (`4c1cc18`), e a recusa ficou
+   * para trás. Aí ela deixou de proteger e passou a MENTIR: a tela dizia "a
+   * Shopee ainda não aceita período personalizado" sobre uma rota que aceita, e
+   * escondia o canal num período que ele sabia responder.
+   *
+   * 📌 A lição, para a próxima vez que alguém escrever uma recusa temporária:
+   * ela precisa morrer junto com a limitação que a justificou. Recusa que
+   * sobrevive à causa vira uma afirmação falsa na tela — e o teste que a
+   * guardava passa a defender o defeito.
    */
-  const intervaloPersonalizado = periodo.has("from") && periodo.has("to");
   const q = periodo.toString();
   const integrationData = await json<{ providers: Provider[] }>("/api/integrations");
   const amazonProvider = integrationData.providers.find((provider) => provider.id === "amazon");
@@ -265,14 +274,7 @@ export async function gatherCentralChannels(
       : coverageNote(overview.metrics.revenueCoverage, new Date(Date.now() - 30 * 86_400_000));
   }).catch((error) => { mercadoLivre.error = error instanceof Error ? error.message : "Dados indisponíveis"; }));
 
-  if (shopee.connected && intervaloPersonalizado) {
-    // Sem número, e a tela DIZ por quê — em vez de exibir 30 dias com rótulo de
-    // outro período. Ver a nota sobre `intervaloPersonalizado` no topo.
-    shopee.revenue = null;
-    shopee.profit = null;
-    shopee.orders = null;
-    shopee.motivoSemLucro = "a Shopee ainda não aceita período personalizado; escolha Hoje, 7, 15 ou 30 dias para ver este canal";
-  } else if (shopee.connected) tasks.push((async () => {
+  if (shopee.connected) tasks.push((async () => {
     const results = await Promise.allSettled(shopeeConnectionIds.map((connectionId) =>
       json<CentralShopeeResponse>(`/api/integrations/shopee/overview?${q}&connection_id=${encodeURIComponent(connectionId)}`)
     ));

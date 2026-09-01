@@ -74,12 +74,41 @@ test("trocar o periodo REBUSCA, e o cache nao mistura recortes", async () => {
   assert.match(central, /\}, \[period\.query\]\);/, "o efeito depende do periodo");
 });
 
-test("periodo personalizado na Shopee: sem numero e com o motivo, nunca 30 dias disfarcados", async () => {
-  // A rota da Shopee ainda nao le from/to — ela cairia no padrao de 30 dias e
-  // devolveria OUTRO periodo com cara de resposta certa. Converter o intervalo
-  // em `days` no cliente seria pior: plausivel e errado.
+test("a Shopee entra no periodo personalizado como os outros tres canais", async () => {
+  // ⚠️ ESTE TESTE MUDOU DE INTENCAO, e a anterior fica registrada.
+  //
+  // ATE 31/08/2026 ele exigia o CONTRARIO: que a central RECUSASSE o intervalo
+  // personalizado da Shopee, deixando o canal sem numero e dizendo por que. A
+  // recusa estava certa enquanto a rota lia so `days` — mandar from/to faria a
+  // resposta cair em 30 dias com rotulo de outro periodo.
+  //
+  // A rota passou a ler from/to no mesmo dia (4c1cc18) e a recusa ficou para
+  // tras. Deixou de proteger e passou a MENTIR: a tela afirmava "a Shopee ainda
+  // nao aceita periodo personalizado" sobre uma rota que aceita.
+  //
+  // A licao que este teste passa a guardar: recusa temporaria morre junto com a
+  // limitacao que a justificou. Enquanto ela sobrevive, o teste que a guardava
+  // defende o defeito — foi exatamente o que aconteceu aqui.
   const coletor = await fonte("src/app/centralChannels.ts");
-  assert.match(coletor, /const intervaloPersonalizado = periodo\.has\("from"\) && periodo\.has\("to"\)/);
-  assert.match(coletor, /shopee\.connected && intervaloPersonalizado/);
-  assert.match(coletor, /a Shopee ainda não aceita período personalizado/);
+  assert.doesNotMatch(
+    coletor,
+    /a Shopee ainda não aceita período personalizado/,
+    "a recusa voltou, e a rota aceita from/to desde 4c1cc18",
+  );
+  assert.doesNotMatch(coletor, /intervaloPersonalizado/, "a bifurcacao da recusa nao pode voltar");
+  // Ramificacao, nao identificador: a Shopee tem de ser buscada pelo MESMO `q`
+  // que os outros canais, que carrega from/to quando existem.
+  assert.match(coletor, /\/api\/integrations\/shopee\/overview\?\$\{q\}/);
+});
+
+test("a rota da Shopee USA from/to — nao apenas os le", async () => {
+  // ⚠️ O TESTE ANTIGO DESTE DEFEITO CASAVA `searchParams.get("from")` E FICAVA
+  // VERDE DEPOIS DE ALGUEM APAGAR O BLOCO QUE USAVA O VALOR (AGENTS.md). Aqui a
+  // assercao e sobre a RAMIFICACAO: existe um caminho que so roda quando ha
+  // from/to, e ele devolve o intervalo pedido — nao o preset.
+  const rota = await fonte("src/app/api/integrations/shopee/overview/route.ts");
+  assert.match(rota, /if \(fromValue \|\| toValue\) \{/, "sem a bifurcacao, o personalizado cai no preset");
+  const ramo = rota.slice(rota.indexOf("if (fromValue || toValue) {"), rota.indexOf('if (daysParam === "today")'));
+  assert.match(ramo, /return \{[\s\S]*from,[\s\S]*to: ate/, "o ramo tem de devolver as datas pedidas");
+  assert.match(ramo, /RangeError/, "uma data so e pedido malformado, nao meio periodo");
 });
