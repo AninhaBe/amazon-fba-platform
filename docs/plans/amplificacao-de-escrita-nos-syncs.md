@@ -163,3 +163,72 @@ que precisar de um snapshot de visão geral vai encontrar uma tabela com nome
 perfeito, 12 linhas dentro e nenhum escritor, e vai gastar um dia entendendo por
 que ela não atualiza.
 
+---
+
+# Correção de 01/09/2026 — a proposta acima estava errada, e a mudança foi revertida
+
+O que segue corrige o documento. O texto anterior fica **intacto de propósito**:
+ele mostra um raciocínio que soava certo e não era, e é isso que ensina.
+
+## O que aconteceu
+
+`FRESH_FOR_MS` do ML foi de 2 para 10 minutos (`2f4aca3`, deploy v220) e
+**revertido no mesmo dia**. A proposta supunha que os 2 minutos causavam a
+escrituração. Não causavam.
+
+**O webhook grava `last_success_at = now()` nesta tabela a cada evento** — 447 por
+hora — sem condição nenhuma (`mercadoLivreWebhook.ts`). Duas consequências:
+
+1. **A escrituração do ML vem do webhook, não do ciclo.** A constante era quase
+   irrelevante, e mudá-la era um no-op para o volume de escrita.
+2. **Pior: o portão da varredura periódica é realimentado pelo webhook.** O
+   agendador só elege uma linha `complete` quando
+   `COALESCE(last_success_at, updated_at) < now() - FRESH_FOR_MS`.
+
+Medido sobre 7 dias e 32.369 intervalos entre eventos:
+
+| silêncio | ocorrências em 7 dias | por dia |
+|---|---|---|
+| **> 2 minutos** | **979** | ~140 |
+| **> 10 minutos** | **10** | ~1,4 |
+
+**Subir para 10 minutos cortou em 98% as oportunidades da varredura que existe
+para pegar o que o webhook perdeu.** Por isso a reversão.
+
+## 🔴 O defeito de fundo, que a reversão NÃO conserta
+
+**A rede de segurança está condicionada à saúde daquilo que ela deveria vigiar.**
+
+Quanto mais o webhook funciona, menos a varredura roda. E se ele passar a
+**descartar eventos em silêncio** — em vez de parar —, `last_success_at` continua
+fresco e a varredura **nunca** roda. É precisamente o modo de falha que ela existe
+para cobrir.
+
+**Conserto proposto (não implementado):** desacoplar. A varredura periódica ganha
+carimbo próprio — `last_sweep_at`, escrito **só** por ela — e cadência própria,
+independente de o webhook estar entregando. O `last_success_at` continua servindo
+ao que serve hoje; ele só deixa de mandar em quem o vigia.
+
+## As três lições de método do dia
+
+> **1. Contador acumulado não é taxa.** `pg_stat_*` conta desde o último reset.
+> Amostre duas vezes com intervalo antes de chamar um número de problema **ou** de
+> prova. Pegou duas vezes no mesmo dia, em direções opostas.
+
+> **2. "Medi e não vale a pena" só vale se a medição cobriu TODOS os caminhos de
+> escrita.** A hipótese do `IS DISTINCT FROM` foi descartada com medição — mas a
+> medição olhou os `UPDATE` do ciclo de sync e não os do webhook, onde ela se
+> aplica. Uma hipótese certa foi morta por amostra parcial do código.
+
+> **3. A técnica certa já estava no MESMO ARQUIVO, aplicada a uma tabela e não a
+> outra.** `mercadoLivreWebhook.ts` usa
+> `WHERE (status, payload) IS DISTINCT FROM (EXCLUDED.status, EXCLUDED.payload)`
+> em `workspace_marketplace_products`, e **não** usa nada disso nos `UPDATE` de
+> `workspace_marketplace_syncs`, poucas linhas adiante. Padrão correto convivendo
+> com o errado, a poucas linhas de distância, é o defeito mais difícil de ver —
+> porque quem lê acha que o arquivo já segue o padrão.
+
+📌 E uma quarta, sobre processo: este achado só apareceu porque uma pergunta
+—"a v220 contém o commit X?"— foi respondida **por verificação de comportamento e
+não por inferência**. A inferência ("a worktree era daquele commit, logo contém")
+estava correta e não teria produzido nada.

@@ -47,37 +47,45 @@ const SHIPMENT_BATCH_SIZE = 5;
  * e não trazer nada. Antes eram dois literais soltos; agora é um número só.
  *
  * O custo é baixo porque a janela é INCREMENTAL: cada passada cobre de
- * `covered_to` até agora — a janela mudou de 2 para 10 minutos em 01/09/2026,
- * pelo motivo escrito logo abaixo.
+ * `covered_to` até agora, ou seja, ~2 minutos de pedidos.
  */
 /**
- * ⚠️ 2 → 10 MINUTOS em 01/09/2026, e o motivo é medição, não economia de gosto.
+ * ⚠️ VOLTOU A 2 MINUTOS em 01/09/2026, no mesmo dia em que foi para 10. A ida
+ * era uma REGRESSÃO e o motivo é medido — fica escrito para ninguém refazer.
  *
- * MEDIDO: `workspace_marketplace_syncs` recebia **9.559 updates por hora em 14
- * linhas** — 683 por linha, uma a cada 5 segundos. E 13 dessas 14 linhas estavam
- * `complete`: não eram escritas redundantes, eram **ciclos inteiros de
- * sincronização** recomeçando porque o dado passava de "fresco" a cada 2 minutos.
- * Na janela amostrada, isso foi **~46% de todas as escritas do banco** — sobre 14
- * linhas de controle, num projeto com 13 conexões de pool e dois esgotamentos
- * registrados em 29/08 (ADR-030).
+ * A MUDANÇA FOI FEITA supondo que 2 minutos causavam a escrituração excessiva em
+ * `workspace_marketplace_syncs` (9.559 updates/hora em 14 linhas). **Estava
+ * errado**, e o erro foi olhar só uma parte do código: os `UPDATE` do ciclo de
+ * sync, sem ver os do WEBHOOK.
  *
- * ⚠️ E POR QUE AQUI ISSO NÃO CUSTA ATRASO NA TELA: **o webhook do ML já entrega**.
- * Medido em 01/09/2026: 447 eventos na última hora, o mais recente havia 0
- * segundos. Pesquisar de 2 em 2 minutos um canal que **empurra** mudança é pagar
- * duas vezes pela mesma informação — o pedido novo chega pelo webhook, não por
- * esta janela. Alinhado aos 10 minutos que Shopee e TikTok já usavam.
+ * O QUE O WEBHOOK FAZ (`mercadoLivreWebhook.ts`): a cada evento de pedido —
+ * **447 por hora, medidos** — ele grava `last_success_at = now()` nesta tabela,
+ * sem condição.
  *
- * ⚠️ O QUE ISTO PASSA A DEPENDER, E QUE NÃO É COBERTO HOJE: se o webhook parar de
- * chegar, esta janela vira o único caminho, e o canal fica 10 minutos atrasado em
- * vez de 2. **Não existe alarme de silêncio do webhook** (medido: `/api/health`
- * não olha, e `metricas.ts` só conta por status). Está registrado como item
- * próprio em `docs/plans/amplificacao-de-escrita-nos-syncs.md`.
+ * ⚠️ E ISSO REALIMENTA O PORTÃO ABAIXO. O agendador
+ * (`mercadoLivreScheduler.ts`) só elege uma linha `complete` quando
+ * `COALESCE(last_success_at, updated_at) < now() - FRESH_FOR_MS`. Como o webhook
+ * renova `last_success_at` o tempo todo, **a varredura periódica só roda quando
+ * o webhook fica em silêncio por mais tempo que esta constante**.
  *
- * ⚠️ NÃO REPLIQUE ISTO NA AMAZON SEM DECISÃO DA DONA DO PRODUTO. Lá não há
- * webhook equivalente, então a janela **é** o atraso percebido: ela olha "Hoje"
- * de manhã e conta pedido.
+ * MEDIDO sobre 7 dias e 32.369 intervalos entre eventos:
+ *
+ *   silêncios > 2 minutos ....... 979   (~140 por dia)
+ *   silêncios > 10 minutos ......  10   (~1,4 por dia)
+ *
+ * Ou seja: subir para 10 minutos cortou em **98%** as oportunidades da varredura
+ * que existe justamente para pegar o que o webhook PERDEU.
+ *
+ * 🔴 E O DEFEITO DE FUNDO CONTINUA AQUI, maior que o valor da constante: **a
+ * rede de segurança está condicionada à saúde daquilo que ela deveria vigiar.**
+ * Quanto mais o webhook trabalha, menos a gente verifica se ele está certo — e se
+ * ele passar a DESCARTAR eventos em silêncio (em vez de parar), `last_success_at`
+ * continua fresco e a varredura nunca roda. É exatamente o modo de falha que ela
+ * existe para cobrir. O conserto é desacoplar (varredura com cadência própria,
+ * num carimbo que só ela escreve), e está registrado em
+ * `docs/plans/amplificacao-de-escrita-nos-syncs.md`.
  */
-export const FRESH_FOR_MS = 10 * 60_000;
+export const FRESH_FOR_MS = 2 * 60_000;
 const COVERAGE_TOLERANCE_MS = 15 * 60_000;
 
 interface SyncRow {
