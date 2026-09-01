@@ -246,6 +246,22 @@ export async function getAmazonOverviewFromCanonical(
   const { sellerId, connectionId } = resolved;
   const workspaceId = currentWorkspaceId();
 
+  /**
+   * A BASE COBRE TODOS OS PEDIDOS DO PERIODO, ou so os que tem valor proprio?
+   *
+   * `faturamentoDoPeriodo` vem do `orderMetrics` da Sales API, que e um agregado
+   * da propria Amazon e JA INCLUI o pedido pendente. Quando ele existe, a receita
+   * do periodo cobre todo mundo — e entao o custo e a tarifa tambem precisam
+   * cobrir todo mundo, senao o resultado subtrai de um universo o que pertence a
+   * outro. Sem ele, a base e a soma do que o nosso banco sabe valorizar, e o
+   * custo e a tarifa acompanham esse conjunto menor.
+   *
+   * Um so parametro governa os dois lados de proposito: e impossivel corrigir um
+   * e esquecer o outro.
+   */
+  const baseCobreTodosOsPedidos =
+    opcoes.faturamentoDoPeriodo != null && opcoes.faturamentoDoPeriodo > 0;
+
   const [syncRows, totalsRows] = await Promise.all([
     dbQuery<SyncMetaRow>(
       `SELECT covered_from, covered_to
@@ -767,8 +783,28 @@ export async function getAmazonOverviewFromCanonical(
           -- A regra que fecha isso e vale para os quatro canais: CUSTO E TARIFA
           -- SÓ EXISTEM PARA O PEDIDO CUJA RECEITA EXISTE. O que falta é
           -- sinalizado com número, nunca subtraído de uma receita que não tem.
-          AND COALESCE(NULLIF(o.gross, 0), o.ordered_gross) IS NOT NULL`,
-      [...scopeParams(connectionId, period), REVENUE_STATUSES],
+          -- ⚠️ O ESCOPO DO CUSTO ACOMPANHA O ESCOPO DA BASE (01/09/2026) — e
+          -- este parametro e a correcao da SETIMA forma do mesmo defeito.
+          --
+          -- A regra "custo e tarifa so existem para o pedido cuja receita
+          -- existe" vale POR UNIVERSO, nao por pedido. Quando a base e o
+          -- faturamento injetado pela Sales API, ela JA INCLUI a receita dos
+          -- pendentes — o agregado da Amazon os conta. Barrar o custo deles
+          -- aqui produz numerador cheio com subtraendo vazio.
+          --
+          -- Medido na Silveiras Import, tela de Hoje: base R$ 824,64 (31
+          -- pedidos) menos tarifa e custo de UM pedido = lucro de R$ 743,76,
+          -- 90% do faturamento. Obviamente falso, e foi o que a vendedora
+          -- cobrou. A supressao da margem (sexta forma) escondeu o sintoma e
+          -- deixou o lucro exposto.
+          --
+          -- 📌 E O FILTRO CONTINUA VALENDO NO OUTRO CASO. Sem injecao, a base e
+          -- o piso do banco, que cobre so o pedido COM valor — e ai o custo tem
+          -- de cobrir o mesmo conjunto, senao volta a QUINTA forma (base de
+          -- R$ 12,89 contra custo de R$ 222,95, margem de -1692,4%).
+          -- Um universo, dois lados. E o parametro que diz qual universo e.
+          AND ($7::boolean OR COALESCE(NULLIF(o.gross, 0), o.ordered_gross) IS NOT NULL)`,
+      [...scopeParams(connectionId, period), REVENUE_STATUSES, baseCobreTodosOsPedidos],
     ),
   ]);
   // Tarifa ESTIMADA do período, somada à parte da real (ADR-027). Separada de
@@ -833,10 +869,12 @@ export async function getAmazonOverviewFromCanonical(
       WHERE f.workspace_id = $1 AND f.provider = $2 AND f.connection_id = $3
         AND o.occurred_at >= $4 AND o.occurred_at <= $5
         AND o.status <> 'cancelled'
-        -- Mesma regra do custo: tarifa de pedido cuja receita não está na base
-        -- seria subtração sem a receita correspondente.
-        AND COALESCE(NULLIF(o.gross, 0), o.ordered_gross) IS NOT NULL`,
-    scopeParams(connectionId, period),
+        -- Mesma regra do custo, e o mesmo parametro: a tarifa cobre o universo
+        -- que a base cobre. Com o faturamento injetado, o pendente entra com a
+        -- tarifa ESTIMADA (que a view ja substitui pela real na liquidacao);
+        -- sem injecao, so entra o pedido com valor proprio.
+        AND ($6::boolean OR COALESCE(NULLIF(o.gross, 0), o.ordered_gross) IS NOT NULL)`,
+    [...scopeParams(connectionId, period), baseCobreTodosOsPedidos],
   );
   const feesEstimadas = Number(tarifaRows[0]?.estimada ?? 0);
   const pedidosComTarifaEstimada = tarifaRows[0]?.pedidos_estimados ?? 0;
