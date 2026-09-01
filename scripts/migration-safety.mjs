@@ -1,4 +1,5 @@
 import { createHash, randomUUID, verify } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -77,7 +78,63 @@ export async function inspectFinancialLedgerContract(query, contractSql) {
   return { ...result.rows[0], ...metadata };
 }
 
+/**
+ * O ARQUIVO EM DISCO TEM DE SER O ARQUIVO COMMITADO — em staging e produção.
+ *
+ * ⚠️ POR QUE ISTO EXISTE (incidente de 01/09/2026, ver `docs/migrations.md` →
+ * "Fim de linha e hash"). `loadMigrations` faz o SHA-256 do arquivo em DISCO, e
+ * é esse hash que vira registro de auditoria em `schema_migrations`. Três
+ * migrations tinham sido aplicadas a partir de bytes que **não existiam no
+ * repositório** — CRLF no disco, LF no commit — e `git status` não avisa, porque
+ * trata diferença de fim de linha como igual. O efeito: de qualquer checkout
+ * limpo o runner recusava aplicar qualquer coisa, e o fluxo ficou preso a uma
+ * cópia de trabalho, numa máquina.
+ *
+ * O `.gitattributes` removeu a causa mais provável. Isto fecha a que sobra, e é
+ * a perigosa: divergência de **conteúdo**. Se um `.sql` no disco não for o que
+ * está commitado, o apply para — porque a alternativa é gravar na auditoria o
+ * hash de um SQL que ninguém revisou.
+ *
+ * ⚠️ SEM GIT, FALHA — NÃO RELEVA. Portão que se desliga sozinho quando não
+ * consegue medir é pior que não ter portão: dá sensação de cobertura sem
+ * cobertura. Se `git` não existir no ambiente, ou o objeto não puder ser lido, a
+ * mensagem diz que a VERIFICAÇÃO não pôde ser feita — e barra.
+ *
+ * ⚠️ NÃO VALE PARA `local`, DE PROPÓSITO. `migrate:local` é onde se testa
+ * migration ainda não commitada, e esse fluxo é legítimo. Exigir commit antes de
+ * testar empurraria as pessoas a commitar SQL não testado — portão que torna o
+ * caminho certo mais caro que o errado vira desvio. Mesma regra do "worktree
+ * limpo", que já é assim.
+ */
+export function assertMigrationsMatchCommit({ environment, migrations, dir = "migrations" }) {
+  if (environment === "local") return;
+  for (const { name, sql } of migrations) {
+    let commitado;
+    try {
+      commitado = execFileSync("git", ["show", `HEAD:${dir}/${name}`], { encoding: "utf8", maxBuffer: 32 * 1024 * 1024 });
+    } catch (erro) {
+      throw new Error(
+        `BLOCKED: nao foi possivel LER a versao commitada de ${name} para comparar com o disco ` +
+        `(${erro instanceof Error ? erro.message.slice(0, 120) : "erro desconhecido"}). ` +
+        "Sem git nao da para verificar, e verificacao que nao acontece nao pode virar aprovacao.",
+      );
+    }
+    if (commitado !== sql) {
+      throw new Error(
+        `BLOCKED: ${name} em disco difere da versao commitada ` +
+        `(disco sha256:${sha256(sql).slice(0, 16)}… / commit sha256:${sha256(commitado).slice(0, 16)}…). ` +
+        "O hash gravado na auditoria seria de um SQL que nao esta no repositorio. " +
+        "Commite a mudanca, ou desfaca a edicao, e rode de novo.",
+      );
+    }
+  }
+}
+
 export function buildPlan({ environment, target, identity, migrations, applied, git, runtimeRole }) {
+  // Aqui, e não só em `validateApply`, porque o PLAN também precisa barrar: um
+  // plano gerado sobre bytes não commitados assinaria conteúdo que o repositório
+  // não tem, e a assinatura passaria a cobrir o que ninguém revisou.
+  assertMigrationsMatchCommit({ environment, migrations });
   const appliedMap = new Map(applied.map((item) => [item.name, item.hash]));
   const entries = migrations.map(({ name, hash, operations }) => ({
     name, hash, operations, status: appliedMap.has(name) ? "applied" : "pending",
