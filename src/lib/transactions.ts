@@ -376,6 +376,25 @@ export interface OrderFinancials {
    * tarifa OBSERVADA por ASIN utilizável como fonte de estimativa (ADR-027).
    */
   porTipo: Record<string, number>;
+  /**
+   * A data em que a Amazon LANCOU o estorno (`postedDate`), quando houve.
+   *
+   * ⚠️ ISTO EXISTIA NO PARSER E ERA JOGADO FORA — mesma familia do `feeMap`.
+   * O estorno entrava no resultado pela data do PEDIDO, e o teste
+   * `estornoReduzOResultado` registrava desde 31/08/2026 que a data real existe
+   * na Transactions API e nunca fora persistida.
+   *
+   * 📌 Medido em 01/09/2026 nos 42 estornos de 60 dias da conexao
+   * `amazon:A15NQMF7A6J1Y0`: o atraso entre pedido e lancamento tem MEDIANA DE
+   * 11 DIAS (minimo 1, maximo 44), e 5 mudam de mes — R$ 193,00 no periodo
+   * errado. Num recorte de "Hoje" o estorno caia quase sempre num dia em que
+   * nada aconteceu.
+   *
+   * `null` = nao houve estorno, ou a transacao nao trouxe data. NUNCA a data do
+   * pedido: confundir "nao capturado" com "mesmo dia" apaga a distincao entre
+   * saber e assumir.
+   */
+  refundPostedAt: string | null;
 }
 
 /**
@@ -392,10 +411,18 @@ export function computeOrderFinancials(rawTransactions: ApiTransaction[]): Recor
     if (!orderId) continue;
     const parsed = parseTransactionFinancials(transaction);
     const entry = byOrder[orderId] ?? {
-      fees: 0, refunds: 0, currency: transaction.totalAmount?.currencyCode ?? "BRL", porTipo: {},
+      fees: 0, refunds: 0, currency: transaction.totalAmount?.currencyCode ?? "BRL",
+      porTipo: {}, refundPostedAt: null,
     };
     entry.fees += parsed.fees;
     entry.refunds += parsed.refunds;
+    // A data do lancamento do ESTORNO, e so dele: e o unico componente cuja
+    // data difere da do pedido a ponto de mudar o periodo. Guarda a MAIS
+    // RECENTE quando ha mais de um lancamento no mesmo pedido.
+    if (parsed.refunds > 0 && transaction.postedDate
+        && (entry.refundPostedAt == null || transaction.postedDate > entry.refundPostedAt)) {
+      entry.refundPostedAt = transaction.postedDate;
+    }
     // A decomposição segue junto do total — o total continua sendo a soma dela,
     // e é essa igualdade que o teste cobra.
     for (const [tipo, valor] of parsed.feeMap) {

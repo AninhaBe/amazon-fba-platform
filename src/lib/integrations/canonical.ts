@@ -34,6 +34,15 @@ export interface CanonicalFee {
   /** Positivo = debitado do vendedor; crédito entra negativo. */
   amount: number;
   currency: string;
+  /**
+   * Quando o marketplace LANCOU esta tarifa, se souber. `null`/ausente = nao
+   * capturado — nunca "mesmo dia do pedido". Ver migrations/0029.
+   *
+   * Importa sobretudo no ESTORNO: medido em 01/09/2026, a data de lancamento
+   * fica em MEDIANA 11 dias depois do pedido (minimo 1, maximo 44). Pela data
+   * do pedido, o estorno aparece num periodo em que nada aconteceu.
+   */
+  postedAt?: string | null;
 }
 
 export interface CanonicalOrderItem {

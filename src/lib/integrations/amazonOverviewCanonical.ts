@@ -893,15 +893,36 @@ export async function getAmazonOverviewFromCanonical(
   // Agora as duas saem do mesmo `WHERE`, e a parte é sempre parte do todo por
   // construção. `FILTER` mantém o grão: é a mesma linha contada de dois jeitos,
   // não um join a mais — nenhum risco de inflar por fan-out.
-  const tarifaRows = await dbQuery<{ total: string | null; estimada: string | null; pedidos_estimados: number; estorno: string | null; estorno_n: number }>(
+  const tarifaRows = await dbQuery<{ total: string | null; estimada: string | null; pedidos_estimados: number; estorno: string | null; estorno_n: number; estorno_com_data: number }>(
     `SELECT COALESCE(SUM(f.amount) FILTER (WHERE f.fee_type <> 'refund'), 0)::text AS total,
             COALESCE(SUM(f.amount) FILTER (WHERE f.fee_type <> 'refund' AND f.basis = 'estimated'), 0)::text AS estimada,
             COUNT(DISTINCT f.external_order_id)
               FILTER (WHERE f.fee_type <> 'refund' AND f.basis = 'estimated')::int AS pedidos_estimados,
             -- O ESTORNO ENTRA AQUI, e nao numa terceira ida: mesma view, mesmo
             -- join, mesmo periodo. So muda o FILTER.
-            COALESCE(SUM(f.amount) FILTER (WHERE f.fee_type = 'refund'), 0)::text AS estorno,
-            COUNT(*) FILTER (WHERE f.fee_type = 'refund')::int AS estorno_n
+            -- ⚠️ O ESTORNO E RECORTADO PELA DATA DO LANCAMENTO quando ela
+            -- existe (migrations/0029). Ate 01/09/2026 ele entrava pela data do
+            -- PEDIDO, e nao por preferencia: a tabela nao tinha coluna de data.
+            --
+            -- Medido nos 42 estornos de 60 dias desta conexao: o atraso entre o
+            -- pedido e o lancamento tem MEDIANA DE 11 DIAS (minimo 1, maximo
+            -- 44), e 5 mudam de mes — R\$ 193,00 no periodo errado. Num recorte
+            -- de "Hoje" o estorno caia quase sempre num dia em que nada
+            -- aconteceu.
+            --
+            -- O COALESCE preserva o comportamento antigo enquanto a data nao
+            -- foi capturada: linha sem posted_at continua pela data do pedido, e
+            -- a tela diz qual data usou.
+            COALESCE(SUM(f.amount) FILTER (
+              WHERE f.fee_type = 'refund'
+                AND COALESCE(f.posted_at, o.occurred_at) >= $4
+                AND COALESCE(f.posted_at, o.occurred_at) <= $5), 0)::text AS estorno,
+            COUNT(*) FILTER (
+              WHERE f.fee_type = 'refund'
+                AND COALESCE(f.posted_at, o.occurred_at) >= $4
+                AND COALESCE(f.posted_at, o.occurred_at) <= $5)::int AS estorno_n,
+            COUNT(*) FILTER (WHERE f.fee_type = 'refund' AND f.posted_at IS NOT NULL)::int
+              AS estorno_com_data
        FROM workspace_channel_order_fees_efetivas f
        JOIN workspace_channel_orders o
          ON o.workspace_id = f.workspace_id AND o.provider = f.provider

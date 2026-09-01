@@ -316,7 +316,7 @@ async function syncMissingOrderFees(connectionId: string): Promise<void> {
   // Pequena no regime permanente, larga só durante o backfill.
   const ymd = (date: Date) => new Date(date.getTime() - 3 * 3_600_000).toISOString().slice(0, 10);
   const oldest = new Date(rows[rows.length - 1].occurred_at);
-  let financials: Record<string, { fees: number; refunds: number; currency: string; porTipo?: Record<string, number> }>;
+  let financials: Record<string, { fees: number; refunds: number; currency: string; porTipo?: Record<string, number>; refundPostedAt?: string | null }>;
   try {
     financials = await getOrderFinancialsFromTransactions(periodFromRange(ymd(oldest), ymd(new Date())));
   } catch (erro) {
@@ -374,7 +374,10 @@ async function syncMissingOrderFees(connectionId: string): Promise<void> {
       // defeito que este bloco existe para não repetir.
       fees.push({ feeType: "other", providerFeeCode: "transactions_total", amount: fin.fees, currency });
     }
-    if (fin.refunds > 0) fees.push({ feeType: "refund", providerFeeCode: "transactions_refund", amount: fin.refunds, currency });
+    // A DATA DO LANCAMENTO VAI JUNTO — ate 01/09/2026 ela era jogada fora, e o
+    // estorno entrava no resultado pela data do PEDIDO. Mediana de 11 dias de
+    // atraso: num recorte de "Hoje" o estorno caia quase sempre no dia errado.
+    if (fin.refunds > 0) fees.push({ feeType: "refund", providerFeeCode: "transactions_refund", amount: fin.refunds, currency, postedAt: fin.refundPostedAt ?? null });
     if (fees.length) applications.push({ externalOrderId: row.external_order_id, fees });
   }
   if (applications.length) await upsertCanonicalOrderFees({ provider: PROVIDER, connectionId }, applications);

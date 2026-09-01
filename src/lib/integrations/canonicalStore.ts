@@ -407,19 +407,28 @@ export async function upsertCanonicalOrderFees(
     provider_fee_code: fee.providerFeeCode,
     amount: fee.amount,
     currency: fee.currency,
+    posted_at: fee.postedAt ?? null,
   })));
   if (!records.length) return;
   await dbQuery(
     `INSERT INTO workspace_channel_order_fees
-       (workspace_id, provider, connection_id, external_order_id, fee_type, provider_fee_code, amount, currency)
-     SELECT $1, $2, $3, p.external_order_id, p.fee_type, p.provider_fee_code, p.amount, p.currency
+       (workspace_id, provider, connection_id, external_order_id, fee_type, provider_fee_code,
+        amount, currency, posted_at)
+     SELECT $1, $2, $3, p.external_order_id, p.fee_type, p.provider_fee_code,
+            p.amount, p.currency, p.posted_at
        FROM jsonb_to_recordset($4::jsonb) AS p(
-         external_order_id text, fee_type text, provider_fee_code text, amount numeric, currency text
+         external_order_id text, fee_type text, provider_fee_code text, amount numeric,
+         currency text, posted_at timestamptz
        )
      ON CONFLICT (workspace_id, provider, connection_id, external_order_id, fee_type, provider_fee_code)
-       DO UPDATE SET amount = EXCLUDED.amount, currency = EXCLUDED.currency
-       WHERE (workspace_channel_order_fees.amount, workspace_channel_order_fees.currency)
-         IS DISTINCT FROM (EXCLUDED.amount, EXCLUDED.currency)`,
+       DO UPDATE SET amount = EXCLUDED.amount, currency = EXCLUDED.currency,
+                     -- COALESCE: data ja conhecida nunca e apagada por uma
+                     -- ingestao que veio sem ela. Mesma guarda do ordered_gross.
+                     posted_at = COALESCE(EXCLUDED.posted_at, workspace_channel_order_fees.posted_at)
+       WHERE (workspace_channel_order_fees.amount, workspace_channel_order_fees.currency,
+              workspace_channel_order_fees.posted_at)
+         IS DISTINCT FROM (EXCLUDED.amount, EXCLUDED.currency,
+                           COALESCE(EXCLUDED.posted_at, workspace_channel_order_fees.posted_at))`,
     [currentWorkspaceId(), scope.provider, scope.connectionId, JSON.stringify(records)]
   );
 }

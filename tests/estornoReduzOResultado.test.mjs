@@ -18,6 +18,19 @@ import { amazonFinancialCards } from "../src/app/(app)/amazon/amazonFinancialCar
 const carta = (cards, key) => cards.find((c) => c.key === key);
 const fonte = (caminho) => readFile(new URL(`../${caminho}`, import.meta.url), "utf8");
 
+const consultaQueContem = (texto, marcador) => {
+  const i = texto.indexOf(marcador);
+  assert.ok(i > 0, `marcador ausente: ${marcador}`);
+  const inicio = texto.lastIndexOf("SELECT", i);
+  let nivel = 0;
+  for (let k = inicio; k < texto.length; k += 1) {
+    if (texto[k] === "(") nivel += 1;
+    else if (texto[k] === ")") { nivel -= 1; if (nivel < 0) return texto.slice(inicio, k); }
+  }
+  return texto.slice(inicio);
+};
+
+
 const FINANCE = {
   currency: "BRL", revenue: 418.43, fees: 0, refunds: 0, buyerShipping: 0,
   orderCount: 22, feeBreakdown: [{ type: "commission", amount: 0 }],
@@ -40,7 +53,49 @@ test("o canonico SUBTRAI o estorno do lucro", async () => {
   );
 });
 
-test("o estorno vem pela data do PEDIDO, nao pela do lancamento", async () => {
+test("o estorno vem pela data do LANCAMENTO quando ela existe", async () => {
+  // ⚠️ ESTE TESTE MUDOU DE INTENCAO EM 01/09/2026, e a mudanca era a que ele
+  // mesmo mandava fazer. A versao anterior exigia o recorte pela data do PEDIDO,
+  // e o comentario dizia por que: `workspace_channel_order_fees` nao tinha
+  // coluna de data, a data real existia na Transactions API (`postedDate`) e
+  // nunca fora persistida — "quando existir, revisitar".
+  //
+  // 📌 O TAMANHO DO QUE ESTAVA ERRADO, medido antes de consertar, sobre os 42
+  // estornos de 60 dias da conexao amazon:A15NQMF7A6J1Y0:
+  //   data de lancamento encontrada .... 42 de 42
+  //   atraso pedido -> lancamento ...... minimo 1 dia, MEDIANA 11, maximo 44
+  //   estornos que mudam de mes ........ 5, somando R$ 193,00
+  // A mediana de 11 dias e o numero que importa: num recorte de "Hoje" ou
+  // "7 dias" o estorno aparecia quase sempre num periodo em que nada aconteceu.
+  //
+  // O COALESCE preserva o comportamento antigo para a linha que ainda nao tem a
+  // data — e por isso o apply da 0029 nao muda numero nenhum sozinho.
+  const canonico = await fonte("src/lib/integrations/amazonOverviewCanonical.ts");
+  const consulta = consultaQueContem(canonico, "f.fee_type = 'refund'");
+  assert.match(consulta, /COALESCE\(f\.posted_at, o\.occurred_at\) >= \$4/,
+    "o recorte do estorno tem de olhar a data do lancamento primeiro");
+  assert.match(consulta, /COALESCE\(f\.posted_at, o\.occurred_at\) <= \$5/);
+  // E a contagem de quantos JA tem a data, para a tela poder dizer.
+  assert.match(consulta, /f\.posted_at IS NOT NULL/,
+    "a tela precisa saber quantos estornos ja tem data propria");
+});
+
+test("a data do lancamento e PERSISTIDA, senao o leitor nunca a ve", async () => {
+  // Ler `posted_at` sem grava-lo deixaria o COALESCE caindo sempre no fallback —
+  // o conserto pareceria feito e nao mudaria nada. Foi por isso que a versao
+  // anterior deste teste existia: a coluna nao existia, e o comentario era a
+  // unica coisa que registrava a divida.
+  const parser = await fonte("src/lib/transactions.ts");
+  assert.match(parser, /refundPostedAt: string \| null;/, "o parser precisa expor a data");
+  assert.match(parser, /entry\.refundPostedAt = transaction\.postedDate;/,
+    "e precisa guardar a data do lancamento do estorno");
+  const store = await fonte("src/lib/integrations/canonicalStore.ts");
+  assert.match(store, /posted_at: fee\.postedAt \?\? null,/, "a gravacao precisa levar a data");
+  assert.match(store, /posted_at = COALESCE\(EXCLUDED\.posted_at, workspace_channel_order_fees\.posted_at\)/,
+    "data ja conhecida nao pode ser apagada por uma ingestao que veio sem ela");
+});
+
+test("o estorno vem pela data do PEDIDO quando o lancamento nao foi capturado", async () => {
   // A unica data disponivel. Se alguem trocar por uma data do proprio estorno
   // sem antes CAPTURAR essa data, estara inventando o campo.
   const canonico = await fonte("src/lib/integrations/amazonOverviewCanonical.ts");
@@ -58,17 +113,6 @@ test("o estorno vem pela data do PEDIDO, nao pela do lancamento", async () => {
   // fica vermelha se o recorte sumir de verdade.
   //
   // Padrao da Vitrine, caso 3 de docs/achado-guarda-que-depende-da-forma.md.
-  const consultaQueContem = (texto, marcador) => {
-    const i = texto.indexOf(marcador);
-    assert.ok(i > 0, `marcador ausente: ${marcador}`);
-    const inicio = texto.lastIndexOf("SELECT", i);
-    let nivel = 0;
-    for (let k = inicio; k < texto.length; k += 1) {
-      if (texto[k] === "(") nivel += 1;
-      else if (texto[k] === ")") { nivel -= 1; if (nivel < 0) return texto.slice(inicio, k); }
-    }
-    return texto.slice(inicio);
-  };
   const consulta = consultaQueContem(canonico, "f.fee_type = 'refund'");
   assert.match(consulta, /o\.occurred_at >= \$4 AND o\.occurred_at <= \$5/, "recorte pela data do pedido");
 });
