@@ -419,24 +419,49 @@ export async function estimarPelaTarifaObservada(
    * triplicaria a estimativa. Foi o erro que a primeira consulta desta medição
    * cometeu — juntar pedidos com itens multiplica a tarifa pelo número de linhas.
    */
+  /**
+   * ⚠️ POR `fee_type`, NAO SOMADA (01/09/2026).
+   *
+   * Esta consulta somava tudo num numero so, e o estimador gravava
+   * `fee_type = 'other'` — 1.532 linhas assim. Isso quebrava as DUAS coisas que
+   * a 0022 existe para permitir:
+   *  - a PONTARIA da ADR-027 (previsto x real na liquidacao) ficava impossivel,
+   *    porque o real chega como `commission`/`fulfillment` e a estimativa era
+   *    `other`: nunca casariam por chave;
+   *  - e a componente de LOGISTICA, que e valor fixo por produto e nao depende
+   *    de preco, nao existia como campo separado para ser usada sozinha.
+   *
+   * 📌 A DECOMPOSICAO NAO VEM DE GRACA, e a cobertura esta medida: no extrato da
+   * Silveiras Import (01/09/2026) ha 5.270 pedidos com uma unica linha
+   * `commission` — que e o agregado antigo `transactions_total` gravado sob esse
+   * nome — contra 3 pedidos com `fulfillment`, os unicos ingeridos depois de
+   * `naturezaDaTarifa()` passar a separar por rubrica. Ou seja: hoje a
+   * estimativa nasce quase toda como `commission`, herdando o rotulo do extrato.
+   *
+   * Herdar o rotulo e deliberado, e e o que torna previsto e real comparaveis:
+   * comparamos o que a fonte chamou de X com a nossa previsao para X. A medida
+   * que o extrato novo chegar decomposto, a estimativa segue junto sem mudar uma
+   * linha aqui.
+   */
   const observadas = await dbQuery<{
-    asin: string; tarifa_por_unidade: string; preco_por_unidade: string; visto_em: string;
+    asin: string; fee_type: string; tarifa_por_unidade: string;
+    preco_por_unidade: string | null; visto_em: string;
   }>(
     `WITH pedidos AS (
-       SELECT o.external_order_id, o.occurred_at,
-              (SELECT SUM(f.amount) FROM workspace_channel_order_fees f
-                WHERE f.workspace_id = o.workspace_id AND f.provider = o.provider
-                  AND f.connection_id = o.connection_id
-                  AND f.external_order_id = o.external_order_id
-                  AND f.fee_type NOT IN ('refund', 'estimated')) AS tarifa
+       SELECT o.external_order_id, o.occurred_at, f.fee_type, SUM(f.amount) AS tarifa
          FROM workspace_channel_orders o
+         JOIN workspace_channel_order_fees f
+           ON f.workspace_id = o.workspace_id AND f.provider = o.provider
+          AND f.connection_id = o.connection_id AND f.external_order_id = o.external_order_id
         WHERE o.workspace_id = $1 AND o.provider = 'amazon' AND o.connection_id = $2
           AND o.status <> 'cancelled'
+          AND f.fee_type NOT IN ('refund', 'estimated')
+        GROUP BY 1, 2, 3
      ),
      -- Só pedido de UM ASIN: com dois produtos diferentes não há como saber
      -- quanto da tarifa é de cada um, e ratear seria inventar.
      unicos AS (
-       SELECT p.external_order_id, p.occurred_at, p.tarifa,
+       SELECT p.external_order_id, p.occurred_at, p.fee_type, p.tarifa,
               MIN(i.external_product_id) AS asin,
               SUM(i.qty) AS qtd,
               SUM(i.qty * i.unit_price) AS receita
@@ -445,21 +470,28 @@ export async function estimarPelaTarifaObservada(
            ON i.workspace_id = $1 AND i.provider = 'amazon' AND i.connection_id = $2
           AND i.external_order_id = p.external_order_id
         WHERE p.tarifa IS NOT NULL AND i.unit_price IS NOT NULL
-        GROUP BY 1, 2, 3
+        GROUP BY 1, 2, 3, 4
        HAVING COUNT(DISTINCT i.external_product_id) = 1 AND SUM(i.qty) > 0
      ),
      ranqueadas AS (
-       SELECT asin, tarifa / qtd AS tarifa_por_unidade, receita / qtd AS preco_por_unidade,
-              occurred_at,
-              ROW_NUMBER() OVER (PARTITION BY asin ORDER BY occurred_at DESC) AS recencia
+       SELECT asin, fee_type, tarifa / qtd AS tarifa_por_unidade,
+              receita / qtd AS preco_por_unidade, occurred_at,
+              ROW_NUMBER() OVER (PARTITION BY asin, fee_type ORDER BY occurred_at DESC) AS recencia
          FROM unicos
      )
-     SELECT asin, tarifa_por_unidade::text, preco_por_unidade::text,
+     SELECT asin, fee_type, tarifa_por_unidade::text, preco_por_unidade::text,
             occurred_at::date::text AS visto_em
        FROM ranqueadas WHERE recencia = 1`,
     [workspaceId, connectionId],
   );
-  const porAsin = new Map(observadas.map((o) => [o.asin, o]));
+  // Um ASIN tem UMA observacao POR RUBRICA — e todas as rubricas do ASIN sao
+  // gravadas, cada uma na sua linha, com o mesmo `line_no` do item.
+  const porAsin = new Map<string, typeof observadas>();
+  for (const o of observadas) {
+    const atual = porAsin.get(o.asin);
+    if (atual) atual.push(o);
+    else porAsin.set(o.asin, [o]);
+  }
 
   // As linhas que ainda não têm tarifa NENHUMA — nem real, nem estimativa vigente.
   const linhas = await dbQuery<{
@@ -507,39 +539,68 @@ export async function estimarPelaTarifaObservada(
 
   for (const linha of linhas) {
     const preco = precoDe(linha);
-    const observada = porAsin.get(linha.external_product_id);
-    if (preco == null || !observada) { semObservacao += 1; continue; }
+    const rubricas = porAsin.get(linha.external_product_id);
+    if (!rubricas?.length) { semObservacao += 1; continue; }
 
-    const precoObservado = Number(observada.preco_por_unidade);
-    // Janela de preço: comissão é percentual, então observação de outro patamar
-    // não vale. Fora dela, a linha fica SEM estimativa — e a tela aponta.
-    if (precoObservado > 0 && Math.abs(preco - precoObservado) / precoObservado > 0.2) {
+    // A janela de preco olha o patamar do ASIN, que e o mesmo em todas as
+    // rubricas — entao decide uma vez por linha, nao uma vez por rubrica.
+    //
+    // ⚠️ A JANELA SO VALE QUANDO HA PRECO DOS DOIS LADOS (01/09/2026). Antes
+    // disto o laco comecava com `if (preco == null || !observada) continue`, e
+    // esse `preco == null` era um PORTAO DE ENTRADA por preco que nunca foi
+    // decidido: o valor gravado e `tarifa_por_unidade * qty`, ABSOLUTO em R$, e
+    // nao depende de preco nenhum. So a comparacao de patamar depende.
+    //
+    // Medido na Silveiras Import em 01/09/2026, com a autorizacao caida: dos 31
+    // pedidos do dia, 30 chegam sem `unit_price` e sem `ordered_gross` (a Amazon
+    // ainda nao publicou valor), e 12 dos 13 ASINs do dia JA TEM tarifa
+    // observada no historico. O portao descartava os 30 antes de qualquer
+    // comparacao — 0 de 30 com estimativa, contra 1 de 1 entre os que tinham
+    // preco. A correlacao era perfeita.
+    //
+    // 📌 E ISTO NAO PRODUZ LUCRO PARA ESSES PEDIDOS, nem e para produzir: sem
+    // receita nao ha resultado, e a base ja os mantem de fora pela regra "custo
+    // e tarifa so existem para o pedido cuja receita existe". O que muda e que a
+    // tarifa fica gravada e datada, pronta para o instante em que o valor
+    // chegar — em vez de esperar uma nova passada do estimador.
+    const precoObservado = Number(rubricas[0].preco_por_unidade ?? 0);
+    if (preco != null && precoObservado > 0
+        && Math.abs(preco - precoObservado) / precoObservado > 0.2) {
       semObservacao += 1;
       continue;
     }
-    const valor = +(Number(observada.tarifa_por_unidade) * linha.qty).toFixed(2);
-    if (!Number.isFinite(valor) || valor < 0) { semObservacao += 1; continue; }
 
-    await dbQuery(
-      `INSERT INTO workspace_channel_order_fee_estimates
-         (workspace_id, provider, connection_id, external_order_id, line_no, fee_type,
-          provider_fee_code, amount, currency, unit_price, qty, source)
-       VALUES ($1, 'amazon', $2, $3, $4, 'other', $5, $6, 'BRL', $7, $8, 'observada')
-       ON CONFLICT (workspace_id, provider, connection_id, external_order_id, line_no, fee_type)
-       DO UPDATE SET amount = EXCLUDED.amount, provider_fee_code = EXCLUDED.provider_fee_code,
-                     unit_price = EXCLUDED.unit_price, qty = EXCLUDED.qty,
-                     source = EXCLUDED.source, estimated_at = now()
-        WHERE workspace_channel_order_fee_estimates.superseded_at IS NULL`,
-      [
-        workspaceId, connectionId, linha.external_order_id, linha.line_no,
-        // A procedência verificável: de qual observação este número veio.
-        `observada:${observada.visto_em}`,
-        valor, preco, linha.qty,
-      ],
-    );
-    gravadas += 1;
-    pedidosTocados.add(linha.external_order_id);
-    asinsUsados.add(linha.external_product_id);
+    let gravouAlguma = false;
+    for (const observada of rubricas) {
+      const valor = +(Number(observada.tarifa_por_unidade) * linha.qty).toFixed(2);
+      if (!Number.isFinite(valor) || valor < 0) continue;
+
+      await dbQuery(
+        `INSERT INTO workspace_channel_order_fee_estimates
+           (workspace_id, provider, connection_id, external_order_id, line_no, fee_type,
+            provider_fee_code, amount, currency, unit_price, qty, source)
+         VALUES ($1, 'amazon', $2, $3, $4, $5, $6, $7, 'BRL', $8, $9, 'observada')
+         ON CONFLICT (workspace_id, provider, connection_id, external_order_id, line_no, fee_type)
+         DO UPDATE SET amount = EXCLUDED.amount, provider_fee_code = EXCLUDED.provider_fee_code,
+                       unit_price = EXCLUDED.unit_price, qty = EXCLUDED.qty,
+                       source = EXCLUDED.source, estimated_at = now()
+          WHERE workspace_channel_order_fee_estimates.superseded_at IS NULL`,
+        [
+          workspaceId, connectionId, linha.external_order_id, linha.line_no,
+          // A RUBRICA HERDADA DA OBSERVACAO, nunca 'other': e o que faz previsto
+          // e real casarem por chave na liquidacao (ADR-027).
+          observada.fee_type,
+          // A procedencia verificavel: de qual observacao este numero veio.
+          `observada:${observada.visto_em}`,
+          valor, preco, linha.qty,
+        ],
+      );
+      gravadas += 1;
+      gravouAlguma = true;
+      asinsUsados.add(linha.external_product_id);
+    }
+    if (gravouAlguma) pedidosTocados.add(linha.external_order_id);
+    else semObservacao += 1;
   }
 
   return { pedidos: pedidosTocados.size, linhas: gravadas, asins: asinsUsados.size, semObservacao };

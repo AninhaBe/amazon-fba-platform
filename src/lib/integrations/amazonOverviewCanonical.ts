@@ -286,18 +286,7 @@ export async function getAmazonOverviewFromCanonical(
   // Sem sync algum e sem pedidos no período → nada canônico para servir.
   if (!syncRow && (!totals || totals.total_orders === 0)) return null;
 
-  const [velocityRows, productTotalsRows, recentRows, lineRows, costs, dailyRows] = await Promise.all([
-    dbQuery<VelocityRow>(
-      `SELECT i.sku, i.external_product_id, SUM(i.qty)::int AS units
-         FROM workspace_channel_order_items i
-         JOIN workspace_channel_orders o
-           ON o.workspace_id = i.workspace_id AND o.provider = i.provider
-          AND o.connection_id = i.connection_id AND o.external_order_id = i.external_order_id
-        WHERE i.workspace_id = $1 AND i.provider = $2 AND i.connection_id = $3
-          AND o.occurred_at >= $4 AND o.occurred_at <= $5 AND o.status = ANY($6::text[])
-        GROUP BY i.sku, i.external_product_id`,
-      [...scopeParams(connectionId, period), REVENUE_STATUSES]
-    ),
+  const [productTotalsRows, recentRows, lineRows, costs, dailyRows] = await Promise.all([
     dbQuery<ProductTotalsRow>(
       `SELECT i.external_product_id, i.sku, MIN(i.title) AS title,
               SUM(i.qty)::int AS units, SUM(i.qty * i.unit_price) AS revenue
@@ -395,8 +384,17 @@ export async function getAmazonOverviewFromCanonical(
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
 
+  // ⚠️ A VELOCIDADE SAI DO MESMO RESULTADO DOS TOTAIS POR PRODUTO (01/09/2026).
+  //
+  // Eram DUAS consultas idênticas — mesmas tabelas, mesmo join, mesmo WHERE,
+  // mesmo par de agrupamento (`sku, external_product_id`) — que diferiam só na
+  // ORDEM das colunas do GROUP BY. Uma devolvia unidades; a outra, unidades e
+  // receita. A segunda já era superconjunto estrito da primeira.
+  //
+  // Não é consolidação com risco: nenhum join novo, nenhuma mudança de grão. É
+  // parar de perguntar duas vezes a mesma coisa.
   const velocityBySku: Record<string, number> = {};
-  for (const row of velocityRows) {
+  for (const row of productTotalsRows) {
     const key = row.sku || row.external_product_id;
     velocityBySku[key] = (velocityBySku[key] ?? 0) + row.units;
   }
@@ -443,8 +441,10 @@ export async function getAmazonOverviewFromCanonical(
   // SERIALIDADE: enquanto esta esperava, nenhuma outra corria.
   const estimativasPorLinhaPromise = dbQuery<{
     external_order_id: string; line_no: number; fee_type: string; amount: string;
+    source: string; provider_fee_code: string; unit_price: string;
   }>(
-    `SELECT e.external_order_id, e.line_no, e.fee_type, e.amount::text
+    `SELECT e.external_order_id, e.line_no, e.fee_type, e.amount::text,
+            e.source, e.provider_fee_code, e.unit_price::text
        FROM workspace_channel_order_fee_estimates e
        JOIN workspace_channel_orders o
          ON o.workspace_id = e.workspace_id AND o.provider = e.provider
@@ -455,21 +455,66 @@ export async function getAmazonOverviewFromCanonical(
     scopeParams(connectionId, period),
   );
   const estimativasPorLinha = await estimativasPorLinhaPromise;
-  const marcasPorLinha = new Map<string, { comissao: number | null; fba: number | null }>();
+  /**
+   * A PROCEDENCIA POR LINHA — o contrato que a tela consome (01/09/2026).
+   *
+   * `origemDaTarifa` sai da coluna `source`, que a 0022 ja criou. Os dois campos
+   * que tornam cada origem VERIFICAVEL sao derivados aqui, sem coluna nova:
+   *  - `observadaEm`: a data da observacao, gravada pelo estimador dentro de
+   *    `provider_fee_code` como `observada:YYYY-MM-DD`;
+   *  - `percentualDaCategoria`: `amount / unit_price`, que so faz sentido para a
+   *    origem `tabela` — nas outras fica `null` em vez de um numero sem
+   *    significado.
+   */
+  const marcasPorLinha = new Map<string, {
+    comissao: number | null; fba: number | null; temEstimativa: boolean;
+    origem: string | null; observadaEm: string | null; percentual: number | null;
+  }>();
   for (const linha of estimativasPorLinha) {
     const chave = `${linha.external_order_id}:${linha.line_no}`;
-    const atual = marcasPorLinha.get(chave) ?? { comissao: null, fba: null };
+    const atual = marcasPorLinha.get(chave)
+      ?? { comissao: null, fba: null, temEstimativa: false, origem: null, observadaEm: null, percentual: null };
     if (linha.fee_type === "commission") atual.comissao = Number(linha.amount);
     if (linha.fee_type === "fulfillment") atual.fba = Number(linha.amount);
+    // ⚠️ `temEstimativa` E SEPARADO DAS DUAS COMPONENTES DE PROPOSITO. A marca
+    // acendia por `comissao != null || fba != null`, e o estimador da tarifa
+    // OBSERVADA grava `fee_type = 'other'` — uma tarifa por unidade, indivisa,
+    // porque a observacao vem do extrato ja somada. Resultado: a estimativa
+    // existia na tabela, entrava no total de Taxas pela view, e a linha na tela
+    // dizia que nao era estimada. Numero estimado sem a marca e pior que numero
+    // ausente.
+    atual.temEstimativa = true;
+    atual.origem = linha.source;
+    const observada = /^observada:(\d{4}-\d{2}-\d{2})$/.exec(linha.provider_fee_code ?? "");
+    if (observada) atual.observadaEm = observada[1];
+    if (linha.source === "tabela") {
+      // ⚠️ FRACAO, NAO PERCENTUAL — contrato acordado com a Vitrine em
+      // 01/09/2026: 0.1201 para 12,01%, e a conversao acontece num ponto so, na
+      // tela. Isto ja saiu daqui como percentual uma vez; a peca dela formatava
+      // cru e teria exibido "0,12%".
+      //
+      // `unit_price` pode ser NULL desde a 0027 (pedido sem valor publicado):
+      // `Number(null)` e 0, entao o `> 0` cobre o caso sem ramo extra.
+      const preco = Number(linha.unit_price);
+      atual.percentual = preco > 0 ? +(Number(linha.amount) / preco).toFixed(4) : null;
+    }
     marcasPorLinha.set(chave, atual);
   }
   const marcaDaLinha = (orderId: string, lineNo: number) => {
     const marca = marcasPorLinha.get(`${orderId}:${lineNo}`);
-    if (!marca) return { feesEstimadas: false, comissaoEstimada: null, fbaEstimada: null };
+    if (!marca) {
+      return {
+        feesEstimadas: false, comissaoEstimada: null, fbaEstimada: null,
+        origemDaTarifa: null, observadaEm: null, percentualDaCategoria: null,
+      };
+    }
     return {
-      feesEstimadas: marca.comissao != null || marca.fba != null,
+      feesEstimadas: marca.temEstimativa,
       comissaoEstimada: marca.comissao,
       fbaEstimada: marca.fba,
+      origemDaTarifa: marca.origem,
+      observadaEm: marca.observadaEm,
+      percentualDaCategoria: marca.percentual,
     };
   };
 
@@ -747,11 +792,15 @@ export async function getAmazonOverviewFromCanonical(
   // Agora as duas saem do mesmo `WHERE`, e a parte é sempre parte do todo por
   // construção. `FILTER` mantém o grão: é a mesma linha contada de dois jeitos,
   // não um join a mais — nenhum risco de inflar por fan-out.
-  const tarifaRows = await dbQuery<{ total: string | null; estimada: string | null; pedidos_estimados: number }>(
+  const tarifaRows = await dbQuery<{ total: string | null; estimada: string | null; pedidos_estimados: number; estorno: string | null; estorno_n: number }>(
     `SELECT COALESCE(SUM(f.amount) FILTER (WHERE f.fee_type <> 'refund'), 0)::text AS total,
             COALESCE(SUM(f.amount) FILTER (WHERE f.fee_type <> 'refund' AND f.basis = 'estimated'), 0)::text AS estimada,
             COUNT(DISTINCT f.external_order_id)
-              FILTER (WHERE f.fee_type <> 'refund' AND f.basis = 'estimated')::int AS pedidos_estimados
+              FILTER (WHERE f.fee_type <> 'refund' AND f.basis = 'estimated')::int AS pedidos_estimados,
+            -- O ESTORNO ENTRA AQUI, e nao numa terceira ida: mesma view, mesmo
+            -- join, mesmo periodo. So muda o FILTER.
+            COALESCE(SUM(f.amount) FILTER (WHERE f.fee_type = 'refund'), 0)::text AS estorno,
+            COUNT(*) FILTER (WHERE f.fee_type = 'refund')::int AS estorno_n
        FROM workspace_channel_order_fees_efetivas f
        JOIN workspace_channel_orders o
          ON o.workspace_id = f.workspace_id AND o.provider = f.provider
@@ -811,23 +860,26 @@ export async function getAmazonOverviewFromCanonical(
     }
   }
 
-  const [estornoRows] = await Promise.all([
-    dbQuery<{ total: string | null; n: number }>(
-      `SELECT SUM(f.amount)::text AS total, COUNT(*)::int AS n
-         FROM workspace_channel_order_fees f
-         JOIN workspace_channel_orders o
-           ON o.workspace_id = f.workspace_id AND o.provider = f.provider
-          AND o.connection_id = f.connection_id AND o.external_order_id = f.external_order_id
-        WHERE f.workspace_id = $1 AND f.provider = $2 AND f.connection_id = $3
-          AND f.fee_type = 'refund'
-          AND o.occurred_at >= $4 AND o.occurred_at <= $5`,
-      scopeParams(connectionId, period),
-    ),
-  ]);
-  // `0` é fato ("não houve devolução no período"), não ausência: a Amazon expõe
-  // estorno e a consulta acima cobre o período inteiro. Ausência VERIFICADA.
-  const refunds = Number(estornoRows[0]?.total ?? 0);
-  const refundCount = estornoRows[0]?.n ?? 0;
+  // ⚠️ O ESTORNO SAIU DA PROPRIA CONSULTA (01/09/2026): agora vem no mesmo
+  // `tarifaRows`, por `FILTER`. Era uma terceira ida a MESMA view, com o MESMO
+  // join e o MESMO periodo, so para outro `fee_type`.
+  //
+  // ⚠️ E ELE PASSOU A OBEDECER A MESMA REGRA DE ESCOPO do custo e da tarifa:
+  // estorno de pedido que NAO esta na base (cancelado, ou sem valor conhecido)
+  // deixa de reduzir um lucro calculado sobre a base. Subtrair devolucao de uma
+  // receita que nao esta na conta era a mesma familia do defeito das cinco
+  // bases, na linha do estorno.
+  //
+  // ⚠️ E `refundCount` MUDOU DE GRAO, de linha de tarifa para linha da view
+  // (pedido x tipo x moeda). MEDIDO ANTES DE TROCAR, 30 dias na conta
+  // A15NQMF7A6J1Y0: 13 linhas de tarifa e 13 linhas da view, R$ 254,03 nos dois
+  // — identicos, porque a Amazon posta um estorno por pedido. Se um dia postar
+  // dois, a contagem passa a ser de PEDIDOS, que e o que a frase da tela diz
+  // ("N devolucao(oes)"). A troca foi conferida, nao presumida.
+  //
+  // `0` e fato ("nao houve devolucao no periodo"), nao ausencia.
+  const refunds = Number(tarifaRows[0]?.estorno ?? 0);
+  const refundCount = tarifaRows[0]?.estorno_n ?? 0;
 
   const anuncio = await anuncioDoCanal("amazon", period.startISO, period.endISO);
   // `taxes ?? 0`: sem alíquota o lucro sai sem imposto, como sempre saiu — quem

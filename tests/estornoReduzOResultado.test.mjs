@@ -44,9 +44,32 @@ test("o estorno vem pela data do PEDIDO, nao pela do lancamento", async () => {
   // A unica data disponivel. Se alguem trocar por uma data do proprio estorno
   // sem antes CAPTURAR essa data, estara inventando o campo.
   const canonico = await fonte("src/lib/integrations/amazonOverviewCanonical.ts");
-  const i = canonico.indexOf("f.fee_type = 'refund'");
-  assert.ok(i > 0, "a consulta de estorno precisa existir");
-  const consulta = canonico.slice(i, i + 200);
+
+  // ⚠️ ANCORA ESTRUTURAL, NAO JANELA DE CARACTERES (01/09/2026). Aqui estava
+  // `canonico.slice(i, i + 200)`, e a guarda ficou VERMELHA quando a consulta do
+  // estorno foi FUNDIDA com a da tarifa para economizar uma ida ao banco: o
+  // recorte por data continuava la, correto, a 465 caracteres do marcador em vez
+  // de 200. A guarda acusou quem melhorou o codigo.
+  //
+  // Distancia em caracteres e APARENCIA. O que este teste quer garantir e
+  // ESTRUTURA: que o recorte por data esteja dentro da MESMA consulta que soma o
+  // estorno. Entao a fatia agora vai do `SELECT` que abre a consulta ate o
+  // parenteses que a fecha, contando niveis — sobrevive a qualquer reescrita e so
+  // fica vermelha se o recorte sumir de verdade.
+  //
+  // Padrao da Vitrine, caso 3 de docs/achado-guarda-que-depende-da-forma.md.
+  const consultaQueContem = (texto, marcador) => {
+    const i = texto.indexOf(marcador);
+    assert.ok(i > 0, `marcador ausente: ${marcador}`);
+    const inicio = texto.lastIndexOf("SELECT", i);
+    let nivel = 0;
+    for (let k = inicio; k < texto.length; k += 1) {
+      if (texto[k] === "(") nivel += 1;
+      else if (texto[k] === ")") { nivel -= 1; if (nivel < 0) return texto.slice(inicio, k); }
+    }
+    return texto.slice(inicio);
+  };
+  const consulta = consultaQueContem(canonico, "f.fee_type = 'refund'");
   assert.match(consulta, /o\.occurred_at >= \$4 AND o\.occurred_at <= \$5/, "recorte pela data do pedido");
 });
 
