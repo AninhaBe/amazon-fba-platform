@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { EmptyState } from "./EmptyState"; import { DashboardSkeleton } from "./LoadingState"; import { PageHeader } from "./PageHeader";
 import { DashboardPeriodFilter, useDashboardPeriod } from "./DashboardPeriodFilter";
+import { usePrefetchDePeriodos } from "./prefetchDePeriodos";
+import { useCacheDaTela } from "./cacheDaTela";
 import { ChannelModuleSummary } from "./ChannelModuleSummary";
 import { ChannelConnectionEmpty } from "./ChannelConnectionEmpty";
 import { moduleApiQuery, moduleConnectionHref, moduleError, moduleHref, moduleMoney, updatedModuleQuery } from "./TikTokModulesModel";
@@ -24,17 +26,56 @@ type Payload={items?:Record<string,unknown>[];costs?:Record<string,unknown>[];av
 const config:Record<Kind,{title:string;subtitle:string;endpoint:string;period:boolean}>={monitor:{title:"Monitor da conta",subtitle:"Pedidos e estado de conciliação, sem dados pessoais do comprador.",endpoint:"monitor",period:true},finance:{title:"Financeiro",subtitle:"Transações finais do ledger e cobertura dos extratos, sem estimativas.",endpoint:"finance",period:true},catalog:{title:"Anúncios",subtitle:"Catálogo publicado e variações em modo somente leitura.",endpoint:"catalog",period:false},inventory:{title:"Radar de estoque",subtitle:"Cobertura e risco de ruptura, sem projetar quando falta base de venda.",endpoint:"inventory",period:true},costs:{title:"Produtos",subtitle:"Custos por SKU exclusivos desta loja TikTok Shop.",endpoint:"costs",period:false},abc:{title:"Curva ABC",subtitle:"Receita por produto e participação acumulada no período.",endpoint:"abc",period:true}};
 const text=(v:unknown)=>v==null||v===""?"—":String(v);
 
+/**
+ * A query da URL com OUTRO período — só para aquecer.
+ *
+ * ⚠️ Repassa o que o filtro devolveu e deixa `moduleApiQuery` decidir o que vai
+ * para o servidor. Montar o período aqui criaria a segunda regra de período do
+ * produto — é a mesma nota da Shopee, e de propósito a mesma regra.
+ */
+function comPeriodo(fonte:string,janela:string){
+  const saida=new URLSearchParams(fonte), escolhida=new URLSearchParams(janela);
+  const de=escolhida.get("from"), ate=escolhida.get("to");
+  if(de&&ate){saida.set("from",de);saida.set("to",ate);saida.delete("days")}
+  else{saida.set("days",escolhida.get("days")??"today");saida.delete("from");saida.delete("to")}
+  return saida.toString();
+}
+
 export function TikTokModulePage({kind}:{kind:Kind}) { const cfg=config[kind], router=useRouter(), sp=useSearchParams(); const update=useCallback((values:Record<string,string|null>)=>{router.push(`${location.pathname}?${updatedModuleQuery(sp.toString(),values)}`,{scroll:false})},[router,sp]); const syncPeriod=useCallback((query:string)=>{const source=new URLSearchParams(query);if(source.has("from")&&source.has("to")){update({from:source.get("from"),to:source.get("to")});return}const days=source.get("days")??"today",to=new Date(),from=new Date(to);if(days!=="today")from.setDate(from.getDate()-Math.max(0,Number(days)-1));const iso=(date:Date)=>date.toISOString().slice(0,10);update({from:iso(from),to:iso(to)})},[update]); const period=useDashboardPeriod(sp.toString(),cfg.period?syncPeriod:undefined); const [connections,setConnections]=useState<Connection[]|null>(null); const [providerIssue,setProviderIssue]=useState<ProviderIssue|null>(null); const [data,setData]=useState<{id:string;body:Payload}|null>(null); const [error,setError]=useState(""); const [attempt,setAttempt]=useState(0); const requested=sp.get("connection_id");
   useEffect(()=>{let live=true;fetch("/api/integrations",{cache:"no-store"}).then(r=>r.json().then(b=>{if(!r.ok)throw Error();return b})).then(b=>{const p=b.providers?.find((x:{id:string})=>x.id==="tiktok_shop");if(live){setConnections((p?.connections??[]).slice().sort((a:Connection,b:Connection)=>a.id.localeCompare(b.id)));setProviderIssue(p?.issue??null)}}).catch(()=>live&&setError("Não foi possível carregar as conexões."));return()=>{live=false}},[attempt]);
   const selected=connections?.find(c=>c.id===requested)??connections?.[0]??null;
   useEffect(()=>{if(selected&&requested!==selected.id)router.replace(moduleHref(location.pathname,sp.toString(),selected.id),{scroll:false})},[requested,router,selected,sp]);
   const query=useMemo(()=>selected?moduleApiQuery(sp.toString(),selected.id,kind):"",[kind,selected,sp]);
+  // ⚠️ CACHE QUE VIVE O QUE A TELA VIVE (01/09/2026) — a MESMA peça da Shopee,
+  // não uma parecida. Ver `cacheDaTela` para o caminho de defeito que o tempo de
+  // vida comum fecha por construção: toda visita nova busca, e dentro da visita
+  // voltar a um período já visto custa zero ida.
+  const cache=useCacheDaTela<Payload>(`tiktok:${kind}`);
+  const buscarModulo=useCallback((chave:string)=>cache.buscar(chave,async()=>{
+    const r=await fetch(`/api/integrations/tiktok/${cfg.endpoint}?${chave}`,{cache:"no-store"});
+    const b=await r.json();
+    if(!r.ok)throw new Error(moduleError(b.code)||b.error||"Não foi possível carregar este módulo.");
+    return b as Payload;
+  }),[cache,cfg.endpoint]);
   // Clear the previous connection synchronously so its data can never flash under a new store selector.
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(()=>{if(!selected)return;let live=true;setData(null);setError("");fetch(`/api/integrations/tiktok/${cfg.endpoint}?${query}`,{cache:"no-store"}).then(async r=>{const b=await r.json();if(!r.ok)throw new Error(moduleError(b.code)||b.error||"Não foi possível carregar este módulo.");return b}).then(body=>live&&setData({id:selected.id,body})).catch(e=>live&&setError(e.message));return()=>{live=false}},[attempt,cfg.endpoint,query,selected]);
+  useEffect(()=>{if(!selected)return;let live=true;setData(null);setError("");const conta=selected.id;buscarModulo(query).then(body=>live&&setData({id:conta,body})).catch(e=>live&&setError(e.message));return()=>{live=false}},[attempt,buscarModulo,query,selected]);
+  /**
+   * ANTECIPA a janela que a pessoa está prestes a pedir — ponteiro e foco, como
+   * na Shopee: esta tela também não tinha cache, então o cache novo paga o hover
+   * que não vira clique. Sem fila de fundo (custaria três idas por sessão).
+   */
+  const {aquecerAgora}=usePrefetchDePeriodos({
+    ativo:Boolean(selected&&data),
+    atual:period.query,
+    escopo:`tiktok:${kind}:${selected?.id??""}`,
+    jaTem:janela=>selected?cache.jaTem(moduleApiQuery(comPeriodo(sp.toString(),janela),selected.id,kind)):false,
+    buscar:async janela=>{if(selected)await buscarModulo(moduleApiQuery(comPeriodo(sp.toString(),janela),selected.id,kind))},
+    filaDeFundo:false,
+  });
   const retry=useCallback(()=>setAttempt(x=>x+1),[]); const body=data&&data.id===selected?.id?data.body:null;
   return <div className={`channel-module-page analysis-page channel-module-${kind}`}>
-    {cfg.period&&<DashboardPeriodFilter {...period.filterProps}/>}
+    {cfg.period&&<DashboardPeriodFilter {...period.filterProps} onIntent={aquecerAgora}/>}
     <PageHeader eyebrow="TikTok Shop" title={cfg.title} subtitle={cfg.subtitle} action={selected&&connections&&<label className="channel-store-selector">Loja<select aria-label="Loja TikTok Shop" value={selected.id} onChange={e=>router.push(moduleConnectionHref(location.pathname,sp.toString(),e.target.value),{scroll:false})}>{connections.map(c=><option key={c.id} value={c.id}>{c.displayName||c.externalAccountId||c.id}</option>)}</select></label>}/>
     {!connections&&!error?<DashboardSkeleton/>:providerIssue?<EmptyState kind="permission" title={providerIssue.code==="INFRA_INDISPONIVEL"?"Instabilidade nossa, não da sua conexão":providerIssue.code==="OWNERSHIP_CONFLICT"?"Conexão TikTok protegida":"Canal TikTok requer atenção"} description={providerIssue.message} action={providerIssue.code==="INFRA_INDISPONIVEL"?undefined:<Link className="meli-primary-action" href="/integracoes">Gerenciar conexões</Link>}/>:connections?.length===0?<ChannelConnectionEmpty channel="TikTok Shop" description="Conecte uma loja para acessar este módulo." action={<Link className="meli-primary-action" href="/integracoes">Gerenciar conexões</Link>}/>:error?<EmptyState kind="permission" title="Não foi possível carregar" description={error} action={<button className="meli-primary-action min-h-11" onClick={retry}>Tentar novamente</button>}/>:!body?<DashboardSkeleton/>:body.availability==="BLOCKED"?<EmptyState kind="permission" title="Financeiro aguardando estrutura de dados" description="O ledger financeiro ainda não está disponível neste ambiente. Nenhum valor foi estimado ou convertido em zero."/>:body.availability==="NOT_AVAILABLE"?<EmptyState title="Dados ainda indisponíveis" description="A conexão existe, mas este conjunto de dados ainda não foi materializado."/>:<ModuleContent kind={kind} body={body} sp={sp} update={update} connectionId={selected!.id}/>}</div>;
 }

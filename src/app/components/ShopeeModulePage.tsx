@@ -6,6 +6,8 @@ import { EmptyState } from "./EmptyState";
 import { DashboardSkeleton } from "./LoadingState";
 import { PageHeader } from "./PageHeader";
 import { DashboardPeriodFilter, useDashboardPeriod } from "./DashboardPeriodFilter";
+import { usePrefetchDePeriodos } from "./prefetchDePeriodos";
+import { useCacheDaTela } from "./cacheDaTela";
 import { ChannelModuleSummary } from "./ChannelModuleSummary";
 import { comCustoSalvo, custoExibido, custoValido, proximoEstado, ROTULO_DO_CUSTO, salvarCusto, type CustoSalvo, type EstadoDoCusto } from "./custoPorLinha";
 import { ChannelConnectionEmpty } from "./ChannelConnectionEmpty";
@@ -34,6 +36,22 @@ type Payload={items?:Record<string,unknown>[];orders?:Record<string,unknown>[];a
 const money=(value:unknown,currency="BRL")=>value==null?"—":new Intl.NumberFormat("pt-BR",{style:"currency",currency}).format(Number(value));
 const show=(value:unknown)=>value==null||value===""?"—":String(value);
 
+/**
+ * A query da URL com OUTRO período — só para aquecer.
+ *
+ * ⚠️ Não inventa conversão: repassa exatamente o que o filtro devolveu
+ * (`days=…` ou `from=…&to=…`) para dentro da query que a tela já monta, e deixa
+ * `shopeeModuleQuery` decidir o que vai para o servidor. Montar o período aqui
+ * criaria a segunda regra de período do produto.
+ */
+function comPeriodo(fonte:string,janela:string){
+  const saida=new URLSearchParams(fonte), escolhida=new URLSearchParams(janela);
+  const de=escolhida.get("from"), ate=escolhida.get("to");
+  if(de&&ate){saida.set("from",de);saida.set("to",ate);saida.delete("days")}
+  else{saida.set("days",escolhida.get("days")??"today");saida.delete("from");saida.delete("to")}
+  return saida.toString();
+}
+
 export function ShopeeModulePage({kind}:{kind:ShopeeModuleKind}) {
   const cfg=SHOPEE_MODULES[kind], router=useRouter(), params=useSearchParams();
   const [connections,setConnections]=useState<Connection[]|null>(null), [providerIssue,setProviderIssue]=useState<ShopeeProviderIssue|null>(null), [payload,setPayload]=useState<Payload|null>(null), [error,setError]=useState(""), [attempt,setAttempt]=useState(0);
@@ -45,25 +63,56 @@ export function ShopeeModulePage({kind}:{kind:ShopeeModuleKind}) {
   const requested=params.get("connection_id"), connected=connections?.filter(item=>item.status==="connected")??null, selected=connected?.find(item=>item.id===requested)??connected?.[0]??null, selectedId=selected?.id??null;
   useEffect(()=>{if(selected&&requested!==selected.id)router.replace(shopeeModuleHref(location.pathname,params.toString(),selected.id),{scroll:false})},[params,requested,router,selected]);
   const query=selectedId?shopeeModuleQuery(params.toString(),selectedId,kind):"";
+  // ⚠️ CACHE QUE VIVE O QUE A TELA VIVE (01/09/2026). Ver `cacheDaTela`: ele
+  // nasce e morre junto com `custosSalvos`, o patch que corrige as linhas. É por
+  // isso que não existe o caminho "salvar → sair → voltar e a coluna volta a
+  // '—'". Toda visita nova busca; dentro da visita, voltar a um período já visto
+  // custa zero ida — e é esse zero que paga a antecipação sem subir requisição.
+  const cache=useCacheDaTela<Payload>(`shopee:${kind}`);
+  const buscarModulo=useCallback((chave:string)=>cache.buscar(chave,async()=>{
+    const response=await fetch(`/api/integrations/shopee/${cfg.endpoint}?${chave}`,{cache:"no-store"});
+    const body=await response.json();
+    if(!response.ok)throw Error(shopeeModuleError(body.code)||body.error||"Não foi possível carregar este módulo.");
+    return body as Payload;
+  }),[cache,cfg.endpoint]);
   // Clear stale rows before fetching another connection or filter combination.
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(()=>{if(!selectedId)return;let active=true;setPayload(null);setError("");fetch(`/api/integrations/shopee/${cfg.endpoint}?${query}`,{cache:"no-store"}).then(async response=>{const body=await response.json();if(!response.ok)throw Error(shopeeModuleError(body.code)||body.error||"Não foi possível carregar este módulo.");return body}).then(body=>active&&setPayload(body)).catch(reason=>active&&setError(reason.message));return()=>{active=false}},[attempt,cfg.endpoint,query,selectedId]);
+  useEffect(()=>{if(!selectedId)return;let active=true;setPayload(null);setError("");buscarModulo(query).then(body=>active&&setPayload(body)).catch(reason=>active&&setError(reason.message));return()=>{active=false}},[attempt,buscarModulo,query,selectedId]);
+  /**
+   * ANTECIPA a janela que a pessoa está prestes a pedir.
+   *
+   * Ponteiro E foco aqui, ao contrário do monitor e da central: esta tela NÃO
+   * tinha cache nenhum, então o cache que ela acabou de ganhar paga o hover que
+   * não vira clique — a mesma aritmética medida em `/ads` (4 → 4). Sem fila de
+   * fundo: ela custaria três idas por sessão, sempre.
+   */
+  const {aquecerAgora}=usePrefetchDePeriodos({
+    ativo:Boolean(selectedId&&payload),
+    atual:period.query,
+    escopo:`shopee:${kind}:${selectedId??""}`,
+    jaTem:janela=>selectedId?cache.jaTem(shopeeModuleQuery(comPeriodo(params.toString(),janela),selectedId,kind)):false,
+    buscar:async janela=>{if(selectedId)await buscarModulo(shopeeModuleQuery(comPeriodo(params.toString(),janela),selectedId,kind))},
+    filaDeFundo:false,
+  });
   const retry=()=>setAttempt(value=>value+1);
+  // Esquecer ANTES de subir a tentativa: o efeito refaz a busca, e com o cache
+  // limpo ela vai ao servidor em vez de devolver o payload de antes da alíquota.
+  const aoSalvarAliquota=useCallback(()=>{cache.esquecer();setAttempt(value=>value+1)},[cache]);
   const attention=connections?.some(item=>item.status==="attention"||item.status==="disconnected");
   const issueContent=shopeeProviderIssueContent(providerIssue);
   return <div className={`channel-module-page analysis-page channel-module-${kind}`}>
-    {cfg.period&&selected&&<DashboardPeriodFilter {...period.filterProps}/>}
+    {cfg.period&&selected&&<DashboardPeriodFilter {...period.filterProps} onIntent={aquecerAgora}/>}
     <PageHeader eyebrow="Shopee" title={cfg.title} subtitle={cfg.subtitle} action={selected&&connected&&<label className="channel-store-selector">Loja<select aria-label="Loja Shopee" value={selected.id} onChange={event=>router.push(shopeeModuleHref(location.pathname,params.toString(),event.target.value),{scroll:false})}>{connected.map(item=><option value={item.id} key={item.id}>{item.displayName||item.externalAccountId||item.id}</option>)}</select></label>}/>
-    {!connections&&!error?<DashboardSkeleton/>:issueContent?<EmptyState kind="permission" title={issueContent.title} description={issueContent.description} action={<Link href="/integracoes" className="meli-primary-action">{issueContent.actionLabel}</Link>}/>:!selected&&!error?(attention?<EmptyState kind="permission" title="Reconecte a loja Shopee" description="A autorização expirou ou foi interrompida. Reconecte para retomar a sincronização." action={<Link href="/integracoes" className="meli-primary-action">Gerenciar conexões</Link>}/>:<ChannelConnectionEmpty channel="Shopee" description="Conecte uma loja para acessar este módulo." action={<Link href="/integracoes" className="meli-primary-action">Gerenciar conexões</Link>}/>):error?<EmptyState kind="permission" title="Não foi possível carregar" description={error} action={<button type="button" className="meli-primary-action min-h-11 active:scale-[0.96] transition-transform" onClick={retry}>Tentar novamente</button>}/>:!payload?<DashboardSkeleton/>:payload.availability==="NOT_AVAILABLE"?<EmptyState title="Dados ainda indisponíveis" description="A loja está conectada, mas este conjunto ainda não foi materializado pela sincronização."/>:<Content kind={kind} body={payload} params={params} update={update} connectionId={selected!.id}/>}</div>;
+    {!connections&&!error?<DashboardSkeleton/>:issueContent?<EmptyState kind="permission" title={issueContent.title} description={issueContent.description} action={<Link href="/integracoes" className="meli-primary-action">{issueContent.actionLabel}</Link>}/>:!selected&&!error?(attention?<EmptyState kind="permission" title="Reconecte a loja Shopee" description="A autorização expirou ou foi interrompida. Reconecte para retomar a sincronização." action={<Link href="/integracoes" className="meli-primary-action">Gerenciar conexões</Link>}/>:<ChannelConnectionEmpty channel="Shopee" description="Conecte uma loja para acessar este módulo." action={<Link href="/integracoes" className="meli-primary-action">Gerenciar conexões</Link>}/>):error?<EmptyState kind="permission" title="Não foi possível carregar" description={error} action={<button type="button" className="meli-primary-action min-h-11 active:scale-[0.96] transition-transform" onClick={retry}>Tentar novamente</button>}/>:!payload?<DashboardSkeleton/>:payload.availability==="NOT_AVAILABLE"?<EmptyState title="Dados ainda indisponíveis" description="A loja está conectada, mas este conjunto ainda não foi materializado pela sincronização."/>:<Content kind={kind} body={payload} params={params} update={update} connectionId={selected!.id} aoSalvarAliquota={aoSalvarAliquota}/>}</div>;
 }
 
-function Content({kind,body,params,update,connectionId}:{kind:ShopeeModuleKind;body:Payload;params:URLSearchParams;update:(v:Record<string,string|null>)=>void;connectionId:string}) {
+function Content({kind,body,params,update,connectionId,aoSalvarAliquota}:{kind:ShopeeModuleKind;body:Payload;params:URLSearchParams;update:(v:Record<string,string|null>)=>void;connectionId:string;aoSalvarAliquota:()=>void}) {
   const [search,setSearch]=useState(params.get("q")??"");
   if(kind==="monitor")return <ShopeeMonitorContent body={body} params={params} update={update} connectionId={connectionId}/>;
   const rows=body.items??[], coverage=body.coverage??body.profit?.coverage;
   return <section className="channel-module-content" aria-live="polite">
     <ChannelModuleSummary kind={kind} rows={rows} total={body.page?.total}/>
-    {kind==="costs"&&<ShopeeTaxRateEditor key={connectionId} connectionId={connectionId}/>}
+    {kind==="costs"&&<ShopeeTaxRateEditor key={connectionId} connectionId={connectionId} onSalvou={aoSalvarAliquota}/>}
     {coverage&&!coverage.complete&&<aside role="status" className="channel-module-notice is-warning"><strong>Ainda sincronizando</strong><p>Foram processados {show(coverage.capturedOrders??coverage.processedOrders)} de {show(coverage.totalOrders??coverage.paidOrders)} pedidos. Os valores não representam o período completo.</p></aside>}
     {kind==="inventory"&&<aside className="channel-module-notice">Quantidades agregadas por anúncio. Estoque por variação/modelo não está disponível.</aside>}
     {kind==="abc"&&<aside className="channel-module-notice is-warning"><strong>Lucro por SKU indisponível</strong><p>{body.profitSubset?.reason||"O contrato atual não permite atribuir lucro por produto com segurança."}</p></aside>}
@@ -181,7 +230,18 @@ function ShopeeMonitorContent({body,params,update,connectionId}:{body:Payload;pa
   </section>;
 }
 
-function ShopeeTaxRateEditor({connectionId}:{connectionId:string}) {
+/**
+ * ⚠️ `onSalvou` NÃO É PARA O CACHE — é o conserto de um defeito que já estava em
+ * produção antes de existir cache nenhum (achado em 01/09/2026).
+ *
+ * A alíquota entra no cálculo de IMPOSTO e LUCRO de todas as linhas, e é o
+ * servidor quem aplica. Salvar a alíquota mudava a resposta do servidor e não
+ * mexia na tabela: a tela continuava exibindo o imposto e o lucro do payload
+ * anterior até a próxima montagem. Número errado na tela, sem aviso nenhum — e
+ * a mensagem de sucesso ao lado ("Alíquota salva para esta loja") reforçava que
+ * o que estava na tabela já refletia a mudança.
+ */
+function ShopeeTaxRateEditor({connectionId,onSalvou}:{connectionId:string;onSalvou:()=>void}) {
   const [draft,setDraft]=useState("");
   const [state,setState]=useState<"loading"|"idle"|"saving"|"saved"|"error">("loading");
   const [message,setMessage]=useState("");
@@ -218,6 +278,9 @@ function ShopeeTaxRateEditor({connectionId}:{connectionId:string}) {
       const body=await response.json();
       if(!response.ok)throw Error(shopeeModuleError(body.code)||body.error||"Não foi possível salvar a alíquota.");
       setDraft(body.taxRate==null?"":String(body.taxRate));setState("saved");
+      // Imposto e lucro da tabela são calculados pelo servidor COM esta
+      // alíquota. Sem esta linha, eles ficam os do payload anterior.
+      onSalvou();
       setMessage(body.taxRate==null
         ?"Alíquota removida; imposto e lucro voltam a ficar indisponíveis."
         :"Alíquota salva para esta loja.");
