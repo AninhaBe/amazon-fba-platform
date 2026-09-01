@@ -114,10 +114,11 @@ interface ProfitData {
    * `amazonFinancialCards.ts`, onde a divergência entre base e numerador exibiu
    * −90,5% e +120,9% no mesmo dia.
    */
-  revenueDoLucro?: number;
+  revenueDoLucro?: number | null;
   /** Pedidos que a Amazon ainda não valorizou — fora da base, apontados com número. */
   pedidosSemValor?: number;
-  pedidosNaBase?: number;
+  pedidosDoPeriodo?: number;
+  pedidosComValor?: number;
   /** Quanto das tarifas é estimativa da Amazon (ADR-027), para a marca na tela. */
   feesEstimadas?: number;
   pedidosComTarifaEstimada?: number;
@@ -228,7 +229,7 @@ interface DashboardPayload {
   metrics: { totalOrders: number; paidOrders: number; fbaOrders: number; revenue: number };
   dailySales: Array<{ date: string; revenue: number; orders: number; units: number }>;
   topProducts: Array<{ sku: string; title: string; units: number; revenue: number; marginPct: number | null }>;
-  profit: { revenueProcessed: number; revenueDoLucro?: number; pedidosNaBase?: number; pedidosSemValor?: number; feesEstimadas?: number; pedidosComTarifaEstimada?: number; fees: number; cogs: number; estimatedProfit: number | null; taxRate?: number | null; taxes?: number | null; refunds?: number; refundCount?: number; ads?: number | null; unitsWithCost: number; unitsWithoutCost: number; skusWithoutCost: number; coverage?: { processedOrders: number; paidOrders: number; complete: boolean } };
+  profit: { revenueProcessed: number; revenueDoLucro?: number | null; pedidosDoPeriodo?: number; pedidosComValor?: number; pedidosSemValor?: number; feesEstimadas?: number; pedidosComTarifaEstimada?: number; fees: number; cogs: number; estimatedProfit: number | null; taxRate?: number | null; taxes?: number | null; refunds?: number; refundCount?: number; ads?: number | null; unitsWithCost: number; unitsWithoutCost: number; skusWithoutCost: number; coverage?: { processedOrders: number; paidOrders: number; complete: boolean } };
   ads?: AmazonAdsInput | null;
   adsJanela?: { inicioDia: string; esperadoAte: string; incluiHoje?: boolean } | null;
   adsConectado?: boolean;
@@ -514,7 +515,8 @@ function Dashboard() {
         cogs: payload.profit.cogs,
         revenueDoLucro: payload.profit.revenueDoLucro,
         pedidosSemValor: payload.profit.pedidosSemValor,
-        pedidosNaBase: payload.profit.pedidosNaBase,
+        pedidosDoPeriodo: payload.profit.pedidosDoPeriodo,
+        pedidosComValor: payload.profit.pedidosComValor,
         feesEstimadas: payload.profit.feesEstimadas,
         pedidosComTarifaEstimada: payload.profit.pedidosComTarifaEstimada,
         estimatedProfit: payload.profit.estimatedProfit,
@@ -914,7 +916,7 @@ function Dashboard() {
           // sair sobre o apurado e reaparecem os −90,5% / +120,9%.
           baseDoLucro: profit?.revenueDoLucro ?? null,
           pedidosSemValor: profit?.pedidosSemValor ?? 0,
-          pedidosNaBase: profit?.pedidosNaBase ?? 0,
+          pedidosDoPeriodo: profit?.pedidosDoPeriodo ?? 0,
           feesEstimadas: profit?.feesEstimadas ?? null,
           pedidosComTarifaEstimada: profit?.pedidosComTarifaEstimada ?? 0,
           refunds: profit?.refunds ?? 0,

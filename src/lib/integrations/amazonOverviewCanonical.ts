@@ -103,9 +103,16 @@ export interface AmazonCanonicalOverview {
      * pelo valor do próprio pedido, pendente ou confirmado. Lucro, margem e
      * imposto saem daqui. Ver a decisão dela de 31/08/2026 na ADR-027.
      */
-    revenueDoLucro: number;
+    /**
+     * A base do lucro. `null` quando o faturamento do periodo nao foi injetado —
+     * ver a nota em `faturamentoDoLucro`. Nunca cai na soma do banco em silencio.
+     */
+    revenueDoLucro: number | null;
     /** Quantos pedidos compõem a base. */
-    pedidosNaBase: number;
+    /** Todo pedido nao cancelado do periodo — inclusive os que a base nao valoriza. */
+    pedidosDoPeriodo: number;
+    /** Quantos deles a base consegue valorizar. `pedidosDoPeriodo` menos os sem valor. */
+    pedidosComValor: number;
     /**
      * Pedidos que a Amazon ainda não valorizou — sem `OrderTotal` e sem preço de
      * tabela. Ficam FORA da base (não valem zero) e a tela os aponta com número.
@@ -892,12 +899,43 @@ export async function getAmazonOverviewFromCanonical(
   // as tarifas e o custo vinham dos 53 pedidos inteiros — numerador de um
   // universo com subtrações de outro, que é o defeito na sua QUARTA forma.
   // 1.017,98 − 281,95 − 282,02 é POSITIVO; a tela mostrava −40,40.
-  const pisoDoBanco = Number(faturamentoRows[0]?.receita ?? 0);
-  const faturamentoDoLucro =
-    opcoes.faturamentoDoPeriodo != null && opcoes.faturamentoDoPeriodo > 0
-      ? opcoes.faturamentoDoPeriodo
-      : pisoDoBanco;
-  const pedidosNaBase = faturamentoRows[0]?.pedidos ?? 0;
+  /**
+   * ⚠️ SEM O FATURAMENTO INJETADO, A BASE E `null` — NAO O PISO DO BANCO
+   * (01/09/2026). Antes ela caia silenciosamente na soma do que o banco sabe
+   * valorizar, e o consumidor nao tinha como distinguir "faturamento do periodo"
+   * de "o pouco que conseguimos somar".
+   *
+   * 📌 O QUE ISSO EVITA, medido no mesmo dia: das CINCO rotas que chamam este
+   * produtor, UMA injeta (a do dashboard). As outras quatro — order-profitability,
+   * radar, sales, top-products — recebiam o objeto `profit` completo com a base
+   * do piso: R$ 12,89 onde o faturamento real era R$ 824,64, indistinguivel da
+   * base boa. Nenhuma delas RENDERIZA margem hoje, entao nao havia numero errado
+   * na tela; mas a diferenca estava disponivel, esperando a primeira peca nova.
+   *
+   * `null` obriga quem for exibir a decidir o que fazer com a ausencia — que e a
+   * regra da casa: `null` != `0`, e desconhecido nao vira numero por conveniencia.
+   * O piso continua sendo medido logo abaixo, com nome proprio, para quem quiser
+   * a soma do banco sabendo que e ela.
+   */
+  const somaDoQueOBancoValoriza = Number(faturamentoRows[0]?.receita ?? 0);
+  const faturamentoDoLucro = baseCobreTodosOsPedidos
+    ? (opcoes.faturamentoDoPeriodo as number)
+    : null;
+  /**
+   * ⚠️ DOIS NOMES QUE NAO MENTEM, no lugar de um que mentia (01/09/2026).
+   *
+   * O campo se chamava `pedidosNaBase` e contava TODO pedido nao cancelado do
+   * periodo — inclusive os que a base nao consegue valorizar. O nome afirmava
+   * uma pertinencia que ninguem verificava: na conta A15NQMF7A6J1Y0 ele dizia
+   * 31 enquanto UM pedido tinha valor proprio.
+   *
+   * Quem calculasse ticket medio como `base / pedidosNaBase` cairia na familia
+   * inteira de novo — numerador de um universo, denominador de outro —, desta vez
+   * com o nome do campo garantindo que estava certo. Renomear e o conserto de
+   * CAUSA; a supressao da margem, que veio antes, era o do sintoma.
+   */
+  const pedidosDoPeriodo = faturamentoRows[0]?.pedidos ?? 0;
+  const pedidosComValor = pedidosDoPeriodo - (faturamentoRows[0]?.sem_valor ?? 0);
   // Pedidos que a Amazon ainda não valorizou POR PEDIDO. Eles ENTRAM na base
   // (o `orderMetrics` já os conta) e não têm custo nem tarifa nossa — então a
   // tela SINALIZA isso ao lado, com número, e a base não encolhe. Regra dela de
@@ -958,10 +996,13 @@ export async function getAmazonOverviewFromCanonical(
   // vinha do PEDIDO. O resultado somava universos que não fechavam entre si.
   // Agora todo pedido não cancelado entra pelo próprio valor, uma vez só.
   const receitaDoLucro = faturamentoDoLucro;
+  void somaDoQueOBancoValoriza; // medida e nomeada; nenhum consumidor a usa como base
   const cogsDoLucro = +(cogs + cogsPendente).toFixed(2);
   // O imposto acompanha a base, e não a receita apurada — ver a nota na leitura
   // da alíquota, acima.
-  const taxes = amazonTaxAmount(receitaDoLucro, taxRate);
+  // Sem base nao ha imposto calculavel: `null`, nunca zero — zero afirmaria
+  // isencao, que e fato diferente de "nao sei sobre o que incidir".
+  const taxes = receitaDoLucro == null ? null : amazonTaxAmount(receitaDoLucro, taxRate);
   // A tarifa da conta é a REAL mais a ESTIMADA — sem a estimada, a receita do
   // pendente entraria sem custo de canal e o lucro inflaria: medido em 31/08,
   // a margem ia a 93,2% justamente por isso. Trocar um número enviesado para
@@ -980,8 +1021,12 @@ export async function getAmazonOverviewFromCanonical(
   // para a tela DIZER quanto do total é estimativa (ADR-027 item 4).
   const tarifaDoLucro = +Number(tarifaRows[0]?.total ?? 0).toFixed(2);
   void fees; // segue alimentando o rateio POR LINHA, não o total do período
+  // Sem base nao ha resultado: `null` em vez de um lucro medido contra uma
+  // receita que este produtor nao conhece.
   const lucro = descontarAnuncio(
-    +(receitaDoLucro - tarifaDoLucro - cogsDoLucro - (taxes ?? 0) - refunds).toFixed(2),
+    receitaDoLucro == null
+      ? null
+      : +(receitaDoLucro - tarifaDoLucro - cogsDoLucro - (taxes ?? 0) - refunds).toFixed(2),
     anuncio,
   );
   const estimatedProfit = lucro.estimatedProfit;
@@ -1032,7 +1077,8 @@ export async function getAmazonOverviewFromCanonical(
       revenueProcessed: +processedRevenue.toFixed(2),
       /** A base que o LUCRO usa: apurado + pendente valorizado pela Amazon. */
       revenueDoLucro: receitaDoLucro,
-      pedidosNaBase,
+      pedidosDoPeriodo,
+      pedidosComValor,
       pedidosSemValor,
       fees: tarifaDoLucro,
       /** Quanto de `fees` é estimativa da Product Fees API, não tarifa postada. */

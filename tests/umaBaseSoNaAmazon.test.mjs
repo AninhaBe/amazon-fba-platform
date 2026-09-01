@@ -379,15 +379,43 @@ test("a rota INJETA o faturamento no produtor, e nao o recalcula depois", async 
   assert.match(rota, /faturamentoDoPeriodo: pedidosFeitos\?\.totalRevenue \?\? null/);
 });
 
-test("o produtor prefere o faturamento injetado ao piso do banco", async () => {
+test("sem o faturamento injetado a base e null — nao o piso do banco", async () => {
+  // ⚠️ ESTE TESTE MUDOU DE INTENCAO EM 01/09/2026, e o vermelho foi legitimo.
+  //
+  // ANTES ele exigia o fallback: `injetado > 0 ? injetado : pisoDoBanco`. Aquilo
+  // resolvia a QUARTA forma — o lucro rodando sobre o piso enquanto o card
+  // exibia o injetado — e estava certo para o mundo daquele dia.
+  //
+  // O que mudou: das CINCO rotas que chamam este produtor, UMA injeta. As outras
+  // quatro recebiam o objeto `profit` inteiro com a base do piso (R$ 12,89 onde
+  // o faturamento real era R$ 824,64), indistinguivel da base boa. Nenhuma
+  // renderiza margem hoje, entao nao havia numero errado na tela — mas a
+  // diferenca estava disponivel, esperando a primeira peca nova. Silencio e o
+  // que transforma isso em defeito futuro.
+  //
+  // Agora a ausencia e EXPLICITA: quem for exibir decide o que fazer com `null`.
+  // E a regra da casa — `null` != `0`, e desconhecido nao vira numero por
+  // conveniencia.
   const fonte = await readFile(
     new URL("../src/lib/integrations/amazonOverviewCanonical.ts", import.meta.url),
     "utf8",
   );
-  // Ramificacao: existe um caminho que escolhe o injetado quando ele existe.
   assert.match(
     fonte,
-    /opcoes\.faturamentoDoPeriodo != null && opcoes\.faturamentoDoPeriodo > 0\s*\n?\s*\?\s*opcoes\.faturamentoDoPeriodo\s*\n?\s*:\s*pisoDoBanco/,
+    /const faturamentoDoLucro = baseCobreTodosOsPedidos/,
+    "a base tem de sair do mesmo flag que governa custo e tarifa",
+  );
+  assert.match(fonte, /: null;/, "e cair em null quando nao ha faturamento injetado");
+  // E o piso NAO pode voltar a ser a base por outro nome.
+  const codigo = fonte
+    .split("\n")
+    .map((linha) => linha.replace(/\r$/, "").replace(/\s*--.*$/, "").replace(/\s*\/\/.*$/, ""))
+    .filter((linha) => !linha.trim().startsWith("*"))
+    .join("\n");
+  assert.doesNotMatch(
+    codigo,
+    /faturamentoDoLucro\s*=[^;]*somaDoQueOBancoValoriza/,
+    "o piso do banco voltou a ser usado como base",
   );
 });
 

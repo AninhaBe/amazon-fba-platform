@@ -98,7 +98,20 @@ export interface AmazonCardsInput {
    * vez de "30" — sem o denominador, o número não diz se é quase tudo ou quase
    * nada, e é dele que sai a decisão de afirmar ou não a margem.
    */
-  pedidosNaBase?: number;
+  /**
+   * Total de pedidos do período — inclusive os que a base não valoriza. Serve
+   * para a tela dizer "30 de 31" em vez de "30": sem o denominador, o número não
+   * diz se é quase tudo ou quase nada, e é dele que sai a decisão de afirmar ou
+   * não a margem.
+   *
+   * ⚠️ CHAMAVA-SE `pedidosNaBase` E O NOME MENTIA (01/09/2026). Contava todo
+   * pedido não cancelado, inclusive os sem valor, enquanto o nome afirmava
+   * pertinência à base — na conta A15NQMF7A6J1Y0 dizia 31 com UM pedido
+   * valorizado. Quem calculasse ticket como `base / pedidosNaBase` cairia na
+   * família inteira outra vez, desta vez com o nome do campo garantindo que
+   * estava certo.
+   */
+  pedidosDoPeriodo?: number;
   /** Quanto do total de tarifas é estimativa da Amazon (ADR-027). */
   feesEstimadas?: number | null;
   /** Quantos pedidos entraram com tarifa estimada em vez de postada. */
@@ -472,7 +485,7 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
   // os conta) e não têm custo nem tarifa nossa. Isso NÃO encolhe a base: torna o
   // lucro otimista, e o jeito certo de tratar é DIZER isso ao lado.
   const semValor = input.pedidosSemValor ?? 0;
-  const naBase = input.pedidosNaBase ?? 0;
+  const naBase = input.pedidosDoPeriodo ?? 0;
   // ⚠️ A FRASE DIZIA A COISA ERRADA (01/09/2026). Estava "sem custo e tarifa
   // apurados", e o que falta nesses pedidos e o VALOR: a Amazon ainda nao
   // publicou preco para eles. Custo e tarifa nos ate temos — a tarifa observada

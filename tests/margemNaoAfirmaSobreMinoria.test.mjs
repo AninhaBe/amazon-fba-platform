@@ -20,6 +20,10 @@ import { amazonFinancialCards } from "../src/app/(app)/amazon/amazonFinancialCar
 // omite. Nao e limiar de tolerancia escolhido a dedo — e a fronteira em que a
 // frase "a margem do periodo" para de ser verdadeira.
 
+// ⚠️ O CAMPO MUDOU DE NOME EM 01/09/2026 e este vermelho foi legitimo:
+// `pedidosNaBase` contava todo pedido do periodo, inclusive os SEM valor, e o
+// nome afirmava pertinencia a base. Virou `pedidosDoPeriodo`, com
+// `pedidosComValor` ao lado. O que estes casos guardam nao mudou.
 const carta = (cards, key) => cards.find((c) => c.key === key);
 
 const BASE = {
@@ -35,7 +39,7 @@ const BASE = {
 };
 
 test("com 30 de 31 pedidos sem valor, a margem NAO e afirmada", () => {
-  const cards = amazonFinancialCards({ ...BASE, pedidosSemValor: 30, pedidosNaBase: 31 });
+  const cards = amazonFinancialCards({ ...BASE, pedidosSemValor: 30, pedidosDoPeriodo: 31 });
   const margem = carta(cards, "marginPct");
   assert.equal(margem.value, "—", "91,7% descrevia 1 pedido e era lido como o dia inteiro");
   assert.equal(margem.raw, null, "quem consome o bruto tambem nao pode receber a afirmacao");
@@ -43,7 +47,7 @@ test("com 30 de 31 pedidos sem valor, a margem NAO e afirmada", () => {
 });
 
 test("no lugar do percentual entra O QUE FALTA, com os dois numeros", () => {
-  const cards = amazonFinancialCards({ ...BASE, pedidosSemValor: 30, pedidosNaBase: 31 });
+  const cards = amazonFinancialCards({ ...BASE, pedidosSemValor: 30, pedidosDoPeriodo: 31 });
   const contexto = carta(cards, "marginPct").context;
   assert.match(contexto, /30 de 31/, "sem o denominador nao da para saber se e quase tudo ou quase nada");
   assert.match(contexto, /sem valor publicado pela Amazon/, "o que falta e o VALOR, e quem deve e a Amazon");
@@ -56,7 +60,7 @@ test("a frase NAO manda cadastrar custo — o custo nao e o que falta", () => {
   // custo que ja esta cadastrado, e esconde a causa real. A tarifa desses
   // pedidos nos ATE temos: 12 dos 13 ASINs do dia ja tinham tarifa observada no
   // proprio extrato.
-  const cards = amazonFinancialCards({ ...BASE, pedidosSemValor: 30, pedidosNaBase: 31 });
+  const cards = amazonFinancialCards({ ...BASE, pedidosSemValor: 30, pedidosDoPeriodo: 31 });
   assert.doesNotMatch(carta(cards, "marginPct").context, /sem custo e tarifa apurados/);
 });
 
@@ -64,7 +68,7 @@ test("cobertura quase total continua afirmando a margem — o conserto nao apaga
   // Medido no mesmo dia, mesma conta, recorte de 30 dias: 1.625 pedidos na base
   // e margem de 21,3%. Suprimir esta seria remover em vez de consertar.
   const cards = amazonFinancialCards({
-    ...BASE, revenueProcessed: 34135.56, pedidosSemValor: 30, pedidosNaBase: 1625,
+    ...BASE, revenueProcessed: 34135.56, pedidosSemValor: 30, pedidosDoPeriodo: 1625,
   });
   const margem = carta(cards, "marginPct");
   assert.notEqual(margem.value, "—", "30 de 1.625 nao impede a margem de descrever o periodo");
@@ -74,14 +78,14 @@ test("cobertura quase total continua afirmando a margem — o conserto nao apaga
 test("na fronteira exata da maioria a margem ainda e afirmada", () => {
   // 15 de 30 e metade, nao maioria: a base cobre tanto quanto omite. A regra
   // suprime quando a base cobre MENOS do que omite.
-  const meio = amazonFinancialCards({ ...BASE, pedidosSemValor: 15, pedidosNaBase: 30 });
+  const meio = amazonFinancialCards({ ...BASE, pedidosSemValor: 15, pedidosDoPeriodo: 30 });
   assert.notEqual(carta(meio, "marginPct").value, "—");
-  const passou = amazonFinancialCards({ ...BASE, pedidosSemValor: 16, pedidosNaBase: 30 });
+  const passou = amazonFinancialCards({ ...BASE, pedidosSemValor: 16, pedidosDoPeriodo: 30 });
   assert.equal(carta(passou, "marginPct").value, "—");
 });
 
 test("sem pedido nenhum sem valor, nada muda", () => {
-  const cards = amazonFinancialCards({ ...BASE, pedidosSemValor: 0, pedidosNaBase: 31 });
+  const cards = amazonFinancialCards({ ...BASE, pedidosSemValor: 0, pedidosDoPeriodo: 31 });
   const margem = carta(cards, "marginPct");
   assert.notEqual(margem.value, "—");
   assert.doesNotMatch(margem.context ?? "", /sem valor publicado/);
@@ -90,7 +94,7 @@ test("sem pedido nenhum sem valor, nada muda", () => {
 test("o LUCRO continua na tela — o que sai e a afirmacao da margem, nao o resultado", () => {
   // "Consertar nao e remover": ela pediu o lucro do faturamento inteiro, e o
   // lucro continua sendo exibido com a nota do que falta ao lado.
-  const cards = amazonFinancialCards({ ...BASE, pedidosSemValor: 30, pedidosNaBase: 31 });
+  const cards = amazonFinancialCards({ ...BASE, pedidosSemValor: 30, pedidosDoPeriodo: 31 });
   const lucro = carta(cards, "profit");
   assert.notEqual(lucro.value, "—", "apagar o lucro seria remover, nao consertar");
   assert.match(lucro.baseDeclarada ?? "", /30 de 31/, "e a nota diz o tamanho do que falta");
