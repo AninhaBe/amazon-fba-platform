@@ -314,6 +314,17 @@ a ser filtrado.
   exatamente o buraco de hoje. Se o portão escolher (b), que seja com essa frase
   registrada.
 
+## 🔴 A etapa 3 está BLOQUEADA pelo ledger financeiro (01/09/2026)
+
+Descoberto ao aplicar a etapa 1: o contrato 0005 exige ACL **fechada** nas três
+tabelas do ledger, e a etapa 3 precisa que `nexo_runtime` leia e escreva nelas.
+Os dois não podem valer ao mesmo tempo.
+
+A saída está na [ADR-037](./ADR-037-o-ledger-financeiro-ganha-dono-nomeado.md):
+o contrato passa a **nomear** `nexo_runtime` como única role de aplicação no
+ledger, com policy por workspace obrigatória. **A etapa 3 não sai do bloqueio
+antes de essa verificação existir e ser vista reprovando o estado de hoje.**
+
 ## Pendente antes de implementar
 
 1. Portão do cérebro sobre este ADR.
