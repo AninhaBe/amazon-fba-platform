@@ -2,8 +2,8 @@
 
 - **Status:** **Aceito** em 28/08/2026 — a fonte (Product Fees API, em vez de
   tabela mantida por nós) e o modo de falha obrigatório foram aprovados no
-  portão. Falta a revisão de dado do Delta (previsto vs. real no schema) e a
-  marca visual da Vitrine antes de implementar.
+  portão. A revisão de dado do Delta está **fechada** (Emenda II, 31/08/2026:
+  tabela própria + view, `migrations/0022`). Falta a marca visual da Vitrine.
 - **Data:** 2026-08-28
 - **Escopo desta volta:** **canal Amazon apenas.** Replicar para ML/Shopee/TikTok
   só depois que a pontaria estiver medida (ver "Acompanhamento de pontaria").
@@ -246,6 +246,147 @@ na tela dela. **O caminho padrão só vale com receita e tarifa cobrindo o mesmo
 conjunto de pedidos** — a apuração desse desencontro está medida e registrada, e
 o conserto aguarda o cérebro.
 
+## Emenda II de 31/08/2026 — a revisão de dado do Delta: previsto e real em tabelas separadas
+
+**Decidida pelo cérebro em 31/08/2026**, sobre o parecer da frente L. Fecha o
+item 2 de "Pendente antes de implementar". Não muda a fonte, o modo de falha nem
+a marca de tela: muda **onde o previsto mora**.
+
+**A razão de existir da tabela nova, numa frase:** *o concorrente estima e nunca
+reconcilia; nós reconciliamos, e reconciliar exige guardar os dois.* Tudo abaixo
+é consequência disso.
+
+### O que foi medido (produção, 31/08/2026, somente leitura)
+
+| | |
+|---|---|
+| `workspace_channel_order_fees` | **58 MB** (24 MB heap + **34 MB de índice**), 140.162 linhas |
+| `amazon` / `fee_type='estimated'` | 514 linhas, R$ 2.009,77, **80 com `amount = 0`** |
+| `provider_fee_code` do estimado | `FBAFees` (257) e `ReferralFee` (257) |
+| Pedidos com estimada **e** real hoje | **18** |
+| Pedidos Amazon por nº de linhas | **20.241 com uma linha só**, 139 multi-item (máx. 15 SKUs) |
+
+### Por que `fee_type = 'estimated'` não serve como desenho
+
+Serve como paliativo — está em produção, não corrompe número nenhum hoje. Mas
+tem três defeitos, e **o primeiro sozinho já decidia**:
+
+**1. Previsto e real não têm chave comum.** `fee_type` é a *natureza* da tarifa
+(`commission`, `fulfillment`, `refund`); `estimated` é a *procedência*. Ao gravar
+a procedência no lugar da natureza, a natureza foi contrabandeada para
+`provider_fee_code` — e o mesmo fato econômico ficou com duas formas:
+
+```
+real     → fee_type='commission'  provider_fee_code='Commission'   (Finances API)
+estimado → fee_type='estimated'   provider_fee_code='ReferralFee'  (Product Fees API)
+```
+
+`feeTypeOf()` (`amazonCanonical.ts:79`) mapeia `"Commission"` para `commission`;
+**`"ReferralFee"` cai em `"other"`**. Sem chave comum, a medição de pontaria —
+que é exatamente o que nos diferencia de quem estima e nunca reconcilia — vira
+mapeamento hardcoded em JS, não join. Não é detalhe de schema: é a feature
+morrendo na origem.
+
+**2. A proteção contra dupla contagem era blacklist.** Três lugares repetiam
+`fee_type NOT IN ('refund','estimated')`. `fee_type` novo entra somado como real
+**por padrão** — modo de falha invertido. Os outros três canais já usam whitelist
+(`fee_type IN ('commission','payment')`); só a Amazon usava negação.
+
+**3. O grão era o pedido.** A estimativa era somada por pedido antes de gravar, e
+a tabela não tem `line_no` nem data — desvio por SKU e lag estimar→liquidar,
+ambos exigidos pela seção 5 acima, eram inalcançáveis. Sem eles o item 5 é letra
+morta e a decisão deixa de ser falseável.
+
+### A decisão
+
+Tabela própria `workspace_channel_order_fee_estimates`, grão de **linha do
+pedido**, e a leitura passando por uma **view** que faz a coalescência.
+
+**Por que tabela e não uma coluna `basis`.** O requisito era: *a leitura não pode
+somar estimada + real do mesmo pedido, e a garantia é por schema, não por
+disciplina de quem escreve a query.* Uma coluna `basis` ainda depende de o leitor
+lembrar do `WHERE` — mesma classe de proteção que já falhou. Uma tabela separada
+não é predicado esquecível: para somar errado seria preciso escrevê-la
+deliberadamente no `FROM`.
+
+**Vocabulário único de `fee_type`, declarado aqui e não escondido no código.** A
+tabela nova usa a mesma taxonomia canônica da tarifa real, com o mapeamento
+explícito:
+
+| Product Fees API (`provider_fee_code`) | `fee_type` canônico |
+|---|---|
+| `ReferralFee` | `commission` |
+| `FBAFees` | `fulfillment` |
+
+Um `CHECK` recusa `'estimated'` e `'refund'` nessa coluna — a procedência não
+pode voltar a ocupar o lugar da natureza. O código do provider continua guardado
+em `provider_fee_code`, que é o que monta a procedência do tooltip.
+
+**Blacklist na leitura de tarifa da Amazon fica proibida.** `NOT IN (...)` tem o
+modo de falha invertido: o tipo que ninguém previu entra somado como real. A
+lista de `fee_type` que conta como real é **positiva** e vive num arquivo só
+(a migration que cria a view) — era a repetição em três rotas que fazia da
+negação um risco.
+
+**`amount NUMERIC NOT NULL`, e desconhecido é linha ausente.** É o `null ≠ 0` do
+`AGENTS.md` virando estrutura em vez de convenção: não existe campo nulável onde
+um `COALESCE(...,0)` distraído possa entrar. O zero publicado pela fonte (80
+linhas medidas) continua sendo fato e continua gravado como zero.
+
+**`superseded_at` carimbado na liquidação.** Resolve três coisas de uma vez: o
+lag estimar→liquidar, a marca de estimativa na tela (leitura de coluna, não
+subconsulta) e a saída dos pedidos com ambos do `NOT EXISTS`. **A linha da
+estimativa nunca é apagada** — é ela que permite medir a pontaria.
+
+**Substituição por pedido, não por `fee_type`.** Se a liquidação postar só a
+comissão, o pedido inteiro passa a ser real: não se mistura FBA estimado com
+comissão oficial no mesmo pedido. É o defeito #3 da auditoria financeira de
+agosto ("não misturar bases") aplicado antes de acontecer.
+
+**Pontaria por SKU sem rateio.** Dos 20.380 pedidos Amazon, **20.241 têm uma
+linha só** — nesses o desvio por SKU é exato. Nos 139 multi-item o SKU fica
+`NULL` em vez de receber uma alocação proporcional inventada por nós: ratear
+tarifa real entre SKUs seria extrapolação, e erraria justamente onde o desvio
+interessa.
+
+### As 514 linhas antigas são apagadas, não migradas
+
+Foram gravadas agregadas por pedido, sem `line_no` e sem `unit_price` — o grão
+novo não é reconstruível a partir delas. A alternativa seria inventar
+`line_no = 0` como sentinela, e **sentinela é mentira que sobrevive ao autor**.
+Refazer é barato: o estimador é idempotente e a dedup por `(ASIN, preço)` reduz
+1.617 linhas a 47 chaves, custando 47 chamadas na janela de 30 dias (medido).
+
+### Retenção (ADR-026): a preocupação registrada acima não se aplica
+
+A nota do item 3 temia que o previsto morasse numa camada com expurgo e a
+medição de pontaria sumisse sozinha. **Conferido: não é o caso.** Tarifa é
+*silver* — o expurgo da ADR-026 atinge `payload`/`raw` (bronze), não as tabelas
+canônicas. Fica escrito aqui para ninguém reabrir.
+
+### Custo, medido
+
+Migration aditiva, sem downtime: uma tabela nova (nasce vazia), um índice
+parcial, duas views, e o `DELETE` das 514 linhas. A base medida dá **~430 B por
+linha all-in** (58 MB / 140.162). Em regime, a Amazon com grão de item fica em
+~10–15k linhas ≈ **5–6 MB**; replicar aos quatro canais custaria **~25 MB**.
+
+Cabe nos ~34 MB livres do teto de 500 MB, **mas não é grátis** — e o motivo do
+custo por linha ser tão alto não é esta decisão: é a PK de seis colunas `TEXT`
+do canônico inteiro, que hoje produz 34 MB de índice para 24 MB de dado. Isso é
+problema da camada física, não da ADR-027, e vira recomendação própria da frente
+L com medição e proposta de migration.
+
+### Validação feita antes de entregar
+
+Não há Postgres local, docker nem `psql` nesta máquina, então **o DDL não foi
+executado** — quem aplica é o portão do CI (`scripts/ci-preparar-banco.mjs`) e
+depois o runner assinado. O que foi validado, em transação `read only` contra
+produção, substituindo a tabela nova por um CTE de mesma forma: o corpo das duas
+views compila, o `LATERAL … HAVING COUNT(*) = 1` devolve SKU nos pedidos de uma
+linha e `NULL` nos multi-item (506 e 8 das 514 linhas), e a view de coalescência
+devolve **0 pedidos com as duas bases** no estado pós-`DELETE`.
+
 ## Consequências
 
 **A favor:**
@@ -283,5 +424,7 @@ o conserto aguarda o cérebro.
 ## Pendente antes de implementar
 
 1. Portão do cérebro sobre este ADR.
-2. Revisão do Delta: onde guardar previsto vs. real, e a dependência de retenção.
+2. ✅ **Feito em 31/08/2026** — revisão do Delta: tabela própria + view, e a
+   dependência de retenção conferida (fees é silver, fora do expurgo). Ver a
+   Emenda II e `migrations/0022_previsto_e_real_convivendo.sql`.
 3. Definição da marca visual pela Vitrine.
