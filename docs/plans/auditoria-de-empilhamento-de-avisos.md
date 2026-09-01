@@ -213,3 +213,45 @@ só aparecia quando não havia sinal nenhum. A peça que existe para impedir a
 leitura *"o lucro não sai do faturamento, logo está errado"* estava sendo
 escondida justamente nas contas com pendência, que são as que mais precisam
 dela.
+
+---
+
+## 7. A varredura por "tela de canal" deixou um arquivo de fora (01/09/2026)
+
+O `ShopeeModulePage` **não é uma tela de canal** — é módulo. Ficou fora do
+inventário, e o defeito estava lá **inteiro**: quatro renders da mesma lista (até
+12 marcas dizendo três coisas) *e* o multiplexador que suprime a declaração
+exatamente nas contas com pendência.
+
+> **A próxima varredura é por COMPONENTE que renderiza sinais, não por nome de
+> tela.** `grep` de `<SinaisDoResultado` acha em um comando o que a lista de
+> telas não achou em uma auditoria inteira.
+
+O `TikTokModulePage` estava limpo — e a ausência agora é verificada por teste, em
+vez de suposta.
+
+## 8. Categoria nova: **frase verdadeira com validade**
+
+A varredura de frases procurava frase **já errada**. Existe uma classe que ela
+não pegaria, e que apareceu no módulo da Shopee:
+
+> `"sobre a receita processada"` — **verdadeiro hoje**, e programado para virar
+> mentira no dia em que o backend trocar o denominador para o faturamento.
+> Ninguém voltaria aqui para trocar o texto.
+
+**O teste desta categoria é uma pergunta:** *o que acontece com esta frase quando
+o dado mudar?* Se a resposta for "alguém precisa lembrar de vir aqui", a frase
+está errada mesmo estando certa.
+
+E o conserto não é escolher entre a string específica (que vira mentira) e a
+genérica (que perde a especificidade hoje). **As duas tratam o texto como
+constante, e ele é propriedade do dado:**
+
+```ts
+const baseDoResultado = profit?.revenueDoLucro != null
+  ? "sobre o faturamento"        // o backend já trocou o denominador
+  : "sobre a receita processada"; // ainda é o apurado
+```
+
+É a mesma regra que já valia para a janela — *quando o nome precisa ser dito, ele
+vem do mesmo lugar que decide o número, nunca de uma string* — aplicada à base.
