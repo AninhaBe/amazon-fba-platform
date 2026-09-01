@@ -350,15 +350,16 @@ async function createSchema(): Promise<void> {
     );
     ALTER TABLE workspace_marketplace_events
       ADD COLUMN IF NOT EXISTS processing_at TIMESTAMPTZ;
-    CREATE TABLE IF NOT EXISTS workspace_marketplace_overview_snapshots (
-      workspace_id  TEXT NOT NULL,
-      provider      TEXT NOT NULL,
-      connection_id TEXT NOT NULL,
-      period_key    TEXT NOT NULL,
-      payload       JSONB NOT NULL,
-      generated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-      PRIMARY KEY (workspace_id, provider, connection_id, period_key)
-    );
+    -- ⚠️ NÃO RECRIE AQUI 'workspace_marketplace_overview_snapshots' nem
+    -- 'workspace_marketplace_materialization_leases'. As duas saíram pela
+    -- migration 0025 (01/09/2026), depois de provado que ninguém escreve,
+    -- ninguém lê, nenhuma view cita e nenhuma FK aponta — 0 seq_scan e 0
+    -- idx_scan numa amostra de 120 s.
+    --
+    -- E o 'CREATE TABLE IF NOT EXISTS' daqui era justamente o que tornava a
+    -- remoção frágil: sem tirar estas linhas, o próximo boot RECRIARIA as
+    -- tabelas e a migration viraria no-op silencioso. Migration que o runtime
+    -- desfaz é pior que migration não aplicada, porque parece ter funcionado.
     CREATE TABLE IF NOT EXISTS workspace_persistent_cache (
       workspace_id TEXT NOT NULL,
       cache_key    TEXT NOT NULL,
@@ -456,14 +457,6 @@ async function createSchema(): Promise<void> {
     );
     CREATE INDEX IF NOT EXISTS workspace_channel_offer_history_idx
       ON workspace_channel_offer_history(workspace_id, provider, external_product_id, captured_on DESC);
-    CREATE TABLE IF NOT EXISTS workspace_marketplace_materialization_leases (
-      workspace_id  TEXT NOT NULL,
-      provider      TEXT NOT NULL,
-      connection_id TEXT NOT NULL,
-      lease_until   TIMESTAMPTZ,
-      updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-      PRIMARY KEY (workspace_id, provider, connection_id)
-    );
     CREATE INDEX IF NOT EXISTS workspace_accounts_owner_idx ON workspace_accounts(workspace_id);
     CREATE INDEX IF NOT EXISTS workspace_costs_owner_idx ON workspace_product_costs(workspace_id);
     CREATE INDEX IF NOT EXISTS workspace_integrations_owner_idx ON workspace_integrations(workspace_id);
@@ -476,8 +469,6 @@ async function createSchema(): Promise<void> {
       ON workspace_marketplace_products(workspace_id, provider, connection_id, status);
     CREATE INDEX IF NOT EXISTS workspace_marketplace_events_pending_idx
       ON workspace_marketplace_events(workspace_id, provider, status, received_at);
-    CREATE INDEX IF NOT EXISTS workspace_marketplace_overview_snapshots_age_idx
-      ON workspace_marketplace_overview_snapshots(workspace_id, provider, connection_id, generated_at DESC);
     CREATE INDEX IF NOT EXISTS workspace_persistent_cache_age_idx
       ON workspace_persistent_cache(workspace_id, cached_at DESC);
   `);

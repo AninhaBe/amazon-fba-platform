@@ -68,7 +68,6 @@ const TABLES_BY_WORKSPACE = [
   "workspace_marketplace_products",
   "workspace_marketplace_syncs",
   "workspace_marketplace_events",
-  "workspace_marketplace_overview_snapshots",
   "workspace_persistent_cache",
   "workspace_channel_orders",
   "workspace_channel_order_items",

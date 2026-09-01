@@ -49,8 +49,6 @@ export async function removeLocalShopeeConnection(
       "workspace_marketplace_shipments",
       "workspace_marketplace_products",
       "workspace_marketplace_events",
-      "workspace_marketplace_overview_snapshots",
-      "workspace_marketplace_materialization_leases",
       "workspace_marketplace_syncs",
     ]) {
       await query(

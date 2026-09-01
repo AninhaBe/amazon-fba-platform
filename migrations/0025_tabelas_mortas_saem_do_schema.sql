@@ -1,0 +1,45 @@
+-- Duas tabelas que ninguém escreve e ninguém lê saem do schema.
+--
+-- ⚠️ O ARGUMENTO NÃO É ESPAÇO. São 584 kB somados — irrelevante num banco de
+-- 464 MB. O argumento é que **tabela morta no schema é armadilha para quem
+-- chegar depois**: a próxima pessoa que precisar de um snapshot de visão geral
+-- vai encontrar `workspace_marketplace_overview_snapshots` com nome perfeito,
+-- 12 linhas dentro e nenhum escritor, e vai gastar um dia entendendo por que ela
+-- não atualiza. O mesmo vale para a tabela de lease de uma materialização que
+-- não existe mais.
+--
+-- ═══ A PROVA, e ela precisou de quatro lugares ═══
+--
+-- Medido em 01/09/2026. **Escritor ausente não bastava**: tabela sem escritor
+-- mas COM leitor vira tela vazia em vez de erro, e isso demora meses para
+-- aparecer. Então foi conferido onde um leitor poderia se esconder:
+--
+--   | onde                                  | snapshots | leases |
+--   |---------------------------------------|-----------|--------|
+--   | SELECT em src/, scripts/, tests/      | nenhum    | nenhum |
+--   | Views ou materialized views que citem | nenhuma   | nenhuma|
+--   | Chaves estrangeiras apontando         | nenhuma   | nenhuma|
+--   | Leituras numa amostra de 120 s        | 0 seq, 0 idx | 0 e 0 |
+--
+-- ⚠️ E A AMOSTRA DE 120 s FOI ESSENCIAL, porque o acumulado ENGANA: as
+-- estatísticas mostravam **248.848 seq_scan** em `overview_snapshots`, número que
+-- teria matado esta proposta. `pg_stat_*` conta desde o último reset (30/06) —
+-- ele diz o que JÁ aconteceu, não o que acontece. Amostrado como taxa: zero.
+-- (A mesma armadilha, no mesmo dia, também fez os 2.986.272 updates parecerem
+-- problema atual. Eram história morta.)
+--
+-- ⚠️ AS TRÊS REFERÊNCIAS QUE EXISTEM NO CÓDIGO NÃO LEEM — e foram ajustadas no
+-- mesmo commit desta migration, senão a remoção de conta passa a falhar:
+--   `src/lib/integrations/shopeeRemoval.ts` e `scripts/trial-account.mjs`
+--   apenas as incluíam em listas de DELETE; `src/lib/db.ts` as criava.
+--
+-- ═══ REVERSÃO ═══
+--
+-- `DROP TABLE` é destrutivo e as 12 + 1 linhas não voltam. Elas não têm valor:
+-- são snapshot recomputável de uma materialização extinta e um lease de um
+-- processo que não roda. Se um dia a materialização voltar, a tabela nasce de
+-- novo pelo desenho novo — ressuscitar o schema velho para dado velho seria
+-- herdar a forma sem herdar o motivo.
+
+DROP TABLE IF EXISTS workspace_marketplace_overview_snapshots;
+DROP TABLE IF EXISTS workspace_marketplace_materialization_leases;

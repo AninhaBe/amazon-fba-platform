@@ -38,7 +38,33 @@ test("remove Shopee somente depois de validar ownership e provider na mesma tran
   const scopedDeletes = fake.calls.filter((call) =>
     /DELETE FROM workspace_(?:channel|marketplace)_/.test(call.sql),
   );
-  assert.ok(scopedDeletes.length >= 12);
+  // ⚠️ ERA `scopedDeletes.length >= 12` e virou uma LISTA NOMEADA em 01/09/2026.
+  //
+  // O número caiu para 10 quando a migration 0025 removeu duas tabelas mortas
+  // (`workspace_marketplace_overview_snapshots` e
+  // `workspace_marketplace_materialization_leases`) — e baixar o `>= 12` para
+  // `>= 10` faria o teste passar sem provar mais nada. Contagem mínima é fraca
+  // dos dois lados: não acusa tabela nova que ficou de fora, e afrouxa sozinha a
+  // cada remoção.
+  //
+  // A lista nomeada obriga uma decisão explícita: tabela de inquilino que entrar
+  // no schema e não entrar aqui reprova, e tabela que sair tem de sair daqui
+  // junto — com alguém olhando.
+  const tabelasApagadas = scopedDeletes
+    .map((call) => call.sql.match(/DELETE FROM (\w+)/)[1])
+    .sort();
+  assert.deepEqual(tabelasApagadas, [
+    "workspace_channel_offer_history",
+    "workspace_channel_order_fees",
+    "workspace_channel_order_items",
+    "workspace_channel_orders",
+    "workspace_channel_products",
+    "workspace_marketplace_events",
+    "workspace_marketplace_orders",
+    "workspace_marketplace_products",
+    "workspace_marketplace_shipments",
+    "workspace_marketplace_syncs",
+  ]);
   for (const call of scopedDeletes) {
     assert.match(call.sql, /workspace_id=\$1 AND provider=\$2 AND connection_id=\$3/);
     assert.deepEqual(call.params, [workspaceId, "shopee", connectionId]);
