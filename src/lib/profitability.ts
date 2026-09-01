@@ -66,6 +66,43 @@ export interface ProfitabilityLine {
   /** Idem para a logística (FBA). Os dois são independentes: a Amazon posta em
    * partes — 95,3% dos pedidos com tarifa real têm comissão e nenhuma logística. */
   fbaEstimada?: number | null;
+  /**
+   * DE ONDE a estimativa desta linha veio, para a tela poder dizer em vez de
+   * pedir confiança. Vem da coluna `source` de `workspace_channel_order_fee_estimates`:
+   *
+   *  - `observada` — a tarifa que a Amazon JÁ COBROU deste mesmo ASIN no nosso
+   *    próprio extrato, normalizada por unidade. É a mais forte: número da fonte,
+   *    medido, não publicado nem calculado por nós;
+   *  - `product_fees_api` — a Product Fees API respondeu para este pedido;
+   *  - `tabela` — percentual publicado pela Amazon para a categoria do produto.
+   *
+   * `null` = a linha não tem estimativa (a tarifa é oficial, ou não há tarifa).
+   *
+   * ⚠️ NÃO EXISTE UM VALOR PARA "MÉDIA NOSSA", e a ausência é a regra: média
+   * histórica calculada por nós continua proibida pela ADR-027. Se um dia
+   * aparecer um `source` que não seja um destes três, a tela deve tratá-lo como
+   * desconhecido em vez de exibir o nome cru.
+   */
+  origemDaTarifa?: string | null;
+  /**
+   * A data da observação que produziu a estimativa (`YYYY-MM-DD`), só para
+   * `origemDaTarifa === "observada"`. É o que torna a procedência VERIFICÁVEL:
+   * "a Amazon cobrou isto deste produto em tal dia" é uma afirmação que se
+   * confere no extrato, diferente de "estimamos".
+   */
+  observadaEm?: string | null;
+  /**
+   * O percentual da categoria, **em FRAÇÃO** — `0.1201` para 12,01%.
+   *
+   * ⚠️ FRAÇÃO, NÃO PERCENTUAL, e isto é contrato acordado com a Vitrine em
+   * 01/09/2026: a conversão acontece num ponto só, na tela. O canônico já
+   * emitiu percentual uma vez e a peça formatava cru — teria exibido "0,12%".
+   *
+   * `null` fora da origem `tabela`: comissão observada e Product Fees vêm em
+   * valor absoluto, e dividir pelo preço produziria um percentual que ninguém
+   * publicou. Número sem significado é pior que campo vazio.
+   */
+  percentualDaCategoria?: number | null;
 }
 
 export function allocateByWeight(total: number, weights: number[]): number[] {
