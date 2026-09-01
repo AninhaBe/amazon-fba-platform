@@ -22,7 +22,41 @@
  * 📌 E ela BATE com o que medimos de forma independente, o que é a razão de
  * confiar nela: 12% nos kits de casa e cozinha (Gestor Seller), 14% no cadarço
  * (Roupas e acessórios) e 15% no mouse pad (Acessórios para eletrônicos e PC,
- * abaixo de R$ 100). Nenhuma divergência encontrada até aqui.
+ * abaixo de R$ 100).
+ *
+ * ⚠️ **DUAS CAPTURAS DA MESMA PÁGINA DIVERGIRAM, E A MEDIÇÃO DESEMPATOU
+ * (01/09/2026).** `docs/tarifas-amazon-br.md` (capturado 31/08) e a leitura
+ * trazida ao chat no mesmo dia discordam em várias linhas. Medi a comissão
+ * EFETIVA por categoria no nosso próprio extrato — só linhas `Commission`
+ * decompostas, pedidos de uma linha só, preço conhecido:
+ *
+ * | categoria | medido | doc | chat |
+ * |---|---|---|---|
+ * | Papelaria e Escritório | 12,03% (1.274 pedidos) | 12% ok | 13% ERRADO |
+ * | Beleza | 12,01% (103) | 12% ok | 13% ERRADO |
+ * | Roupas e acessórios (Moda) | 14,03% (701) | 15% ERRADO | 14% ok |
+ * | Cozinha | 12,04% (422) | 12% ok | 12% ok |
+ * | Saúde | 12,01% (149) | 12% ok | 12% ok |
+ * | Jardim e Piscina | 12,01% (124) | — | 12% ok |
+ * | Pets | 12,02% (31) | 12% ok | 12% ok |
+ * | Brinquedos | 12,01% (11) | 12% ok | 12% ok |
+ *
+ * **Nenhuma das duas capturas está inteiramente certa.** Esta constante segue a
+ * MEDIÇÃO onde ela é forte. Isso não faz do nosso extrato a autoridade — faz
+ * dele o árbitro quando duas leituras da mesma página se contradizem.
+ *
+ * ⚠️ **AINDA EM ABERTO, e não afeta nenhum pedido de hoje:** o teto da faixa de
+ * "Acessórios para eletrônicos e PC" (R$ 100 no chat, R$ 750 no doc) e o de
+ * "Móveis" (R$ 200 contra R$ 1.500). Os tickets medidos ficam entre R$ 14 e
+ * R$ 38, muito abaixo dos dois tetos, então a divergência não muda número
+ * nenhum hoje — mas muda no primeiro produto caro, e por isso está escrita aqui
+ * em vez de escondida.
+ *
+ * ⚠️ E DUAS CATEGORIAS MEDIRAM ENTRE OS DOIS VALORES, sem desempate:
+ * Ferramentas e Construção deu 11,56% (283 pedidos) contra 11% no chat e 12% no
+ * doc, e Casa deu 11,19% com apenas 15 pedidos. As duas raízes provavelmente
+ * misturam folhas de categorias diferentes — número intermediário é média de
+ * duas tarifas, não uma tarifa. Ficam como estão até alguém abrir a página.
  */
 
 /** Uma faixa de preço com percentual próprio. `ate` em reais, `null` = sem teto. */
@@ -79,9 +113,11 @@ export const TABELA_DE_COMISSAO_AMAZON_BR: Record<string, CategoriaDaTabela> = {
   "Esportes, aventura e lazer": pct("Esportes, aventura e lazer", 0.12, 2),
   "Instrumentos musicais": pct("Instrumentos musicais", 0.12, 2),
   // 13%
-  "Beleza": pct("Beleza", 0.13, 2),
+  // 12% e nao 13%: medido 12,01% em 103 pedidos (ver a nota do cabecalho).
+  "Beleza": pct("Beleza", 0.12, 1),
   "Eletrônicos portáteis": pct("Eletrônicos portáteis", 0.13, 2),
-  "Papelaria e Escritório": pct("Papelaria e Escritório", 0.13, 2),
+  // 12% e nao 13%: medido 12,03% em 1.274 pedidos, a maior amostra que temos.
+  "Papelaria e Escritório": pct("Papelaria e Escritório", 0.12, 1),
   "Relógios": pct("Relógios", 0.13, 2),
   // 14%
   "Beleza de luxo": pct("Beleza de luxo", 0.14, 2),

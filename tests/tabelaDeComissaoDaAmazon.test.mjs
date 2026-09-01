@@ -14,6 +14,19 @@ const daFolha = (folha, raiz) => {
   return r.categoria;
 };
 
+test("os percentuais batem com a comissao EFETIVA medida no nosso extrato", () => {
+  // ⚠️ ESTES SAO OS NUMEROS QUE DESEMPATARAM DUAS CAPTURAS DIVERGENTES DA MESMA
+  // PAGINA (01/09/2026). Medido em pedidos de uma linha so, com preco conhecido,
+  // usando so linhas `Commission` decompostas:
+  //   Papelaria 12,03% (1.274 pedidos) · Beleza 12,01% (103) · Moda 14,03% (701)
+  //   Cozinha 12,04% (422) · Saude 12,01% (149) · Pets 12,02% (31)
+  // O doc dizia 13% em Papelaria e Beleza; o chat dizia 15% em Moda. Nenhum dos
+  // dois estava inteiramente certo, e a medicao e o arbitro.
+  assert.equal(comissaoPelaTabela(daFolha("Filete", "Papelaria e Escritório"), 100).percentual, 0.12);
+  assert.equal(comissaoPelaTabela(daFolha("Utensílios e Acessórios", "Beleza"), 100).percentual, 0.12);
+  assert.equal(comissaoPelaTabela(daFolha("Bolas", "Pet Shop"), 100).percentual, 0.12);
+});
+
 test("os tres percentuais que foram medidos de forma independente batem", () => {
   // 12% nos kits de casa e cozinha — o que o Gestor Seller mostrava.
   assert.equal(comissaoPelaTabela(daFolha("Potes", "Casa"), 100).percentual, 0.12);
