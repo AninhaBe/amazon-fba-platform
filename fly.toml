@@ -14,6 +14,15 @@ primary_region = "gru"          # Sao Paulo — a razao de existir desta migraca
   PORT = "3000"
   DATA_DIR = "/data"            # precisa casar com o mount abaixo
 
+  # Medicao da etapa 1 da ADR-036. "arquivo" NAO liga nada sozinho: ele apenas
+  # autoriza a flag a ser alternada pela presenca de /data/carimbo-de-inquilino.ligado,
+  # via `fly ssh console`, SEM reiniciar a maquina (o app tem uma maquina so, e
+  # `fly secrets set` reiniciaria a cada troca).
+  # Com o arquivo ausente o comportamento e o de sempre. TTL de 5s: alternar leva
+  # ate 5 segundos para valer. Ver src/lib/db.ts -> transporteDeInquilinoLigado.
+  # ⚠️ REMOVER quando a medicao terminar: sem esta linha nao ha nem o stat.
+  DB_CARIMBO_DE_INQUILINO = "arquivo"
+
 [http_service]
   internal_port = 3000
   force_https = true
