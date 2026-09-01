@@ -21,6 +21,27 @@ export type DashboardPeriodOption = "today" | "7" | "15" | "30" | "custom";
  * ⚠️ Mudar aqui muda os QUATRO canais de uma vez, porque os quatro usam este
  * mesmo hook. É de propósito: dois dashboards com padrões diferentes seriam a
  * inconsistência que a regra de replicar existe para impedir.
+ *
+ * ⚠️ DAS DUAS RAZÕES DO PEDIDO, SÓ UMA SOBREVIVEU À MEDIÇÃO (31/08/2026).
+ *
+ * A razão de PRODUTO — *"a necessidade principal é saber o lucro de hoje"* —
+ * está de pé e basta sozinha: é o número que ela abre a tela para ver.
+ *
+ * A razão de VELOCIDADE — *"o carregamento é mais rápido"* — foi medida e é
+ * quase nada. `getAmazonOverviewFromCanonical` nas duas janelas, mesmo
+ * workspace, mesmo processo, ordem alternada, 7 voltas, mediana:
+ *
+ *   workspace 6c877b36 — Hoje 198 ms · 30 dias 205 ms  (+7 ms,  1,04×)
+ *   workspace fa6b806b — Hoje 188 ms · 30 dias 215 ms  (+28 ms, 1,15×)
+ *
+ * Trinta vezes mais dias custam entre 4% e 15% — abaixo do que se percebe num
+ * clique. A lentidão que ela relatou ("hoje e 7 rápidos, 15 lento") NÃO vem do
+ * tamanho da janela: vem do aquecimento de fundo, que era sequencial e deixava
+ * a última janela pronta aos ~3,8 s. São 3.800 ms contra 28 ms — duas ordens de
+ * grandeza, e é lá que o conserto mora (`prefetchDePeriodos.ts`).
+ *
+ * Quem for reabrir esta escolha: o argumento de desempenho não a sustenta, e
+ * agora existe o número. A decisão continua sendo de produto.
  */
 const PERIODO_PADRAO: Exclude<DashboardPeriodOption, "custom"> = "today";
 

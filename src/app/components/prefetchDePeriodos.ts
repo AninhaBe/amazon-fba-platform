@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef } from "react";
 
+import { chaveDeVoo, criaControleDeVoo } from "./controleDeVoo";
+
 /**
  * Aquece os períodos padrão em segundo plano, para a PRIMEIRA troca já ser
  * instantânea.
@@ -57,9 +59,13 @@ export function usePrefetchDePeriodos({ ativo, atual, escopo, jaTem, buscar }: {
   // Um aquecimento por escopo por sessão. Sem isto, cada revalidação dispararia
   // a fila de novo.
   const feitos = useRef(new Set<string>());
-  // O que a fila de fundo e a intenção compartilham: nem uma nem outra busca
-  // duas vezes a mesma janela do mesmo escopo.
-  const emVoo = useRef(new Set<string>());
+  // ⚠️ COMPARTILHADO DE VERDADE DESDE 31/08/2026. Esta frase já estava aqui e
+  // era FALSA: só `aquecerAgora` registrava e consultava o conjunto, e a fila de
+  // fundo não fazia nem uma coisa nem outra. Passar o mouse sobre a janela que a
+  // fila já estava buscando emitia uma SEGUNDA requisição simultânea da mesma
+  // janela — duas conexões do mesmo pool que este arquivo existe para poupar.
+  // Agora as duas bocas passam pelo mesmo `tentar`, e a invariante é código.
+  const voo = useRef(criaControleDeVoo());
   const intencao = useRef<{ timer: number; chave: string } | null>(null);
   // O que a intenção precisa saber quando o temporizador dispara, 120ms depois.
   // Atualizado por efeito, não no render: `react-hooks/refs` proíbe escrever em
@@ -79,6 +85,11 @@ export function usePrefetchDePeriodos({ ativo, atual, escopo, jaTem, buscar }: {
       for (const periodo of PERIODOS_PADRAO) {
         if (cancelado || controller.signal.aborted) return;
         if (periodo === atual || jaTem(periodo)) continue;
+        // A MESMA porta da antecipação: se o hover já pôs esta janela no ar, a
+        // fila não emite a segunda. Sem este `tentar`, as duas bocas pediam a
+        // mesma coisa ao mesmo tempo.
+        const chave = chaveDeVoo(escopo, periodo);
+        if (!voo.current.tentar(chave)) continue;
         try {
           // `await` dentro do laço é DE PROPÓSITO: uma por vez.
           await buscar(periodo, controller.signal);
@@ -86,6 +97,10 @@ export function usePrefetchDePeriodos({ ativo, atual, escopo, jaTem, buscar }: {
           // Aquecer é oportunista: uma falha aqui não vira erro de tela, porque
           // o clique na aba faz a busca de verdade e trata o erro lá.
           return;
+        } finally {
+          // Libera com ou sem sucesso: janela que falhou tem de poder ser
+          // tentada de novo pelo clique.
+          voo.current.concluir(chave);
         }
       }
     };
@@ -116,16 +131,15 @@ export function usePrefetchDePeriodos({ ativo, atual, escopo, jaTem, buscar }: {
       const atualCtx = contexto.current;
       if (!atualCtx.ativo || !atualCtx.escopo) return;
       if (periodo === atualCtx.atual || atualCtx.jaTem(periodo)) return;
-      const chave = `${atualCtx.escopo}|${periodo}`;
-      if (emVoo.current.has(chave)) return;
-      emVoo.current.add(chave);
+      const chave = chaveDeVoo(atualCtx.escopo, periodo);
+      if (!voo.current.tentar(chave)) return;
       const controller = new AbortController();
       void atualCtx.buscar(periodo, controller.signal)
         .catch(() => {
           // Antecipar é oportunista: falha aqui não vira erro de tela, porque o
           // clique faz a busca de verdade e trata o erro lá.
         })
-        .finally(() => { emVoo.current.delete(chave); });
+        .finally(() => { voo.current.concluir(chave); });
     }, ESPERA_DA_INTENCAO_MS);
     intencao.current = { timer, chave: periodo };
   }, []);
