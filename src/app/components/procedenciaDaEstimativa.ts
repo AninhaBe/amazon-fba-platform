@@ -23,3 +23,125 @@ export function procedenciaDaEstimativa(partes: { comissao?: number | null; fba?
     ? `Estimado pela Amazon: ${detalhe} — a tarifa oficial entra na liquidação.`
     : "Estimado pela tabela da Amazon — a tarifa oficial entra na liquidação.";
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// QUATRO PROCEDÊNCIAS — peça preparada, ainda NÃO ligada na tela (01/09/2026)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// A estimativa deixou de ter uma fonte só. A tela precisa dizer QUAL, e com a
+// informação que torna aquela procedência **verificável** — não basta nomear a
+// fonte, tem de dar o que permite conferir:
+//
+//   observada  a tarifa que a Amazon JÁ cobrou naquele mesmo ASIN, em pedido
+//              liquidado. É o número da fonte, só que de OUTRO pedido — então o
+//              que torna verificável é a DATA do pedido de onde veio;
+//   tabela     percentual de categoria + tarifa FBA por produto. Verificável
+//              pelo PERCENTUAL usado, que é o que ela confere contra a Amazon;
+//   api        Product Fees, quando há token. A composição (comissão + FBA) já
+//              é a verificação — é o que a própria API devolveu.
+//
+// `oficial` NÃO aparece aqui de propósito: quando o extrato chega não há
+// estimativa, e a marca SOME. Modelar "oficial" como quarta variante convidaria
+// alguém a renderizar um selo dizendo que o número é oficial — e selo
+// permanente vira decoração.
+//
+// ⚠️ A FACE CONTINUA COM UMA MARCA SÓ: "estimado". A distinção entre as três
+// vive no tooltip. Um selo por procedência seria empilhamento novo dois dias
+// depois da auditoria que tirou 9–12 marcas da tela.
+//
+// ⚠️ NÃO LIGADA AINDA: o nome do campo de procedência é do backend e ainda não
+// foi definido. Quando existir, as chamadas migram de `procedenciaDaEstimativa`
+// para `procedenciaDaFonte` num commit só e a função de cima sai. Até lá as duas
+// convivem, e é ESTA que tem o contrato novo.
+
+export type FonteDaEstimativa =
+  | { fonte: "observada"; diaDoPedido: string; comissao?: number | null; fba?: number | null; moeda?: string }
+  | { fonte: "tabela"; percentualDaComissao: number; comissao?: number | null; fba?: number | null; moeda?: string }
+  | { fonte: "api"; comissao?: number | null; fba?: number | null; moeda?: string };
+
+export interface ProcedenciaLida {
+  /** O que vai no `title`/`aria-label` da marca. */
+  texto: string;
+  /**
+   * `false` quando veio valor estimado sem procedência reconhecível.
+   *
+   * ⚠️ ISSO É DEFEITO, NÃO ESTADO NORMAL — e a tela tem de deixar ver. Uma
+   * estimativa sem origem não é conferível por ninguém: não dá para saber se o
+   * número veio de um pedido antigo, de uma tabela ou de lugar nenhum. Tratar
+   * como "estimado" silencioso é a família do zero fabricado — um valor que
+   * passa por informação sem ter procedência.
+   */
+  origemConhecida: boolean;
+}
+
+const dinheiroDe = (moeda: string) => (v: number) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: moeda }).format(v);
+
+function composicao(partes: { comissao?: number | null; fba?: number | null }, moeda: string): string {
+  const dinheiro = dinheiroDe(moeda);
+  // Parcela ausente é OMITIDA, nunca vira zero: a Amazon posta em partes, e
+  // 95,3% dos pedidos com tarifa real têm comissão e nenhuma logística.
+  return [
+    partes.comissao == null ? null : `comissão ${dinheiro(partes.comissao)}`,
+    partes.fba == null ? null : `FBA ${dinheiro(partes.fba)}`,
+  ].filter(Boolean).join(" + ");
+}
+
+/** O percentual como ela lê na tabela da Amazon: "12,01%". */
+function percentual(valor: number): string {
+  return `${valor.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
+}
+
+/** `2026-08-31` → `31/08/2026`, o formato em que ela procura o pedido. */
+function diaBR(iso: string): string {
+  const [ano, mes, dia] = iso.slice(0, 10).split("-");
+  return ano && mes && dia ? `${dia}/${mes}/${ano}` : iso;
+}
+
+const SEM_ORIGEM = "Valor estimado sem origem informada — não dá para conferir de onde ele saiu. A tarifa oficial entra na liquidação.";
+
+export function procedenciaDaFonte(estimativa: FonteDaEstimativa | null | undefined): ProcedenciaLida {
+  if (!estimativa || !("fonte" in estimativa)) return { texto: SEM_ORIGEM, origemConhecida: false };
+  const moeda = estimativa.moeda ?? "BRL";
+  const fim = "A tarifa oficial entra na liquidação.";
+
+  switch (estimativa.fonte) {
+    case "observada": {
+      const detalhe = composicao(estimativa, moeda);
+      return {
+        texto: `Estimado pela tarifa que a Amazon já cobrou neste produto no pedido de ${diaBR(estimativa.diaDoPedido)}${detalhe ? ` (${detalhe})` : ""}. ${fim}`,
+        origemConhecida: true,
+      };
+    }
+    case "tabela": {
+      const detalhe = composicao(estimativa, moeda);
+      return {
+        texto: `Estimado pela tabela da Amazon: comissão de ${percentual(estimativa.percentualDaComissao)} da categoria + tarifa FBA${detalhe ? ` (${detalhe})` : ""}. ${fim}`,
+        origemConhecida: true,
+      };
+    }
+    case "api": {
+      const detalhe = composicao(estimativa, moeda);
+      return {
+        texto: detalhe ? `Estimado pela Amazon: ${detalhe} — ${fim.toLowerCase()}` : `Estimado pela Product Fees API da Amazon. ${fim}`,
+        origemConhecida: true,
+      };
+    }
+    default:
+      // Fonte que o servidor mandou e a tela não conhece. Mesmo tratamento da
+      // ausente: visível, nunca silenciosa.
+      return { texto: SEM_ORIGEM, origemConhecida: false };
+  }
+}
+
+/**
+ * O texto da marca na FACE.
+ *
+ * Uma só para as três procedências — a distinção vive no tooltip. O ÚNICO caso
+ * que muda a palavra é a origem desconhecida, e não porque seja uma quarta
+ * procedência: é porque é DEFEITO, e defeito que só aparece no hover não
+ * aparece (a lição do v207 e a do `emVoo`).
+ */
+export function rotuloDaMarca(origemConhecida: boolean): string {
+  return origemConhecida ? "estimado" : "estimado · origem não informada";
+}
