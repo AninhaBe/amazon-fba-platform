@@ -44,6 +44,18 @@ com confiança.
   fazer" e aqui significava "nada que eu tenha olhado".
 - **Diga o que o relatório NÃO cobre.** Se o script conta só o que ele tocou, a
   linha final tem que dizer isso com todas as letras.
+- **Número implausível é para ser investigado, não reportado** — e este é o
+  gêmeo de "desconfie de zero". Uma medição de comissão por ASIN devolveu **18%
+  a 45%**; comissão de 45% na Amazon não existe, e a implausibilidade sozinha
+  deveria ter parado o relato antes da conferência. Conferindo, a receita batia
+  ao centavo contra o `gross` do pedido e o defeito era outro: duas procedências
+  misturadas no mesmo agregado (12,38% na parte já decomposta, 43,12% na parte
+  ainda colada).
+
+  > O número que parece **demais** e o que parece **de menos** merecem a mesma
+  > desconfiança. Zero se lê como "nada a fazer"; um número alto se lê como
+  > "achado importante" — e os dois são, com a mesma frequência, a consulta
+  > errada.
 
 ---
 
