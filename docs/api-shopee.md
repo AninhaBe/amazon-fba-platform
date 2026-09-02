@@ -177,6 +177,55 @@ Mesma convenção dos docs da Amazon e do ML: mudanças de comportamento da API 
 na prática entram aqui, com data. Enquanto o canal não for implementado, a lista fica
 vazia — ao implementar, re-validar tudo marcado com ⚠️ e registrar o que divergir.
 
+- **2026-09-02 — `UNPAID` traz o valor desde a criação, e por isso o faturamento
+  da Shopee passa a ser o pedido PAGO.** Decisão da dona do produto, verbatim:
+
+  > *"vai aparecer o que realmente entrou como venda na api da shopee, boleto em
+  > algum momento entraria, mas é diferente da amazon"*
+
+  **A medição que sustenta a decisão** (conexão real `shopee:275804987`, 60 dias):
+
+  | `order_status` | status canônico | pedidos | com valor | sem valor |
+  |---|---|---|---|---|
+  | COMPLETED | `delivered` | 15.755 | 15.755 | 0 |
+  | CANCELLED | `cancelled` | 2.550 | 2.550 | 0 |
+  | SHIPPED | `shipped` | 1.582 | 1.582 | 0 |
+  | PROCESSED | `paid` | 1.251 | 1.251 | 0 |
+  | TO_CONFIRM_RECEIVE | `shipped` | 1.121 | 1.121 | 0 |
+  | **UNPAID** | **`pending`** | **63** | **63** | **0** |
+  | TO_RETURN | `refunded` | 44 | 44 | 0 |
+  | READY_TO_SHIP | `paid` | 23 | 23 | 0 |
+
+  **A Shopee publica o valor na criação do pedido, em todos os status** — inclusive
+  no `UNPAID`, que é o boleto ainda não pago. Não há um só pedido sem valor.
+
+  ⚠️ **E É POR ISSO QUE A REGRA DA AMAZON NÃO VALE AQUI — mesma palavra,
+  semântica oposta.** Na Amazon, `Pending` é venda **feita** com o valor
+  **oculto**: a chave `ItemPrice` sequer vem no payload até o pedido avançar, e
+  tirar o pendente do faturamento apagaria receita que existe. Na Shopee o valor
+  está lá desde o começo; o que pode não acontecer é o **pagamento**.
+
+  | | Amazon `Pending` | Shopee `UNPAID` |
+  |---|---|---|
+  | a venda aconteceu? | **sim** | **talvez** |
+  | o valor está publicado? | **não** (`ItemPrice` ausente) | **sim** |
+  | entra no faturamento? | **sim** | **não, até pagar** |
+
+  📌 **Verificação da regra nova contra outra ferramenta**, medida em 02/09/2026
+  na conta UTILEIRA: cortando em `pay_time < 10:19` (o instante do print da
+  vendedora), o universo pago dá **R$ 3.131,26 em 87 unidades — o mesmo número
+  que o Mercado Turbo mostra**. Os 4 pedidos que faltavam para os R$ 3.476,16
+  (R$ 262,50) pagaram entre 10:24 e 10:31, **depois** do print; os 11 `UNPAID`
+  restantes o Mercado Turbo também já excluía. A regra reproduz a ferramenta que
+  ela usa para conferir, ao centavo.
+
+  **O que muda no produto:** o card de Faturamento e tudo que deriva dele (lucro,
+  margem, ticket, unidades, ROI) contam só o pago. `UNPAID` que paga entra
+  normalmente **na data do pedido** — o sync troca o status e `occurred_at` não
+  muda. `UNPAID` que cancela nunca entra. O valor que ficou de fora aparece na
+  legenda da tela, com quantidade **e** valor: número que some sem deixar rastro é
+  o que faz a vendedora conferir à mão.
+
 - **2026-08-29 — `get_escrow_detail` RESPONDE NO DIA DO PEDIDO, com a comissão.**
   Medido contra a loja real (UTILEIRA, 275804987), **20 pedidos em quatro faixas de
   idade — 0, 3, 10 e 25 dias**. Os 20 devolveram `order_income` **com valor**,
