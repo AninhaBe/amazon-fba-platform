@@ -26,16 +26,6 @@ const TOLERANCIA_PADRAO_MS = 15 * 60_000;
 const DIA_MS = 86_400_000;
 
 /**
- * Chave do dismiss do aviso de sincronização completa — uma por conexão. O
- * histórico de conta nova é o mês vigente e cresce para frente (decisão da Ana,
- * 27/08/2026), então o aviso aparece uma vez, ao concluir a primeira
- * importação, e não volta depois do dismiss.
- */
-export function chaveDeAvisoSincronizada(connectionId: string): string {
-  return `nexo:sync-completa:${connectionId}`;
-}
-
-/**
  * Range do período a partir da query do filtro de dashboard ("days=30" ou
  * "from=YYYY-MM-DD&to=YYYY-MM-DD") — o mesmo formato que as rotas resolvem no
  * servidor (fuso de Brasília no período personalizado).

@@ -177,6 +177,66 @@ Mesma convenção dos docs da Amazon e do ML: mudanças de comportamento da API 
 na prática entram aqui, com data. Enquanto o canal não for implementado, a lista fica
 vazia — ao implementar, re-validar tudo marcado com ⚠️ e registrar o que divergir.
 
+- **2026-09-02 — PUSH IMPLEMENTADO E LIGADO.** Endpoint
+  `POST /api/webhooks/shopee`, público (a Shopee nunca terá cookie), com
+  assinatura verificada **antes de qualquer leitura**.
+
+  **A fórmula, confirmada por push real** (não por documentação):
+
+  ```
+  Authorization = hex( HMAC-SHA256( push_partner_key, url_publica + "|" + corpo_bruto ) )
+  ```
+
+  - a chave é a **Live Push Partner Key**, gerada no botão *Generate* do
+    formulário *Set Push* do console — **não** é a `partner_key` do app. São
+    superfícies separadas: chave de API comprometida não permite forjar push;
+  - o segredo é a **string** da chave, como configurada;
+  - a URL é a **pública cadastrada**, nunca a da requisição.
+
+  ⚠️ **AS DUAS ARMADILHAS QUE CUSTARAM QUATRO TENTATIVAS**, registradas porque
+  nenhuma delas dá erro — as duas dão "não bate":
+
+  1. **`req.nextUrl.href` é o host INTERNO** atrás do proxy do Fly — medido,
+     `https://0.0.0.0:3000/api/webhooks/shopee`. A Shopee assina o endereço
+     público. Hosts diferentes, HMAC nunca bate, por mais certas que estejam
+     fórmula e chave.
+  2. **A "chave vazia" que parecia hex-decode.** A chave é `shpk` + 60 hex, ou
+     seja **não é hex puro** — e `Buffer.from("shpk…", "hex")` não falha: o Node
+     trunca no primeiro par inválido e devolve **buffer vazio**. HMAC com chave
+     vazia reproduziu a assinatura do verify byte a byte, e a conclusão parecia
+     ser "hex-decodifique a chave". A verdade: **a Shopee assinava com a push
+     key armazenada NELA, que estava vazia porque a chave gerada ainda não fora
+     salva.**
+
+     📌 A lição vale além da Shopee: *uma coincidência que bate PERFEITAMENTE é
+     evidência de que as duas pontas fazem a MESMA coisa — inclusive a mesma
+     coisa errada.* Chave vazia dos dois lados casa 100% e não prova nada.
+
+  **Política de aceitação, e ela é assimétrica de propósito:**
+
+  | corpo | chaves aceitas | escreve? |
+  |---|---|---|
+  | ping de verificação (`verify_info`, sem `shop_id`/`ordersn`) | push key **ou vazia** | não |
+  | push de dado | **só** a push key configurada | sim |
+
+  A chave vazia passa no ping porque ele não carrega loja nem pedido e a rota
+  não escreve nada — quem o forjar ganha um 200 vazio. **Em dado ela nunca
+  passa**, nem quando a push key está ausente: chave vazia é conhecida por
+  qualquer pessoa, e aceitá-la abriria a porta exatamente quando o endpoint
+  está desprotegido.
+
+  **O push não escreve a partir do corpo do evento:** usa o `order_sn` para
+  chamar `get_order_detail` e grava pelo mesmo caminho canônico da varredura.
+  Dois caminhos de escrita é como os dois divergem.
+
+  **Medido no primeiro push real** (19:12Z): dois pedidos entraram, um deles um
+  `UNPAID`; latência mediana pedido → push de **10,8 s**, contra 3–15 min da
+  varredura. `last_push_at` carimbou e `last_success_at` **não** — a varredura
+  continua sendo vigiada por conta própria (migration 0031).
+
+  Estado do console: Push **ON**, status *Normal*, 29 tipos ligados — o endpoint
+  descarta com 200 o que não consome.
+
 - **2026-09-02 — `UNPAID` traz o valor desde a criação, e por isso o faturamento
   da Shopee passa a ser o pedido PAGO.** Decisão da dona do produto, verbatim:
 
