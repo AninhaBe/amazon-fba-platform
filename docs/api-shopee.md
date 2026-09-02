@@ -177,6 +177,38 @@ Mesma convenção dos docs da Amazon e do ML: mudanças de comportamento da API 
 na prática entram aqui, com data. Enquanto o canal não for implementado, a lista fica
 vazia — ao implementar, re-validar tudo marcado com ⚠️ e registrar o que divergir.
 
+- **2026-09-02 — 🟢 PONTO SEGURO DA SHOPEE: `95ad8e9` (v253).** Registro pedido
+  pela dona do produto, verbatim: *"registra isso que x commit resolveu a
+  situação da shopee pra se formos mexer de novo e quebrar, ter pra onde
+  voltar"*.
+
+  **O que estava validado POR ELA, na tela, neste commit** — não é "passou nos
+  testes", é conferido contra outra ferramenta no mesmo instante:
+
+  | o que | estado |
+  |---|---|
+  | faturamento = universo pago | bate com o Mercado Turbo **ao centavo** |
+  | unidades | batem exatas (267 = 267) |
+  | widget e lista de fluxo | coerentes entre si e com os cards |
+  | push em tempo real | ON, latência mediana de ~11 s |
+  | aba do monitor | persiste ao trocar de período |
+
+  **Os commits-chave, para bissecção futura:**
+
+  | commit | o que fixou |
+  |---|---|
+  | `8b4ef70` | faturamento = pedido PAGO (UNPAID entra ao pagar, na data do pedido) |
+  | `f88dbb9` + `c37a8bd` | o painel fecha no próprio universo — donut **e** lista |
+  | `1434a78` | push com assinatura verificada, dedupe e escrita canônica |
+  | `95ad8e9` | trocar de aba não refaz a busca |
+
+  ⚠️ **Divergência conhecida e ABERTA neste ponto:** a contagem de PEDIDOS diverge
+  do Mercado Turbo em 3 (247 nossos × 250 dele) **com unidades e faturamento
+  batendo exatos**. Medido em 02/09: nenhum pedido nosso sem item, nenhum
+  `pack_id`, nenhum `order_sn` com sufixo — as hipóteses de pedido vazio e de
+  divisão por pacote estão **descartadas por medição**. Falta o cruzamento
+  nominal. Registrado aqui para não ser confundido com regressão.
+
 - **2026-09-02 — PUSH IMPLEMENTADO E LIGADO.** Endpoint
   `POST /api/webhooks/shopee`, público (a Shopee nunca terá cookie), com
   assinatura verificada **antes de qualquer leitura**.
