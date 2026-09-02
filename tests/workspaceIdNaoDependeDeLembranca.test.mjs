@@ -44,6 +44,11 @@ const SEM_ESCOPO_PERMITIDO = [
       "Pergunta de PLATAFORMA, nao de inquilino: 'o webhook do ML esta entregando?'. Le so max(received_at) — um TIMESTAMP agregado, sem id, sem valor, sem pedido. E o /api/health nao tem workspace autenticado para filtrar, por construcao. Escopar por inquilino aqui nao tornaria nada mais seguro e tornaria o alarme cego ao que ele existe para ver: o canal parou para TODO MUNDO. Justificativa medida em 01/09/2026 — cinco silencios acima de 60h em 41 dias, o maior de 236h, que custou 7 pedidos.",
   },
   {
+    arquivo: "lib/integrations/defasagemDoSync.ts",
+    motivo:
+      "Pergunta de PLATAFORMA, nao de inquilino: 'este canal parou de sincronizar?'. Escopar por workspace tornaria o alarme cego ao que ele existe para ver — o canal parado para TODO MUNDO —, e /api/health nao tem workspace autenticado, por construcao. Le so provider, connection_id e max(last_success_at), e a saida e AGREGADA POR CANAL: nenhum connection_id sai do modulo, porque ele carrega o id de loja do vendedor e /api/health e publico. Mesmo desenho do silencioDoWebhook. Existe porque em 02/09/2026 nao havia alarme nenhum para Shopee, Amazon e TikTok — quem percebeu a suspeita de parada foi a vendedora, conferindo contra outra ferramenta.",
+  },
+  {
     arquivo: "lib/watchlist.ts",
     motivo: "Calculo de datas de corte no banco (CURRENT_DATE). Nao toca tabela nenhuma.",
   },

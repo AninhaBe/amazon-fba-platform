@@ -15,6 +15,7 @@
 // Desligado por padrão: só arma com INTERNAL_SCHEDULER=1 (Fly secrets).
 
 import { lerResultadoDoCron } from "./lib/schedulerResult";
+import { intervaloDaRota } from "./lib/integrations/cadenciaDoSync";
 
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
@@ -37,33 +38,17 @@ export async function register() {
   const SYNC_INTERVAL_MS = Number(process.env.SCHEDULER_SYNC_INTERVAL_MS || 2 * 60_000);
 
   /**
-   * INTERVALO POR CANAL — medido, não arbitrado (29/08/2026).
+   * INTERVALO POR CANAL e a funcao que o resolve saem de `cadenciaDoSync.ts`.
    *
-   * O intervalo era 2 minutos para os quatro. O ritmo real de chegada de pedido,
-   * em 7 dias de contas reais, é bem diferente entre eles:
+   * ⚠️ ELES MORAVAM AQUI ate 02/09/2026. Saíram porque o VIGIA DE DEFASAGEM
+   * precisa dos mesmos numeros para decidir se um canal parou — e copiar a lista
+   * criaria duas que coincidem hoje. Mudar a cadencia da Shopee de 3 para 10
+   * minutos agora muda o alarme junto, sem ninguem lembrar de mexer nos dois.
    *
-   * | canal | pedidos/hora | mediana entre pedidos |
-   * |---|---:|---:|
-   * | Shopee | 14,1 | 2,3 min |
-   * | Mercado Livre | 6,5 | 4,9 min |
-   * | TikTok | 2,8 | 11,3 min |
-   * | Amazon | 1,8 | **18,3 min** |
-   *
-   * Sincronizar a Amazon a cada 2 minutos com mediana de 18 significa que **9 de
-   * cada 10 ciclos batiam no banco para não achar nada** — pagávamos carga para
-   * descobrir que não havia novidade. E essa carga competia com a tela da dona:
-   * uma carga do dashboard pede 28 transações contra um pool de 10.
-   *
-   * O ML leva 5 e não 10 porque tem webhook: o urgente chega por lá.
+   * A tabela medida que justifica cada intervalo esta la, no comentario do
+   * modulo, junto do numero de ciclos perdidos que dispara o alarme.
    */
-  const INTERVALO_POR_CANAL: Record<string, number> = {
-    "shopee-sync": Number(process.env.SCHEDULER_INTERVALO_SHOPEE_MS || 3 * 60_000),
-    "mercado-livre-sync": Number(process.env.SCHEDULER_INTERVALO_ML_MS || 5 * 60_000),
-    "tiktok-sync": Number(process.env.SCHEDULER_INTERVALO_TIKTOK_MS || 10 * 60_000),
-    "amazon-sync": Number(process.env.SCHEDULER_INTERVALO_AMAZON_MS || 10 * 60_000),
-  };
-  const intervaloDe = (rota: string) =>
-    process.env.SCHEDULER_SYNC_INTERVAL_MS ? SYNC_INTERVAL_MS : (INTERVALO_POR_CANAL[rota] ?? SYNC_INTERVAL_MS);
+  const intervaloDe = intervaloDaRota;
   const TODOS_OS_SYNCS = ["amazon-sync", "mercado-livre-sync", "shopee-sync", "tiktok-sync"];
   /**
    * Freio POR CANAL — `SCHEDULER_CANAIS=shopee-sync,amazon-sync`.

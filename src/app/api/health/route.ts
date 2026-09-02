@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { dbQuery, hasDb } from "@/lib/db";
 import { medirSilencioDoWebhook } from "@/lib/integrations/silencioDoWebhook";
+import { lerDefasagemDoSync } from "@/lib/integrations/defasagemDoSync";
 
 /**
  * Health check — e ele TOCA O BANCO, de propósito.
@@ -78,12 +79,22 @@ export async function GET() {
     // Ele também não pode DERRUBAR a resposta se falhar: uma consulta a mais no
     // health não vale um 503. Por isso o catch devolve `null` em vez de propagar.
     const webhook = await medirSilencioDoWebhook().catch(() => null);
+    // ⚠️ O VIGIA DE DEFASAGEM ENTRA AO LADO DO WEBHOOK, e nao no lugar dele:
+    // sao perguntas diferentes. O webhook do ML mede se o MARKETPLACE parou de
+    // nos avisar; este mede se NOS paramos de buscar. Em 02/09/2026 so existia
+    // o primeiro, e para um canal so — Shopee, Amazon e TikTok podiam parar
+    // por horas sem nada avisar.
+    //
+    // `.catch(() => null)` porque saude que cai por causa do proprio medidor
+    // e pior que saude sem a medida: o campo some, o resto responde.
+    const defasagem = await lerDefasagemDoSync().catch(() => null);
     return NextResponse.json({
       ok: true,
       banco: "ok",
       bancoMs: Date.now() - inicio,
       commit: COMMIT,
       ...(webhook ? { webhook } : {}),
+      ...(defasagem ? { sync: defasagem } : {}),
     });
   } catch (erro) {
     // 503 é o ponto da mudança: sem isso o monitoramento continua vendo verde.
