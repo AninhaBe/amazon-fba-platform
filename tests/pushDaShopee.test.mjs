@@ -171,7 +171,7 @@ test("o diagnostico registra a forma do que chegou, e nenhuma chave", async () =
   const rota = await readFile(new URL("../src/app/api/webhooks/shopee/route.ts", import.meta.url), "utf8");
   for (const campo of [
     "headerDaAssinatura,", "tamanhoDaAssinatura:", "prefixoDaAssinatura:",
-    "urlQueRecebemos: url,", "inicioDoCorpo:", "chaveQueBateria,",
+    "urlQueAssinamos: url,", "urlQueRecebemos: req.nextUrl.href,", "inicioDoCorpo:", "chaveQueBateria,",
   ]) {
     assert.ok(rota.includes(campo), `o log precisa registrar ${campo}`);
   }
@@ -180,4 +180,33 @@ test("o diagnostico registra a forma do que chegou, e nenhuma chave", async () =
   assert.doesNotMatch(codigo, /console\.error\([\s\S]*?chave[,:]\s*chave/,
     "a chave nunca pode ir para o log");
   assert.doesNotMatch(codigo, /prefixoDaChave|chave\.slice/, "nem um pedaco dela");
+});
+
+test("a base string usa a URL PUBLICA, nunca a da requisicao", async () => {
+  // 🔴 FOI ISTO QUE QUEBROU O PRIMEIRO VERIFY (02/09/2026): req.nextUrl.href e o
+  // host INTERNO atras do proxy do Fly — medido, "https://0.0.0.0:3000/api/...".
+  // A Shopee assina a URL publica cadastrada no console. Hosts diferentes, HMAC
+  // nunca bate, por mais certas que estejam formula e chave.
+  const { urlPublicaDoPush } = await import("../src/lib/integrations/shopeePush.ts");
+  assert.match(urlPublicaDoPush(), /^https:\/\/[^/]+\/api\/webhooks\/shopee$/);
+  assert.ok(!urlPublicaDoPush().includes("0.0.0.0"));
+
+  const rota = await readFile(new URL("../src/app/api/webhooks/shopee/route.ts", import.meta.url), "utf8");
+  assert.ok(rota.includes("  const url = urlPublicaDoPush();"),
+    "a URL assinada tem de ser a publica");
+  // ⚠️ E NAO pode voltar a sair da requisicao: alem de nao bater, deixaria um
+  // atacante ESCOLHER a base string — ele assina a propria URL com uma chave
+  // que conhece. A URL da assinatura e a que NOS cadastramos.
+  const codigo = rota.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  assert.doesNotMatch(codigo, /const url = req\.nextUrl/,
+    "a base string nunca pode vir do host que o chamador mandou");
+});
+
+test("a mensagem de VERIFY passa e nao vira pedido", () => {
+  // Corpo real do verify, medido em 02/09/2026:
+  //   {"code":0,"data":{"verify_info":"This is a Verification message..."}}
+  // Nao tem shop_id nem ordersn: tem de ser reconhecida e ignorada (200), nunca
+  // tratada como pedido nem respondida com erro.
+  const verify = { code: 0, data: { verify_info: "This is a Verification message from Shopee Open Platform" } };
+  assert.equal(interpretarPush(verify), null, "o verify nao e um evento de pedido");
 });

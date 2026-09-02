@@ -5,6 +5,7 @@ import { depoisDaResposta } from "@/lib/depoisDaResposta";
 import {
   chaveDoEvento,
   interpretarPush,
+  urlPublicaDoPush,
   verificarAssinaturaDoPush,
   type EventoDePush,
 } from "@/lib/integrations/shopeePush";
@@ -55,7 +56,10 @@ export async function POST(req: NextRequest) {
     ? "authorization"
     : req.headers.get("x-shopee-signature") ? "x-shopee-signature" : null;
   const assinatura = headerDaAssinatura ? req.headers.get(headerDaAssinatura) : null;
-  const url = req.nextUrl.href;
+  // ⚠️ A URL PUBLICA, NAO a da requisicao: `req.nextUrl.href` e o host interno
+  // atras do proxy do Fly (medido: https://0.0.0.0:3000/...), e a Shopee assina
+  // o endereco cadastrado no console.
+  const url = urlPublicaDoPush();
   const { valida, formulaQueBateria, chaveQueBateria } = verificarAssinaturaDoPush({
     url, corpoBruto, assinatura,
     chaves: { push: chave, app: process.env.SHOPEE_PARTNER_KEY },
@@ -75,7 +79,8 @@ export async function POST(req: NextRequest) {
       prefixoDaAssinatura: assinatura?.slice(0, 12) ?? null,
       // O que a Shopee chamou de fato — se vier com query string ou host
       // diferente do que assinamos, a base string `url|corpo` nunca bate.
-      urlQueRecebemos: url,
+      urlQueAssinamos: url,
+      urlQueRecebemos: req.nextUrl.href,
       caminho: req.nextUrl.pathname,
       contentType: req.headers.get("content-type"),
       tamanhoDoCorpo: corpoBruto.length,

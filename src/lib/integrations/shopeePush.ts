@@ -36,6 +36,33 @@ import { createHmac, timingSafeEqual } from "crypto";
  * formato certo em vez de virar caça ao tesouro, e em nenhum momento aceitamos
  * requisição não verificada.
  */
+/**
+ * A URL QUE ENTRA NA BASE STRING — a PÚBLICA, nunca a que a requisição carrega.
+ *
+ * 🔴 FOI ISTO QUE QUEBROU O PRIMEIRO VERIFY (02/09/2026), e o diagnóstico cravou:
+ *
+ *   urlQueRecebemos = "https://0.0.0.0:3000/api/webhooks/shopee"
+ *
+ * `req.nextUrl.href` é o endereço INTERNO da máquina atrás do proxy do Fly. A
+ * Shopee assina a URL pública que está cadastrada no console. Assinando hosts
+ * diferentes, o HMAC nunca bate — por mais certa que esteja a fórmula, e por
+ * mais certa que esteja a chave.
+ *
+ * 📌 E é por isso que `chaveQueBateria: null` na primeira tentativa NÃO era
+ * conclusão sobre a chave: com a base string errada, nenhuma das combinações
+ * poderia bater. Diagnóstico que testa a coisa errada responde "nada bate" com
+ * a mesma cara de "está tudo errado".
+ *
+ * ⚠️ CONSTANTE, e não derivada da requisição, de propósito: aceitar o host do
+ * pedido deixaria um atacante escolher a base string, e aí ele assina a própria
+ * URL com uma chave que ele conhece. A URL da assinatura tem de ser a que NÓS
+ * cadastramos, não a que o chamador diz ter usado.
+ */
+export function urlPublicaDoPush() {
+  const base = process.env.APP_BASE_URL?.replace(/\/+$/, "") || "https://nexoaihub.com.br";
+  return `${base}/api/webhooks/shopee`;
+}
+
 export const FORMULAS: Array<{ nome: string; base: (url: string, corpo: string) => string }> = [
   { nome: "url|corpo", base: (url, corpo) => `${url}|${corpo}` },
   { nome: "corpo", base: (_url, corpo) => corpo },
