@@ -138,6 +138,26 @@ Guardar a diferença permite depois medir a acurácia da estimativa e calibrar a
 - Preço do anúncio como base quando o pedido pendente vem sem preço (Listings Items).
 - Procedência gravada por linha e exibida na tela.
 
+### ⚠️ O grão da view `workspace_channel_order_fees_efetivas`, e onde ele para
+
+A view agrega por **(pedido, fee_type)** e **soma** o valor. Isso é anterior à
+data de lançamento e sempre foi assim: dois estornos do mesmo pedido já viravam
+uma linha só, com os valores somados.
+
+A migration 0030 acrescentou `posted_at` como `MAX(...)` — a data do lançamento
+mais recente do grupo. **A data do outro lançamento não sobrevive.** O tamanho do
+efeito está medido na 0029: mediana de 11 dias entre pedido e lançamento, e 5 dos
+42 estornos mudam de mês. Se dois estornos do mesmo pedido caírem em meses
+diferentes, a view põe os dois no mês do mais recente.
+
+📌 **Leitor que precisar do grão por estorno lê `workspace_channel_order_fees`,
+não esta view.** Hoje nenhum precisa — por isso a decisão de 02/09/2026 foi
+aceitar o colapso sem ADR. No dia em que um leitor real precisar do grão, a
+conversa reabre e o desenho muda; não contorne com um `DISTINCT` por cima.
+
+⚠️ E o motivo de isto estar escrito em dois lugares (aqui e no `COMMENT ON VIEW`)
+é que quem esbarra no problema costuma estar no `psql`, não no repositório.
+
 **Delta a construir** (a spec muda/acrescenta):
 1. Tabela de tarifas como **cadastro versionado por vigência** (hoje é constante
    versionada em código com URL+data) — recálculo pela vigência da data do pedido.
