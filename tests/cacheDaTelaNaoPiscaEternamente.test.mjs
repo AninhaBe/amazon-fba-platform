@@ -4,6 +4,7 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { shopeeModuleQuery } from "../src/app/components/ShopeeModulesModel.ts";
 
 /**
  * ⚠️ O DEFEITO QUE ISTO REPROVA — relatado pela vendedora em 02/09/2026 como
@@ -127,4 +128,96 @@ test("os DOIS consumidores tem a mesma forma — a cura vale para os dois canais
     const codigo = fonte.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
     assert.match(codigo, /\[cache,\s*cfg\.endpoint\]/, `${tela}: o consumidor mudou de forma e esta medicao deixou de cobri-lo`);
   }
+});
+
+/**
+ * ⚠️ O PISO, QUE FALTAVA — e a falta dele deixou passar o defeito oposto.
+ *
+ * A primeira versao destas guardas mediu so o TETO ("nao mais que 1 busca") e a
+ * v239 subiu com a paginacao MORTA: clicar em Proxima nao fazia nada, e o teste
+ * ficava verde, porque "nunca buscar" passa por qualquer teto.
+ *
+ * Fronteira dos dois lados, que e a regra da casa para qualquer limite:
+ *   (a) render parado  -> ZERO buscas extras   (teto, ja media)
+ *   (b) clique Proxima -> EXATAMENTE 1 busca, com o offset novo
+ *   (c) clique Anterior-> EXATAMENTE 1 busca, com o offset novo
+ *
+ * Um lado so nao e guarda: e metade de uma.
+ */
+
+// A logica do `update` da tela, transcrita — e a assercao de forma logo abaixo
+// impede que ela vire uma imitacao que envelhece.
+function urlDepoisDoClique(atual, values) {
+  const next = new URLSearchParams(atual);
+  for (const [chave, valor] of Object.entries(values)) {
+    if (valor) next.set(chave, valor); else next.delete(chave);
+  }
+  if (!("offset" in values)) next.set("offset", "0");
+  return next.toString();
+}
+
+test("PISO: clicar em Proxima causa EXATAMENTE 1 busca, com o offset novo", async () => {
+  const { stub, montarCache } = await carregarCopia();
+  stub.novoComponente();
+
+  const CONN = "shopee:275804987";
+  let url = `connection_id=${CONN}&offset=0&days=30`;
+  const buscas = [];
+  let ultima = null;
+
+  const render = () => {
+    stub.novoRender();
+    montarCache("shopee:costs"); // mesma posicao de hook em todo render
+    const chave = shopeeModuleQuery(url, CONN, "costs");
+    if (chave !== ultima) { buscas.push(chave); ultima = chave; }
+  };
+
+  render();
+  assert.equal(buscas.length, 1, "a montagem precisa buscar uma vez");
+
+  // (a) TETO: parado, nada de novo.
+  for (let n = 0; n < 5; n += 1) render();
+  assert.equal(buscas.length, 1, "a tela parada buscou de novo — o pisca voltou");
+
+  // (b) PISO: Proxima.
+  url = urlDepoisDoClique(url, { offset: "20" });
+  render();
+  assert.equal(buscas.length, 2, "clicar em Proxima NAO causou busca — a paginacao morreu");
+  assert.match(buscas[1], /(^|&)offset=20(&|$)/, "a busca foi feita sem o offset novo");
+
+  // (c) PISO: Anterior.
+  url = urlDepoisDoClique(url, { offset: "0" });
+  render();
+  assert.equal(buscas.length, 3, "clicar em Anterior NAO causou busca");
+  assert.match(buscas[2], /(^|&)offset=0(&|$)/, "a volta foi feita sem o offset novo");
+
+  // E parado de novo depois dos cliques: nao pode ficar buscando sozinho.
+  for (let n = 0; n < 5; n += 1) render();
+  assert.equal(buscas.length, 3, "depois de paginar, a tela voltou a buscar sozinha");
+});
+
+test("a chave da busca CARREGA o offset — sem isso o clique nao muda nada", () => {
+  // ⚠️ Esta e a peca que liga o clique a busca. Se `shopeeModuleQuery`
+  // parar de encaminhar o offset, a URL muda, a tela re-renderiza e a chave
+  // continua igual: o efeito nao dispara e a paginacao morre em silencio —
+  // exatamente o sintoma da v239, e nenhum teste de teto pegaria.
+  const CONN = "shopee:1";
+  const zero = shopeeModuleQuery(`connection_id=${CONN}&offset=0`, CONN, "costs");
+  const vinte = shopeeModuleQuery(`connection_id=${CONN}&offset=20`, CONN, "costs");
+  assert.notEqual(zero, vinte, "a chave nao muda com o offset — o efeito nunca vai re-disparar");
+  assert.match(vinte, /(^|&)offset=20(&|$)/);
+});
+
+test("os botoes escrevem o offset na URL — a ponta que dispara tudo", async () => {
+  // Ancorado na CHAMADA de cada handler, nao no par chave-valor avulso.
+  const fonte = await readFile(new URL("../src/app/components/ShopeeModulePage.tsx", import.meta.url), "utf8");
+  const codigo = fonte.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+  assert.match(codigo, /onClick=\{\(\)=>update\(\{offset:String\(Math\.max\(0,body\.page!\.offset-body\.page!\.limit\)\)\}\)\}/,
+    "o botao Anterior deixou de escrever o offset");
+  assert.match(codigo, /onClick=\{\(\)=>update\(\{offset:String\(body\.page!\.offset\+body\.page!\.limit\)\}\)\}/,
+    "o botao Proxima deixou de escrever o offset");
+  // E o `update` NAO pode zerar o offset quando ele veio no pedido — foi assim
+  // que a paginacao poderia morrer sem ninguem ver.
+  assert.match(codigo, /if\(!\("offset" in values\)\)next\.set\("offset","0"\)/,
+    "o update mudou de forma: confira se ele ainda preserva o offset pedido");
 });
