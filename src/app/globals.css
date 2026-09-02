@@ -1592,6 +1592,28 @@ summary:hover { background: var(--paper-soft); }
 .pagination-btn:disabled { opacity: .4; cursor: default; }
 .pagination-gap { padding-inline: 4px; color: var(--ink-muted); }
 .listing-pagination { padding: 14px 18px; border-block-start: 1px solid var(--line); }
+
+/* BOTAO DE PAGINACAO DESABILITADO PRECISA PARECER DESABILITADO.
+
+   Medido em producao em 02/09/2026, na tela da vendedora: habilitado e
+   desabilitado tinham a MESMA cor de texto e a MESMA borda; a unica diferenca
+   era opacity .38 herdada, e o cursor. Num botao de contorno claro sobre fundo
+   quase branco, .38 de opacidade le como "cinza clarinho" — nao como "nao da
+   para clicar".
+
+   Isso importa porque a primeira pagina SEMPRE tem o "Anterior" desabilitado, e
+   um botao que parece clicavel e nao responde e indistinguivel de um botao
+   quebrado. Foi uma das explicacoes possiveis para o relato de que "Proximo e
+   Anterior nao fazem nada" — a paginacao em si esta funcionando (medido: 1-50
+   -> 51-100 -> volta, com o offset na URL).
+
+   A borda tracejada e o que faz a diferenca a distancia: opacidade sozinha
+   diz "apagado", tracejado diz "inativo". */
+.listing-pagination button:disabled {
+  border-style: dashed;
+  background: transparent;
+  opacity: .55;
+}
 .th-sort { display: inline-flex; align-items: center; gap: 5px; margin: 0 auto; padding: 0; border: 0; background: none; font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; cursor: pointer; transition: color 130ms; }
 .th-sort:hover, .th-sort.is-active { color: var(--meli-dark); }
 .sort-arrows { display: inline-flex; flex-direction: column; gap: 1px; line-height: .55; }
