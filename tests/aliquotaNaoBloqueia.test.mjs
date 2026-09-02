@@ -138,7 +138,14 @@ test("ML: a alíquota saiu da condição de bloqueio e virou rótulo", () => {
   assert.match(tela, /const resultIncomplete = resultParcial(\s*\|\|\s*overview\.profit\.estimatedProfit == null)?;/, "só dado do canal bloqueia");
   assert.doesNotMatch(tela, /resultIncomplete = semAliquota/, "a alíquota não pode voltar para o bloqueio");
   // Lucro e margem, no dashboard, no painel de baixo e no monitor.
-  assert.match(tela, /comSemImposto\("Lucro estimado", semAliquota\)/);
+  // ⚠️ ESTA LINHA EXIGIA "Lucro estimado" ATE 02/09/2026, e a troca e de
+  // INTENCAO, nao de texto. O painel fala do universo da RECEITA PAGA; o "Lucro
+  // estimado" e do periodo inteiro e vive nos cards. Exibir o nome de um sobre
+  // o centro do outro foi o defeito que produziu margem de 5673% no painel da
+  // Amazon — a ADR-028 manda dar NOMES DISTINTOS a numeros de universos
+  // distintos. O que esta guarda sempre protegeu continua igual: o rotulo do
+  // resultado carrega "sem imposto" quando nao ha aliquota cadastrada.
+  assert.match(tela, /comSemImposto\("Resultado da receita paga", semAliquota\)/);
   assert.match(tela, /comSemImposto\("Margem", semAliquota\)/);
   assert.match(tela, /comSemImposto\("Margem de contribuição", semAliquota\)/);
   assert.match(tela, /comSemImposto\("após todos os custos", semAliquota\)/);

@@ -489,6 +489,37 @@ export async function getMercadoLivreOverviewFromCanonical(
   const pedidosSemValor = totals.sem_valor ?? 0;
   const estimatedProfit = faturamentoDoLucro - fees - cogs - (taxes ?? 0) - sellerShipping;
 
+  /**
+   * ⚠️ AS FATIAS DO PAINEL, TODAS NO UNIVERSO QUE ELE DECLARA (02/09/2026).
+   *
+   * O painel de composicao do ML mostra no centro a RECEITA PROCESSADA e, ate
+   * aqui, exibia embaixo o `estimatedProfit` e a `marginPct` — que sao do
+   * periodo INTEIRO, calculados sobre o faturamento. Centro de um universo,
+   * resultado de outro: a mesma familia que produziu margem de 5673% no painel
+   * da Amazon e o widget da Shopee estourando o proprio todo.
+   *
+   * Aqui o resultado e o RESIDUO do proprio bloco, e a margem sai sobre o
+   * proprio centro — [ADR-028]. O imposto tambem: ele incide sobre a receita
+   * DESTE bloco, nao sobre o faturamento, senao a subtracao cobre um universo
+   * maior que a soma.
+   *
+   * 📌 O LUCRO DO PERIODO CONTINUA EXISTINDO e continua sendo `estimatedProfit`,
+   * nos cards. Sao dois numeros legitimos e diferentes — e e o NOME que impede a
+   * confusao, nao a supressao de um deles.
+   */
+  const impostoDaReceitaPaga = taxRate == null ? null : +(processedRevenue * taxRate / 100).toFixed(2);
+  const composicaoDaReceitaPaga = {
+    receita: processedRevenue,
+    fees,
+    sellerShipping,
+    cogs,
+    taxes: impostoDaReceitaPaga,
+    lucro: +(processedRevenue - fees - sellerShipping - cogs - (impostoDaReceitaPaga ?? 0)).toFixed(2),
+    margemPct: processedRevenue > 0
+      ? +(((processedRevenue - fees - sellerShipping - cogs - (impostoDaReceitaPaga ?? 0)) / processedRevenue) * 100).toFixed(2)
+      : null,
+  };
+
   // Cobertura: mesmo critério do loadMercadoLivreSource.
   const coveredFrom = syncRow.covered_from ? new Date(syncRow.covered_from).getTime() : Number.POSITIVE_INFINITY;
   const coveredTo = syncRow.covered_to ? new Date(syncRow.covered_to).getTime() : 0;
@@ -582,6 +613,7 @@ export async function getMercadoLivreOverviewFromCanonical(
       buyerShipping,
       shippingCostsComplete: periodCovered && ordersWithShippingKnown >= ordersProcessed,
       revenueProcessed: processedRevenue,
+      composicaoDaReceitaPaga,
       coverage: { processedOrders: ordersProcessed, paidOrders: totals.paid_orders, complete: periodCovered && ordersProcessed >= totals.paid_orders },
       estimatedProfit,
       // `ads: null` = "este canal não desconta anúncio", não "não sei quanto foi".

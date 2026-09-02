@@ -59,6 +59,11 @@ interface Overview {
   period: { from: string; to: string; label: string; };
   metrics: { activeListings: number; productsWithoutCost: number; orders30d: number; paidOrders: number; revenue30d: number; approvedRevenue: number; cancelledRevenue: number; cancelledOrders: number; pendingOrders: number; pendingRevenue: number | null; lastSaleAt: string | null; currency: string; revenueCoverage: { capturedOrders: number; totalOrders: number; complete: boolean; sincronizadoAte?: string | null; historicoDesde?: string | null }; };
   profit: { fees: number; cogs: number; taxes: number | null; taxRate: number | null; sellerShipping: number; buyerShipping: number; shippingCostsComplete: boolean; revenueProcessed: number;
+    /** Fatias do painel, todas no universo da receita paga. O lucro e o residuo — [ADR-028]. */
+    composicaoDaReceitaPaga?: {
+      receita: number; fees: number; sellerShipping: number; cogs: number;
+      taxes: number | null; lucro: number; margemPct: number | null;
+    };
     /**
      * A receita que REALMENTE entrou na conta de lucro e margem.
      *
@@ -445,6 +450,18 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
   const ticket = overview.metrics.paidOrders > 0 ? overview.metrics.approvedRevenue / overview.metrics.paidOrders : null;
   const roi = overview.profit.cogs > 0 && !resultParcial && overview.profit.estimatedProfit != null ? (overview.profit.estimatedProfit / overview.profit.cogs) * 100 : null;
   const knownCosts = overview.profit.fees + overview.profit.sellerShipping + overview.profit.cogs + (overview.profit.taxes ?? 0);
+  // O painel de composicao fala do universo da RECEITA PAGA, e o resultado dele
+  // e o residuo do proprio bloco — nunca o lucro do periodo, que vive nos cards
+  // e parte do faturamento. Os dois caminhos do ML (canonico e legado) expoem a
+  // composicao desde 02/09/2026.
+  //
+  // ⚠️ SEM COMPOSICAO, O PAINEL NAO INVENTA UM NUMERO. A tentacao era
+  // `revenueProcessed - knownCosts`, e ela seria a propria doenca de volta:
+  // `taxes` no caminho canonico incide sobre o FATURAMENTO, entao a subtracao
+  // cobriria um universo maior que o centro. Ausencia se mostra como ausencia.
+  const composicaoDoPainel = overview.profit.composicaoDaReceitaPaga ?? null;
+  const resultadoDoPainel = composicaoDoPainel ? composicaoDoPainel.lucro : null;
+  const margemDoPainel = composicaoDoPainel ? composicaoDoPainel.margemPct : null;
   // Período do filtro vs. histórico já importado (frente K): mês ainda não
   // importado nunca vira cards zerados — "não vendeu" e "não importei" são
   // fatos diferentes. O covered_from chega pelo overview (historicoDesde).
@@ -620,12 +637,19 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
               rotuloImposto(overview.profit.taxRate, overview.profit.taxes, overview.metrics.currency),
             ]}
           />
-          <Flow label={resultIncomplete ? "Lucro indisponível" : comSemImposto("Lucro estimado", semAliquota)} value={resultIncomplete || overview.profit.estimatedProfit == null ? "—" : money(overview.profit.estimatedProfit, overview.metrics.currency)} sign="=" accent tone={resultIncomplete || overview.profit.estimatedProfit == null ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
+          {/* ⚠️ NOME PROPRIO PARA NUMERO DE OUTRO UNIVERSO — [ADR-028].
+              O centro deste painel e a receita PROCESSADA; o "Lucro estimado"
+              dos cards e do periodo inteiro, calculado sobre o faturamento.
+              Exibir um dentro do outro foi o que produziu margem de 5673% no
+              painel da Amazon. Aqui o resultado e o residuo DESTE bloco e se
+              chama pelo que e — os dois numeros continuam existindo, e e o nome
+              que impede a confusao. */}
+          <Flow label={resultIncomplete ? "Resultado indisponível" : comSemImposto("Resultado da receita paga", semAliquota)} value={resultIncomplete || resultadoDoPainel == null ? "—" : money(resultadoDoPainel, overview.metrics.currency)} sign="=" accent tone={resultIncomplete || resultadoDoPainel == null ? "default" : resultadoDoPainel > 0 ? "positive" : resultadoDoPainel < 0 ? "danger" : "default"} />
           <Flow
             label={comSemImposto("Margem", semAliquota)}
-            value={resultIncomplete ? "—" : percent(overview.profit.marginPct)}
+            value={resultIncomplete ? "—" : percent(margemDoPainel)}
             accent
-            tone={resultIncomplete ? "default" : marginMetricTone(overview.profit.marginPct)}
+            tone={resultIncomplete ? "default" : marginMetricTone(margemDoPainel)}
           />
       </FinancialSummaryPanel>
     </section>

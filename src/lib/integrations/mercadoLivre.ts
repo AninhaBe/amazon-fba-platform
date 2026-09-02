@@ -1098,6 +1098,25 @@ export async function getMercadoLivreOverview(
       buyerShipping,
       shippingCostsComplete: collectedOrders.complete && shipmentCosts.size === shipmentIds.length && [...shipmentCosts.values()].every(Boolean),
       revenueProcessed: processedRevenue,
+      // ⚠️ AS FATIAS DO PAINEL, NO UNIVERSO QUE ELE DECLARA — [ADR-028].
+      //
+      // Este caminho ja era coerente: aqui o lucro e a margem sempre sairam da
+      // receita processada, que e o proprio centro do painel. A composicao
+      // existe para que a tela leia UM lugar em vez de remontar a conta, e para
+      // que os dois caminhos (este e o canonico) exponham o MESMO contrato —
+      // duas copias da conta e como uma fica para tras, que e o defeito que a
+      // ADR-025 nasceu para matar.
+      composicaoDaReceitaPaga: {
+        receita: processedRevenue,
+        fees,
+        sellerShipping,
+        cogs,
+        taxes,
+        lucro: +(processedRevenue - fees - sellerShipping - cogs - (taxes ?? 0)).toFixed(2),
+        margemPct: processedRevenue > 0
+          ? +(((processedRevenue - fees - sellerShipping - cogs - (taxes ?? 0)) / processedRevenue) * 100).toFixed(2)
+          : null,
+      },
       coverage: { processedOrders: detailedPaidOrders.length, paidOrders: paidOrders.length, complete: collectedOrders.complete && detailedPaidOrders.length >= paidOrders.length },
       estimatedProfit,
       // `ads: null` = "este canal não desconta anúncio", não "não sei quanto foi".
