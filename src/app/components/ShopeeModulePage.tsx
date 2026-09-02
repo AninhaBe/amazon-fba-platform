@@ -55,6 +55,53 @@ const show=(value:unknown)=>value==null||value===""?"—":String(value);
  * `shopeeModuleQuery` decidir o que vai para o servidor. Montar o período aqui
  * criaria a segunda regra de período do produto.
  */
+
+/**
+ * ⚠️ OS DOIS AVISOS DO PAINEL SE CONTRADIZIAM, e ela viu (02/09/2026): o
+ * selo dizia *"Faltam custos ou repasses"* enquanto a descricao logo abaixo
+ * dizia *"Detalhamento processado em 10.126 de 10.126 vendas"* — cem por cento.
+ *
+ * Os dois estavam certos e falavam de coisas DIFERENTES: o selo olha custo
+ * cadastrado, a descricao olha repasse processado. Lado a lado, a tela parecia
+ * se desmentir.
+ *
+ * A descricao passa a dizer O QUE falta, na ordem do que ela pode resolver:
+ * custo nao cadastrado e acao DELA; repasse nao processado e espera da Shopee.
+ */
+function descricaoDaComposicao(profit: ProfitBlock): string {
+  const semRepasse = Math.max((profit.coverage?.paidOrders ?? 0) - (profit.coverage?.processedOrders ?? 0), 0);
+  const partes: string[] = [];
+  if ((profit.unitsWithoutCost ?? 0) > 0) {
+    partes.push(`${profit.unitsWithoutCost} unidade(s) sem custo cadastrado`);
+  }
+  if (semRepasse > 0) {
+    partes.push(`${semRepasse} venda(s) aguardando repasse da Shopee`);
+  }
+  if (partes.length === 0) return "Valores efetivamente identificados no período.";
+  return `${partes.join(" · ")}.`;
+}
+
+/**
+ * ⚠️ A PENDENCIA NOMEADA, em vez do balaio. Ela via
+ * *"Composicao pendente R$ 192.280,57"* sem nada dizendo o que era.
+ *
+ * ⚠️ E O VALOR SO APARECE QUANDO E CONHECIDO. A parte que espera repasse
+ * tem valor — e a receita paga que ainda nao foi processada. A parte sem custo
+ * cadastrado NAO tem: o custo que falta e justamente o numero que ninguem sabe.
+ * Inventar um rateio ali seria extrapolar, e a casa proibe.
+ */
+function pendenciasDaComposicao(profit: ProfitBlock): Array<{ rotulo: string; valor?: number | null }> {
+  const partes: Array<{ rotulo: string; valor?: number | null }> = [];
+  const semRepasse = Math.max((profit.coverage?.paidOrders ?? 0) - (profit.coverage?.processedOrders ?? 0), 0);
+  if (semRepasse > 0) {
+    partes.push({ rotulo: `Aguardando repasse da Shopee (${semRepasse} venda(s))` });
+  }
+  if ((profit.unitsWithoutCost ?? 0) > 0) {
+    partes.push({ rotulo: `Sem custo cadastrado (${profit.unitsWithoutCost} unidade(s))` });
+  }
+  return partes;
+}
+
 function comPeriodo(fonte:string,janela:string){
   const saida=new URLSearchParams(fonte), escolhida=new URLSearchParams(janela);
   const de=escolhida.get("from"), ate=escolhida.get("to");
@@ -248,7 +295,7 @@ function ShopeeMonitorContent({body,params,update,connectionId}:{body:Payload;pa
     {secao==="composicao"&&(profit?<FinancialSummaryPanel
       complete={!resultIncomplete}
       labelledBy="shopee-monitor-composicao"
-      description={profit.coverage.complete?"Valores efetivamente identificados no período.":`Detalhamento processado em ${profit.coverage.processedOrders} de ${profit.coverage.paidOrders} vendas.`}
+      description={descricaoDaComposicao(profit)}
       total={profit.revenueProcessed}
       totalLabel="Receita processada"
       format={(value)=>money(value,currency)}
@@ -264,6 +311,7 @@ function ShopeeMonitorContent({body,params,update,connectionId}:{body:Payload;pa
           {id:"taxes",label:"Impostos",value:profit.composicaoDaReceitaPaga.taxes},
         ],
         result:profit.composicaoDaReceitaPaga.lucro,
+        pendencias:pendenciasDaComposicao(profit),
       })}
       footer={(<>
         <Link href="/shopee/produtos" className="meli-financial-link">Configurar custos e imposto <span aria-hidden="true">→</span></Link>
@@ -272,9 +320,9 @@ function ShopeeMonitorContent({body,params,update,connectionId}:{body:Payload;pa
     >
       {/* A lista de fluxo fala do universo da RECEITA PAGA, igual a rosquinha — ver a nota no ShopeeWorkspace. */}
       <Flow label={profit.coverage.complete?"Receita paga":"Receita processada"} value={money(profit.composicaoDaReceitaPaga.receita,currency)} />
-      <FlowExpandable
+      {knownCosts!=null&&<FlowExpandable
         label="Custos do canal e do produto"
-        value={knownCosts==null?"—":money(knownCosts,currency)}
+        value={money(knownCosts,currency)}
         open={costsOpen}
         onToggle={()=>setCostsOpen(open=>!open)}
         items={[
@@ -286,10 +334,17 @@ function ShopeeMonitorContent({body,params,update,connectionId}:{body:Payload;pa
           {label:"Custo dos produtos",value:profit.composicaoDaReceitaPaga.cogs==null?"—":money(profit.composicaoDaReceitaPaga.cogs??0,currency)},
           {label:shopeeTaxLabel(profit.taxRate),value:profit.composicaoDaReceitaPaga.taxes==null?"—":money(profit.composicaoDaReceitaPaga.taxes??0,currency)},
         ]}
-      />
-      <Flow label={profit.composicaoDaReceitaPaga.lucro==null?"Lucro indisponível":comSemImposto("Lucro estimado",semAliquota)} value={profit.composicaoDaReceitaPaga.lucro==null?"—":<>{money(profit.composicaoDaReceitaPaga.lucro,currency)}</>} sign="=" accent tone={profit.composicaoDaReceitaPaga.lucro==null?"default":profit.composicaoDaReceitaPaga.lucro>0?"positive":profit.composicaoDaReceitaPaga.lucro<0?"danger":"default"} />
+      />}
+      {/* ⚠️ LINHA QUE SO MOSTRARIA TRAVESSAO NAO ENTRA (02/09/2026).
+          Palavra dela sobre este painel: "redundante e mal formatada". Tres
+          linhas seguidas exibindo "—" nao informam nada — a ausencia ja esta
+          dita, com numero, na lista de pendencias logo acima. Repetir "—" tres
+          vezes e a redundancia que ela viu.
+          ⚠️ Isto NAO e esconder ausencia: a ausencia continua declarada
+          onde ela tem numero e caminho. O que sai e o eco vazio. */}
+      {profit.composicaoDaReceitaPaga.lucro!=null&&<Flow label={comSemImposto("Lucro estimado",semAliquota)} value={money(profit.composicaoDaReceitaPaga.lucro,currency)} sign="=" accent tone={profit.composicaoDaReceitaPaga.lucro>0?"positive":profit.composicaoDaReceitaPaga.lucro<0?"danger":"default"} />}
       {/* Margem DESTE painel: residuo sobre o centro dele, nao a margem do periodo. */}
-      <Flow label={comSemImposto("Margem",semAliquota)} value={margemDaReceitaPaga==null?"—":<>{`${margemDaReceitaPaga.toLocaleString("pt-BR",{maximumFractionDigits:2})}%`}</>} accent tone={margemDaReceitaPaga==null?"default":marginMetricTone(margemDaReceitaPaga)} />
+      {margemDaReceitaPaga!=null&&<Flow label={comSemImposto("Margem",semAliquota)} value={<>{`${margemDaReceitaPaga.toLocaleString("pt-BR",{maximumFractionDigits:2})}%`}</>} accent tone={margemDaReceitaPaga==null?"default":marginMetricTone(margemDaReceitaPaga)} />}
     </FinancialSummaryPanel>
     :<EmptyState compact title="Composição indisponível" description="A sincronização ainda não materializou o resultado financeiro deste período."/>)}
     {secao==="pedidos"&&<>
