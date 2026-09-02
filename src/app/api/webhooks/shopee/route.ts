@@ -69,12 +69,9 @@ export async function POST(req: NextRequest) {
   try { corpoJson = JSON.parse(corpoBruto); } catch { corpoJson = null; }
   const ehPing = ehPingDeVerificacao(corpoJson);
 
-  // AS CHAVES DE APP: live e teste. O verify do console veio assinado com a de
-  // TESTE (medido em 02/09/2026) — e elas so valem para o ping, nunca para dado.
-  const chavesDeApp = [process.env.SHOPEE_PARTNER_KEY, process.env.SHOPEE_TEST_PARTNER_KEY];
   const { valida, formulaQueBateria, chaveQueBateria } = verificarAssinaturaDoPush({
     url, corpoBruto, assinatura, ehPing,
-    chaves: { push: chave, app: chavesDeApp },
+    chaves: { push: chave },
   });
   if (!valida) {
     // ⚠️ O DIAGNÓSTICO VAI PARA O LOG E NUNCA PARA A RESPOSTA — dizer ao chamador
@@ -114,7 +111,7 @@ export async function POST(req: NextRequest) {
             urlDaRequisicao: req.nextUrl.href,
             corpoBruto,
             assinatura,
-            chaves: { push: chave, app: chavesDeApp },
+            chaves: { push: chave },
             partnerId: process.env.SHOPEE_PARTNER_ID,
           })
         : null,

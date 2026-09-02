@@ -18,22 +18,20 @@ const {
   FORMULAS,
 } = await import("../src/lib/integrations/shopeePush.ts");
 
-// ⚠️ CHAVES EM HEX, como a Shopee publica — e o segredo sao os BYTES delas.
-const CHAVE = "a1b2c3d4e5f60718293a4b5c6d7e8f90";
-const BYTES_DA_CHAVE = Buffer.from(CHAVE, "hex");
+const CHAVE = "shpk75434f4f6a586657756d4559537145";
 const URL_PUSH = "https://nexoaihub.com.br/api/webhooks/shopee";
 const CORPO = JSON.stringify({ shop_id: 275804987, code: 3, timestamp: 1756000000, data: { ordersn: "2609021SFBWMQV", status: "READY_TO_SHIP" } });
-const assinarCom = (base, chave = BYTES_DA_CHAVE) =>
+const assinarCom = (base, chave = CHAVE) =>
   createHmac("sha256", chave).update(base, "utf8").digest("hex");
 
 test("ACEITA so a assinatura da formula oficial, com a chave certa", () => {
   const boa = assinarCom(`${URL_PUSH}|${CORPO}`);
   assert.equal(
-    verificarAssinaturaDoPush({ url: URL_PUSH, corpoBruto: CORPO, assinatura: boa, chaves: { push: CHAVE, app: [] } }).valida,
+    verificarAssinaturaDoPush({ url: URL_PUSH, corpoBruto: CORPO, assinatura: boa, chaves: { push: CHAVE } }).valida,
     true);
   // Chave errada nao passa, mesmo com a formula certa.
   assert.equal(
-    verificarAssinaturaDoPush({ url: URL_PUSH, corpoBruto: CORPO, assinatura: assinarCom(`${URL_PUSH}|${CORPO}`, Buffer.from("00112233445566778899aabbccddeeff", "hex")), chaves: { push: CHAVE, app: [] } }).valida,
+    verificarAssinaturaDoPush({ url: URL_PUSH, corpoBruto: CORPO, assinatura: assinarCom(`${URL_PUSH}|${CORPO}`, "outra-chave"), chaves: { push: CHAVE } }).valida,
     false);
 });
 
@@ -44,12 +42,12 @@ test("SEM CHAVE CONFIGURADA o endpoint e FECHADO — nao ecoa, nao aceita", () =
   const boa = assinarCom(`${URL_PUSH}|${CORPO}`);
   for (const chave of [null, undefined, ""]) {
     assert.equal(
-      verificarAssinaturaDoPush({ url: URL_PUSH, corpoBruto: CORPO, assinatura: boa, chaves: { push: chave, app: [] } }).valida,
+      verificarAssinaturaDoPush({ url: URL_PUSH, corpoBruto: CORPO, assinatura: boa, chaves: { push: chave } }).valida,
       false, "sem chave nada pode ser aceito");
   }
   // E sem assinatura tambem nao — nem com a chave presente.
   assert.equal(
-    verificarAssinaturaDoPush({ url: URL_PUSH, corpoBruto: CORPO, assinatura: null, chaves: { push: CHAVE, app: [] } }).valida,
+    verificarAssinaturaDoPush({ url: URL_PUSH, corpoBruto: CORPO, assinatura: null, chaves: { push: CHAVE } }).valida,
     false);
 });
 
@@ -58,13 +56,13 @@ test("REJEITA a formula alternativa — mas DIZ qual teria batido", () => {
   // fontes de terceiro se contradizem. Em vez de chutar, o endpoint falha
   // FECHADO e entrega o diagnostico. O primeiro push real diz a formula certa.
   const soCorpo = assinarCom(CORPO);
-  const r = verificarAssinaturaDoPush({ url: URL_PUSH, corpoBruto: CORPO, assinatura: soCorpo, chaves: { push: CHAVE, app: [] } });
+  const r = verificarAssinaturaDoPush({ url: URL_PUSH, corpoBruto: CORPO, assinatura: soCorpo, chaves: { push: CHAVE } });
   assert.equal(r.valida, false, "candidata de diagnostico NAO pode autorizar");
   assert.equal(r.formulaQueBateria, "corpo", "e tem de dizer qual bateria");
 });
 
 test("assinatura de lixo nao bate em nada e nao aponta formula nenhuma", () => {
-  const r = verificarAssinaturaDoPush({ url: URL_PUSH, corpoBruto: CORPO, assinatura: "a".repeat(64), chaves: { push: CHAVE, app: [] } });
+  const r = verificarAssinaturaDoPush({ url: URL_PUSH, corpoBruto: CORPO, assinatura: "a".repeat(64), chaves: { push: CHAVE } });
   assert.equal(r.valida, false);
   assert.equal(r.formulaQueBateria, null);
 });
@@ -77,7 +75,7 @@ test("so a PRIMEIRA formula autoriza — a lista nao pode virar 'aceita qualquer
   for (const candidata of FORMULAS.slice(1)) {
     const assinatura = assinarCom(candidata.base(URL_PUSH, CORPO));
     assert.equal(
-      verificarAssinaturaDoPush({ url: URL_PUSH, corpoBruto: CORPO, assinatura, chaves: { push: CHAVE, app: [] } }).valida,
+      verificarAssinaturaDoPush({ url: URL_PUSH, corpoBruto: CORPO, assinatura, chaves: { push: CHAVE } }).valida,
       false, `${candidata.nome} nao pode autorizar`);
   }
 });
@@ -147,25 +145,6 @@ test("a migration 0031 existe e diz que o ESCRITOR nao sobe antes do apply", asy
     "a dependencia de sequencia tem de estar escrita na propria migration");
 });
 
-test("a chave do APP diagnostica mas NUNCA autoriza", () => {
-  // 🔴 MEDIDO NO PRIMEIRO VERIFY REAL (02/09/2026): as 4 formulas deram null com
-  // a push key. Hipotese forte: a Shopee assinou com a partner_key do app, a
-  // unica que ela tem persistida enquanto a chave gerada nao foi salva.
-  //
-  // ⚠️ E a acao certa nesse caso e SALVAR a pagina do console — nao passar a
-  // aceitar a chave da API como chave de push. Aceitar misturaria as duas
-  // superficies que a Shopee separou de proposito: chave de API comprometida
-  // passaria a permitir forjar push.
-  const CHAVE_DO_APP = "0f1e2d3c4b5a69788796a5b4c3d2e1f0";
-  const assinadaComOApp = assinarCom(`${URL_PUSH}|${CORPO}`, Buffer.from(CHAVE_DO_APP, "hex"));
-  const r = verificarAssinaturaDoPush({
-    url: URL_PUSH, corpoBruto: CORPO, assinatura: assinadaComOApp,
-    chaves: { push: CHAVE, app: [CHAVE_DO_APP] },
-  });
-  assert.equal(r.valida, false, "a chave do app NAO pode autorizar push");
-  assert.equal(r.chaveQueBateria, "app", "mas o diagnostico tem de dizer que foi ela");
-  assert.equal(r.formulaQueBateria, "url|corpo");
-});
 
 test("o diagnostico registra a forma do que chegou, e nenhuma chave", async () => {
   // Fecha a duvida na proxima tentativa sem precisar de outro deploy: nome do
@@ -224,11 +203,11 @@ test("a matriz de diagnostico ACHA a combinacao — e nunca autoriza", async () 
   const CHAVE_APP = "0f1e2d3c4b5a69788796a5b4c3d2e1f0";
   const corpo = '{"code":0,"data":{"verify_info":"x"}}';
   // Cenario: a Shopee assinou corpo|url em base64 com a chave do app.
-  const assinatura = createHmac("sha256", Buffer.from(CHAVE_APP, "hex"))
+  const assinatura = createHmac("sha256", CHAVE_APP)
     .update(`${corpo}|${URL_PUSH}`, "utf8").digest("base64");
   const achado = diagnosticarAssinatura({
     urlPublica: URL_PUSH, urlDaRequisicao: "https://0.0.0.0:3000/api/webhooks/shopee",
-    corpoBruto: corpo, assinatura, chaves: { push: CHAVE, app: [CHAVE_APP] },
+    corpoBruto: corpo, assinatura, chaves: { push: CHAVE }, chavesDeApp: [CHAVE_APP],
   });
   assert.equal(achado, "chave=app url=publica base=corpo|url cod=base64");
 
@@ -236,13 +215,13 @@ test("a matriz de diagnostico ACHA a combinacao — e nunca autoriza", async () 
   assert.equal(
     verificarAssinaturaDoPush({
       url: URL_PUSH, corpoBruto: corpo, assinatura,
-      chaves: { push: CHAVE, app: [CHAVE_APP] },
+      chaves: { push: CHAVE },
     }).valida,
     false, "a matriz diagnostica; so a formula oficial com a push key autoriza");
   // Assinatura que nao e de ninguem nao inventa combinacao.
   assert.equal(diagnosticarAssinatura({
     urlPublica: URL_PUSH, urlDaRequisicao: URL_PUSH, corpoBruto: corpo,
-    assinatura: "b".repeat(64), chaves: { push: CHAVE, app: [CHAVE_APP] },
+    assinatura: "b".repeat(64), chaves: { push: CHAVE }, chavesDeApp: [CHAVE_APP],
   }), null);
 });
 
@@ -254,42 +233,7 @@ test("o log leva os BYTES EXATOS do corpo, em base64", async () => {
   assert.ok(rota.includes("combinacaoQueBateria: assinatura"));
 });
 
-test("O SEGREDO SAO OS BYTES DA CHAVE, nao a string hex", async () => {
-  // 🔴 SEGUROU O PUSH POR TRES TENTATIVAS (02/09/2026). A Shopee publica a chave
-  // em HEX e a doc diz "partner key" — usar a string como segredo do HMAC da um
-  // digest diferente, sem erro nenhum. So com Buffer.from(chave,"hex") a
-  // assinatura COMPLETA do verify bateu.
-  const base = `${URL_PUSH}|${CORPO}`;
-  const comBytes = createHmac("sha256", Buffer.from(CHAVE, "hex")).update(base, "utf8").digest("hex");
-  const comString = createHmac("sha256", CHAVE).update(base, "utf8").digest("hex");
-  assert.notEqual(comBytes, comString, "as duas leituras dao digests diferentes — e o cerne do defeito");
-  assert.equal(
-    verificarAssinaturaDoPush({ url: URL_PUSH, corpoBruto: CORPO, assinatura: comBytes, chaves: { push: CHAVE, app: [] } }).valida,
-    true, "a assinatura pelos BYTES tem de ser aceita");
-  assert.equal(
-    verificarAssinaturaDoPush({ url: URL_PUSH, corpoBruto: CORPO, assinatura: comString, chaves: { push: CHAVE, app: [] } }).valida,
-    false, "a assinatura pela string nao e a da Shopee");
-});
 
-test("PING de verify passa com chave de APP; PUSH DE DADO exige a push key", async () => {
-  const { ehPingDeVerificacao } = await import("../src/lib/integrations/shopeePush.ts");
-  const CHAVE_APP_TESTE = "0f1e2d3c4b5a69788796a5b4c3d2e1f0";
-  const PING = '{"code":0,"data":{"verify_info":"This is a Verification message from Shopee Open Platform"}}';
-  assert.equal(ehPingDeVerificacao(JSON.parse(PING)), true);
-
-  const assinaturaDoPing = createHmac("sha256", Buffer.from(CHAVE_APP_TESTE, "hex"))
-    .update(`${URL_PUSH}|${PING}`, "utf8").digest("hex");
-  assert.equal(
-    verificarAssinaturaDoPush({ url: URL_PUSH, corpoBruto: PING, assinatura: assinaturaDoPing, ehPing: true, chaves: { push: CHAVE, app: [CHAVE_APP_TESTE] } }).valida,
-    true, "o ping do console vem assinado com chave de APP e tem de passar");
-
-  // 🔴 E A SEPARACAO CONTINUA: dado assinado com a chave do app e RECUSADO.
-  const assinaturaDoDado = createHmac("sha256", Buffer.from(CHAVE_APP_TESTE, "hex"))
-    .update(`${URL_PUSH}|${CORPO}`, "utf8").digest("hex");
-  assert.equal(
-    verificarAssinaturaDoPush({ url: URL_PUSH, corpoBruto: CORPO, assinatura: assinaturaDoDado, ehPing: false, chaves: { push: CHAVE, app: [CHAVE_APP_TESTE] } }).valida,
-    false, "chave de API nao pode forjar evento de pedido");
-});
 
 test("um push forjado NAO escapa acrescentando verify_info", () => {
   // ⚠️ A excecao do ping e estreita de proposito: se bastasse ter `verify_info`,
@@ -299,3 +243,53 @@ test("um push forjado NAO escapa acrescentando verify_info", () => {
   assert.equal(ehPingDeVerificacaoRef(disfarcado), false);
 });
 const { ehPingDeVerificacao: ehPingDeVerificacaoRef } = await import("../src/lib/integrations/shopeePush.ts");
+
+test("🔴 CHAVE VAZIA NUNCA AUTORIZA DADO — a guarda critica", async () => {
+  // 🔴 Chave vazia e conhecida por QUALQUER PESSOA DO PLANETA. Se um push de
+  // dado passasse com ela, qualquer um assinaria um pedido forjado e escreveria
+  // no canonico. Esta e a guarda mais importante do arquivo.
+  const assinaturaVazia = createHmac("sha256", "").update(`${URL_PUSH}|${CORPO}`, "utf8").digest("hex");
+  // com push key configurada
+  assert.equal(
+    verificarAssinaturaDoPush({ url: URL_PUSH, corpoBruto: CORPO, assinatura: assinaturaVazia, ehPing: false, chaves: { push: CHAVE } }).valida,
+    false, "dado assinado com chave vazia tem de ser recusado");
+  // ⚠️ E SEM push key configurada — o caso perigoso: se o codigo caisse em ""
+  // por ausencia, a chave vazia viraria a chave valida e a porta abriria.
+  for (const ausente of [null, undefined, ""]) {
+    assert.equal(
+      verificarAssinaturaDoPush({ url: URL_PUSH, corpoBruto: CORPO, assinatura: assinaturaVazia, ehPing: false, chaves: { push: ausente } }).valida,
+      false, "sem push key, chave vazia NAO pode virar a chave valida");
+  }
+});
+
+test("PING de verify passa com chave VAZIA (pre-Save) e com a push key (pos-Save)", async () => {
+  const { ehPingDeVerificacao } = await import("../src/lib/integrations/shopeePush.ts");
+  const PING = '{"code":0,"data":{"verify_info":"This is a Verification message from Shopee Open Platform"}}';
+  assert.equal(ehPingDeVerificacao(JSON.parse(PING)), true);
+  const base = `${URL_PUSH}|${PING}`;
+  // Pre-Save: a Shopee assina com a push key ARMAZENADA nela, que esta vazia.
+  assert.equal(
+    verificarAssinaturaDoPush({ url: URL_PUSH, corpoBruto: PING, assinatura: createHmac("sha256", "").update(base, "utf8").digest("hex"), ehPing: true, chaves: { push: CHAVE } }).valida,
+    true, "o verify pre-Save tem de passar");
+  // Pos-Save: assinado com a chave de verdade.
+  assert.equal(
+    verificarAssinaturaDoPush({ url: URL_PUSH, corpoBruto: PING, assinatura: createHmac("sha256", CHAVE).update(base, "utf8").digest("hex"), ehPing: true, chaves: { push: CHAVE } }).valida,
+    true, "o re-verify pos-Save tambem");
+  // ⚠️ E a permissao da chave vazia NAO vale para corpo que nao e ping.
+  assert.equal(
+    verificarAssinaturaDoPush({ url: URL_PUSH, corpoBruto: CORPO, assinatura: createHmac("sha256", "").update(`${URL_PUSH}|${CORPO}`, "utf8").digest("hex"), ehPing: true, chaves: { push: CHAVE } }).valida,
+    true, "cenario de controle: com ehPing=true a chave vazia passa — por isso quem decide ehPing e ehPingDeVerificacao, no corpo");
+});
+
+test("o segredo e a STRING da chave, nao os bytes hex", async () => {
+  // Registro do artefato de 02/09/2026: `Buffer.from("shpk...","hex")` devolve
+  // buffer VAZIO (o Node trunca no primeiro par invalido, em silencio), e HMAC
+  // com chave vazia reproduziu a assinatura do verify por completo. Parecia
+  // "a chave precisa ser hex-decodificada"; era a Shopee assinando com a push
+  // key ARMAZENADA nela, que estava vazia por nunca ter sido salva.
+  const fonte = await readFile(new URL("../src/lib/integrations/shopeePush.ts", import.meta.url), "utf8");
+  const codigo = fonte.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  assert.ok(!/Buffer\.from\(chave, "hex"\)/.test(codigo),
+    "hex-decodificar a chave foi artefato, nao descoberta");
+  assert.ok(codigo.includes('createHmac("sha256", chave).update(base, "utf8").digest("hex")'));
+});

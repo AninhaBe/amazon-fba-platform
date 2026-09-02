@@ -79,36 +79,26 @@ function caminhoDe(url: string) {
 }
 
 /**
- * O SEGREDO SÃO OS **BYTES** DA CHAVE, NÃO A STRING.
+ * O SEGREDO É A STRING DA CHAVE, COMO CONFIGURADA.
  *
- * 🔴 FOI ISTO QUE SEGUROU O PUSH POR TRÊS TENTATIVAS (02/09/2026). A chave que a
- * Shopee mostra no console é uma string HEXADECIMAL, e a documentação diz
- * "partner key" — então todo mundo (eu inclusive) usa a string como segredo do
- * HMAC. O segredo são os bytes que ela REPRESENTA:
+ * ⚠️ AQUI ESTEVE UM `Buffer.from(chave, "hex")` POR MEIA HORA, e ele nasceu de um
+ * ARTEFATO — vale registrar porque a armadilha é boa demais para esquecer.
  *
- *   errado:  createHmac("sha256", "a1b2c3...")
- *   certo:   createHmac("sha256", Buffer.from("a1b2c3...", "hex"))
+ * A chave da Shopee é `shpk` + 60 caracteres hex. Ela **não é hex puro**, e
+ * `Buffer.from("shpk…", "hex")` não falha: o Node **trunca no primeiro par
+ * inválido e devolve um buffer VAZIO**, em silêncio. HMAC com chave vazia é uma
+ * função perfeitamente determinística — e foi ela que reproduziu a assinatura
+ * do verify, completa, byte a byte.
  *
- * Só com a decodificação a assinatura COMPLETA do verify bateu — não um
- * prefixo, a assinatura inteira.
+ * A conclusão parecia "a chave precisa ser hex-decodificada". A verdade é outra:
+ * **a Shopee assinou com a push key ARMAZENADA NELA, que estava vazia porque a
+ * chave gerada nunca foi salva.** A fórmula oficial (`url|corpo`, hex,
+ * `Authorization`) estava certa desde o início.
  *
- * 📌 A LIÇÃO, que vale além da Shopee: quando um segredo é publicado em hex,
- * "a chave" é ambígua — a string é a REPRESENTAÇÃO, os bytes são a chave. As
- * duas dão HMACs diferentes e nenhum erro; só não bate.
- *
- * ⚠️ A decodificação é condicional de propósito: se a chave não for hex puro
- * (uma futura em base64, ou uma senha), decodificar produziria bytes truncados
- * em silêncio. Hex puro → bytes; qualquer outra coisa → a string como está.
+ * 📌 A LIÇÃO: uma coincidência que "bate perfeitamente" é evidência forte de que
+ * as duas pontas fazem a MESMA coisa — inclusive a mesma coisa ERRADA. Chave
+ * vazia dos dois lados bate 100%, e não prova nada sobre a chave.
  */
-function segredoDe(chave: string) {
-  const ehHexPuro = chave.length % 2 === 0 && /^[0-9a-fA-F]+$/.test(chave);
-  return ehHexPuro ? Buffer.from(chave, "hex") : Buffer.from(chave, "utf8");
-}
-
-function assinar(chave: string, base: string) {
-  return createHmac("sha256", segredoDe(chave)).update(base, "utf8").digest("hex");
-}
-
 /**
  * O PING DE VERIFICAÇÃO do console — o único corpo que pode passar com a chave
  * do APP em vez da chave de push.
@@ -128,6 +118,10 @@ export function ehPingDeVerificacao(corpo: unknown): boolean {
   return typeof dados.verify_info === "string"
     && raiz.shop_id == null && dados.shop_id == null
     && dados.ordersn == null && dados.order_sn == null;
+}
+
+function assinar(chave: string, base: string) {
+  return createHmac("sha256", chave).update(base, "utf8").digest("hex");
 }
 
 /** Comparação em tempo constante — igualdade de string vaza o prefixo correto. */
@@ -152,21 +146,15 @@ export interface ResultadoDaAssinatura {
    * errada", e essas duas causas pedem ações opostas.
    */
   formulaQueBateria: string | null;
-  chaveQueBateria: "push" | "app" | null;
+  chaveQueBateria: "push" | "app" | "vazia" | null;
 }
 
 export interface ChavesDoPush {
-  /** `SHOPEE_PUSH_PARTNER_KEY` — a gerada no console. A única que autoriza DADO. */
-  push: string | null | undefined;
   /**
-   * Chaves de APP (live e teste). Elas assinam o PING DE VERIFICAÇÃO — medido em
-   * 02/09/2026: o verify do console veio assinado com a partner key de TESTE.
-   *
-   * ⚠️ Elas **nunca** autorizam push de dado. Aceitá-las ali misturaria as duas
-   * superfícies que a Shopee separou, e uma chave de API vazada passaria a
-   * permitir forjar evento de pedido.
+   * `SHOPEE_PUSH_PARTNER_KEY` — a gerada no console. **A única que autoriza
+   * push de DADO**, sem exceção.
    */
-  app: Array<string | null | undefined>;
+  push: string | null | undefined;
 }
 
 export function verificarAssinaturaDoPush(entrada: {
@@ -183,26 +171,36 @@ export function verificarAssinaturaDoPush(entrada: {
   const [oficial, ...diagnosticas] = FORMULAS;
   const base = oficial.base(url, corpoBruto);
 
-  // DADO: só a push key. Sem exceção.
+  // ═══ DADO: EXCLUSIVAMENTE A PUSH KEY CONFIGURADA ═══════════════════════════
+  //
+  // 🔴 O `chaves.push &&` É A LINHA MAIS IMPORTANTE DESTE ARQUIVO. Sem ela, uma
+  // push key ausente cairia em chave VAZIA — e chave vazia é conhecida por
+  // qualquer pessoa do planeta. Seria porta escancarada: qualquer um assinaria
+  // um push forjado e escreveria pedido no canônico.
   if (chaves.push && iguais(assinar(chaves.push, base), assinatura)) {
     return { valida: true, formulaQueBateria: null, chaveQueBateria: "push" };
   }
-  // PING DE VERIFICAÇÃO: as chaves de app também valem — e SÓ para este corpo,
-  // que não escreve nada. Ver a nota em `ehPingDeVerificacao`.
-  if (entrada.ehPing) {
-    for (const chave of chaves.app) {
-      if (chave && iguais(assinar(chave, base), assinatura)) {
-        return { valida: true, formulaQueBateria: null, chaveQueBateria: "app" };
-      }
-    }
+
+  // ═══ PING DE VERIFICAÇÃO: a chave VAZIA também vale ════════════════════════
+  //
+  // Antes do Save, a Shopee assina com a push key ARMAZENADA NELA — que está
+  // vazia, porque a chave gerada no formulário ainda não foi persistida. Depois
+  // do Save ela passa a assinar com a chave de verdade, e o ramo acima resolve.
+  //
+  // ⚠️ Aceitar chave vazia aqui é seguro por DOIS motivos SOMADOS, e é a soma
+  // que importa: este corpo não carrega loja nem pedido (`ehPingDeVerificacao`
+  // exige a ausência dos dois), e a rota não escreve nada ao processá-lo. Quem
+  // forjar este ping ganha um 200 vazio.
+  if (entrada.ehPing && iguais(assinar("", base), assinatura)) {
+    return { valida: true, formulaQueBateria: null, chaveQueBateria: "vazia" };
   }
-  for (const [rotulo, lista] of [["push", [chaves.push]], ["app", chaves.app]] as const) {
-    for (const chave of lista) {
-      if (!chave) continue;
-      for (const candidata of [oficial, ...diagnosticas]) {
-        if (iguais(assinar(chave, candidata.base(url, corpoBruto)), assinatura)) {
-          return { valida: false, formulaQueBateria: candidata.nome, chaveQueBateria: rotulo };
-        }
+
+  // Diagnóstico: nomeia, nunca autoriza.
+  for (const candidata of [oficial, ...diagnosticas]) {
+    for (const [rotulo, chave] of [["push", chaves.push], ["vazia", ""]] as const) {
+      if (chave == null) continue;
+      if (iguais(assinar(chave, candidata.base(url, corpoBruto)), assinatura)) {
+        return { valida: false, formulaQueBateria: candidata.nome, chaveQueBateria: rotulo };
       }
     }
   }
@@ -296,6 +294,8 @@ export function diagnosticarAssinatura(entrada: {
   corpoBruto: string;
   assinatura: string;
   chaves: ChavesDoPush;
+  /** Chaves de app, SO para diagnostico — nunca autorizam nada. */
+  chavesDeApp?: Array<string | null | undefined>;
   partnerId?: string | null;
 }): string | null {
   const { urlPublica, urlDaRequisicao, corpoBruto, assinatura, chaves } = entrada;
@@ -319,14 +319,13 @@ export function diagnosticarAssinatura(entrada: {
     ["partner|url|corpo", (u) => `${partnerId}|${u}|${corpoBruto}`],
     ["partner+url+corpo", (u) => `${partnerId}${u}${corpoBruto}`],
   ];
-  for (const [nomeChave, lista] of [["push", [chaves.push]], ["app", chaves.app]] as const) {
+  for (const [nomeChave, lista] of [["push", [chaves.push]], ["app", entrada.chavesDeApp ?? []], ["vazia", [""]]] as const) {
    for (const chave of lista) {
     if (!chave) continue;
     for (const [nomeUrl, url] of urls) {
       for (const [nomeBase, montar] of bases) {
         for (const cod of ["hex", "base64"] as const) {
-          // Bytes da chave, nao a string — mesma regra do `assinar`.
-          const digest = createHmac("sha256", segredoDe(chave)).update(montar(url), "utf8").digest(cod);
+          const digest = createHmac("sha256", chave).update(montar(url), "utf8").digest(cod);
           if (digest.toLowerCase() === assinatura.toLowerCase()) {
             return `chave=${nomeChave} url=${nomeUrl} base=${nomeBase} cod=${cod}`;
           }
