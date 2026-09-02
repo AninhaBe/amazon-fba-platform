@@ -69,6 +69,14 @@ test("o FORMULÁRIO pede os quatro campos combinados e não promete o que não s
   // O erro precisa oferecer o caminho alternativo — formulário que falha sem dar
   // o e-mail transforma interessado em desistente.
   assert.match(texto, /contato@nexoaihub\.com/, "o caminho alternativo sumiu da mensagem de erro");
+  // Mas ele NAO pode ser concatenado as cegas: cinco mensagens da rota ja citam
+  // o e-mail, e as que a pessoa mais ve (limite, chave ausente, falha de envio)
+  // estao entre elas. A ancora e a RAMIFICACAO, nao a existencia da string.
+  assert.match(
+    texto,
+    /estado\.mensagem\.includes\(CONTATO\) \? null :/,
+    "o e-mail voltou a ser concatenado sempre — aparece duas vezes na mesma frase",
+  );
   // E não pode dizer "enviado" sem o servidor ter confirmado.
   assert.match(texto, /if \(!resposta\.ok\)/, "o formulário deixou de conferir a resposta do servidor");
 });

@@ -21,6 +21,8 @@ import styles from "./landing-v2.module.css";
  * boa-fé, e nada além disso.
  */
 
+const CONTATO = "contato@nexoaihub.com";
+
 const MARKETPLACES = ["Amazon", "Mercado Livre", "Shopee", "TikTok Shop", "Site próprio"] as const;
 
 const FAIXAS = [
@@ -141,7 +143,18 @@ export function SolicitarOrcamento() {
       {estado.tipo === "erro" && (
         <p className={styles.quoteError} role="alert">
           <CircleAlert aria-hidden="true" />
-          {estado.mensagem} Se preferir, escreva para <a href="mailto:contato@nexoaihub.com">contato@nexoaihub.com</a>.
+          {estado.mensagem}
+          {/* ⚠️ O CAMINHO ALTERNATIVO SO ENTRA SE O SERVIDOR NAO O DEU.
+              Medido em 02/09/2026, quando a rota ficou pronta: cinco das
+              mensagens dela ja citam o e-mail (as de limite, de chave ausente e
+              de falha no envio) — justamente as que a pessoa mais vai ver.
+              Concatenar o meu texto por cima escreveria o endereco duas vezes
+              na mesma frase.
+              A GARANTIA NAO MUDA: continua sempre havendo uma saida. O que muda
+              e quem a escreve. */}
+          {estado.mensagem.includes(CONTATO) ? null : (
+            <> Se preferir, escreva para <a href={`mailto:${CONTATO}`}>{CONTATO}</a>.</>
+          )}
         </p>
       )}
     </form>
