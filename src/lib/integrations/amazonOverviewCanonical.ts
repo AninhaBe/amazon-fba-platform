@@ -976,10 +976,19 @@ export async function getAmazonOverviewFromCanonical(
   // estimativa por tarifa oficial; sobre a linha de estorno ela nao tem nada a
   // fazer, e o numero e identico ao centavo.
   //
-  // A migration 0030 devolve `posted_at` a view e deve entrar de qualquer forma
-  // — o resto do sistema precisa dela. Quando entrar, este SELECT pode voltar a
-  // view sem mudar de resultado. O que NAO pode e a aba ficar morta esperando
-  // janela de migration.
+  // 📌 A 0030 FOI APLICADA EM 02/09/2026 e a view voltou a ter `posted_at`
+  // (conferido em producao: SELECT posted_at da view responde OK). Ou seja, ler
+  // da view voltou a ser POSSIVEL — e mesmo assim esta consulta FICA na tabela,
+  // por decisao e nao por inercia:
+  //
+  //   - o numero e identico (estorno nunca e estimativa, o CHECK da 0022 recusa
+  //     'refund' como fee_type de estimativa), entao a troca nao pagaria nada;
+  //   - e o grao aqui e melhor: a tabela e a fonte, a view e uma camada a mais
+  //     entre o dado e a conta.
+  //
+  // Voltar para a view seria mexer em codigo que funciona para ficar igual ao
+  // que era antes do incidente. Registrado para a proxima pessoa nao achar que
+  // isto aqui e resto de conserto esquecido.
   const estornoRows = await dbQuery<{ estorno: string | null; estorno_n: number; estorno_com_data: number }>(
     `SELECT COALESCE(SUM(f.amount) FILTER (
               WHERE COALESCE(f.posted_at, o.occurred_at) >= $4
