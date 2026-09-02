@@ -13,9 +13,10 @@ defeito escrito de um jeito só**.
 
 ## Os sete casos
 
-Os sete são sobre **onde a guarda ancora**. No fim há uma família irmã e
-diferente: **unidade implícita**, em que nenhuma guarda dispara porque não há
-nada de errado no código — só no significado.
+Os sete são sobre **onde a guarda ancora**. No fim há duas famílias irmãs e
+diferentes — **unidade implícita** e **identidade instável** —, em que nenhuma
+guarda dispara porque não há nada de errado no código: numa o significado do
+número está errado, na outra a identidade do que se devolve.
 
 | # | a guarda casava | o que a derrubou | o que ela protegia de verdade |
 |---|---|---|---|
@@ -217,6 +218,62 @@ unidade em vez de olhar a formatação.
 
 Guarda também comunica. Duas asserções que reprovam o mesmo estado não são
 redundância quando uma delas **diz qual é o estado**.
+
+## A outra irmã: identidade instável — a peça certa por dentro, errada por fora
+
+Irmã da unidade implícita, e pela mesma razão: **nada no código está errado.** As
+funções fazem o certo, os tipos fecham, o teste passa. O que está errado é o que
+o consumidor **observa**.
+
+**O caso, relatado pela vendedora em 02/09/2026** — *"a tela fica piscando
+eternamente"* ao paginar a aba Produtos da Shopee.
+
+O cache de tela devolvia o pacote das suas três funções. As três eram estáveis
+(memoizadas com cuidado); **o embrulho não**. E o embrulho é a única coisa que o
+consumidor enxerga:
+
+```js
+const buscarModulo = useCallback(…, [cache, cfg.endpoint]);
+useEffect(…, [attempt, buscarModulo, query, selectedId]);
+```
+
+Pacote novo → `buscarModulo` novo → o efeito re-dispara → ele apaga a lista
+(`setPayload(null)`) e busca de novo → o estado muda → re-renderiza → pacote
+novo. O pisca **é** o apagar da lista a cada volta.
+
+**Medido: 20 disparos em 20 renders. Depois da correção: 1.**
+
+### Por que ninguém acha olhando a rede
+
+O controle de voo deduplica a ida e o cache responde da memória. **O laço é de
+render, não de rede.** Quem abre a aba Network procurando requisição repetida não
+encontra nada — e conclui que está tudo bem, com a tela piscando na frente.
+
+É o irmão exato do erro de unidade: ali o número parecia pequeno, aqui o
+sintoma parece não ter causa. Os dois só aparecem quando se mede **o efeito**, e
+não o que o código diz.
+
+### A regra
+
+> **A dependência é o que ENTRA no array, não o que está dentro dele.**
+
+Peça que devolve um pacote de funções estabiliza **o pacote**, não só as funções.
+Vale para qualquer hook, contexto ou objeto de configuração que atravesse a
+fronteira entre quem cria e quem observa.
+
+📌 **E o teste que prova isso mede o efeito, não a forma.** Não adianta casar
+`useMemo` no fonte — isso seria o caso 4 do catálogo outra vez. O que prova é
+chamar a peça N vezes e contar quantas vezes a dependência mudaria.
+
+### A prova de que a causa mora no código, não na tela
+
+O mesmo consumidor existia, letra por letra, no módulo do TikTok — **e piscava
+igual, sem ninguém reportar.** Só a Shopee apareceu porque foi a tela que ela
+usou naquele dia.
+
+Uma correção na peça curou os dois. Se o conserto tivesse sido feito na tela que
+reclamou, a outra continuaria piscando até alguém abrir — e o defeito voltaria a
+nascer na próxima tela que usasse a peça.
 
 ## Antes de escrever guarda nova, duas perguntas
 
