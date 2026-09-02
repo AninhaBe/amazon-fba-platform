@@ -42,11 +42,12 @@ ENV_FILE=".env.local"
 if [ -f .git ]; then
   GITDIR="$(sed -n 's/^gitdir: //p' .git | tr -d '\r')"
   # Caminho do Windows (G:/...) nao existe dentro do WSL: vira /mnt/g/...
-  # ⚠️ Feito com sed, nao com `case`: a primeira versao usava o padrao
-  # [A-Za-z]:[/BARRA]* e a barra invertida ESCAPAVA o colchete de fechamento,
-  # entao a classe nunca fechava e o case nunca casava — em silencio, caindo
-  # direto no ABORTADO. Guarda burra que acerta vale mais que esperta que erra.
-  GITDIR="$(printf %s "$GITDIR" | sed -E "s|^([A-Za-z]):|/mnt/\L\1|" | tr "\\\\" "/")"
+  # ⚠️ Traduzido por `wslpath`, que existe para isto. As duas tentativas
+  # anteriores erraram em silencio: um `case` com padrao [A-Za-z]:[/BARRA]* onde a
+  # barra invertida ESCAPAVA o colchete de fechamento (a classe nunca fechava, o
+  # case nunca casava), e um `sed` com \L que tambem nao pegou. Nenhuma das duas
+  # caiu por leitura — as duas cairam ao RODAR. Ferramenta pronta > engenhosidade.
+  GITDIR="$(wslpath -u "$GITDIR" 2>/dev/null || printf %s "$GITDIR")"
   if [ -d "$GITDIR" ]; then
     export GIT_DIR="$GITDIR"
     export GIT_WORK_TREE="$PWD"
