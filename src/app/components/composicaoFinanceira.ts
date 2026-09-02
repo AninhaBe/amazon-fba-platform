@@ -35,7 +35,10 @@ export function buildFinancialComposition({
    * painel segue exibindo a fatia única, e as telas que não passam nada não
    * mudam de aparência.
    */
-  pendencias?: Array<{ rotulo: string; valor?: number | null }>;
+  pendencias?: Array<{
+    rotulo: string;
+    valor?: number | null;
+  }>;
 }): CompositionSlice[] {
   const known = costs
     .filter((cost): cost is KnownCost & { value: number } => cost.value != null && Math.abs(cost.value) > 0)

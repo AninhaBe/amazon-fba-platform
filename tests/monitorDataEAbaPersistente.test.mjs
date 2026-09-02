@@ -126,3 +126,32 @@ test("TROCAR DE ABA NAO MUDA A CHAVE DA BUSCA — nem quando a URL nao tem offse
   assert.ok(tiktok.includes('update({secao:key,offset:sp.get("offset")})'),
     "o mesmo defeito continua no monitor do TikTok");
 });
+
+test("O PEDIDO CARREGA O PERIODO QUE A TELA MOSTRA — sem default divergente", async () => {
+  // ⚠️ O DEFEITO (02/09/2026): dois defaults silenciosos, um em cada
+  // ponta. O construtor da chave punha `days=30` quando a URL nao trazia nada; o
+  // seletor da tela assume "today" no mesmo caso. Sem o parametro na URL — que e
+  // a PRIMEIRA CARGA — a tela rotulava "Hoje" e o servidor respondia 30 dias.
+  //
+  // Medido: Hoje sao 280 vendas e R$ 10.143,96; 30 dias sao 10.020 e
+  // R$ 363.337,55. O print dela dizia Hoje com os numeros de 30 dias.
+  const { shopeeModuleQuery } = await import("../src/app/components/ShopeeModulesModel.ts");
+  const CONN = "shopee:1";
+
+  // O padrao do PEDIDO tem de ser o mesmo padrao da TELA.
+  const chave = shopeeModuleQuery(`connection_id=${CONN}`, CONN, "monitor");
+  assert.match(chave, /(^|&)days=today(&|$)/, "o pedido voltou a assumir um periodo diferente do que a tela mostra");
+
+  // E o padrao da tela continua sendo "today" — se ele mudar, este par quebra
+  // junto e alguem tem de conciliar os dois de novo.
+  const tela = (await fonte("src/app/components/ShopeeModulePage.tsx"))
+    .replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+  assert.ok(tela.includes('escolhida.get("days")??"today"'),
+    "a tela mudou de padrao e o construtor da chave nao acompanhou");
+
+  // Periodo escolhido continua mandando, e o personalizado tambem.
+  assert.match(shopeeModuleQuery(`connection_id=${CONN}&days=7`, CONN, "monitor"), /days=7/);
+  const custom = shopeeModuleQuery(`connection_id=${CONN}&from=2026-08-01&to=2026-08-31`, CONN, "monitor");
+  assert.match(custom, /from=2026-08-01/);
+  assert.ok(!/days=/.test(custom), "o personalizado voltou a mandar days junto");
+});

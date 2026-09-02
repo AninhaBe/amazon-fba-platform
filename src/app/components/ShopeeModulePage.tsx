@@ -68,15 +68,44 @@ const show=(value:unknown)=>value==null||value===""?"—":String(value);
  * A descricao passa a dizer O QUE falta, na ordem do que ela pode resolver:
  * custo nao cadastrado e acao DELA; repasse nao processado e espera da Shopee.
  */
+
+/**
+ * ⚠️ TRAVESSAO SOZINHO DIZ MENOS DO QUE PODERIA (02/09/2026).
+ *
+ * Os cards de Lucro e Margem mostravam "—" com o subtexto "no periodo
+ * selecionado" — que descreve o RECORTE e nao a AUSENCIA. Quem olha fica sem
+ * saber se nao vendeu, se falta dado, ou se e coisa nossa.
+ *
+ * O subtexto passa a apontar a causa. Nao e adjetivo que se desculpa ("dados
+ * parciais"): e o fato, com quem se espera.
+ */
+function porQueSemResultado(profit: ProfitBlock): string {
+  const pagas = profit.coverage?.paidOrders ?? 0;
+  /**
+   * ⚠️ A ORDEM SEGUE A MEDICAO, nao a intuicao. Nesta conta a tarifa
+   * esta praticamente completa (9.868 dos 9.918 pedidos pagos tem comissao), e
+   * o que falta de verdade e custo cadastrado. Comecar pela tarifa poria na
+   * tela uma causa que o banco desmente.
+   */
+  if ((profit.unitsWithoutCost ?? 0) > 0) return "falta custo cadastrado";
+  if ((profit.coverage?.processedOrders ?? 0) < pagas) return "aguardando itens do pedido";
+  if ((profit.coverage?.ordersWithFees ?? 0) < pagas) return "aguardando tarifa da Shopee";
+  return "no período selecionado";
+}
+
 function descricaoDaComposicao(profit: ProfitBlock): string {
   const semRepasse = Math.max((profit.coverage?.paidOrders ?? 0) - (profit.coverage?.processedOrders ?? 0), 0);
   const partes: string[] = [];
-  if ((profit.unitsWithoutCost ?? 0) > 0) {
-    partes.push(`${profit.unitsWithoutCost} unidade(s) sem custo cadastrado`);
-  }
-  if (semRepasse > 0) {
-    partes.push(`${semRepasse} venda(s) aguardando repasse da Shopee`);
-  }
+  if (semRepasse > 0) partes.push(`${semRepasse} venda(s) aguardando itens do pedido`);
+  /**
+   * ⚠️ O CUSTO NAO ENTRA AQUI, e a ausencia e a correcao (02/09/2026).
+   * O print dela mostrava "sem custo cadastrado" TRES VEZES na mesma tela: o
+   * alerta do topo (por SKU), este subtitulo (por unidade) e o rodape (por
+   * unidade, com link). Ficou UMA: o rodape, que e a unica com CAMINHO.
+   * E o alerta do topo e da pagina, nao do painel — deixa-lo junto poria "15
+   * SKUs" e "209 unidades" lado a lado, dois numeros certos que parecem se
+   * contradizer.
+   */
   if (partes.length === 0) return "Valores efetivamente identificados no período.";
   return `${partes.join(" · ")}.`;
 }
@@ -91,22 +120,32 @@ function descricaoDaComposicao(profit: ProfitBlock): string {
  * Inventar um rateio ali seria extrapolar, e a casa proibe.
  */
 function pendenciasDaComposicao(profit: ProfitBlock): Array<{ rotulo: string; valor?: number | null }> {
-  const partes: Array<{ rotulo: string; valor?: number | null }> = [];
-  const semRepasse = Math.max((profit.coverage?.paidOrders ?? 0) - (profit.coverage?.processedOrders ?? 0), 0);
+  const partes: Array<{ rotulo: string; valor?: number | null; levaOResto?: boolean }> = [];
+  const pagas = profit.coverage?.paidOrders ?? 0;
+  const semRepasse = Math.max(pagas - (profit.coverage?.processedOrders ?? 0), 0);
   if (semRepasse > 0) {
-    partes.push({ rotulo: `Aguardando repasse da Shopee (${semRepasse} venda(s))` });
+    // ⚠️ O NOME SEGUE O SCHEMA, e nao o que eu supus: `processedOrders` e
+    // `COUNT(*) FILTER (WHERE has_items)` — pedido que TEM LINHA DE ITEM. Nao e
+    // "repasse processado". Chamar de repasse afirmaria um estado financeiro
+    // que essa contagem nao mede.
+    partes.push({ rotulo: `Aguardando itens do pedido (${semRepasse} venda(s))` });
   }
   /**
-   * ⚠️ O CUSTO NAO CADASTRADO NAO E FATIA — e pendencia anotada.
+   * ⚠️ EU IA POR "TARIFA NAO CONCILIADA" AQUI, E A MEDICAO DERRUBOU
+   * (02/09/2026). O raciocinio parecia solido — o card diz "Tarifas: ainda nao
+   * conciliadas" e o topo fala em tarifa de 10.143 de 10.146 vendas —, mas o
+   * banco diz outra coisa: nesta conexao ha ZERO tarifas com valor nulo, e a
+   * receita sem comissao e de R$ 1.820,49, nao dos R$ 192 mil do buraco.
    *
-   * A primeira versao o mandava como parte com valor zero, e isso viola o
-   * `null != 0` na cara: zero ali AFIRMA que o custo que falta e zero, que e
-   * exatamente a confusao que a regra proibe. E na tela ele nem aparecia — o
-   * donut filtra fatia com valor 0 —, entao a pendencia sumia inteira.
+   * ⚠️ E `processedOrders` NAO SIGNIFICA "conciliado": no canonico ele e
+   * `COUNT(*) FILTER (WHERE has_items)` — pedido que TEM LINHA DE ITEM. Um
+   * pedido pode contar ali e nao ter tarifa nenhuma. Os dois numeros nao se
+   * implicam, e eu tinha lido um como se fosse o outro.
    *
-   * Ele vive no rodape, com CONTAGEM e LINK, que e a forma da casa para
-   * pendencia: diga o que falta, com numero e caminho. Contribuir zero para a
-   * composicao e o certo — ele nao e dinheiro composto, e trabalho a fazer.
+   * O que sobra no buraco e, em boa parte, RESULTADO — e chamar resultado de
+   * pendencia e a familia de defeito que este projeto passou dois dias tirando
+   * da tela. Enquanto o numero do custo do periodo nao estiver medido, esta
+   * funcao nomeia SO o que se sabe pendente de verdade.
    */
   return partes;
 }
@@ -293,8 +332,8 @@ function ShopeeMonitorContent({body,params,update,connectionId}:{body:Payload;pa
         {id:"receita",label:"Receita processada",node:<Metric label="Receita processada" value={money(profit.revenueProcessed,currency)} sub={`${profit.coverage.processedOrders} de ${profit.coverage.paidOrders} venda(s) com repasse processado`}/>},
         // null nunca vira 0: tarifa desconhecida diz que ainda não foi conciliada.
         {id:"tarifas",label:"Tarifas da Shopee",node:<Metric label="Tarifas da Shopee" value={profit.fees==null?"Ainda não conciliadas":money(profit.composicaoDaReceitaPaga.fees??0,currency)} sub="comissões e taxas do canal"/>},
-        {id:"lucro",label:"Lucro estimado",node:<Metric label={comSemImposto("Lucro estimado",semAliquota)} value={profit.estimatedProfit==null?"—":money(profit.estimatedProfit,currency)} sub="no período selecionado" tone={profit.estimatedProfit==null?undefined:profit.estimatedProfit<0?"danger":"ok"}/>},
-        {id:"margem",label:"Margem",node:<Metric label={comSemImposto("Margem",semAliquota)} value={profit.marginPct==null?"—":`${profit.marginPct.toLocaleString("pt-BR",{maximumFractionDigits:2})}%`} sub={baseDoResultado} tone={profit.marginPct==null?undefined:marginMetricTone(profit.marginPct)}/>},
+        {id:"lucro",label:"Lucro estimado",node:<Metric label={comSemImposto("Lucro estimado",semAliquota)} value={profit.estimatedProfit==null?"—":money(profit.estimatedProfit,currency)} sub={profit.estimatedProfit==null?porQueSemResultado(profit):"no período selecionado"} tone={profit.estimatedProfit==null?undefined:profit.estimatedProfit<0?"danger":"ok"}/>},
+        {id:"margem",label:"Margem",node:<Metric label={comSemImposto("Margem",semAliquota)} value={profit.marginPct==null?"—":`${profit.marginPct.toLocaleString("pt-BR",{maximumFractionDigits:2})}%`} sub={profit.marginPct==null?porQueSemResultado(profit):baseDoResultado} tone={profit.marginPct==null?undefined:marginMetricTone(profit.marginPct)}/>},
       ]}
     />}
     {/* ⚠️ TROCAR DE ABA NAO PODE MUDAR A CHAVE DA BUSCA (02/09/2026).

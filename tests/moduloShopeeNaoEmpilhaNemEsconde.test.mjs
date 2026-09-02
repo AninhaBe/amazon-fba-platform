@@ -37,8 +37,12 @@ test("as declaracoes NAO dependem de nao haver sinal", async () => {
     !/sinaisDaTela\.length>0\?<SinaisDoResultado/.test(codigo),
     "voltou o multiplexador que suprime a declaracao quando ha pendencia",
   );
-  assert.match(codigo, /sub="no período selecionado"/);
-  assert.match(codigo, /sub=\{baseDoResultado\}/);
+  // ⚠️ AS DUAS ASSERCOES MUDARAM DE FORMA EM 02/09/2026, e a garantia e a
+  // mesma: o `sub` do cartao continua sendo do CARTAO, e nao um espaco disputado
+  // com os sinais. O que mudou e que, quando o numero esta em branco, o sub
+  // passou a apontar a CAUSA em vez de descrever o recorte — pedido dela.
+  assert.match(codigo, /sub=\{profit\.estimatedProfit==null\?porQueSemResultado\(profit\):"no período selecionado"\}/);
+  assert.match(codigo, /sub=\{profit\.marginPct==null\?porQueSemResultado\(profit\):baseDoResultado\}/);
 });
 
 test("⚠️ FRASE VERDADEIRA COM VALIDADE: a base sai do campo USADO, nao de uma string", async () => {

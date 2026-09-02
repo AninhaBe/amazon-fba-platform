@@ -35,7 +35,21 @@ export function shopeeModuleQuery(source: string, connectionId: string, kind: Sh
     // eles é que definem o período; days fica de fallback.
     const from = input.get("from"), to = input.get("to");
     if (from && to) { output.set("from", from); output.set("to", to); }
-    else output.set("days", input.get("days") ?? "30");
+    // ⚠️ O PADRAO AQUI ERA "30" E A TELA MOSTRAVA "Hoje" (02/09/2026).
+    //
+    // Dois defaults silenciosos, um em cada ponta, que nunca foram conciliados:
+    // este construtor punha `days=30` quando a URL nao trazia nada, e o seletor
+    // da tela (`ShopeeModulePage`, no `useDashboardPeriod`) assume "today" no
+    // mesmo caso. Sem o parametro na URL — primeira carga, link direto, aba
+    // recem-aberta — a TELA ROTULAVA HOJE E O SERVIDOR RESPONDIA 30 DIAS.
+    //
+    // Medido: Hoje sao 280 vendas e R$ 10.143,96; 30 dias sao 10.020 vendas e
+    // R$ 363.337,55. O print dela dizia "Hoje" com os numeros de 30 dias.
+    //
+    // ⚠️ A CORRECAO E FAZER O PEDIDO CARREGAR O QUE A TELA MOSTRA — nao
+    // escolher "o default certo". Default silencioso dos dois lados e como eles
+    // divergem sem ninguem notar: cada ponta estava coerente consigo mesma.
+    else output.set("days", input.get("days") ?? "today");
   }
   return output.toString();
 }

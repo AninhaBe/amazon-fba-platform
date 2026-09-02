@@ -108,9 +108,73 @@ test("e a TELA passa a decomposicao — a peca sozinha nao basta", async () => {
   const codigo = semComentarios(await fonte("src/app/components/ShopeeModulePage.tsx"));
   assert.match(codigo, /pendencias:pendenciasDaComposicao\(profit\)/, "a tela parou de nomear a pendencia");
   // E as duas partes precisam existir na funcao que as monta.
-  assert.match(codigo, /Aguardando repasse da Shopee/, "a parte da espera sumiu da tela");
+  assert.match(codigo, /Aguardando itens do pedido/, "a parte da espera sumiu da tela");
   // ⚠️ O CUSTO NAO E MAIS FATIA — ele saiu daqui em 02/09/2026 e foi para o
   // rodape, com contagem e link, porque fatia de valor zero afirma que o custo
   // que falta e zero. A assercao dele vive no teste da doutrina, logo acima.
   assert.match(codigo, /sem custo cadastrado/, "a pendencia do custo sumiu da tela inteira");
+});
+
+test("A HIPOTESE DA TARIFA FOI MEDIDA E DERRUBADA — ela nao entra na tela", async () => {
+  // ⚠️ ESTE TESTE NASCEU DE UM ERRO MEU (02/09/2026). Eu ia nomear o
+  // buraco de R$ 192.629,78 como "Tarifa + resultado — aguardando conciliacao
+  // da Shopee", porque o card dizia "Tarifas: ainda nao conciliadas" e o topo
+  // falava em 10.143 de 10.146.
+  //
+  // A MEDICAO NO BANCO DERRUBOU: zero tarifas com valor nulo nessa conexao, e a
+  // receita sem comissao e R$ 1.820,49 — nao 192 mil. O buraco e, em boa parte,
+  // RESULTADO mais custo nao cadastrado.
+  //
+  // E a leitura errada tinha nome: `processedOrders` e
+  // `COUNT(*) FILTER (WHERE has_items)` — pedido que TEM ITEM, nao pedido
+  // conciliado. Eu li uma contagem como se fosse outra.
+  //
+  // Chamar resultado de pendencia e a familia que este projeto passou dois dias
+  // tirando da tela; a guarda existe para nao voltar por aqui.
+  const codigo = semComentarios(await fonte("src/app/components/ShopeeModulePage.tsx"));
+  assert.ok(!/aguardando conciliação da Shopee/.test(codigo), "a causa que a medicao derrubou voltou a tela");
+  assert.ok(!/Tarifa \+ resultado/.test(codigo), "o rotulo que afirma tarifa faltando voltou");
+  // E o nome do que sobra segue o SCHEMA: itens do pedido, nao repasse.
+  assert.match(codigo, /Aguardando itens do pedido/, "o nome voltou a afirmar um estado financeiro que a contagem nao mede");
+  assert.ok(!/aguardando repasse da Shopee/i.test(codigo), "voltou a chamar 'tem item' de 'repasse processado'");
+});
+
+test("sem herdeira, o resto CONTINUA aparecendo sem nome — honesto e nao escondido", () => {
+  const fatias = buildFinancialComposition({
+    total: 1000, costs: [], result: null,
+    pendencias: [{ rotulo: "Aguardando repasse", valor: 300 }],
+  });
+  assert.ok(fatias.some((f) => f.label === "Ainda sem classificação"), "o resto sumiu quando ninguem responde por ele");
+});
+
+test("o CUSTO nao aparece mais no subtitulo do painel — uma vez so, no rodape", async () => {
+  // ⚠️ O print dela mostrava "sem custo cadastrado" TRES vezes na mesma
+  // tela: alerta do topo (por SKU), subtitulo do painel e rodape do painel.
+  // Ficou a que tem CAMINHO. A proibicao le o fonte sem comentarios — a nota
+  // que explica a remocao cita a frase removida.
+  const codigo = semComentarios(await fonte("src/app/components/ShopeeModulePage.tsx"));
+  const descricao = codigo.slice(codigo.indexOf("function descricaoDaComposicao"), codigo.indexOf("function pendenciasDaComposicao"));
+  assert.ok(!/unitsWithoutCost/.test(descricao), "o custo voltou ao subtitulo do painel");
+  assert.match(descricao, /aguardando itens do pedido/, "a espera real sumiu do subtitulo");
+  // E o rodape, que e o que fica, continua com contagem E link.
+  assert.match(codigo, /\{profit\.unitsWithoutCost\} unidade\(s\) sem custo cadastrado/);
+  assert.match(codigo, /className="meli-financial-link">cadastrar/);
+});
+
+test("Lucro e Margem em branco APONTAM A CAUSA, nao o recorte", async () => {
+  const codigo = semComentarios(await fonte("src/app/components/ShopeeModulePage.tsx"));
+  // Os DOIS cards, nao um: casar a funcao uma vez ficava verde com o outro
+  // cartao revertido — a quebra mostrou isso.
+  assert.match(codigo, /profit\.estimatedProfit==null\?porQueSemResultado\(profit\)/, "o card de Lucro voltou a descrever so o periodo");
+  assert.match(codigo, /profit\.marginPct==null\?porQueSemResultado\(profit\)/, "o card de Margem voltou a descrever so o periodo");
+  assert.match(codigo, /falta custo cadastrado/, "a causa medida como dominante sumiu");
+  // ⚠️ E nao pode ser adjetivo que se desculpa (AGENTS.md).
+  // ⚠️ A PROIBICAO OLHA AS FRASES, NAO O FONTE INTEIRO: `resultIncomplete`
+  // e `custoIncompleto` sao IDENTIFICADORES, e casá-los reprovaria codigo que
+  // nunca chega a tela. Guarda que acusa inocente e desligada na primeira
+  // semana (docs/achado-guarda-que-depende-da-forma.md).
+  const frases = [...codigo.matchAll(/return "([^"]+)";/g)].map((m) => m[1]);
+  for (const frase of frases) {
+    assert.ok(!/parcial|incompleto/i.test(frase), `voltou adjetivo que se desculpa: "${frase}"`);
+  }
 });
