@@ -96,9 +96,18 @@ function pendenciasDaComposicao(profit: ProfitBlock): Array<{ rotulo: string; va
   if (semRepasse > 0) {
     partes.push({ rotulo: `Aguardando repasse da Shopee (${semRepasse} venda(s))` });
   }
-  if ((profit.unitsWithoutCost ?? 0) > 0) {
-    partes.push({ rotulo: `Sem custo cadastrado (${profit.unitsWithoutCost} unidade(s))` });
-  }
+  /**
+   * ⚠️ O CUSTO NAO CADASTRADO NAO E FATIA — e pendencia anotada.
+   *
+   * A primeira versao o mandava como parte com valor zero, e isso viola o
+   * `null != 0` na cara: zero ali AFIRMA que o custo que falta e zero, que e
+   * exatamente a confusao que a regra proibe. E na tela ele nem aparecia — o
+   * donut filtra fatia com valor 0 —, entao a pendencia sumia inteira.
+   *
+   * Ele vive no rodape, com CONTAGEM e LINK, que e a forma da casa para
+   * pendencia: diga o que falta, com numero e caminho. Contribuir zero para a
+   * composicao e o certo — ele nao e dinheiro composto, e trabalho a fazer.
+   */
   return partes;
 }
 
@@ -315,7 +324,10 @@ function ShopeeMonitorContent({body,params,update,connectionId}:{body:Payload;pa
       })}
       footer={(<>
         <Link href="/shopee/produtos" className="meli-financial-link">Configurar custos e imposto <span aria-hidden="true">→</span></Link>
-        {profit.unitsWithoutCost>0&&<p className="text-xs leading-relaxed text-amber-700">{profit.unitsWithoutCost} unidade(s) vendida(s) ainda estão sem custo cadastrado.</p>}
+        {profit.unitsWithoutCost>0&&<p className="text-xs leading-relaxed text-amber-700">
+          {profit.unitsWithoutCost} unidade(s) sem custo cadastrado{" "}
+          <Link href="/shopee/produtos" className="meli-financial-link">cadastrar <span aria-hidden="true">→</span></Link>
+        </p>}
       </>)}
     >
       {/* A lista de fluxo fala do universo da RECEITA PAGA, igual a rosquinha — ver a nota no ShopeeWorkspace. */}

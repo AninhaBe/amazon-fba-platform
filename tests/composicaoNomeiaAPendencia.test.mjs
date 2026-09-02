@@ -55,17 +55,31 @@ test("e o que sobra depois das partes CONTINUA aparecendo — a soma nao pode fu
   assert.ok(fatias.some((f) => f.label === "Ainda sem classificação"), "o resto sumiu do painel");
 });
 
-test("parte sem valor conhecido nao inventa numero", () => {
-  // O custo que falta e justamente o numero que ninguem sabe. Ratear seria
-  // extrapolar, e a casa proibe.
+test("o custo nao cadastrado NAO vira fatia de valor zero", async () => {
+  // ⚠️ CORRECAO DE DOUTRINA (02/09/2026): a primeira versao mandava o
+  // custo faltante como parte com valor 0, e isso viola o `null != 0` na cara —
+  // zero AFIRMA que o custo que falta e zero.
+  //
+  // E na tela ele nem aparecia: o donut filtra fatia com valor 0
+  // (`slices.filter((s) => s.value > 0)`), entao a pendencia sumia inteira. O
+  // zero era invisivel e errado ao mesmo tempo.
+  //
+  // Ele vive no RODAPE, com contagem e link — a forma da casa para pendencia.
+  const tela = semComentarios(await fonte("src/app/components/ShopeeModulePage.tsx"));
+  assert.ok(!/Sem custo cadastrado \(\$\{profit\.unitsWithoutCost\}/.test(tela),
+    "o custo faltante voltou a ser fatia da composicao");
+  assert.match(tela, /\{profit\.unitsWithoutCost\} unidade\(s\) sem custo cadastrado/,
+    "a contagem sumiu do rodape");
+  assert.match(tela, /href="\/shopee\/produtos" className="meli-financial-link">cadastrar/,
+    "o caminho para resolver sumiu");
+
+  // E a peca continua aceitando parte sem valor sem inventar numero — quem
+  // passar uma vai ver zero, e por isso ninguem passa mais.
   const fatias = buildFinancialComposition({
-    total: 1000,
-    costs: [],
-    result: null,
-    pendencias: [{ rotulo: "Sem custo cadastrado (3 unidade(s))" }],
+    total: 1000, costs: [], result: null,
+    pendencias: [{ rotulo: "Alguma espera sem valor" }],
   });
-  const semCusto = fatias.find((f) => /Sem custo/.test(f.label));
-  assert.equal(semCusto.value, 0, "a parte sem valor conhecido ganhou um numero inventado");
+  assert.equal(fatias.find((f) => /Alguma espera/.test(f.label)).value, 0);
 });
 
 test("as linhas que so mostrariam travessao NAO sao renderizadas", async () => {
@@ -95,5 +109,8 @@ test("e a TELA passa a decomposicao — a peca sozinha nao basta", async () => {
   assert.match(codigo, /pendencias:pendenciasDaComposicao\(profit\)/, "a tela parou de nomear a pendencia");
   // E as duas partes precisam existir na funcao que as monta.
   assert.match(codigo, /Aguardando repasse da Shopee/, "a parte da espera sumiu da tela");
-  assert.match(codigo, /Sem custo cadastrado/, "a parte do custo sumiu da tela");
+  // ⚠️ O CUSTO NAO E MAIS FATIA — ele saiu daqui em 02/09/2026 e foi para o
+  // rodape, com contagem e link, porque fatia de valor zero afirma que o custo
+  // que falta e zero. A assercao dele vive no teste da doutrina, logo acima.
+  assert.match(codigo, /sem custo cadastrado/, "a pendencia do custo sumiu da tela inteira");
 });
