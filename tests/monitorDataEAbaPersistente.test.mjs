@@ -69,8 +69,9 @@ test("ABA: ela vive na URL nos DOIS monitores — periodo e aba se preservam", a
     // 02/09/2026). Chata e verificavel ganha de esperta e silenciosa.
     assert.ok(codigo.includes(`.get("secao")==="${aba}"`), `${tela}: a aba deixou de nascer da URL`);
     assert.ok(codigo.includes("const secao:"), `${tela}: a aba deixou de ser derivada da URL`);
-    assert.match(codigo, /onClick=\{\(\)=>update\(\{secao:key\}\)\}/,
-      `${tela}: o clique deixou de escrever a aba na URL`);
+    // O clique escreve a aba E preserva o offset atual — ver o teste da chave
+    // da busca, no fim deste arquivo, que explica por que o offset vai junto.
+    assert.ok(codigo.includes("update({secao:key,offset:"), `${tela}: o clique deixou de escrever a aba na URL`);
   }
 });
 
@@ -84,4 +85,44 @@ test("e trocar de aba nao dispara busca nova — a chave nao carrega a aba", asy
     shopeeModuleQuery(`${base}&secao=pedidos`, "shopee:1", "costs"),
     "a aba passou a mudar a chave da busca",
   );
+});
+
+test("TROCAR DE ABA NAO MUDA A CHAVE DA BUSCA — nem quando a URL nao tem offset", async () => {
+  // ⚠️ O DEFEITO QUE ISTO REPROVA (02/09/2026): ela reportou "os botoes do
+  // monitor da conta nao funcionam", com o console LIMPO. Nao era JS morto: o
+  // clique injetava `offset=0` numa URL que nao tinha offset, a chave da busca
+  // mudava, o efeito re-disparava e `setPayload(null)` apagava a tela — numa
+  // conta com 10.126 vendas. Do lado de ca: clicou e ficou segundos igual.
+  //
+  // Botao morto e busca inteira sao indistinguiveis para quem olha.
+  const { shopeeModuleQuery } = await import("../src/app/components/ShopeeModulesModel.ts");
+  const CONN = "shopee:275804987";
+
+  // A logica do `update`, transcrita — e a assercao de fonte logo abaixo impede
+  // que a transcricao envelheca.
+  const update = (atual, values) => {
+    const next = new URLSearchParams(atual);
+    for (const [chave, valor] of Object.entries(values)) {
+      if (valor) next.set(chave, valor); else next.delete(chave);
+    }
+    if (!("offset" in values)) next.set("offset", "0");
+    return next.toString();
+  };
+
+  for (const url of [
+    `connection_id=${CONN}&days=30`,          // o caso dela: SEM offset
+    `connection_id=${CONN}&days=30&offset=50`, // e o caso de quem paginou
+  ]) {
+    const antes = shopeeModuleQuery(url, CONN, "monitor");
+    const depois = shopeeModuleQuery(update(url, { secao: "pedidos", offset: new URLSearchParams(url).get("offset") }), CONN, "monitor");
+    assert.equal(depois, antes, `trocar de aba mudou a chave da busca (${url})`);
+  }
+
+  // E a tela precisa REALMENTE passar o offset atual no clique.
+  const tela = semComentarios(await fonte("src/app/components/ShopeeModulePage.tsx"));
+  assert.ok(tela.includes('update({secao:key,offset:params.get("offset")})'),
+    "o clique voltou a deixar o update injetar offset=0");
+  const tiktok = semComentarios(await fonte("src/app/components/TikTokModulePage.tsx"));
+  assert.ok(tiktok.includes('update({secao:key,offset:sp.get("offset")})'),
+    "o mesmo defeito continua no monitor do TikTok");
 });

@@ -297,9 +297,26 @@ function ShopeeMonitorContent({body,params,update,connectionId}:{body:Payload;pa
         {id:"margem",label:"Margem",node:<Metric label={comSemImposto("Margem",semAliquota)} value={profit.marginPct==null?"—":`${profit.marginPct.toLocaleString("pt-BR",{maximumFractionDigits:2})}%`} sub={baseDoResultado} tone={profit.marginPct==null?undefined:marginMetricTone(profit.marginPct)}/>},
       ]}
     />}
-    <nav className="monitor-section-tabs" aria-label="Visões do monitor">
+    {/* ⚠️ TROCAR DE ABA NAO PODE MUDAR A CHAVE DA BUSCA (02/09/2026).
+
+          Ela reportou "os botoes do monitor da conta nao funcionam". Console
+          limpo, sem erro de hidratacao, tela certa — e o motivo era este: o
+          clique chamava `update({secao})`, e o `update` INJETA `offset=0`
+          quando o offset nao vem no pedido. A URL dela nao tinha offset, entao
+          a chave da busca mudava (de "sem offset" para "offset=0"), o efeito
+          re-disparava, `setPayload(null)` apagava a tela e vinha uma ida nova
+          ao servidor — numa conta com 10.126 vendas.
+
+          Do lado de ca: clicou, a tela apagou e ficou segundos igual. Botao
+          morto e busca inteira sao indistinguiveis para quem olha.
+
+          Passar o offset ATUAL — inclusive quando ele nao existe, e ai o
+          `update` o remove — mantem a chave identica e a troca de aba volta a
+          ser instantanea, que e o que ela sempre foi antes de a aba ir para a
+          URL. */}
+          <nav className="monitor-section-tabs" aria-label="Visões do monitor">
       {([["composicao","Composição"],["pedidos","Pedidos"]] as Array<["composicao"|"pedidos",string]>).map(([key,label])=>
-        <button key={key} type="button" aria-current={secao===key?"page":undefined} onClick={()=>update({secao:key})}>{label}</button>)}
+        <button key={key} type="button" aria-current={secao===key?"page":undefined} onClick={()=>update({secao:key,offset:params.get("offset")})}>{label}</button>)}
     </nav>
     {secao==="composicao"&&(profit?<FinancialSummaryPanel
       complete={!resultIncomplete}

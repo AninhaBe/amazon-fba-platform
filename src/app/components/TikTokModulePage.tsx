@@ -166,7 +166,7 @@ function MonitorContent({body,sp,update,connectionId}:{body:Payload;sp:URLSearch
     />}
     <nav className="monitor-section-tabs" aria-label="Visões do monitor">
       {([["pedidos","Pedidos"],["transacoes","Transações"]] as Array<["pedidos"|"transacoes",string]>).map(([key,label])=>
-        <button key={key} type="button" aria-current={secao===key?"page":undefined} onClick={()=>update({secao:key})}>{label}</button>)}
+        <button key={key} type="button" aria-current={secao===key?"page":undefined} onClick={()=>update({secao:key,offset:sp.get("offset")})}>{label}</button>)}
     </nav>
     {secao==="pedidos"&&<>
       <ChannelModuleSummary kind="monitor" rows={rows} total={body.page?.total}/>
