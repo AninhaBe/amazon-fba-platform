@@ -24,6 +24,15 @@ const publicPaths = [
   // a rota recusa 400 sem assinatura válida. Exigir sessão aqui só derrubaria a
   // entrega — quem chama é a Stripe, que nunca terá cookie de login.
   "/api/webhooks/stripe",
+
+  // Formulario de orcamento da landing: quem preenche NAO tem sessao — e a
+  // pessoa ainda nem e cliente. Exigir login aqui devolveria 401 e o formulario
+  // mostraria "nao foi possivel enviar" para todo mundo, sempre.
+  //
+  // ⚠️ Publica NAO quer dizer desprotegida: a propria rota valida formato e
+  // tamanho, reduz os campos de escolha ao vocabulario conhecido e aplica teto
+  // por IP e teto global antes de disparar qualquer e-mail. Ver a nota longa la.
+  "/api/contato/orcamento",
 ];
 
 export async function updateSession(request: NextRequest) {
