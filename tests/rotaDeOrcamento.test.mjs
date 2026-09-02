@@ -203,3 +203,19 @@ test("o remetente e do NOSSO dominio, e a pessoa vai em reply_to", async () => {
   const codigo = rota.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
   assert.doesNotMatch(codigo, /from:\s*pedido\.email/, "nunca enviar 'de' quem preencheu");
 });
+
+test("o remetente esta no dominio VERIFICADO, e o destinatario nao precisa ser", async () => {
+  // 🔴 FALHA MEDIDA EM PRODUCAO (02/09/2026), com a chave ja publicada:
+  //   403 This API key is not authorized to send emails from nexoaihub.com
+  //
+  // Quem autoriza o envio e o dominio VERIFICADO no provedor — o `.com.br`,
+  // verificado desde 26/08 —, e a chave e restrita a ele por privilegio minimo.
+  // A primeira versao usou o `.com` porque e o endereco que a empresa divulga:
+  // "o e-mail da empresa" e "o dominio que pode enviar" nao sao a mesma coisa.
+  const { REMETENTE, DESTINO } = await import("../src/app/api/contato/orcamento/pedidoDeOrcamento.ts");
+  assert.match(REMETENTE, /@nexoaihub\.com\.br>$/,
+    "o remetente tem de estar no dominio verificado (.com.br), senao o provedor recusa com 403");
+  // E o destinatario continua no .com de proposito: receber nao exige
+  // verificacao, e e a caixa que a dona do produto le.
+  assert.equal(DESTINO, "contato@nexoaihub.com");
+});

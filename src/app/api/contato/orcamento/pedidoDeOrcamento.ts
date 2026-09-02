@@ -39,14 +39,31 @@ export const JANELA_MS = 60 * 60 * 1000;
 
 export const DESTINO = "contato@nexoaihub.com";
 /**
- * ⚠️ O remetente é do NOSSO domínio, nunca o e-mail de quem preencheu.
+ * ⚠️ O REMETENTE É DO DOMÍNIO VERIFICADO — e ele é o `.com.br`, não o `.com`.
  *
- * Enviar "de" um endereço de terceiro é falsificação de remetente: o SPF/DKIM do
- * domínio dele não cobre o nosso envio, o e-mail cai em spam e o provedor anota
- * contra a nossa reputação. A pessoa entra em `reply_to`, que é o campo que
- * existe para isto — responder continua sendo um clique.
+ * Medido em produção em 02/09/2026, com a chave já publicada:
+ *
+ *   403  This API key is not authorized to send emails from nexoaihub.com
+ *
+ * A primeira versão usava `contato@nexoaihub.com` porque é o endereço que a
+ * empresa divulga. Mas quem autoriza o envio é o **domínio verificado no
+ * provedor**, e o verificado (desde 26/08) é `nexoaihub.com.br` — a chave é
+ * restrita a ele por privilégio mínimo, que é o desenho certo e foi o que
+ * denunciou o erro.
+ *
+ * 📌 A LIÇÃO: os dois domínios existem e fazem coisas diferentes (o `.com` é
+ * Squarespace + Google Workspace, e-mail; o `.com.br` é Registro.br + Fly, o
+ * app). "O e-mail da empresa" e "o domínio que pode enviar" não são a mesma
+ * coisa, e escolher pelo primeiro parece certo até o provedor recusar.
+ *
+ * ⚠️ Enviar "de" um endereço de terceiro continua proibido pelo motivo de
+ * sempre: o SPF/DKIM dele não cobre o nosso envio, cai em spam e queima a NOSSA
+ * reputação. A pessoa vai em `reply_to`, que é o campo que existe para isso.
+ *
+ * O DESTINATÁRIO continua no `.com`: receber não exige verificação nenhuma, e é
+ * a caixa que a dona do produto lê.
  */
-export const REMETENTE = "NEXO <contato@nexoaihub.com>";
+export const REMETENTE = "NEXO <orcamento@nexoaihub.com.br>";
 
 export interface PedidoDeOrcamento {
   nome: string;
