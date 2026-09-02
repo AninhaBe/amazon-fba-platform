@@ -20,6 +20,7 @@ import { NexoWordmark } from "../components/NexoWordmark";
 import { RevenueChart, type ChartMetric } from "../components/RevenueChart";
 import { marginTone } from "@/lib/marginTone";
 import { NexoDemoMessage } from "./NexoDemoMessage";
+import { SolicitarOrcamento } from "./SolicitarOrcamento";
 import {
   DEMO_CHANNELS,
   DEMO_PERIODS,
@@ -581,6 +582,71 @@ export function LandingV2Experience() {
             <li data-reveal style={{ "--reveal-delay": "70ms" } as CSSProperties}><span>2</span><div><strong>Fecha a conta</strong><p>Faturamento, custo e lucro usam a mesma base, sem estimar o que falta.</p></div></li>
             <li data-reveal style={{ "--reveal-delay": "140ms" } as CSSProperties}><span>3</span><div><strong>Mostra onde agir</strong><p>A evidência aparece antes do próximo passo.</p></div></li>
           </ol>
+        </section>
+
+        {/* ANALISE DE MARCAS — exigencia da revisao da SP-API (caso 21846204931).
+            ⚠️ O TEXTO E O MESMO QUE DECLARAMOS NO PERFIL, de proposito: a
+            revisao compara a pagina com a declaracao, e duas descricoes que
+            divergem sao um pedido de esclarecimento a mais no meio do prazo.
+
+            ⚠️ E CADA FRASE DIZ "DA SUA CONTA". Nao ha, e nao pode haver,
+            promessa de dado de comprador nem de concorrente: a AUP 4.4/4.5
+            proibe, e uma landing que promete o que a politica nao permite e
+            um problema maior que uma secao a menos. */}
+        <section className={styles.support} aria-labelledby="brand-analytics-title">
+          <div className={styles.sectionHeading} data-reveal>
+            <div>
+              <p className={styles.eyebrow}>Análise de marcas</p>
+              <h2 id="brand-analytics-title">O que a sua marca já ensinou sobre a demanda.</h2>
+            </div>
+            <p>Relatórios de termos de busca e comportamento de compra <strong>da sua própria conta</strong>, no mesmo lugar em que o lucro é calculado.</p>
+          </div>
+          <div className={styles.supportGrid}>
+            <article data-reveal>
+              <span>Demanda</span>
+              <h3>Mostra o que buscam antes de comprar seu produto</h3>
+              <p>Os termos que levaram às suas vendas ficam ao lado do resultado que cada anúncio deu — sem depender de estimativa de terceiros.</p>
+            </article>
+            <article data-reveal style={{ "--reveal-delay": "70ms" } as CSSProperties}>
+              <span>Comportamento</span>
+              <h3>Liga a busca ao que aconteceu depois</h3>
+              <p>Visita, conversão e repetição de compra entram no mesmo contexto do custo e da tarifa, então a leitura é de margem e não só de volume.</p>
+            </article>
+            <article data-reveal style={{ "--reveal-delay": "140ms" } as CSSProperties}>
+              <span>Catálogo</span>
+              <h3>Aponta a oportunidade que o seu catálogo não cobre</h3>
+              <p>Quando a demanda da sua conta aparece sem produto correspondente, o NEXO mostra a lacuna com o número que a sustenta.</p>
+            </article>
+          </div>
+          <p className={styles.sectionNote} data-reveal>
+            Os relatórios usam exclusivamente os dados da conta conectada. O NEXO não expõe informação de compradores nem dados de outros vendedores.
+          </p>
+        </section>
+
+        {/* PRECOS — modelo de ORCAMENTO.
+            ⚠️ NAO HA TABELA AQUI porque a decisao de publicar preco NAO foi
+            tomada. A pagina diz o caminho (orcamento conforme canais e volume) e
+            oferece o formulario. Inventar "a partir de R$ X" para a secao
+            parecer completa seria comprometer uma decisao da dona com um numero
+            que ninguem aprovou. */}
+        <section className={styles.pricing} aria-labelledby="pricing-title">
+          <div className={styles.sectionHeading} data-reveal>
+            <div>
+              <p className={styles.eyebrow}>Preços</p>
+              <h2 id="pricing-title">O orçamento acompanha a sua operação.</h2>
+            </div>
+            <p>O acesso é por orçamento, conforme os canais que você vende e o volume de pedidos. Conte os dois e devolvemos a proposta.</p>
+          </div>
+          <div className={styles.pricingBody}>
+            <ul className={styles.pricingPoints} data-reveal>
+              <li><strong>Sem cobrança por usuário</strong><span>o time inteiro enxerga a mesma operação.</span></li>
+              <li><strong>Todos os canais no mesmo painel</strong><span>Amazon, Mercado Livre, Shopee e TikTok Shop.</span></li>
+              <li><strong>Proposta pelo tamanho real</strong><span>quem vende menos não paga pelo que não usa.</span></li>
+            </ul>
+            <div data-reveal style={{ "--reveal-delay": "70ms" } as CSSProperties}>
+              <SolicitarOrcamento />
+            </div>
+          </div>
         </section>
 
         <section className={styles.measured} aria-label="Números medidos da plataforma" data-reveal>
