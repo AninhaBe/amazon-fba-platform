@@ -267,72 +267,19 @@ export function chaveDoEvento(evento: EventoDePush) {
 }
 
 /**
- * MATRIZ DE DIAGNÓSTICO — roda no próprio endpoint, com os BYTES REAIS.
+ * ⚠️ A MATRIZ DE DIAGNÓSTICO FOI REMOVIDA EM 02/09/2026, e o motivo é o certo:
+ * **ela respondeu a pergunta que existia para responder.**
  *
- * 🔴 POR QUE ELA EXISTE (02/09/2026): a doutrina oficial da Shopee
- * (developer-guide/18) diz `URL | response.content` com a **partner key do
- * App**, HMAC-SHA256 em hex no header `Authorization` — exatamente a nossa
- * fórmula 1 com a chave do app. E mesmo assim não bateu.
+ * O primeiro push real chegou às 19:12:02Z e foi aceito pela fórmula oficial —
+ * `url|corpo`, HMAC-SHA256 hex no header `Authorization`, com a push key **como
+ * string**. Sem hex-decode, sem variante. Confirmado pelo efeito, não pelo log:
+ * dois pedidos entraram pelo caminho canônico e `last_push_at` carimbou.
  *
- * Foram tentadas 336 combinações offline (6 URLs × 4 reconstruções do corpo × 7
- * bases × 2 codificações × chave live): **nenhuma**. Isso praticamente elimina
- * "fórmula errada" e aponta para o CORPO: a reconstrução à mão do JSON nunca é
- * byte a byte igual ao que o servidor mandou — espaçamento, ordem de chaves,
- * escape de unicode. Assinatura é sobre BYTES, e nós estávamos comparando com
- * uma paráfrase.
+ * 📌 Ela sai porque ferramenta de investigação que sobrevive à investigação vira
+ * peso morto — 168 combinações de HMAC por requisição recusada, num endpoint
+ * público, é superfície e custo sem pergunta em aberto. É a mesma regra da
+ * recusa temporária: o que existe por causa de uma limitação morre com ela.
  *
- * Por isso a matriz mudou de lugar: em vez de reconstruir o corpo aqui fora,
- * ela roda LÁ, sobre a string exata que chegou. Uma tentativa fecha a questão.
- *
- * ⚠️ ELA NUNCA AUTORIZA NADA. É chamada só depois da recusa, e o retorno vai
- * para o log. Autorizar por "alguma combinação bateu" transformaria a matriz em
- * dezenas de chances de um forjador acertar.
+ * O que FICA é o diagnóstico curto (`formulaQueBateria`/`chaveQueBateria`), que
+ * é barato e responde "mudaram a assinatura?" no dia em que o canal emudecer.
  */
-export function diagnosticarAssinatura(entrada: {
-  urlPublica: string;
-  urlDaRequisicao: string;
-  corpoBruto: string;
-  assinatura: string;
-  chaves: ChavesDoPush;
-  /** Chaves de app, SO para diagnostico — nunca autorizam nada. */
-  chavesDeApp?: Array<string | null | undefined>;
-  partnerId?: string | null;
-}): string | null {
-  const { urlPublica, urlDaRequisicao, corpoBruto, assinatura, chaves } = entrada;
-  const partnerId = entrada.partnerId ?? "";
-  const semEsquema = urlPublica.replace(/^https?:\/\//, "");
-  const caminho = caminhoDe(urlPublica);
-  const urls: Array<[string, string]> = [
-    ["publica", urlPublica],
-    ["publica/", `${urlPublica}/`],
-    ["http", urlPublica.replace(/^https:/, "http:")],
-    ["sem-esquema", semEsquema],
-    ["caminho", caminho],
-    ["requisicao", urlDaRequisicao],
-  ];
-  const bases: Array<[string, (u: string) => string]> = [
-    ["url|corpo", (u) => `${u}|${corpoBruto}`],
-    ["corpo|url", (u) => `${corpoBruto}|${u}`],
-    ["url+corpo", (u) => `${u}${corpoBruto}`],
-    ["corpo", () => corpoBruto],
-    ["url", (u) => u],
-    ["partner|url|corpo", (u) => `${partnerId}|${u}|${corpoBruto}`],
-    ["partner+url+corpo", (u) => `${partnerId}${u}${corpoBruto}`],
-  ];
-  for (const [nomeChave, lista] of [["push", [chaves.push]], ["app", entrada.chavesDeApp ?? []], ["vazia", [""]]] as const) {
-   for (const chave of lista) {
-    if (!chave) continue;
-    for (const [nomeUrl, url] of urls) {
-      for (const [nomeBase, montar] of bases) {
-        for (const cod of ["hex", "base64"] as const) {
-          const digest = createHmac("sha256", chave).update(montar(url), "utf8").digest(cod);
-          if (digest.toLowerCase() === assinatura.toLowerCase()) {
-            return `chave=${nomeChave} url=${nomeUrl} base=${nomeBase} cod=${cod}`;
-          }
-        }
-      }
-    }
-   }
-  }
-  return null;
-}

@@ -193,45 +193,7 @@ test("a mensagem de VERIFY passa e nao vira pedido", () => {
   assert.equal(interpretarPush(verify), null, "o verify nao e um evento de pedido");
 });
 
-test("a matriz de diagnostico ACHA a combinacao — e nunca autoriza", async () => {
-  // 🔴 336 combinacoes offline deram ZERO (02/09/2026), com a formula que a
-  // doutrina oficial descreve (url|corpo, chave do App, hex, Authorization).
-  // Isso praticamente elimina "formula errada" e aponta para o CORPO: JSON
-  // reconstruido a mao nunca e byte a byte igual ao que o servidor mandou.
-  // Por isso a matriz passou a rodar no endpoint, sobre os bytes que chegaram.
-  const { diagnosticarAssinatura } = await import("../src/lib/integrations/shopeePush.ts");
-  const CHAVE_APP = "0f1e2d3c4b5a69788796a5b4c3d2e1f0";
-  const corpo = '{"code":0,"data":{"verify_info":"x"}}';
-  // Cenario: a Shopee assinou corpo|url em base64 com a chave do app.
-  const assinatura = createHmac("sha256", CHAVE_APP)
-    .update(`${corpo}|${URL_PUSH}`, "utf8").digest("base64");
-  const achado = diagnosticarAssinatura({
-    urlPublica: URL_PUSH, urlDaRequisicao: "https://0.0.0.0:3000/api/webhooks/shopee",
-    corpoBruto: corpo, assinatura, chaves: { push: CHAVE }, chavesDeApp: [CHAVE_APP],
-  });
-  assert.equal(achado, "chave=app url=publica base=corpo|url cod=base64");
 
-  // ⚠️ E ACHAR NAO E AUTORIZAR: a mesma assinatura continua sendo recusada.
-  assert.equal(
-    verificarAssinaturaDoPush({
-      url: URL_PUSH, corpoBruto: corpo, assinatura,
-      chaves: { push: CHAVE },
-    }).valida,
-    false, "a matriz diagnostica; so a formula oficial com a push key autoriza");
-  // Assinatura que nao e de ninguem nao inventa combinacao.
-  assert.equal(diagnosticarAssinatura({
-    urlPublica: URL_PUSH, urlDaRequisicao: URL_PUSH, corpoBruto: corpo,
-    assinatura: "b".repeat(64), chaves: { push: CHAVE }, chavesDeApp: [CHAVE_APP],
-  }), null);
-});
-
-test("o log leva os BYTES EXATOS do corpo, em base64", async () => {
-  // Sem isso, reproduzir offline depende de adivinhar espacamento e escape —
-  // que foi exatamente o que fez 336 tentativas darem zero.
-  const rota = await readFile(new URL("../src/app/api/webhooks/shopee/route.ts", import.meta.url), "utf8");
-  assert.ok(rota.includes('corpoEmBase64: Buffer.from(corpoBruto, "utf8").toString("base64"),'));
-  assert.ok(rota.includes("combinacaoQueBateria: assinatura"));
-});
 
 
 
@@ -292,4 +254,27 @@ test("o segredo e a STRING da chave, nao os bytes hex", async () => {
   assert.ok(!/Buffer\.from\(chave, "hex"\)/.test(codigo),
     "hex-decodificar a chave foi artefato, nao descoberta");
   assert.ok(codigo.includes('createHmac("sha256", chave).update(base, "utf8").digest("hex")'));
+});
+
+test("o evento e MARCADO como processado — fila que nao esvazia deixa de informar", async () => {
+  // Medido em 02/09/2026: os dois primeiros pushes reais entraram, os pedidos
+  // foram gravados, e as linhas ficaram em status 'pending' para sempre. Nao
+  // quebrava nada — e por isso passaria despercebido ate alguem escrever um
+  // reprocessador e ele varrer tudo de novo.
+  const rota = await readFile(new URL("../src/app/api/webhooks/shopee/route.ts", import.meta.url), "utf8");
+  assert.ok(rota.includes("SET status = 'processed', processed_at = now()"));
+  assert.ok(rota.includes("WHERE workspace_id = $1 AND provider = 'shopee' AND event_key = $2"),
+    "com workspace_id: parametro do cliente ESTREITA o escopo, nunca o define");
+});
+
+test("a matriz de diagnostico SAIU depois de responder", async () => {
+  // ⚠️ Ferramenta de investigacao que sobrevive a investigacao vira peso morto:
+  // 168 HMACs por requisicao recusada, num endpoint publico, e superficie e
+  // custo sem pergunta em aberto. Mesma regra da recusa temporaria — o que
+  // existe por causa de uma limitacao morre com ela.
+  const fonte = await readFile(new URL("../src/lib/integrations/shopeePush.ts", import.meta.url), "utf8");
+  const codigo = fonte.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  assert.ok(!codigo.includes("diagnosticarAssinatura"), "a matriz respondeu e saiu");
+  // E o diagnostico CURTO fica: e barato e responde "mudaram a assinatura?".
+  assert.ok(codigo.includes("formulaQueBateria"));
 });

@@ -5,7 +5,6 @@ import { depoisDaResposta } from "@/lib/depoisDaResposta";
 import {
   chaveDoEvento,
   interpretarPush,
-  diagnosticarAssinatura,
   ehPingDeVerificacao,
   urlPublicaDoPush,
   verificarAssinaturaDoPush,
@@ -101,20 +100,6 @@ export async function POST(req: NextRequest) {
       formulaQueBateria,
       chaveQueBateria,
       ehPing,
-      // ⚠️ A MATRIZ RODA AQUI, sobre os BYTES QUE CHEGARAM. Reconstruir o JSON
-      // por fora nunca da byte a byte igual (espacamento, ordem de chave, escape
-      // de unicode), e assinatura e sobre BYTES — 336 combinacoes offline deram
-      // zero justamente por isso. Nunca autoriza; so nomeia a combinacao.
-      combinacaoQueBateria: assinatura
-        ? diagnosticarAssinatura({
-            urlPublica: url,
-            urlDaRequisicao: req.nextUrl.href,
-            corpoBruto,
-            assinatura,
-            chaves: { push: chave },
-            partnerId: process.env.SHOPEE_PARTNER_ID,
-          })
-        : null,
       // E os BYTES EXATOS do corpo, sem interpretacao: se nem a matriz bater, a
       // resposta esta aqui — da para reproduzir offline com fidelidade total.
       corpoEmBase64: Buffer.from(corpoBruto, "utf8").toString("base64"),
@@ -163,7 +148,7 @@ export async function POST(req: NextRequest) {
     depoisDaResposta("push-shopee:processa", async () => {
       for (const alvo of novos) {
         try {
-          await runWithWorkspace(alvo.workspaceId, () => processarPush(alvo.connectionId, evento));
+          await runWithWorkspace(alvo.workspaceId, () => processarPush(alvo.connectionId, evento, eventKey));
         } catch (erro) {
           console.error("[push-shopee] falha ao processar", {
             eventKey,
@@ -186,7 +171,7 @@ export async function POST(req: NextRequest) {
  * divergência apareceria semanas depois como número que não bate — o defeito que
  * a ADR-025 nasceu para matar, em outra roupa.
  */
-async function processarPush(connectionId: string, evento: EventoDePush) {
+async function processarPush(connectionId: string, evento: EventoDePush, eventKey: string) {
   const { getIntegration } = await import("@/lib/integrations/integrationStore");
   const { getShopeeOrderDetail } = await import("@/lib/integrations/shopee");
   const { normalizeShopeeOrder } = await import("@/lib/integrations/shopeeCanonical");
@@ -201,6 +186,19 @@ async function processarPush(connectionId: string, evento: EventoDePush) {
   await saveCanonicalOrders(
     { provider: "shopee", connectionId },
     pedidos.map((pedido) => normalizeShopeeOrder(pedido)),
+  );
+
+  // ⚠️ O EVENTO É MARCADO COMO PROCESSADO — medido em 02/09/2026: os dois
+  // primeiros pushes reais entraram, os pedidos foram gravados, e as linhas
+  // ficaram em `status = 'pending'` para sempre. Não quebrava nada hoje, e é
+  // exatamente por isso que passaria despercebido: uma fila cujo "pendente"
+  // nunca esvazia deixa de distinguir "falta processar" de "já foi", e o dia em
+  // que alguém escrever um reprocessador ele varre tudo de novo.
+  await dbQuery(
+    `UPDATE workspace_marketplace_events
+        SET status = 'processed', processed_at = now()
+      WHERE workspace_id = $1 AND provider = 'shopee' AND event_key = $2`,
+    [currentWorkspaceId(), eventKey],
   );
 
   // `last_push_at`, NUNCA `last_success_at` — ver a nota no topo e a 0031.
