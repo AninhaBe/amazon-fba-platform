@@ -166,3 +166,17 @@ test("NENHUM identificador de inquilino sai do resumo — /api/health e publico"
     assert.ok(!serializado.includes(id), `o resumo publico nao pode conter "${id}"`);
   }
 });
+
+test("o LIMITE sai como serie do Prometheus — o alerta nao tem numero digitado", async () => {
+  // ⚠️ Sem isto a regra no Grafana seria `nexo_sync_idade_segundos > 900`, e
+  // esse 900 vira SEGUNDA fonte da verdade num lugar que nenhum teste alcanca.
+  // Mudar a cadencia da Shopee de 3 para 10 min deixaria o alerta gritando com o
+  // numero velho — ate alguem desligar, que e como alarme morre.
+  const fonte = await readFile(new URL("../src/lib/metricas.ts", import.meta.url), "utf8");
+  assert.ok(fonte.includes('familia(saida, "nexo_sync_limite_segundos"'),
+    "o limite precisa sair como serie ao lado da idade");
+  // E ele tem de VIR da mesma funcao do vigia, nao de um numero repetido aqui.
+  assert.ok(fonte.includes("Math.round(limiteDeSilencioMs(s.provider) / 1000)"),
+    "o limite da metrica sai de limiteDeSilencioMs, nao de constante local");
+  assert.ok(fonte.includes('import { limiteDeSilencioMs } from "./integrations/cadenciaDoSync";'));
+});

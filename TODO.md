@@ -12,6 +12,24 @@ conforme for concluindo.
 
 ## Ação manual (precisa de você)
 
+- [ ] **Alerta de defasagem do sync no Grafana** — o vigia já expõe as duas
+  séries em `/metrics` (porta 9091, coletada pelo Fly). Falta criar a regra em
+  fly-metrics.net, que exige o login da conta — não é acessível daqui.
+
+  **Regra, exatamente como escrever** (sem número digitado, de propósito):
+
+  ```promql
+  nexo_sync_idade_segundos > nexo_sync_limite_segundos
+  ```
+
+  `for: 5m`, severidade *warning*. O limite vem do próprio código
+  (`cadenciaDoSync.ts`): Shopee 900 s, Mercado Livre 1500 s, Amazon e TikTok
+  3000 s. Mudar a cadência muda o alerta no mesmo deploy — por isso a regra
+  compara duas séries em vez de trazer o número para o painel.
+
+  ⚠️ Conexão de demonstração já sai da métrica na origem (`NOT LIKE '%demo%'`):
+  ela nunca sincroniza e faria o alerta ficar aceso para sempre.
+
 - [ ] **Reconectar a Amazon** — as duas contas estão com o refresh token
   revogado (`invalid_grant`, confirmado em 06/08). Preferir **self-authorization**
   pelo Solution Provider Portal em vez do OAuth atual; motivo e caminho em
@@ -426,6 +444,20 @@ outro canal (o diff da rodada não podia sair do TikTok), ou é decisão de prod
   `workspace_marketplace_materialization_leases` (migração própria)
 - [ ] Tirar o DDL legado do `ensureSchema` (mover para migração versionada,
   como já foi feito com as tabelas canônicas)
+
+## Vigia de defasagem — linha no /admin (pendência futura, NÃO agora)
+
+- [ ] O vigia por canal já responde em `/api/health` (campo `sync`) e alimenta o
+  alerta do Grafana. Falta uma linha na tela do `/admin` mostrando o mesmo
+  resumo, para quem está olhando o produto não precisar abrir o monitoramento.
+  **Decidido em 02/09/2026 que isto NÃO entra agora**: o alarme já toca no
+  Grafana, e a tela é conveniência, não cobertura.
+
+  ⚠️ Ao fazer: o resumo é agregado por canal e **não pode passar a exibir
+  `connection_id`** — `/admin` tem allowlist de e-mail no servidor, então ali
+  seria admissível, mas a peça é a mesma que serve o `/api/health`, que é
+  público. Ver a lição "poder LER entre inquilinos ≠ poder DEVOLVER" no
+  `AGENTS.md`.
 
 ## Infra / performance
 

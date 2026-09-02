@@ -1,4 +1,5 @@
 import { dbQuery, hasDb } from "./db";
+import { limiteDeSilencioMs } from "./integrations/cadenciaDoSync";
 
 // Métricas operacionais em formato Prometheus.
 //
@@ -82,6 +83,21 @@ export async function coletarMetricas(): Promise<string> {
       syncs.map((s) => [{ canal: s.provider }, s.com_erro]));
     familia(saida, "nexo_sync_conexoes", "Conexoes configuradas por provedor.",
       syncs.map((s) => [{ canal: s.provider }, s.conexoes]));
+
+    // ⚠️ O LIMITE VIRA SÉRIE PARA O ALERTA NÃO TER NÚMERO DIGITADO (02/09/2026).
+    //
+    // Sem isto, a regra no Grafana seria `nexo_sync_idade_segundos > 900` — e
+    // esse 900 é uma SEGUNDA fonte da verdade, num lugar que nenhum teste alcança
+    // e que ninguém revisa junto com o código. No dia em que a cadência da Shopee
+    // mudar de 3 para 10 minutos, o alerta continua com o número velho e passa a
+    // gritar sozinho — até alguém desligá-lo, que é como alarme morre.
+    //
+    // Com as duas séries, a regra é `nexo_sync_idade_segundos >
+    // nexo_sync_limite_segundos`: muda a cadência em `cadenciaDoSync.ts`, muda o
+    // alerta no mesmo deploy. É a mesma regra que fez o vigia derivar o limite em
+    // vez de copiá-lo — dois lugares que coincidem hoje é como um fica para trás.
+    familia(saida, "nexo_sync_limite_segundos", "Limite de silencio do canal antes de alarmar.",
+      syncs.map((s) => [{ canal: s.provider }, Math.round(limiteDeSilencioMs(s.provider) / 1000)]));
 
     // 2. Pedidos presos em `pending`. Dezenas parados por horas foi exatamente o
     //    defeito de 21/08 (55 de 62 travados) que fez o dashboard parecer queda

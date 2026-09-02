@@ -282,6 +282,77 @@ silêncio do leitor antigo não é erro — ele lê o lugar certo, que ficou vaz
 Nada fica vermelho. Só a tela fica errada.
 
 
+# Migration aplicada não quer dizer leitor com a coluna — a VIEW no meio
+
+A pergunta obrigatória antes do apply — *"quem lê isso agora?"* — precisa incluir
+as **views** no caminho. **View não herda coluna de tabela:** ela congela a lista
+de colunas do dia em que foi criada, e um `ALTER TABLE ... ADD COLUMN` não a
+alcança.
+
+⚠️ **Custou o dashboard da Amazon inteiro, em produção, por horas (02/09/2026).**
+A migration 0029 adicionou `posted_at` em `workspace_channel_order_fees`. O leitor
+do estorno consulta a view `workspace_channel_order_fees_efetivas`, criada pela
+0022. Medido em produção:
+
+```
+42703  column f.posted_at does not exist
+```
+
+em **todas** as conexões e **todos** os períodos, inclusive a conta da vendedora
+e a de demonstração. A aba não abria.
+
+📌 **E o mais instrutivo: eu tinha feito a lição certa e ela não bastou.** Provei
+que `db015da` quebrava produção sem a 0029, montei branch de deploy por causa
+disso, e acompanhei o apply. Aí tratei *"a migration foi aplicada"* como *"o
+leitor tem a coluna"*. **Nada ficou vermelho:** a tabela tinha a coluna, o teste
+de schema passava, a migration estava certa — só a consulta que atravessava a
+view morria.
+
+**Na prática:** ao adicionar coluna que alguém vai ler, `grep` pelas views que
+tocam a tabela e pergunte de cada uma se o leitor passa por ela. Se passar, a
+view entra na mesma migration. E prefira **medir o leitor de verdade** (chamar o
+produtor) a inferir do schema — foi a chamada real que revelou o 42703.
+
+# Poder LER entre inquilinos ≠ poder DEVOLVER entre inquilinos
+
+São **duas permissões diferentes**, e juntá-las é como um endpoint de diagnóstico
+vira vazamento de cliente.
+
+⚠️ **Aconteceu em 02/09/2026, no vigia de defasagem do sync.** A leitura entre
+inquilinos era legítima e continua: a pergunta é de plataforma (*"este canal
+parou?"*), escopar por workspace deixaria o alarme cego ao que ele existe para
+ver, e `/api/health` **não tem sessão**, por construção. Até aí, certo.
+
+O errado era a **saída**: o resumo devolvia `connection_id` por conexão. Isso
+publicaria `shopee:275804987` — o id de loja da vendedora, e o de todo cliente
+futuro — num endereço aberto, **para diagnosticar um defeito nosso**.
+
+📌 Quem pegou foi `tests/workspaceIdNaoDependeDeLembranca`, e não pela asserção:
+ele exige **motivo escrito** para cada consulta sem escopo, e foi escrever o
+motivo que expôs a diferença entre ler e devolver. Allowlist que cobra
+justificativa não é burocracia — é o momento em que a pessoa pensa.
+
+**Na prática:** consulta sem escopo devolve **agregado**, nunca identificador.
+O `silencioDoWebhook` já acertava isso (lê só um timestamp); o vigia passou a
+agregar por canal — quantas conexões, quantas atrasadas, pior caso em minutos.
+E a guarda serializa o resumo inteiro e proíbe os ids, em vez de conferir campo
+a campo: campo novo com id entra sem quebrar uma asserção por campo.
+
+# Limiar de alarme mora no código, não no painel de monitoramento
+
+Alerta configurado com número digitado no Grafana é **segunda fonte da verdade
+num lugar que nenhum teste alcança e ninguém revisa junto com o código**.
+
+Quando a cadência muda, o alerta fica com o número velho e passa a gritar
+sozinho — até alguém desligá-lo. **É assim que alarme morre**, e o alarme morto
+não avisa no dia em que era pra avisar.
+
+**Na prática:** exporte o limiar como série ao lado da medida
+(`nexo_sync_limite_segundos` ao lado de `nexo_sync_idade_segundos`) e escreva a
+regra comparando as duas. Muda a constante no código, muda o alerta no mesmo
+deploy. É o mesmo motivo pelo qual o vigia **deriva** o limite da cadência em vez
+de copiá-lo: dois lugares que coincidem hoje é como um fica para trás.
+
 # Isolamento entre inquilinos — as duas garantias que sustentam tudo
 
 O NEXO é multi-inquilino, e a pergunta da dona do produto em 31/08/2026 é o
