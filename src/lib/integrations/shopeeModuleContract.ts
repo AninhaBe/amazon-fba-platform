@@ -1,3 +1,4 @@
+import { PERIODO_PADRAO } from "../periodoPadrao";
 export class ShopeeModuleError extends Error {
   readonly status: number;
   readonly code: string;
@@ -38,7 +39,11 @@ export function shopeePeriodRequest(params: URLSearchParams, now = new Date()) {
     const rotulo = (iso: string) => iso.slice(8, 10) + "/" + iso.slice(5, 7);
     return { from, to, label: `${rotulo(fromParam)} a ${rotulo(toParam)}` };
   }
-  const value = params.get("days") ?? "30";
+  // ⚠️ O PADRAO VEM DA CONSTANTE DA CASA, e o valor e "today" por decisao da dona
+  // do produto (31/08/2026). Aqui dizia "30", e essa divergencia com a tela fez
+  // o monitor mostrar 30 dias sob o rotulo "Hoje" — R$ 372 mil onde o dia tinha
+  // R$ 10.143,96. Um lugar so; ver `lib/periodoPadrao`.
+  const value = params.get("days") ?? PERIODO_PADRAO;
   const days = value === "today" ? 0 : Number(value);
   if (value !== "today" && ![7, 15, 30].includes(days)) {
     throw new ShopeeModuleError(400, "INVALID_PERIOD", "Selecione Hoje ou um período de 7, 15 ou 30 dias.");

@@ -1,5 +1,6 @@
 "use client";
 
+import { PERIODO_PADRAO } from "@/lib/periodoPadrao";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { ArrowRight, CalendarRange } from "lucide-react";
@@ -45,7 +46,10 @@ export type DashboardPeriodOption = "today" | "7" | "15" | "30" | "custom";
  * Quem for reabrir esta escolha: o argumento de desempenho não a sustenta, e
  * agora existe o número. A decisão continua sendo de produto.
  */
-const PERIODO_PADRAO: Exclude<DashboardPeriodOption, "custom"> = "today";
+// A constante mora em `lib/periodoPadrao` desde 02/09/2026: o contrato dos
+// modulos roda no SERVIDOR e nao pode importar um modulo `use client`, entao
+// cada lado tinha escrito o seu padrao — e eles discordavam.
+export { PERIODO_PADRAO } from "@/lib/periodoPadrao";
 
 export function useDashboardPeriod(
   initialQuery = "",

@@ -13,7 +13,26 @@ test("o padrao dos QUATRO canais e Hoje, e vem de um lugar so", async () => {
   // Um hook so serve os quatro dashboards. Dois padroes diferentes em dois
   // canais seria a inconsistencia que a regra de replicar existe para impedir.
   const hook = await fonte("src/app/components/DashboardPeriodFilter.tsx");
-  assert.match(hook, /const PERIODO_PADRAO: Exclude<DashboardPeriodOption, "custom"> = "today";/);
+  // ⚠️ A CONSTANTE MUDOU DE ARQUIVO em 02/09/2026, e a guarda ficou MAIS FORTE:
+  // ela agora exige que a fonte seja UMA para tela e SERVIDOR. O contrato dos
+  // modulos roda no servidor e nao podia importar um modulo `use client`, entao
+  // cada lado tinha o seu default — e eles discordavam (tela "today", servidor
+  // "30"). O monitor mostrava 30 dias sob o rotulo "Hoje".
+  const constante = await fonte("src/lib/periodoPadrao.ts");
+  assert.match(constante, /export const PERIODO_PADRAO: Exclude<OpcaoDePeriodo, "custom"> = "today";/,
+    "o padrao da casa continua sendo Hoje — decisao da Ana de 31/08/2026");
+  assert.match(hook, /import \{ PERIODO_PADRAO \} from "@\/lib\/periodoPadrao";/,
+    "a tela le a constante, nao declara a sua");
+  const contrato = await fonte("src/lib/integrations/shopeeModuleContract.ts");
+  assert.match(contrato, /import \{ PERIODO_PADRAO \} from "\.\.\/periodoPadrao";/,
+    "o servidor le a MESMA constante");
+  assert.match(contrato, /params\.get\("days"\) \?\? PERIODO_PADRAO/,
+    "e o fallback do servidor sai dela — era aqui que morava o 30");
+  // ⚠️ Proibicao olha o fonte SEM COMENTARIOS: o comentario que explica o defeito
+  // cita o defeito.
+  const semComentario = (s) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  assert.ok(!/\?\?\s*"30"/.test(semComentario(contrato)),
+    "o 30 nao pode voltar como literal no contrato");
   // ⚠️ EM 01/09/2026 O HOOK PASSOU A ACEITAR UM PADRAO POR TELA, para a Curva
   // ABC largar o seletor proprio dela sem mudar o que oferece. A guarda ficou
   // MAIS FORTE, nao mais fraca: alem de exigir que o padrao venha de
