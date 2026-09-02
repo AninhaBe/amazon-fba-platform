@@ -441,6 +441,28 @@ de `runWithAccount`. A conta dona é atendida pelo par do `.env`, e
 seja, **fora** de `runWithAccount`. Envolver as duas do mesmo jeito estoura em
 `conta.refreshToken` de `undefined`.
 
+# Dado sincronizado é garantia do sistema, não estado a comunicar
+
+Doutrina da dona, 02/09/2026: *"os custos realmente são do usuário, mas a partir
+do momento que estão cadastrados, aí é com o sistema. … sobre os dados
+sincronizados, isso precisa estar de pé sempre."*
+
+A divisão de responsabilidade é esta e não muda sem ela:
+
+- **Do usuário:** cadastrar o que só ele sabe (custo, alíquota). Cadastrou,
+  acabou a parte dele — conta errada dali em diante é defeito nosso.
+- **Do sistema:** sincronização **de pé sempre**. Não é feature, é chão.
+  Consequências práticas:
+  - a tela **nunca** anuncia "está sincronizado" — estado normal não é notícia
+    (banner de "100% ok" foi removido por ordem dela em 02/09);
+  - falha de sincronização alarma **para nós** (vigia por canal no /api/health
+    + Grafana), se autocura quando possível (varredura se promove quando o push
+    emudece), e só alcança a tela dela se atravessar tudo isso — o que é
+    incidente, não aviso;
+  - a tela só fala da classe de falta que é física do domínio (dado que a
+    fonte ainda não publicou, cadastro pendente do usuário), curto, com número
+    e link, pelo menor tempo possível.
+
 # Como este projeto trata dado incerto
 
 Três regras que atravessam o código todo e não são negociáveis sem ADR:
