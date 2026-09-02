@@ -58,6 +58,9 @@ interface Overview {
     orders30d: number;
     paidOrders: number;
     revenue30d: number;
+    pendingOrders: number;
+    /** `null` = nenhum pendente no período. */
+    pendingRevenue: number | null;
     cancelledRevenue: number;
     cancelledOrders: number;
     lastSaleAt: string | null;
@@ -948,13 +951,19 @@ function Dashboard({ overview, sync, onPage, periodoLabel, periodoQuery }: { ove
           <LegendaDeVendas
             confirmados={{ pedidos: overview.metrics.paidOrders, valor: overview.metrics.revenue30d }}
             aguardando={{
-              pedidos: Math.max(0, overview.metrics.orders30d - overview.metrics.paidOrders - overview.metrics.cancelledOrders),
-              // O canônico da Shopee não separa o valor dos pendentes. `null` e
-              // não zero: a legenda mostra a quantidade e omite o valor.
-              valor: null,
+              pedidos: overview.metrics.pendingOrders,
+              // ⚠️ O VALOR DO PENDENTE PASSA A APARECER (02/09/2026), e é a
+              // contrapartida direta de ele ter saído do faturamento: número que
+              // some sem deixar rastro é o que faz a vendedora conferir à mão.
+              //
+              // Antes ficava `null` com a justificativa de que o canônico não
+              // separava o valor dos pendentes. Medido em 02/09: separa — os 63
+              // pedidos UNPAID de 60 dias têm `gross`, zero sem. A justificativa
+              // era verdadeira quando foi escrita e passou a não ser.
+              valor: overview.metrics.pendingRevenue,
             }}
             cancelados={{ pedidos: overview.metrics.cancelledOrders }}
-            nota="A Shopee retém o valor da venda no escrow até a entrega ser confirmada."
+            nota="O faturamento conta a venda paga; pedido aguardando pagamento entra quando o pagamento confirmar, na data do pedido. A Shopee retém o valor no escrow até a entrega ser confirmada."
             money={(valor) => money(valor, overview.metrics.currency)}
           />
           <RevenueChart points={overview.dailySales} currency={overview.metrics.currency} explorable />

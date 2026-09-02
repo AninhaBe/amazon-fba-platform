@@ -57,6 +57,8 @@ interface TotalsRow {
   pedidos_faturados: number;
   /** Pedidos que a Shopee ainda não valorizou. Ficam FORA da base, nunca valem zero. */
   sem_valor: number;
+  pending_revenue: string | null;
+  pending_orders: number;
   cancelled_revenue: string | null;
   cancelled_orders: number;
   currency: string | null;
@@ -191,6 +193,9 @@ export interface ShopeeOverview {
     orders30d: number;
     paidOrders: number;
     revenue30d: number;
+    pendingOrders: number;
+    /** `null` = nenhum pendente. Valor existe desde a criacao na Shopee. */
+    pendingRevenue: number | null;
     cancelledRevenue: number;
     cancelledOrders: number;
     lastSaleAt: string | null;
@@ -336,12 +341,31 @@ export async function getShopeeOverviewFromCanonical(
       `SELECT COUNT(*)::int AS total_orders,
               COUNT(*) FILTER (WHERE status = ANY($6::text[]))::int AS paid_orders,
               SUM(gross) FILTER (WHERE status = ANY($6::text[])) AS paid_revenue,
-              -- O FATURAMENTO: todo pedido nao cancelado, pelo valor do proprio
-              -- pedido. E a base de lucro, margem e imposto desde 01/09/2026 —
-              -- a mesma regra que a Amazon ja segue. Ver a nota em faturamento.
-              SUM(gross) FILTER (WHERE status <> 'cancelled') AS faturamento,
-              COUNT(*) FILTER (WHERE status <> 'cancelled')::int AS pedidos_faturados,
-              COUNT(*) FILTER (WHERE status <> 'cancelled' AND gross IS NULL)::int AS sem_valor,
+              -- O FATURAMENTO DA SHOPEE E O PEDIDO PAGO -- o que a API deu como
+              -- venda. Decisao da dona do produto em 02/09/2026, verbatim:
+              -- "vai aparecer o que realmente entrou como venda na api da shopee,
+              -- boleto em algum momento entraria, mas e diferente da amazon".
+              --
+              -- NAO E REGRA GLOBAL, e a diferenca entre os canais foi medida:
+              -- na Amazon, Pending e venda feita com o VALOR OCULTO (a chave
+              -- ItemPrice nem vem), entao ficar de fora apagaria receita real.
+              -- Na Shopee, UNPAID vem COM valor desde a criacao -- medido em
+              -- 02/09/2026: 63 pedidos UNPAID em 60 dias, 63 com valor, zero sem.
+              -- La o valor falta; aqui o PAGAMENTO e que pode nao acontecer.
+              --
+              -- UNPAID que paga entra normalmente, na DATA DO PEDIDO: o status
+              -- muda no proximo sync e o pedido passa a casar este filtro, sem
+              -- que a data do pedido mude. UNPAID que cancela nunca entra.
+              SUM(gross) FILTER (WHERE status = ANY($6::text[])) AS faturamento,
+              COUNT(*) FILTER (WHERE status = ANY($6::text[]))::int AS pedidos_faturados,
+              COUNT(*) FILTER (WHERE status = ANY($6::text[]) AND gross IS NULL)::int AS sem_valor,
+              -- O PENDENTE SAIU DO FATURAMENTO, ENTAO A TELA TEM DE PODER DIZER
+              -- QUANTO SAIU. Numero que some sem deixar rastro e o que faz a
+              -- vendedora conferir na mao. Na Shopee o valor existe desde a
+              -- criacao (medido: 63 de 63 UNPAID com gross), entao nao ha
+              -- desculpa para omitir -- e omitir seria o nulo mentiroso.
+              SUM(gross) FILTER (WHERE status = 'pending') AS pending_revenue,
+              COUNT(*) FILTER (WHERE status = 'pending')::int AS pending_orders,
               SUM(gross) FILTER (WHERE status = 'cancelled') AS cancelled_revenue,
               COUNT(*) FILTER (WHERE status = 'cancelled')::int AS cancelled_orders,
               MAX(occurred_at) FILTER (WHERE status = ANY($6::text[])) AS last_sale_at,
@@ -958,27 +982,37 @@ export async function getShopeeOverviewFromCanonical(
       orders30d: totals.total_orders,
       // ⚠️ O NÚMERO AO LADO DO FATURAMENTO CONTA O MESMO CONJUNTO QUE ELE.
       //
-      // Era `paid_orders` — só os pagos — ao lado de um valor que agora soma
-      // todos os não cancelados. Card dizendo "R$ X · N pedidos" com o X de um
-      // conjunto e o N de outro é a mesma família da base misturada, só que na
-      // contagem: aparece quando alguém confere somando à mão, que é
-      // exatamente o que a vendedora faz.
+      // Card dizendo "R$ X · N pedidos" com o X de um conjunto e o N de outro é
+      // a base misturada aparecendo na contagem — e aparece justamente para quem
+      // confere somando à mão, que é o que a vendedora faz.
       //
-      // A cobertura do lucro (`profit.coverage.paidOrders`, abaixo) CONTINUA
-      // contando os pagos: lá a pergunta é "quantos já foram apurados", e essa
-      // é outra pergunta.
+      // Desde 02/09 os dois são o conjunto PAGO. `pedidos_faturados` e
+      // `paid_orders` passaram a contar o mesmo, e os dois nomes ficam de
+      // propósito: um pertence ao card, o outro à cobertura do lucro, e no dia
+      // em que um dos dois mudar de universo o outro não vai junto por descuido.
+      //
+      // A cobertura do lucro (`profit.coverage.paidOrders`, abaixo) responde
+      // outra pergunta — "quantos já foram apurados" — e continua sendo dela.
       paidOrders: pedidosFaturados,
-      // ⚠️ O CARD DE FATURAMENTO PASSA A EXIBIR O FATURAMENTO (01/09/2026).
+      // ⚠️ O CARD DE FATURAMENTO DA SHOPEE EXIBE O PEDIDO PAGO (02/09/2026).
       //
-      // Era `paid_revenue` — só os pedidos já pagos —, e por isso ele e o lucro
-      // discordavam por construção. Agora é o mesmo número da base: todo pedido
-      // não cancelado, pendente inclusive. É a decisão dela de 30/08 ("Faturamento
-      // deve significar todos os pedidos independente de status Confirmado"),
-      // que a Amazon já seguia e a Shopee não.
+      // Historia em duas viradas, e a segunda corrige a primeira SEM desfazer o
+      // que ela acertou. Em 01/09 o card deixou de ser `paid_revenue` e passou a
+      // somar todo pedido nao cancelado, porque ele e o lucro discordavam por
+      // construcao. O acerto era a COERENCIA -- card e lucro no mesmo conjunto --
+      // e ela continua de pe. O que estava errado era o conjunto escolhido.
       //
-      // `paid_revenue` continua vivo em `revenue` para a cascata do conciliado,
-      // que é pergunta diferente — e que o marketplace não responde.
+      // Em 02/09 a dona do produto decidiu, verbatim: "vai aparecer o que
+      // realmente entrou como venda na api da shopee, boleto em algum momento
+      // entraria, mas e diferente da amazon". O conjunto passa a ser o pago,
+      // aqui e em tudo que deriva dele.
+      //
+      // ⚠️ E ISTO NAO VALE PARA A AMAZON. Ver a nota longa na consulta acima: la
+      // Pending e venda feita com valor oculto; aqui UNPAID e venda que pode nao
+      // acontecer, com valor publicado. Mesma palavra, semantica oposta.
       revenue30d: faturamento,
+      pendingOrders: totals.pending_orders,
+      pendingRevenue: totals.pending_revenue == null ? null : Number(totals.pending_revenue),
       cancelledRevenue: Number(totals.cancelled_revenue ?? 0),
       cancelledOrders: totals.cancelled_orders,
       lastSaleAt: totals.last_sale_at ? new Date(totals.last_sale_at).toISOString() : null,
