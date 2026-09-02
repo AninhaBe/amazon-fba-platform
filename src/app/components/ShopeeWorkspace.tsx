@@ -65,7 +65,13 @@ interface Overview {
     cancelledOrders: number;
     lastSaleAt: string | null;
     currency: string;
-    revenueCoverage: { capturedOrders: number; totalOrders: number; complete: boolean };
+    revenueCoverage: {
+      capturedOrders: number; totalOrders: number; complete: boolean;
+      /** Inicio da janela ingerida. Chega com o overview — ver `cobertura`. */
+      historicoDesde?: string | null;
+      /** Fim da janela ingerida. */
+      sincronizadoAte?: string | null;
+    };
   };
   notasPendentes?: { pedidos: number; motivos: Array<{ motivo: string | null; pedidos: number }> };
   profit: {
@@ -693,13 +699,35 @@ function Dashboard({ overview, sync, onPage, periodoLabel, periodoQuery }: { ove
   // Período do filtro vs. histórico já importado (frente K): mês ainda não
   // importado nunca vira cards zerados — "não vendeu" e "não importei" são
   // fatos diferentes.
-  const cobertura = sync ? coberturaDoPeriodo({
+  /**
+   * ⚠️ A COBERTURA DEIXOU DE DEPENDER DO `sync` CHEGAR (02/09/2026).
+   *
+   * Ela era calculada so quando o estado de sincronizacao ja tinha respondido —
+   * uma SEGUNDA requisicao, com o seu proprio tempo e o seu proprio jeito de
+   * falhar. Enquanto ela nao voltava (ou se voltasse com erro), `cobertura` era
+   * `null`, a tela pulava o estado vazio e mostrava OS CARDS ZERADOS de um mes
+   * que nunca foi importado.
+   *
+   * E o defeito que esta peca existe para impedir: *"nao vendeu"* e *"nao
+   * importei"* sao fatos diferentes, e o zerado afirma o primeiro.
+   *
+   * O inicio da janela agora vem junto do overview (`historicoDesde`), na mesma
+   * resposta que traz os numeros — entao nao ha janela em que os numeros existam
+   * e a cobertura nao. E a MESMA forma do `MercadoLivreWorkspace`, que ja lia
+   * do overview: um canal e a referencia do outro em vez de cada um ter o seu
+   * caminho.
+   *
+   * O `sync` continua como fallback — ele e quem sabe o STATUS (sincronizando,
+   * parado), que o overview nao carrega.
+   */
+  const historicoDesde = overview.metrics.revenueCoverage.historicoDesde ?? sync?.coveredFrom ?? null;
+  const cobertura = coberturaDoPeriodo({
     periodoDeMs: new Date(overview.period.from).getTime(),
     periodoAteMs: new Date(overview.period.to).getTime(),
-    coveredFrom: sync.coveredFrom,
-    status: sync.status,
-  }) : null;
-  if (cobertura?.periodoInteiroDescoberto) {
+    coveredFrom: historicoDesde,
+    status: sync?.status ?? null,
+  });
+  if (cobertura.periodoInteiroDescoberto) {
     const desde = cobertura.cobreDesde ? brDate(new Date(cobertura.cobreDesde)) : null;
     return (
       <div className="dashboard-sections integration-dashboard-sections shopee-dashboard-body">
