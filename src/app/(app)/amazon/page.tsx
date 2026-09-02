@@ -134,6 +134,11 @@ interface ProfitData {
    * compilador nao e o mesmo que resolver o que ele apontou.
    */
   feesDoLucro?: number | null;
+  /** Fatias e fluxo do painel do conciliado; o lucro e o residuo do universo dele. */
+  composicaoDoConciliado?: {
+    receita: number; custo: number; tarifa: number; pedidos: number;
+    lucro: number; margemPct: number | null;
+  };
   pedidosComValor?: number;
   /** Quanto das tarifas é estimativa da Amazon (ADR-027), para a marca na tela. */
   feesEstimadas?: number;
@@ -249,7 +254,7 @@ interface DashboardPayload {
   metrics: { totalOrders: number; paidOrders: number; fbaOrders: number; revenue: number };
   dailySales: Array<{ date: string; revenue: number; orders: number; units: number }>;
   topProducts: Array<{ sku: string; title: string; units: number; revenue: number; marginPct: number | null }>;
-  profit: { revenueProcessed: number; revenueDoLucro?: number | null; pedidosDoPeriodo?: number; pedidosComValor?: number; pedidosSemValor?: number; feesEstimadas?: number; pedidosComTarifaEstimada?: number; fees: number; cogs: number; estimatedProfit: number | null; taxRate?: number | null; taxes?: number | null; refunds?: number; refundCount?: number; ads?: number | null; unitsWithCost: number; unitsWithoutCost: number; skusWithoutCost: number; coverage?: { processedOrders: number; paidOrders: number; complete: boolean } };
+  profit: { revenueProcessed: number; revenueDoLucro?: number | null; pedidosDoPeriodo?: number; pedidosComValor?: number; pedidosSemValor?: number; feesEstimadas?: number; pedidosComTarifaEstimada?: number; composicaoDoConciliado?: { receita: number; custo: number; tarifa: number; pedidos: number; lucro: number; margemPct: number | null }; fees: number; cogs: number; estimatedProfit: number | null; taxRate?: number | null; taxes?: number | null; refunds?: number; refundCount?: number; ads?: number | null; unitsWithCost: number; unitsWithoutCost: number; skusWithoutCost: number; coverage?: { processedOrders: number; paidOrders: number; complete: boolean } };
   ads?: AmazonAdsInput | null;
   adsJanela?: { inicioDia: string; esperadoAte: string; incluiHoje?: boolean } | null;
   adsConectado?: boolean;
@@ -536,6 +541,7 @@ function Dashboard() {
         revenueDoLucro: payload.profit.revenueDoLucro,
         pedidosSemValor: payload.profit.pedidosSemValor,
         feesDoLucro: payload.profit.fees,
+        composicaoDoConciliado: payload.profit.composicaoDoConciliado,
         pedidosDoPeriodo: payload.profit.pedidosDoPeriodo,
         pedidosComValor: payload.profit.pedidosComValor,
         feesEstimadas: payload.profit.feesEstimadas,
@@ -755,7 +761,30 @@ function Dashboard() {
   // faturamento ao lado de um ticket de R$ 21,67 — que é 108,34/5, de um total
   // que não está em lugar nenhum da tela. O ticket real é 39,80/2 = R$ 19,90.
   const vendasConciliadas = profit?.finance.orderCount ?? 0;
-  const faturamentoConciliado = profit?.finance.revenue ?? 0;
+  /**
+   * ⚠️ O PAINEL DO CONCILIADO FALA DE UM UNIVERSO SO (02/09/2026).
+   *
+   * O defeito, no print da vendedora: o centro exibia "R$ 12,89 Faturamento
+   * conciliado" e as fatias traziam o custo do PERIODO (R$ 446,50), a tarifa
+   * postada e um "Lucro estimado" de R$ 731,27 — que e o lucro do periodo, cuja
+   * conta fecha em OUTRO card (1.665,54 - 487,77 - 446,50). A subtracao literal
+   * do painel dava NEGATIVA e a margem saia 5673%.
+   *
+   * Mesma anatomia do painel da Shopee, corrigido em f88dbb9/c37a8bd. Agora as
+   * fatias, o fluxo e a margem saem de `composicaoDoConciliado`, somada no
+   * produtor a partir das MESMAS linhas que formam o centro.
+   *
+   * ⚠️ E O ANUNCIO FICA DE FORA DESTE PAINEL, o que e uma mudanca em relacao a
+   * ADR-025. O motivo e o mesmo que motivou a ADR: nao exibir dois numeros
+   * chamados lucro com valores diferentes. Anuncio e custo DE PERIODO e nao tem
+   * atribuicao por pedido — somar aqui quebraria a igualdade centro = fatias
+   * outra vez. Por isso o resultado deste painel se chama RESULTADO DOS
+   * REPASSES, nao "lucro estimado": o lucro do periodo, com anuncio, e o dos
+   * cards, e a diferenca de nome e o que impede a confusao que a ADR-025
+   * combateu.
+   */
+  const conciliadoDoPainel = profit?.composicaoDoConciliado ?? null;
+  const faturamentoConciliado = conciliadoDoPainel?.receita ?? profit?.finance.revenue ?? 0;
   // Decisão dela (22/08): sem base, o cartão mostra R$ 0,00 em vez de "—".
   // Antes disso, porém, tenta o número REAL: quando ainda não há venda conciliada
   // mas o período tem faturamento (pendente com valor de tabela), o ticket existe
@@ -1198,7 +1227,10 @@ function Dashboard() {
           format={(value) => money(value, currency)}
           slices={buildFinancialComposition({
             total: faturamentoConciliado,
-            costs: [
+            costs: conciliadoDoPainel ? [
+              { id: "fees", label: "Taxas da Amazon", value: conciliadoDoPainel.tarifa },
+              { id: "cogs", label: "Custo dos produtos", value: conciliadoDoPainel.custo },
+            ] : [
               ...(profit?.finance.feeBreakdown ?? []).map((fee) => ({ id: fee.type, label: nomeDaTarifa(fee.type), value: fee.amount })),
               // ⚠️ O MESMO tudo-ou-nada da Shopee, achado no mesmo dia (29/08/2026):
               // `costsIncomplete ? null` some com o custo INTEIRO por causa das
@@ -1220,7 +1252,8 @@ function Dashboard() {
             // O MESMO lucro da faixa, pela MESMA função. Duas cópias da conta
             // foi o que deixou uma para trás quando a decisão dela de 25/08 foi
             // aplicada só ao card.
-            result: lucroComAnuncio,
+            result: conciliadoDoPainel ? conciliadoDoPainel.lucro : lucroComAnuncio,
+            resultLabel: conciliadoDoPainel ? "Resultado dos repasses" : undefined,
           })}
           empty={!loading && !hasFinance ? (
             // Sem transação postada não há cascata: zerar receita, taxas e lucro
@@ -1245,18 +1278,26 @@ function Dashboard() {
               ) : (
                 <Flow label="Faturamento" value={loading ? "…" : money(faturamentoConciliado, currency)} />
               )}
-              <Flow label="Taxas Amazon" value={loading ? "…" : money(profit?.finance.fees ?? 0, currency)} muted sign="−" />
-              {!loading && (profit?.finance.feeBreakdown ?? []).map((t) => (
+              {/* ⚠️ A LISTA LE A MESMA COMPOSICAO DA ROSQUINHA. Foi o segundo
+                  consumidor que me escapou na Shopee: consertei as fatias, dei o
+                  painel por pronto, e a lista continuou lendo os cards. Dois
+                  consumidores exigem duas correcoes — e as duas guardas. */}
+              <Flow label="Taxas Amazon" value={loading ? "…" : money(conciliadoDoPainel?.tarifa ?? profit?.finance.fees ?? 0, currency)} muted sign="−" />
+              {!loading && conciliadoDoPainel == null && (profit?.finance.feeBreakdown ?? []).map((t) => (
                 <Flow key={t.type} label={nomeDaTarifa(t.type)} value={money(t.amount, currency)} detail muted />
               ))}
-              <Flow label="Custo dos produtos" value={loading ? "…" : money(profit?.cogs ?? 0, currency)} muted sign="−" />
+              <Flow label="Custo dos produtos" value={loading ? "…" : money(conciliadoDoPainel?.custo ?? profit?.cogs ?? 0, currency)} muted sign="−" />
               {/* ⚠️ A CASCATA TAMBÉM DESCONTA O ANÚNCIO (29/08/2026).
                   Era a TERCEIRA cópia da conta de lucro na mesma tela: a faixa
                   já descontava o Ads desde 25/08, a rosca passou a descontar
                   hoje, e estas linhas ainda fechavam no número antigo — maior e
                   positivo. Agora as três leem o MESMO `lucroDoPeriodo` —
                   nenhuma delas refaz a subtração por conta própria. */}
-              {!loading && (anuncioNoLucro != null || anuncio.desconhecido) && (
+              {/* O anuncio NAO entra neste painel quando a composicao do
+                  conciliado existe: e custo de PERIODO, sem atribuicao por
+                  pedido, e soma-lo aqui quebraria a igualdade centro = fatias.
+                  Ele continua no card de Ads e no lucro do periodo. */}
+              {!loading && conciliadoDoPainel == null && (anuncioNoLucro != null || anuncio.desconhecido) && (
                 <Flow
                   label="Anúncios"
                   value={anuncio.desconhecido ? "—" : money(anuncioNoLucro ?? 0, currency)}
@@ -1264,17 +1305,19 @@ function Dashboard() {
                   sign="−"
                 />
               )}
+              {/* ⚠️ "Resultado dos repasses", NAO "Lucro estimado": este numero e
+                  o residuo do universo CONCILIADO, sem anuncio. O lucro do
+                  periodo, com anuncio, e o do card — e a diferenca de NOME e o
+                  que impede a confusao que a ADR-025 combateu, agora que os dois
+                  numeros sao legitimamente diferentes. */}
               <Flow
-                label={lucroComAnuncio == null ? "Repasse líquido" : "Lucro estimado"}
-                value={loading ? "…" : lucroComAnuncio == null ? "—" : money(lucroComAnuncio, currency)}
+                label={conciliadoDoPainel ? "Resultado dos repasses" : (lucroComAnuncio == null ? "Repasse líquido" : "Lucro estimado")}
+                value={loading ? "…" : conciliadoDoPainel ? money(conciliadoDoPainel.lucro, currency) : (lucroComAnuncio == null ? "—" : money(lucroComAnuncio, currency))}
                 accent
-                tone={loading || lucroComAnuncio == null
-                  ? "default"
-                  : lucroComAnuncio > 0
-                    ? "positive"
-                    : lucroComAnuncio < 0
-                      ? "danger"
-                      : "default"}
+                tone={(() => {
+                  const v = conciliadoDoPainel ? conciliadoDoPainel.lucro : lucroComAnuncio;
+                  return loading || v == null ? "default" : v > 0 ? "positive" : v < 0 ? "danger" : "default";
+                })()}
                 sign="="
               />
               {/* Gasto de anúncio desconhecido não vira zero: sem ele, o lucro e
@@ -1285,12 +1328,15 @@ function Dashboard() {
                   <Link href="/ads" className="underline">Ver Ads</Link>
                 </p>
               )}
-              {!loading && lucroComAnuncio != null && (profit?.finance.revenue ?? 0) > 0 && (
+              {/* A margem sai sobre o CENTRO deste painel. Dividir o lucro do
+                  periodo pela receita conciliada foi o que produziu os 5673% do
+                  print: numerador de um universo, denominador de outro. */}
+              {!loading && (conciliadoDoPainel?.margemPct != null || (lucroComAnuncio != null && (profit?.finance.revenue ?? 0) > 0)) && (
                 <Flow
                   label="Margem"
-                  value={`${((lucroComAnuncio / (profit?.finance.revenue || 1)) * 100).toFixed(1).replace(".", ",")}%`}
+                  value={`${(conciliadoDoPainel?.margemPct ?? ((lucroComAnuncio! / (profit?.finance.revenue || 1)) * 100)).toFixed(1).replace(".", ",")}%`}
                   accent
-                  tone={marginMetricTone((lucroComAnuncio / (profit?.finance.revenue || 1)) * 100)}
+                  tone={marginMetricTone(conciliadoDoPainel?.margemPct ?? ((lucroComAnuncio! / (profit?.finance.revenue || 1)) * 100))}
                 />
               )}
         </FinancialSummaryPanel>

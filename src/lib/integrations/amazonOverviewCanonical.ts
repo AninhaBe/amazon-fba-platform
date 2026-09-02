@@ -79,6 +79,11 @@ export interface AmazonCanonicalOverview {
   topProducts: AmazonCanonicalTopProduct[];
   profit: {
     revenueProcessed: number;
+    /** Fatias e fluxo do painel do conciliado; o lucro e o residuo, a margem sai do centro. */
+    composicaoDoConciliado: {
+      receita: number; custo: number; tarifa: number; pedidos: number;
+      lucro: number; margemPct: number | null;
+    };
     fees: number;
     cogs: number;
     /**
@@ -594,6 +599,30 @@ export async function getAmazonOverviewFromCanonical(
   // SKU e a unidade de ACAO da vendedora (ver oQueFaltaNoResultado.ts).
   const skusSemCusto = new Set<string>();
   let processedRevenue = 0;
+  /**
+   * A COMPOSIÇÃO DO CONCILIADO — o universo do painel "Repasses, taxas e lucro",
+   * que declara no próprio subtítulo falar de repasses por data de postagem.
+   *
+   * ⚠️ O DEFEITO QUE ISTO CONSERTA, no print da vendedora de 02/09/2026: o painel
+   * exibia no centro "R$ 12,89 Faturamento conciliado" e, nas fatias, o custo do
+   * PERÍODO (R$ 446,50), a tarifa postada e um "Lucro estimado" de R$ 731,27.
+   *
+   * O 731,27 não era resíduo de nada visível ali: é o lucro DO PERÍODO, e a conta
+   * dele fecha noutro card — 1.665,54 (base com pendentes) − 487,77 − 446,50. A
+   * subtração literal do painel dava NEGATIVA (12,89 − 58,99 − 446,50 = −492,60)
+   * e a margem saía 5673%.
+   *
+   * É a mesma anatomia do painel da Shopee, corrigida em f88dbb9/c37a8bd: centro
+   * de um universo, fatias e resultado de outro. Aqui a distância é maior, e por
+   * isso o absurdo aparece — mas o defeito é o mesmo.
+   *
+   * 📌 E NÃO CUSTA UMA CONSULTA NOVA. A receita, o custo e a tarifa POR LINHA já
+   * são calculados neste laço, para a tabela de rentabilidade. Acumular a soma
+   * das MESMAS linhas que compõem `processedRevenue` deixa o painel coerente por
+   * construção — a alternativa (uma consulta própria restrita aos conciliados)
+   * seria uma ida a mais e um segundo lugar onde a definição pode divergir.
+   */
+  const conciliado = { receita: 0, custo: 0, tarifa: 0, pedidos: new Set<string>() };
   const profitabilityLines: ProfitabilityLine[] = [];
 
   for (const [orderId, lines] of linesByOrder) {
@@ -657,6 +686,16 @@ export async function getAmazonOverviewFromCanonical(
       // papeis declarados: a consulta de custo responde "quanto custou o
       // periodo", esta lista responde "o que aconteceu em cada pedido".
 
+      // O painel do conciliado soma as MESMAS linhas que formam o centro dele:
+      // só entra quem tem receita conhecida. Linha sem preço fica fora dos três
+      // termos ao mesmo tempo — receita, custo e tarifa —, que é o que mantém a
+      // subtração fechando.
+      if (lineRevenue != null) {
+        conciliado.receita += lineRevenue;
+        conciliado.custo += lineProductCost ?? 0;
+        conciliado.tarifa += lineFees ?? 0;
+        conciliado.pedidos.add(orderId);
+      }
       profitabilityLines.push({
         id: `${orderId}:${line.external_product_id}:${line.line_no}`,
         orderId,
@@ -1132,6 +1171,21 @@ export async function getAmazonOverviewFromCanonical(
     topProducts,
     profit: {
       revenueProcessed: +processedRevenue.toFixed(2),
+      /**
+       * As fatias e o fluxo do painel "Repasses, taxas e lucro", TODOS no
+       * universo do conciliado. O lucro e o RESIDUO deste universo e a margem
+       * sai sobre o proprio centro — ver a nota longa em `conciliado`.
+       */
+      composicaoDoConciliado: {
+        receita: +conciliado.receita.toFixed(2),
+        custo: +conciliado.custo.toFixed(2),
+        tarifa: +conciliado.tarifa.toFixed(2),
+        pedidos: conciliado.pedidos.size,
+        lucro: +(conciliado.receita - conciliado.custo - conciliado.tarifa).toFixed(2),
+        margemPct: conciliado.receita > 0
+          ? +(((conciliado.receita - conciliado.custo - conciliado.tarifa) / conciliado.receita) * 100).toFixed(2)
+          : null,
+      },
       /** A base que o LUCRO usa: apurado + pendente valorizado pela Amazon. */
       revenueDoLucro: receitaDoLucro,
       pedidosDoPeriodo,
