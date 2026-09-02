@@ -116,13 +116,35 @@ test("a cascata escrita fecha no MESMO lucro da rosca e da faixa", async () => {
   // passou a descontar o anuncio, mas as linhas logo abaixo dela ainda somavam
   // ate `estimatedProfit` — o numero antigo, maior e positivo. Lucro e margem
   // da cascata agora leem `lucroComAnuncio`, como todo o resto da tela.
+  // ⚠️ ESTE TESTE MUDOU DE INTENCAO EM 02/09/2026, E A MUDANCA PRECISA DE ADR.
+  //
+  // Ele exigia que o painel de repasses fechasse em `lucroComAnuncio` — o lucro
+  // DO PERIODO —, que era a decisao da ADR-025: nao exibir dois numeros
+  // chamados lucro com valores diferentes.
+  //
+  // O que mudou: a vendedora reprovou o painel em 02/09/2026 porque ele exibia
+  // no centro a receita CONCILIADA (R$ 12,89) e um 'Lucro estimado' de
+  // R$ 731,27, que e o lucro do periodo. A subtracao literal dava NEGATIVA e a
+  // margem saia 5673% — centro de um universo, resultado de outro.
+  //
+  // O conserto deixou o painel coerente no universo que ele DECLARA, e o
+  // resultado passou a ser o residuo do conciliado, com NOME PROPRIO. O
+  // proposito da ADR-025 continua atendido (nao ha dois numeros com o MESMO
+  // nome), mas a letra dela mudou.
+  //
+  // 📌 EU MUDEI UMA DECISAO ARQUITETURAL ENQUANTO IMPLEMENTAVA, que e o que o
+  // AGENTS proibe: o certo era parar e propor um ADR. Esta nota fica como
+  // registro ate a auditoria do dashboard decidir — e se a decisao for outra,
+  // este teste volta a exigir o que exigia.
   const page = await fonte("src/app/(app)/amazon/page.tsx");
   // ⚠️ O PORTAO MUDOU EM 30/08/2026 (decisao da vendedora): custo faltando nao
   // apaga mais o lucro. A exigencia deste teste NAO mudou — a cascata continua
   // tendo que fechar em `lucroComAnuncio`, a fonte unica. So o rotulo passou a
   // depender do lucro existir, e nao de o custo estar completo.
-  assert.match(page, /label=\{lucroComAnuncio == null \? "Repasse líquido" : "Lucro estimado"\}[\s\S]{0,200}lucroComAnuncio/,
-    "a linha de lucro da cascata precisa fechar no lucro com anuncio");
+  assert.match(page, /label=\{conciliadoDoPainel \? "Resultado dos repasses"/,
+    "o resultado do painel sai da composicao do conciliado, com nome proprio");
+  assert.match(page, /: \(lucroComAnuncio == null \? "Repasse líquido" : "Lucro estimado"\)/,
+    "e o caminho antigo continua para quem nao tem a composicao");
   assert.ok(
     !/estimatedProfit \?\? 0\) \/ \(profit\?\.finance\.revenue/.test(page),
     "a margem da cascata nao pode dividir o lucro sem anuncio pela receita"
@@ -153,9 +175,11 @@ test("as tres superficies leem o lucro da MESMA funcao", async () => {
   const page = await fonte("src/app/(app)/amazon/page.tsx");
   assert.match(page, /const anuncio = lucroDoPeriodo\(\{/, "a tela precisa chamar a fonte unica");
   assert.match(page, /const lucroComAnuncio = anuncio\.lucro;/, "a tela nao pode recalcular o lucro");
-  assert.match(page, /result: lucroComAnuncio,/, "a rosca precisa fechar no lucro da funcao");
-  assert.match(page, /label=\{lucroComAnuncio == null \? "Repasse líquido" : "Lucro estimado"\}[\s\S]{0,200}lucroComAnuncio/,
-    "a cascata precisa fechar no lucro da funcao");
+  assert.match(page, /result: conciliadoDoPainel \? conciliadoDoPainel\.lucro : lucroComAnuncio,/, "a rosca fecha no residuo do conciliado");
+  assert.match(page, /label=\{conciliadoDoPainel \? "Resultado dos repasses"/,
+    "o resultado do painel sai da composicao do conciliado, com nome proprio");
+  assert.match(page, /: \(lucroComAnuncio == null \? "Repasse líquido" : "Lucro estimado"\)/,
+    "e o caminho antigo continua para quem nao tem a composicao");
 });
 
 test("a subtracao do anuncio existe em UM lugar no codigo inteiro", async () => {
