@@ -6,6 +6,7 @@ import {
   chaveDoEvento,
   interpretarPush,
   diagnosticarAssinatura,
+  ehPingDeVerificacao,
   urlPublicaDoPush,
   verificarAssinaturaDoPush,
   type EventoDePush,
@@ -61,9 +62,19 @@ export async function POST(req: NextRequest) {
   // atras do proxy do Fly (medido: https://0.0.0.0:3000/...), e a Shopee assina
   // o endereco cadastrado no console.
   const url = urlPublicaDoPush();
+  // ⚠️ O CORPO E LIDO ANTES DA VERIFICACAO — mas so para SABER SE E O PING de
+  // verificacao, nunca para agir. Um JSON.parse sobre texto ja limitado a 64 KB
+  // nao e superficie de ataque; agir sobre ele antes de verificar, seria.
+  let corpoJson: unknown = null;
+  try { corpoJson = JSON.parse(corpoBruto); } catch { corpoJson = null; }
+  const ehPing = ehPingDeVerificacao(corpoJson);
+
+  // AS CHAVES DE APP: live e teste. O verify do console veio assinado com a de
+  // TESTE (medido em 02/09/2026) — e elas so valem para o ping, nunca para dado.
+  const chavesDeApp = [process.env.SHOPEE_PARTNER_KEY, process.env.SHOPEE_TEST_PARTNER_KEY];
   const { valida, formulaQueBateria, chaveQueBateria } = verificarAssinaturaDoPush({
-    url, corpoBruto, assinatura,
-    chaves: { push: chave, app: process.env.SHOPEE_PARTNER_KEY },
+    url, corpoBruto, assinatura, ehPing,
+    chaves: { push: chave, app: chavesDeApp },
   });
   if (!valida) {
     // ⚠️ O DIAGNÓSTICO VAI PARA O LOG E NUNCA PARA A RESPOSTA — dizer ao chamador
@@ -92,6 +103,7 @@ export async function POST(req: NextRequest) {
       // console, nunca passar a aceitar a chave da API como chave de push.
       formulaQueBateria,
       chaveQueBateria,
+      ehPing,
       // ⚠️ A MATRIZ RODA AQUI, sobre os BYTES QUE CHEGARAM. Reconstruir o JSON
       // por fora nunca da byte a byte igual (espacamento, ordem de chave, escape
       // de unicode), e assinatura e sobre BYTES — 336 combinacoes offline deram
@@ -102,7 +114,7 @@ export async function POST(req: NextRequest) {
             urlDaRequisicao: req.nextUrl.href,
             corpoBruto,
             assinatura,
-            chaves: { push: chave, app: process.env.SHOPEE_PARTNER_KEY },
+            chaves: { push: chave, app: chavesDeApp },
             partnerId: process.env.SHOPEE_PARTNER_ID,
           })
         : null,
@@ -114,13 +126,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "assinatura invalida" }, { status: 401 });
   }
 
-  let corpo: unknown;
-  try {
-    corpo = JSON.parse(corpoBruto);
-  } catch {
-    return NextResponse.json({ error: "corpo invalido" }, { status: 400 });
-  }
-  const evento = interpretarPush(corpo);
+  if (corpoJson == null) return NextResponse.json({ error: "corpo invalido" }, { status: 400 });
+  // Ping de verificacao: assinatura ja conferida acima, e ele nao carrega dado
+  // nenhum. 200 e o console cadastra a URL.
+  if (ehPing) return NextResponse.json({ received: true, verified: true });
+  const evento = interpretarPush(corpoJson);
   // Push que não é de pedido (a Shopee oferece 29 tipos) é reconhecido e
   // ignorado: responder erro faria a Shopee reentregar para sempre.
   if (!evento) return NextResponse.json({ received: true, ignored: true });

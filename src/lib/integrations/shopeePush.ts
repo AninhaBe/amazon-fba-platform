@@ -78,8 +78,56 @@ function caminhoDe(url: string) {
   }
 }
 
+/**
+ * O SEGREDO SÃO OS **BYTES** DA CHAVE, NÃO A STRING.
+ *
+ * 🔴 FOI ISTO QUE SEGUROU O PUSH POR TRÊS TENTATIVAS (02/09/2026). A chave que a
+ * Shopee mostra no console é uma string HEXADECIMAL, e a documentação diz
+ * "partner key" — então todo mundo (eu inclusive) usa a string como segredo do
+ * HMAC. O segredo são os bytes que ela REPRESENTA:
+ *
+ *   errado:  createHmac("sha256", "a1b2c3...")
+ *   certo:   createHmac("sha256", Buffer.from("a1b2c3...", "hex"))
+ *
+ * Só com a decodificação a assinatura COMPLETA do verify bateu — não um
+ * prefixo, a assinatura inteira.
+ *
+ * 📌 A LIÇÃO, que vale além da Shopee: quando um segredo é publicado em hex,
+ * "a chave" é ambígua — a string é a REPRESENTAÇÃO, os bytes são a chave. As
+ * duas dão HMACs diferentes e nenhum erro; só não bate.
+ *
+ * ⚠️ A decodificação é condicional de propósito: se a chave não for hex puro
+ * (uma futura em base64, ou uma senha), decodificar produziria bytes truncados
+ * em silêncio. Hex puro → bytes; qualquer outra coisa → a string como está.
+ */
+function segredoDe(chave: string) {
+  const ehHexPuro = chave.length % 2 === 0 && /^[0-9a-fA-F]+$/.test(chave);
+  return ehHexPuro ? Buffer.from(chave, "hex") : Buffer.from(chave, "utf8");
+}
+
 function assinar(chave: string, base: string) {
-  return createHmac("sha256", chave).update(base, "utf8").digest("hex");
+  return createHmac("sha256", segredoDe(chave)).update(base, "utf8").digest("hex");
+}
+
+/**
+ * O PING DE VERIFICAÇÃO do console — o único corpo que pode passar com a chave
+ * do APP em vez da chave de push.
+ *
+ * ⚠️ E a exceção é estreita de propósito: este corpo **não carrega dado nenhum**
+ * (nem loja, nem pedido) e a rota não escreve nada ao processá-lo. O que ele
+ * precisa é de um 200 para o console cadastrar a URL. Push de DADOS continua
+ * exigindo exclusivamente a push key — a separação de superfícies que a Shopee
+ * criou fica intacta: chave de API comprometida não permite forjar um evento.
+ */
+export function ehPingDeVerificacao(corpo: unknown): boolean {
+  if (typeof corpo !== "object" || corpo === null) return false;
+  const raiz = corpo as Record<string, unknown>;
+  const dados = (typeof raiz.data === "object" && raiz.data !== null ? raiz.data : {}) as Record<string, unknown>;
+  // Tem `verify_info` E não tem identidade de pedido: as duas condições, senão
+  // bastaria acrescentar `verify_info` a um push forjado para escapar da push key.
+  return typeof dados.verify_info === "string"
+    && raiz.shop_id == null && dados.shop_id == null
+    && dados.ordersn == null && dados.order_sn == null;
 }
 
 /** Comparação em tempo constante — igualdade de string vaza o prefixo correto. */
@@ -108,15 +156,17 @@ export interface ResultadoDaAssinatura {
 }
 
 export interface ChavesDoPush {
-  /** `SHOPEE_PUSH_PARTNER_KEY` — a gerada no console. É a única que AUTORIZA. */
+  /** `SHOPEE_PUSH_PARTNER_KEY` — a gerada no console. A única que autoriza DADO. */
   push: string | null | undefined;
   /**
-   * `SHOPEE_PARTNER_KEY` — a do app. Entra APENAS no diagnóstico e **nunca**
-   * autoriza: se a Shopee estiver assinando com ela, a resposta certa é salvar
-   * a página do console, não passar a aceitar a chave da API como chave de push.
-   * Aceitar aqui misturaria as duas superfícies que a Shopee separou.
+   * Chaves de APP (live e teste). Elas assinam o PING DE VERIFICAÇÃO — medido em
+   * 02/09/2026: o verify do console veio assinado com a partner key de TESTE.
+   *
+   * ⚠️ Elas **nunca** autorizam push de dado. Aceitá-las ali misturaria as duas
+   * superfícies que a Shopee separou, e uma chave de API vazada passaria a
+   * permitir forjar evento de pedido.
    */
-  app: string | null | undefined;
+  app: Array<string | null | undefined>;
 }
 
 export function verificarAssinaturaDoPush(entrada: {
@@ -124,22 +174,35 @@ export function verificarAssinaturaDoPush(entrada: {
   corpoBruto: string;
   assinatura: string | null;
   chaves: ChavesDoPush;
+  /** `true` só para o corpo do ping de verificação, que não carrega dado. */
+  ehPing?: boolean;
 }): ResultadoDaAssinatura {
   const { url, corpoBruto, assinatura, chaves } = entrada;
   if (!assinatura) return { valida: false, formulaQueBateria: null, chaveQueBateria: null };
 
   const [oficial, ...diagnosticas] = FORMULAS;
-  if (chaves.push && iguais(assinar(chaves.push, oficial.base(url, corpoBruto)), assinatura)) {
-    return { valida: true, formulaQueBateria: null, chaveQueBateria: null };
+  const base = oficial.base(url, corpoBruto);
+
+  // DADO: só a push key. Sem exceção.
+  if (chaves.push && iguais(assinar(chaves.push, base), assinatura)) {
+    return { valida: true, formulaQueBateria: null, chaveQueBateria: "push" };
   }
-  // Varredura de diagnóstico: TODAS as fórmulas contra AS DUAS chaves, e
-  // nenhuma delas autoriza — inclusive a fórmula oficial com a chave do app.
-  for (const [rotulo, chave] of [["push", chaves.push], ["app", chaves.app]] as const) {
-    if (!chave) continue;
-    for (const candidata of [oficial, ...diagnosticas]) {
-      if (rotulo === "push" && candidata === oficial) continue; // já testada acima
-      if (iguais(assinar(chave, candidata.base(url, corpoBruto)), assinatura)) {
-        return { valida: false, formulaQueBateria: candidata.nome, chaveQueBateria: rotulo };
+  // PING DE VERIFICAÇÃO: as chaves de app também valem — e SÓ para este corpo,
+  // que não escreve nada. Ver a nota em `ehPingDeVerificacao`.
+  if (entrada.ehPing) {
+    for (const chave of chaves.app) {
+      if (chave && iguais(assinar(chave, base), assinatura)) {
+        return { valida: true, formulaQueBateria: null, chaveQueBateria: "app" };
+      }
+    }
+  }
+  for (const [rotulo, lista] of [["push", [chaves.push]], ["app", chaves.app]] as const) {
+    for (const chave of lista) {
+      if (!chave) continue;
+      for (const candidata of [oficial, ...diagnosticas]) {
+        if (iguais(assinar(chave, candidata.base(url, corpoBruto)), assinatura)) {
+          return { valida: false, formulaQueBateria: candidata.nome, chaveQueBateria: rotulo };
+        }
       }
     }
   }
@@ -256,18 +319,21 @@ export function diagnosticarAssinatura(entrada: {
     ["partner|url|corpo", (u) => `${partnerId}|${u}|${corpoBruto}`],
     ["partner+url+corpo", (u) => `${partnerId}${u}${corpoBruto}`],
   ];
-  for (const [nomeChave, chave] of [["push", chaves.push], ["app", chaves.app]] as const) {
+  for (const [nomeChave, lista] of [["push", [chaves.push]], ["app", chaves.app]] as const) {
+   for (const chave of lista) {
     if (!chave) continue;
     for (const [nomeUrl, url] of urls) {
       for (const [nomeBase, montar] of bases) {
         for (const cod of ["hex", "base64"] as const) {
-          const digest = createHmac("sha256", chave).update(montar(url), "utf8").digest(cod);
+          // Bytes da chave, nao a string — mesma regra do `assinar`.
+          const digest = createHmac("sha256", segredoDe(chave)).update(montar(url), "utf8").digest(cod);
           if (digest.toLowerCase() === assinatura.toLowerCase()) {
             return `chave=${nomeChave} url=${nomeUrl} base=${nomeBase} cod=${cod}`;
           }
         }
       }
     }
+   }
   }
   return null;
 }
