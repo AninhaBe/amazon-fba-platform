@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 
 import { chaveDeVoo, criaControleDeVoo } from "./controleDeVoo";
 
@@ -73,5 +73,29 @@ export function useCacheDaTela<T>(escopo: string) {
    */
   const esquecer = useCallback(() => { guardado.current!.clear(); }, []);
 
-  return { buscar, jaTem, esquecer };
+  /**
+   * ⚠️ O OBJETO PRECISA SER O MESMO ENTRE RENDERS, e não só as funções
+   * dentro dele.
+   *
+   * Defeito medido em 02/09/2026, relatado pela vendedora como *"a tela fica
+   * piscando eternamente"* na aba Produtos da Shopee: `return { buscar, jaTem,
+   * esquecer }` criava um objeto NOVO a cada render. As três funções eram
+   * estáveis (`useCallback`), mas quem consome guarda o objeto:
+   *
+   *   const buscarModulo = useCallback(…, [cache, cfg.endpoint]);
+   *   useEffect(…, [attempt, buscarModulo, query, selectedId]);
+   *
+   * Objeto novo → `buscarModulo` novo → o efeito re-dispara → ele faz
+   * `setPayload(null)` (a lista some) e busca de novo → o estado muda →
+   * re-renderiza → objeto novo. **Medido: 20 disparos em 20 renders.**
+   *
+   * ⚠️ E ELE NÃO APARECE NA ABA NETWORK. O controle de voo dedupe a ida e
+   * o cache responde da memória, então o laço é de RENDER, não de rede: quem
+   * procurar requisição repetida não acha nada e conclui que está tudo bem.
+   *
+   * A lição, e ela vale para toda peça que devolve um pacote de funções:
+   * **estabilizar as funções não basta se o que o consumidor observa é o
+   * pacote.** A dependência é o que entra no array, não o que está dentro dele.
+   */
+  return useMemo(() => ({ buscar, jaTem, esquecer }), [buscar, jaTem, esquecer]);
 }
