@@ -111,7 +111,7 @@ test("pedido sem valor publicado e APONTADO com numero, nunca somado como zero",
   // Este caso NAO informa `pedidosNaBase`, e a frase sai sem o denominador de
   // proposito: "19 de ?" seria pior que "19". O "N de M" tem guarda propria em
   // tests/margemNaoAfirmaSobreMinoria.test.mjs, onde o total e informado.
-  assert.match(lucro.baseDeclarada ?? "", /^19 pedidos ainda sem valor publicado pela Amazon/);
+  assert.match(lucro.baseDeclarada ?? "", /^19 pedidos do período ainda sem valor publicado pela Amazon/);
   assert.doesNotMatch(lucro.baseDeclarada ?? "", /parcial|incompleto/i);
 });
 
@@ -360,7 +360,7 @@ test("os 19 pedidos sem valor sinalizam, e NAO encolhem a base", () => {
   // ERRADO: o que falta nesses pedidos e o VALOR, que a Amazon nao publicou.
   // Custo e tarifa nos temos — a tarifa observada cobria 12 dos 13 ASINs do dia.
   // A frase antiga mandava cadastrar custo que ja estava cadastrado.
-  assert.match(lucro.baseDeclarada ?? "", /19 pedidos ainda sem valor publicado pela Amazon/);
+  assert.match(lucro.baseDeclarada ?? "", /19 pedidos do período ainda sem valor publicado pela Amazon/);
   assert.doesNotMatch(lucro.baseDeclarada ?? "", /parcial|incompleto/i);
 });
 

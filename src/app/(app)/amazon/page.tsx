@@ -1134,7 +1134,15 @@ function Dashboard() {
             loading={loading}
           />
         )}
-        <CompactMetric label="Vendas" value={String(salesCount)} loading={loading} />
+        {/* ⚠️ O ROTULO DIZ O QUE O NUMERO CONTA (02/09/2026, ADR-028).
+            "Vendas" aqui e `metrics.totalOrders`, que inclui CANCELADAS; os
+            avisos dos cards falam de `pedidosDoPeriodo`, que as exclui. Medido
+            em 01/09: 54 vendas menos 4 canceladas = 50 pedidos do periodo — a
+            relacao e exata e os dois numeros estao certos.
+            O que confundia era o NOME: a tela chamava os dois de pedido sem
+            dizer que um inclui cancelado, e "15 de 50" ao lado de "62 vendas"
+            parecia contradicao. Mesma familia dos renames de 01/09. */}
+        <CompactMetric label="Vendas (com canceladas)" value={String(salesCount)} loading={loading} />
         <CompactMetric label="Unidades" value={String(unitsCount)} loading={loading} />
         <CompactMetric label="Ticket médio" value={money(ticketMedio, currency)} loading={loading} />
         <CompactMetric

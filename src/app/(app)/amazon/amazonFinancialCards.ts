@@ -501,7 +501,10 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
   // cadastrar custo que ja esta cadastrado.
   const faltaValor =
     semValor > 0
-      ? `${semValor}${naBase > 0 ? ` de ${naBase}` : ""} pedido${semValor > 1 ? "s" : ""} ainda sem valor publicado pela Amazon`
+      // O denominador e `pedidosDoPeriodo` — nao cancelados —, e o texto DIZ
+      // isso: o hero conta vendas COM canceladas, e sem a palavra os dois
+      // numeros pareciam contradizer um ao outro.
+      ? `${semValor}${naBase > 0 ? ` de ${naBase}` : ""} pedido${semValor > 1 ? "s" : ""} do período ainda sem valor publicado pela Amazon`
       : null;
   /**
    * A MARGEM DEIXA DE SER AFIRMADA QUANDO A BASE COBRE A MINORIA (01/09/2026).
@@ -576,7 +579,7 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
   const composicaoDaTarifa =
     pedidosEstimados > 0 && oficialDaTarifa != null
       ? `oficial ${money(oficialDaTarifa, currency)} · estimada ${money(estimadas, currency)}`
-        + ` em ${pedidosEstimados}${input.pedidosDoPeriodo ? ` de ${input.pedidosDoPeriodo}` : ""} pedido${pedidosEstimados > 1 ? "s" : ""}`
+        + ` em ${pedidosEstimados}${input.pedidosDoPeriodo ? ` de ${input.pedidosDoPeriodo}` : ""} pedido${pedidosEstimados > 1 ? "s" : ""}${input.pedidosDoPeriodo ? " do período" : ""}`
         + " — substituída pela oficial na liquidação"
       : null;
   /** A linha visível do card de Lucro: base quando difere, o que falta, e a devolução. */

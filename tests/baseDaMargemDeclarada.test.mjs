@@ -93,7 +93,7 @@ test("o que FALTA vem em campo proprio, para a tela renderizar sem hover", () =>
   // ERRADO: o que falta nesses pedidos e o VALOR, que a Amazon nao publicou.
   // Custo e tarifa nos temos — a tarifa observada cobria 12 dos 13 ASINs do dia.
   // A frase antiga mandava cadastrar custo que ja estava cadastrado.
-    assert.match(carta(cards, key).baseDeclarada, /40 pedidos ainda sem valor publicado pela Amazon/);
+    assert.match(carta(cards, key).baseDeclarada, /40 pedidos do período ainda sem valor publicado pela Amazon/);
     assert.doesNotMatch(carta(cards, key).baseDeclarada, /apurados de/);
   }
 });
