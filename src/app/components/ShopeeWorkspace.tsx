@@ -23,7 +23,6 @@ import { escolherConexaoPadrao } from "@/lib/integrations/conexaoPadrao";
 import { buildFinancialComposition, FinancialSummaryPanel } from "./FinancialSummaryPanel";
 import { brDate, brTime } from "@/lib/datetime";
 import { coberturaDoPeriodo } from "@/lib/coberturaPeriodo";
-import { SincronizacaoCompleta } from "./SincronizacaoCompleta";
 import { ChevronDown, FlaskConical } from "lucide-react";
 import type { ProfitabilityLine } from "@/lib/profitability";
 import type { ShopeeSyncStatus } from "@/lib/integrations/shopeeSync";
@@ -914,13 +913,6 @@ function Dashboard({ overview, sync, onPage, periodoLabel, periodoQuery }: { ove
         pedidosImportados={sync?.processedOrders}
       />
 
-      {sync && (
-        <SincronizacaoCompleta
-          connectionId={`shopee:${overview.account.id}`}
-          status={sync.status}
-          coveredFrom={sync.coveredFrom}
-        />
-      )}
 
       {/* Era caixa azul de largura total para uma constante de capacidade que
           NUNCA muda de estado — o tipo de aviso que ensina a ignorar a regiao

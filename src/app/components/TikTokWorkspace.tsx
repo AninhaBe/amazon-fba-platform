@@ -25,7 +25,6 @@ import { ConnectionBroken } from "./ConnectionBroken";
 import { ChannelConnectionEmpty } from "./ChannelConnectionEmpty";
 import { brDate } from "@/lib/datetime";
 import { coberturaDoPeriodo, periodoDaQuery } from "@/lib/coberturaPeriodo";
-import { SincronizacaoCompleta } from "./SincronizacaoCompleta";
 import { marginMetricTone } from "@/lib/marginTone";
 import { BaseDeData, ProgressoDaImportacao } from "./BaseDeData";
 import { usePrefetchDePeriodos } from "./prefetchDePeriodos";
@@ -373,11 +372,6 @@ export function TikTokWorkspace() {
               ? [{ label: "Cadastrar alíquota", href: tiktokTaxSettingsHref(selectedConnectionId), tone: "pendencia" as const }]
               : []
           }
-        />
-        <SincronizacaoCompleta
-          connectionId={data.connection.id}
-          status={data.sync.status}
-          coveredFrom={data.sync.coveredFrom}
         />
 
         {financialBlocked ? (

@@ -92,9 +92,11 @@ test("CORTE 3 — os dois avisos de progresso ja sao mutuamente exclusivos", asy
   // age com status "complete" e `AvisoDeSyncInterrompido` so com erro de sync.
   // Nao existe estado em que as duas faixas aparecam juntas — nao havia o que
   // cortar, e cortar seria codigo que nao move numero nenhum.
-  const faixa = await fonte("src/app/components/SincronizacaoCompleta.tsx");
-  assert.match(faixa, /if \(status !== "complete" \|\| !coveredFrom\) return;/);
-
+  // ⚠️ A METADE DE CIMA DESTE TESTE SAIU EM 02/09/2026: ela lia
+  // `SincronizacaoCompleta`, o aviso do estado NORMAL, que a dona mandou
+  // remover ("estamos assumindo que tudo ja esta sincronizado"). Sem ele nao ha
+  // duas faixas de progresso para serem mutuamente exclusivas — resta uma.
+  // O teste continua valendo para a que ficou.
   const tiktok = semComentarios(await fonte("src/app/components/TikTokWorkspace.tsx"));
   assert.match(tiktok, /\(syncPhase === "retryable_error" \|\| syncPhase === "reauth_required"\) && \(/);
 });

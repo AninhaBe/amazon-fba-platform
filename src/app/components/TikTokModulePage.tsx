@@ -128,8 +128,24 @@ function ModuleContent({kind,body,sp,update,connectionId}:{kind:Kind;body:Payloa
  */
 function MonitorContent({body,sp,update,connectionId}:{body:Payload;sp:URLSearchParams;update:(v:Record<string,string|null>)=>void;connectionId:string}) {
   const rows=body.items??[];
-  // Deep-link como na Amazon (?secao=transacoes); depois a troca é local.
-  const [secao,setSecao]=useState<"pedidos"|"transacoes">(sp.get("secao")==="transacoes"?"transacoes":"pedidos");
+  /**
+   * ⚠️ A ABA VIVE NA URL, e nao em estado local (02/09/2026).
+   *
+   * Reportado pela vendedora, verbatim: *"clicando em transacoes e depois na data,
+   * joga de volta para pedidos"*. O estado era `useState` inicializado do
+   * endereco e NUNCA escrito de volta: a escolha existia so na memoria do
+   * componente, entao qualquer remontagem — e trocar o periodo empurra um
+   * endereco novo — voltava para o padrao.
+   *
+   * Derivar da URL resolve os tres casos de uma vez, e nao dois de tres:
+   * trocar periodo mantem a aba, trocar aba mantem o periodo, e F5 mantem os
+   * dois. Estado local nunca daria o terceiro.
+   *
+   * ⚠️ E TROCAR DE ABA NAO CUSTA REQUISICAO: `secao` nao entra na chave da
+   * busca. O que muda e o `offset`, que o `update` zera — e zerar e o certo:
+   * a aba nova comeca na primeira pagina.
+   */
+  const secao:"pedidos"|"transacoes"=sp.get("secao")==="transacoes"?"transacoes":"pedidos";
   const s=body.summary;
   return <section className="channel-module-content" aria-live="polite">
     {/* Mesmo nome de página do monitor da Amazon, base DIFERENTE: lá o número é
@@ -150,7 +166,7 @@ function MonitorContent({body,sp,update,connectionId}:{body:Payload;sp:URLSearch
     />}
     <nav className="monitor-section-tabs" aria-label="Visões do monitor">
       {([["pedidos","Pedidos"],["transacoes","Transações"]] as Array<["pedidos"|"transacoes",string]>).map(([key,label])=>
-        <button key={key} type="button" aria-current={secao===key?"page":undefined} onClick={()=>setSecao(key)}>{label}</button>)}
+        <button key={key} type="button" aria-current={secao===key?"page":undefined} onClick={()=>update({secao:key})}>{label}</button>)}
     </nav>
     {secao==="pedidos"&&<>
       <ChannelModuleSummary kind="monitor" rows={rows} total={body.page?.total}/>

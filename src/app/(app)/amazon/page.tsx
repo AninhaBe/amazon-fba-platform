@@ -65,7 +65,6 @@ import type { ProfitabilityLine } from "@/lib/profitability";
 import { brDate, brTime } from "@/lib/datetime";
 import { coberturaDoPeriodo } from "@/lib/coberturaPeriodo";
 import { usePrefetchDePeriodos } from "../../components/prefetchDePeriodos";
-import { SincronizacaoCompleta } from "../../components/SincronizacaoCompleta";
 import { readJson } from "../../../lib/readJson";
 import { BaseDeData, ProgressoDaImportacao } from "../../components/BaseDeData";
 
@@ -931,13 +930,6 @@ function Dashboard() {
         </div>
       )}
 
-      {cobertura && (
-        <SincronizacaoCompleta
-          connectionId={cobertura.sync.connectionId}
-          status={cobertura.sync.status}
-          coveredFrom={cobertura.sync.coveredFrom}
-        />
-      )}
 
       {/* A primeira faixa contém somente os indicadores que resumem o resultado.
           O detalhamento continua abaixo, na composição financeira, sem perder

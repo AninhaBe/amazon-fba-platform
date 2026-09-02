@@ -18,6 +18,7 @@ import { shopeeProviderIssueContent, type ShopeeProviderIssue } from "./ShopeeWo
 import { useAnchoredField } from "./useAnchoredField";
 import { rotuloStatusProduto, rotuloStatusShopee } from "./statusDeExibicao";
 import { BaseDeData } from "./BaseDeData";
+import { dataHoraNaTabela, pareceData } from "./dataNaTabela";
 import { nomeDaBase } from "./baseDaMargem";
 import { CustomizableMetricGrid } from "./CustomizableMetricGrid";
 import { Flow, FlowExpandable, Metric } from "./Metric";
@@ -148,8 +149,24 @@ function Content({kind,body,params,update,connectionId,aoSalvarAliquota}:{kind:S
 function ShopeeMonitorContent({body,params,update,connectionId}:{body:Payload;params:URLSearchParams;update:(v:Record<string,string|null>)=>void;connectionId:string}) {
   const [search,setSearch]=useState(params.get("q")??"");
   const [costsOpen,setCostsOpen]=useState(false);
-  // Deep-link como na Amazon (?secao=pedidos); depois a troca é local.
-  const [secao,setSecao]=useState<"composicao"|"pedidos">(params.get("secao")==="pedidos"?"pedidos":"composicao");
+  /**
+   * ⚠️ A ABA VIVE NA URL, e nao em estado local (02/09/2026).
+   *
+   * Reportado pela vendedora, verbatim: *"clicando em pedidos e depois na data,
+   * joga de volta para composicao"*. O estado era `useState` inicializado do
+   * endereco e NUNCA escrito de volta: a escolha existia so na memoria do
+   * componente, entao qualquer remontagem — e trocar o periodo empurra um
+   * endereco novo — voltava para o padrao.
+   *
+   * Derivar da URL resolve os tres casos de uma vez, e nao dois de tres:
+   * trocar periodo mantem a aba, trocar aba mantem o periodo, e F5 mantem os
+   * dois. Estado local nunca daria o terceiro.
+   *
+   * ⚠️ E TROCAR DE ABA NAO CUSTA REQUISICAO: `secao` nao entra na chave da
+   * busca. O que muda e o `offset`, que o `update` zera — e zerar e o certo:
+   * a aba nova comeca na primeira pagina.
+   */
+  const secao:"composicao"|"pedidos"=params.get("secao")==="pedidos"?"pedidos":"composicao";
   const rows=body.orders??[], profit=body.profit, currency=body.currency??"BRL", coverage=body.coverage??profit?.coverage;
   const custoIncompleto=(profit?.unitsWithoutCost??0)>0;
   /**
@@ -226,7 +243,7 @@ function ShopeeMonitorContent({body,params,update,connectionId}:{body:Payload;pa
     />}
     <nav className="monitor-section-tabs" aria-label="Visões do monitor">
       {([["composicao","Composição"],["pedidos","Pedidos"]] as Array<["composicao"|"pedidos",string]>).map(([key,label])=>
-        <button key={key} type="button" aria-current={secao===key?"page":undefined} onClick={()=>setSecao(key)}>{label}</button>)}
+        <button key={key} type="button" aria-current={secao===key?"page":undefined} onClick={()=>update({secao:key})}>{label}</button>)}
     </nav>
     {secao==="composicao"&&(profit?<FinancialSummaryPanel
       complete={!resultIncomplete}
@@ -377,7 +394,7 @@ function Table({kind,rows,connectionId}:{kind:ShopeeModuleKind;rows:Record<strin
   const [custosSalvos,setCustosSalvos]=useState<Record<string,number>>({});
   const columns:Record<ShopeeModuleKind,[string,string][]>= {monitor:[["orderId","Pedido"],["date","Data"],["status","Status"],["revenue","Receita"],["marketplaceFees","Taxas"],["contribution","Resultado"]],catalog:[["title","Produto"],["sku","SKU"],["status","Status"],["price","Preço"],["availableQty","Disponível"]],inventory:[["title","Produto"],["sku","SKU"],["availableQty","Disponível"],["unitsSold","Vendidas"],["averagePerDay","Média/dia"],["daysRemaining","Dias restantes"]],costs:[["title","Produto"],["sku","SKU"],["unidades30d","Vendidas (30 dias)"],["cost","Custo"]],abc:[["class","Classe"],["title","Produto"],["sku","SKU"],["revenue","Receita"],["revenueShare","Participação"],["profit","Lucro"]]};
   const currencyKeys=new Set(["revenue","marketplaceFees","contribution","price","cost","profit"]);
-  return <section className="listing-table-shell channel-module-table-shell" aria-labelledby={`shopee-${kind}-table-title`}><header><div><p className="section-kicker">Registros</p><h2 id={`shopee-${kind}-table-title`}>{SHOPEE_MODULES[kind].title}</h2></div><p>{rows.length} nesta página</p></header><div className="overflow-x-auto"><table className="listing-table channel-module-table"><caption className="sr-only">{SHOPEE_MODULES[kind].title}</caption><thead><tr>{columns[kind].map(([key,label])=><th scope="col" key={key}>{label}</th>)}</tr></thead><tbody>{rows.map((row,index)=><tr key={String(row.orderId??row.productId??row.id??index)}>{columns[kind].map(([key])=><td className="tabular-nums" key={key}>{kind==="costs"&&key==="cost"?<CostEditor key={String(row.id)} row={{...row,cost:custoExibido(custosSalvos,row)}} connectionId={connectionId} onSaved={salvo=>setCustosSalvos(atual=>comCustoSalvo(atual,salvo.chave,salvo.valor))}/>:key==="unidades30d"?<VendidasEVariacoes unidades={Number(row.unidades30d??0)} variacoes={Number(row.variacoesVendidas??0)}/>:key==="daysRemaining"&&row[key]==null?"Sem base de venda":key==="revenueShare"&&row[key]!=null?`${show(row[key])}%`:key==="status"&&row[key]!=null?(kind==="monitor"?rotuloStatusShopee(String(row[key])):rotuloStatusProduto(String(row[key]))):currencyKeys.has(key)?money(row[key],String(row.currency??"BRL")):key.endsWith("At")&&row[key]?new Intl.DateTimeFormat("pt-BR").format(new Date(String(row[key]))):show(row[key])}</td>)}</tr>)}</tbody></table></div>{kind==="costs"&&<p className="channel-module-method">Custo desconhecido permanece “—”. Informe zero somente quando ele for um fato.</p>}</section>;
+  return <section className="listing-table-shell channel-module-table-shell" aria-labelledby={`shopee-${kind}-table-title`}><header><div><p className="section-kicker">Registros</p><h2 id={`shopee-${kind}-table-title`}>{SHOPEE_MODULES[kind].title}</h2></div><p>{rows.length} nesta página</p></header><div className="overflow-x-auto"><table className="listing-table channel-module-table"><caption className="sr-only">{SHOPEE_MODULES[kind].title}</caption><thead><tr>{columns[kind].map(([key,label])=><th scope="col" key={key}>{label}</th>)}</tr></thead><tbody>{rows.map((row,index)=><tr key={String(row.orderId??row.productId??row.id??index)}>{columns[kind].map(([key])=><td className="tabular-nums" key={key}>{kind==="costs"&&key==="cost"?<CostEditor key={String(row.id)} row={{...row,cost:custoExibido(custosSalvos,row)}} connectionId={connectionId} onSaved={salvo=>setCustosSalvos(atual=>comCustoSalvo(atual,salvo.chave,salvo.valor))}/>:key==="unidades30d"?<VendidasEVariacoes unidades={Number(row.unidades30d??0)} variacoes={Number(row.variacoesVendidas??0)}/>:key==="daysRemaining"&&row[key]==null?"Sem base de venda":key==="revenueShare"&&row[key]!=null?`${show(row[key])}%`:key==="status"&&row[key]!=null?(kind==="monitor"?rotuloStatusShopee(String(row[key])):rotuloStatusProduto(String(row[key]))):currencyKeys.has(key)?money(row[key],String(row.currency??"BRL")):pareceData(row[key])?dataHoraNaTabela(row[key]):show(row[key])}</td>)}</tr>)}</tbody></table></div>{kind==="costs"&&<p className="channel-module-method">Custo desconhecido permanece “—”. Informe zero somente quando ele for um fato.</p>}</section>;
 }
 
 /**

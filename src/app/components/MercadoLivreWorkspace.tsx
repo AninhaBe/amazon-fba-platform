@@ -25,7 +25,6 @@ import { SinaisDoResultado } from "./SinaisDoResultado";
 import { sinaisSilenciadosPorAlarme } from "./hierarquiaDeAvisos";
 import { brDate, brTime } from "@/lib/datetime";
 import { coberturaDoPeriodo } from "@/lib/coberturaPeriodo";
-import { SincronizacaoCompleta } from "./SincronizacaoCompleta";
 import type { ProfitabilityLine } from "@/lib/profitability";
 import { MercadoLivreSaldo } from "./MercadoLivreSaldo";
 import { ResumoDoCustoNoFull, TabelaDoCustoNoFull, useCustoNoFull } from "./MercadoLivreCustoNoFull";
@@ -522,13 +521,6 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
       ]}
     />
 
-    {connectionId && syncStatus && (
-      <SincronizacaoCompleta
-        connectionId={connectionId}
-        status={syncStatus.status}
-        coveredFrom={syncStatus.coveredFrom}
-      />
-    )}
 
     {/* Duas faixas de largura total viraram UMA linha discreta: as duas diziam
         partes da mesma frase (quanto ja importou / ate onde alcanca) com peso
