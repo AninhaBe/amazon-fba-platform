@@ -119,8 +119,21 @@ interface ProfitData {
   /** Pedidos que a Amazon ainda não valorizou — fora da base, apontados com número. */
   pedidosSemValor?: number;
   pedidosDoPeriodo?: number;
+  /**
+   * ⚠️ O TOTAL DE TARIFA QUE O LUCRO SUBTRAI, e o nome tem de ser o MESMO na
+   * gravacao e na leitura (02/09/2026).
+   *
+   * O defeito que isto conserta: o estado gravava `feesDoLucro` e o construtor
+   * dos cards lia `profit.fees` — um campo que NUNCA foi preenchido. O card caia
+   * no fallback (`finance.fees`, so a tarifa postada) e a marca voltava ao texto
+   * antigo, porque a composicao so aparece quando o total existe.
+   *
+   * E o compilador AVISOU: `Property 'fees' does not exist on type ProfitData`.
+   * Eu calei o aviso acrescentando `fees?: number` ao tipo, em vez de consertar a
+   * leitura. O campo opcional fez o erro sumir e o defeito ficar — silenciar o
+   * compilador nao e o mesmo que resolver o que ele apontou.
+   */
   feesDoLucro?: number | null;
-  fees?: number;
   pedidosComValor?: number;
   /** Quanto das tarifas é estimativa da Amazon (ADR-027), para a marca na tela. */
   feesEstimadas?: number;
@@ -924,7 +937,7 @@ function Dashboard() {
           // sair sobre o apurado e reaparecem os −90,5% / +120,9%.
           baseDoLucro: profit?.revenueDoLucro ?? null,
           pedidosSemValor: profit?.pedidosSemValor ?? 0,
-          feesDoLucro: profit?.fees ?? null,
+          feesDoLucro: profit?.feesDoLucro ?? null,
           pedidosDoPeriodo: profit?.pedidosDoPeriodo ?? 0,
           feesEstimadas: profit?.feesEstimadas ?? null,
           pedidosComTarifaEstimada: profit?.pedidosComTarifaEstimada ?? 0,

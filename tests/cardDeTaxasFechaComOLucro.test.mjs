@@ -98,3 +98,37 @@ test("A CONTA FECHA: faturamento menos custo menos taxas exibidas bate com o luc
   assert.equal(+(faturamento - custo - taxas).toFixed(2), lucro,
     "a soma dos cards tem de dar o lucro exibido");
 });
+
+test("a PAGINA grava e le o total com o MESMO nome — o campo nao pode ser fantasma", async () => {
+  // ⚠️ O DEFEITO QUE ISTO REPROVA, achado no print dela em 02/09/2026: o card
+  // continuou mostrando R$ 58,99 e o texto ANTIGO mesmo com o conserto no ar.
+  //
+  // A causa: o estado gravava `feesDoLucro` e o construtor lia `profit.fees` —
+  // um campo que NUNCA foi preenchido. O card caia no fallback (a tarifa
+  // postada) e a composicao sumia, porque ela so aparece quando o total existe.
+  //
+  // 📌 E O COMPILADOR TINHA AVISADO: "Property 'fees' does not exist on type
+  // ProfitData". Eu calei o aviso acrescentando `fees?: number` ao tipo em vez
+  // de consertar a leitura. Campo opcional faz o erro sumir e o defeito ficar —
+  // silenciar o compilador nao e o mesmo que resolver o que ele apontou.
+  const { readFile } = await import("node:fs/promises");
+  const pagina = await readFile(new URL("../src/app/(app)/amazon/page.tsx", import.meta.url), "utf8");
+  const codigo = pagina
+    .split("\n")
+    .map((l) => l.replace(/\r$/, "").replace(/\s*\/\/.*$/, ""))
+    .filter((l) => !l.trim().startsWith("*") && !l.trim().startsWith("/*"))
+    .join("\n");
+  assert.ok(codigo.includes("feesDoLucro: payload.profit.fees,"),
+    "o estado precisa GRAVAR o total vindo do produtor");
+  assert.ok(codigo.includes("feesDoLucro: profit?.feesDoLucro ?? null,"),
+    "e o construtor dos cards precisa LER o mesmo nome");
+  // ⚠️ A PROIBICAO PRECISA DO DELIMITADOR: "profit?.fees" e PREFIXO de
+  // "profit?.feesDoLucro", entao a versao sem o `??` reprovava a linha CERTA.
+  // Guarda cuja string proibida e prefixo da string correta acusa o conserto.
+  assert.ok(!codigo.includes("feesDoLucro: profit?.fees ??"),
+    "ler `profit.fees` le um campo que ninguem grava — o card volta ao fallback");
+  assert.ok(!codigo.includes("feesDoLucro: profit?.fees,"), "idem");
+  // E o campo fantasma nao pode voltar ao tipo so para calar o compilador.
+  assert.ok(!/^\s{2}fees\?: number;$/m.test(codigo),
+    "`fees?` opcional em ProfitData existia so para silenciar o erro que apontava o defeito");
+});
