@@ -49,20 +49,43 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "corpo grande demais" }, { status: 413 });
   }
 
-  const assinatura = req.headers.get("authorization") ?? req.headers.get("x-shopee-signature");
+  // De qual header veio a assinatura importa para o diagnóstico: as fontes de
+  // terceiro divergem entre `Authorization` e `x-shopee-signature`.
+  const headerDaAssinatura = req.headers.get("authorization")
+    ? "authorization"
+    : req.headers.get("x-shopee-signature") ? "x-shopee-signature" : null;
+  const assinatura = headerDaAssinatura ? req.headers.get(headerDaAssinatura) : null;
   const url = req.nextUrl.href;
-  const { valida, formulaQueBateria } = verificarAssinaturaDoPush({
-    url, corpoBruto, assinatura, chave,
+  const { valida, formulaQueBateria, chaveQueBateria } = verificarAssinaturaDoPush({
+    url, corpoBruto, assinatura,
+    chaves: { push: chave, app: process.env.SHOPEE_PARTNER_KEY },
   });
   if (!valida) {
     // ⚠️ O DIAGNÓSTICO VAI PARA O LOG E NUNCA PARA A RESPOSTA — dizer ao chamador
     // qual fórmula bateria seria entregar o mapa de como forjar.
+    //
+    // ⚠️ E NADA AQUI É SEGREDO, de propósito: nome do header, tamanho e prefixo
+    // da assinatura RECEBIDA (que o próprio remetente escreveu), o caminho que
+    // a Shopee chamou e o começo do corpo do push. Chave nenhuma é registrada,
+    // nem inteira nem em pedaço.
     console.error("[push-shopee] assinatura recusada", {
-      temChave: Boolean(chave),
-      temAssinatura: Boolean(assinatura),
-      // Quando isto vier preenchido, a base string oficial é esta: trocar uma
-      // linha em FORMULAS e o canal passa a funcionar.
+      temChavePush: Boolean(chave),
+      headerDaAssinatura,
+      tamanhoDaAssinatura: assinatura?.length ?? 0,
+      prefixoDaAssinatura: assinatura?.slice(0, 12) ?? null,
+      // O que a Shopee chamou de fato — se vier com query string ou host
+      // diferente do que assinamos, a base string `url|corpo` nunca bate.
+      urlQueRecebemos: url,
+      caminho: req.nextUrl.pathname,
+      contentType: req.headers.get("content-type"),
+      tamanhoDoCorpo: corpoBruto.length,
+      inicioDoCorpo: corpoBruto.slice(0, 200),
+      // Quando estes dois vierem preenchidos, a combinação certa é essa:
+      // fórmula + chave. `chaveQueBateria: "app"` significaria que a Shopee
+      // assinou com a partner_key do app — e aí a ação é SALVAR a página do
+      // console, nunca passar a aceitar a chave da API como chave de push.
       formulaQueBateria,
+      chaveQueBateria,
     });
     return NextResponse.json({ error: "assinatura invalida" }, { status: 401 });
   }

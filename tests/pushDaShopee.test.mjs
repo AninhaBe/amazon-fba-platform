@@ -26,11 +26,11 @@ const assinarCom = (base, chave = CHAVE) => createHmac("sha256", chave).update(b
 test("ACEITA so a assinatura da formula oficial, com a chave certa", () => {
   const boa = assinarCom(`${URL_PUSH}|${CORPO}`);
   assert.equal(
-    verificarAssinaturaDoPush({ url: URL_PUSH, corpoBruto: CORPO, assinatura: boa, chave: CHAVE }).valida,
+    verificarAssinaturaDoPush({ url: URL_PUSH, corpoBruto: CORPO, assinatura: boa, chaves: { push: CHAVE, app: null } }).valida,
     true);
   // Chave errada nao passa, mesmo com a formula certa.
   assert.equal(
-    verificarAssinaturaDoPush({ url: URL_PUSH, corpoBruto: CORPO, assinatura: assinarCom(`${URL_PUSH}|${CORPO}`, "outra"), chave: CHAVE }).valida,
+    verificarAssinaturaDoPush({ url: URL_PUSH, corpoBruto: CORPO, assinatura: assinarCom(`${URL_PUSH}|${CORPO}`, "outra"), chaves: { push: CHAVE, app: null } }).valida,
     false);
 });
 
@@ -41,12 +41,12 @@ test("SEM CHAVE CONFIGURADA o endpoint e FECHADO — nao ecoa, nao aceita", () =
   const boa = assinarCom(`${URL_PUSH}|${CORPO}`);
   for (const chave of [null, undefined, ""]) {
     assert.equal(
-      verificarAssinaturaDoPush({ url: URL_PUSH, corpoBruto: CORPO, assinatura: boa, chave }).valida,
+      verificarAssinaturaDoPush({ url: URL_PUSH, corpoBruto: CORPO, assinatura: boa, chaves: { push: chave, app: null } }).valida,
       false, "sem chave nada pode ser aceito");
   }
   // E sem assinatura tambem nao — nem com a chave presente.
   assert.equal(
-    verificarAssinaturaDoPush({ url: URL_PUSH, corpoBruto: CORPO, assinatura: null, chave: CHAVE }).valida,
+    verificarAssinaturaDoPush({ url: URL_PUSH, corpoBruto: CORPO, assinatura: null, chaves: { push: CHAVE, app: null } }).valida,
     false);
 });
 
@@ -55,13 +55,13 @@ test("REJEITA a formula alternativa — mas DIZ qual teria batido", () => {
   // fontes de terceiro se contradizem. Em vez de chutar, o endpoint falha
   // FECHADO e entrega o diagnostico. O primeiro push real diz a formula certa.
   const soCorpo = assinarCom(CORPO);
-  const r = verificarAssinaturaDoPush({ url: URL_PUSH, corpoBruto: CORPO, assinatura: soCorpo, chave: CHAVE });
+  const r = verificarAssinaturaDoPush({ url: URL_PUSH, corpoBruto: CORPO, assinatura: soCorpo, chaves: { push: CHAVE, app: null } });
   assert.equal(r.valida, false, "candidata de diagnostico NAO pode autorizar");
   assert.equal(r.formulaQueBateria, "corpo", "e tem de dizer qual bateria");
 });
 
 test("assinatura de lixo nao bate em nada e nao aponta formula nenhuma", () => {
-  const r = verificarAssinaturaDoPush({ url: URL_PUSH, corpoBruto: CORPO, assinatura: "a".repeat(64), chave: CHAVE });
+  const r = verificarAssinaturaDoPush({ url: URL_PUSH, corpoBruto: CORPO, assinatura: "a".repeat(64), chaves: { push: CHAVE, app: null } });
   assert.equal(r.valida, false);
   assert.equal(r.formulaQueBateria, null);
 });
@@ -74,7 +74,7 @@ test("so a PRIMEIRA formula autoriza — a lista nao pode virar 'aceita qualquer
   for (const candidata of FORMULAS.slice(1)) {
     const assinatura = assinarCom(candidata.base(URL_PUSH, CORPO));
     assert.equal(
-      verificarAssinaturaDoPush({ url: URL_PUSH, corpoBruto: CORPO, assinatura, chave: CHAVE }).valida,
+      verificarAssinaturaDoPush({ url: URL_PUSH, corpoBruto: CORPO, assinatura, chaves: { push: CHAVE, app: null } }).valida,
       false, `${candidata.nome} nao pode autorizar`);
   }
 });
@@ -142,4 +142,42 @@ test("a migration 0031 existe e diz que o ESCRITOR nao sobe antes do apply", asy
   assert.match(sql, /ADD COLUMN IF NOT EXISTS last_push_at/);
   assert.match(sql, /N[AÃ]O PODE SUBIR ANTES DESTE APPLY/i,
     "a dependencia de sequencia tem de estar escrita na propria migration");
+});
+
+test("a chave do APP diagnostica mas NUNCA autoriza", () => {
+  // 🔴 MEDIDO NO PRIMEIRO VERIFY REAL (02/09/2026): as 4 formulas deram null com
+  // a push key. Hipotese forte: a Shopee assinou com a partner_key do app, a
+  // unica que ela tem persistida enquanto a chave gerada nao foi salva.
+  //
+  // ⚠️ E a acao certa nesse caso e SALVAR a pagina do console — nao passar a
+  // aceitar a chave da API como chave de push. Aceitar misturaria as duas
+  // superficies que a Shopee separou de proposito: chave de API comprometida
+  // passaria a permitir forjar push.
+  const CHAVE_DO_APP = "partner-key-do-app";
+  const assinadaComOApp = assinarCom(`${URL_PUSH}|${CORPO}`, CHAVE_DO_APP);
+  const r = verificarAssinaturaDoPush({
+    url: URL_PUSH, corpoBruto: CORPO, assinatura: assinadaComOApp,
+    chaves: { push: CHAVE, app: CHAVE_DO_APP },
+  });
+  assert.equal(r.valida, false, "a chave do app NAO pode autorizar push");
+  assert.equal(r.chaveQueBateria, "app", "mas o diagnostico tem de dizer que foi ela");
+  assert.equal(r.formulaQueBateria, "url|corpo");
+});
+
+test("o diagnostico registra a forma do que chegou, e nenhuma chave", async () => {
+  // Fecha a duvida na proxima tentativa sem precisar de outro deploy: nome do
+  // header, tamanho e prefixo da assinatura recebida, a URL que a Shopee chamou
+  // e o comeco do corpo. Nada disso e segredo — o remetente escreveu tudo.
+  const rota = await readFile(new URL("../src/app/api/webhooks/shopee/route.ts", import.meta.url), "utf8");
+  for (const campo of [
+    "headerDaAssinatura,", "tamanhoDaAssinatura:", "prefixoDaAssinatura:",
+    "urlQueRecebemos: url,", "inicioDoCorpo:", "chaveQueBateria,",
+  ]) {
+    assert.ok(rota.includes(campo), `o log precisa registrar ${campo}`);
+  }
+  // ⚠️ E NUNCA a chave, nem inteira nem em pedaco.
+  const codigo = rota.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  assert.doesNotMatch(codigo, /console\.error\([\s\S]*?chave[,:]\s*chave/,
+    "a chave nunca pode ir para o log");
+  assert.doesNotMatch(codigo, /prefixoDaChave|chave\.slice/, "nem um pedaco dela");
 });

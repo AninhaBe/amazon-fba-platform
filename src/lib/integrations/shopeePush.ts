@@ -66,31 +66,57 @@ function iguais(a: string, b: string) {
 export interface ResultadoDaAssinatura {
   valida: boolean;
   /**
-   * Preenchido só quando `valida` é falso E alguma candidata bateria. É o
+   * Preenchido só quando `valida` é falso E alguma combinação bateria. É o
    * diagnóstico que evita a caça ao tesouro — nunca autoriza nada.
+   *
+   * ⚠️ INCLUI QUAL CHAVE, e não só qual fórmula, desde 02/09/2026: no primeiro
+   * Verify real as quatro fórmulas deram `null` com a push key. A hipótese mais
+   * forte é que a Shopee assinou o teste com a `partner_key` do app — a única
+   * que ela tem persistida enquanto a push key gerada não foi salva. Sem testar
+   * as duas chaves, o diagnóstico não distingue "fórmula errada" de "chave
+   * errada", e essas duas causas pedem ações opostas.
    */
   formulaQueBateria: string | null;
+  chaveQueBateria: "push" | "app" | null;
+}
+
+export interface ChavesDoPush {
+  /** `SHOPEE_PUSH_PARTNER_KEY` — a gerada no console. É a única que AUTORIZA. */
+  push: string | null | undefined;
+  /**
+   * `SHOPEE_PARTNER_KEY` — a do app. Entra APENAS no diagnóstico e **nunca**
+   * autoriza: se a Shopee estiver assinando com ela, a resposta certa é salvar
+   * a página do console, não passar a aceitar a chave da API como chave de push.
+   * Aceitar aqui misturaria as duas superfícies que a Shopee separou.
+   */
+  app: string | null | undefined;
 }
 
 export function verificarAssinaturaDoPush(entrada: {
   url: string;
   corpoBruto: string;
   assinatura: string | null;
-  chave: string | null | undefined;
+  chaves: ChavesDoPush;
 }): ResultadoDaAssinatura {
-  const { url, corpoBruto, assinatura, chave } = entrada;
-  if (!chave || !assinatura) return { valida: false, formulaQueBateria: null };
+  const { url, corpoBruto, assinatura, chaves } = entrada;
+  if (!assinatura) return { valida: false, formulaQueBateria: null, chaveQueBateria: null };
 
   const [oficial, ...diagnosticas] = FORMULAS;
-  if (iguais(assinar(chave, oficial.base(url, corpoBruto)), assinatura)) {
-    return { valida: true, formulaQueBateria: null };
+  if (chaves.push && iguais(assinar(chaves.push, oficial.base(url, corpoBruto)), assinatura)) {
+    return { valida: true, formulaQueBateria: null, chaveQueBateria: null };
   }
-  for (const candidata of diagnosticas) {
-    if (iguais(assinar(chave, candidata.base(url, corpoBruto)), assinatura)) {
-      return { valida: false, formulaQueBateria: candidata.nome };
+  // Varredura de diagnóstico: TODAS as fórmulas contra AS DUAS chaves, e
+  // nenhuma delas autoriza — inclusive a fórmula oficial com a chave do app.
+  for (const [rotulo, chave] of [["push", chaves.push], ["app", chaves.app]] as const) {
+    if (!chave) continue;
+    for (const candidata of [oficial, ...diagnosticas]) {
+      if (rotulo === "push" && candidata === oficial) continue; // já testada acima
+      if (iguais(assinar(chave, candidata.base(url, corpoBruto)), assinatura)) {
+        return { valida: false, formulaQueBateria: candidata.nome, chaveQueBateria: rotulo };
+      }
     }
   }
-  return { valida: false, formulaQueBateria: null };
+  return { valida: false, formulaQueBateria: null, chaveQueBateria: null };
 }
 
 /**
