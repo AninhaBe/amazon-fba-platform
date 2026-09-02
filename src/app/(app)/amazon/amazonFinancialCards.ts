@@ -551,11 +551,33 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
    */
   const oficialDaTarifa =
     input.feesDoLucro != null ? +(input.feesDoLucro - estimadas).toFixed(2) : null;
+  /**
+   * ⚠️ O TEXTO LEVA ACENTO. A primeira versao desta frase foi escrita sem
+   * ("substituida pela oficial na liquidacao") e ia para a tela assim — comentario
+   * de codigo pode ser sem acento, texto que a vendedora le nao pode.
+   *
+   * ⚠️ E ELA NAO DIZ "PELA TABELA", e isso e medicao, nao preferencia.
+   *
+   * O pedido literal foi *"X de Y pedidos com tarifa estimada PELA TABELA"*. Medido
+   * no banco em 02/09/2026, 30 dias, por fonte:
+   *
+   *   conta da Ana (ws 1803d1fe): 92 estimativas, TODAS `product_fees_api`,
+   *                               TODAS R$ 0,00 — e NENHUMA de tabela;
+   *   conta do colega (22ae3d9d): a tabela funciona (99 linhas, R$ 519,59).
+   *
+   * Escrever "pela tabela" na tela dela seria nomear a unica fonte que a conta
+   * dela nao tem — exatamente o defeito que o card do agregado tinha ontem, e
+   * que ela mesma flagrou. A frase nomeia o que e verdade para qualquer fonte;
+   * QUAL fonte e informacao da LINHA, onde ela e verificavel.
+   *
+   * O denominador vem de `pedidosDoPeriodo` — a MESMA contagem do topo, para os
+   * avisos nao dizerem "15 de 50" enquanto o topo diz 61 (item 4 da spec).
+   */
   const composicaoDaTarifa =
     pedidosEstimados > 0 && oficialDaTarifa != null
       ? `oficial ${money(oficialDaTarifa, currency)} · estimada ${money(estimadas, currency)}`
-        + ` em ${pedidosEstimados} pedido${pedidosEstimados > 1 ? "s" : ""}`
-        + " — substituida pela oficial na liquidacao"
+        + ` em ${pedidosEstimados}${input.pedidosDoPeriodo ? ` de ${input.pedidosDoPeriodo}` : ""} pedido${pedidosEstimados > 1 ? "s" : ""}`
+        + " — substituída pela oficial na liquidação"
       : null;
   /** A linha visível do card de Lucro: base quando difere, o que falta, e a devolução. */
   const notaDoLucro = [faltaValor, devolucao]
