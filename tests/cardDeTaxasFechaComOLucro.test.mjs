@@ -46,27 +46,25 @@ test("o card de Taxas exibe o TOTAL que o lucro subtrai, nao so a postada", () =
   assert.notEqual(taxas.raw, 58.99, "58,99 era so a tarifa postada — o lucro descontava 312,43");
 });
 
-test("a composicao vai NA FACE, em duas linhas: oficial e estimada", () => {
-  // Pedido literal: "quebrar em duas linhas dentro do card: oficial R$ X e
-  // estimada R$ Y, com o total em destaque". A soma das duas E o total, entao a
-  // conta fecha lendo o proprio card.
-  const nota = carta(amazonFinancialCards(BASE), "fees").baseDeclarada;
-  assert.match(nota, /oficial/, "a parte postada precisa aparecer");
-  assert.match(nota, /58,99/, "e com o valor");
-  assert.match(nota, /estimada/, "a parte estimada precisa aparecer");
-  assert.match(nota, /253,44/, "e com o valor");
-  // 58,99 + 253,44 = 312,43 — a soma das duas linhas e o numero grande.
+test("o card NAO decompoe mais — o texto saiu, o total ficou", () => {
+  // ⚠️ ESTE TESTE MUDOU DE INTENCAO EM 02/09/2026. Ele exigia a
+  // decomposicao/marca no card — que era pedido da dona, de ontem. Ela mesma
+  // reverteu, verbatim: *"nao precisamos informar o que e oficial e o que e
+  // estimado. remove de tudo essa palavra/card, ja dissemos as regras do que
+  // mostrar (numeros)"*. O registro fica porque quem vir isto vermelho amanha
+  // precisa saber que a mudanca foi DECIDIDA, nao herdada.
+  //
+  // A ADR-027 continua valendo onde ela e verificavel: na LINHA do pedido, na
+  // tabela de rentabilidade, onde a pessoa confere aquele pedido. No agregado
+  // ela nao era conferivel — somava fontes diferentes.
+  const taxas = carta(amazonFinancialCards(BASE), "fees");
+  const nota = taxas.baseDeclarada ?? "";
+  for (const proibido of [/oficial/i, /estimad/i, /58,99/, /253,44/, /liquida[cç][aã]o/i]) {
+    assert.ok(!proibido.test(nota), `a decomposicao voltou ao card: ${nota}`);
+  }
+  assert.equal(taxas.marcaEstimativa, undefined, "o selo do agregado voltou");
+  // E o que o teste sempre protegeu de verdade continua: o card exibe o TOTAL.
   assert.equal(+(58.99 + 253.44).toFixed(2), 312.43);
-});
-
-test("a frase diz quantos pedidos e o que acontece na liquidacao", () => {
-  // Bug B3 da mesma secao: trocar "ainda nao liquidado" por algo que diga o
-  // tamanho e o destino.
-  const nota = carta(amazonFinancialCards(BASE), "fees").baseDeclarada;
-  assert.match(nota, /15 pedidos/, "quantos pedidos tem tarifa estimada");
-  assert.match(nota, /substitu/i, "e que a oficial substitui");
-  assert.match(nota, /liquida/i, "na liquidacao");
-  assert.doesNotMatch(nota, /ainda n[ãa]o liquidado/i, "a frase antiga nao dizia nem quanto nem o que fazer");
 });
 
 test("sem estimativa a composicao SOME — repetir o total e ruido", () => {

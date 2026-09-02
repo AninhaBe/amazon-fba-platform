@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { ROTULO_DO_AGREGADO, fonteDaLinha, procedenciaDaFonte, rotuloDaMarca } from "../src/app/components/procedenciaDaEstimativa.ts";
+import { fonteDaLinha, procedenciaDaFonte, rotuloDaMarca } from "../src/app/components/procedenciaDaEstimativa.ts";
 
 // A ESTIMATIVA DEIXOU DE TER UMA FONTE SO (01/09/2026). Sao tres que produzem
 // numero — observada, tabela e api — e uma que faz a marca SUMIR (oficial).
@@ -138,9 +138,10 @@ test("a FACE nomeia a origem — e a palavra 'estimado' nao volta", () => {
   for (const rotulo of rotulos) {
     assert.ok(!/estimad/i.test(rotulo), `a palavra que a vendedora recusou voltou para a face: "${rotulo}"`);
   }
-  // E o agregado, que nao pode nomear fonte, tambem nao pode usar a palavra.
-  assert.ok(!/estimad/i.test(ROTULO_DO_AGREGADO), "o agregado voltou a dizer 'estimado' na face");
-  assert.match(ROTULO_DO_AGREGADO, /liquidad/i, "o agregado precisa dizer que aquilo ainda muda");
+  // ⚠️ O AGREGADO SAIU EM 02/09/2026 (decisao da dona, revertendo o pedido
+  // dela de ontem): o card mostra so o numero, sem dizer o que e oficial e o
+  // que e estimado. As assercoes sobre PROCEDENCIA_DO_AGREGADO sairam junto
+  // com a constante. O que sobra aqui e a procedencia da LINHA, que fica.
 });
 
 test("'oficial' NAO e uma quarta procedencia — quando o extrato chega, nao ha estimativa", () => {

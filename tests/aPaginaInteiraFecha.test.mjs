@@ -61,14 +61,23 @@ test("EQUACAO DOS CARDS: faturamento - custo - taxas - imposto - estorno = lucro
     `os cards somam ${soma.toFixed(2)} e o lucro exibido e ${carta(cards, "profit").raw}`);
 });
 
-test("EQUACAO DAS TAXAS: o card exibe oficial + estimada, e e o que o lucro usa", () => {
+test("EQUACAO DAS TAXAS: o card exibe o total que o lucro usa — e SO o numero", () => {
+  // ⚠️ ESTE TESTE MUDOU DE INTENCAO EM 02/09/2026, e o registro fica
+  // porque a inversao e o ponto. Ele EXIGIA a decomposicao oficial/estimada no
+  // card — que era pedido da dona, de ontem. Ela mesma reverteu, verbatim:
+  // *"nao precisamos informar o que e oficial e o que e estimado. remove de
+  // tudo essa palavra/card, ja dissemos as regras do que mostrar (numeros)"*.
+  //
+  // O QUE NAO MUDOU E O QUE O TESTE PROTEGE DE VERDADE: o card exibe o MESMO
+  // total que o lucro desconta. Isso nunca dependeu do texto.
   const cards = amazonFinancialCards(CENARIO);
   const taxas = carta(cards, "fees");
   assert.ok(fecha(taxas.raw, CENARIO.feesDoLucro), "o card tem de exibir o total do lucro");
-  assert.match(taxas.baseDeclarada, /oficial/);
-  assert.match(taxas.baseDeclarada, /estimada/);
   // E o card NAO pode exibir a tarifa postada sozinha, que era o defeito B1.
   assert.ok(!fecha(taxas.raw, CENARIO.finance.fees), "58,99 era so a postada");
+  // A decomposicao saiu: nem no texto do card, nem em selo.
+  assert.ok(!/oficial|estimad/i.test(taxas.baseDeclarada ?? ""), "a decomposicao voltou ao card");
+  assert.equal(taxas.marcaEstimativa, undefined, "o selo do agregado voltou ao card");
 });
 
 test("EQUACAO DA MARGEM: sai do lucro sobre a base do proprio bloco", () => {

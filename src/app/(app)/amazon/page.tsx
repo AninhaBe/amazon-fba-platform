@@ -13,8 +13,6 @@ import { DashboardPeriodFilter, useDashboardPeriod } from "../../components/Dash
 import { periodoNaUrl } from "../../components/periodoNaUrl";
 import type { OperationPendingItem } from "../../components/OperationPending";
 import { Metric as Kpi, CompactMetric, getRevenueTrend } from "../../components/Metric";
-import { MarcaDeEstimativa } from "../../components/MarcaDeEstimativa";
-import { ROTULO_DO_AGREGADO } from "../../components/procedenciaDaEstimativa";
 import { amazonFinancialCards, lucroDoPeriodo, diasSemAnuncio, type AmazonAdsInput } from "./amazonFinancialCards";
 import { AnimatedNumber, identidadeDePeriodo } from "../../components/AnimatedNumber";
 import { buscaCompartilhada } from "../../components/buscaCompartilhada";
@@ -1025,12 +1023,6 @@ function Dashboard() {
                   // construtor disse que ha estimativa embutida — sem pedido
                   // estimado o campo vem `undefined` e o cartao fica igual ao
                   // que era.
-                  // `origemConhecida` e SEMPRE verdadeiro no agregado, e isso
-                  // nao e atalho: o agregado nunca AFIRMA uma fonte — ele soma
-                  // linhas de origens diferentes e diz so que ha estimativa
-                  // embutida. "Origem desconhecida" e um estado da LINHA, onde a
-                  // procedencia e verificavel e onde a falta dela e defeito.
-                  marca={card.marcaEstimativa ? <MarcaDeEstimativa procedencia={card.marcaEstimativa} rotulo={ROTULO_DO_AGREGADO} origemConhecida /> : undefined}
                   // ⚠️ O CARD NÃO É MAIS SOBRESCRITO AQUI (30/08/2026).
                   //
                   // Esta linha trocava o VALOR do card "Faturamento" mantendo o

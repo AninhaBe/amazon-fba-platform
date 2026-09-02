@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 import { amazonFinancialCards } from "../src/app/(app)/amazon/amazonFinancialCards.ts";
-import { PROCEDENCIA_DO_AGREGADO, procedenciaDaFonte } from "../src/app/components/procedenciaDaEstimativa.ts";
+import { procedenciaDaFonte } from "../src/app/components/procedenciaDaEstimativa.ts";
 
 const fonte = (caminho) => readFile(new URL(`../${caminho}`, import.meta.url), "utf8");
 const carta = (cards, key) => cards.find((c) => c.key === key);
@@ -19,38 +19,31 @@ const FINANCE = { currency: "BRL", revenue: 39.8, fees: 6.12, refunds: 0, promot
 // numero estimado sem marca, adotamos o defeito deles — a marca e a substituicao
 // sao a vantagem, nao o numero.
 
-test("a marca so existe quando ha pedido estimado", () => {
-  const semEstimativa = amazonFinancialCards({ finance: FINANCE, cogs: 13.64, estimatedProfit: 20.04, unitsWithoutCost: 0 });
-  assert.equal(carta(semEstimativa, "fees").marcaEstimativa, undefined, "marca permanente vira decoracao");
-
-  const comEstimativa = amazonFinancialCards({
-    finance: FINANCE, cogs: 13.64, estimatedProfit: 20.04, unitsWithoutCost: 0,
-    feesEstimadas: 4.31, pedidosComTarifaEstimada: 2,
-  });
-  assert.match(carta(comEstimativa, "fees").marcaEstimativa, /liquida[çc][ãa]o/);
-});
-
-test("estimativa de valor ZERO continua marcada", () => {
-  // Medido em 31/08/2026 na conta AO62LVXJMX3AA: a Product Fees API respondeu
-  // Status Success com Amount 0 nos tres pedidos do dia. Com a condicao em
-  // "valor > 0" a marca sumia e a tela mostrava lucro sem tarifa nenhuma, sem
-  // dizer que aquele zero e estimativa que a liquidacao pode substituir.
-  const cards = amazonFinancialCards({
-    finance: FINANCE, cogs: 13.64, estimatedProfit: 20.04, unitsWithoutCost: 0,
-    feesEstimadas: 0, pedidosComTarifaEstimada: 3,
-  });
-  assert.ok(carta(cards, "fees").marcaEstimativa, "zero publicado pela fonte continua sendo estimativa");
-});
-
-test("o selo e a frase nascem e somem JUNTOS", () => {
-  // Separa-los criaria o estado em que o numero esta marcado e nada explica a
-  // marca — ou o inverso, a frase sem o selo, que foi o estado ate hoje.
-  for (const pedidos of [0, 1, 5]) {
+test("o CARD do agregado nao marca mais — nem com valor, nem com zero", () => {
+  // ⚠️ TRES TESTES VIRARAM UM, E A INTENCAO INVERTEU, em 02/09/2026.
+  // Eles exigiam o selo e a frase no card de Taxas: um garantia que a marca so
+  // existia havendo estimativa, outro que o ZERO publicado pela fonte continuava
+  // marcado, e o terceiro que selo e frase nasciam e sumiam juntos.
+  //
+  // A dona reverteu o proprio pedido de ontem, verbatim: *"nao precisamos
+  // informar o que e oficial e o que e estimado. remove de tudo essa
+  // palavra/card, ja dissemos as regras do que mostrar (numeros)"*.
+  //
+  // O QUE OS TRES PROTEGIAM CONTINUA PROTEGIDO, so que na LINHA do pedido — onde
+  // a procedencia e verificavel, porque a pessoa confere aquele pedido. No
+  // agregado ela nunca foi: somava fontes diferentes. Ver
+  // `tests/quatroProcedenciasDaEstimativa.test.mjs`.
+  for (const cenario of [
+    { },
+    { feesEstimadas: 4.31, pedidosComTarifaEstimada: 2 },
+    // O zero publicado pela fonte, que era o caso mais defendido dos tres.
+    { feesEstimadas: 0, pedidosComTarifaEstimada: 3 },
+  ]) {
     const fees = carta(amazonFinancialCards({
-      finance: FINANCE, cogs: 13.64, estimatedProfit: 20.04, unitsWithoutCost: 0,
-      feesEstimadas: 1.5, pedidosComTarifaEstimada: pedidos,
+      finance: FINANCE, cogs: 13.64, estimatedProfit: 20.04, unitsWithoutCost: 0, ...cenario,
     }), "fees");
-    assert.equal(Boolean(fees.marcaEstimativa), Boolean(fees.baseDeclarada), `pedidos=${pedidos}`);
+    assert.equal(fees.marcaEstimativa, undefined, `o selo voltou ao card: ${JSON.stringify(cenario)}`);
+    assert.ok(!/estimad|oficial|liquida/i.test(fees.baseDeclarada ?? ""), `o texto voltou ao card: ${fees.baseDeclarada}`);
   }
 });
 
@@ -69,48 +62,30 @@ test("a procedencia diz de onde veio e que o oficial substitui — nunca 'parcia
   assert.ok(!/FBA/.test(soComissao), "FBA desconhecido nao pode virar 'FBA R$ 0,00'");
   assert.match(soComissao, /liquida[çc][ãa]o/i);
 
-  // ⚠️ O AGREGADO NAO NOMEIA MAIS FONTE, e isto reprova a volta da frase
-  // que ele tinha: "Estimado pela tabela da Amazon". Ela era FALSA — medido
-  // contra o banco no dia em que os campos chegaram, das 165 linhas com
-  // estimativa em 30 dias, 164 eram da Product Fees API, 1 observada e NENHUMA
-  // de tabela. O agregado soma origens diferentes e nao pode nomear uma.
-  assert.ok(!/tabela da Amazon/.test(PROCEDENCIA_DO_AGREGADO), "o agregado voltou a nomear uma fonte que ele nao sabe qual e");
-  assert.match(PROCEDENCIA_DO_AGREGADO, /liquida[çc][ãa]o/i);
-  assert.match(PROCEDENCIA_DO_AGREGADO, /n[ãa]o liquidada/i, "o agregado precisa dizer que aquele total ainda muda");
-
-  for (const frase of [completa, soComissao, PROCEDENCIA_DO_AGREGADO]) {
+  // ⚠️ O AGREGADO SAIU EM 02/09/2026 (decisao da dona, revertendo o pedido
+  // dela de ontem): o card mostra so o numero, sem dizer o que e oficial e o
+  // que e estimado. As assercoes sobre PROCEDENCIA_DO_AGREGADO sairam junto
+  // com a constante. O que sobra aqui e a procedencia da LINHA, que fica.
+  for (const frase of [completa, soComissao]) {
     assert.ok(!/parcial|incompleto/i.test(frase), "adjetivo que se desculpa e proibido");
   }
 });
 
-test("a tela RENDERIZA a marca, e a condicao e o campo do construtor", async () => {
+test("a tela NAO renderiza mais a marca no card — e o Metric segue capaz de marcar", async () => {
+  // ⚠️ INTENCAO INVERTIDA em 02/09/2026: este teste exigia que a pagina
+  // renderizasse `<MarcaDeEstimativa>` na face do card de Taxas. A dona pediu a
+  // remocao (verbatim no teste acima). A assercao passou a PROIBIR o render no
+  // agregado — e a proibicao le o fonte SEM COMENTARIOS, senao casa a propria
+  // nota que explica a remocao.
   const pagina = await fonte("src/app/(app)/amazon/page.tsx");
-  // Casar a RAMIFICACAO, nao o identificador: `MarcaDeEstimativa` continuaria
-  // aparecendo no import depois de alguem apagar o uso.
-  // ⚠️ A ANCORA E A RAMIFICACAO, NAO A LISTA DE PROPS. A versao anterior
-  // casava a chamada com as props exatas e ficou vermelha quando a marca ganhou
-  // `origemConhecida` — reprovando um acrescimo, nao um defeito. E o caso 5 do
-  // catalogo (docs/achado-guarda-que-depende-da-forma.md): guarda que casa uma
-  // lista reprova a primeira melhora que acrescenta um item a lista.
-  //
-  // O que este teste garante e que a marca so aparece QUANDO O CONSTRUTOR DIZ
-  // que ha estimativa, e que ela cai em `undefined` quando nao ha — apagar a
-  // condicao, trocar por `true`, ou tirar a marca da face deixa vermelho.
-  assert.match(
-    pagina,
-    /marca=\{card\.marcaEstimativa \? <MarcaDeEstimativa [^>]*\/> : undefined\}/,
-    "a marca saiu da face do card, ou deixou de depender do campo do construtor",
-  );
+  const codigo = pagina.replace(/\{\/\*[\s\S]*?\*\/\}/g, "").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+  assert.ok(!/marca=\{card\.marcaEstimativa/.test(codigo), "a marca do agregado voltou para a face do card");
 
+  // E a CAPACIDADE do componente fica: a prop `marca` do Metric continua
+  // existindo, porque a marca por LINHA usa a mesma peca visual. Remover a
+  // capacidade seria jogar fora o que ainda esta em uso.
   const metric = await fonte("src/app/components/Metric.tsx");
-  // Colada ao NUMERO, dentro de `.metric-value` — nao no rodape nem em faixa.
-  assert.match(metric, /metric-value\$\{toneCls\}[\s\S]{0,160}\{loading \? null : marca\}/);
-
-  const css = await fonte("src/app/globals.css");
-  assert.match(css, /\.marca-estimativa\s*\{/, "classe usada e nunca definida");
-  // Nao pode usar o tom de alarme: estimativa nao e pendencia da vendedora.
-  const bloco = css.slice(css.indexOf(".marca-estimativa"));
-  assert.ok(!/var\(--danger\)|var\(--warning\)/.test(bloco.slice(0, 700)), "estimativa nao e alarme");
+  assert.match(metric, /marca\?: React\.ReactNode;/, "o Metric perdeu a capacidade de exibir marca");
 });
 
 // ===== A MARCA NA LINHA DO PEDIDO (ADR-027 §2, ligada em 01/09/2026) =========

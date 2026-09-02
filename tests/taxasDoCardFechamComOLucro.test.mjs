@@ -66,26 +66,28 @@ test("e a conta FECHA lendo os cards — sem valor oculto", () => {
   );
 });
 
-test("a composicao diz oficial, estimada e X DE Y — com acento", () => {
-  const linha = carta(amazonFinancialCards(misto), "fees").baseDeclarada;
-  assert.match(linha, /oficial R\$\s?58,99/, "a parcela oficial sumiu da composicao");
-  assert.match(linha, /estimada R\$\s?253,44/, "a parcela estimada sumiu da composicao");
-  // O denominador e a MESMA contagem do topo (item 4 da spec): aviso que conta
-  // por fora e o proximo "15 de 50 enquanto o topo diz 61".
-  assert.match(linha, /15 de 50 pedidos/, "a base de contagem deixou de ser a do periodo");
-  // ⚠️ ACENTO E TEXTO DE TELA, e esta assercao existe porque a frase
-  // nasceu sem: "substituida pela oficial na liquidacao" ia para a vendedora.
-  assert.match(linha, /substitu\u00edda pela oficial na liquida\u00e7\u00e3o/, "o texto da tela perdeu os acentos");
-
-  // ⚠️ E NAO PODE DIZER "PELA TABELA": medido em 02/09/2026, as 92
-  // estimativas da conta dela sao `product_fees_api` e NENHUMA e de tabela.
-  // Nomear a unica fonte que a conta nao tem e o defeito que ela mesma flagrou
-  // no card do agregado. A proibicao le a STRING devolvida, nao o fonte — nao ha
-  // comentario para casar por engano (docs/achado-guarda-que-depende-da-forma.md).
-  assert.ok(!/pela tabela/i.test(linha), "a tela voltou a nomear uma fonte que a conta pode nao ter");
+test("o card de Taxas NAO decompoe — so o numero", () => {
+  // ⚠️ ESTE TESTE MUDOU DE INTENCAO EM 02/09/2026, e o registro fica
+  // porque a inversao e o ponto. Ele EXIGIA a decomposicao oficial/estimada no
+  // card — que era pedido da dona, de ontem. Ela mesma reverteu, verbatim:
+  // *"nao precisamos informar o que e oficial e o que e estimado. remove de
+  // tudo essa palavra/card, ja dissemos as regras do que mostrar (numeros)"*.
+  //
+  // O QUE NAO MUDOU E O QUE O TESTE PROTEGE DE VERDADE: o card exibe o MESMO
+  // total que o lucro desconta. Isso nunca dependeu do texto.
+  //
+  // A assercao inverteu: antes exigia "oficial R$ 58,99 - estimada R$ 253,44 em
+  // 15 de 50 pedidos - substituida pela oficial na liquidacao"; agora PROIBE.
+  const taxas = carta(amazonFinancialCards(misto), "fees");
+  assert.equal(numero(taxas.value), 312.43, "o total mudou junto com o texto — nao era para mudar");
+  const linha = taxas.baseDeclarada ?? "";
+  for (const proibido of [/oficial/i, /estimad/i, /liquida[cç][aã]o/i]) {
+    assert.ok(!proibido.test(linha), `a decomposicao voltou ao card: ${linha}`);
+  }
+  assert.equal(taxas.marcaEstimativa, undefined, "o selo do agregado voltou");
 });
 
-test("sem estimativa, a composicao NAO aparece — marca permanente vira decoracao", () => {
+test("sem estimativa, o card continua igual — e nada de texto aparece", () => {
   const soOficial = amazonFinancialCards({
     ...misto, feesEstimadas: 0, pedidosComTarifaEstimada: 0, feesDoLucro: 58.99,
     estimatedProfit: 1000 - 58.99 - 300,

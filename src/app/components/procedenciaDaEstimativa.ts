@@ -3,32 +3,17 @@
 // COMPORTAMENTO — chamando a função e conferindo a saída — e não por casamento no
 // fonte, que é a família de teste decorativo que o AGENTS.md proíbe.
 /**
- * A PROCEDÊNCIA DO AGREGADO — o card que soma muitas linhas.
+ * ⚠️ AS DUAS CONSTANTES DO AGREGADO SAIRAM EM 02/09/2026 —
+ * `PROCEDENCIA_DO_AGREGADO` e `ROTULO_DO_AGREGADO`. A dona do produto pediu que
+ * o card nao informe mais o que e oficial e o que e estimado; o card mostra so
+ * o numero.
  *
- * ⚠️ ESTA FRASE SUBSTITUI UMA QUE ERA FALSA (01/09/2026). A anterior dizia
- * *"Estimado pela tabela da Amazon"*, e o agregado soma linhas de origens
- * diferentes: medido contra o banco no dia em que os campos chegaram, das 1.006
- * linhas de 30 dias, 165 tinham estimativa — **164 da Product Fees API, 1
- * observada, e nenhuma de tabela**. A frase nomeava a única fonte que não tinha
- * uma linha sequer.
- *
- * Não é possível nomear a fonte de um número que soma fontes distintas sem
- * contá-las, e contar é campo que o agregado não recebe. Então a frase diz o que
- * é verdade para qualquer mistura: que ainda não é o oficial, e o que a
- * substitui. **A procedência específica vive na LINHA**, onde ela é verificável.
+ * Nao apague este bloco achando que e sobra: ele existe para que a proxima
+ * pessoa que precisar de um rotulo de agregado saiba que a decisao foi DESFAZER
+ * isso, e nao que ninguem pensou no assunto. A procedencia continua viva onde
+ * ela e VERIFICAVEL — na linha do pedido, com `procedenciaDaFonte`.
  */
-export const PROCEDENCIA_DO_AGREGADO =
-  "Inclui tarifa ainda não liquidada — o valor que a Amazon postar na liquidação substitui este.";
 
-/**
- * O RÓTULO DA FACE DO AGREGADO.
- *
- * ⚠️ Ele não pode nomear origem, pelo mesmo motivo da frase acima: o card
- * soma linhas de fontes diferentes. O que ele diz é o que vale para qualquer
- * mistura — que aquele total ainda vai mudar na liquidação. É a marca da
- * ADR-027 sem a palavra que a vendedora recusou.
- */
-export const ROTULO_DO_AGREGADO = "ainda não liquidado";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // QUATRO PROCEDÊNCIAS — peça preparada, ainda NÃO ligada na tela (01/09/2026)

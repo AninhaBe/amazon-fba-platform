@@ -132,58 +132,32 @@ test("sem pedido sem valor, a frase do que falta NAO aparece", () => {
   assert.doesNotMatch(lucro.baseDeclarada ?? "", /ainda sem valor publicado/);
 });
 
-test("a tarifa estimada e MARCADA na face do card, com quanto e de quantos pedidos", () => {
-  // ADR-027 item 5. O concorrente exibe tarifa calculada sem marca nenhuma,
-  // como se fosse oficial (medido no Gestor Seller em 31/08/2026); a marca e o
-  // que nos separa dele, entao ela nao pode viver dentro do "i".
-  const cards = amazonFinancialCards({
-    ...base,
-    estimatedProfit: -108.82,
-    baseDoLucro: 456.86,
-    faturamentoTotal: 456.86,
-    feesEstimadas: 281.95,
-    pedidosComTarifaEstimada: 28,
-  });
-  const taxas = cards.find((c) => c.key === "fees");
-  assert.match(taxas.baseDeclarada ?? "", /281,95/);
-  assert.match(taxas.baseDeclarada ?? "", /28 pedido/);
-  assert.match(taxas.baseDeclarada ?? "", /liquida[çc][ãa]o/i);
+test("a tarifa estimada NAO e mais marcada no card — nem com valor, nem com zero", () => {
+  // ⚠️ ESTE TESTE MUDOU DE INTENCAO EM 02/09/2026. Ele exigia a
+  // decomposicao/marca no card — que era pedido da dona, de ontem. Ela mesma
+  // reverteu, verbatim: *"nao precisamos informar o que e oficial e o que e
+  // estimado. remove de tudo essa palavra/card, ja dissemos as regras do que
+  // mostrar (numeros)"*. O registro fica porque quem vir isto vermelho amanha
+  // precisa saber que a mudanca foi DECIDIDA, nao herdada.
+  //
+  // A ADR-027 continua valendo onde ela e verificavel: na LINHA do pedido, na
+  // tabela de rentabilidade, onde a pessoa confere aquele pedido. No agregado
+  // ela nao era conferivel — somava fontes diferentes.
+  for (const cenario of [
+    { feesEstimadas: 281.95, pedidosComTarifaEstimada: 28 },
+    // O caso do zero publicado pela fonte, que antes exigia marca justamente por
+    // ser zero: continua sem marca, como todos os outros.
+    { feesEstimadas: 0, pedidosComTarifaEstimada: 3 },
+  ]) {
+    const cards = amazonFinancialCards({
+      ...base, estimatedProfit: -108.82, baseDoLucro: 456.86, faturamentoTotal: 456.86, ...cenario,
+    });
+    const taxas = cards.find((c) => c.key === "fees");
+    assert.equal(taxas.marcaEstimativa, undefined, "o selo voltou ao card do agregado");
+    assert.ok(!/estimad/i.test(taxas.baseDeclarada ?? ""), "a palavra voltou ao card");
+  }
 });
 
-test("sem NENHUM pedido estimado, a marca SOME", () => {
-  const cards = amazonFinancialCards({
-    ...base,
-    estimatedProfit: -108.82,
-    baseDoLucro: 456.86,
-    faturamentoTotal: 456.86,
-    feesEstimadas: 0,
-    pedidosComTarifaEstimada: 0,
-  });
-  const taxas = cards.find((c) => c.key === "fees");
-  assert.equal(taxas.baseDeclarada, undefined);
-});
-
-test("tarifa estimada de R$ 0,00 CONTINUA marcada — zero da fonte e um fato", () => {
-  // Medido em 31/08/2026 na conta dela: a Product Fees API devolveu Success com
-  // Amount 0 para os 3 pedidos do dia. Com a marca condicionada a `valor > 0` a
-  // tela exibia lucro sem tarifa alguma e sem dizer que aquele zero e estimativa
-  // — que a liquidacao pode substituir. Desfazer para `estimadas > 0` reprova.
-  const cards = amazonFinancialCards({
-    ...base,
-    finance: { ...base.finance, revenue: 28.9, fees: 0, orderCount: 1 },
-    cogs: 19.48,
-    taxes: 0,
-    taxRate: 0,
-    estimatedProfit: 33.88,
-    baseDoLucro: 73.12,
-    faturamentoTotal: 73.12,
-    feesEstimadas: 0,
-    pedidosComTarifaEstimada: 3,
-  });
-  const taxas = cards.find((c) => c.key === "fees");
-  assert.match(taxas.baseDeclarada ?? "", /R\$\s*0,00 de tarifa estimada/);
-  assert.match(taxas.baseDeclarada ?? "", /3 pedido/);
-});
 
 test("o imposto sai da base do lucro, e nao da receita apurada", async () => {
   // Reprova a linha `amazonTaxAmount(processedRevenue, taxRate)`, que cobrava

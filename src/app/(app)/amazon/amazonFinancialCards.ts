@@ -189,7 +189,6 @@ export interface AmazonCard {
   marcaEstimativa?: string;
 }
 
-import { PROCEDENCIA_DO_AGREGADO } from "../../components/procedenciaDaEstimativa";
 
 const money = (v: number, currency: string) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(v);
@@ -537,51 +536,26 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
   // era um lucro sem tarifa nenhuma, sem dizer que aquele zero é ESTIMATIVA que
   // a liquidação pode substituir. É o `null ≠ 0` do AGENTS.md pelo avesso:
   // aqui o zero é um fato publicado pela fonte, e um fato merece ser declarado.
-  const estimadas = input.feesEstimadas ?? 0;
-  const pedidosEstimados = input.pedidosComTarifaEstimada ?? 0;
-  const quantoEstimado =
-    pedidosEstimados > 0
-      ? `inclui ${money(estimadas, currency)} de tarifa estimada pela Amazon em ${pedidosEstimados} pedido(s) — a oficial entra na liquidação`
-      : null;
   /**
-   * A COMPOSICAO DO CARD DE TAXAS: oficial e estimada, com o total em destaque.
+   * ⚠️ A DECOMPOSICAO OFICIAL/ESTIMADA SAIU DO CARD EM 02/09/2026, por
+   * decisao da dona do produto, verbatim: *"nao precisamos informar o que e
+   * oficial e o que e estimado. remove de tudo essa palavra/card, ja dissemos
+   * as regras do que mostrar (numeros)"*.
    *
-   * Pedido literal da dona em 02/09/2026 — "quebrar em duas linhas dentro do
-   * card". A soma das duas E o numero grande, entao a conta fecha lendo o card.
+   * Saiu daqui: a linha "oficial R$ X - estimada R$ Y em N de M pedidos", o
+   * selo do agregado e a frase da substituicao. O CARD MOSTRA SO O NUMERO.
    *
-   * So aparece quando HA estimativa: sem ela as duas linhas repetiriam o total,
-   * e repetir numero e ruido.
+   * ⚠️ E O NUMERO NAO MUDOU: continua sendo `input.feesDoLucro`, o MESMO
+   * total que o lucro desconta. A coerencia da pagina nao dependia do texto —
+   * ela e garantida pela guarda de fechamento (Faturamento - Custo - Taxas -
+   * Impostos - Ads = Lucro), que segue de pe em
+   * `tests/taxasDoCardFechamComOLucro.test.mjs`.
+   *
+   * ⚠️ O QUE **NAO** SAIU: a marcacao POR LINHA na tabela de
+   * rentabilidade ("tabela oficial Amazon", "tarifa ja cobrada neste produto").
+   * Foi outro pedido dela, ela nao pediu para tirar, e la a procedencia e
+   * VERIFICAVEL — a pessoa confere aquele pedido. No agregado ela nao era.
    */
-  const oficialDaTarifa =
-    input.feesDoLucro != null ? +(input.feesDoLucro - estimadas).toFixed(2) : null;
-  /**
-   * ⚠️ O TEXTO LEVA ACENTO. A primeira versao desta frase foi escrita sem
-   * ("substituida pela oficial na liquidacao") e ia para a tela assim — comentario
-   * de codigo pode ser sem acento, texto que a vendedora le nao pode.
-   *
-   * ⚠️ E ELA NAO DIZ "PELA TABELA", e isso e medicao, nao preferencia.
-   *
-   * O pedido literal foi *"X de Y pedidos com tarifa estimada PELA TABELA"*. Medido
-   * no banco em 02/09/2026, 30 dias, por fonte:
-   *
-   *   conta da Ana (ws 1803d1fe): 92 estimativas, TODAS `product_fees_api`,
-   *                               TODAS R$ 0,00 — e NENHUMA de tabela;
-   *   conta do colega (22ae3d9d): a tabela funciona (99 linhas, R$ 519,59).
-   *
-   * Escrever "pela tabela" na tela dela seria nomear a unica fonte que a conta
-   * dela nao tem — exatamente o defeito que o card do agregado tinha ontem, e
-   * que ela mesma flagrou. A frase nomeia o que e verdade para qualquer fonte;
-   * QUAL fonte e informacao da LINHA, onde ela e verificavel.
-   *
-   * O denominador vem de `pedidosDoPeriodo` — a MESMA contagem do topo, para os
-   * avisos nao dizerem "15 de 50" enquanto o topo diz 61 (item 4 da spec).
-   */
-  const composicaoDaTarifa =
-    pedidosEstimados > 0 && oficialDaTarifa != null
-      ? `oficial ${money(oficialDaTarifa, currency)} · estimada ${money(estimadas, currency)}`
-        + ` em ${pedidosEstimados}${input.pedidosDoPeriodo ? ` de ${input.pedidosDoPeriodo}` : ""} pedido${pedidosEstimados > 1 ? "s" : ""}${input.pedidosDoPeriodo ? " do período" : ""}`
-        + " — substituída pela oficial na liquidação"
-      : null;
   /** A linha visível do card de Lucro: base quando difere, o que falta, e a devolução. */
   const notaDoLucro = [faltaValor, devolucao]
     .filter(Boolean)
@@ -643,11 +617,9 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
       // A MARCA DA ESTIMATIVA VAI NA FACE, NÃO NO "i" (ADR-027 item 5). O
       // concorrente exibe tarifa calculada sem marca nenhuma, como se fosse
       // oficial; a marca é o que nos separa dele. Some quando não há estimativa.
-      baseDeclarada: composicaoDaTarifa ?? quantoEstimado ?? undefined,
       // O selo acompanha a MESMA condicao da frase — os dois nascem e somem
       // juntos. Separa-los criaria o estado em que o numero esta marcado e nada
       // explica a marca, ou o inverso.
-      marcaEstimativa: quantoEstimado ? PROCEDENCIA_DO_AGREGADO : undefined,
     },
     { key: "fbaShipping", label: "Logística FBA", ...num(logistica, "Aguardando tarifas de logística no extrato", undefined, "A Amazon não cobrou logística no período") },
     { key: "buyerShipping", label: "Frete do comprador", ...num(f?.buyerShipping, "Aguardando frete pago pelo comprador", undefined, "Nenhum frete pago pelo comprador") },
