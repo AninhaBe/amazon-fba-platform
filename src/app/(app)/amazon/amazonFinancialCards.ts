@@ -114,6 +114,14 @@ export interface AmazonCardsInput {
   pedidosDoPeriodo?: number;
   /** Quanto do total de tarifas é estimativa da Amazon (ADR-027). */
   feesEstimadas?: number | null;
+  /**
+   * O TOTAL DE TARIFA QUE O LUCRO SUBTRAI — oficial mais estimada.
+   *
+   * ⚠️ Cobrado pela dona em 02/09/2026: o card exibia R$ 58,99 (so a postada)
+   * enquanto o lucro descontava R$ 312,43. Dois numeros para a mesma palavra,
+   * na mesma tela.
+   */
+  feesDoLucro?: number | null;
   /** Quantos pedidos entraram com tarifa estimada em vez de postada. */
   pedidosComTarifaEstimada?: number;
   /**
@@ -532,6 +540,23 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
     pedidosEstimados > 0
       ? `inclui ${money(estimadas, currency)} de tarifa estimada pela Amazon em ${pedidosEstimados} pedido(s) — a oficial entra na liquidação`
       : null;
+  /**
+   * A COMPOSICAO DO CARD DE TAXAS: oficial e estimada, com o total em destaque.
+   *
+   * Pedido literal da dona em 02/09/2026 — "quebrar em duas linhas dentro do
+   * card". A soma das duas E o numero grande, entao a conta fecha lendo o card.
+   *
+   * So aparece quando HA estimativa: sem ela as duas linhas repetiriam o total,
+   * e repetir numero e ruido.
+   */
+  const oficialDaTarifa =
+    input.feesDoLucro != null ? +(input.feesDoLucro - estimadas).toFixed(2) : null;
+  const composicaoDaTarifa =
+    pedidosEstimados > 0 && oficialDaTarifa != null
+      ? `oficial ${money(oficialDaTarifa, currency)} · estimada ${money(estimadas, currency)}`
+        + ` em ${pedidosEstimados} pedido${pedidosEstimados > 1 ? "s" : ""}`
+        + " — substituida pela oficial na liquidacao"
+      : null;
   /** A linha visível do card de Lucro: base quando difere, o que falta, e a devolução. */
   const notaDoLucro = [faltaValor, devolucao]
     .filter(Boolean)
@@ -580,11 +605,20 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
         : undefined,
     },
     {
-      key: "fees", label: "Taxas", ...num(f?.fees, semExtrato),
+      // ⚠️ O TOTAL E O DO LUCRO, e a composicao vai junto (02/09/2026).
+      //
+      // Lia `f?.fees` — so a tarifa POSTADA. O lucro descontava postada mais
+      // estimada, e a tela mostrava R$ 58,99 ao lado de um desconto de
+      // R$ 312,43. Quem somasse os cards nao chegava no lucro exibido, e a
+      // diferenca nao aparecia em lugar nenhum — mesma doenca do widget da
+      // Shopee: dois consumidores dos mesmos numeros, cada um num universo.
+      //
+      // `f?.fees` fica como piso para quando o produtor nao informar o total.
+      key: "fees", label: "Taxas", ...num(input.feesDoLucro ?? f?.fees, semExtrato),
       // A MARCA DA ESTIMATIVA VAI NA FACE, NÃO NO "i" (ADR-027 item 5). O
       // concorrente exibe tarifa calculada sem marca nenhuma, como se fosse
       // oficial; a marca é o que nos separa dele. Some quando não há estimativa.
-      baseDeclarada: quantoEstimado ?? undefined,
+      baseDeclarada: composicaoDaTarifa ?? quantoEstimado ?? undefined,
       // O selo acompanha a MESMA condicao da frase — os dois nascem e somem
       // juntos. Separa-los criaria o estado em que o numero esta marcado e nada
       // explica a marca, ou o inverso.
