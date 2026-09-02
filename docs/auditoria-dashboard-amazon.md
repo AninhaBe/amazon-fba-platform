@@ -79,7 +79,7 @@ piso do banco e mostra `—`.
 
 ---
 
-## 🔴 Divergências abertas
+## Divergências: estado
 
 ### B2 — a base de contagem não é única — **MEDIDO**
 
@@ -120,24 +120,6 @@ Medido em 01/09: 4 pedidos cancelados, R$ 51,70 de valor de tabela; o card
 
 Isso já satisfaz a spec — *"cancelado antes do envio não deve gerar comissão nem
 entrar no faturamento realizado"*. **Nada a mudar; faltava estar escrito.**
-
-### B2 original (registro do que se procurava)
-
-O aviso diz **"15 de 50 pedidos"** e o topo da página diz **"62 vendas"**. São
-três contagens diferentes na mesma tela:
-
-| número | fonte | o que conta |
-|---|---|---|
-| 50 | `profit.pedidosDoPeriodo` | pedidos não cancelados do canônico |
-| 62 | `metrics.totalOrders` (hero) | **a medir** — provável `orderMetrics`, que conta diferente |
-| 15 | aviso do card | **a medir** |
-
-**Ainda não medido.** Próximo passo da auditoria.
-
-### B4 — a regra do cancelado não está escrita
-
-O card "Canceladas" existe. Falta medir: o cancelado entra no faturamento? é
-abatido em algum lugar? A spec manda **documentar antes de mudar**.
 
 ### O ADR — **DECIDIDO**
 
