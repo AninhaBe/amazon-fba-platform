@@ -41,12 +41,12 @@ ENV_FILE=".env.local"
 # Portao que nao consegue medir tem de gritar, nunca degradar para "passou".
 if [ -f .git ]; then
   GITDIR="$(sed -n 's/^gitdir: //p' .git | tr -d '\r')"
-  case "$GITDIR" in
-    [A-Za-z]:[/\]*)
-      LETRA="$(printf '%s' "$GITDIR" | cut -c1 | tr 'A-Z' 'a-z')"
-      GITDIR="/mnt/$LETRA$(printf '%s' "$GITDIR" | cut -c3- | tr '\' '/')"
-      ;;
-  esac
+  # Caminho do Windows (G:/...) nao existe dentro do WSL: vira /mnt/g/...
+  # ⚠️ Feito com sed, nao com `case`: a primeira versao usava o padrao
+  # [A-Za-z]:[/BARRA]* e a barra invertida ESCAPAVA o colchete de fechamento,
+  # entao a classe nunca fechava e o case nunca casava — em silencio, caindo
+  # direto no ABORTADO. Guarda burra que acerta vale mais que esperta que erra.
+  GITDIR="$(printf %s "$GITDIR" | sed -E "s|^([A-Za-z]):|/mnt/\L\1|" | tr "\\\\" "/")"
   if [ -d "$GITDIR" ]; then
     export GIT_DIR="$GITDIR"
     export GIT_WORK_TREE="$PWD"
