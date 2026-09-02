@@ -20,6 +20,46 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 ENV_FILE=".env.local"
 
+# ── O GIT PRECISA RESPONDER AQUI DENTRO ────────────────────────────────────
+#
+# ⚠️ MEDIDO EM 02/09/2026, e o modo de falha e o pior que existe: SILENCIOSO E
+# VERDE. Este script roda no WSL, e o deploy correto sai de um WORKTREE (regra
+# da arvore limpa). Num worktree ligado, `.git` e um ARQUIVO com o caminho do
+# Windows dentro ("gitdir: G:/amazon-fba-platform/.git/worktrees/xxx") — que
+# nao existe dentro do WSL. O git morre com "not a git repository", e os dois
+# portoes abaixo passam por acidente:
+#
+#   COMMIT="$(git rev-parse ... || echo desconhecido)"  -> carimbo "desconhecido"
+#   SUJO="$(git status --porcelain ... || true)"        -> "arvore limpa" SEM CONFERIR
+#
+# O segundo e o grave: a guarda que impede publicar o trabalho nao commitado de
+# outro agente vira no-op justamente no caminho que a regra manda usar. Foi assim
+# que a v235 subiu sem carimbo — a imagem estava certa, mas nenhum dos dois
+# portoes tinha rodado.
+#
+# Por isso: traduz o gitdir do worktree, e ABORTA se o git ainda nao responder.
+# Portao que nao consegue medir tem de gritar, nunca degradar para "passou".
+if [ -f .git ]; then
+  GITDIR="$(sed -n 's/^gitdir: //p' .git | tr -d '\r')"
+  case "$GITDIR" in
+    [A-Za-z]:[/\]*)
+      LETRA="$(printf '%s' "$GITDIR" | cut -c1 | tr 'A-Z' 'a-z')"
+      GITDIR="/mnt/$LETRA$(printf '%s' "$GITDIR" | cut -c3- | tr '\' '/')"
+      ;;
+  esac
+  if [ -d "$GITDIR" ]; then
+    export GIT_DIR="$GITDIR"
+    export GIT_WORK_TREE="$PWD"
+  fi
+fi
+if ! git rev-parse --git-dir >/dev/null 2>&1; then
+  echo "ABORTADO: o git nao responde neste diretorio ($PWD)."
+  echo ""
+  echo "Sem git, o carimbo de commit vira 'desconhecido' E a guarda de arvore"
+  echo "limpa passa sem conferir nada — os dois em silencio. Resolva antes de subir."
+  exit 1
+fi
+
 # Build REMOTO por padrao: o Fly builda nos servidores dele, sem consumir RAM nem
 # disco desta maquina (o C: aqui vive cheio). --local force o build no Docker local.
 MODO="--remote-only"
