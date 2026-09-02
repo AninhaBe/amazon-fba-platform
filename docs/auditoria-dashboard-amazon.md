@@ -81,7 +81,47 @@ piso do banco e mostra `—`.
 
 ## 🔴 Divergências abertas
 
-### B2 — a base de contagem não é única
+### B2 — a base de contagem não é única — **MEDIDO**
+
+As três contagens da tela existem, são diferentes **de propósito**, e a relação
+entre elas é exata:
+
+| número | fonte | conta | medido 01/09 |
+|---|---|---|---|
+| "vendas" (hero) | `metrics.totalOrders` | **todos** os status, cancelado incluso | 54 |
+| pedidos do período | `profit.pedidosDoPeriodo` | não cancelados | 50 |
+| cancelados | `cancelledOrders` | só cancelados | 4 |
+| aviso da tarifa | `pedidosComTarifaEstimada` | os que têm tarifa estimada | 42 |
+
+**54 − 4 = 50, ao centavo.** Nenhum número está errado: o hero conta o que a
+Amazon chama de venda (com cancelado), e o lucro conta o que rende (sem).
+
+⚠️ **O defeito é de RÓTULO, não de conta.** A tela chama os dois de "pedidos" e
+não diz que um inclui cancelado e o outro não — por isso "15 de 50" ao lado de
+"62 vendas" parece contradição. O conserto é **nomear**, como manda a ADR-028:
+o hero diz "vendas (inclui canceladas)" e o aviso diz de quantos **do período**
+ele fala.
+
+### B4 — a regra do cancelado — **MEDIDA E ESCRITA**
+
+Medido em 01/09: 4 pedidos cancelados, R$ 51,70 de valor de tabela; o card
+"Canceladas" exibia R$ 22,90 num recorte anterior.
+
+**A regra, como o código a implementa hoje:**
+
+1. cancelado **não entra** no faturamento (`revenueDoLucro` filtra
+   `status <> 'cancelled'`);
+2. cancelado **não entra** no custo nem na tarifa — as duas consultas usam o
+   mesmo filtro;
+3. cancelado **não é abatido** de lugar nenhum. O card "Canceladas" fica **ao
+   lado**, informando, e não participa de nenhuma equação;
+4. o valor exibido ali é o **preço de tabela** capturado antes do cancelamento
+   (`ordered_gross`), porque a Amazon zera o `gross` ao cancelar.
+
+Isso já satisfaz a spec — *"cancelado antes do envio não deve gerar comissão nem
+entrar no faturamento realizado"*. **Nada a mudar; faltava estar escrito.**
+
+### B2 original (registro do que se procurava)
 
 O aviso diz **"15 de 50 pedidos"** e o topo da página diz **"62 vendas"**. São
 três contagens diferentes na mesma tela:
@@ -99,13 +139,13 @@ três contagens diferentes na mesma tela:
 O card "Canceladas" existe. Falta medir: o cancelado entra no faturamento? é
 abatido em algum lugar? A spec manda **documentar antes de mudar**.
 
-### O ADR que falta
+### O ADR — **DECIDIDO**
 
-O painel do conciliado deixou de exibir o lucro do período e passou a exibir o
-resíduo do próprio universo, **sem anúncio**. Isso muda a letra da **ADR-025**, e
-eu mudei uma decisão arquitetural enquanto implementava — o AGENTS manda parar e
-propor um ADR. Registrado dentro de `tests/lucroUnicoNaTela.test.mjs`; **precisa
-de decisão**.
+`ADR-028 — Cada bloco exibe o resíduo do universo que declara`, emenda à ADR-025.
+Todo bloco fecha no universo que declara, o resultado é o resíduo, a margem sai
+do próprio centro, e nomes distintos para números de universos distintos. O
+anúncio sai do painel do conciliado por não ter atribuição por pedido — e o
+propósito da ADR-025 continua atendido pelo NOME, não pelo valor.
 
 ---
 
