@@ -200,7 +200,13 @@ export interface ShopeeOverview {
     cancelledOrders: number;
     lastSaleAt: string | null;
     currency: string;
-    revenueCoverage: { capturedOrders: number; totalOrders: number; complete: boolean };
+    revenueCoverage: {
+      capturedOrders: number; totalOrders: number; complete: boolean;
+      /** Fim da janela ingerida. `null` = a sincronizacao ainda nao registrou. */
+      sincronizadoAte?: string | null;
+      /** Inicio da janela ingerida — o que permite a tela apontar a janela real. */
+      historicoDesde?: string | null;
+    };
   };
   /**
    * Pedidos com NF-e pendente AGORA (sem recorte de período — pendência
@@ -1017,7 +1023,24 @@ export async function getShopeeOverviewFromCanonical(
       cancelledOrders: totals.cancelled_orders,
       lastSaleAt: totals.last_sale_at ? new Date(totals.last_sale_at).toISOString() : null,
       currency,
-      revenueCoverage: { capturedOrders: totals.total_orders, totalOrders: totals.total_orders, complete: periodCovered },
+      // ⚠️ A JANELA REAL DA INGESTAO ENTRA NA COBERTURA (02/09/2026).
+      //
+      // Sem estes dois campos a tela nao tinha como dizer que o periodo pedido
+      // comeca ANTES do que foi importado: um recorte de 30 dias sobre um
+      // historico mais curto mostra menos venda sem uma palavra de explicacao —
+      // e o numero menor parece queda de faturamento.
+      //
+      // 📌 A GARANTIA E REPLICADA DO ML; O NUMERO, NUNCA. A peca da central ja
+      // sabe montar a frase ("Historico importado a partir de X — o periodo
+      // pedido comeca antes disso"), e ela sai do covered_from DESTA conexao.
+      // Texto fixo dizendo "a janela real e de N dias" seria falso aqui: medido
+      // em 02/09/2026 na conexao real, o historico da Shopee vai de 28/06 (dez
+      // semanas), com item e tarifa em 99-100% das semanas.
+      revenueCoverage: {
+        capturedOrders: totals.total_orders, totalOrders: totals.total_orders, complete: periodCovered,
+        sincronizadoAte: syncRow.covered_to ? new Date(syncRow.covered_to).toISOString() : null,
+        historicoDesde: syncRow.covered_from ? new Date(syncRow.covered_from).toISOString() : null,
+      },
     },
     notasPendentes: {
       pedidos: invoiceRows.reduce((total, row) => total + row.pedidos, 0),
