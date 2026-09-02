@@ -5,6 +5,7 @@ import { depoisDaResposta } from "@/lib/depoisDaResposta";
 import {
   chaveDoEvento,
   interpretarPush,
+  diagnosticarAssinatura,
   urlPublicaDoPush,
   verificarAssinaturaDoPush,
   type EventoDePush,
@@ -91,6 +92,24 @@ export async function POST(req: NextRequest) {
       // console, nunca passar a aceitar a chave da API como chave de push.
       formulaQueBateria,
       chaveQueBateria,
+      // ⚠️ A MATRIZ RODA AQUI, sobre os BYTES QUE CHEGARAM. Reconstruir o JSON
+      // por fora nunca da byte a byte igual (espacamento, ordem de chave, escape
+      // de unicode), e assinatura e sobre BYTES — 336 combinacoes offline deram
+      // zero justamente por isso. Nunca autoriza; so nomeia a combinacao.
+      combinacaoQueBateria: assinatura
+        ? diagnosticarAssinatura({
+            urlPublica: url,
+            urlDaRequisicao: req.nextUrl.href,
+            corpoBruto,
+            assinatura,
+            chaves: { push: chave, app: process.env.SHOPEE_PARTNER_KEY },
+            partnerId: process.env.SHOPEE_PARTNER_ID,
+          })
+        : null,
+      // E os BYTES EXATOS do corpo, sem interpretacao: se nem a matriz bater, a
+      // resposta esta aqui — da para reproduzir offline com fidelidade total.
+      corpoEmBase64: Buffer.from(corpoBruto, "utf8").toString("base64"),
+      assinaturaCompleta: assinatura,
     });
     return NextResponse.json({ error: "assinatura invalida" }, { status: 401 });
   }
