@@ -107,10 +107,15 @@ test("o faturamento da Shopee soma so o pago — os tres status no MESMO dia", a
     // A sincronizacao precisa existir: sem ela o produtor devolve null e o teste
     // ficaria verde por ausencia de dado, que e o pior verde que existe.
     await cliente.query(
+      // target_* e cursor_* sao NOT NULL sem default: a tabela exige a janela
+      // PEDIDA, nao so a coberta. Omiti-las fazia o teste falhar por defeito
+      // DELE — vermelho por motivo que nao e o produto ensina a ignorar
+      // vermelho (AGENTS.md), e foi assim que ele caiu na primeira execucao.
       `INSERT INTO workspace_marketplace_syncs
-         (workspace_id, provider, connection_id, covered_from, covered_to, products_synced_at,
+         (workspace_id, provider, connection_id, target_from, target_to,
+          cursor_from, cursor_to, covered_from, covered_to, products_synced_at,
           products_total, active_products, products_complete)
-       VALUES ($1, 'shopee', $2, $3, $4, $4, 1, 1, true)`,
+       VALUES ($1, 'shopee', $2, $3, $4, $3, $4, $3, $4, $4, 1, 1, true)`,
       [WORKSPACE, CONEXAO, periodo.from.toISOString(), periodo.to.toISOString()],
     );
 

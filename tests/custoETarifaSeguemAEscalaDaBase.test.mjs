@@ -94,5 +94,12 @@ test("os dois recebem o MESMO valor, nao dois flags independentes", async () => 
   // desceu de $7 para $6. O que a guarda cobra continua sendo o mesmo flag nos
   // dois lados — e agora a forma e literalmente identica, o que e melhor.
   const usosDoFlag = s.match(/scopeParams\(connectionId, period\), baseCobreTodosOsPedidos\]/g) ?? [];
-  assert.equal(usosDoFlag.length, 2, "os DOIS (custo e tarifa) precisam receber o mesmo flag");
+  // ⚠️ PASSARAM A SER TRES EM 02/09/2026, e a mudanca e de fato, nao de rigor:
+  // o recorte do ESTORNO virou consulta propria (ele le `posted_at`, que existe
+  // na tabela e nao na view — incidente da v238). Ele carrega o MESMO flag
+  // porque tem a mesma obrigacao: estorno de pedido fora da base nao pode
+  // reduzir um lucro calculado sobre a base. Se o numero mudar de novo, que
+  // seja com este teste vermelho e a razao escrita aqui — nunca afrouxando
+  // para >= 2, que aceitaria um consumidor esquecendo o flag.
+  assert.equal(usosDoFlag.length, 3, "custo, tarifa e estorno precisam receber o mesmo flag");
 });

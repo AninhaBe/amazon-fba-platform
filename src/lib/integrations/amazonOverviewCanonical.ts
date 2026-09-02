@@ -932,36 +932,11 @@ export async function getAmazonOverviewFromCanonical(
   // Agora as duas saem do mesmo `WHERE`, e a parte é sempre parte do todo por
   // construção. `FILTER` mantém o grão: é a mesma linha contada de dois jeitos,
   // não um join a mais — nenhum risco de inflar por fan-out.
-  const tarifaRows = await dbQuery<{ total: string | null; estimada: string | null; pedidos_estimados: number; estorno: string | null; estorno_n: number; estorno_com_data: number }>(
+  const tarifaRows = await dbQuery<{ total: string | null; estimada: string | null; pedidos_estimados: number }>(
     `SELECT COALESCE(SUM(f.amount) FILTER (WHERE f.fee_type <> 'refund'), 0)::text AS total,
             COALESCE(SUM(f.amount) FILTER (WHERE f.fee_type <> 'refund' AND f.basis = 'estimated'), 0)::text AS estimada,
             COUNT(DISTINCT f.external_order_id)
-              FILTER (WHERE f.fee_type <> 'refund' AND f.basis = 'estimated')::int AS pedidos_estimados,
-            -- O ESTORNO ENTRA AQUI, e nao numa terceira ida: mesma view, mesmo
-            -- join, mesmo periodo. So muda o FILTER.
-            -- ⚠️ O ESTORNO E RECORTADO PELA DATA DO LANCAMENTO quando ela
-            -- existe (migrations/0029). Ate 01/09/2026 ele entrava pela data do
-            -- PEDIDO, e nao por preferencia: a tabela nao tinha coluna de data.
-            --
-            -- Medido nos 42 estornos de 60 dias desta conexao: o atraso entre o
-            -- pedido e o lancamento tem MEDIANA DE 11 DIAS (minimo 1, maximo
-            -- 44), e 5 mudam de mes — R\$ 193,00 no periodo errado. Num recorte
-            -- de "Hoje" o estorno caia quase sempre num dia em que nada
-            -- aconteceu.
-            --
-            -- O COALESCE preserva o comportamento antigo enquanto a data nao
-            -- foi capturada: linha sem posted_at continua pela data do pedido, e
-            -- a tela diz qual data usou.
-            COALESCE(SUM(f.amount) FILTER (
-              WHERE f.fee_type = 'refund'
-                AND COALESCE(f.posted_at, o.occurred_at) >= $4
-                AND COALESCE(f.posted_at, o.occurred_at) <= $5), 0)::text AS estorno,
-            COUNT(*) FILTER (
-              WHERE f.fee_type = 'refund'
-                AND COALESCE(f.posted_at, o.occurred_at) >= $4
-                AND COALESCE(f.posted_at, o.occurred_at) <= $5)::int AS estorno_n,
-            COUNT(*) FILTER (WHERE f.fee_type = 'refund' AND f.posted_at IS NOT NULL)::int
-              AS estorno_com_data
+              FILTER (WHERE f.fee_type <> 'refund' AND f.basis = 'estimated')::int AS pedidos_estimados
        FROM workspace_channel_order_fees_efetivas f
        JOIN workspace_channel_orders o
          ON o.workspace_id = f.workspace_id AND o.provider = f.provider
@@ -973,6 +948,56 @@ export async function getAmazonOverviewFromCanonical(
         -- que a base cobre. Com o faturamento injetado, o pendente entra com a
         -- tarifa ESTIMADA (que a view ja substitui pela real na liquidacao);
         -- sem injecao, so entra o pedido com valor proprio.
+        AND ($6::boolean OR COALESCE(NULLIF(o.gross, 0), o.ordered_gross) IS NOT NULL)`,
+    [...scopeParams(connectionId, period), baseCobreTodosOsPedidos],
+  );
+
+  // ═══ O ESTORNO SAI DA TABELA REAL, NAO DA VIEW ══════════════════════════════
+  //
+  // ⚠️ INCIDENTE DE PRODUCAO, 02/09/2026: este recorte lia `f.posted_at` da view
+  // `workspace_channel_order_fees_efetivas`. A migration 0029 adicionou
+  // `posted_at` na TABELA; a view foi criada pela 0022 e ficou com a lista de
+  // colunas antiga. Medido em producao: 42703 "column f.posted_at does not
+  // exist" em TODAS as conexoes e TODOS os periodos — dashboard da Amazon fora
+  // do ar desde a v238, inclusive na conta da vendedora e na de demonstracao.
+  //
+  // 📌 A LICAO, que vale alem deste caso: "quem le isso agora?" — a pergunta
+  // obrigatoria antes do apply de uma migration — precisa incluir as VIEWS no
+  // meio do caminho. Eu provei que o leitor exigia a coluna, acompanhei o apply,
+  // e tratei "a migration foi aplicada" como "o leitor tem a coluna". VIEW NAO
+  // HERDA COLUNA DE TABELA: ela congela a lista do dia em que foi criada, e nada
+  // fica vermelho — a tabela tem a coluna, o teste do schema passa, e so a
+  // consulta que atravessa a view morre.
+  //
+  // E POR QUE LER A TABELA AQUI E CORRETO, e nao um desvio para destravar:
+  // este recorte filtra `fee_type = 'refund'`, e ESTORNO NUNCA E ESTIMATIVA — o
+  // CHECK da 0022 recusa 'refund' como fee_type de estimativa, de proposito
+  // (procedencia nao pode ocupar o lugar da natureza). A view existe para trocar
+  // estimativa por tarifa oficial; sobre a linha de estorno ela nao tem nada a
+  // fazer, e o numero e identico ao centavo.
+  //
+  // A migration 0030 devolve `posted_at` a view e deve entrar de qualquer forma
+  // — o resto do sistema precisa dela. Quando entrar, este SELECT pode voltar a
+  // view sem mudar de resultado. O que NAO pode e a aba ficar morta esperando
+  // janela de migration.
+  const estornoRows = await dbQuery<{ estorno: string | null; estorno_n: number; estorno_com_data: number }>(
+    `SELECT COALESCE(SUM(f.amount) FILTER (
+              WHERE COALESCE(f.posted_at, o.occurred_at) >= $4
+                AND COALESCE(f.posted_at, o.occurred_at) <= $5), 0)::text AS estorno,
+            COUNT(*) FILTER (
+              WHERE COALESCE(f.posted_at, o.occurred_at) >= $4
+                AND COALESCE(f.posted_at, o.occurred_at) <= $5)::int AS estorno_n,
+            -- Quantos estornos JA tem data propria — e o que permite a tela
+            -- dizer qual data usou, em vez de o COALESCE decidir em silencio.
+            COUNT(*) FILTER (WHERE f.posted_at IS NOT NULL)::int AS estorno_com_data
+       FROM workspace_channel_order_fees f
+       JOIN workspace_channel_orders o
+         ON o.workspace_id = f.workspace_id AND o.provider = f.provider
+        AND o.connection_id = f.connection_id AND o.external_order_id = f.external_order_id
+      WHERE f.workspace_id = $1 AND f.provider = $2 AND f.connection_id = $3
+        AND f.fee_type = 'refund'
+        AND o.occurred_at >= $4 AND o.occurred_at <= $5
+        AND o.status <> 'cancelled'
         AND ($6::boolean OR COALESCE(NULLIF(o.gross, 0), o.ordered_gross) IS NOT NULL)`,
     [...scopeParams(connectionId, period), baseCobreTodosOsPedidos],
   );
@@ -1056,9 +1081,10 @@ export async function getAmazonOverviewFromCanonical(
     }
   }
 
-  // ⚠️ O ESTORNO SAIU DA PROPRIA CONSULTA (01/09/2026): agora vem no mesmo
-  // `tarifaRows`, por `FILTER`. Era uma terceira ida a MESMA view, com o MESMO
-  // join e o MESMO periodo, so para outro `fee_type`.
+  // ⚠️ O ESTORNO VOLTOU A TER CONSULTA PROPRIA (02/09/2026), e nao por gosto:
+  // ele precisa de `posted_at`, que existe na TABELA e nao na view. A fusao de
+  // 01/09 economizava uma ida; mante-la custava o dashboard inteiro. Uma ida a
+  // mais e barata, dashboard fora do ar nao e.
   //
   // ⚠️ E ELE PASSOU A OBEDECER A MESMA REGRA DE ESCOPO do custo e da tarifa:
   // estorno de pedido que NAO esta na base (cancelado, ou sem valor conhecido)
@@ -1074,8 +1100,8 @@ export async function getAmazonOverviewFromCanonical(
   // ("N devolucao(oes)"). A troca foi conferida, nao presumida.
   //
   // `0` e fato ("nao houve devolucao no periodo"), nao ausencia.
-  const refunds = Number(tarifaRows[0]?.estorno ?? 0);
-  const refundCount = tarifaRows[0]?.estorno_n ?? 0;
+  const refunds = Number(estornoRows[0]?.estorno ?? 0);
+  const refundCount = estornoRows[0]?.estorno_n ?? 0;
 
   const anuncio = await anuncioDoCanal("amazon", period.startISO, period.endISO);
   // `taxes ?? 0`: sem alíquota o lucro sai sem imposto, como sempre saiu — quem
