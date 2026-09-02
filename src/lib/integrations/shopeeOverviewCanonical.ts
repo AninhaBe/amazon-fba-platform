@@ -231,7 +231,9 @@ export interface ShopeeOverview {
     composicaoDaReceitaPaga: {
       receita: number; fees: number | null; sellerShipping: number | null;
       ads: number | null; taxesWithheld: number | null; refunds: number | null;
-      cogs: number | null; taxes: number | null; lucro: number | null;
+      cogs: number | null; taxes: number | null; lucro: number;
+      /** Pedidos do bloco sem repasse apurado — o que falta, com numero. */
+      pedidosSemApuracao: number;
     };
     coverage: {
       processedOrders: number;
@@ -879,18 +881,48 @@ export async function getShopeeOverviewFromCanonical(
    * defeito da família nunca foi *qual* base, foi MISTURAR.
    */
   const impostoDaReceitaPaga = taxRateKnown ? +(processedRevenue * taxRate! / 100).toFixed(2) : null;
-  const componentesDaReceitaPaga = [fees, sellerShipping, ads, taxesWithheld, refunds];
-  const lucroDaReceitaPaga = componentesDaReceitaPaga.every((v) => v != null)
-    ? +(processedRevenue
-        - fees! - sellerShipping! - ads! - taxesWithheld! - refunds!
-        - (cogsValue ?? 0) - (impostoDaReceitaPaga ?? 0)).toFixed(2)
-    : null;
+
+  /**
+   * ⚠️ AS FATIAS DO PAINEL SAEM DO VALOR MEDIDO, NÃO DA BANDEIRA DE COBERTURA.
+   *
+   * 🔴 O DEFEITO QUE ISTO CORRIGE, medido em 02/09/2026 na conta real: o painel
+   * exibia **R$ 192.791,03** como "composição pendente" — e esse número é
+   * exatamente `receita − custo`. As tarifas, **R$ 115.253,67 gravadas no banco
+   * com zero valores nulos**, não entravam em fatia nenhuma.
+   *
+   * E a causa não era o join nem o filtro: `sellerShipping` ficava `null` porque
+   * `orders_with_shipping` (9.911) era menor que `orders_processed` (9.917).
+   * **SEIS pedidos sem bandeira de evidência — 0,06% — anulavam a composição
+   * inteira**, e o que sobrava virava um balaio sem nome.
+   *
+   * 📌 É a família "cobertura incompleta anula o valor", que já foi tirada da
+   * margem da Shopee em 31/08 e sobreviveu aqui. A regra da casa é a oposta:
+   * **mostre o que foi capturado e APONTE o que falta, com número** — nunca
+   * apague o que se sabe porque falta uma parte.
+   *
+   * ⚠️ E isto NÃO é `?? 0` disfarçado. A distinção que a casa exige continua:
+   * componente cujo valor é DESCONHECIDO entra como `null` e a fatia diz isso;
+   * o que muda é que um componente incerto não zera mais os OUTROS quatro. O
+   * lucro daqui é o resíduo do que se conhece, e `pedidosSemApuracao` diz de
+   * quantos pedidos ainda falta repasse — com número e sem adjetivo.
+   */
+  const somaConhecida = (v: number | null) => v ?? 0;
+  const lucroDaReceitaPaga = +(processedRevenue
+    - somaConhecida(fees) - somaConhecida(sellerShipping) - somaConhecida(ads)
+    - somaConhecida(taxesWithheld) - somaConhecida(refunds)
+    - (cogsValue ?? 0) - (impostoDaReceitaPaga ?? 0)).toFixed(2);
   const composicaoDaReceitaPaga = {
     receita: processedRevenue,
     fees, sellerShipping, ads, taxesWithheld, refunds,
     cogs: cogsValue,
     taxes: impostoDaReceitaPaga,
     lucro: lucroDaReceitaPaga,
+    /** Pedidos do bloco cujo repasse ainda não foi apurado — o que falta, com número. */
+    pedidosSemApuracao: Math.max(0, ordersProcessed - Math.min(
+      agg?.orders_with_fees ?? 0, agg?.orders_with_shipping ?? 0,
+      agg?.orders_with_ads ?? 0, agg?.orders_with_taxes_withheld ?? 0,
+      agg?.orders_with_refunds ?? 0,
+    )),
   };
 
   const estimatedProfit = componentesConhecidos

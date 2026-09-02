@@ -126,8 +126,16 @@ test("o WIDGET da Shopee e coerente no proprio universo — centro e fatias", as
     "e o imposto exibido e o do universo do widget");
 
   // 3. O residuo subtrai do CENTRO, e nao de outra receita.
-  assert.match(codigo, /const lucroDaReceitaPaga = [\s\S]{0,200}\?\s*\+\(processedRevenue/,
+  // ⚠️ ESTA ASSERCAO EXIGIA UM TERNARIO ate 02/09/2026 — o lucro so existia
+  // quando os cinco componentes eram conhecidos. O ternario CAIU de proposito:
+  // seis pedidos sem bandeira de evidencia (9.911 de 9.917) anulavam a
+  // composicao inteira e produziam o balaio de R$ 192.791,03 na tela dela.
+  // O que a guarda protege continua igual: o residuo parte do CENTRO do widget.
+  assert.match(codigo, /const lucroDaReceitaPaga = \+\(processedRevenue/,
     "o residuo tem de partir da receita paga");
+  // E o que falta passa a ser APONTADO com numero, em vez de anular o resto.
+  assert.match(codigo, /pedidosSemApuracao: Math\.max\(0, ordersProcessed - Math\.min\(/,
+    "cobertura incompleta se aponta com numero, nao apaga o que se sabe");
 });
 
 test("a TELA consome a composicao do widget, e nao os cards", async () => {
