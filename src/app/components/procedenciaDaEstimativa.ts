@@ -90,14 +90,21 @@ export const ROTULO_DO_AGREGADO = "ainda não liquidado";
  * e a marca que ele produziria seria uma marca de estimativa sobre um número que
  * já não é estimado.
  *
- * ⚠️ E `tabela` AINDA NÃO TEM PRODUTOR — **não apague**. Hoje só existem
- * `source='observada'` e `source='product_fees_api'`. A ausência de `tabela` não
- * é variante morta: é o pedido original da Ana (*"pegar a TABELA de comissão por
- * porcentagem da Amazon"*, 31/08/2026) que foi traduzido para a Product Fees API
- * por conveniência — e a tradução quebrou exatamente onde a tabela não
- * quebraria: a Product Fees responde POR VENDEDOR, a conta está com o token
- * revogado, e o resultado medido foi 1 pedido com estimativa e travessão nos
- * outros 18. O ramo fica esperando o produtor.
+ * ⚠️ `tabela` JÁ TEM PRODUTOR desde a v228 — e ele **não cobre todas as
+ * contas**. Medido em 02/09/2026, 30 dias, na tabela de estimativas:
+ *
+ *   conta A: 99 linhas de `source='tabela'`, R$ 519,59 — funciona;
+ *   conta B: 92 estimativas, todas `product_fees_api` e todas R$ 0,00, e
+ *            NENHUMA de tabela.
+ *
+ * ⚠️ E NÃO ESCREVA "TOKEN REVOGADO" AQUI. Uma versão anterior deste
+ * comentário dava isso como causa dos zeros, e era LEMBRANÇA, não medição: o
+ * refresh das duas contas respondeu HTTP 200 em 01/09/2026. A doutrina da casa
+ * é *"estado de credencial se mede, não se lembra"* — e a causa real dos zeros
+ * (há isenção promocional na conta) está com o backend.
+ *
+ * A fonte existe, entra na tela sozinha onde houver linha, e o ramo continua
+ * aqui para as contas que ainda não têm.
  */
 export type FonteDaEstimativa =
   | { fonte: "observada"; diaDoPedido: string; comissao?: number | null; fba?: number | null; moeda?: string }
