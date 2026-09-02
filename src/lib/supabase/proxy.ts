@@ -24,6 +24,11 @@ const publicPaths = [
   // a rota recusa 400 sem assinatura válida. Exigir sessão aqui só derrubaria a
   // entrega — quem chama é a Stripe, que nunca terá cookie de login.
   "/api/webhooks/stripe",
+  // Push da Shopee: quem chama e a Shopee, que nunca tera cookie. A rota se
+  // protege sozinha — HMAC-SHA256 com a chave PROPRIA do push, conferido em
+  // tempo constante ANTES de qualquer leitura, e sem a chave configurada ela
+  // rejeita tudo. Ver a nota longa em shopeePush.ts.
+  "/api/webhooks/shopee",
 
   // Formulario de orcamento da landing: quem preenche NAO tem sessao — e a
   // pessoa ainda nem e cliente. Exigir login aqui devolveria 401 e o formulario

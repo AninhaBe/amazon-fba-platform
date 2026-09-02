@@ -12,6 +12,38 @@ conforme for concluindo.
 
 ## Ação manual (precisa de você)
 
+- [ ] **Cadastrar a Push URL da Shopee no console** — uma sentada só, com o
+  cérebro junto. A ordem importa e há um risco conhecido no meio.
+
+  **Antes de começar:** as migrations `0030` e `0031` já aplicadas, e a leva do
+  push já no ar (o endpoint precisa responder quando o Verify bater).
+
+  1. Console → app **NEXO** → **Set Push**.
+  2. **Generate** no campo *Live Push Partner Key*. A chave aparece no input.
+     ⚠️ **Não feche o formulário antes do Save**: fechar pode perder o valor
+     gerado, e um novo *Generate* produz uma chave diferente — aí a que está no
+     Fly deixa de valer e o canal fica mudo.
+  3. Copiar a chave e rodar, sem passar por mim:
+
+     ```
+     fly secrets set SHOPEE_PUSH_PARTNER_KEY=<a chave> -a nexo
+     ```
+
+     A máquina reinicia sozinha; não precisa de deploy.
+  4. **Call Back URL:** `https://nexoaihub.com.br/api/webhooks/shopee`
+  5. **Verify** (botão ao lado). Só depois do passo 3 — sem a chave o endpoint
+     rejeita tudo, de propósito (nasce fechado, não ecoando).
+  6. **Deployment Service Area:** preencher e passar no verify próprio dele.
+  7. **Toggles:** ligar **só os de status de pedido** por enquanto. São 29
+     tipos; os demais entram depois de o primeiro funcionar.
+  8. **Save.**
+
+  ⚠️ **Se o Verify falhar no passo 5**, é quase certo que a base string do HMAC
+  não é a que eu escolhi — a doc oficial não é alcançável do meu ambiente e as
+  fontes de terceiro se contradizem. O endpoint foi feito para esse caso: ele
+  **rejeita** e escreve no log qual das fórmulas candidatas *teria* batido. Me
+  peça o log (`fly logs -a nexo | grep push-shopee`) e é uma linha para trocar.
+
 - [ ] **Alerta de defasagem do sync no Grafana** — o vigia já expõe as duas
   séries em `/metrics` (porta 9091, coletada pelo Fly). Falta criar a regra em
   fly-metrics.net, que exige o login da conta — não é acessível daqui.

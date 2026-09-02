@@ -255,7 +255,12 @@ async function processResource(row: EventRow) {
       await dbQuery(
         `UPDATE workspace_marketplace_syncs
             SET covered_to = GREATEST(COALESCE(covered_to, $4::timestamptz), $4::timestamptz),
-                last_success_at = now(), updated_at = now()
+                -- ⚠️ last_push_at, NAO last_success_at (02/09/2026). Aquela e
+                -- da VARREDURA, e e o que o vigia de defasagem le. Webhook
+                -- gravando nela fazia varredura PARADA parecer saudavel — no
+                -- unico canal que tem webhook, o alarme ficava cego justamente
+                -- quando a rede de seguranca era o que tinha caido.
+                last_push_at = now(), updated_at = now()
           WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
         [row.workspace_id, PROVIDER, row.connection_id, new Date().toISOString()]
       );
@@ -390,7 +395,8 @@ export async function processMercadoLivreEvent(event: QueuedMercadoLivreEvent): 
     await runWithWorkspace(row.workspace_id, async () => {
       await dbQuery(
         `UPDATE workspace_marketplace_syncs
-            SET last_success_at = now(), updated_at = now()
+            -- Idem: push carimba push. Ver a nota acima e a migration 0031.
+            SET last_push_at = now(), updated_at = now()
           WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
         [row.workspace_id, PROVIDER, row.connection_id]
       );
