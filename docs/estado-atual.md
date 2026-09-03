@@ -811,8 +811,16 @@ existe e nunca foi elegível, ou não existe?
   `/analytics/dashboard/searchTerms` responde *"Acesso necessário"* e o menu não
   tem a seção Marcas — **nem o login dela vê**. Detalhe e tabela de medição em
   `docs/api-amazon-sp-api.md` → Changelog, 03/09.
+  **A exigência é TRIPLA** (documentação oficial, verbatim): função de Brand
+  Analytics no app + registro no Brand Registry + ser representante da marca.
   **Reabre** se ela registrar marca, ou quando conectarmos um cliente que já
-  tenha Brand Registry — aí deve fluir pela autorização normal do app.
+  tenha Brand Registry. ⚠️ **E aí há um passo NOSSO, hoje sem urgência:** o
+  app-dash ainda está na Central de desenvolvedores ANTIGA (perfil "Desenvolvedor
+  privado", 8 funções marcadas, Brand Analytics **nem listado como opção**), com
+  banner pedindo migração para o Portal de provedores de soluções — o portal novo,
+  onde a aprovação de 03/09 aconteceu. Migrar a conta e anexar a função é
+  pré-requisito para o BA de um cliente com marca. **Isto é condição de
+  reabertura, não pendência ativa:** ninguém está esperando por isso hoje.
 - **Amazon Ads API** — solicitada em 13/08, ainda não aprovada. Enquanto isso o
   acompanhamento é pelo navegador.
 - ~~**TikTok DSPR**~~ — ✅ aprovada em 07/08.

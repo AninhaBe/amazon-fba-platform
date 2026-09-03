@@ -233,11 +233,30 @@ Amazon*. Se o papel for concedido, o caminho é `transportationOptions` da 2024-
   seja: **nem o login dela vê o Brand Analytics**. Reautorizar o app não mudaria
   nada — a hipótese do "token anterior à aprovação" morreu sem precisar do teste.
 
-  **CONCLUSÃO:** `GET_BRAND_ANALYTICS_*` exige **Brand Registry na conta do
-  vendedor**, independente das funções aprovadas para o app. Para a conta da dona
-  do produto — que anuncia como Genérico, sem marca registrada — o Brand
-  Analytics **não vira dado**. Para um cliente futuro **com** Brand Registry, ele
-  deve fluir pela autorização normal do app, que agora está aprovado.
+  **E A DOCUMENTAÇÃO CONFIRMA, verbatim** (`report-type-values-analytics`) — a
+  exigência é TRIPLA, não só Brand Registry:
+
+  > *"Sellers and vendors who have the Brand Analytics Selling Partner API role,
+  > are registered in Amazon Brand Registry, and are a brand representative."*
+
+  📌 Ou seja: **função do app** + **Brand Registry na conta** + **ser
+  representante da marca**. A medição já dizia que faltava algo; a citação diz
+  exatamente o quê, e mostra que são três condições independentes — atender uma
+  não adianta.
+
+  **CONCLUSÃO:** para a conta da dona do produto — que anuncia como Genérico, sem
+  marca registrada — o Brand Analytics **não vira dado**, e nenhuma configuração
+  nossa muda isso. Para um cliente futuro com Brand Registry, falta ainda um
+  passo do NOSSO lado (ver abaixo).
+
+  🔴 **E HÁ UM PASSO NOSSO QUE NINGUÉM TINHA VISTO.** No console, o app-dash
+  ainda vive na **Central de desenvolvedores ANTIGA**: lista 8 funções marcadas e
+  **Brand Analytics nem aparece como opção**; o perfil segue *"Desenvolvedor
+  privado"*, com banner pedindo migração para o **Portal de provedores de
+  soluções** — o portal novo, onde a aprovação de 03/09 aconteceu.
+  Então a função existe no portal novo e é **inalcançável pelo app enquanto ele
+  estiver no antigo**. Atender um cliente com Brand Registry exige, antes:
+  migrar a conta de desenvolvedor e anexar a função ao app.
 
   ⚠️ **O padrão, pela terceira vez esta semana:** aprovação no papel ≠ acesso
   real, e só a chamada responde. Aqui a economia foi grande — sem a medição,
