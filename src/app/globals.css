@@ -6024,3 +6024,94 @@ summary:hover { background: var(--paper-soft); }
   border-color: var(--warning);
   color: var(--warning);
 }
+
+/* ═══ COCKPIT DO RESULTADO — redesenho do dashboard do ML (03/09/2026) ═══════
+
+   Direcao "Cockpit", aprovada pela dona com a restricao literal: *"sem
+   alteracao nenhuma que nao seja o design"*. Nenhuma regra daqui muda numero,
+   condicao ou destino — e todas nascem prefixadas com `cockpit-`, para nao
+   alcancar nenhuma tela que nao pediu.
+
+   ⚠️ E VALE SO PARA O ML POR ENQUANTO: ela chamou o redesenho de teste.
+   Amazon, Shopee e TikTok continuam com o layout de hoje, e ha guarda provando
+   que nenhum deles renderiza diferente. */
+
+.cockpit-faixa {
+  display: flex;
+  align-items: stretch;
+  border-block-end: 1px solid var(--ink-08);
+}
+.cockpit-resultado { flex: 1.4; display: flex; flex-direction: column; gap: 14px; padding: 26px 28px; }
+.cockpit-ao-lado {
+  flex: 1;
+  padding: 26px 28px;
+  border-inline-start: 1px solid var(--ink-08);
+}
+
+.cockpit-kicker {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+}
+
+.cockpit-linha { display: flex; align-items: baseline; flex-wrap: wrap; gap: 14px; }
+/* 44px e o tamanho da prancheta: o lucro e o protagonista da faixa, e o resto
+   da tela mantem a escala de 19px dos cartoes. */
+.cockpit-lucro {
+  color: var(--ink);
+  font-size: 44px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+.cockpit-lucro.is-positive { color: var(--positive); }
+.cockpit-lucro.is-negative { color: var(--danger); }
+.cockpit-frase { margin: 0; color: var(--ink-muted); font-size: 16px; line-height: 1.5; }
+.cockpit-frase strong { color: var(--ink); font-weight: 600; }
+
+.cockpit-cascata { display: flex; height: 14px; border-radius: 7px; overflow: hidden; }
+.cockpit-cascata > span { flex-basis: 0; min-width: 2px; }
+
+.cockpit-legenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ink-muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.cockpit-legenda li { display: inline-flex; align-items: center; gap: 6px; }
+.cockpit-marca { display: inline-block; width: 8px; height: 8px; border-radius: 2px; }
+
+/* As pendencias numa fila: os mesmos textos e destinos de antes, sem o peso de
+   cartao. Chip que exige acao dela usa a tinta de atencao — os outros informam. */
+.cockpit-pendencias {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 28px;
+  border-block-end: 1px solid var(--ink-08);
+}
+.cockpit-chip {
+  border: 1px solid var(--ink-12);
+  border-radius: 999px;
+  padding: 4px 12px;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+.cockpit-chip:hover { border-color: var(--ink); color: var(--ink); }
+.cockpit-chip.is-acao { border-color: var(--warning); color: var(--warning); font-weight: 600; }
+
+@media (max-width: 900px) {
+  .cockpit-faixa { flex-direction: column; }
+  .cockpit-ao-lado { border-inline-start: 0; border-block-start: 1px solid var(--ink-08); }
+  .cockpit-lucro { font-size: 34px; }
+}

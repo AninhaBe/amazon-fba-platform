@@ -32,6 +32,7 @@ import { Pagination } from "./Pagination";
 import { TopProductsRanking } from "./TopProductsRanking";
 import { BriefingLead } from "./BriefingLead";
 import { NexoDoDia } from "./NexoDoDia";
+import { CockpitDoResultado, LinhaDePendencias } from "./CockpitDoResultado";
 import { IntegrationDashboardFrame } from "./IntegrationDashboardFrame";
 import { marginMetricTone } from "@/lib/marginTone";
 import { BASE_SEM_DIFERENCA, declaracaoDeBase } from "./baseDaMargem";
@@ -437,6 +438,26 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
   const units = overview.dailySales.reduce((total, point) => total + point.units, 0);
   const critical = overview.stockRadar.filter((product) => product.status === "critical" || product.status === "out");
   const { semAliquota, resultParcial, resultIncomplete, margemSub } = avaliarResultado(overview);
+  /**
+   * ⚠️ A MESMA LISTA DE SEMPRE, so extraida para ter nome. Nenhuma
+   * condicao mudou: aliquota ausente, produtos sem custo, pedidos cancelados e
+   * estoque critico, na mesma ordem e com os mesmos textos e destinos.
+   */
+  const pendenciasDoCanal = [
+    ...(semAliquota
+      ? [{ label: "Cadastrar alíquota", href: MERCADO_LIVRE_TAX_RATE_HREF, tone: "pendencia" as const }]
+      : []),
+    ...(overview.metrics.productsWithoutCost > 0
+      ? [{ label: `Cadastrar custo de ${overview.metrics.productsWithoutCost} produto(s)`, href: "/mercado-livre/produtos", tone: "pendencia" as const }]
+      : []),
+    ...(overview.metrics.cancelledOrders > 0
+      ? [{ label: `${overview.metrics.cancelledOrders} pedido(s) cancelado(s) no período`, href: "/mercado-livre/monitor", tone: "alerta" as const }]
+      : []),
+    ...(critical.length > 0
+      ? [{ label: `${critical.length} produto(s) em estoque crítico`, href: "/mercado-livre/estoque", tone: "alerta" as const }]
+      : []),
+  ];
+
   // ⚠️ 30/08/2026 — custo faltando virou SINAL, nao trava (decisao da vendedora).
   // O numero aparece sempre; `sinais` anda colado nele.
   const sinais = sinaisDoResultado({
@@ -505,21 +526,19 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
       moeda={overview.metrics.currency}
       briefingHref="/mercado-livre/monitor"
       briefingLabel="Ver detalhes"
-      acoes={[
-        ...(semAliquota
-          ? [{ label: "Cadastrar alíquota", href: MERCADO_LIVRE_TAX_RATE_HREF, tone: "pendencia" as const }]
-          : []),
-        ...(overview.metrics.productsWithoutCost > 0
-          ? [{ label: `Cadastrar custo de ${overview.metrics.productsWithoutCost} produto(s)`, href: "/mercado-livre/produtos", tone: "pendencia" as const }]
-          : []),
-        ...(overview.metrics.cancelledOrders > 0
-          ? [{ label: `${overview.metrics.cancelledOrders} pedido(s) cancelado(s) no período`, href: "/mercado-livre/monitor", tone: "alerta" as const }]
-          : []),
-        ...(critical.length > 0
-          ? [{ label: `${critical.length} produto(s) em estoque crítico`, href: "/mercado-livre/estoque", tone: "alerta" as const }]
-          : []),
-      ]}
+      // ⚠️ AS PENDENCIAS SAIRAM DAQUI E VIRARAM UMA LINHA DE CHIPS
+      // (03/09/2026, redesenho aprovado). A LISTA E A MESMA — os textos, os
+      // links e as condicoes vem de `pendenciasDoCanal`, logo abaixo, e sao
+      // exatamente os que estavam aqui. O que mudou foi a FORMA: cartoes
+      // empilhados a direita viraram chips em fila.
+      //
+      // ⚠️ E o `acoes` continua existindo no `BriefingLead`, que e
+      // compartilhado pelos quatro canais: Amazon, Shopee e TikTok seguem
+      // passando o deles e renderizando igual. So o ML deixa de passar.
+      acoes={[]}
     />
+
+    <LinhaDePendencias itens={pendenciasDoCanal} />
 
 
     {/* Duas faixas de largura total viraram UMA linha discreta: as duas diziam
@@ -535,6 +554,43 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
     {/* Faturamento do ML conta aprovadas + canceladas, sem frete (regra do
         proprio canal) — e sempre pela data do pedido. */}
     <BaseDeData base="pedido" />
+    {/* ⚠️ A FAIXA DO RESULTADO — redesenho aprovado em 03/09/2026,
+        direcao "Cockpit". A restricao da dona foi literal: *"sem alteracao
+        nenhuma que nao seja o design"*.
+
+        TODO NUMERO AQUI JA ERA EXIBIDO NESTA TELA: o lucro e a margem sao os
+        mesmos do cartao de Lucro, as parcelas sao as mesmas do painel de
+        composicao, e a contagem de vendas e a mesma do cartao de Pedidos. Nada
+        e recalculado, nada e buscado a mais — o `CockpitDoResultado` recebe
+        pronto e so decide tamanho, ordem e proporcao.
+
+        ⚠️ A cascata OMITE parcela desconhecida em vez de desenha-la como
+        zero. Barra que soma o que ninguem sabe mente com a autoridade de um
+        desenho — e o `null != 0` vale para a proporcao como vale para o
+        numero. */}
+    <CockpitDoResultado
+      titulo={`Resultado — ${periodoLabel}`}
+      lucro={resultIncomplete ? null : overview.profit.estimatedProfit}
+      lucroFormatado={resultIncomplete || overview.profit.estimatedProfit == null
+        ? "—"
+        : money(overview.profit.estimatedProfit, overview.metrics.currency)}
+      frase={resultIncomplete ? margemSub : (
+        <>
+          de lucro em <strong>{overview.metrics.paidOrders} venda(s)</strong>
+          {overview.profit.marginPct == null ? null : (
+            <> · margem <strong>{overview.profit.marginPct.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%</strong></>
+          )}
+        </>
+      )}
+      parcelas={[
+        { id: "fees", rotulo: `Taxas ${money(overview.profit.fees ?? 0, overview.metrics.currency)}`, valor: overview.profit.fees, cor: "var(--ink-32)" },
+        { id: "cogs", rotulo: `Custo ${money(overview.profit.cogs ?? 0, overview.metrics.currency)}`, valor: overview.profit.cogs, cor: "var(--ink-12)" },
+        { id: "shipping", rotulo: `Frete ${money(overview.profit.sellerShipping ?? 0, overview.metrics.currency)}`, valor: overview.profit.sellerShipping, cor: "var(--ink-08)", contorno: true },
+        { id: "taxes", rotulo: `Impostos ${money(overview.profit.taxes ?? 0, overview.metrics.currency)}`, valor: overview.profit.taxes, cor: "var(--ink-08)", contorno: true },
+        { id: "lucro", rotulo: `Lucro ${resultIncomplete || overview.profit.estimatedProfit == null ? "—" : money(overview.profit.estimatedProfit, overview.metrics.currency)}`, valor: resultIncomplete ? null : overview.profit.estimatedProfit, cor: "var(--positive)" },
+      ]}
+    />
+
     <section className="metric-grid ml-dashboard-metric-grid" aria-label="Resumo financeiro Mercado Livre">
       <Metric label="Faturamento" value={<AnimatedNumber periodo={identidadeDePeriodo(overview.period.from, overview.period.to)} id="ml-dash-revenue" value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={`${overview.metrics.paidOrders} aprovadas + ${overview.metrics.cancelledOrders} canceladas`} trend={getRevenueTrend(overview.dailySales)} />
       <Metric label="Taxas" value={money(overview.profit.fees, overview.metrics.currency)} sub={`${profitCoverage.processedOrders} venda(s) processada(s)`} />
