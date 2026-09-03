@@ -54,8 +54,18 @@ test("os numeros da faixa saem dos MESMOS campos que a tela ja exibia", async ()
   // ⚠️ O lucro respeita `resultIncomplete`: enquanto falta custo, tarifa ou
   // imposto, ele é DESCONHECIDO. Mostrar o parcial em 44px seria a mentira mais
   // cara possível — o número grande é o que a pessoa lê primeiro.
-  assert.ok(faixa.includes("lucro={resultIncomplete ? null : overview.profit.estimatedProfit}"),
-    "o lucro incompleto passou a ser exibido como se fosse o resultado");
+  // ⚠️ A REGRA DO NUMERO GRANDE E A DO CARTAO DE HOJE, LITERAL. A
+  // primeira versao punha `resultIncomplete` como porta e o cartao NAO faz isso:
+  // ele mostra o numero sempre que `estimatedProfit != null` e troca o ROTULO
+  // quando o resultado e parcial. Gate novo seria mudanca de comportamento, e a
+  // ordem era "mesmo payload, mesmos numeros que hoje".
+  assert.ok(faixa.includes("lucro={overview.profit.estimatedProfit}"),
+    "a faixa ganhou uma regra de exibicao que o cartao nao tem");
+  assert.ok(!/resultIncomplete/.test(faixa), "voltou o gate que esconde numero que a pagina de hoje mostra");
+  // E o rotulo acompanha: nao chamar de LUCRO o que a pagina chama de resultado
+  // processado.
+  assert.ok(faixa.includes('resultParcial ? "resultado processado" : "lucro"'),
+    "a faixa passou a chamar de lucro o resultado parcial");
 });
 
 test("as PENDENCIAS sao as mesmas — mesma condicao, mesmo texto, mesmo destino", async () => {
@@ -110,4 +120,68 @@ test("nenhuma classe do cockpit e usada sem existir no CSS", async () => {
   const FIM = [" ", ",", ":", ".", "{", String.fromCharCode(10)];
   const ausentes = [...usadas].filter((classe) => !FIM.some((fim) => css.includes("." + classe + fim)));
   assert.deepEqual(ausentes, [], `classes sem definição: ${ausentes.join(", ")}`);
+});
+
+test("a ROSQUINHA subiu de lugar, nao de conteudo — e o calculo e UM so", async () => {
+  const codigo = semComentarios(await fonte(ML));
+  // ⚠️ UM CALCULO, DOIS CONSUMIDORES. A faixa do topo e o painel de baixo
+  // leem a MESMA constante. Se cada um montasse a sua, bastaria alguem editar um
+  // lado para a tela mostrar duas composicoes diferentes do mesmo periodo, sem
+  // nada ficar vermelho — o defeito de "dois consumidores, dois universos".
+  assert.equal(
+    (codigo.match(/buildFinancialComposition\(\{/g) ?? []).length, 1,
+    "a composicao passou a ser calculada em dois lugares",
+  );
+  assert.equal((codigo.match(/slices=\{composicaoDoResultado\}/g) ?? []).length, 2,
+    "a faixa e o painel deixaram de ler a mesma composicao");
+  // E o total da rosquinha continua sendo a receita processada, como no painel.
+  assert.match(codigo, /total=\{overview\.profit\.revenueProcessed\}/);
+});
+
+test("a variante do painel e OPT-IN: so o ML passa, e o default e o de hoje", async () => {
+  const painel = semComentarios(await fonte("src/app/components/FinancialSummaryPanel.tsx"));
+  // ⚠️ O DEFAULT E O COMPORTAMENTO DE HOJE. Sem isso, os outros tres
+  // canais perderiam a rosquinha sem ninguem ter pedido.
+  assert.match(painel, /semDonut = false/, "a variante deixou de ter default — os outros canais mudam junto");
+  assert.match(painel, /\{!semDonut && total > 0 && slices\.length > 0/, "a condicao da rosquinha mudou de forma");
+
+  const ml = semComentarios(await fonte(ML));
+  assert.match(ml, /semDonut/, "o ML parou de pedir a variante e ficaria com duas rosquinhas");
+
+  for (const tela of [
+    "src/app/(app)/amazon/page.tsx",
+    "src/app/components/ShopeeWorkspace.tsx",
+    "src/app/components/TikTokWorkspace.tsx",
+    "src/app/components/ShopeeModulePage.tsx",
+  ]) {
+    const outro = semComentarios(await fonte(tela));
+    assert.ok(!/semDonut/.test(outro), `${tela}: passou a pedir a variante do ML`);
+  }
+});
+
+test("as DUAS COLUNAS sao do canal, e as pecas de dentro nao mudaram", async () => {
+  const codigo = semComentarios(await fonte(ML));
+  assert.match(codigo, /className="ml-cockpit-duas-colunas"/, "o grid das duas colunas sumiu");
+  // ⚠️ A tabela compartilhada recebe os MESMOS dados de antes: mover de
+  // lugar nao pode virar mexer no que ela mostra.
+  // ⚠️ A ANCORA E DENTRO DO BLOCO DAS DUAS COLUNAS. A tabela aparece duas
+  // vezes no arquivo (dashboard e monitor); casar o arquivo inteiro ficava verde
+  // com a do bloco quebrada, porque a outra continuava intacta.
+  const bloco = codigo.slice(codigo.indexOf('className="ml-cockpit-duas-colunas"'));
+  const dentro = bloco.slice(0, 1200);
+  assert.ok(dentro.includes("<OrderProfitabilityTable lines={overview.profitabilityLines}"),
+    "a tabela de rentabilidade mudou de dados ao mudar de lugar");
+  // As DUAS pontas do ranking: a condicao de vazio e a lista que ele recebe.
+  // Casar so o nome ficava verde com uma das duas trocada por [].
+  assert.ok(dentro.includes("overview.topProducts.length === 0"), "a condicao de vazio do ranking mudou");
+  assert.ok(dentro.includes("products={overview.topProducts.map("), "o ranking deixou de receber os produtos do periodo");
+  // E o grid e do ML: prefixo do canal, e nenhum outro o usa.
+  for (const tela of [
+    "src/app/(app)/amazon/page.tsx",
+    "src/app/components/ShopeeWorkspace.tsx",
+    "src/app/components/TikTokWorkspace.tsx",
+  ]) {
+    const outro = semComentarios(await fonte(tela));
+    assert.ok(!/ml-cockpit-duas-colunas/.test(outro), `${tela}: herdou o grid do ML`);
+  }
 });

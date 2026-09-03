@@ -20,6 +20,7 @@ import { ORDEM_DO_RADAR, ROTULO_DE_COBERTURA, type StockStatus } from "@/lib/cob
 import { LegendaDeVendas } from "./LegendaDeVendas";
 import { CompactMetric, Flow, FlowExpandable, Metric, getRevenueTrend } from "./Metric";
 import { buildFinancialComposition, FinancialSummaryPanel } from "./FinancialSummaryPanel";
+import { CompositionDonut } from "./CompositionDonut";
 import { sinaisDoResultado } from "./oQueFaltaNoResultado";
 import { SinaisDoResultado } from "./SinaisDoResultado";
 import { sinaisSilenciadosPorAlarme } from "./hierarquiaDeAvisos";
@@ -443,6 +444,26 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
    * condicao mudou: aliquota ausente, produtos sem custo, pedidos cancelados e
    * estoque critico, na mesma ordem e com os mesmos textos e destinos.
    */
+
+  /**
+   * ⚠️ UM CALCULO, DOIS CONSUMIDORES (03/09/2026). A rosquinha subiu para
+   * a faixa do topo e o painel de baixo continua listando as mesmas parcelas —
+   * se cada um montasse a sua, bastaria alguem editar um lado para a tela
+   * mostrar duas composicoes diferentes do mesmo periodo, sem nada ficar
+   * vermelho. E o defeito de "dois consumidores, dois universos" que este
+   * projeto ja pagou caro.
+   */
+  const composicaoDoResultado = buildFinancialComposition({
+          total: overview.profit.revenueProcessed,
+          costs: [
+            { id: "fees", label: "Taxas do Mercado Livre", value: overview.profit.fees },
+            { id: "shipping", label: "Frete do vendedor", value: overview.profit.sellerShipping },
+            { id: "cogs", label: "Custo dos produtos", value: overview.profit.cogs },
+            { id: "taxes", label: "Impostos", value: overview.profit.taxes },
+          ],
+          result: resultIncomplete ? null : overview.profit.estimatedProfit,
+        });
+
   const pendenciasDoCanal = [
     ...(semAliquota
       ? [{ label: "Cadastrar alíquota", href: MERCADO_LIVRE_TAX_RATE_HREF, tone: "pendencia" as const }]
@@ -570,13 +591,27 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
         numero. */}
     <CockpitDoResultado
       titulo={`Resultado — ${periodoLabel}`}
-      lucro={resultIncomplete ? null : overview.profit.estimatedProfit}
-      lucroFormatado={resultIncomplete || overview.profit.estimatedProfit == null
+      // ⚠️ A REGRA E A MESMA DO CARTAO DE HOJE, LITERAL — e a primeira
+      // versao desta faixa NAO era (03/09/2026).
+      //
+      // Eu tinha posto `resultIncomplete` como porta: com custo, tarifa ou
+      // imposto faltando, o numero grande sairia "—". O CARTAO DA PAGINA NAO FAZ
+      // ISSO: ele mostra o numero sempre que `estimatedProfit != null`, e quando
+      // o resultado e parcial ele muda o ROTULO para "Resultado processado" em
+      // vez de esconder o valor.
+      //
+      // Um gate novo aqui seria mudanca de COMPORTAMENTO, e a ordem da dona foi
+      // "sem alteracao nenhuma que nao seja o design": mesmo payload, mesmos
+      // numeros que hoje, so em nova posicao. Entao a faixa replica a regra
+      // existente — inclusive a troca de rotulo, para nao chamar de LUCRO o que
+      // a pagina chama de resultado processado.
+      lucro={overview.profit.estimatedProfit}
+      lucroFormatado={overview.profit.estimatedProfit == null
         ? "—"
         : money(overview.profit.estimatedProfit, overview.metrics.currency)}
-      frase={resultIncomplete ? margemSub : (
+      frase={overview.profit.estimatedProfit == null ? margemSub : (
         <>
-          de lucro em <strong>{overview.metrics.paidOrders} venda(s)</strong>
+          de {resultParcial ? "resultado processado" : "lucro"} em <strong>{overview.metrics.paidOrders} venda(s)</strong>
           {overview.profit.marginPct == null ? null : (
             <> · margem <strong>{overview.profit.marginPct.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%</strong></>
           )}
@@ -587,8 +622,28 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
         { id: "cogs", rotulo: `Custo ${money(overview.profit.cogs ?? 0, overview.metrics.currency)}`, valor: overview.profit.cogs, cor: "var(--ink-12)" },
         { id: "shipping", rotulo: `Frete ${money(overview.profit.sellerShipping ?? 0, overview.metrics.currency)}`, valor: overview.profit.sellerShipping, cor: "var(--ink-08)", contorno: true },
         { id: "taxes", rotulo: `Impostos ${money(overview.profit.taxes ?? 0, overview.metrics.currency)}`, valor: overview.profit.taxes, cor: "var(--ink-08)", contorno: true },
-        { id: "lucro", rotulo: `Lucro ${resultIncomplete || overview.profit.estimatedProfit == null ? "—" : money(overview.profit.estimatedProfit, overview.metrics.currency)}`, valor: resultIncomplete ? null : overview.profit.estimatedProfit, cor: "var(--positive)" },
+        { id: "lucro", rotulo: `${resultParcial ? "Resultado" : "Lucro"} ${overview.profit.estimatedProfit == null ? "—" : money(overview.profit.estimatedProfit, overview.metrics.currency)}`, valor: overview.profit.estimatedProfit, cor: "var(--positive)" },
       ]}
+      aoLado={
+        /* ⚠️ A MESMA ROSQUINHA, COM OS MESMOS NUMEROS — ela mudou de
+           lugar, nao de conteudo. `buildFinancialComposition` e chamado com o
+           MESMO total e as MESMAS parcelas que o painel de baixo usa; se um dia
+           os dois divergirem, sera porque alguem mexeu num e nao no outro, e ha
+           guarda para isso.
+
+           O painel de baixo passa a receber `semDonut` — a variante opt-in que
+           existe so para este canal. Sem ela, os outros tres continuam com a
+           rosquinha onde sempre esteve. */
+        <>
+          <p className="cockpit-kicker">Repasses, taxas e {overview.profit.coverage.complete ? "lucro" : "resultado"}</p>
+          <CompositionDonut
+            total={overview.profit.revenueProcessed}
+            totalLabel="Receita processada"
+            format={(valor) => money(valor, overview.metrics.currency)}
+            slices={composicaoDoResultado}
+          />
+        </>
+      }
     />
 
     <section className="metric-grid ml-dashboard-metric-grid" aria-label="Resumo financeiro Mercado Livre">
@@ -646,22 +701,14 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
         <RevenueChart points={overview.dailySales} currency={overview.metrics.currency} explorable />
       </div>
       <FinancialSummaryPanel
+        semDonut
         complete={!resultIncomplete}
         labelledBy="meli-financial-summary-title"
         description={profitCoverage.complete ? "Valores efetivamente identificados no período." : `Detalhamento processado em ${profitCoverage.processedOrders} de ${profitCoverage.paidOrders} vendas.`}
         total={overview.profit.revenueProcessed}
         totalLabel="Receita processada"
         format={(value) => money(value, overview.metrics.currency)}
-        slices={buildFinancialComposition({
-          total: overview.profit.revenueProcessed,
-          costs: [
-            { id: "fees", label: "Taxas do Mercado Livre", value: overview.profit.fees },
-            { id: "shipping", label: "Frete do vendedor", value: overview.profit.sellerShipping },
-            { id: "cogs", label: "Custo dos produtos", value: overview.profit.cogs },
-            { id: "taxes", label: "Impostos", value: overview.profit.taxes },
-          ],
-          result: resultIncomplete ? null : overview.profit.estimatedProfit,
-        })}
+        slices={composicaoDoResultado}
         footer={(
           <>
             <Link href="/mercado-livre/monitor" className="meli-financial-link">Ver composição completa no monitor <span aria-hidden="true">→</span></Link>
@@ -702,7 +749,6 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
       </FinancialSummaryPanel>
     </section>
 
-    {overview.topProducts.length === 0 ? <Empty>Sem vendas no período para ranquear.</Empty> : <TopProductsRanking products={overview.topProducts.map((product) => ({ sku: product.sku || product.id, title: product.title, units: product.units, revenue: product.revenue, marginPct: product.marginPct }))} currency={overview.metrics.currency} productsHref="/mercado-livre/produtos" />}
 
     <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
       <Panel title="Estoque crítico" href="/mercado-livre/estoque" linkLabel="Ver radar">
@@ -728,7 +774,25 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
       />
     )}
 
-    <OrderProfitabilityTable lines={overview.profitabilityLines} scopeNote={fraseDeEscopo(overview.profitabilityScope)} />
+    {/* ⚠️ DUAS COLUNAS — item 5 do redesenho aprovado (03/09/2026).
+
+        O ranking e a rentabilidade respondem a mesma pergunta por angulos
+        diferentes ("o que vendeu" e "o que sobrou por venda"), e empilhados
+        obrigavam a rolar de um para o outro. Lado a lado, a comparacao e de
+        relance.
+
+        ⚠️ O GRID E DAQUI, DO CORPO DA PAGINA DO ML — as duas pecas nao
+        mudaram. Elas recebem exatamente os mesmos dados de antes, e a tabela de
+        rentabilidade e compartilhada com os outros canais, que continuam com ela
+        em largura inteira. */}
+    <div className="ml-cockpit-duas-colunas">
+      <div>
+        {overview.topProducts.length === 0 ? <Empty>Sem vendas no período para ranquear.</Empty> : <TopProductsRanking products={overview.topProducts.map((product) => ({ sku: product.sku || product.id, title: product.title, units: product.units, revenue: product.revenue, marginPct: product.marginPct }))} currency={overview.metrics.currency} productsHref="/mercado-livre/produtos" />}
+      </div>
+      <div>
+        <OrderProfitabilityTable lines={overview.profitabilityLines} scopeNote={fraseDeEscopo(overview.profitabilityScope)} />
+      </div>
+    </div>
 
     {/* No desktop a sidebar já cobre estes atalhos; no mobile a nav é scroll
         horizontal e os cartões ajudam. */}

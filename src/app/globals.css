@@ -6115,3 +6115,16 @@ summary:hover { background: var(--paper-soft); }
   .cockpit-ao-lado { border-inline-start: 0; border-block-start: 1px solid var(--ink-08); }
   .cockpit-lucro { font-size: 34px; }
 }
+
+/* As duas colunas do corpo do dashboard do ML. A regra e do CANAL (prefixo
+   `ml-`), nao do app: os outros tres seguem com ranking e rentabilidade em
+   largura inteira ate a dona mandar replicar. */
+.ml-cockpit-duas-colunas {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 24px;
+}
+@media (max-width: 1100px) {
+  .ml-cockpit-duas-colunas { grid-template-columns: minmax(0, 1fr); }
+}
