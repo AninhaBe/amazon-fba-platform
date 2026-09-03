@@ -559,7 +559,6 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
       acoes={[]}
     />
 
-    <LinhaDePendencias itens={pendenciasDoCanal} />
 
 
     {/* Duas faixas de largura total viraram UMA linha discreta: as duas diziam
@@ -646,6 +645,8 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
       }
     />
 
+    <LinhaDePendencias itens={pendenciasDoCanal} />
+
     <section className="metric-grid ml-dashboard-metric-grid" aria-label="Resumo financeiro Mercado Livre">
       <Metric label="Faturamento" value={<AnimatedNumber periodo={identidadeDePeriodo(overview.period.from, overview.period.to)} id="ml-dash-revenue" value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={`${overview.metrics.paidOrders} aprovadas + ${overview.metrics.cancelledOrders} canceladas`} trend={getRevenueTrend(overview.dailySales)} />
       <Metric label="Taxas" value={money(overview.profit.fees, overview.metrics.currency)} sub={`${profitCoverage.processedOrders} venda(s) processada(s)`} />
@@ -672,6 +673,29 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
         volta, porque a condicao e o ESTADO da conexao.
       */}
       {!sinaisSilenciadosPorAlarme(conexaoCaida) && sinais.length > 0 && <SinaisDoResultado sinais={sinais} />}
+
+    {/* ⚠️ A ORDEM AQUI E A DA PRANCHETA, e ela foi reprovada uma vez
+        por nao ser (03/09/2026). Palavra dela: *"Eu pedi pra voce fazer
+        exatamente como me apresentou na direcao A"*.
+
+        A sequencia aprovada e: faixa do resultado -> chips de pendencia ->
+        regua de cards -> TOP PRODUTOS + RENTABILIDADE lado a lado. O grafico de
+        evolucao e o painel de composicao vinham DEPOIS na prancheta, e no ar
+        estavam antes — a leitura chegava ao grafico antes de chegar ao produto.
+
+        ⚠️ E ELES DESCERAM, NAO SAIRAM. A prancheta era um viewport, nao a
+        pagina inteira; remover funcao porque ela nao cabia no recorte seria
+        passar de "so design" para "tirei uma peca". Se a dona quiser tira-los,
+        ela manda e ai saem. */}
+    <div className="ml-cockpit-duas-colunas">
+      <div>
+        {overview.topProducts.length === 0 ? <Empty>Sem vendas no período para ranquear.</Empty> : <TopProductsRanking products={overview.topProducts.map((product) => ({ sku: product.sku || product.id, title: product.title, units: product.units, revenue: product.revenue, marginPct: product.marginPct }))} currency={overview.metrics.currency} productsHref="/mercado-livre/produtos" />}
+      </div>
+      <div>
+        <OrderProfitabilityTable lines={overview.profitabilityLines} scopeNote={fraseDeEscopo(overview.profitabilityScope)} />
+      </div>
+    </div>
+
 
     <section className="secondary-metrics" aria-label="Indicadores operacionais Mercado Livre">
       <CompactMetric label="Vendas" value={overview.metrics.paidOrders.toLocaleString("pt-BR")} />
@@ -785,15 +809,6 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
         mudaram. Elas recebem exatamente os mesmos dados de antes, e a tabela de
         rentabilidade e compartilhada com os outros canais, que continuam com ela
         em largura inteira. */}
-    <div className="ml-cockpit-duas-colunas">
-      <div>
-        {overview.topProducts.length === 0 ? <Empty>Sem vendas no período para ranquear.</Empty> : <TopProductsRanking products={overview.topProducts.map((product) => ({ sku: product.sku || product.id, title: product.title, units: product.units, revenue: product.revenue, marginPct: product.marginPct }))} currency={overview.metrics.currency} productsHref="/mercado-livre/produtos" />}
-      </div>
-      <div>
-        <OrderProfitabilityTable lines={overview.profitabilityLines} scopeNote={fraseDeEscopo(overview.profitabilityScope)} />
-      </div>
-    </div>
-
     {/* No desktop a sidebar já cobre estes atalhos; no mobile a nav é scroll
         horizontal e os cartões ajudam. */}
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:hidden">

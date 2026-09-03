@@ -185,3 +185,42 @@ test("as DUAS COLUNAS sao do canal, e as pecas de dentro nao mudaram", async () 
     assert.ok(!/ml-cockpit-duas-colunas/.test(outro), `${tela}: herdou o grid do ML`);
   }
 });
+
+test("A ORDEM DOS BLOCOS E A DA PRANCHETA — reprovada uma vez por nao ser", async () => {
+  // ⚠️ A v258 FOI REPROVADA PELA DONA por isto, verbatim: *"Eu pedi pra
+  // voce fazer exatamente como me apresentou na direcao A"*.
+  //
+  // O que estava no ar tinha os blocos certos na ORDEM ERRADA: depois da regua
+  // de cards vinham o grafico de evolucao e o painel de composicao, e o Top
+  // produtos + Rentabilidade ficavam la embaixo. A leitura chegava ao grafico
+  // antes de chegar ao produto — o contrario da prancheta aprovada.
+  //
+  // Ancorado nos BLOCOS REAIS (a marcacao que cada um abre), nao em nomes
+  // soltos: casar "TopProductsRanking" provaria que a peca existe, nao que ela
+  // esta na posicao aprovada.
+  const codigo = semComentarios(await fonte(ML));
+  const corpo = codigo.slice(codigo.indexOf("<CockpitDoResultado"));
+  const sequencia = [
+    ["a faixa do resultado", "<CockpitDoResultado"],
+    ["os chips de pendencia", "<LinhaDePendencias itens={pendenciasDoCanal}"],
+    ["a regua de cards", 'className="metric-grid ml-dashboard-metric-grid"'],
+    ["as duas colunas", 'className="ml-cockpit-duas-colunas"'],
+    ["o grafico e a composicao", 'className="performance-panel"'],
+  ];
+  let anterior = -1;
+  for (const [nome, marcador] of sequencia) {
+    const posicao = corpo.indexOf(marcador);
+    assert.ok(posicao >= 0, `${nome}: o bloco sumiu da pagina`);
+    assert.ok(posicao > anterior, `${nome}: saiu da ordem da prancheta`);
+    anterior = posicao;
+  }
+});
+
+test("e o grafico e o painel DESCERAM, nao sairam", async () => {
+  // ⚠️ A prancheta era um VIEWPORT, nao a pagina inteira. Remover funcao
+  // porque ela nao cabia no recorte seria passar de "so design" para "tirei uma
+  // peca" — e a ordem dela foi o contrario disso.
+  const codigo = semComentarios(await fonte(ML));
+  assert.match(codigo, /<RevenueChart points=\{overview\.dailySales\}/, "o grafico de evolucao sumiu da pagina");
+  assert.match(codigo, /<FinancialSummaryPanel/, "o painel de composicao sumiu da pagina");
+});
