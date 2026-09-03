@@ -44,23 +44,38 @@ conforme for concluindo.
   **rejeita** e escreve no log qual das fórmulas candidatas *teria* batido. Me
   peça o log (`fly logs -a nexo | grep push-shopee`) e é uma linha para trocar.
 
-- [ ] **Alerta de defasagem do sync no Grafana** — o vigia já expõe as duas
-  séries em `/metrics` (porta 9091, coletada pelo Fly). Falta criar a regra em
-  fly-metrics.net, que exige o login da conta — não é acessível daqui.
+- [ ] **Alerta de defasagem do sync e de push mudo no Grafana** — as séries
+  existem e o servidor de métricas está **NO AR desde 03/09/2026**: o freio
+  `METRICS_PORT=-1`, puxado no incidente de 29/08, foi solto depois que as três
+  proteções contra empilhamento de raspagem foram confirmadas **pela resposta
+  real** (cache de 60 s devolvendo o mesmo corpo; 8 raspagens concorrentes em
+  34 ms). Falta criar as regras em fly-metrics.net, que exige o login da conta.
 
-  **Regra, exatamente como escrever** (sem número digitado, de propósito):
+  **As duas regras, sem número digitado — comparando séries:**
 
   ```promql
   nexo_sync_idade_segundos > nexo_sync_limite_segundos
+  nexo_push_idade_segundos > nexo_push_limite_segundos
   ```
 
-  `for: 5m`, severidade *warning*. O limite vem do próprio código
-  (`cadenciaDoSync.ts`): Shopee 900 s, Mercado Livre 1500 s, Amazon e TikTok
-  3000 s. Mudar a cadência muda o alerta no mesmo deploy — por isso a regra
-  compara duas séries em vez de trazer o número para o painel.
+  `for: 5m`, severidade *warning*. Os limites vêm do código
+  (`cadenciaDoSync.ts`) e já saem como série: sync — Shopee 900 s, ML 1500 s,
+  Amazon e TikTok 3000 s; push — 3600 s. Mudar a cadência muda o alerta no mesmo
+  deploy.
 
-  ⚠️ Conexão de demonstração já sai da métrica na origem (`NOT LIKE '%demo%'`):
-  ela nunca sincroniza e faria o alerta ficar aceso para sempre.
+  ⚠️ **A regra do PUSH sozinha gera falso positivo, e isso é conhecido.** Push só
+  existe quando algo acontece: silêncio de madrugada é legítimo. A regra completa
+  — *"só é mudo se a varredura gravou pedido depois do último push"* — mora em
+  `defasagemDoSync.ts` e já vem pronta no campo `sync` do `/api/health`. Use a
+  série do push para **gráfico e histórico**; para alarme, prefira o
+  `/api/health` ou aceite o ruído noturno conscientemente.
+
+  ⚠️ Conexão de demonstração já sai das séries na origem (`NOT LIKE '%demo%'`).
+
+  📌 **Se o freio for puxado de novo** (`fly secrets set METRICS_PORT=-1`), estas
+  regras param de receber dado e ficam silenciosamente verdes — alerta sem série
+  não dispara. Quem puxar o freio precisa saber que está desligando o alarme
+  junto.
 
 - [ ] **Reconectar a Amazon** — as duas contas estão com o refresh token
   revogado (`invalid_grant`, confirmado em 06/08). Preferir **self-authorization**
