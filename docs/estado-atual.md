@@ -800,9 +800,19 @@ existe e nunca foi elegível, ou não existe?
 
 ## Bloqueado por terceiros
 
-- **Solution Provider Portal (Amazon)** — candidatura travada, caso `21250777631`. Sem
-  ele, a Amazon nunca vira canal vendável a terceiros (só uso próprio via
-  self-authorization). É o mesmo caminho que destravaria **Brand Analytics**.
+- ~~**Solution Provider Portal (Amazon)**~~ — ✅ **app público APROVADO em
+  03/09/2026** ("acesso global do Marketplace com base nas funções solicitadas").
+  A revisão parada desde julho fechou em 1 dia depois da re-submissão com a
+  landing v3.
+- ~~**Brand Analytics**~~ — ❌ **CASO ENCERRADO em 03/09/2026: app pronto, CONTA
+  sem Brand Registry.** Não é bloqueio de terceiros nem trabalho pendente nosso.
+  Medido no token real: `403` específico do BA, com a Reports API respondendo
+  `200` para relatório comum; e confirmado no Seller Central logado, onde
+  `/analytics/dashboard/searchTerms` responde *"Acesso necessário"* e o menu não
+  tem a seção Marcas — **nem o login dela vê**. Detalhe e tabela de medição em
+  `docs/api-amazon-sp-api.md` → Changelog, 03/09.
+  **Reabre** se ela registrar marca, ou quando conectarmos um cliente que já
+  tenha Brand Registry — aí deve fluir pela autorização normal do app.
 - **Amazon Ads API** — solicitada em 13/08, ainda não aprovada. Enquanto isso o
   acompanhamento é pelo navegador.
 - ~~**TikTok DSPR**~~ — ✅ aprovada em 07/08.

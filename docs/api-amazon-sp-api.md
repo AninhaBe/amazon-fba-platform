@@ -208,6 +208,41 @@ Amazon*. Se o papel for concedido, o caminho é `transportationOptions` da 2024-
 
 ## Changelog observado (mais recente primeiro)
 
+- **2026-09-03 — APP PÚBLICO APROVADO, e BRAND ANALYTICS CONTINUA FORA — o
+  bloqueio é da CONTA, não do app.** A Amazon aprovou o acesso do app público
+  ("acesso global do Marketplace com base nas funções solicitadas"), fechando em
+  1 dia uma revisão parada desde julho.
+
+  ⚠️ **E a aprovação não virou acesso.** Medido com o token real da conta
+  `AO62LVXJMX3AA`, pedindo o relatório de verdade — não lendo documentação:
+
+  | chamada | resposta |
+  |---|---|
+  | `POST /reports/2021-06-30/reports` → `GET_BRAND_ANALYTICS_SEARCH_TERMS_REPORT` | **403 Unauthorized** |
+  | `GET /reports/...?reportTypes=GET_BRAND_ANALYTICS_...` | **403 Unauthorized** |
+  | `GET /reports/...?reportTypes=GET_FLAT_FILE_ALL_ORDERS_DATA...` | **200 OK** |
+  | `GET /sellers/v1/marketplaceParticipations` (controle) | **200 OK** |
+
+  📌 **A terceira linha é a que importa.** Um 403 numa rota não diz se o problema
+  é a API ou o relatório; com a Reports API respondendo **200** para um relatório
+  comum, o bloqueio fica isolado no Brand Analytics.
+
+  **E a causa foi confirmada FORA da API**, no Seller Central logado na conta:
+  `/analytics/dashboard/searchTerms` devolve *"Acesso necessário — você não tem
+  as permissões adequadas"*, e o menu lateral **não tem a seção Marcas**. Ou
+  seja: **nem o login dela vê o Brand Analytics**. Reautorizar o app não mudaria
+  nada — a hipótese do "token anterior à aprovação" morreu sem precisar do teste.
+
+  **CONCLUSÃO:** `GET_BRAND_ANALYTICS_*` exige **Brand Registry na conta do
+  vendedor**, independente das funções aprovadas para o app. Para a conta da dona
+  do produto — que anuncia como Genérico, sem marca registrada — o Brand
+  Analytics **não vira dado**. Para um cliente futuro **com** Brand Registry, ele
+  deve fluir pela autorização normal do app, que agora está aprovado.
+
+  ⚠️ **O padrão, pela terceira vez esta semana:** aprovação no papel ≠ acesso
+  real, e só a chamada responde. Aqui a economia foi grande — sem a medição,
+  teríamos pedido à vendedora uma reautorização que não resolveria nada.
+
 - **2026-09-01 (noite)** — **`getOrderItems` de um pedido `Pending` não traz
   `ItemPrice`, e a chave sequer existe no payload.** Medido com UMA chamada de
   leitura na conexão `amazon:A15NQMF7A6J1Y0`, pedido `701-7591488-7149810`,
