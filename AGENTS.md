@@ -313,6 +313,51 @@ tocam a tabela e pergunte de cada uma se o leitor passa por ela. Se passar, a
 view entra na mesma migration. E prefira **medir o leitor de verdade** (chamar o
 produtor) a inferir do schema — foi a chamada real que revelou o 42703.
 
+# Coluna que dois escritores tocam tem dois significados
+
+Desacoplar é separar **todos** os significados — não o primeiro que doeu.
+
+⚠️ **A regra nasceu de dois incidentes em dois dias, e o segundo foi filho da
+correção incompleta do primeiro.**
+
+**02/09/2026 — `last_success_at`.** O webhook do ML gravava nela a cada evento.
+Ela significa "a varredura completou um ciclo", e é o que o vigia de defasagem
+lê. Com o push escrevendo, varredura parada + push chegando dava **"ok"**.
+Corrigido: o push passou a carimbar `last_push_at`.
+
+**03/09/2026 — `updated_at`, mesma tabela, mesmo UPDATE.** O scheduler re-elege
+conexão em erro com `sync.updated_at < now() - interval '15 minutes'`, e o
+webhook também gravava `updated_at = now()`. A conexão recebia push a cada
+poucos minutos, então **nunca envelhecia** e nunca voltava a ser candidata.
+Resultado medido: **11 horas sem varredura**, com o push entregando e a tela
+parecendo viva. Nenhum pedido se perdeu (o push cobriu os 55, conferidos por
+ID), mas a reconciliação — tarifa, frete, liquidação — parou junto.
+
+📌 **O erro não foi a correção do dia anterior; foi o escopo dela.** Eu olhei a
+coluna que estava causando o sintoma daquele dia e parei. As duas estavam no
+**mesmo `UPDATE`**, três linhas uma da outra.
+
+**Na prática, ao separar um escritor de outro:**
+
+1. liste **todas** as colunas que o escritor toca naquele UPDATE, não a que está
+   doendo;
+2. para cada uma, pergunte **quem lê e como interpreta**. `updated_at` parece
+   coluna de auditoria inofensiva — até alguém usá-la como "quando foi a última
+   tentativa", que é backoff, que é controle de fluxo;
+3. e desconfie especialmente das colunas **genéricas** (`updated_at`,
+   `status`, `synced_at`): nome genérico é convite para dois significados
+   morarem juntos sem ninguém notar.
+
+⚠️ **E o sintoma dessa família é sempre o mesmo: nada fica vermelho.** As duas
+escritas são válidas, o SQL não erra, o dado não corrompe. O que quebra é uma
+*decisão* tomada a partir do campo — e decisão errada não deixa rastro. Nos dois
+casos quem denunciou foi um vigia, não um teste.
+
+📌 Corolário que vale para o vigia: **a meia-correção foi o que tornou o resto
+visível.** Se `last_success_at` ainda estivesse acoplada, o alarme de 03/09 nunca
+teria tocado — a parada de 11 horas seria descoberta pela vendedora, comparando
+com outra ferramenta.
+
 # Poder LER entre inquilinos ≠ poder DEVOLVER entre inquilinos
 
 São **duas permissões diferentes**, e juntá-las é como um endpoint de diagnóstico
