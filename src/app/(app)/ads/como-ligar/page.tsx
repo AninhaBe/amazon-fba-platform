@@ -24,7 +24,7 @@ export default function ComoLigarAdsPage() {
       header={<PageHeader
         eyebrow="Ads"
         title="Como ligar Shopee e TikTok"
-        subtitle="Dois cadastros independentes. Nenhum mexe no que já funciona; os dois começam relógios de aprovação que correm sozinhos."
+        subtitle="Dois cadastros independentes. Nenhum mexe no que já funciona."
         icon={pageIcons.dashboard}
       />}
     >
@@ -70,15 +70,31 @@ export default function ComoLigarAdsPage() {
         <section className="ads-bloco" aria-labelledby="ads-shopee">
           <header>
             <p className="section-kicker">Shopee</p>
-            <h2 id="ads-shopee">Esperando a aprovação deles</h2>
+            <h2 id="ads-shopee">App aprovado; integração em implementação</h2>
           </header>
           <p className="ads-nota">
-            O app de Ads foi criado na categoria certa (“Ads Service” — a categoria é imutável depois de criada) e o Go
-            Live já foi submetido. A análise leva cerca de <strong>10 dias úteis</strong> e corre sozinha: não há passo
-            seu pendente aqui. Quando a Shopee aprovar, o gasto e o desempenho por produto passam a aparecer na aba de
-            anúncios sem você fazer nada.
+            O app de Ads foi criado na categoria certa (“Ads Service” — a categoria é imutável depois de criada) e já
+            está <strong>aprovado e online</strong> no console, conferido em 02/09/2026. O que falta agora é nosso:
+            implementar a leitura de gasto e desempenho por produto. Não há passo seu pendente aqui.
           </p>
         </section>
+
+        {/* ⚠️ O CARIMBO E O ITEM QUE EVITA A PROXIMA VEZ.
+
+            Esta pagina e ESTADO DE TERCEIRO ESCRITO: ela afirma com confianca o
+            que so se sabe abrindo o console de outra empresa. Sem data, ela
+            envelhece calada — e foi o que aconteceu: o bloco da Shopee passou 26
+            dias dizendo "esperando a aprovacao deles" DEPOIS de o Go Live ter
+            sido aprovado. O `docs/estado-atual.md` teve o mesmo defeito, no mesmo
+            periodo.
+
+            A ultima frase existe para resolver a divergencia sem consultar
+            ninguem: quando a pagina e o console discordam, quem esta velho e a
+            pagina. */}
+        <p className="ads-nota ads-verificado">
+          Estado verificado em 02/09/2026. Cadastro de terceiro muda sem aviso — se algo aqui não bater com o que você
+          vê no console, o console está certo.
+        </p>
 
         <p className="ads-nota">
           <Link href="/ads">← Voltar para os Ads</Link>

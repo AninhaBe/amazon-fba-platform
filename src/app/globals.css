@@ -5855,6 +5855,10 @@ summary:hover { background: var(--paper-soft); }
    a mesma dos blocos da aba, com a marca em tinta neutra — o que chama atencao e
    o BOTAO, que e a saida, nao um aviso vermelho sobre um problema que a pessoa
    nem sabia que tinha. */
+/* O carimbo de verificacao da pagina de instrucao: menor e mais apagado que a
+   instrucao em si — ele qualifica o texto, nao compete com ele. */
+.ads-verificado { color: var(--ink-muted); font-size: 12px; line-height: 1.6; }
+
 .ads-conectar {
   display: flex;
   gap: 16px;
