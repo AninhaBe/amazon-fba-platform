@@ -59,6 +59,36 @@ export function intervaloDaRota(rota: string) {
  */
 export const CICLOS_ATE_ALARMAR = 5;
 
+/**
+ * SILÊNCIO DO PUSH — o limite, e a razão de ele ser tão diferente do da varredura.
+ *
+ * MEDIDO em 22,7 horas de push real da Shopee (02–03/09/2026), 3.104 intervalos:
+ *
+ * | métrica | intervalo entre pushes |
+ * |---|---:|
+ * | mediana | 0,1 min (6 s) |
+ * | p95 | 1,9 min |
+ * | p99 | 5,1 min |
+ * | **maior silêncio observado** | **21,3 min** |
+ *
+ * E por hora do dia (BRT), a madrugada é o vale: 25–30 pushes/hora entre 4h e 6h,
+ * ou seja **um push a cada ~2,4 minutos mesmo no pior horário**.
+ *
+ * O limite é **60 minutos** — cerca de 3× o maior silêncio já visto. Generoso de
+ * propósito, e por dois motivos:
+ *
+ * 1. 22,7 horas não contêm um domingo de madrugada, que é o vale que ainda não
+ *    medimos. Apertar agora seria calibrar num pedaço da semana;
+ * 2. alarme que dispara à toa é desligado, e aí o alarme de verdade morre junto.
+ *
+ * ⚠️ QUANDO HOUVER UMA SEMANA DE DADO, RECALIBRAR — e o jeito certo é refazer
+ * esta tabela, não chutar para baixo porque "parece muito".
+ */
+export const LIMITE_PUSH_MUDO_MS = Number(process.env.LIMITE_PUSH_MUDO_MS || 60 * 60_000);
+
+/** Canais que entregam push hoje. Quem não está aqui não tem silêncio a vigiar. */
+export const CANAIS_COM_PUSH = new Set(["shopee", "mercado_livre"]);
+
 /** Limite de silêncio de um canal, derivado da própria cadência dele. */
 export function limiteDeSilencioMs(provider: string) {
   const rota = ROTA_DE_SYNC[provider];

@@ -1,5 +1,12 @@
 import { dbQuery } from "../db";
-import { CICLOS_ATE_ALARMAR, ROTA_DE_SYNC, intervaloDaRota, limiteDeSilencioMs } from "./cadenciaDoSync";
+import {
+  CANAIS_COM_PUSH,
+  CICLOS_ATE_ALARMAR,
+  LIMITE_PUSH_MUDO_MS,
+  ROTA_DE_SYNC,
+  intervaloDaRota,
+  limiteDeSilencioMs,
+} from "./cadenciaDoSync";
 
 /**
  * VIGIA DE DEFASAGEM POR CANAL — "este canal parou de sincronizar?"
@@ -40,6 +47,12 @@ import { CICLOS_ATE_ALARMAR, ROTA_DE_SYNC, intervaloDaRota, limiteDeSilencioMs }
 
 export type EstadoDaDefasagem = "ok" | "atrasado" | "sem-historico";
 
+/**
+ * O push de um canal: `sem-push` = este canal não entrega push (Amazon, TikTok);
+ * `sem-evento` = entrega, mas nada aconteceu para empurrar — silêncio legítimo.
+ */
+export type EstadoDoPush = "ok" | "mudo" | "sem-evento" | "sem-push";
+
 export interface DefasagemDeConexao {
   provider: string;
   connectionId: string;
@@ -47,6 +60,7 @@ export interface DefasagemDeConexao {
   /** `null` = nunca sincronizou com sucesso. Não é zero — é ausência. */
   minutosDesdeUltimoSucesso: number | null;
   limiteMinutos: number;
+  push: EstadoDoPush;
   /** Frase pronta para a tela; `null` quando está tudo bem. */
   mensagem: string | null;
 }
@@ -55,6 +69,13 @@ interface Linha {
   provider: string;
   connection_id: string;
   last_success_at: Date | string | null;
+  last_push_at: Date | string | null;
+  /**
+   * Houve pedido gravado depois do último push? É a PROVA de que evento deveria
+   * ter chegado — sem ela, silêncio de push e ausência de venda são o mesmo
+   * sintoma, e o alarme viraria ruído toda madrugada.
+   */
+  houve_pedido_apos_push: boolean;
 }
 
 /**
@@ -66,6 +87,24 @@ interface Linha {
  * seguem.
  */
 const ehDemonstracao = (connectionId: string) => /(^|:)demo/i.test(connectionId);
+
+/**
+ * ⚠️ SILÊNCIO DE PUSH SÓ É DEFEITO SE HOUVE EVENTO PARA EMPURRAR.
+ *
+ * Push existe quando algo acontece; a varredura roda tenha acontecido ou não. Por
+ * isso o vigia da varredura pode olhar só o relógio, e o do push NÃO pode — sem o
+ * discriminador, ele acusaria a madrugada inteira, todo dia, até alguém desligá-lo.
+ *
+ * O discriminador é a própria varredura: pedido gravado DEPOIS do último push
+ * prova que o evento existiu e não chegou.
+ */
+function avaliarPush(linha: Linha, agora: number): EstadoDoPush {
+  if (!CANAIS_COM_PUSH.has(linha.provider)) return "sem-push";
+  if (!linha.last_push_at) return linha.houve_pedido_apos_push ? "mudo" : "sem-evento";
+  const desde = agora - new Date(linha.last_push_at).getTime();
+  if (desde <= LIMITE_PUSH_MUDO_MS) return "ok";
+  return linha.houve_pedido_apos_push ? "mudo" : "sem-evento";
+}
 
 export function avaliarDefasagem(linhas: Linha[], agora: number): DefasagemDeConexao[] {
   return linhas
@@ -82,11 +121,13 @@ export function avaliarDefasagem(linhas: Linha[], agora: number): DefasagemDeCon
           provider: linha.provider,
           connectionId: linha.connection_id,
           estado: "sem-historico" as const,
+          push: avaliarPush(linha, agora),
           minutosDesdeUltimoSucesso: null,
           limiteMinutos,
           mensagem: `${linha.connection_id} nunca sincronizou com sucesso.`,
         };
       }
+      const push = avaliarPush(linha, agora);
       const desdeMs = agora - new Date(linha.last_success_at).getTime();
       const minutos = Math.round(desdeMs / 60_000);
       const atrasado = desdeMs > limiteMs;
@@ -94,6 +135,7 @@ export function avaliarDefasagem(linhas: Linha[], agora: number): DefasagemDeCon
         provider: linha.provider,
         connectionId: linha.connection_id,
         estado: atrasado ? ("atrasado" as const) : ("ok" as const),
+        push,
         minutosDesdeUltimoSucesso: minutos,
         limiteMinutos,
         // A frase diz O QUE FALTA com número, e não se desculpa: é o formato da
@@ -113,11 +155,14 @@ export interface DefasagemDeCanal {
   /** Pior caso do canal. `null` = nenhuma conexão com histórico. */
   piorCasoMinutos: number | null;
   limiteMinutos: number;
+  /** `mudo` só quando houve evento para empurrar — ver `avaliarPush`. */
+  push: EstadoDoPush;
+  limitePushMinutos: number;
   mensagem: string | null;
 }
 
 export interface ResumoDaDefasagem {
-  estado: "ok" | "atrasado" | "sem-historico" | "sem-conexoes";
+  estado: "ok" | "atrasado" | "push-mudo" | "sem-historico" | "sem-conexoes";
   ciclosAteAlarmar: number;
   canais: DefasagemDeCanal[];
   /** Só o que precisa de ação, para a tela não ter de filtrar. */
@@ -145,10 +190,19 @@ export function resumirDefasagem(conexoes: DefasagemDeConexao[]): ResumoDaDefasa
       atrasadas: atrasadas.length,
       piorCasoMinutos,
       limiteMinutos: lista[0].limiteMinutos,
+      // O canal esta mudo se QUALQUER conexao dele estiver — uma loja sem push
+      // e um defeito, mesmo que a outra esteja recebendo.
+      push: lista.some((c) => c.push === "mudo") ? "mudo" as const
+        : lista.some((c) => c.push === "ok") ? "ok" as const
+        : lista.some((c) => c.push === "sem-evento") ? "sem-evento" as const
+        : "sem-push" as const,
+      limitePushMinutos: Math.round(LIMITE_PUSH_MUDO_MS / 60_000),
       // A frase aponta com número — quantas, há quanto tempo, e qual era o
       // esperado — e não nomeia ninguém.
       mensagem: atrasadas.length
         ? `${provider}: ${atrasadas.length} de ${lista.length} conexao(oes) sem sincronizar ha ${piorCasoMinutos} min (esperado a cada ${cadenciaMin} min).`
+        : lista.some((c) => c.push === "mudo")
+        ? `${provider}: push mudo ha mais de ${Math.round(LIMITE_PUSH_MUDO_MS / 60_000)} min, mas a varredura seguiu trazendo pedido — o canal parou de avisar.`
         : estado === "sem-historico"
           ? `${provider}: nenhuma conexao sincronizou com sucesso ate agora.`
           : null,
@@ -159,15 +213,32 @@ export function resumirDefasagem(conexoes: DefasagemDeConexao[]): ResumoDaDefasa
   let estado: ResumoDaDefasagem["estado"] = "ok";
   if (canais.length === 0) estado = "sem-conexoes";
   else if (canais.some((c) => c.estado === "atrasado")) estado = "atrasado";
+  else if (canais.some((c) => c.push === "mudo")) estado = "push-mudo";
   else if (canais.every((c) => c.estado === "sem-historico")) estado = "sem-historico";
   return { estado, ciclosAteAlarmar: CICLOS_ATE_ALARMAR, canais, mensagens };
 }
 
 export async function lerDefasagemDoSync(agora = Date.now()): Promise<ResumoDaDefasagem> {
   const linhas = await dbQuery<Linha>(
-    `SELECT provider, connection_id, MAX(last_success_at) AS last_success_at
-       FROM workspace_marketplace_syncs
-      GROUP BY provider, connection_id`,
+    `SELECT s.provider, s.connection_id,
+            MAX(s.last_success_at) AS last_success_at,
+            MAX(s.last_push_at)    AS last_push_at,
+            -- ⚠️ A PROVA DE QUE O EVENTO DEVERIA TER CHEGADO.
+            --
+            -- Push so existe quando algo acontece: silencio de push e ausencia
+            -- de venda produzem o MESMO sintoma. Alarmar por silencio puro
+            -- gritaria toda madrugada e o vigia seria desligado numa semana.
+            --
+            -- O discriminador e a VARREDURA: se ela gravou pedido depois do
+            -- ultimo push, entao houve evento e o push nao chegou. Se nao
+            -- gravou, nao houve o que empurrar — e silencio e a resposta certa.
+            EXISTS (SELECT 1 FROM workspace_channel_orders o
+                     WHERE o.workspace_id = s.workspace_id AND o.provider = s.provider
+                       AND o.connection_id = s.connection_id
+                       AND o.synced_at > COALESCE(s.last_push_at, now() - interval '1 hour'))
+              AS houve_pedido_apos_push
+       FROM workspace_marketplace_syncs s
+      GROUP BY s.workspace_id, s.provider, s.connection_id, s.last_push_at`,
     [],
   );
   return resumirDefasagem(avaliarDefasagem(linhas, agora));

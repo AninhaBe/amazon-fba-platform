@@ -1,5 +1,5 @@
 import { dbQuery, hasDb } from "./db";
-import { limiteDeSilencioMs } from "./integrations/cadenciaDoSync";
+import { LIMITE_PUSH_MUDO_MS, limiteDeSilencioMs } from "./integrations/cadenciaDoSync";
 
 // Métricas operacionais em formato Prometheus.
 //
@@ -98,6 +98,28 @@ export async function coletarMetricas(): Promise<string> {
     // vez de copiá-lo — dois lugares que coincidem hoje é como um fica para trás.
     familia(saida, "nexo_sync_limite_segundos", "Limite de silencio do canal antes de alarmar.",
       syncs.map((s) => [{ canal: s.provider }, Math.round(limiteDeSilencioMs(s.provider) / 1000)]));
+
+    // ⚠️ O SILENCIO DO PUSH tem serie propria, e o limite tambem — mesma regra:
+    // limiar no codigo, exportado ao lado da medida, nunca digitado no painel.
+    //
+    // 📌 E a idade do push NAO e alarme sozinha. Push so existe quando algo
+    // acontece; a regra de alarme mora em `defasagemDoSync` e exige pedido
+    // gravado depois do ultimo push. A serie aqui e para o historico e para o
+    // grafico — quem alerta so por `nexo_push_idade_segundos > limite` vai
+    // acordar toda madrugada.
+    const push = await dbQuery<{ provider: string; idade: string | null }>(
+      `SELECT provider,
+              MIN(EXTRACT(EPOCH FROM (now() - last_push_at)))::text AS idade
+         FROM workspace_marketplace_syncs
+        WHERE connection_id NOT LIKE '%demo%' AND last_push_at IS NOT NULL
+        GROUP BY provider`
+    );
+    if (push.length) {
+      familia(saida, "nexo_push_idade_segundos", "Tempo desde o ultimo push recebido do canal.",
+        push.map((p) => [{ canal: p.provider }, Math.round(Number(p.idade ?? 0))]));
+      familia(saida, "nexo_push_limite_segundos", "Limite de silencio do push antes de alarmar.",
+        push.map((p) => [{ canal: p.provider }, Math.round(LIMITE_PUSH_MUDO_MS / 1000)]));
+    }
 
     // 2. Pedidos presos em `pending`. Dezenas parados por horas foi exatamente o
     //    defeito de 21/08 (55 de 62 travados) que fez o dashboard parecer queda

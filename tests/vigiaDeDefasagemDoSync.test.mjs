@@ -128,11 +128,25 @@ test("o vigia le last_success_at, NAO a escrita de pedido", async () => {
   // nenhuma das 3h as 6h apareceria como "parado ha 3 horas" estando perfeito —
   // e seria o alarme falso que ensina a ignorar alarme.
   const fonte = await readFile(new URL("../src/lib/integrations/defasagemDoSync.ts", import.meta.url), "utf8");
-  assert.ok(fonte.includes("MAX(last_success_at) AS last_success_at"),
+  assert.ok(fonte.includes("MAX(s.last_success_at) AS last_success_at"),
     "a fonte tem de ser o sucesso do sync");
   const codigo = fonte.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-  assert.doesNotMatch(codigo, /workspace_channel_orders/,
-    "medir por pedido gravado confunde 'nao sincronizou' com 'nao vendeu'");
+  // ⚠️ ESTA ASSERCAO FOI REFINADA EM 03/09/2026, e a distincao e o ponto.
+  //
+  // Ela proibia QUALQUER mencao a workspace_channel_orders. A proibicao larga
+  // estava certa para a DEFASAGEM — medir atraso por pedido gravado confunde
+  // "nao sincronizou" com "nao vendeu". Mas o vigia do PUSH precisa
+  // exatamente disso: push so existe quando algo acontece, entao silencio de
+  // push e ausencia de venda dao o mesmo sintoma. O discriminador e o pedido
+  // gravado DEPOIS do ultimo push — prova de que o evento existiu e nao chegou.
+  //
+  // Entao a regra fica: a IDADE sai de last_success_at; o pedido entra SO como
+  // prova de atividade para o push.
+  const idade = codigo.slice(codigo.indexOf("MAX(s.last_success_at)"), codigo.indexOf("houve_pedido_apos_push"));
+  assert.ok(!/workspace_channel_orders/.test(idade),
+    "a idade da varredura nao pode sair de pedido gravado");
+  assert.match(codigo, /EXISTS \(SELECT 1 FROM workspace_channel_orders o[\s\S]{0,300}o\.synced_at > COALESCE\(s\.last_push_at/,
+    "o pedido entra SO como prova de que houve evento para o push empurrar");
 });
 
 test("o vigia entra no /api/health AO LADO do webhook, sem derrubar a saude", async () => {
@@ -178,5 +192,56 @@ test("o LIMITE sai como serie do Prometheus — o alerta nao tem numero digitado
   // E ele tem de VIR da mesma funcao do vigia, nao de um numero repetido aqui.
   assert.ok(fonte.includes("Math.round(limiteDeSilencioMs(s.provider) / 1000)"),
     "o limite da metrica sai de limiteDeSilencioMs, nao de constante local");
-  assert.ok(fonte.includes('import { limiteDeSilencioMs } from "./integrations/cadenciaDoSync";'));
+  assert.ok(fonte.includes('import { LIMITE_PUSH_MUDO_MS, limiteDeSilencioMs } from "./integrations/cadenciaDoSync";'),
+    "os dois limiares saem do mesmo modulo — nenhum literal na camada de metrica");
+  // ⚠️ E o do PUSH tambem vira serie, pela mesma razao: alerta com numero
+  // digitado no painel e uma segunda fonte da verdade que nenhum teste alcanca.
+  assert.ok(fonte.includes('familia(saida, "nexo_push_limite_segundos"'));
+  assert.ok(fonte.includes("Math.round(LIMITE_PUSH_MUDO_MS / 1000)"),
+    "o limite do push sai da constante, nao de um numero repetido aqui");
+});
+
+test("PUSH MUDO: so alarma quando houve evento para empurrar", () => {
+  // 🔴 A armadilha que este caso reprova: push so existe quando algo acontece.
+  // Alarmar por silencio puro gritaria toda madrugada — medido em 03/09/2026,
+  // a Shopee tem 25-30 pushes/hora entre 4h e 6h BRT, contra ~290 no pico. Um
+  // vigia que acusa o vale e desligado numa semana, e ai o alarme de verdade
+  // morre junto.
+  const haMin = (m) => new Date(AGORA - m * 60_000).toISOString();
+  const base = { provider: "shopee", connection_id: "shopee:1", last_success_at: haMin(2) };
+
+  // Silencio LONGO e a varredura trazendo pedido = o canal parou de avisar.
+  const [mudo] = avaliarDefasagem([{ ...base, last_push_at: haMin(120), houve_pedido_apos_push: true }], AGORA);
+  assert.equal(mudo.push, "mudo");
+
+  // MESMO silencio, sem pedido nenhum = nao havia o que empurrar. Nao e defeito.
+  const [quieto] = avaliarDefasagem([{ ...base, last_push_at: haMin(120), houve_pedido_apos_push: false }], AGORA);
+  assert.equal(quieto.push, "sem-evento", "madrugada sem venda nao pode acender o alarme");
+
+  // Dentro do limite, e ok mesmo com pedido chegando.
+  const [ok] = avaliarDefasagem([{ ...base, last_push_at: haMin(5), houve_pedido_apos_push: true }], AGORA);
+  assert.equal(ok.push, "ok");
+});
+
+test("canal SEM push nao pode aparecer como mudo", () => {
+  // A Amazon nao entrega push (SQS/EventBridge, fora do nosso escopo) e o TikTok
+  // tampouco. Marcar os dois como "mudo" seria alarme permanente por desenho.
+  const [amazon] = avaliarDefasagem([{
+    provider: "amazon", connection_id: "amazon:1",
+    last_success_at: new Date(AGORA - 2 * 60_000).toISOString(),
+    last_push_at: null, houve_pedido_apos_push: true,
+  }], AGORA);
+  assert.equal(amazon.push, "sem-push");
+});
+
+test("o limite do push SAI da medicao, e e generoso de proposito", async () => {
+  const { LIMITE_PUSH_MUDO_MS } = await import("../src/lib/integrations/cadenciaDoSync.ts");
+  // 60 min ~ 3x o maior silencio observado (21,3 min em 3.104 intervalos, 22,7h).
+  assert.equal(LIMITE_PUSH_MUDO_MS, 60 * 60_000);
+  // ⚠️ E ele tem de ser MUITO maior que o da varredura: sao fenomenos
+  // diferentes. A varredura falha por si; o push falha por silencio, e silencio
+  // tem causa legitima.
+  const { limiteDeSilencioMs } = await import("../src/lib/integrations/cadenciaDoSync.ts");
+  assert.ok(LIMITE_PUSH_MUDO_MS > limiteDeSilencioMs("shopee") * 3,
+    "limite de push apertado como o da varredura viraria ruido");
 });
