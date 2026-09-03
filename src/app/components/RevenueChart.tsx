@@ -9,6 +9,23 @@ export interface DailyPoint {
   revenue: number;
   orders: number;
   units: number;
+  /**
+   * Lucro do dia, no universo da RECEITA PAGA — o mesmo da faixa do cockpit.
+   *
+   * ⚠️ `0` e `null` significam coisas DIFERENTES, e trocar um pelo outro mente:
+   *
+   *   `0` ...... o dia não teve venda. É fato: não vendeu, não lucrou.
+   *   `null` ... o dia teve venda, mas custo, tarifa ou alíquota ainda não são
+   *              conhecidos. É DESCONHECIDO — e zero aqui não pareceria
+   *              ausência, pareceria **notícia ruim**: uma queda que não houve.
+   *
+   * A tela desenha `null` como AUSÊNCIA DE COLUNA, nunca como coluna no chão.
+   *
+   * ⚠️ Opcional porque só o Mercado Livre entrega hoje (03/09/2026). Cada canal
+   * tem seu próprio calendário — replicar depois é replicar a GARANTIA, não o
+   * mecanismo.
+   */
+  profit?: number | null;
 }
 
 const W = 1000;

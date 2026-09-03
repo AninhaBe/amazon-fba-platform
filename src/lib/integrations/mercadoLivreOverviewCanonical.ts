@@ -65,6 +65,31 @@ interface TotalsRow {
 
 interface DailyRow { date: string; revenue: string; orders: number; units: number }
 
+/**
+ * Uma linha por DIA no universo da RECEITA PAGA — o mesmo da faixa do cockpit.
+ *
+ * ⚠️ NÃO reaproveita `DailyRow`: aquela usa `GROSS_STATUSES`, que inclui
+ * CANCELADA de propósito (o faturamento do gráfico mostra o que foi pedido).
+ * Lucro sobre pedido cancelado seria lucro de venda que não existiu.
+ */
+interface DiaDoLucroRow {
+  date: string;
+  receita: string | null;
+  pedidos: number;
+  /** Pedidos do dia que já têm tarifa registrada — o denominador da completude. */
+  pedidos_com_tarifa: number;
+  tarifa: string | null;
+}
+
+/** Unidades por dia e produto — para o custo respeitar a vigência de cada dia. */
+interface UnidadeDoDiaRow {
+  date: string;
+  external_product_id: string;
+  sku: string | null;
+  occurred_at: Date | string;
+  units: number;
+}
+
 // Agregado financeiro do período INTEIRO (sem o corte de detalhe): é o que
 // alimenta o bloco "Do faturamento à margem". Antes ele saía do mesmo laço das
 // linhas detalhadas e herdava o teto de 1000 pedidos, o que subestimava o
@@ -177,7 +202,7 @@ export async function getMercadoLivreOverviewFromCanonical(
   const totals = totalsRows[0];
   if (!syncRow || (!syncRow.products_synced_at && totals.total_orders === 0)) return null;
 
-  const [dailyRows, recentRows, productTotalsRows, lineRows, productRows, costs, aggRows, cogsRows] = await Promise.all([
+  const [dailyRows, diasDoLucroRows, unidadesDoDiaRows, recentRows, productTotalsRows, lineRows, productRows, costs, aggRows, cogsRows] = await Promise.all([
     dbQuery<DailyRow>(
       `SELECT to_char(o.occurred_at AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD') AS date,
               SUM(o.gross) AS revenue,
@@ -193,6 +218,50 @@ export async function getMercadoLivreOverviewFromCanonical(
           AND o.occurred_at >= $4 AND o.occurred_at <= $5 AND o.status = ANY($6::text[])
         GROUP BY 1`,
       [...scopeParams(connection.id, period), GROSS_STATUSES]
+    ),
+    // ═══ LUCRO POR DIA — receita, tarifa e cobertura, no universo PAGO ═══════
+    //
+    // ⚠️ Universo diferente do gráfico de faturamento acima, de propósito: ali
+    // entra CANCELADA (o gráfico mostra o que foi pedido); aqui não, porque
+    // lucro de venda cancelada é lucro que não existiu.
+    dbQuery<DiaDoLucroRow>(
+      `SELECT to_char(o.occurred_at AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD') AS date,
+              SUM(o.gross) AS receita,
+              COUNT(*)::int AS pedidos,
+              COUNT(*) FILTER (WHERE f.tarifa IS NOT NULL)::int AS pedidos_com_tarifa,
+              SUM(f.tarifa) AS tarifa
+         FROM workspace_channel_orders o
+         -- ⚠️ LATERAL, e nao subconsulta no SELECT: a correlacionada
+         -- referenciaria o.workspace_id fora do GROUP BY e o Postgres recusa
+         -- ("subquery uses ungrouped column"). Medido ao rodar, nao previsto.
+         LEFT JOIN LATERAL (
+           SELECT SUM(f2.amount) AS tarifa
+             FROM workspace_channel_order_fees f2
+            WHERE f2.workspace_id = o.workspace_id AND f2.provider = o.provider
+              AND f2.connection_id = o.connection_id
+              AND f2.external_order_id = o.external_order_id
+              AND f2.fee_type <> 'refund'
+         ) f ON true
+        WHERE o.workspace_id = $1 AND o.provider = $2 AND o.connection_id = $3
+          AND o.occurred_at >= $4 AND o.occurred_at <= $5 AND o.status = ANY($6::text[])
+        GROUP BY 1`,
+      [...scopeParams(connection.id, period), REVENUE_STATUSES]
+    ),
+    // Unidades por DIA e produto: o custo tem vigência, e somar o mês inteiro
+    // com o preço de hoje daria um número que nunca existiu.
+    dbQuery<UnidadeDoDiaRow>(
+      `SELECT to_char(o.occurred_at AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD') AS date,
+              i.external_product_id, i.sku,
+              MIN(o.occurred_at) AS occurred_at,
+              SUM(i.qty)::int AS units
+         FROM workspace_channel_order_items i
+         JOIN workspace_channel_orders o
+           ON o.workspace_id = i.workspace_id AND o.provider = i.provider
+          AND o.connection_id = i.connection_id AND o.external_order_id = i.external_order_id
+        WHERE o.workspace_id = $1 AND o.provider = $2 AND o.connection_id = $3
+          AND o.occurred_at >= $4 AND o.occurred_at <= $5 AND o.status = ANY($6::text[])
+        GROUP BY 1, 2, 3`,
+      [...scopeParams(connection.id, period), REVENUE_STATUSES]
     ),
     dbQuery<RecentRow>(
       `SELECT o.external_order_id, o.pack_id, o.provider_status, o.occurred_at, o.gross, o.currency,
@@ -527,14 +596,64 @@ export async function getMercadoLivreOverviewFromCanonical(
     && coveredTo + COVERAGE_TOLERANCE_MS >= period.to.getTime()
     && !!syncRow.products_synced_at;
 
+  // ═══ LUCRO POR DIA — e a semântica do `null` é o coração deste bloco ═══════
+  //
+  // ⚠️ DOIS SILÊNCIOS DIFERENTES, e dar zero aos dois seria mentir num deles:
+  //
+  //   dia SEM venda ................ lucro 0. É FATO: não vendeu, não lucrou.
+  //   dia COM venda e custo/tarifa
+  //   ainda desconhecidos .......... lucro `null`. É DESCONHECIDO — e zero ali
+  //                                  desenharia uma queda que não aconteceu.
+  //
+  // 📌 É a regra `null ≠ 0` da casa aplicada a uma série temporal, onde ela é
+  // ainda mais traiçoeira: um zero no gráfico não parece ausência, parece
+  // NOTÍCIA RUIM. A tela desenha ausência como ausência de coluna.
+  //
+  // ⚠️ E o preenchimento de dia vazio com zeros — correto para o faturamento,
+  // logo abaixo — **não pode ser copiado para cá**. Lá o dia sem venda é zero de
+  // verdade; aqui só é zero quando não houve venda.
+  const custoPorDia = new Map<string, { custo: number; temUnidadeSemCusto: boolean }>();
+  for (const linha of unidadesDoDiaRows) {
+    const entrada = mercadoLivreCostEntry(costs, connection.id, linha.external_product_id, linha.sku);
+    // Custo POR VIGÊNCIA da data daquele dia: o mesmo `costAt` do resto.
+    const unitario = entrada ? costAt(entrada, new Date(linha.occurred_at).toISOString()) : 0;
+    const atual = custoPorDia.get(linha.date) ?? { custo: 0, temUnidadeSemCusto: false };
+    if (unitario > 0) atual.custo += unitario * linha.units;
+    else atual.temUnidadeSemCusto = true;
+    custoPorDia.set(linha.date, atual);
+  }
+
+  const lucroPorDia = new Map<string, number | null>();
+  for (const linha of diasDoLucroRows) {
+    const receita = Number(linha.receita ?? 0);
+    const custoDoDia = custoPorDia.get(linha.date);
+    // COMPLETUDE, o mesmo critério da faixa aplicado ao recorte do dia:
+    // tarifa de TODOS os pedidos do dia, custo de TODAS as unidades, e alíquota
+    // cadastrada. Faltando qualquer uma, o lucro daquele dia é desconhecido.
+    const tarifaCompleta = linha.pedidos_com_tarifa >= linha.pedidos;
+    const custoCompleto = !!custoDoDia && !custoDoDia.temUnidadeSemCusto;
+    if (!tarifaCompleta || !custoCompleto || taxRate == null) {
+      lucroPorDia.set(linha.date, null);
+      continue;
+    }
+    const imposto = receita * taxRate / 100;
+    lucroPorDia.set(linha.date, +(receita - Number(linha.tarifa ?? 0) - custoDoDia.custo - imposto).toFixed(2));
+  }
+
   // Série diária contínua, com dias sem venda zerados.
   const daily = new Map(dailyRows.map((row) => [row.date, { date: row.date, revenue: Number(row.revenue), orders: row.orders, units: row.units }]));
-  const dailySales: Array<{ date: string; revenue: number; orders: number; units: number }> = [];
+  const dailySales: Array<{ date: string; revenue: number; orders: number; units: number; profit: number | null }> = [];
   const cursor = new Date(`${brazilDateKey(period.from)}T12:00:00Z`);
   const lastDate = brazilDateKey(period.to);
   while (cursor.toISOString().slice(0, 10) <= lastDate) {
     const date = cursor.toISOString().slice(0, 10);
-    dailySales.push(daily.get(date) ?? { date, revenue: 0, orders: 0, units: 0 });
+    const doDia = daily.get(date);
+    // Dia sem linha nenhuma = dia sem venda: faturamento 0 (fato) e lucro 0
+    // (fato — não vendeu, não lucrou). Dia COM venda usa o mapa, que já traz
+    // `null` quando algum componente do lucro é desconhecido.
+    dailySales.push(doDia
+      ? { ...doDia, profit: lucroPorDia.has(date) ? lucroPorDia.get(date)! : null }
+      : { date, revenue: 0, orders: 0, units: 0, profit: 0 });
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
 
