@@ -121,7 +121,14 @@ test("o push carimba last_push_at e NUNCA last_success_at", async () => {
   // que e a coluna do VIGIA. Varredura parada + push chegando = alarme cego.
   const rota = await readFile(new URL("../src/app/api/webhooks/shopee/route.ts", import.meta.url), "utf8");
   const codigo = rota.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-  assert.ok(codigo.includes("SET last_push_at = now(), updated_at = now()"));
+  // ⚠️ E NEM `updated_at`, desde 03/09/2026 — a guarda ficou MAIS ESTRITA depois
+  // do primeiro incidente que o vigia pegou. O scheduler usa `updated_at` como
+  // "quando foi a ultima tentativa da VARREDURA" para decidir o backoff de erro;
+  // push gravando nela mantem a conexao eternamente "recem-tentada". No ML isso
+  // custou 11 HORAS sem varredura, com o push entregando e a tela parecendo viva.
+  assert.ok(codigo.includes("SET last_push_at = now()"));
+  assert.ok(!/last_push_at = now\(\), updated_at/.test(codigo),
+    "push nao pode carimbar a coluna que o scheduler le como ultima tentativa");
   assert.ok(!codigo.includes("last_success_at"),
     "push carimbando a coluna da varredura cega o vigia de defasagem");
   // E o webhook do ML tambem foi desacoplado, no mesmo passo.

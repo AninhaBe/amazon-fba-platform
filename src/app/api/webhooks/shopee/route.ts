@@ -202,13 +202,19 @@ async function processarPush(connectionId: string, evento: EventoDePush, eventKe
   );
 
   // `last_push_at`, NUNCA `last_success_at` — ver a nota no topo e a 0031.
+  //
+  // ⚠️ E NUNCA `updated_at` TAMBEM. O scheduler usa essa coluna como "quando foi
+  // a ultima tentativa da varredura" para decidir o backoff de erro; push
+  // gravando nela mantem a conexao eternamente "recem-tentada" e ela nunca volta
+  // a ser candidata. Aconteceu no ML em 03/09/2026 — 11 horas sem varredura, com
+  // o push entregando e a tela parecendo viva.
   // ⚠️ COM `workspace_id`, mesmo estando dentro de `runWithWorkspace`: o escopo
   // do AsyncLocalStorage protege quem o usa, e este UPDATE nao usa — ele iria
   // por `connection_id`, que e o mesmo id de conexao para qualquer inquilino que
   // conecte a MESMA loja. Filtro do cliente ESTREITA o escopo, nunca o define.
   await dbQuery(
     `UPDATE workspace_marketplace_syncs
-        SET last_push_at = now(), updated_at = now()
+        SET last_push_at = now()
       WHERE workspace_id = $1 AND provider = 'shopee' AND connection_id = $2`,
     [currentWorkspaceId(), connectionId],
   );

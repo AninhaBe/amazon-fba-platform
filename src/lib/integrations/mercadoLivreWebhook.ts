@@ -260,7 +260,21 @@ async function processResource(row: EventRow) {
                 -- gravando nela fazia varredura PARADA parecer saudavel — no
                 -- unico canal que tem webhook, o alarme ficava cego justamente
                 -- quando a rede de seguranca era o que tinha caido.
-                last_push_at = now(), updated_at = now()
+                -- ⚠️ O PUSH NAO TOCA updated_at — ele carimba last_push_at e so.
+                -- 🔴 INCIDENTE DE 03/09/2026, e foi o vigia novo que pegou: o
+                -- scheduler do ML re-elege conexao em error com
+                -- updated_at < now() - 15 minutes — e o webhook, gravando
+                -- updated_at = now() a cada evento, mantinha a coluna SEMPRE
+                -- fresca. A conexao 1191100170 ficou 11 HORAS sem varredura:
+                -- ela nunca envelhecia o suficiente para voltar a ser candidata.
+                -- E o push seguia entregando, entao a tela parecia viva.
+                --
+                -- 📌 E a MESMA doenca de ontem, uma camada abaixo: uma coluna com
+                -- DOIS significados ("alguem escreveu aqui" e "quando foi a
+                -- ultima tentativa da varredura"). Ontem foi last_success_at;
+                -- hoje, updated_at. Quem le como backoff precisa de uma coluna
+                -- que so a varredura escreve.
+                last_push_at = now()
           WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
         [row.workspace_id, PROVIDER, row.connection_id, new Date().toISOString()]
       );
@@ -301,7 +315,7 @@ const PROCESSING_STALE_MINUTES = 15;
 
 /**
  * Varredura dos eventos presos: `processing` órfão (worker que morreu no meio)
- * e `error` retryável que nenhuma reentrega do ML vai destravar — o ML não
+ * e error retryável que nenhuma reentrega do ML vai destravar — o ML não
  * reenvia notificação antiga, então sem esta varredura o evento fica zumbi
  * para sempre (ADR-016 preserva; nada retomava). Lotes pequenos, no cron do
  * ML, depois do sync. Reprocessar é idempotente: só upserts por chave externa.
@@ -396,7 +410,8 @@ export async function processMercadoLivreEvent(event: QueuedMercadoLivreEvent): 
       await dbQuery(
         `UPDATE workspace_marketplace_syncs
             -- Idem: push carimba push. Ver a nota acima e a migration 0031.
-            SET last_push_at = now(), updated_at = now()
+            -- Idem: push carimba push, e so. Ver a nota acima.
+            SET last_push_at = now()
           WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3`,
         [row.workspace_id, PROVIDER, row.connection_id]
       );
