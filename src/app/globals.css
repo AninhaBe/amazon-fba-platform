@@ -6062,7 +6062,7 @@ summary:hover { background: var(--paper-soft); }
    `--positive` e o verde dos quatro canais; a paleta aprovada em 03/09/2026 e
    um teste num canal so. Este token e local ao cockpit, que so o ML renderiza —
    e por isso mudar de ideia depois nao mexe em Amazon, Shopee nem TikTok. */
-.cockpit-faixa { --ml-verde: #337129; }
+.cockpit-faixa { --ml-verde: #337129; --ml-coluna: #17171733; }
 
 /* 36px e o tamanho da prancheta aprovada. Ele ja foi 44px na versao anterior:
    com o numero em verde saturado, 44 pesava mais que a frase que o explica, e a
@@ -6096,6 +6096,76 @@ summary:hover { background: var(--paper-soft); }
 }
 .cockpit-legenda li { display: inline-flex; align-items: center; gap: 6px; }
 .cockpit-marca { display: inline-block; width: 8px; height: 8px; border-radius: 2px; }
+
+/* LUCRO POR DIA — os sete dias debaixo da legenda da cascata. A coluna do dia
+   mais recente sai no verde do ML; as outras num cinza que existe para dar
+   escala, nao para competir com ela. */
+.lucro-por-dia {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-block-start: 4px;
+  border-block-start: 1px solid var(--ink-08);
+  padding-block-start: 12px;
+}
+.cockpit-kicker.is-menor { font-size: 11px; letter-spacing: .04em; }
+.lucro-colunas {
+  display: flex;
+  /* ⚠️ `stretch`, e nao `flex-end`: as colunas precisam TER a altura da
+     regua para que a barra la dentro possa ser uma PORCENTAGEM dela. Com
+     `flex-end` a coluna fica do tamanho do conteudo, altura percentual nao tem
+     contra o que resolver, e toda barra vira 0px — medido, nao suposto. */
+  align-items: stretch;
+  gap: 10px;
+  /* 120px, e nao os 96 da prancheta: la a regua era so a pista das barras;
+     aqui o valor em cima e o dia embaixo dividem a mesma altura com ela, e com
+     96 a barra mais alta media 50px em vez dos ~74 desenhados. Medido. */
+  height: 120px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* Tres faixas: o valor em cima, a PISTA da barra no meio e o dia embaixo. A
+   pista e `1fr` de um container de altura definida, e e por isso que a altura
+   percentual da barra resolve. */
+.lucro-coluna {
+  display: grid;
+  flex: 1;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  justify-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+.lucro-valor, .lucro-dia {
+  color: var(--ink-32);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.lucro-barra {
+  width: 100%;
+  /* A fracao vem da peca; o "vezes 100" e geometria e mora aqui. */
+  height: calc(var(--fracao, 0) * 100%);
+  min-height: 0;
+  /* Encostada na base da pista: e o chao que da a leitura de altura. */
+  align-self: end;
+  border-radius: 4px 4px 0 0;
+  background: var(--ml-coluna);
+}
+.lucro-coluna.is-destaque .lucro-valor,
+.lucro-coluna.is-destaque .lucro-dia { color: var(--ml-verde); font-weight: 700; }
+.lucro-coluna.is-destaque .lucro-barra { background: var(--ml-verde); }
+/* Prejuizo e fato e aparece: a coluna cresce igual e troca de tinta. Esconde-la
+   seria a mesma mentira que desenhar o desconhecido no chao. */
+.lucro-coluna.is-negativo .lucro-barra { background: var(--danger); }
+.lucro-coluna.is-negativo .lucro-valor { color: var(--danger); }
+/* ⚠️ DIA DESCONHECIDO NAO TEM COLUNA — tem um traco no lugar dela. Uma
+   barra de altura zero aqui leria como queda, e o contrato garante que zero so
+   chega quando o dia realmente nao vendeu. */
+.lucro-coluna.is-desconhecido .lucro-barra {
+  height: 0 !important;
+  border-block-start: 1px dashed var(--ink-12);
+  background: transparent;
+}
 
 /* A CONTA ESCRITA — o lado direito da faixa do ML. Tres colunas fixas: o sinal,
    o nome e o valor alinhado a direita. O valor com largura propria e o que

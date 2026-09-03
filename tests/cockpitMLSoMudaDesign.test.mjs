@@ -212,6 +212,11 @@ test("A ORDEM DOS BLOCOS E A DA PRANCHETA — reprovada uma vez por nao ser", as
   const corpo = codigo.slice(codigo.indexOf("<CockpitDoResultado"));
   const sequencia = [
     ["a faixa do resultado", "<CockpitDoResultado"],
+    // ⚠️ OS SETE DIAS MORAM DENTRO DA FAIXA, debaixo da legenda — e a
+    // prova disso e ele aparecer ANTES do fechamento da faixa, ou seja, antes
+    // dos chips. Fora dela ele viraria mais um cartao, e a leitura "quanto
+    // sobrou hoje -> foi um dia bom?" se quebraria no meio.
+    ["o lucro por dia", "<LucroPorDia titulo="],
     ["os chips de pendencia", "<LinhaDePendencias itens={pendenciasDoCanal}"],
     ["a regua de cards", 'className="metric-grid ml-dashboard-metric-grid"'],
     ["as duas colunas", 'className="ml-cockpit-duas-colunas"'],
@@ -296,7 +301,7 @@ test("o verde do ML nao vaza para os outros canais", async () => {
     "o token global --positive mudou de valor: os outros tres canais mudaram de verde junto");
 
   // O verde do ML mora num token LOCAL da faixa, que so o ML renderiza.
-  assert.ok(css.includes(".cockpit-faixa { --ml-verde: #337129; }"),
+  assert.ok(css.includes(".cockpit-faixa { --ml-verde: #337129; --ml-coluna: #17171733; }"),
     "o verde do ML saiu do escopo da faixa — fora dela ele alcanca quem nao pediu");
 
   // E o unico lugar do CSS que escreve este hex e essa declaracao.
@@ -316,4 +321,65 @@ test("o verde do ML nao vaza para os outros canais", async () => {
     assert.ok(!fonteDaTela.includes("ContaEscrita"), `${tela} passou a montar a conta escrita do ML`);
     assert.ok(!fonteDaTela.includes("PaletaDeCategoria"), `${tela} passou a pedir a paleta por categoria`);
   }
+});
+
+test("dia DESCONHECIDO nao vira coluna no chao — nem no caminho ate a tela", async () => {
+  // ⚠️ O DEFEITO QUE ESTA GUARDA REPROVA nunca chegou a existir, e o
+  // motivo de ela existir mesmo assim e que ele nao ficaria vermelho em lugar
+  // nenhum: um `?? 0` no mapeamento passa no TypeScript (o tipo e
+  // `number | null | undefined`), passa no build, e desenha uma coluna rente a
+  // base num dia em que a custo ainda nao chegou.
+  //
+  // Numa serie temporal isso e pior que numa tela estatica: zero num grafico nao
+  // parece ausencia, parece NOTICIA RUIM — uma queda que nao aconteceu. O
+  // contrato do backend distingue os dois na origem (0 = nao vendeu, e fato;
+  // null = vendeu e falta custo, tarifa ou aliquota), e a tela tem de preservar
+  // a distincao ate o pixel.
+  const ml = semComentarios(await fonte(ML));
+  const peca = semComentarios(await fonte(PECA));
+
+  // No ML: o lucro do ponto entra como esta, e o `null` vira traco — nao zero.
+  assert.match(ml, /const lucro = ponto\.profit \?\? null;/,
+    "o lucro do dia deixou de preservar o desconhecido");
+  assert.match(ml, /compacto: lucro == null \? "—" :/,
+    "o dia desconhecido deixou de aparecer como traco");
+  const seteDias = ml.slice(ml.indexOf("const seteDiasDeLucro"), ml.indexOf("const pendenciasDoCanal"));
+  assert.ok(!/profit \?\? 0|valor: 0|lucro \?\? 0/.test(seteDias),
+    "apareceu um zero no caminho do lucro diario: desconhecido virou queda");
+
+  // Na peca: sem valor, sem altura — e a escala ignora o desconhecido, senao um
+  // dia sem dado encolheria os outros.
+  assert.match(peca, /dia\.valor == null \? 0 : Math\.abs\(dia\.valor\)/,
+    "a escala das colunas voltou a contar o dia desconhecido");
+  assert.match(peca, /maior > 0 && dia\.valor != null \? Math\.abs\(dia\.valor\) \/ maior : 0/,
+    "a altura da coluna deixou de exigir valor conhecido");
+  assert.ok(peca.includes('dia.valor == null ? " is-desconhecido" : ""'),
+    "o dia desconhecido deixou de ser marcado — a coluna some sem dizer por que");
+});
+
+test("\"hoje\" so e dito quando e hoje de verdade", async () => {
+  // ⚠️ A PRANCHETA DESTACA A ULTIMA COLUNA COMO "HOJE", e ela e — quando
+  // o periodo vai ate hoje. Num periodo passado escolhido a dedo, a ultima
+  // coluna e a ultima do RECORTE, e chama-la de hoje seria uma data inventada:
+  // a vendedora leria o lucro de 12/08 como o de agora.
+  //
+  // O DESTAQUE verde continua sempre no dia mais recente (e o que a prancheta
+  // desenha); so a PALAVRA depende da data bater. Sao duas decisoes separadas de
+  // proposito, e a guarda ancora nas duas.
+  const ml = semComentarios(await fonte(ML));
+
+  assert.match(ml, /const hojeNoBrasil = new Date\(\)\.toLocaleDateString\("en-CA", \{ timeZone: "America\/Sao_Paulo" \}\);/,
+    "a data de hoje deixou de ser calculada no fuso de Sao Paulo");
+  assert.match(ml, /const ehHoje = ponto\.date === hojeNoBrasil;/,
+    "\"hoje\" voltou a ser posicao na lista em vez de comparacao de data");
+  assert.match(ml, /rotulo: ehHoje \? "hoje" : diaDaSemana\(ponto\.date\)/,
+    "o rotulo do dia deixou de depender da data bater");
+
+  // ⚠️ E O `YYYY-MM-DD` NAO PASSA POR `new Date(data)` CRU: seria lido
+  // como meia-noite UTC e o dia da semana viria do dia ANTERIOR. A mesma
+  // pegadinha ja anotada em TikTokSaldo.
+  assert.match(ml, /new Date\(`\$\{data\}T12:00:00Z`\)/,
+    "a data perdeu a fixacao ao meio-dia e o dia da semana pode voltar um dia");
+  assert.match(ml, /timeZone: "UTC"/,
+    "o dia da semana deixou de ser formatado em UTC e volta a depender do fuso do navegador");
 });

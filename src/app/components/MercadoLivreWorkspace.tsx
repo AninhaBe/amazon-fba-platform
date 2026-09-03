@@ -33,7 +33,7 @@ import { Pagination } from "./Pagination";
 import { TopProductsRanking } from "./TopProductsRanking";
 import { BriefingLead } from "./BriefingLead";
 import { NexoDoDia } from "./NexoDoDia";
-import { CockpitDoResultado, ContaEscrita, LinhaDePendencias } from "./CockpitDoResultado";
+import { CockpitDoResultado, ContaEscrita, LinhaDePendencias, LucroPorDia } from "./CockpitDoResultado";
 import { IntegrationDashboardFrame } from "./IntegrationDashboardFrame";
 
 /**
@@ -52,6 +52,12 @@ import { IntegrationDashboardFrame } from "./IntegrationDashboardFrame";
  * As chaves são os `id` que `buildFinancialComposition` emite — não os rótulos,
  * que mudam de texto quando o período está parcial.
  */
+/**
+ * `YYYY-MM-DD` -> `DD/MM`. A string só é reordenada: passá-la por `new Date`
+ * a leria como meia-noite UTC e devolveria o dia anterior em São Paulo.
+ */
+const diaBrasileiro = (data: string) => data.slice(5).split("-").reverse().join("/");
+
 const PALETA_DO_ML: PaletaDeCategoria = {
   cogs: "#FF0000",
   shipping: "#FF4D4D",
@@ -533,6 +539,48 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
       cor: corDaCategoria(fatia.id),
     }));
 
+  /**
+   * ⚠️ OS SETE DIAS DO BLOCO "LUCRO POR DIA", e o cuidado todo está em NÃO
+   * TRANSFORMAR `null` EM ZERO no caminho até a tela.
+   *
+   * O contrato distingue os dois na origem: `0` é fato (o dia não teve venda),
+   * `null` é desconhecido (o dia vendeu, e custo, tarifa ou alíquota ainda não
+   * chegaram). Aqui o `null` vira o traço e a ausência de coluna; um `?? 0`
+   * nesta linha desenharia uma queda que não aconteceu.
+   *
+   * ⚠️ E "HOJE" SÓ É DITO QUANDO É VERDADE. A prancheta destaca a última coluna
+   * como "hoje", e ela é — quando o período vai até hoje. Num período passado
+   * escolhido a dedo, a última coluna é a última do RECORTE, e chamá-la de hoje
+   * seria uma data inventada. O destaque verde continua sempre no dia mais
+   * recente; só a palavra depende da data bater.
+   *
+   * Fuso: a chave `YYYY-MM-DD` já vem calculada em São Paulo. Passá-la por
+   * `new Date(dia)` a leria como meia-noite UTC e o dia da semana viria do dia
+   * anterior — a mesma pegadinha anotada em `TikTokSaldo`. Por isso a data é
+   * fixada ao meio-dia UTC e formatada em UTC.
+   */
+  const hojeNoBrasil = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+  const diaDaSemana = (data: string) =>
+    new Date(`${data}T12:00:00Z`)
+      .toLocaleDateString("pt-BR", { weekday: "short", timeZone: "UTC" })
+      .replace(".", "");
+  const seteDiasDeLucro = overview.dailySales.slice(-7).map((ponto) => {
+    const lucro = ponto.profit ?? null;
+    const ehHoje = ponto.date === hojeNoBrasil;
+    return {
+      data: ponto.date,
+      rotulo: ehHoje ? "hoje" : diaDaSemana(ponto.date),
+      valor: lucro,
+      // O rótulo em cima da coluna é curto porque a coluna é estreita: só a
+      // parte inteira, sem símbolo. O valor por extenso vai no nome acessível.
+      compacto: lucro == null ? "—" : Math.round(lucro).toLocaleString("pt-BR"),
+      completo: lucro == null
+        ? `${diaBrasileiro(ponto.date)}: lucro ainda desconhecido`
+        : `${diaBrasileiro(ponto.date)}: ${money(lucro, overview.metrics.currency)}`,
+      destaque: ponto.date === overview.dailySales[overview.dailySales.length - 1]?.date,
+    };
+  });
+
   const pendenciasDoCanal = [
     ...(semAliquota
       ? [{ label: "Cadastrar alíquota", href: MERCADO_LIVRE_TAX_RATE_HREF, tone: "pendencia" as const }]
@@ -716,6 +764,13 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
             negativo: fatiaDoResultado.isLoss === true,
           }}
         />
+      }
+      abaixoDaLegenda={
+        /* ⚠️ DEBAIXO DA LEGENDA, dentro da faixa — é onde a prancheta
+           aprovada o pôs, ocupando o branco que sobrava à esquerda. Fora da
+           faixa ele viraria mais um cartão, e a leitura "quanto sobrou hoje ->
+           foi um dia bom?" se quebraria no meio. */
+        <LucroPorDia titulo="Lucro por dia — últimos 7" dias={seteDiasDeLucro} />
       }
     />
 

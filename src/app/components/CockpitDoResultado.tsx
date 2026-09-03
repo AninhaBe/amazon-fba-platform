@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 /**
  * A FAIXA DO RESULTADO — o lucro como protagonista, com a cascata do que o
@@ -39,6 +39,7 @@ export function CockpitDoResultado({
   frase,
   parcelas,
   aoLado,
+  abaixoDaLegenda,
 }: {
   titulo: string;
   /** Só para decidir a cor do número; a formatação vem pronta. */
@@ -46,8 +47,10 @@ export function CockpitDoResultado({
   lucroFormatado: string;
   frase: ReactNode;
   parcelas: ParcelaDaCascata[];
-  /** O painel que acompanha a faixa (hoje, a rosquinha dos repasses). */
+  /** O painel que acompanha a faixa (hoje, a conta escrita dos repasses). */
   aoLado?: ReactNode;
+  /** O que desce para o branco embaixo da legenda (hoje, os sete dias). */
+  abaixoDaLegenda?: ReactNode;
 }) {
   const conhecidas = parcelas.filter(
     (parte): parte is ParcelaDaCascata & { valor: number } =>
@@ -90,6 +93,8 @@ export function CockpitDoResultado({
             </ul>
           </>
         )}
+
+        {abaixoDaLegenda}
       </div>
 
       {aoLado ? <div className="cockpit-ao-lado">{aoLado}</div> : null}
@@ -158,6 +163,78 @@ export function ContaEscrita({
         ) : null}
       </dl>
     </>
+  );
+}
+
+/**
+ * LUCRO POR DIA — ÚLTIMOS 7. A prancheta "Lucro no tempo", aprovada em
+ * 03/09/2026 (*"Boa. Upa a opção 3 pro sistema."*).
+ *
+ * O número grande da faixa responde "quanto sobrou hoje". Ele não responde "hoje
+ * foi um dia bom", que é a pergunta seguinte e só existe com os dias anteriores
+ * ao lado. Por isso o bloco mora DEBAIXO da legenda da cascata: ele é a mesma
+ * leitura, esticada no tempo.
+ *
+ * ⚠️ DIA DESCONHECIDO NÃO VIRA COLUNA NO CHÃO, e numa série temporal isso é
+ * mais perigoso que numa tela estática: zero num gráfico não parece ausência,
+ * parece NOTÍCIA RUIM — uma queda que não aconteceu. O contrato distingue os
+ * dois casos na origem (`0` = não vendeu, é fato; `null` = vendeu e o custo ou a
+ * tarifa ainda não chegaram), e aqui o `null` aparece como ausência de coluna
+ * com um traço no lugar do valor, nunca como barra rente à base.
+ *
+ * ⚠️ E ESTA PEÇA NÃO FORMATA DINHEIRO NEM DECIDE O QUE É "HOJE". As duas coisas
+ * dependem de moeda e de fuso, que são do chamador. Ela recebe os rótulos
+ * prontos e decide só a altura — a mesma divisão de trabalho da cascata.
+ */
+export function LucroPorDia({ titulo, dias }: {
+  titulo: string;
+  dias: Array<{
+    data: string;
+    /** "qui", "hoje" — quem chama decide, porque só ele sabe que dia é hoje. */
+    rotulo: string;
+    /** Só para a proporção e o tom. `null` não desenha coluna. */
+    valor: number | null;
+    /** O rótulo curto em cima da coluna ("540", "0", "—"). */
+    compacto: string;
+    /** O valor por extenso, para quem lê por leitor de tela. */
+    completo: string;
+    destaque: boolean;
+  }>;
+}) {
+  if (dias.length === 0) return null;
+  // A escala sai do maior valor CONHECIDO. Um dia desconhecido não pode
+  // encolher os outros — ele não tem tamanho.
+  const maior = Math.max(...dias.map((dia) => (dia.valor == null ? 0 : Math.abs(dia.valor))), 0);
+
+  return (
+    <section className="lucro-por-dia" aria-label={titulo}>
+      <p className="cockpit-kicker is-menor">{titulo}</p>
+      <ol className="lucro-colunas">
+        {dias.map((dia) => {
+          // ⚠️ A ALTURA SAI COMO FRAÇÃO, e o `* 100` mora no CSS — não é
+          // rodeio para calar a guarda que proíbe aritmética nesta peça: é onde
+          // a conta pertence. A guarda existe porque número derivado aqui
+          // divergiria do produtor sem nada ficar vermelho; geometria não é
+          // número que alguém lê, e escrevê-la em CSS deixa isso explícito.
+          const fracao = maior > 0 && dia.valor != null ? Math.abs(dia.valor) / maior : 0;
+          const negativo = dia.valor != null && dia.valor < 0;
+          return (
+            /* O nome acessível carrega o valor POR EXTENSO. Na tela o rótulo é
+               curto ("540") porque a coluna é estreita; quem lê por leitor de
+               tela ouviria um número sem moeda e sem dia, que não é leitura. */
+            <li
+              key={dia.data}
+              className={`lucro-coluna${dia.destaque ? " is-destaque" : ""}${dia.valor == null ? " is-desconhecido" : ""}${negativo ? " is-negativo" : ""}`}
+              aria-label={dia.completo}
+            >
+              <span className="lucro-valor" aria-hidden="true">{dia.compacto}</span>
+              <span className="lucro-barra" style={{ "--fracao": fracao } as CSSProperties} aria-hidden="true" />
+              <span className="lucro-dia" aria-hidden="true">{dia.rotulo}</span>
+            </li>
+          );
+        })}
+      </ol>
+    </section>
   );
 }
 
