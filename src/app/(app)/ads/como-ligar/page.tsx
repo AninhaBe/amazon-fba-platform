@@ -36,8 +36,9 @@ export default function ComoLigarAdsPage() {
           </header>
           <p className="ads-nota">
             Os anúncios do TikTok — inclusive o GMV Max, o formato feito para a loja — não moram no TikTok Shop. Eles
-            ficam no <strong>TikTok for Business</strong>, que tem cadastro próprio. A nossa aprovação de TikTok Shop
-            (DSPR) não vale lá.
+            ficam no <strong>TikTok for Business</strong>, que tem cadastro próprio, e a nossa aprovação de TikTok Shop
+            (DSPR) não vale lá. <strong>Esse cadastro ainda não foi feito</strong>: o NEXO não tem app na Marketing API
+            do TikTok, então hoje não há como ler o desempenho dos seus anúncios desse canal.
           </p>
 
           {/* O ÚNICO AVISO DESTA PÁGINA QUE PRECISA PARAR O OLHO: é o passo em
@@ -53,17 +54,22 @@ export default function ComoLigarAdsPage() {
             </p>
           </div>
 
-          <ol className="ads-passos">
-            <li><span>Conta de anúncios (Ads Manager)</span> <small>você</small></li>
-            <li><span>Business Center e ligar a loja (GMV Max)</span> <small>você</small></li>
-            <li><span>App de desenvolvedor na Marketing API</span> <small>NEXO</small></li>
-            <li><span>Autorizar o NEXO a ler o desempenho</span> <small>você</small></li>
-          </ol>
+          {/* ⚠️ AQUI HAVIA UMA LISTA DE QUATRO PASSOS com responsável em cada
+              um, e ela descrevia PLANO FUTURO como se fosse um processo em
+              andamento — inclusive "App de desenvolvedor na Marketing API —
+              NEXO", que nunca foi criado nem solicitado. Confirmado pela dona do
+              produto em 02/09/2026, verbatim: *"nunca criei nada além do que tem
+              hoje"*.
+
+              A lista saiu inteira em vez de ganhar um "ainda não": checklist com
+              responsáveis é a forma visual de "isto está em curso", e nenhuma
+              palavra dentro dela desfaz essa leitura. Quando o cadastro for
+              decidido, ela volta — aí descrevendo algo que existe. */}
 
           <p className="ads-nota">
-            <strong>API liberada não cria dado — campanha cria.</strong> Se hoje não roda nenhuma campanha no TikTok,
-            tudo acima funciona e a tela vem vazia, como uma planilha com as colunas certas e nenhuma linha. Não é
-            problema técnico, é sequência.
+            <strong>E vale saber a ordem das coisas:</strong> mesmo depois do cadastro, API liberada não cria dado —
+            campanha cria. Sem campanha rodando no TikTok, a tela vem vazia como uma planilha com as colunas certas e
+            nenhuma linha. Não é problema técnico, é sequência.
           </p>
         </section>
 

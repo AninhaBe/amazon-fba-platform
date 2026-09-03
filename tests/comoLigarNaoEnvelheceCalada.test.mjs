@@ -45,12 +45,22 @@ test("o alerta do GMV Max continua INTEIRO — e a informacao mais cara da pagin
   assert.match(codigo, /encerra as campanhas GMV Max da conta anterior/, "a consequência do alerta sumiu");
 });
 
-test("a linha do TikTok NAO foi alterada — ela espera resposta da dona", async () => {
-  // ⚠️ Não há evidência no repo de um app na Marketing API do TikTok, e também
-  // não há evidência de que ele NÃO exista: pode ter sido criado fora daqui.
-  // Enquanto a resposta não vem, a linha não pode afirmar nem um nem outro —
-  // trocá-la por "ainda não solicitado" seria inventar o estado oposto.
+test("a linha do TikTok DIZ que o cadastro nao existe — a resposta chegou", async () => {
+  // ⚠️ ESTE TESTE FOI INVERTIDO EM 02/09/2026, e a inversao e o desenho dele.
+  //
+  // A versao anterior exigia que a linha "App de desenvolvedor na Marketing API"
+  // ficasse INTACTA: nao havia evidencia de que o app existisse, nem de que NAO
+  // existisse (podia ter sido criado fora do repo), e trocar por "ainda nao
+  // solicitado" seria inventar o estado oposto. Guarda de espera, correta.
+  //
+  // A dona do produto respondeu, verbatim: *"nunca criei nada alem do que tem
+  // hoje"*. A limitacao que justificava a espera morreu, e a guarda morre com
+  // ela — se sobrevivesse, passaria a DEFENDER a pagina desatualizada, e quem
+  // corrigisse quebraria a suite (AGENTS.md, "recusa temporaria").
   const codigo = semComentarios(await fonte());
-  assert.match(codigo, /App de desenvolvedor na Marketing API/, "a linha do TikTok foi mexida antes da resposta");
-  assert.ok(!/ainda não solicitado/.test(codigo), "a linha passou a afirmar um estado que ninguém verificou");
+  assert.match(codigo, /ainda não foi feito/, "a pagina tem de dizer que o cadastro nao existe");
+  // ⚠️ E a LISTA DE PASSOS saiu inteira, nao ganhou um "ainda nao": checklist
+  // com responsavel em cada item e a forma visual de "isto esta em curso", e
+  // nenhuma palavra dentro dela desfaz essa leitura.
+  assert.ok(!/ads-passos/.test(codigo), "checklist com responsaveis descreve processo em andamento");
 });
