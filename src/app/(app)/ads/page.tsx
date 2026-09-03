@@ -8,6 +8,7 @@ import { PageHeader, pageIcons } from "../../components/PageHeader";
 import { DashboardPeriodFilter, useDashboardPeriod } from "../../components/DashboardPeriodFilter";
 import { MarketplaceIcon } from "../../components/MarketplaceIcon";
 import { EmptyState } from "../../components/EmptyState";
+import { ConectarAds } from "../../components/ConectarAds";
 import { InlineLoading } from "../../components/LoadingState";
 import { IntegrationDashboardFrame } from "../../components/IntegrationDashboardFrame";
 import { usePrefetchDePeriodos } from "../../components/prefetchDePeriodos";
@@ -405,6 +406,19 @@ function Ads() {
   const erro = resultado?.erro ?? null;
   const canais = dados?.canais ?? [];
   const produtos = dados?.produtos ?? [];
+  /**
+   * ⚠️ DOIS SILENCIOS DIFERENTES, e a tela tratava como um so.
+   *
+   * Sem NENHUM canal autorizado, a lista vazia nao quer dizer "nao anunciou" —
+   * quer dizer "nao conectou". Dizer a frase errada aqui foi o que fez a aba
+   * parecer vazia para todo mundo que nunca achou o botao.
+   *
+   * Com pelo menos um canal conectado, a frase de hoje esta certa e fica: a
+   * lista vazia passa a significar mesmo "nenhuma campanha rodou no periodo".
+   */
+  const credenciais = dados?.credenciais ?? [];
+  const semNenhumaConexao = credenciais.length > 0 && credenciais.every((canal) => !canal.conectado);
+  const canaisFaltando = credenciais.filter((canal) => !canal.conectado);
   const comDado = canais.filter((canal) => canal.estado === "com-dado");
   // O ML devolve o anúncio sem o SKU, então não há como saber que um MLB e um
   // SKU da Amazon são o mesmo produto. A tela DIZ isso em vez de omitir o bloco.
@@ -483,6 +497,8 @@ function Ads() {
                 vem da fonte, como ela mandou; “—” quer dizer que ela não informou.
               </p>
             </section>
+          ) : semNenhumaConexao ? (
+            <ConectarAds faltando={canaisFaltando} />
           ) : (
             <EmptyState
               kind="data"
