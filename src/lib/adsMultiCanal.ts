@@ -1,4 +1,5 @@
 import { dbQuery } from "./db";
+import { getIntegrations } from "./integrations/integrationStore";
 import { currentWorkspaceId } from "./workspaceScope";
 import type { ProdutoAnunciado } from "./margemPosAds";
 
@@ -135,6 +136,34 @@ export interface AdsMultiCanal {
   canais: CanalDeAdsResumo[];
   produtos: ProdutoAnunciado[];
   campanhas: CampanhaDeAds[];
+  /**
+   * ⚠️ O ESTADO DA CREDENCIAL, e ele existe para separar DOIS silêncios que a
+   * tela vinha tratando como um só.
+   *
+   * 🔴 Medido em 02/09/2026: quem nunca autorizou o Ads via a frase *"Nenhum
+   * produto anunciado neste período"* — que é a mensagem do caso **conectado e
+   * sem campanha**. Para quem não conectou, ela é falsa: diz que a pessoa não
+   * anunciou, quando o que falta é a autorização. E a tela de instrução
+   * (`/ads/como-ligar`) existia sem ninguém chegar nela.
+   *
+   * 📌 É a doutrina da casa invertida — *"tela sem dado mostra o estado real,
+   * nunca zeros que pareçam 'não vendeu nada'"*. Aqui o estado real é "você
+   * ainda não conectou seus anúncios".
+   *
+   * ⚠️ E o campo é POR CANAL, não um booleano só: a Amazon pode estar conectada
+   * e o Mercado Livre não. Um "conectado" global responderia certo para um e
+   * errado para o outro — e a tela precisa oferecer o botão do canal que falta,
+   * não um genérico.
+   */
+  credenciais: EstadoDaCredencial[];
+}
+
+export interface EstadoDaCredencial {
+  provider: "amazon" | "mercado_livre";
+  /** `true` = este workspace autorizou. Nada aqui fala do volume de anúncio. */
+  conectado: boolean;
+  /** Para onde a tela manda quem quer conectar. */
+  conectarEm: string;
 }
 
 /** Hoje em Brasília (UTC−3, sem horário de verão desde 2019). */
@@ -548,5 +577,36 @@ export async function lerAdsMultiCanal(deISO: string, ateISO: string): Promise<A
     janelaAtribuicao: c.provider === "amazon" ? "sales30d" : null,
   }));
 
-  return { period: { from: deISO, to: ateISO }, canais, produtos, campanhas };
+  // A credencial é lida por workspace — `currentWorkspaceId()` já governa a
+  // consulta, então isto nunca responde pelo inquilino errado.
+  const credenciais = await lerEstadoDasCredenciais(workspaceId);
+  return { period: { from: deISO, to: ateISO }, canais, produtos, campanhas, credenciais };
+}
+
+/**
+ * Quem já autorizou anúncios NESTE workspace.
+ *
+ * A Amazon guarda em `workspace_settings` (chave `amazon_ads_oauth`); o Mercado
+ * Livre usa a própria conexão de venda, porque lá o anúncio vem no mesmo token
+ * do canal — dois mecanismos diferentes, e é por isso que a resposta é por
+ * canal em vez de um booleano só.
+ */
+async function lerEstadoDasCredenciais(workspaceId: string): Promise<EstadoDaCredencial[]> {
+  const [amazon, ml] = await Promise.all([
+    dbQuery<{ n: string }>(
+      `SELECT COUNT(*)::text AS n FROM workspace_settings
+        WHERE workspace_id = $1 AND key = 'amazon_ads_oauth'`,
+      [workspaceId],
+    ),
+    // ⚠️ O ML passa pelo `integrationStore`, e nao por SQL aqui. A regra de
+    // arquitetura (tests/providerIsolation) proibe modulo fora de
+    // `integrations/` consultar canal POR NOME — e ela esta certa: uma consulta
+    // dessas espalhada e como o conhecimento de um canal vaza para todo lado, e
+    // aí trocar o vocabulário de um provider vira caça a string pelo repo.
+    getIntegrations("mercado_livre"),
+  ]);
+  return [
+    { provider: "amazon", conectado: Number(amazon[0]?.n ?? 0) > 0, conectarEm: "/api/ads/connect" },
+    { provider: "mercado_livre", conectado: ml.some((c) => c.status === "connected"), conectarEm: "/integracoes" },
+  ];
 }
