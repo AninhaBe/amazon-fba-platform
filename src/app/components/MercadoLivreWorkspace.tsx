@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatedNumber, identidadeDePeriodo } from "./AnimatedNumber";
 import { EmptyState } from "./EmptyState";
 import { DashboardSkeleton } from "./LoadingState";
 import { PageHeader, pageIcons } from "./PageHeader";
 import { RevenueChart, type DailyPoint } from "./RevenueChart";
+import { FILTRO_DE_HOJE, JANELA_DE_SETE_DIAS, serieDoBlocoDeLucro } from "./serieDoLucroPorDia";
 import { DashboardPeriodFilter, useDashboardPeriod } from "./DashboardPeriodFilter";
 import { periodoNaUrl } from "./periodoNaUrl";
 import { OrderProfitabilityTable } from "./OrderProfitabilityTable";
@@ -138,6 +139,69 @@ interface CachedPeriod {
 // ao ir para a Amazon e voltar). Ao retornar, o período já visto aparece na
 // hora e a revalidação acontece em segundo plano. Um reload limpa tudo.
 const periodCache = new Map<string, CachedPeriod>();
+
+/**
+ * O ÚNICO escritor do `periodCache`. O aquecimento de períodos e a janela dos
+ * sete dias passam os dois por aqui: se cada um escrevesse com a sua forma, uma
+ * chave gravada por um seria lida pelo outro com campo faltando, e nada ficaria
+ * vermelho.
+ */
+async function buscarEGuardarPeriodo(view: string, q: string, signal: AbortSignal) {
+  const resposta = await fetch(`/api/integrations/mercado-livre/overview?${q}&view=${view}`, { cache: "no-store", signal });
+  if (!resposta.ok) return;
+  const corpo = await resposta.json();
+  if (!corpo?.overview) return;
+  periodCache.set(`${view}:${q}`, {
+    overview: corpo.overview as Overview,
+    syncStatus: (corpo.sync ?? null) as SyncStatus | null,
+    updatedAt: corpo.updatedAt ? new Date(corpo.updatedAt) : new Date(),
+  });
+}
+
+/**
+ * Entrega a série diária da janela de sete dias quando o filtro é "Hoje".
+ *
+ * Nos outros filtros devolve `null`, e quem chama continua lendo a série do
+ * período — os outros filtros não foram pedidos e não mudam.
+ */
+function useJanelaDeSeteDias(view: string, periodoAtual: string, connectionId: string | null) {
+  const chave = `${view}:${JANELA_DE_SETE_DIAS}`;
+  /**
+   * ⚠️ O ESTADO AQUI É SÓ O SINAL DE "A BUSCA TERMINOU", não uma cópia da
+   * série. Guardar a série em estado a deixaria para trás do `periodCache` no
+   * dia em que outro caminho reescrevesse a chave — e a tela mostraria a janela
+   * de sete dias de uma sincronização anterior sem nada ficar vermelho. É a
+   * mesma disciplina do `overview`, que também é derivado do cache no render.
+   */
+  const [buscasConcluidas, setBuscasConcluidas] = useState(0);
+
+  useEffect(() => {
+    if (periodoAtual !== FILTRO_DE_HOJE) return;
+    // Já em memória (ela passou pelo filtro de 7 dias, ou o aquecimento rodou):
+    // nada a buscar, e o render abaixo já lê do cache.
+    if (periodCache.has(chave)) return;
+    // Sem conexão ainda não há o que buscar — a página inteira está em branco.
+    if (!connectionId) return;
+    const controller = new AbortController();
+    void buscarEGuardarPeriodo(view, JANELA_DE_SETE_DIAS, controller.signal)
+      .then(() => { if (!controller.signal.aborted) setBuscasConcluidas((n) => n + 1); })
+      // Falha aqui não é erro de tela: o bloco simplesmente não aparece, e o
+      // resto do período selecionado continua de pé.
+      .catch(() => {});
+    return () => controller.abort();
+  }, [chave, connectionId, periodoAtual, view]);
+
+  return useMemo(
+    () => (periodoAtual === FILTRO_DE_HOJE ? periodCache.get(chave)?.overview.dailySales ?? null : null),
+    // ⚠️ `buscasConcluidas` É DEPENDÊNCIA DE PROPÓSITO, e o lint reclama
+    // com razão pela regra dele: o contador não aparece no corpo. Ele existe
+    // porque `periodCache` é um Map mutável fora do React — ninguém avisa que a
+    // chave foi gravada. O contador é esse aviso. Tirá-lo faria a leitura
+    // congelar em `null` para quem abre a página já no filtro Hoje.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [chave, periodoAtual, buscasConcluidas],
+  );
+}
 
 const views = {
   dashboard: { eyebrow: "Operação Mercado Livre", title: "Dashboard Mercado Livre", subtitle: "Faturamento, pedidos e anúncios da sua conta do Mercado Livre Brasil.", icon: pageIcons.dashboard },
@@ -344,17 +408,35 @@ function MercadoLivreWorkspaceInterno({ view }: { view: keyof typeof views }) {
   // falta). Escreve so no `periodCache`; a derivacao acima garante que nada
   // aquecido apareca sob rotulo de outro periodo.
   const jaTemPeriodo = useCallback((q: string) => periodCache.has(`${view}:${q}`), [view]);
-  const buscarPeriodo = useCallback(async (q: string, signal: AbortSignal) => {
-    const resposta = await fetch(`/api/integrations/mercado-livre/overview?${q}&view=${view}`, { cache: "no-store", signal });
-    if (!resposta.ok) return;
-    const corpo = await resposta.json();
-    if (!corpo?.overview) return;
-    periodCache.set(`${view}:${q}`, {
-      overview: corpo.overview as Overview,
-      syncStatus: (corpo.sync ?? null) as SyncStatus | null,
-      updatedAt: corpo.updatedAt ? new Date(corpo.updatedAt) : new Date(),
-    });
-  }, [view]);
+  const buscarPeriodo = useCallback(
+    (q: string, signal: AbortSignal) => buscarEGuardarPeriodo(view, q, signal),
+    [view],
+  );
+
+  /**
+   * ⚠️ A SÉRIE DOS SETE DIAS, QUANDO O FILTRO É "HOJE" — e só nesse caso.
+   *
+   * Correção da dona em 03/09/2026, verbatim: *"no filtro de hoje
+   * (mercadolivre), o layout mostre o lucro por dia nos últimos 7 dias, e não só
+   * hoje. Tem que ser o mesmo layout que mostra os últimos 7 dias do filtro 7
+   * dias."*
+   *
+   * O defeito: o bloco lia `overview.dailySales`, que segue o período
+   * selecionado. Com "Hoje" isso é UM ponto — e uma barra sozinha se estica pela
+   * régua inteira. O título prometia sete e a tela mostrava um.
+   *
+   * ⚠️ SÓ A FONTE DESTE BLOCO deixa de seguir o filtro. O resto da página
+   * continua no período selecionado: a faixa, os cartões e as tabelas falam de
+   * hoje, porque foi hoje que ela pediu. O bloco é a comparação — ele precisa do
+   * antes para o hoje significar alguma coisa.
+   *
+   * ⚠️ E É A MESMA JANELA DO FILTRO "7 DIAS", pela mesma chave de cache: se
+   * ela já passou pelo 7 dias (ou o aquecimento já rodou), não há busca nenhuma,
+   * e o que a tela mostra nos dois filtros é literalmente o mesmo objeto. Buscar
+   * por fora criaria uma segunda janela de sete dias que poderia discordar da
+   * primeira — dois consumidores, dois universos, agora no tempo.
+   */
+  const serieDeSeteDias = useJanelaDeSeteDias(view, period.query, connectionId);
   const { aquecerAgora } = usePrefetchDePeriodos({
     ativo: !!overview && !!connectionId,
     atual: period.query,
@@ -388,7 +470,7 @@ function MercadoLivreWorkspaceInterno({ view }: { view: keyof typeof views }) {
         </div>
       ) : !overview ? (
         <EmptyState title="Conecte sua conta do Mercado Livre" description="Autorize o NEXO para começar a importar anúncios e pedidos." action={<Link href="/integracoes" className="meli-primary-action">Gerenciar integração <span aria-hidden="true">→</span></Link>} />
-      ) : view === "dashboard" ? <Dashboard overview={overview} syncStatus={syncStatus} periodoLabel={period.label} periodoQuery={period.query} connectionId={connectionId} conexaoCaida={Boolean(brokenConnection)} /> : view === "estoque" ? <Inventory overview={overview} /> : <Monitor overview={overview} secaoInicial={secaoInicial} />}
+      ) : view === "dashboard" ? <Dashboard overview={overview} syncStatus={syncStatus} periodoLabel={period.label} periodoQuery={period.query} connectionId={connectionId} conexaoCaida={Boolean(brokenConnection)} serieDeSeteDias={serieDeSeteDias} /> : view === "estoque" ? <Inventory overview={overview} /> : <Monitor overview={overview} secaoInicial={secaoInicial} />}
     </IntegrationDashboardFrame>
   );
 }
@@ -463,7 +545,7 @@ function avaliarResultado(overview: Overview) {
   return { semAliquota, resultParcial, resultIncomplete, margemSub };
 }
 
-function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectionId, conexaoCaida }: { overview: Overview; syncStatus: SyncStatus | null; periodoLabel: string; periodoQuery: string; conexaoCaida: boolean; connectionId: string | null }) {
+function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectionId, conexaoCaida, serieDeSeteDias }: { overview: Overview; syncStatus: SyncStatus | null; periodoLabel: string; periodoQuery: string; conexaoCaida: boolean; connectionId: string | null; serieDeSeteDias: DailyPoint[] | null }) {
   const [costsOpen, setCostsOpen] = useState(false);
   const profitCoverage = overview.profit.coverage;
   const units = overview.dailySales.reduce((total, point) => total + point.units, 0);
@@ -564,7 +646,26 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
     new Date(`${data}T12:00:00Z`)
       .toLocaleDateString("pt-BR", { weekday: "short", timeZone: "UTC" })
       .replace(".", "");
-  const seteDiasDeLucro = overview.dailySales.slice(-7).map((ponto) => {
+  /**
+   * ⚠️ A FONTE DO BLOCO, e é aqui que a correção de 03/09/2026 mora.
+   *
+   * Com o filtro "Hoje", `overview.dailySales` tem UM ponto — e uma coluna
+   * sozinha ocupa a régua inteira, com o título prometendo sete. Nesse caso a
+   * série vem da janela de sete dias, a MESMA que o filtro "7 dias" exibe.
+   *
+   * Nos outros filtros nada muda: `serieDeSeteDias` é `null` e o bloco segue o
+   * período, como sempre seguiu.
+   *
+   * Enquanto a janela não chegou, a lista fica vazia e o bloco não se desenha —
+   * melhor não existir por um instante do que aparecer com uma coluna e o
+   * título de sete.
+   */
+  const serieDoBloco = serieDoBlocoDeLucro({
+    filtro: periodoQuery,
+    serieDoPeriodo: overview.dailySales,
+    janelaDeSeteDias: serieDeSeteDias,
+  });
+  const seteDiasDeLucro = serieDoBloco.map((ponto) => {
     const lucro = ponto.profit ?? null;
     const ehHoje = ponto.date === hojeNoBrasil;
     return {
@@ -577,7 +678,7 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
       completo: lucro == null
         ? `${diaBrasileiro(ponto.date)}: lucro ainda desconhecido`
         : `${diaBrasileiro(ponto.date)}: ${money(lucro, overview.metrics.currency)}`,
-      destaque: ponto.date === overview.dailySales[overview.dailySales.length - 1]?.date,
+      destaque: ponto.date === serieDoBloco[serieDoBloco.length - 1]?.date,
     };
   });
 
