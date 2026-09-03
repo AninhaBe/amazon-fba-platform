@@ -20,7 +20,7 @@ import { ORDEM_DO_RADAR, ROTULO_DE_COBERTURA, type StockStatus } from "@/lib/cob
 import { LegendaDeVendas } from "./LegendaDeVendas";
 import { CompactMetric, Flow, FlowExpandable, Metric, getRevenueTrend } from "./Metric";
 import { buildFinancialComposition, FinancialSummaryPanel } from "./FinancialSummaryPanel";
-import { CompositionDonut } from "./CompositionDonut";
+import { CompositionDonut, tomDaFatia } from "./CompositionDonut";
 import { sinaisDoResultado } from "./oQueFaltaNoResultado";
 import { SinaisDoResultado } from "./SinaisDoResultado";
 import { sinaisSilenciadosPorAlarme } from "./hierarquiaDeAvisos";
@@ -464,6 +464,24 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
           result: resultIncomplete ? null : overview.profit.estimatedProfit,
         });
 
+  /**
+   * ⚠️ A COR DA CASCATA VEM DA MESMA FATIA DA ROSQUINHA — pela
+   * CATEGORIA, nao pela posicao na barra.
+   *
+   * As duas listas tem ordens diferentes de proposito (a barra segue a leitura
+   * da prancheta; a rosquinha ordena por tamanho), entao usar o indice de cada
+   * uma daria cores diferentes para a mesma categoria. Procurar a fatia pelo
+   * `id` garante que "Taxas" e a mesma tinta nos dois lugares.
+   *
+   * Categoria que a rosquinha nao tem (porque o valor e nulo ou zero) cai no
+   * tom mais leve: ela nao aparece na barra tambem, entao a cor nunca chega a
+   * ser usada — mas a funcao nao pode devolver `undefined` no caminho.
+   */
+  const corDaCategoria = (id: string) => {
+    const indice = composicaoDoResultado.findIndex((fatia) => fatia.id === id);
+    return (indice < 0 ? null : tomDaFatia(indice, composicaoDoResultado[indice])) ?? "var(--ink-12)";
+  };
+
   const pendenciasDoCanal = [
     ...(semAliquota
       ? [{ label: "Cadastrar alíquota", href: MERCADO_LIVRE_TAX_RATE_HREF, tone: "pendencia" as const }]
@@ -617,10 +635,10 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
         </>
       )}
       parcelas={[
-        { id: "fees", rotulo: `Taxas ${money(overview.profit.fees ?? 0, overview.metrics.currency)}`, valor: overview.profit.fees, cor: "var(--ink-32)" },
-        { id: "cogs", rotulo: `Custo ${money(overview.profit.cogs ?? 0, overview.metrics.currency)}`, valor: overview.profit.cogs, cor: "var(--ink-12)" },
-        { id: "shipping", rotulo: `Frete ${money(overview.profit.sellerShipping ?? 0, overview.metrics.currency)}`, valor: overview.profit.sellerShipping, cor: "var(--ink-08)", contorno: true },
-        { id: "taxes", rotulo: `Impostos ${money(overview.profit.taxes ?? 0, overview.metrics.currency)}`, valor: overview.profit.taxes, cor: "var(--ink-08)", contorno: true },
+        { id: "fees", rotulo: `Taxas ${money(overview.profit.fees ?? 0, overview.metrics.currency)}`, valor: overview.profit.fees, cor: corDaCategoria("fees") },
+        { id: "cogs", rotulo: `Custo ${money(overview.profit.cogs ?? 0, overview.metrics.currency)}`, valor: overview.profit.cogs, cor: corDaCategoria("cogs") },
+        { id: "shipping", rotulo: `Frete ${money(overview.profit.sellerShipping ?? 0, overview.metrics.currency)}`, valor: overview.profit.sellerShipping, cor: corDaCategoria("shipping") },
+        { id: "taxes", rotulo: `Impostos ${money(overview.profit.taxes ?? 0, overview.metrics.currency)}`, valor: overview.profit.taxes, cor: corDaCategoria("taxes") },
         { id: "lucro", rotulo: `${resultParcial ? "Resultado" : "Lucro"} ${overview.profit.estimatedProfit == null ? "—" : money(overview.profit.estimatedProfit, overview.metrics.currency)}`, valor: overview.profit.estimatedProfit, cor: "var(--positive)" },
       ]}
       aoLado={

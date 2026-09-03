@@ -57,6 +57,28 @@ const TONS_CUSTO = [
   "color-mix(in oklch, var(--danger) 24%, var(--paper))",
 ];
 
+/**
+ * ⚠️ A COR DE UMA FATIA MORA AQUI, e agora ela tem DOIS consumidores.
+ *
+ * A rosquinha sempre atribuiu por POSICAO — degraus da mesma tinta, do custo
+ * mais pesado ao mais leve. Em 03/09/2026 a cascata da faixa do ML passou a
+ * pintar as mesmas categorias, e a dona pediu cor: *"as cores de identificacao
+ * de cada um pode mudar. Senao vai ficar tudo cinza"*.
+ *
+ * A cor sai desta funcao nos dois lugares, nunca de hex copiado. Uma categoria
+ * tem UMA cor na pagina inteira, e a vendedora aprende a cor uma vez para ler a
+ * barra e a rosquinha juntas. Dois mapas seriam dois universos visuais do mesmo
+ * numero — a versao grafica do defeito que este projeto ja pagou caro.
+ */
+export function tomDaFatia(
+  indice: number,
+  fatia: { isRemainder?: boolean; isPending?: boolean },
+): string | null {
+  if (fatia.isRemainder) return null;
+  if (fatia.isPending) return "color-mix(in oklch, var(--warning) 52%, var(--paper))";
+  return TONS_CUSTO[Math.min(indice, TONS_CUSTO.length - 1)];
+}
+
 export function CompositionDonut({
   slices,
   total,
@@ -98,11 +120,7 @@ export function CompositionDonut({
         ...s,
         fracao,
         offset,
-        tom: s.isRemainder
-          ? null
-          : s.isPending
-            ? "color-mix(in oklch, var(--warning) 52%, var(--paper))"
-            : TONS_CUSTO[Math.min(i, TONS_CUSTO.length - 1)],
+        tom: tomDaFatia(i, s),
       });
       return acc;
     },

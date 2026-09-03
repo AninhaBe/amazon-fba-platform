@@ -224,3 +224,35 @@ test("e o grafico e o painel DESCERAM, nao sairam", async () => {
   assert.match(codigo, /<RevenueChart points=\{overview\.dailySales\}/, "o grafico de evolucao sumiu da pagina");
   assert.match(codigo, /<FinancialSummaryPanel/, "o painel de composicao sumiu da pagina");
 });
+
+test("A COR DA CASCATA SAI DO MESMO MAPA DA ROSQUINHA — nao de hex copiado", async () => {
+  // ⚠️ Ordem da dona (03/09/2026): *"as cores de identificacao de cada um
+  // pode mudar. Senao vai ficar tudo cinza"*. A escolha foi: uma categoria, UMA
+  // cor na pagina inteira — a vendedora aprende a cor uma vez e le a barra e a
+  // rosquinha juntas.
+  //
+  // Dois mapas seriam dois universos visuais do mesmo numero: a versao grafica
+  // do defeito de "dois consumidores, dois universos".
+  const donut = semComentarios(await fonte("src/app/components/CompositionDonut.tsx"));
+  const ml = semComentarios(await fonte(ML));
+
+  // O mapa existe UMA vez, e e exportado.
+  assert.match(donut, /export function tomDaFatia\(/, "o mapa de cor deixou de ser compartilhavel");
+  assert.equal((donut.match(/const TONS_CUSTO = \[/g) ?? []).length, 1, "a escala de tinta foi duplicada");
+  // E a propria rosquinha consome a funcao, em vez de repetir a regra.
+  assert.match(donut, /tom: tomDaFatia\(i, s\)/, "a rosquinha voltou a decidir a cor por conta propria");
+
+  // A cascata busca pela CATEGORIA, nao pela posicao na barra: as duas listas
+  // tem ordens diferentes de proposito.
+  assert.match(ml, /composicaoDoResultado\.findIndex\(\(fatia\) => fatia\.id === id\)/,
+    "a cascata voltou a pintar por posicao, e a mesma categoria muda de cor entre a barra e a rosquinha");
+  for (const categoria of ["fees", "cogs", "shipping", "taxes"]) {
+    assert.ok(ml.includes(`cor: corDaCategoria("${categoria}")`), `a parcela ${categoria} voltou a ter cor propria`);
+  }
+  // ⚠️ E NENHUM HEX OU TOM SOLTO na cascata: o unico literal permitido e
+  // o verde do lucro, que e estado e nao categoria de custo.
+  const faixa = ml.slice(ml.indexOf("parcelas={["), ml.indexOf("]}", ml.indexOf("parcelas={[")));
+  assert.ok(!/#[0-9a-fA-F]{3,8}/.test(faixa), "voltou hex copiado para a cascata");
+  assert.ok(!/color-mix/.test(faixa), "a cascata voltou a escrever a propria tinta");
+  assert.match(faixa, /cor: "var\(--positive\)"/, "o lucro deixou de usar a cor de estado");
+});
