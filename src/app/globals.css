@@ -6058,17 +6058,24 @@ summary:hover { background: var(--paper-soft); }
 }
 
 .cockpit-linha { display: flex; align-items: baseline; flex-wrap: wrap; gap: 14px; }
-/* 44px e o tamanho da prancheta: o lucro e o protagonista da faixa, e o resto
-   da tela mantem a escala de 19px dos cartoes. */
+/* ⚠️ O VERDE DO MERCADO LIVRE, e ele mora AQUI e nao em `--positive`.
+   `--positive` e o verde dos quatro canais; a paleta aprovada em 03/09/2026 e
+   um teste num canal so. Este token e local ao cockpit, que so o ML renderiza —
+   e por isso mudar de ideia depois nao mexe em Amazon, Shopee nem TikTok. */
+.cockpit-faixa { --ml-verde: #337129; }
+
+/* 36px e o tamanho da prancheta aprovada. Ele ja foi 44px na versao anterior:
+   com o numero em verde saturado, 44 pesava mais que a frase que o explica, e a
+   dona aprovou a versao de 36. */
 .cockpit-lucro {
   color: var(--ink);
-  font-size: 44px;
-  font-weight: 700;
-  letter-spacing: -.02em;
+  font-size: 36px;
+  font-weight: 800;
+  letter-spacing: -.025em;
   line-height: 1.05;
   font-variant-numeric: tabular-nums;
 }
-.cockpit-lucro.is-positive { color: var(--positive); }
+.cockpit-lucro.is-positive { color: var(--ml-verde); }
 .cockpit-lucro.is-negative { color: var(--danger); }
 .cockpit-frase { margin: 0; color: var(--ink-muted); font-size: 16px; line-height: 1.5; }
 .cockpit-frase strong { color: var(--ink); font-weight: 600; }
@@ -6089,6 +6096,49 @@ summary:hover { background: var(--paper-soft); }
 }
 .cockpit-legenda li { display: inline-flex; align-items: center; gap: 6px; }
 .cockpit-marca { display: inline-block; width: 8px; height: 8px; border-radius: 2px; }
+
+/* A CONTA ESCRITA — o lado direito da faixa do ML. Tres colunas fixas: o sinal,
+   o nome e o valor alinhado a direita. O valor com largura propria e o que
+   deixa a coluna de numeros alinhada, que e o que permite conferir a subtracao
+   de relance. */
+.conta-escrita {
+  margin: 12px 0 0;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.conta-linha {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) minmax(72px, auto);
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 0;
+  color: var(--ink-muted);
+}
+.conta-linha dt, .conta-linha dd { margin: 0; }
+.conta-linha dd { text-align: end; }
+.conta-sinal { text-align: center; }
+.conta-linha.is-receita {
+  border-block-end: 1px solid var(--ink-08);
+  color: var(--ink);
+  font-weight: 600;
+}
+.conta-linha:not(.is-receita):not(.is-resultado):last-of-type {
+  border-block-end: 1px solid var(--ink-12);
+}
+/* O fundo tenue e o destaque da linha que responde a pergunta da faixa. Ele sai
+   do mesmo verde, com transparencia, para nao virar uma segunda tinta. */
+.conta-linha.is-resultado {
+  margin-block-start: 4px;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--ml-verde) 10%, transparent);
+  padding: 9px 8px;
+  color: var(--ml-verde);
+  font-weight: 700;
+}
+.conta-linha.is-resultado.is-negativo {
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  color: var(--danger);
+}
 
 /* As pendencias numa fila: os mesmos textos e destinos de antes, sem o peso de
    cartao. Chip que exige acao dela usa a tinta de atencao — os outros informam. */
@@ -6113,7 +6163,7 @@ summary:hover { background: var(--paper-soft); }
 @media (max-width: 900px) {
   .cockpit-faixa { flex-direction: column; }
   .cockpit-ao-lado { border-inline-start: 0; border-block-start: 1px solid var(--ink-08); }
-  .cockpit-lucro { font-size: 34px; }
+  .cockpit-lucro { font-size: 30px; }
 }
 
 /* As duas colunas do corpo do dashboard do ML. A regra e do CANAL (prefixo

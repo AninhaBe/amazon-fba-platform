@@ -122,20 +122,30 @@ test("nenhuma classe do cockpit e usada sem existir no CSS", async () => {
   assert.deepEqual(ausentes, [], `classes sem definição: ${ausentes.join(", ")}`);
 });
 
-test("a ROSQUINHA subiu de lugar, nao de conteudo — e o calculo e UM so", async () => {
+test("a CONTA ESCRITA leu a mesma composicao — e o calculo continua sendo UM so", async () => {
   const codigo = semComentarios(await fonte(ML));
-  // ⚠️ UM CALCULO, DOIS CONSUMIDORES. A faixa do topo e o painel de baixo
-  // leem a MESMA constante. Se cada um montasse a sua, bastaria alguem editar um
-  // lado para a tela mostrar duas composicoes diferentes do mesmo periodo, sem
-  // nada ficar vermelho — o defeito de "dois consumidores, dois universos".
+  // ⚠️ ESTA GUARDA JA TEVE OUTRA INTENCAO, e vale registrar qual: ate
+  // 03/09/2026 ela exigia que a ROSQUINHA estivesse na faixa (`slices=` duas
+  // vezes, `total={overview.profit.revenueProcessed}`). A dona aprovou a Direcao
+  // D — conta escrita no lugar da rosquinha —, entao a exigencia antiga passou a
+  // defender o desenho anterior. O que NAO mudou, e e o que ela sempre quis
+  // proteger, e o UM CALCULO: quem substituiu a rosquinha le a mesma constante.
   assert.equal(
     (codigo.match(/buildFinancialComposition\(\{/g) ?? []).length, 1,
     "a composicao passou a ser calculada em dois lugares",
   );
-  assert.equal((codigo.match(/slices=\{composicaoDoResultado\}/g) ?? []).length, 2,
-    "a faixa e o painel deixaram de ler a mesma composicao");
-  // E o total da rosquinha continua sendo a receita processada, como no painel.
-  assert.match(codigo, /total=\{overview\.profit\.revenueProcessed\}/);
+  // As linhas da conta escrita NASCEM da composicao — nao de uma lista propria.
+  assert.match(codigo, /const linhasDaContaEscrita = composicaoDoResultado/,
+    "a conta escrita passou a montar a propria lista, e pode fechar enquanto a barra nao fecha");
+  assert.match(codigo, /const fatiaDoResultado = composicaoDoResultado\.find\(\(fatia\) => fatia\.isRemainder\)/,
+    "a linha do resultado deixou de sair da composicao");
+  // E o painel de baixo continua lendo a mesma constante.
+  assert.match(codigo, /slices=\{composicaoDoResultado\}/,
+    "o painel de baixo deixou de ler a composicao compartilhada");
+  // ⚠️ O ML FICA SEM ROSQUINHA NENHUMA, e isso e o esperado: a de baixo
+  // ja tinha saido com `semDonut`, e a de cima virou conta escrita.
+  assert.ok(!codigo.includes("<CompositionDonut"),
+    "voltou uma rosquinha ao ML — a Direcao D aprovada substitui as duas");
 });
 
 test("a variante do painel e OPT-IN: so o ML passa, e o default e o de hoje", async () => {
@@ -225,34 +235,85 @@ test("e o grafico e o painel DESCERAM, nao sairam", async () => {
   assert.match(codigo, /<FinancialSummaryPanel/, "o painel de composicao sumiu da pagina");
 });
 
-test("A COR DA CASCATA SAI DO MESMO MAPA DA ROSQUINHA — nao de hex copiado", async () => {
-  // ⚠️ Ordem da dona (03/09/2026): *"as cores de identificacao de cada um
-  // pode mudar. Senao vai ficar tudo cinza"*. A escolha foi: uma categoria, UMA
-  // cor na pagina inteira — a vendedora aprende a cor uma vez e le a barra e a
-  // rosquinha juntas.
+test("A COR SAI DO MAPA UNICO — e a paleta nova e opt-in do ML", async () => {
+  // ⚠️ ESTA GUARDA MUDOU DE INTENCAO UMA VEZ. Ate 03/09/2026 ela PROIBIA
+  // hex no ML e exigia `cor: "var(--positive)"` no lucro. A dona aprovou uma
+  // paleta por categoria so para o ML (Custo #FF0000 -> Impostos #FFC2C2, lucro
+  // no verde #337129 da marca), entao a proibicao passou a defender o cinza que
+  // ela mandou tirar.
   //
-  // Dois mapas seriam dois universos visuais do mesmo numero: a versao grafica
-  // do defeito de "dois consumidores, dois universos".
+  // O que a guarda protege agora e a MESMA propriedade por outro caminho: os
+  // hex existem em UM dicionario, passado ao mapa de cor compartilhado. A
+  // cascata continua sem conhecer tinta nenhuma.
   const donut = semComentarios(await fonte("src/app/components/CompositionDonut.tsx"));
   const ml = semComentarios(await fonte(ML));
 
-  // O mapa existe UMA vez, e e exportado.
   assert.match(donut, /export function tomDaFatia\(/, "o mapa de cor deixou de ser compartilhavel");
   assert.equal((donut.match(/const TONS_CUSTO = \[/g) ?? []).length, 1, "a escala de tinta foi duplicada");
-  // E a propria rosquinha consome a funcao, em vez de repetir a regra.
   assert.match(donut, /tom: tomDaFatia\(i, s\)/, "a rosquinha voltou a decidir a cor por conta propria");
 
-  // A cascata busca pela CATEGORIA, nao pela posicao na barra: as duas listas
-  // tem ordens diferentes de proposito.
+  // A cascata busca pela CATEGORIA, nao pela posicao na barra.
   assert.match(ml, /composicaoDoResultado\.findIndex\(\(fatia\) => fatia\.id === id\)/,
-    "a cascata voltou a pintar por posicao, e a mesma categoria muda de cor entre a barra e a rosquinha");
-  for (const categoria of ["fees", "cogs", "shipping", "taxes"]) {
+    "a cascata voltou a pintar por posicao, e a mesma categoria muda de cor entre os dois lados da faixa");
+  for (const categoria of ["fees", "cogs", "shipping", "taxes", "result"]) {
     assert.ok(ml.includes(`cor: corDaCategoria("${categoria}")`), `a parcela ${categoria} voltou a ter cor propria`);
   }
-  // ⚠️ E NENHUM HEX OU TOM SOLTO na cascata: o unico literal permitido e
-  // o verde do lucro, que e estado e nao categoria de custo.
-  const faixa = ml.slice(ml.indexOf("parcelas={["), ml.indexOf("]}", ml.indexOf("parcelas={[")));
-  assert.ok(!/#[0-9a-fA-F]{3,8}/.test(faixa), "voltou hex copiado para a cascata");
-  assert.ok(!/color-mix/.test(faixa), "a cascata voltou a escrever a propria tinta");
-  assert.match(faixa, /cor: "var\(--positive\)"/, "o lucro deixou de usar a cor de estado");
+
+  // ⚠️ OS HEX MORAM NUM LUGAR SO. A cascata e a conta escrita pedem a
+  // cor a `corDaCategoria`; nenhuma das duas escreve tinta.
+  const paleta = ml.slice(ml.indexOf("const PALETA_DO_ML"), ml.indexOf("};", ml.indexOf("const PALETA_DO_ML")));
+  for (const [id, hex] of [["cogs", "#FF0000"], ["shipping", "#FF4D4D"], ["fees", "#FF8585"], ["taxes", "#FFC2C2"], ["result", "#337129"]]) {
+    assert.ok(paleta.includes(`${id}: "${hex}"`), `a paleta aprovada mudou: ${id} deixou de ser ${hex}`);
+  }
+  const semPaleta = ml.slice(0, ml.indexOf("const PALETA_DO_ML")) + ml.slice(ml.indexOf("};", ml.indexOf("const PALETA_DO_ML")));
+  assert.ok(!/#[0-9a-fA-F]{6}/.test(semPaleta),
+    "apareceu hex fora da paleta: cor copiada e como a mesma categoria acaba com duas tintas");
+
+  // ⚠️ E A PALETA E OPT-IN. Sem o parametro, `tomDaFatia` devolve o que
+  // sempre devolveu — e por isso os outros tres canais nao mudam de cor.
+  assert.match(donut, /paleta\?: PaletaDeCategoria,/, "a paleta deixou de ser opcional e repinta os quatro canais");
+  assert.match(donut, /const daCategoria = paleta && fatia\.id \? paleta\[fatia\.id\] : undefined;/,
+    "a consulta a paleta mudou de forma");
+  assert.match(ml, /tomDaFatia\(indice, composicaoDoResultado\[indice\], PALETA_DO_ML\)/,
+    "o ML parou de passar a paleta e voltaria ao cinza");
+});
+
+test("o verde do ML nao vaza para os outros canais", async () => {
+  // ⚠️ A ORDEM FOI EXPLICITA (03/09/2026): *"O verde #337129 e do ML — NAO
+  // mexa no token global --positive dos outros canais"*.
+  //
+  // O jeito silencioso de desobedecer seria trocar o token: a tela do ML ficaria
+  // certa, e Amazon, Shopee e TikTok mudariam de verde sem ninguem notar, porque
+  // nenhum teste olha a cor deles. Por isso a guarda ancora na DEFINICAO do
+  // token, nao no uso.
+  const css = (await fonte("src/app/globals.css")).replace(/\/\*[\s\S]*?\*\//g, "");
+
+  // ⚠️ COMPARACAO DE STRING LITERAL, e a primeira versao desta assercao
+  // NAO era. Ela proibia `--positive: #337129` — e ficou VERDE com a quebra
+  // rodada, porque o token nunca foi hex: ele e `oklch(...)`. A guarda "esperta"
+  // vigiava uma forma que nao acontece. O que reprova e o valor de hoje, inteiro.
+  assert.ok(css.includes("--positive: oklch(0.505 0.102 161);"),
+    "o token global --positive mudou de valor: os outros tres canais mudaram de verde junto");
+
+  // O verde do ML mora num token LOCAL da faixa, que so o ML renderiza.
+  assert.ok(css.includes(".cockpit-faixa { --ml-verde: #337129; }"),
+    "o verde do ML saiu do escopo da faixa — fora dela ele alcanca quem nao pediu");
+
+  // E o unico lugar do CSS que escreve este hex e essa declaracao.
+  assert.equal((css.match(/#337129/g) ?? []).length, 1,
+    "o verde do ML foi copiado para outro seletor; um deles vai ficar para tras");
+
+  // ⚠️ E A FAIXA E DO ML: nenhuma outra tela monta o cockpit. Se um dia
+  // alguem a reusar, o `--ml-verde` vai junto — e ai a decisao tem de ser da
+  // dona, nao efeito colateral de um import.
+  for (const tela of [
+    "src/app/(app)/amazon/page.tsx",
+    "src/app/components/ShopeeWorkspace.tsx",
+    "src/app/components/TikTokWorkspace.tsx",
+  ]) {
+    const fonteDaTela = semComentarios(await fonte(tela));
+    assert.ok(!fonteDaTela.includes("CockpitDoResultado"), `${tela} passou a montar a faixa do ML`);
+    assert.ok(!fonteDaTela.includes("ContaEscrita"), `${tela} passou a montar a conta escrita do ML`);
+    assert.ok(!fonteDaTela.includes("PaletaDeCategoria"), `${tela} passou a pedir a paleta por categoria`);
+  }
 });

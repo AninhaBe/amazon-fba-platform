@@ -70,10 +70,35 @@ const TONS_CUSTO = [
  * barra e a rosquinha juntas. Dois mapas seriam dois universos visuais do mesmo
  * numero — a versao grafica do defeito que este projeto ja pagou caro.
  */
+/**
+ * ⚠️ A PALETA POR CATEGORIA É OPT-IN, e isso não é zelo — é o que mantém os
+ * outros três canais idênticos.
+ *
+ * O mapa acima pinta por POSIÇÃO (degraus da mesma tinta, do custo mais pesado
+ * ao mais leve), e é o que Amazon, Shopee e TikTok usam desde sempre. A paleta
+ * aprovada em 03/09/2026 pinta por CATEGORIA — vermelho para custo, verde do ML
+ * para o lucro —, e foi aprovada SÓ PARA O MERCADO LIVRE: a dona chamou o
+ * redesenho de teste e quer validar num canal antes de mandar replicar.
+ *
+ * Trocar `TONS_CUSTO` direto teria repintado a rosquinha dos quatro canais sem
+ * ninguém pedir. Quem quer a paleta nova passa o dicionário; quem não passa
+ * recebe exatamente o que recebia. É o mesmo desenho de `semDonut`.
+ *
+ * ⚠️ E A CHAVE É O `id` DA FATIA, não o rótulo: rótulo é texto de tela e muda
+ * ("Lucro" vira "Resultado" quando o período está parcial); `id` é contrato do
+ * produtor. Casar pelo texto faria a cor sumir no dia em que a frase mudasse.
+ */
+export type PaletaDeCategoria = Record<string, string>;
+
 export function tomDaFatia(
   indice: number,
-  fatia: { isRemainder?: boolean; isPending?: boolean },
+  fatia: { id?: string; isRemainder?: boolean; isPending?: boolean },
+  paleta?: PaletaDeCategoria,
 ): string | null {
+  // A paleta vem primeiro de propósito: no ML o LUCRO é uma fatia `isRemainder`
+  // e precisa sair verde, e sem esta ordem ele cairia no `null` de baixo.
+  const daCategoria = paleta && fatia.id ? paleta[fatia.id] : undefined;
+  if (daCategoria) return daCategoria;
   if (fatia.isRemainder) return null;
   if (fatia.isPending) return "color-mix(in oklch, var(--warning) 52%, var(--paper))";
   return TONS_CUSTO[Math.min(indice, TONS_CUSTO.length - 1)];

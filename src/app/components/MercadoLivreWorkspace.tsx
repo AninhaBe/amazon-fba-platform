@@ -20,7 +20,7 @@ import { ORDEM_DO_RADAR, ROTULO_DE_COBERTURA, type StockStatus } from "@/lib/cob
 import { LegendaDeVendas } from "./LegendaDeVendas";
 import { CompactMetric, Flow, FlowExpandable, Metric, getRevenueTrend } from "./Metric";
 import { buildFinancialComposition, FinancialSummaryPanel } from "./FinancialSummaryPanel";
-import { CompositionDonut, tomDaFatia } from "./CompositionDonut";
+import { tomDaFatia, type PaletaDeCategoria } from "./CompositionDonut";
 import { sinaisDoResultado } from "./oQueFaltaNoResultado";
 import { SinaisDoResultado } from "./SinaisDoResultado";
 import { sinaisSilenciadosPorAlarme } from "./hierarquiaDeAvisos";
@@ -33,8 +33,32 @@ import { Pagination } from "./Pagination";
 import { TopProductsRanking } from "./TopProductsRanking";
 import { BriefingLead } from "./BriefingLead";
 import { NexoDoDia } from "./NexoDoDia";
-import { CockpitDoResultado, LinhaDePendencias } from "./CockpitDoResultado";
+import { CockpitDoResultado, ContaEscrita, LinhaDePendencias } from "./CockpitDoResultado";
 import { IntegrationDashboardFrame } from "./IntegrationDashboardFrame";
+
+/**
+ * ⚠️ A PALETA APROVADA PELA ANA EM 03/09/2026, e ela é DO MERCADO LIVRE.
+ *
+ * Vermelho decrescente para o que consome a venda — quanto mais escuro, mais
+ * pesado — e o verde da marca do ML para o que sobra. A dona aprovou olhando a
+ * prancheta "Lucro no tempo": *"Boa. Upa a opção 3 pro sistema."*
+ *
+ * ⚠️ POR QUE HEX AQUI E NÃO UM TOKEN GLOBAL: `--positive` é o verde de TODOS os
+ * canais. Trocá-lo pintaria Amazon, Shopee e TikTok de verde-ML sem ninguém
+ * pedir, e a ordem foi explícita: o redesenho é um teste num canal só. Este
+ * dicionário é o único lugar que conhece estes valores, e ele é passado ao mapa
+ * de cor compartilhado em vez de duplicá-lo.
+ *
+ * As chaves são os `id` que `buildFinancialComposition` emite — não os rótulos,
+ * que mudam de texto quando o período está parcial.
+ */
+const PALETA_DO_ML: PaletaDeCategoria = {
+  cogs: "#FF0000",
+  shipping: "#FF4D4D",
+  fees: "#FF8585",
+  taxes: "#FFC2C2",
+  result: "#337129",
+};
 import { marginMetricTone } from "@/lib/marginTone";
 import { BASE_SEM_DIFERENCA, declaracaoDeBase } from "./baseDaMargem";
 import { comSemImposto } from "@/lib/semImposto";
@@ -479,8 +503,35 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
    */
   const corDaCategoria = (id: string) => {
     const indice = composicaoDoResultado.findIndex((fatia) => fatia.id === id);
-    return (indice < 0 ? null : tomDaFatia(indice, composicaoDoResultado[indice])) ?? "var(--ink-12)";
+    return (indice < 0 ? null : tomDaFatia(indice, composicaoDoResultado[indice], PALETA_DO_ML)) ?? "var(--ink-12)";
   };
+
+  /**
+   * ⚠️ A ORDEM DA CONTA ESCRITA É A DA PRANCHETA (custo, frete, taxas,
+   * impostos), e a da rosquinha era por tamanho. Só a ORDEM muda: as linhas são
+   * as fatias que `buildFinancialComposition` emitiu, então uma parcela que ele
+   * omitiu por ser desconhecida continua fora daqui — `null ≠ 0` vale
+   * principalmente numa conta com sinal de menos ao lado, onde a linha ausente
+   * é honesta e a linha "—" convida a ler zero.
+   *
+   * Categoria que a prancheta não previu (a fatia de composição pendente, por
+   * exemplo) entra no fim em vez de sumir: esconder faria a conta não fechar.
+   */
+  const ORDEM_DA_CONTA = ["cogs", "shipping", "fees", "taxes"];
+  const fatiaDoResultado = composicaoDoResultado.find((fatia) => fatia.isRemainder) ?? null;
+  const linhasDaContaEscrita = composicaoDoResultado
+    .filter((fatia) => !fatia.isRemainder)
+    .sort((a, b) => {
+      const posA = ORDEM_DA_CONTA.indexOf(a.id);
+      const posB = ORDEM_DA_CONTA.indexOf(b.id);
+      return (posA < 0 ? ORDEM_DA_CONTA.length : posA) - (posB < 0 ? ORDEM_DA_CONTA.length : posB);
+    })
+    .map((fatia) => ({
+      id: fatia.id,
+      rotulo: fatia.label,
+      valorFormatado: money(fatia.value, overview.metrics.currency),
+      cor: corDaCategoria(fatia.id),
+    }));
 
   const pendenciasDoCanal = [
     ...(semAliquota
@@ -639,27 +690,32 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
         { id: "cogs", rotulo: `Custo ${money(overview.profit.cogs ?? 0, overview.metrics.currency)}`, valor: overview.profit.cogs, cor: corDaCategoria("cogs") },
         { id: "shipping", rotulo: `Frete ${money(overview.profit.sellerShipping ?? 0, overview.metrics.currency)}`, valor: overview.profit.sellerShipping, cor: corDaCategoria("shipping") },
         { id: "taxes", rotulo: `Impostos ${money(overview.profit.taxes ?? 0, overview.metrics.currency)}`, valor: overview.profit.taxes, cor: corDaCategoria("taxes") },
-        { id: "lucro", rotulo: `${resultParcial ? "Resultado" : "Lucro"} ${overview.profit.estimatedProfit == null ? "—" : money(overview.profit.estimatedProfit, overview.metrics.currency)}`, valor: overview.profit.estimatedProfit, cor: "var(--positive)" },
+        { id: "lucro", rotulo: `${resultParcial ? "Resultado" : "Lucro"} ${overview.profit.estimatedProfit == null ? "—" : money(overview.profit.estimatedProfit, overview.metrics.currency)}`, valor: overview.profit.estimatedProfit, cor: corDaCategoria("result") },
       ]}
       aoLado={
-        /* ⚠️ A MESMA ROSQUINHA, COM OS MESMOS NUMEROS — ela mudou de
-           lugar, nao de conteudo. `buildFinancialComposition` e chamado com o
-           MESMO total e as MESMAS parcelas que o painel de baixo usa; se um dia
-           os dois divergirem, sera porque alguem mexeu num e nao no outro, e ha
-           guarda para isso.
+        /* ⚠️ A CONTA ESCRITA NO LUGAR DA ROSQUINHA — Direção D da prancheta,
+           aprovada em 03/09/2026. Com isso o ML fica sem rosquinha nenhuma (a
+           de baixo já saiu com `semDonut`), e é o esperado: as duas respondiam
+           a mesma pergunta, e a conta escrita responde melhor a que a vendedora
+           faz de verdade — "de onde saiu cada real".
 
-           O painel de baixo passa a receber `semDonut` — a variante opt-in que
-           existe so para este canal. Sem ela, os outros tres continuam com a
-           rosquinha onde sempre esteve. */
-        <>
-          <p className="cockpit-kicker">Repasses, taxas e {overview.profit.coverage.complete ? "lucro" : "resultado"}</p>
-          <CompositionDonut
-            total={overview.profit.revenueProcessed}
-            totalLabel="Receita processada"
-            format={(valor) => money(valor, overview.metrics.currency)}
-            slices={composicaoDoResultado}
-          />
-        </>
+           ⚠️ AS LINHAS SAEM DA MESMA `composicaoDoResultado` que o painel de
+           baixo consome. Um cálculo, dois consumidores continua valendo: se a
+           conta escrita montasse a própria lista, ela poderia fechar enquanto a
+           barra da esquerda não fecha, e nada ficaria vermelho. */
+        <ContaEscrita
+          titulo={`Repasses, taxas e ${overview.profit.coverage.complete ? "lucro" : "resultado"}`}
+          receitaRotulo="Receita processada"
+          receitaFormatada={money(overview.profit.revenueProcessed, overview.metrics.currency)}
+          linhas={linhasDaContaEscrita}
+          resultado={fatiaDoResultado == null ? null : {
+            rotulo: overview.profit.marginPct == null
+              ? fatiaDoResultado.label
+              : `${fatiaDoResultado.label} · margem ${overview.profit.marginPct.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`,
+            valorFormatado: money(fatiaDoResultado.value, overview.metrics.currency),
+            negativo: fatiaDoResultado.isLoss === true,
+          }}
+        />
       }
     />
 

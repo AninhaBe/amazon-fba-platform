@@ -98,6 +98,70 @@ export function CockpitDoResultado({
 }
 
 /**
+ * A CONTA ESCRITA — a Direção D da prancheta, aprovada em 03/09/2026.
+ *
+ * Ela substitui a rosquinha no lado direito da faixa do ML. A rosquinha
+ * respondia "qual fatia é grande"; a conta escrita responde "de onde saiu cada
+ * real", que é a pergunta que a vendedora faz quando confere o dia contra outra
+ * ferramenta. As duas leem a MESMA composição — a mesma chamada de
+ * `buildFinancialComposition` que o painel de baixo consome —, então não há
+ * como uma discordar da outra.
+ *
+ * ⚠️ ESTA PEÇA NÃO CALCULA NADA, nem a soma. Ela recebe as linhas prontas e
+ * decide só a apresentação. Se ela somasse, a conta da direita poderia fechar
+ * enquanto a barra da esquerda não fecha, e nada ficaria vermelho.
+ *
+ * ⚠️ LINHA COM VALOR DESCONHECIDO NÃO EXISTE AQUI. Quem monta as linhas já
+ * omitiu o `null` — escrever "Impostos —" numa conta de subtração convida a
+ * pessoa a ler zero, e `null ≠ 0` vale principalmente onde há um sinal de menos
+ * ao lado.
+ */
+export function ContaEscrita({
+  titulo,
+  receitaRotulo,
+  receitaFormatada,
+  linhas,
+  resultado,
+}: {
+  titulo: string;
+  receitaRotulo: string;
+  receitaFormatada: string;
+  linhas: Array<{ id: string; rotulo: string; valorFormatado: string; cor: string }>;
+  /** A linha destacada do fim. Sem resultado conhecido, ela não aparece. */
+  resultado: { rotulo: string; valorFormatado: string; negativo: boolean } | null;
+}) {
+  return (
+    <>
+      <p className="cockpit-kicker">{titulo}</p>
+      <dl className="conta-escrita">
+        <div className="conta-linha is-receita">
+          <span className="conta-sinal" aria-hidden="true" />
+          <dt>{receitaRotulo}</dt>
+          <dd>{receitaFormatada}</dd>
+        </div>
+        {linhas.map((linha) => (
+          <div key={linha.id} className="conta-linha">
+            <span className="conta-sinal" style={{ color: linha.cor }} aria-hidden="true">−</span>
+            <dt>
+              <span className="cockpit-marca" aria-hidden="true" style={{ background: linha.cor }} />
+              {linha.rotulo}
+            </dt>
+            <dd>{linha.valorFormatado}</dd>
+          </div>
+        ))}
+        {resultado ? (
+          <div className={`conta-linha is-resultado${resultado.negativo ? " is-negativo" : ""}`}>
+            <span className="conta-sinal" aria-hidden="true">=</span>
+            <dt>{resultado.rotulo}</dt>
+            <dd>{resultado.valorFormatado}</dd>
+          </div>
+        ) : null}
+      </dl>
+    </>
+  );
+}
+
+/**
  * As pendências numa linha só.
  *
  * ⚠️ ELAS SÃO AS MESMAS DE HOJE, com os mesmos textos, links e condições — o
