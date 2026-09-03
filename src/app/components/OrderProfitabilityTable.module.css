@@ -6,7 +6,25 @@
   box-shadow: var(--shadow-surface);
 }
 
+/* ⚠️ A LINHA E UM CONTAINER — e e isso que dispensa um fork por canal.
+
+   Defeito medido em 03/09/2026, com dois prints dela: a 100% de zoom a pilula
+   de MARGEM saia CORTADA; a 90% cabia. Palavra dela: *"o usuario ta tendo que
+   tirar 10% de zoom pra enxergar sem cortar a margem"*.
+
+   A causa nao foi falta de responsividade: as duas adaptacoes que resolvem isso
+   ja existiam em `globals.css` (equacao desce para a linha 2 em <=1120px; os
+   tres campos empilham em <=767px). Elas so nunca dispararam, porque perguntam
+   a largura da JANELA — e o redesenho do ML pos esta tabela numa coluna de
+   metade da tela. Janela larga, coluna estreita: a media query respondia
+   "cabe" olhando para o lugar errado.
+
+   ⚠️ A PERGUNTA CERTA E "QUANTO ESPACO ESTA LINHA RECEBEU", e e o que
+   `@container` mede. Em largura cheia — Amazon, Shopee e TikTok — o container
+   fica bem acima dos limiares e nada dispara: renderizam identico ao de hoje,
+   e ha guarda provando isso. */
 .sale {
+  container-type: inline-size;
   border: 0;
   border-block-end: 1px solid var(--divider);
   border-radius: 0;
@@ -173,4 +191,42 @@
     align-items: flex-start;
     text-align: start;
   }
+}
+
+/* ⚠️ O LIMIAR SAI DA SOMA DOS MINIMOS, nao de um numero redondo de
+   catalogo: as tres colunas desta linha pedem ~900px (280+150+380+40 mais os
+   vaos). Abaixo disso a equacao e a primeira a ser espremida, e a pilula de
+   MARGEM — ultimo elemento dela — e a que sai cortada. A coluna do ML numa tela
+   de 1920 mede ~790px; e por isso que o defeito aparecia justamente ali.
+
+   O layout aplicado e o MESMO das media queries de `globals.css`: nao ha
+   desenho novo, so o mesmo desenho chegando na hora certa. */
+@container (max-width: 920px) {
+  .saleMain {
+    grid-template-columns: minmax(0, 1fr) minmax(150px, .7fr) 40px;
+  }
+  .equation { grid-column: 1 / 3; grid-row: 2; }
+  .expand { grid-column: 3; grid-row: 1 / 3; }
+}
+
+/* Coluna ainda mais estreita — o ML numa tela de 1366 da ~520px por coluna.
+   Aqui os tres campos empilham, que e a unica forma de nenhum deles perder
+   digito. Espelha o bloco de <=767px de `globals.css`. */
+@container (max-width: 560px) {
+  .saleMain {
+    grid-template-columns: minmax(0, 1fr) 40px;
+    gap: 12px;
+    padding: 12px;
+  }
+  .product { grid-column: 1; grid-row: 1; }
+  .expand { grid-column: 2; grid-row: 1; }
+  .saleMeta { grid-column: 1 / -1; grid-row: 2; }
+  .equation {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    padding: 7px;
+  }
+  .equation .pending { max-width: none; }
 }
