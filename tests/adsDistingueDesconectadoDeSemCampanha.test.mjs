@@ -63,3 +63,19 @@ test("a leitura da credencial é do INQUILINO, e não do banco inteiro", async (
   assert.doesNotMatch(codigo, /provider = 'mercado_livre'/,
     "canal por nome fora de integrations/ e a regra de arquitetura sendo quebrada");
 });
+
+test("Integracoes le a MESMA funcao do /ads — nunca uma segunda consulta", async () => {
+  // ⚠️ Duas leituras respondendo a mesma pergunta e como uma fica para tras:
+  // bastaria alguem mudar onde a Amazon guarda o OAuth para a tela de
+  // Integracoes passar a mentir sozinha, sem nada ficar vermelho.
+  const rota = await readFile(new URL("../src/app/api/integrations/route.ts", import.meta.url), "utf8");
+  assert.ok(rota.includes('import { lerEstadoDasCredenciais } from "@/lib/adsMultiCanal";'),
+    "a rota de Integracoes reusa a leitura do /ads");
+  assert.ok(rota.includes("    const credenciaisDeAds = await lerEstadoDasCredenciais(currentWorkspaceId());"),
+    "e a chama com o escopo do inquilino");
+  assert.ok(rota.includes("      credenciaisDeAds,"), "o campo tem de sair no payload");
+  // 📌 E ela NAO pode buscar o /api/ads inteiro para extrair dois booleanos —
+  // seria uma segunda ida para nada, contra a ADR-017 (uma tela, uma requisicao).
+  const codigo = rota.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  assert.doesNotMatch(codigo, /fetch\([^)]*\/api\/ads/, "nada de buscar a aba inteira por dois campos");
+});

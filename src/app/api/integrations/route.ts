@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { lerEstadoDasCredenciais } from "@/lib/adsMultiCanal";
 import { dbTransaction } from "@/lib/db";
 import { getAccounts } from "@/lib/accountStore";
 import { getTiktokShops, removeTiktokShop } from "@/lib/tiktokStore";
@@ -62,7 +63,17 @@ export async function GET() {
         updatedAt: shop.connectedAt,
       })),
     ];
+    // ⚠️ O ESTADO DA CREDENCIAL DE ADS SAI DAQUI, e a mesma funcao que serve o
+    // /api/ads — nao uma segunda leitura. Duas consultas respondendo a mesma
+    // pergunta e como uma fica para tras: bastaria alguem mudar onde a Amazon
+    // guarda o OAuth para a tela de Integracoes passar a mentir sozinha.
+    //
+    // 📌 E ele vem por AQUI, e nao pelo /api/ads, por causa da ADR-017: a pagina
+    // de Integracoes ja le esta rota, e buscar a aba de anuncios inteira para
+    // extrair dois booleanos seria uma segunda ida para nada.
+    const credenciaisDeAds = await lerEstadoDasCredenciais(currentWorkspaceId());
     return NextResponse.json({
+      credenciaisDeAds,
       providers: PROVIDERS.map((provider) => ({
         ...provider,
         connectHref: (provider.id === "mercado_livre" || provider.id === "shopee")

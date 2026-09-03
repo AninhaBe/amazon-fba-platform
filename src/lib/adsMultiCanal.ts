@@ -591,7 +591,7 @@ export async function lerAdsMultiCanal(deISO: string, ateISO: string): Promise<A
  * do canal — dois mecanismos diferentes, e é por isso que a resposta é por
  * canal em vez de um booleano só.
  */
-async function lerEstadoDasCredenciais(workspaceId: string): Promise<EstadoDaCredencial[]> {
+export async function lerEstadoDasCredenciais(workspaceId: string): Promise<EstadoDaCredencial[]> {
   const [amazon, ml] = await Promise.all([
     dbQuery<{ n: string }>(
       `SELECT COUNT(*)::text AS n FROM workspace_settings
