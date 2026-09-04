@@ -81,9 +81,26 @@ conforme for concluindo.
   revogado (`invalid_grant`, confirmado em 06/08). Preferir **self-authorization**
   pelo Solution Provider Portal em vez do OAuth atual; motivo e caminho em
   `docs/conexoes-que-expiram.md`.
-- [x] **Shopee: submeter o Go Live** — submetido em 07/08. Aprovação,
-  credenciais de produção, autorização de loja real e payload Live seguem
-  **BLOCKED** por dependência externa (`docs/estado-atual.md`).
+- [x] **Shopee: submeter o Go Live** — submetido em 07/08 e **APROVADO**.
+  ⚠️ Este item dizia **BLOCKED por dependência externa** até 04/09/2026, e a
+  aprovação foi conferida no console em **02/09** com a dona do produto na tela.
+  Ficou dois dias afirmando um bloqueio que não existia — e o canal está em
+  produção desde então, com ponto seguro registrado (`f50e3b9`/v270). Corrigido
+  ao registrar o TikTok, porque a mesma pergunta ("quem ainda diz que isto está
+  bloqueado?") revelou os dois. **Estado de terceiro que só se mede abrindo
+  painel envelhece calado, e o pendente que sobrevive à causa vira mentira.**
+- [ ] **TikTok: MEDIR o que a qualificação Finance abriu de verdade.** As 4
+  qualificações do Partner Center ficaram verdes em 04/09/2026 (Finance 18:28,
+  Marketing 18:31, Shipping 18:35, com a Catalog que já estava). ⚠️ **Permissão
+  concedida não é dado entregue:** antes de desenhar a conciliação financeira,
+  sondar na loja conectada o que `finance` responde — `settlements`,
+  `statements`, `payments` — **e com que atraso**, que é a regra da dona
+  (cada API tem seu próprio calendário). 📌 Teste decisivo de graça: o
+  `payments` falhava com `UNKNOWN_ERROR` desde 27/08 e a causa registrada era a
+  FORMA do dado (`amount` como objeto). Se ele passar a responder agora, a causa
+  era permissão e o changelog precisa ser corrigido; se continuar falhando, era
+  forma e continua sendo. Não é urgente — entra depois da remedição de IO.
+
 - [ ] **Shopee: confirmar IP Whitelist no ambiente Live** depois da aprovação;
   sem ela os dados do comprador vêm mascarados e não sai NF-e.
 - [ ] **Mercado Livre Ads: habilitar o escopo no DevCenter** (`advertising` /
