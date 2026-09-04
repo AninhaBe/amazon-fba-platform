@@ -177,6 +177,46 @@ Mesma convenção dos docs da Amazon e do ML: mudanças de comportamento da API 
 na prática entram aqui, com data. Enquanto o canal não for implementado, a lista fica
 vazia — ao implementar, re-validar tudo marcado com ⚠️ e registrar o que divergir.
 
+- **2026-09-04 — 🟢 PONTO SEGURO NOVO: `f50e3b9` (v270).** Validado pela dona do
+  produto, verbatim: *"valores batendo"*. Substitui o `95ad8e9`, que continua no
+  histórico logo abaixo.
+
+  **Conciliado contra o Mercado Turbo na janela FECHADA de 03/09**, idênticos:
+
+  | medida | valor |
+  |---|---|
+  | faturamento | R$ 9.541,89 |
+  | tarifas | R$ 3.140,30 |
+  | canceladas | R$ 1.017,58 em 28 pedidos |
+  | unidades | 308 |
+
+  Única diferença: **3 SKUs sem custo cadastrado, R$ 28,72** — cadastro dela, já
+  apontado na tela com número. E Hoje/7/15/30 dias sem travessão, com a conta
+  fechando em todas as janelas.
+
+  ⚠️ **NOTA DE CRITÉRIO — "vendas" não é a mesma unidade nos dois lados.** O
+  Mercado Turbo conta **pacote**; nós contamos **pedido**. Com unidades e
+  centavos idênticos, a contagem diferente **não é divergência** — é vocabulário.
+  Quem comparar contagem de vendas sem saber disso abre defeito que não existe.
+
+  ⚠️ **E JANELA FECHADA POR DATA NÃO É NÚMERO CONGELADO.** Medido no mesmo dia,
+  na mesma janela de 03/09: às 15h dava R$ 9.516,99 em 275 pedidos; às 16h,
+  R$ 9.541,89 em 276. Um pendente virou pago no intervalo. **A data do pedido
+  não muda; o status ainda anda.** Duas leituras da mesma janela em horários
+  diferentes podem divergir sem que nada esteja errado — e chamar isso de
+  defeito é o erro que esta nota existe para evitar. Para conciliação, fixe o
+  horário da leitura junto com o número.
+
+  O que mudou entre `95ad8e9` e `f50e3b9`, e que **corrigiu** o canal:
+
+  | commit | o que |
+  |---|---|
+  | `3f485de` | o pedido do módulo carrega o período que a tela mostra (antes: rótulo "Hoje", dados de 30 dias) |
+  | `da75e7f` | seis pedidos sem bandeira deixam de anular a composição inteira |
+  | `6c709ba` | o mesmo padrão de período, do lado do servidor |
+  | `759c435` | o push grava a palavra que a retenção lê — evento deixa de ser imortal |
+  | `f50e3b9` | **uma venda sem tarifa deixa de anular o agregado em qualquer janela** |
+
 - **2026-09-02 — 🟢 PONTO SEGURO DA SHOPEE: `95ad8e9` (v253).** Registro pedido
   pela dona do produto, verbatim: *"registra isso que x commit resolveu a
   situação da shopee pra se formos mexer de novo e quebrar, ter pra onde
