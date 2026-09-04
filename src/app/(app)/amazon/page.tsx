@@ -972,7 +972,7 @@ function Dashboard() {
           // planilha dela (16–20%). O faturamento continua no card de
           // Faturamento — o que muda e o denominador da MARGEM.
           baseDoLucro: profit?.baseDoResultado ?? profit?.revenueDoLucro ?? null,
-          pedidosCompletos: profit?.pedidosCompletos ?? 0,
+          pedidosCompletos: profit?.pedidosCompletos,
           pedidosSemValor: profit?.pedidosSemValor ?? 0,
           feesDoLucro: profit?.feesDoLucro ?? null,
           pedidosDoPeriodo: profit?.pedidosDoPeriodo ?? 0,

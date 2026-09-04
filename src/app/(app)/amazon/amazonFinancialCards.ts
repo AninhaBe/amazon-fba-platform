@@ -561,7 +561,33 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
    * informacao. Quem tem 30 de 31 pedidos sem valor precisa ler isso, nao um
    * percentual que muda sozinho amanha.
    */
-  const baseCobreAMinoria = naBase > 0 && semValor * 2 > naBase;
+  /**
+   * ⚠️ O QUE CONTA COMO "FORA DA BASE" MUDOU EM 04/09/2026, e esta guarda
+   * passou a suprimir uma margem CERTA.
+   *
+   * Ela nasceu em 01/09 medindo `pedidosSemValor` porque, naquele mundo, pedido
+   * sem valor publicado ficava FORA da base — afirmar "a margem do periodo" com
+   * 30 de 31 pedidos fora era falso. Correto entao.
+   *
+   * Hoje esse pedido esta DENTRO: entra pelo preco de anuncio (decisao dela). O
+   * que continua ficando de fora e o pedido sem CUSTO cadastrado. Medido na
+   * conta da vendedora: 2 pedidos, os 2 sem valor publicado, os 2 com custo —
+   * lucro R$ 8,90 exibido e **margem em travessao**, porque `2 * 2 > 2`.
+   *
+   * 📌 Terceira vez no mesmo dia que uma salvaguarda sobrevive a limitacao que a
+   * justificava (AGENTS -> "recusa temporaria"). O conceito certo e o mesmo de
+   * sempre — nao afirmar percentual que cobre menos da metade do periodo —, so
+   * que medido sobre quem esta REALMENTE fora do resultado.
+   */
+  // ⚠️ `pedidosCompletos` AUSENTE NAO PODE VIRAR ZERO. Com `?? 0` todo chamador
+  // que nao informa o campo passaria a ter 100% dos pedidos "fora do
+  // resultado", e a margem sumiria da tela inteira — inclusive num payload
+  // cacheado da versao anterior, no minuto seguinte ao deploy. Quando o campo
+  // nao vem, o unico conceito de "fora" que existe e o antigo.
+  const foraDoResultado = input.pedidosCompletos == null
+    ? semValor
+    : Math.max(0, (input.pedidosDoPeriodo ?? 0) - input.pedidosCompletos);
+  const baseCobreAMinoria = naBase > 0 && foraDoResultado * 2 > naBase;
   // Quanto do total de tarifas é estimativa (ADR-027).
   //
   // ⚠️ A CONDIÇÃO É "HÁ PEDIDO ESTIMADO", NÃO "O VALOR É MAIOR QUE ZERO".
@@ -621,6 +647,16 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
         : totalDoPeriodo > completos
           ? `Sobre ${money(base, currency)} em ${completos} de ${totalDoPeriodo} pedidos com custo cadastrado`
           : undefined;
+  // ⚠️ EU TIREI `faltaValor` DAQUI E TIVE DE DEVOLVER (04/09/2026). O argumento
+  // parecia bom — a base declarada ja diz "(preco de anuncio nos N ainda nao
+  // publicados)", entao o apontamento repetiria o fato. Mas QUATRO guardas
+  // exigem que o que falta venha em CAMPO PROPRIO, e elas existem por pedido
+  // dela: a tela renderiza a pendencia sem hover, e some-la dentro de outra
+  // frase e o defeito do tooltip de 31/08 voltando por outra porta.
+  //
+  // 📌 As duas frases dizem coisas diferentes de proposito: a base declarada diz
+  // COMO o numero foi feito (preco de anuncio); o apontamento diz O QUE FALTA
+  // (valor oficial da Amazon). Redundancia aparente, papeis distintos.
   const notaDoLucro = [baseDeclarada, faltaValor, devolucao]
     .filter(Boolean)
     .join(" · ") || undefined;
@@ -786,7 +822,9 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
       value: margem == null || baseCobreAMinoria ? "—" : percent(margem),
       context: margem == null || baseCobreAMinoria
         ? (baseCobreAMinoria
-            ? faltaValor!
+            ? (input.pedidosCompletos == null
+                ? faltaValor!
+                : `${foraDoResultado} de ${naBase} pedidos do período sem custo cadastrado — a margem cobriria a minoria`)
             : custoIncompleto ? faltaCusto : "Aguardando receita e lucro completos")
         // A divergencia deste cartao ja e declarada em `baseDeclarada` logo
         // abaixo, entao aqui a peca so NOMEIA — e o prefixo guarda a palavra

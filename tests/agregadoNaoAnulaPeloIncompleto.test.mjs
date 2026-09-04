@@ -107,3 +107,99 @@ test("sem extrato E sem estimativa, a tarifa volta a ser desconhecida", () => {
   assert.equal(carta(cards, "fees").value, "—");
   assert.match(carta(cards, "fees").context, /Aguardando repasse postado/);
 });
+
+test("a margem so e suprimida por quem esta FORA do resultado", async (t) => {
+  // ⚠️ DEFEITO REAL, conta da vendedora em 04/09/2026: 2 pedidos no dia, os dois
+  // sem valor publicado, os dois COM custo cadastrado. O lucro saia (R$ 8,90) e
+  // a margem ficava em travessao, porque a guarda contava `pedidosSemValor` —
+  // conceito do mundo em que esse pedido ficava FORA da base.
+  //
+  // 📌 Hoje ele esta DENTRO (entra pelo preco de anuncio). Quem fica de fora e o
+  // pedido sem CUSTO cadastrado. A guarda continua existindo com a mesma
+  // intencao — nao afirmar percentual que cobre menos da metade do periodo —,
+  // medida sobre quem esta realmente fora.
+  const CENARIO_DELA = {
+    finance: { currency: "BRL", revenue: 0, fees: null, refunds: 0, promotions: 0, buyerShipping: 0, orderCount: 0, feeBreakdown: [] },
+    faturamentoTotal: 44.22, baseDoLucro: 44.22, pedidosCompletos: 2,
+    feesDoLucro: 11.30, pedidosComTarifaEstimada: 2, cogs: 13.64, estimatedProfit: 8.90,
+    unitsWithoutCost: 0, pedidosDoPeriodo: 2, pedidosSemValor: 2, taxRate: 0, ads: null,
+  };
+
+  await t.test("🔴 todos sem valor publicado, todos com custo: a margem e AFIRMADA", () => {
+    const c = carta(amazonFinancialCards(CENARIO_DELA), "marginPct");
+    assert.notEqual(c.value, "—", "os 2 pedidos estao DENTRO da base; suprimir a margem nega o proprio numero");
+    assert.match(c.value, /20,1/);
+  });
+
+  await t.test("🔴 a base declarada diz COMO o numero foi feito", () => {
+    // ⚠️ ESTE TESTE JA NASCEU ERRADO E FOI CORRIGIDO NO MESMO DIA. A primeira
+    // versao PROIBIA o apontamento "ainda sem valor publicado" ao lado da base
+    // declarada, por parecer repeticao. Quatro guardas antigas — vindas de
+    // pedido dela — exigem o contrario: o que falta vem em CAMPO PROPRIO, para
+    // a tela renderizar sem hover. As duas frases tem papeis distintos: a base
+    // diz COMO (preco de anuncio), o apontamento diz O QUE FALTA (valor
+    // oficial). Prevaleceu a regra dela.
+    const c = carta(amazonFinancialCards(CENARIO_DELA), "profit");
+    // `\s` e nao " ": o Intl pt-BR separa "R$" do numero com espaco NAO-QUEBRAVEL.
+    assert.match(c.baseDeclarada, /Sobre R\$\s44,22 em 2 pedidos/);
+    assert.match(c.baseDeclarada, /preço de anúncio nos 2 ainda não publicados/);
+  });
+
+  await t.test("🔴 com a MAIORIA fora do resultado, a margem some — a guarda continua viva", () => {
+    // 10 pedidos no periodo, so 4 com custo cadastrado: 6 fora, 6*2 > 10.
+    const c = carta(amazonFinancialCards({ ...CENARIO_DELA, pedidosDoPeriodo: 10, pedidosCompletos: 4 }), "marginPct");
+    assert.equal(c.value, "—", "percentual que cobre menos da metade do periodo nao descreve o periodo");
+    assert.match(c.context, /6 de 10 pedidos do período sem custo cadastrado/);
+  });
+});
+
+test("lucro e margem sao um PAR — mesma base, mesma condicao", async (t) => {
+  // ⚠️ DEFEITO REAL (04/09/2026): a tela dela exibia Lucro R$ 8,90 com a base
+  // "sobre R$ 44,22 em 2 pedidos" e, LOGO ABAIXO, Margem em travessao exibindo
+  // a MESMA base. A pagina afirmava e negava o resultado no mesmo bloco.
+  //
+  // 📌 A regra: margem so pode faltar quando o LUCRO tambem falta, ou quando a
+  // cobertura e minoritaria — e nesse caso o lucro tambem some. Nunca um sem o
+  // outro por condicao PROPRIA da margem, que foi o que aconteceu.
+  const BASE = {
+    finance: { currency: "BRL", revenue: 0, fees: null, refunds: 0, promotions: 0, buyerShipping: 0, orderCount: 0, feeBreakdown: [] },
+    faturamentoTotal: 44.22, baseDoLucro: 44.22, feesDoLucro: 11.30, pedidosComTarifaEstimada: 2,
+    cogs: 13.64, estimatedProfit: 8.90, unitsWithoutCost: 0, taxRate: 0, ads: null,
+  };
+  // Varre a fronteira dos dois lados: cobertura total, maioria, fronteira exata
+  // e minoria. Dado que nao exercita a regra nao testa a regra (AGENTS.md).
+  const CENARIOS = [
+    { nome: "cobertura total", pedidosDoPeriodo: 2, pedidosCompletos: 2, pedidosSemValor: 2 },
+    { nome: "maioria coberta", pedidosDoPeriodo: 10, pedidosCompletos: 6, pedidosSemValor: 3 },
+    { nome: "fronteira exata", pedidosDoPeriodo: 10, pedidosCompletos: 5, pedidosSemValor: 0 },
+  ];
+  for (const c of CENARIOS) {
+    await t.test(`🔴 ${c.nome}: lucro e margem aparecem JUNTOS`, () => {
+      const cards = amazonFinancialCards({ ...BASE, ...c });
+      const lucro = carta(cards, "profit");
+      const margem = carta(cards, "marginPct");
+      assert.equal(
+        lucro.raw != null, margem.raw != null,
+        `${c.nome}: lucro=${lucro.value} margem=${margem.value} — a mesma pagina nao pode afirmar e negar o resultado`,
+      );
+    });
+  }
+
+  // ⚠️ A UNICA EXCECAO AO PAR, E ELA E DECISAO DELA, DE 01/09/2026: quando a
+  // cobertura e MINORITARIA, o lucro FICA na tela e o que sai e a AFIRMACAO da
+  // margem — "o numero continua nos dois casos; o que sai e a afirmacao, nao a
+  // informacao". Ha guarda propria para isso (`margemNaoAfirmaSobreMinoria`).
+  //
+  // 📌 Registrado aqui porque a invariante "lucro non-null exige margem
+  // non-null" foi pedida como universal, e NAO e — forca-la reverteria uma
+  // decisao dela por dentro de um teste. O que a excecao exige em troca e que a
+  // margem DIGA o motivo, senao vira o travessao mudo que originou tudo isto.
+  await t.test("na minoria, o lucro fica e a margem DIZ por que nao afirma", () => {
+    const cards = amazonFinancialCards({ ...BASE, pedidosDoPeriodo: 10, pedidosCompletos: 4, pedidosSemValor: 0 });
+    assert.notEqual(carta(cards, "profit").raw, null, "o resultado nao some — so a afirmacao do percentual");
+    const margem = carta(cards, "marginPct");
+    assert.equal(margem.value, "—");
+    assert.match(margem.context, /6 de 10 pedidos do período sem custo cadastrado/,
+      "travessao sem motivo e o defeito que originou esta frente");
+  });
+});
