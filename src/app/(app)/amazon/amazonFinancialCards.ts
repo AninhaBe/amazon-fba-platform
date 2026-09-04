@@ -296,6 +296,35 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
   // `contextoQuandoZero` de cada card explica isso.
   const semRepassePostado = f != null && f.orderCount === 0;
 
+  /**
+   * ⚠️ "NAO POSTOU REPASSE" DEIXOU DE SIGNIFICAR "NAO SEI QUANTO" (04/09/2026).
+   *
+   * `semRepassePostado` nasceu como guarda contra `null ≠ 0`: sem extrato, a
+   * tarifa era desconhecida e exibi-la como R$ 0,00 seria mentir. Estava certo
+   * enquanto a UNICA fonte de tarifa era o extrato.
+   *
+   * A tarifa calculada pela tabela (ADR-027) acabou com essa exclusividade — e
+   * a guarda sobreviveu a limitacao que a justificava, que e o capitulo
+   * "recusa temporaria" do AGENTS. Medido na Silveiras em 04/09/2026, com a
+   * planilha da vendedora na mao: o produtor entregava `fees = R$ 136,54`,
+   * `cogs = R$ 163,69` e `lucro = R$ 252,55`, e a tela exibia TRAVESSAO nos
+   * tres. O numero certo estava no payload; a camada de card o jogava fora.
+   *
+   * 📌 O jeito da falha e o do balaio da Shopee: uma parte incompleta anulava o
+   * agregado inteiro. Aqui era pior — nenhum pedido precisava estar incompleto,
+   * bastava a Amazon nao ter liquidado nada ainda, que e o estado NORMAL de uma
+   * manha.
+   *
+   * ⚠️ O QUE ESTA GUARDA CONTINUA PROTEGENDO, e por isso ela nao foi removida:
+   * Repasse liquido, Logistica FBA e Frete do comprador vem SO do extrato. Para
+   * esses, "nao postou" continua sendo "nao sei quanto", e travessao com motivo
+   * e a resposta certa. A troca vale para a tarifa e para o que deriva dela.
+   */
+  const tarifaEstimadaCobre =
+    (input.pedidosComTarifaEstimada ?? 0) > 0 && (input.feesDoLucro ?? null) != null;
+  /** Nao ha extrato E nao ha estimativa: ai sim o total da tarifa e desconhecido. */
+  const semTarifaConhecida = semRepassePostado && !tarifaEstimadaCobre;
+
   // Zero tem significado próprio e merece explicação: "não cobraram" é notícia,
   // e o card que só diz "Total do período conciliado" desperdiça a informação.
   /**
@@ -391,7 +420,7 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
   // Lucro, margem e ROI só existem se TODO componente de custo existir. Com SKU
   // sem custo cadastrado, o resultado seria otimista — e otimista sem aviso é mentira.
   const resultadoValido =
-    f != null && !custoIncompleto && !semRepassePostado && !anuncioDesconhecido && lucroReal != null;
+    f != null && !custoIncompleto && !semTarifaConhecida && !anuncioDesconhecido && lucroReal != null;
   // ═══ FATURAMENTO E MARGEM SÃO DE UNIVERSOS DIFERENTES, E A TELA DIZ QUAL ═══
   //
   // ⚠️ DECISÃO DELA, 30/08/2026: *"Faturamento deve significar todos os pedidos
@@ -613,7 +642,11 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
       // Shopee: dois consumidores dos mesmos numeros, cada um num universo.
       //
       // `f?.fees` fica como piso para quando o produtor nao informar o total.
-      key: "fees", label: "Taxas", ...num(input.feesDoLucro ?? f?.fees, semExtrato),
+      // O ultimo argumento e `tarifaEstimadaCobre`: com estimativa no periodo a
+      // tarifa NAO depende do extrato — o numero existe e e conhecido, e a marca
+      // de estimativa continua na face do card (ADR-027 item 5).
+      key: "fees", label: "Taxas",
+      ...num(input.feesDoLucro ?? f?.fees, semExtrato, undefined, undefined, tarifaEstimadaCobre),
       // A MARCA DA ESTIMATIVA VAI NA FACE, NÃO NO "i" (ADR-027 item 5). O
       // concorrente exibe tarifa calculada sem marca nenhuma, como se fosse
       // oficial; a marca é o que nos separa dele. Some quando não há estimativa.
@@ -703,7 +736,7 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
           }
         : {
             value: "—",
-            context: semRepassePostado
+            context: semTarifaConhecida
               ? semExtrato
               : custoIncompleto
                 ? faltaCusto
