@@ -46,9 +46,16 @@ test("o canonico SUBTRAI o estorno do lucro", async () => {
   // ser o FATURAMENTO (apurado + pendente) e a tarifa passou a somar a estimada,
   // entao os termos viraram `receitaDoLucro`, `tarifaDoLucro` e `cogsDoLucro`.
   // O que este teste cobra continua sendo o mesmo: o estorno E termo da formula.
+  //
+  // ⚠️ E MUDOU DE NOME OUTRA VEZ EM 04/09/2026, de novo sem mudar de conteudo:
+  // a vendedora pegou 43,7% de margem contra os 16–20% da planilha dela, porque
+  // a equacao usava a receita de TODOS os pedidos contra a tarifa e o custo dos
+  // CONHECIDOS. Os termos passaram a ser os do universo coerente —
+  // `baseDoResultado`, `tarifaCoerente`, `custoCoerente`. O estorno continua
+  // sendo termo, que e a unica coisa que este teste existe para cobrar.
   assert.match(
     canonico,
-    /receitaDoLucro - tarifaDoLucro - cogsDoLucro - \(taxes \?\? 0\) - refunds/,
+    /baseDoResultado - tarifaCoerente - custoCoerente - \(taxes \?\? 0\) - refunds/,
     "o estorno precisa ser termo da formula, nao so um campo no payload",
   );
 });

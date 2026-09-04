@@ -92,8 +92,14 @@ test("nenhum canal calcula imposto sobre processedRevenue", async () => {
 
 test("a AMAZON continua com imposto sobre a base do lucro (corrigido em 31/08)", async () => {
   const codigo = semComentario(await fonte("src/lib/integrations/amazonOverviewCanonical.ts"));
-  assert.match(codigo, /amazonTaxAmount\(receitaDoLucro, taxRate\)/,
-    "o imposto da Amazon parte da base do lucro, nao da receita apurada");
+  // ⚠️ O ARGUMENTO MUDOU EM 04/09/2026 e este teste JA DEFENDEU O DEFEITO por
+  // um instante: ele exigia `receitaDoLucro`, o faturamento INTEIRO, enquanto o
+  // lucro passou a cobrir so os pedidos completos. Imposto sobre uma receita que
+  // nao esta na conta e a mesma mistura que a correcao veio matar — so que na
+  // linha do imposto. O que o teste cobra e o mesmo de sempre: o imposto sai da
+  // base do RESULTADO, nunca da receita apurada.
+  assert.match(codigo, /amazonTaxAmount\(baseDoResultado, taxRate\)/,
+    "o imposto da Amazon parte da base do resultado, nao da receita apurada");
 });
 
 test("o WIDGET da Shopee e coerente no proprio universo — centro e fatias", async () => {

@@ -94,6 +94,12 @@ export interface AmazonCardsInput {
    */
   pedidosSemValor?: number;
   /**
+   * Quantos pedidos compoem `baseDoLucro` — os que tem preco, tarifa E custo
+   * conhecidos. A tela DECLARA os dois numeros: sem o denominador, "R$ X" nao
+   * diz se o resultado cobre quase tudo ou quase nada.
+   */
+  pedidosCompletos?: number;
+  /**
    * Total de pedidos do período na base. Serve para a tela dizer "30 de 31" em
    * vez de "30" — sem o denominador, o número não diz se é quase tudo ou quase
    * nada, e é dele que sai a decisão de afirmar ou não a margem.
@@ -586,7 +592,36 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
    * VERIFICAVEL — a pessoa confere aquele pedido. No agregado ela nao era.
    */
   /** A linha visível do card de Lucro: base quando difere, o que falta, e a devolução. */
-  const notaDoLucro = [faltaValor, devolucao]
+  /**
+   * ⚠️ A BASE DO RESULTADO E DECLARADA NA FACE (04/09/2026).
+   *
+   * A vendedora pegou 43,7% de margem com a planilha na mao dando 16–20%: o
+   * lucro cobria os pedidos completos e o denominador era o faturamento de
+   * TODOS. Corrigido no produtor — e aqui a tela passa a DIZER sobre o que o
+   * numero fala, senao a pessoa continua lendo "margem do periodo" quando e
+   * "margem dos pedidos com dado completo".
+   *
+   * 📌 So aparece quando os dois universos DIFEREM. Frase que explica uma
+   * diferenca inexistente treina a pessoa a ignorar a frase — foi por isso que
+   * a declaracao anterior morreu em 02/09.
+   */
+  const completos = input.pedidosCompletos ?? 0;
+  const totalDoPeriodo = input.pedidosDoPeriodo ?? 0;
+  const semValorNaBase = input.pedidosSemValor ?? 0;
+  // A frase DIZ O CRITERIO, nao so o numero: pedido sem valor publicado ENTRA no
+  // resultado pelo preco de anuncio (decisao dela, 04/09/2026), e quem le
+  // "margem" precisa saber que parte da receita e preco de tabela, nao valor
+  // confirmado pela Amazon. Sem isso o numero e certo e a leitura, nao.
+  const baseDeclarada =
+    base == null || completos === 0
+      ? undefined
+      : semValorNaBase > 0
+        ? `Sobre ${money(base, currency)} em ${completos} pedido${completos > 1 ? "s" : ""}`
+          + ` (preço de anúncio nos ${semValorNaBase} ainda não publicados)`
+        : totalDoPeriodo > completos
+          ? `Sobre ${money(base, currency)} em ${completos} de ${totalDoPeriodo} pedidos com custo cadastrado`
+          : undefined;
+  const notaDoLucro = [baseDeclarada, faltaValor, devolucao]
     .filter(Boolean)
     .join(" · ") || undefined;
   const roi = resultadoValido && lucroReal != null && input.cogs > 0 ? (lucroReal / input.cogs) * 100 : null;

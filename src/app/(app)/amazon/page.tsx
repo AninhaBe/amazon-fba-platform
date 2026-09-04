@@ -113,6 +113,14 @@ interface ProfitData {
    * −90,5% e +120,9% no mesmo dia.
    */
   revenueDoLucro?: number | null;
+  /**
+   * A BASE DO RESULTADO — so os pedidos com preco, tarifa E custo conhecidos.
+   * E o denominador da MARGEM desde 04/09/2026; `revenueDoLucro` continua sendo
+   * o card de Faturamento. Ver o bloco UNIVERSO COERENTE no produtor.
+   */
+  baseDoResultado?: number | null;
+  /** Quantos pedidos compoem `baseDoResultado`. A tela declara "X de N". */
+  pedidosCompletos?: number;
   /** Pedidos que a Amazon ainda não valorizou — fora da base, apontados com número. */
   pedidosSemValor?: number;
   pedidosDoPeriodo?: number;
@@ -251,7 +259,7 @@ interface DashboardPayload {
   metrics: { totalOrders: number; paidOrders: number; fbaOrders: number; revenue: number };
   dailySales: Array<{ date: string; revenue: number; orders: number; units: number }>;
   topProducts: Array<{ sku: string; title: string; units: number; revenue: number; marginPct: number | null }>;
-  profit: { revenueProcessed: number; revenueDoLucro?: number | null; pedidosDoPeriodo?: number; pedidosComValor?: number; pedidosSemValor?: number; feesEstimadas?: number; pedidosComTarifaEstimada?: number; composicaoDoConciliado?: { receita: number; custo: number; tarifa: number; pedidos: number; lucro: number; margemPct: number | null }; fees: number; cogs: number; estimatedProfit: number | null; taxRate?: number | null; taxes?: number | null; refunds?: number; refundCount?: number; ads?: number | null; unitsWithCost: number; unitsWithoutCost: number; skusWithoutCost: number; coverage?: { processedOrders: number; paidOrders: number; complete: boolean } };
+  profit: { revenueProcessed: number; revenueDoLucro?: number | null; baseDoResultado?: number | null; pedidosCompletos?: number; pedidosDoPeriodo?: number; pedidosComValor?: number; pedidosSemValor?: number; feesEstimadas?: number; pedidosComTarifaEstimada?: number; composicaoDoConciliado?: { receita: number; custo: number; tarifa: number; pedidos: number; lucro: number; margemPct: number | null }; fees: number; cogs: number; estimatedProfit: number | null; taxRate?: number | null; taxes?: number | null; refunds?: number; refundCount?: number; ads?: number | null; unitsWithCost: number; unitsWithoutCost: number; skusWithoutCost: number; coverage?: { processedOrders: number; paidOrders: number; complete: boolean } };
   ads?: AmazonAdsInput | null;
   adsJanela?: { inicioDia: string; esperadoAte: string; incluiHoje?: boolean } | null;
   adsConectado?: boolean;
@@ -536,6 +544,8 @@ function Dashboard() {
         finance: payload.finance,
         cogs: payload.profit.cogs,
         revenueDoLucro: payload.profit.revenueDoLucro,
+        baseDoResultado: payload.profit.baseDoResultado,
+        pedidosCompletos: payload.profit.pedidosCompletos,
         pedidosSemValor: payload.profit.pedidosSemValor,
         feesDoLucro: payload.profit.fees,
         composicaoDoConciliado: payload.profit.composicaoDoConciliado,
@@ -954,7 +964,15 @@ function Dashboard() {
           pedidosAguardando,
           // A MESMA BASE DO NUMERADOR (31/08/2026). Sem isto a margem volta a
           // sair sobre o apurado e reaparecem os −90,5% / +120,9%.
-          baseDoLucro: profit?.revenueDoLucro ?? null,
+          //
+          // ⚠️ E DESDE 04/09/2026 ELA E A BASE DO RESULTADO, nao o faturamento
+          // inteiro: o lucro que o produtor entrega cobre so os pedidos com
+          // preco, tarifa e custo conhecidos, e dividir esse numerador pelo
+          // faturamento de TODOS deu os 43,7% que a vendedora reprovou contra a
+          // planilha dela (16–20%). O faturamento continua no card de
+          // Faturamento — o que muda e o denominador da MARGEM.
+          baseDoLucro: profit?.baseDoResultado ?? profit?.revenueDoLucro ?? null,
+          pedidosCompletos: profit?.pedidosCompletos ?? 0,
           pedidosSemValor: profit?.pedidosSemValor ?? 0,
           feesDoLucro: profit?.feesDoLucro ?? null,
           pedidosDoPeriodo: profit?.pedidosDoPeriodo ?? 0,

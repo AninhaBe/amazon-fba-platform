@@ -91,6 +91,14 @@ export interface AmazonCanonicalOverview {
      * `financialMath.ts`. Quem exibe não subtrai de novo. `null` quando o gasto
      * com anúncio é desconhecido.
      */
+    /**
+     * A base do RESULTADO: soma dos pedidos com preco, tarifa E custo
+     * conhecidos. `null` quando nenhum pedido fecha. Lucro, margem e imposto
+     * saem DAQUI — nunca do faturamento inteiro (ver o bloco UNIVERSO COERENTE).
+     */
+    baseDoResultado: number | null;
+    /** Quantos pedidos compoem `baseDoResultado` — a tela declara "X de N". */
+    pedidosCompletos: number;
     estimatedProfit: number | null;
     /** Alíquota declarada pela vendedora. `null` = não cadastrada. */
     taxRate: number | null;
@@ -841,8 +849,26 @@ export async function getAmazonOverviewFromCanonical(
     // conta A15NQMF7A6J1Y0 em 31/08/2026 (custo de 46 unidades pendentes contra
     // a receita de 13 dos 32 pedidos). Qualquer status novo que a Amazon
     // invente entra aqui sozinho, em vez de somar receita sem custo.
-    dbQuery<{ sku: string | null; external_product_id: string; qty: number; occurred_at: string }>(
-      `SELECT i.sku, i.external_product_id, i.qty, o.occurred_at
+    dbQuery<{ sku: string | null; external_product_id: string; qty: number; occurred_at: string;
+              external_order_id: string; valor_do_pedido: string | null; tarifa_do_pedido: string | null;
+              preco_estimado: string | null }>(
+      // ⚠️ `external_order_id`, o VALOR e a TARIFA do pedido entram aqui por causa
+      // do universo coerente (04/09/2026) — ver `UNIVERSO COERENTE` mais abaixo.
+      // A tarifa vem por subconsulta escalar, nao por join: join com a tabela de
+      // tarifas multiplicaria a linha do item e inflaria o custo.
+      `SELECT i.sku, i.external_product_id, i.qty, o.occurred_at, o.external_order_id,
+              COALESCE(NULLIF(o.gross, 0), o.ordered_gross)::text AS valor_do_pedido,
+              (SELECT SUM(f.amount) FROM workspace_channel_order_fees_efetivas f
+                WHERE f.workspace_id = o.workspace_id AND f.provider = o.provider
+                  AND f.connection_id = o.connection_id AND f.external_order_id = o.external_order_id
+                  AND f.fee_type <> 'refund')::text AS tarifa_do_pedido,
+              -- O PRECO SOBRE O QUAL A TARIFA FOI CALCULADA. E ele que serve de
+              -- receita quando a Amazon ainda nao publicou valor: assim receita
+              -- e tarifa saem do MESMO preco, que e o que faz a conta fechar.
+              (SELECT MAX(e.unit_price) FROM workspace_channel_order_fee_estimates e
+                WHERE e.workspace_id = i.workspace_id AND e.provider = i.provider
+                  AND e.connection_id = i.connection_id AND e.external_order_id = i.external_order_id
+                  AND e.line_no = i.line_no AND e.superseded_at IS NULL)::text AS preco_estimado
          FROM workspace_channel_order_items i
          JOIN workspace_channel_orders o
            ON o.workspace_id = i.workspace_id AND o.provider = i.provider
@@ -1127,13 +1153,89 @@ export async function getAmazonOverviewFromCanonical(
   // Agora todo pedido não cancelado entra pelo próprio valor, uma vez só.
   const receitaDoLucro = faturamentoDoLucro;
   void somaDoQueOBancoValoriza; // medida e nomeada; nenhum consumidor a usa como base
+  /**
+   * ═══ UNIVERSO COERENTE — o denominador do LUCRO e da MARGEM ═══════════════
+   *
+   * ⚠️ DEFEITO QUE ISTO CORRIGE (04/09/2026), achado pela vendedora com a
+   * planilha na mao: a tela exibia **43,7% de margem** enquanto a planilha dela
+   * dava 16–20% por pedido. A conta era
+   *
+   *   receita de TODOS (orderMetrics, 21 pedidos, R$ 592,68)
+   *   − tarifa dos que a gente conhece (17)
+   *   − custo dos que a gente conhece (17)
+   *
+   * Numerador de um universo, denominador de outro — a sexta forma da mesma
+   * familia, agora pelo lado da COBERTURA: os 4 pedidos que so existem no
+   * agregado da Amazon somavam receita e nao subtraiam nada.
+   *
+   * 📌 "Somar so o conhecido" vale POR COMPONENTE — e e por isso que Taxas e
+   * Custo continuam mostrando a soma de tudo que se conhece, cada card no seu
+   * universo declarado. Mas a EQUACAO do resultado tem de fechar num universo
+   * so (ADR-028), igual ao "resultado da receita paga" do ML.
+   *
+   * ⚠️ E O CRITERIO DA RECEITA E DELA, ajustado no mesmo dia depois que ela
+   * refez a planilha: **pedido sem valor publicado NAO sai do resultado.** Ele
+   * tem preco de anuncio, custo e tarifa calculada — o que falta e so o numero
+   * OFICIAL. Excluir esses pedidos jogaria fora venda real; a receita deles e o
+   * PRECO DE TABELA, o mesmo sobre o qual a tarifa foi calculada, e por isso a
+   * conta fecha.
+   *
+   * O universo e, entao: pedido com CUSTO cadastrado e TARIFA conhecida, com
+   * receita = valor publicado ou, na falta dele, preco de tabela. Fica de fora
+   * so o pedido sem custo — que e cadastro dela e ja tem apontamento proprio.
+   *
+   * Conferido contra a planilha dela (04/09/2026, 17 pedidos): receita
+   * R$ 410,28, tarifa R$ 149,01, custo R$ 186,43, imposto 5% R$ 20,51 ->
+   * **lucro R$ 54,33**. Sem aliquota configurada: R$ 74,84.
+   */
+  const porPedido = new Map<string, { valor: number | null; tabela: number; tarifa: number | null; custo: number; temCusto: boolean }>();
+  for (const linha of pendenteLinhas) {
+    const id = linha.external_order_id;
+    if (!porPedido.has(id)) {
+      porPedido.set(id, {
+        valor: linha.valor_do_pedido == null ? null : Number(linha.valor_do_pedido),
+        tabela: 0,
+        tarifa: linha.tarifa_do_pedido == null ? null : Number(linha.tarifa_do_pedido),
+        custo: 0,
+        temCusto: true,
+      });
+    }
+    const alvo = porPedido.get(id)!;
+    // Preço de tabela da linha: o MESMO sobre o qual a tarifa foi calculada.
+    const precoEstimado = linha.preco_estimado == null ? null : Number(linha.preco_estimado);
+    if (precoEstimado != null && precoEstimado > 0) alvo.tabela += precoEstimado * linha.qty;
+    const entrada = costOf(linha.sku, linha.external_product_id);
+    const custoUnitario = entrada ? costAt(entrada, new Date(linha.occurred_at).toISOString()) : 0;
+    // ⚠️ Uma unica linha sem custo cadastrado tira o PEDIDO do resultado: metade
+    // do custo com a receita inteira e o mesmo vies que este bloco existe para
+    // matar. O pedido engrossa o apontamento de cadastrar custo, que ja existe —
+    // e cadastro e dela, nao dado do canal (doutrina de 23/08).
+    if (custoUnitario > 0) alvo.custo += custoUnitario * linha.qty;
+    else alvo.temCusto = false;
+  }
+  let baseCoerente = 0, tarifaCoerente = 0, custoCoerente = 0, pedidosCompletos = 0;
+  for (const pedido of porPedido.values()) {
+    if (!pedido.temCusto || pedido.tarifa == null) continue;
+    // A RECEITA: valor publicado quando existe; preco de tabela quando nao.
+    const receita = pedido.valor != null ? pedido.valor : (pedido.tabela > 0 ? pedido.tabela : null);
+    if (receita == null) continue;
+    baseCoerente += receita;
+    tarifaCoerente += pedido.tarifa;
+    custoCoerente += pedido.custo;
+    pedidosCompletos += 1;
+  }
+  const baseDoResultado = pedidosCompletos > 0 ? +baseCoerente.toFixed(2) : null;
+
   const cogsDoLucro = +cogsDoPeriodo.toFixed(2);
   void cogs; // segue alimentando o rateio POR LINHA, nunca o total do periodo
   // O imposto acompanha a base, e não a receita apurada — ver a nota na leitura
   // da alíquota, acima.
   // Sem base nao ha imposto calculavel: `null`, nunca zero — zero afirmaria
   // isencao, que e fato diferente de "nao sei sobre o que incidir".
-  const taxes = receitaDoLucro == null ? null : amazonTaxAmount(receitaDoLucro, taxRate);
+  // ⚠️ O IMPOSTO ACOMPANHA A BASE DO RESULTADO, nao o faturamento inteiro: ele
+  // e componente da MESMA equacao, e incidir sobre uma receita que nao esta na
+  // conta reintroduziria a mistura por outro caminho.
+  const taxes = baseDoResultado == null ? null : amazonTaxAmount(baseDoResultado, taxRate);
   // A tarifa da conta é a REAL mais a ESTIMADA — sem a estimada, a receita do
   // pendente entraria sem custo de canal e o lucro inflaria: medido em 31/08,
   // a margem ia a 93,2% justamente por isso. Trocar um número enviesado para
@@ -1154,10 +1256,16 @@ export async function getAmazonOverviewFromCanonical(
   void fees; // segue alimentando o rateio POR LINHA, não o total do período
   // Sem base nao ha resultado: `null` em vez de um lucro medido contra uma
   // receita que este produtor nao conhece.
+  // ⚠️ RECEITA, TARIFA E CUSTO SAO OS DO UNIVERSO COERENTE — nunca mais o
+  // faturamento inteiro contra a tarifa e o custo de um subconjunto.
+  //
+  // 📌 O ANUNCIO e do PERIODO, nao do pedido, e por isso e descontado inteiro —
+  // mesma escolha do "resultado da receita paga" do ML. Ele nao tem como ser
+  // rateado por pedido sem inventar atribuicao.
   const lucro = descontarAnuncio(
-    receitaDoLucro == null
+    baseDoResultado == null
       ? null
-      : +(receitaDoLucro - tarifaDoLucro - cogsDoLucro - (taxes ?? 0) - refunds).toFixed(2),
+      : +(baseDoResultado - tarifaCoerente - custoCoerente - (taxes ?? 0) - refunds).toFixed(2),
     anuncio,
   );
   const estimatedProfit = lucro.estimatedProfit;
@@ -1231,6 +1339,10 @@ export async function getAmazonOverviewFromCanonical(
       feesEstimadas: +feesEstimadas.toFixed(2),
       pedidosComTarifaEstimada,
       cogs: cogsDoLucro,
+      /** A base do RESULTADO — so os pedidos com preco, tarifa e custo conhecidos. */
+      baseDoResultado,
+      /** Quantos pedidos compoem `baseDoResultado`. A tela declara os dois. */
+      pedidosCompletos,
       estimatedProfit,
       taxRate,
       taxes,

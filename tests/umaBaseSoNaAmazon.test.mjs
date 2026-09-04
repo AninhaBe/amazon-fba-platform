@@ -167,11 +167,16 @@ test("o imposto sai da base do lucro, e nao da receita apurada", async () => {
   // Assercao sobre a RAMIFICACAO, nao sobre o identificador: casar
   // /amazonTaxAmount/ continuaria verde depois de alguem trocar o argumento de
   // volta, que e exatamente o defeito. Aqui exigimos o argumento certo.
+  //
+  // ⚠️ O ARGUMENTO CERTO MUDOU EM 04/09/2026: passou de `receitaDoLucro` (o
+  // faturamento inteiro) para `baseDoResultado` (so os pedidos com preco,
+  // tarifa e custo conhecidos). O motivo esta no bloco UNIVERSO COERENTE do
+  // produtor — 43,7% de margem exibidos contra 18,4% reais.
   const fonte = await readFile(
     new URL("../src/lib/integrations/amazonOverviewCanonical.ts", import.meta.url),
     "utf8",
   );
-  assert.match(fonte, /amazonTaxAmount\(\s*receitaDoLucro\s*,\s*taxRate\s*\)/);
+  assert.match(fonte, /amazonTaxAmount\(\s*baseDoResultado\s*,\s*taxRate\s*\)/);
   assert.doesNotMatch(fonte, /amazonTaxAmount\(\s*processedRevenue/);
 });
 
