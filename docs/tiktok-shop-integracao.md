@@ -459,6 +459,75 @@ dependem do ledger e mantém vendas/catálogo disponíveis, sem inventar zeros.
 
 ## Changelog observado
 
+- **04/09/2026 — 🗺️ O MAPA DOS QUATRO APPS, e por que confundir os pares de
+  credencial quebra a conexão da vendedora.**
+
+  | app | id / key | status | quem atende |
+  |---|---|---|---|
+  | **custom (Conexão Parceiro)** | — | **On** | **é o que atende a loja HOJE, em produção** |
+  | **público `sellercore`** | `7662688850348934932` / `6kl9m4ajdcvpm` | Off, criado 16/07 | **App review EM ANDAMENTO para Brazil (Local)** |
+  | draft | — | draft | — |
+  | draft | — | draft | — |
+
+  Checklist do público: **3 de 4** — registro, data security e listing aprovados;
+  falta a revisão funcional, que já está na fila deles. Escopos integrados:
+  Finance Information, Fulfillment, Orders, Products (todos), Promotions,
+  Returns, Shop info.
+
+  ⚠️ **OS DOIS APPS TÊM PARES DE CREDENCIAL DIFERENTES, E O NEXO SÓ CONHECE UM.**
+  Medido em 04/09/2026 no Fly (`fly secrets list`, só nomes): existem
+  `TIKTOK_APP_KEY`, `TIKTOK_APP_SECRET` e `TIKTOK_SERVICE_ID` — **um par só**, o
+  do custom. `src/lib/tiktok.ts` lê essas três variáveis e não tem noção de
+  "qual app": `creds()` devolve sempre a mesma chave.
+
+  📌 **É a mesma família das duas vias de credencial da Amazon** (`.env` da conta
+  dona × `workspace_accounts` do app-dash), que já custou um `undefined` em
+  produção. A diferença é que lá as duas vias existem no código; aqui a segunda
+  **não existe ainda**.
+
+  ### O que quebra na revisão funcional, se nada mudar
+
+  O revisor autoriza usando as credenciais do app **público**. Três coisas, nesta
+  ordem, e cada uma sozinha derruba o teste:
+
+  1. **A troca do `auth_code` falha.** O TikTok devolve o código emitido para o
+     app público; nosso callback chama `exchangeAuthCode` com a chave do
+     **custom**. Par trocado = token negado.
+  2. **O `service_id` da URL de autorização é o do custom.** Quem partir da nossa
+     tela vai autorizar o app errado.
+  3. ⚠️ **E a que ninguém prevê: o callback EXIGE cookie de state e sessão.** Ver
+     `src/app/api/tiktok/callback/route.ts` — sem convite, ele passa por
+     `withAuthenticatedWorkspace` e exige `state` casando com o cookie
+     `sellercore_tiktok_oauth_state`. Um revisor que inicie a autorização **do
+     lado do TikTok** não tem nem sessão nem cookie, e cai em *"Autorização
+     expirada. Inicie a conexão novamente."* — que para ele lê como app quebrado.
+
+     📌 O caminho que JÁ funciona sem sessão é o **convite** (`exigirCookie:
+     false`), desenhado para o vendedor que não tem conta aqui. Se a revisão for
+     feita pelo fluxo do TikTok, é por aí — e isso precisa ser decidido antes,
+     não descoberto durante.
+
+  ### O que falta, e de quem é
+
+  Três segredos no Fly, que **a dona do produto sobe** (credencial não passa pelo
+  chat), com os nomes ainda a definir junto com a decisão de desenho:
+
+  - a **app key** do app público;
+  - o **app secret** do app público;
+  - o **service_id** do app público.
+
+  ⚠️ **E uma decisão de desenho vem ANTES de subir qualquer chave:** o NEXO passa
+  a conhecer os DOIS apps ao mesmo tempo (e escolhe por conexão), ou a produção
+  MIGRA para o público quando ele for aprovado? A segunda é mais simples e não
+  duplica caminho de credencial — mas **corta a loja que está conectada hoje pelo
+  custom**, que teria de reautorizar. Isso é decisão da dona do produto, não do
+  código, e não deve ser tomada por inércia no dia da revisão.
+
+  ⚠️ **O redirect do app público precisa ser LIDO no console** — não dá para
+  inferir daqui. O que este repo registra (`docs/estado-atual.md`, seção de
+  domínios) é `https://nexoaihub.com.br/api/tiktok/callback`, e esse campo é
+  **único por app**: o do custom estar certo não diz nada sobre o do público.
+
 - **04/09/2026 — 🟢 AS TRÊS QUALIFICAÇÕES PENDENTES DO PARTNER CENTER FORAM
   APROVADAS EM SETE MINUTOS.** Finance/Accounting às 18:28, Marketing/Analytics &
   Reporting às 18:31, Shipping/OMS às 18:35 — **4 de 4 verdes** com a Catalog,
