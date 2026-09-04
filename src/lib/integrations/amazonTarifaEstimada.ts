@@ -719,6 +719,7 @@ export async function estimarPelaTabela(
       erro instanceof Error ? erro.message : erro);
   }
   const isencoes = await lerIsencoes(connectionId);
+  const divergencias: Array<Record<string, unknown>> = [];
   const workspaceId = currentWorkspaceId();
 
   const linhas = await dbQuery<{
@@ -726,6 +727,7 @@ export async function estimarPelaTabela(
     qty: number; unit_price: string | null; preco_de_tabela: string | null;
     folha: string | null; raiz: string | null; preco_de_anuncio: string | null;
     tem_comissao: boolean; tem_logistica: boolean; occurred_at: Date | string;
+    comissao_postada: string | null;
   }>(
     `SELECT i.external_order_id, i.line_no, i.external_product_id, i.qty, i.unit_price,
             o.occurred_at,
@@ -762,6 +764,14 @@ export async function estimarPelaTabela(
                  AND e2.external_order_id = i.external_order_id
                  AND e2.line_no = i.line_no AND e2.fee_type = 'commission'
                  AND e2.superseded_at IS NULL) AS tem_comissao,
+            -- O valor OFICIAL da comissao, para a CONFERENCIA. Nunca entra em
+            -- calculo: so e comparado com o que a tabela diz, e a diferenca vai
+            -- para o log. Divergencia acusa, nao corrompe.
+            (SELECT SUM(f3.amount) FROM workspace_channel_order_fees f3
+              WHERE f3.workspace_id = i.workspace_id AND f3.provider = i.provider
+                AND f3.connection_id = i.connection_id
+                AND f3.external_order_id = i.external_order_id
+                AND f3.fee_type = 'commission')::text AS comissao_postada,
             EXISTS (
               SELECT 1 FROM workspace_channel_order_fees f
                WHERE f.workspace_id = i.workspace_id AND f.provider = i.provider
@@ -859,9 +869,27 @@ export async function estimarPelaTabela(
         recusadas += 1;
       }
     };
-    const comissao = linha.tem_comissao || isencaoDaComissao
-      ? null
-      : comissaoPelaTabela(resolvida.categoria, preco);
+    // ⚠️ A CONFERENCIA: quando a tarifa OFICIAL ja existe, a tabela vira auditor.
+    //
+    // A spec da dona inverte os papeis: o CALCULO manda no pendente, e a Product
+    // Fees API (ou o extrato) vira CONFERENCIA. Divergencia acusa — nunca
+    // corrompe. Por isso o calculo roda mesmo quando ha tarifa postada, e o
+    // resultado so vai para o log.
+    const calculada = comissaoPelaTabela(resolvida.categoria, preco);
+    if (linha.tem_comissao && calculada && linha.comissao_postada != null) {
+      const postada = Number(linha.comissao_postada) / Math.max(1, linha.qty);
+      const diferenca = Math.abs(postada - calculada.valor);
+      // 10 centavos por unidade: abaixo disso e arredondamento da Amazon, acima
+      // e regra diferente da que a gente escreveu.
+      if (diferenca > 0.1) {
+        divergencias.push({
+          pedido: linha.external_order_id, linha: linha.line_no,
+          calculado: calculada.valor, postado: +postada.toFixed(2),
+          categoria: resolvida.categoria.nome, preco,
+        });
+      }
+    }
+    const comissao = linha.tem_comissao || isencaoDaComissao ? null : calculada;
     // A LOGISTICA nao depende de categoria, so de preco (e de peso acima de
     // R$ 79) — por isso e calculada mesmo quando a comissao ja existe.
     const logistica = linha.tem_logistica || isencaoDaLogistica ? null : tarifaFbaPelaTabela(preco);
@@ -917,6 +945,17 @@ export async function estimarPelaTabela(
     }
   }
 
+  // ⚠️ A DIVERGENCIA E ALARME, NUNCA CORRECAO.
+  //
+  // Se a tabela e o extrato discordam, uma das duas esta errada — e a gente NAO
+  // sabe qual daqui. Ajustar a tabela pelo extrato automaticamente esconderia
+  // uma mudanca de regra da Amazon; ajustar o extrato e impensavel. Entao o
+  // codigo grita e a decisao e humana.
+  if (divergencias.length) {
+    console.warn("[tarifa-calculada] divergencia calculado x postado", {
+      connectionId, casos: divergencias.length, exemplos: divergencias.slice(0, 5),
+    });
+  }
   return {
     pedidos: pedidosTocados.size, linhas: gravadas, semCategoria, semPreco,
     recusadas, motivos: Object.fromEntries(motivoDaRecusa),

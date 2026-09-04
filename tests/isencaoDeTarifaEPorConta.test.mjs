@@ -178,3 +178,26 @@ test("a inferencia de uma conexao NAO vaza para a outra", async () => {
     "a inferencia da conta A nao pode apagar o estado da conta B");
   assert.deepEqual(depois["amazon:CONTA-A"], [], "e a conta A recebe o estado novo");
 });
+
+test("CONFERENCIA: divergencia calculado x postado ACUSA, nunca corrige", async () => {
+  // A spec inverte os papeis: o CALCULO manda no pendente e a Product Fees API
+  // (ou o extrato) vira conferencia. Se as duas discordam, uma esta errada — e
+  // daqui nao da para saber qual. Ajustar a tabela pelo extrato esconderia uma
+  // mudanca de regra da Amazon; ajustar o extrato e impensavel.
+  const fonte = await readFile(new URL("../src/lib/integrations/amazonTarifaEstimada.ts", import.meta.url), "utf8");
+  assert.ok(fonte.includes("const calculada = comissaoPelaTabela(resolvida.categoria, preco);"),
+    "o calculo roda MESMO com tarifa postada — senao nao ha o que conferir");
+  assert.ok(fonte.includes("divergencias.push({"), "a divergencia e coletada");
+  assert.ok(fonte.includes('console.warn("[tarifa-calculada] divergencia calculado x postado"'),
+    "e vira alarme");
+  // ⚠️ E o valor postado NAO pode entrar em nenhuma escrita: ele so e comparado.
+  const codigo = fonte.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "").replace(/^\s*--.*$/gm, "");
+  assert.doesNotMatch(codigo, /amount = .*comissao_postada|valor.*=.*comissao_postada/,
+    "conferencia que escreve deixa de ser conferencia");
+});
+
+test("a tarifa oficial CONTINUA mandando quando existe — a tabela nao a sobrescreve", async () => {
+  const fonte = await readFile(new URL("../src/lib/integrations/amazonTarifaEstimada.ts", import.meta.url), "utf8");
+  assert.ok(fonte.includes("const comissao = linha.tem_comissao || isencaoDaComissao ? null : calculada;"),
+    "com tarifa postada, a tabela NAO grava — o oficial vence");
+});
