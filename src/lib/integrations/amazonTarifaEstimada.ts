@@ -693,15 +693,23 @@ export async function estimarPelaTabela(
   const { categoriaDaTabela } = await import("./amazonCategoriaDaTabela");
   const { comissaoPelaTabela } = await import("./amazonTabelaDeComissao");
   const { tarifaFbaPelaTabela } = await import("./amazonTabelaDeFba");
+  const { isentoEm, lerIsencoes } = await import("./amazonIsencaoDeTarifa");
+  // ⚠️ POR CONEXAO, lido do banco. Ver a nota longa em `amazonIsencaoDeTarifa`:
+  // a conta da dona do produto esta isenta da tarifa de indicacao por promocao,
+  // e um `if` global zeraria a tarifa de TODO cliente futuro que paga cheio —
+  // em silencio, porque tarifa a menos vira lucro a mais e lucro a mais ninguem
+  // questiona.
+  const isencoes = await lerIsencoes(connectionId);
   const workspaceId = currentWorkspaceId();
 
   const linhas = await dbQuery<{
     external_order_id: string; line_no: number; external_product_id: string;
     qty: number; unit_price: string | null; preco_de_tabela: string | null;
     folha: string | null; raiz: string | null; preco_de_anuncio: string | null;
-    tem_comissao: boolean; tem_logistica: boolean;
+    tem_comissao: boolean; tem_logistica: boolean; occurred_at: Date | string;
   }>(
     `SELECT i.external_order_id, i.line_no, i.external_product_id, i.qty, i.unit_price,
+            o.occurred_at,
             (o.ordered_gross / NULLIF(SUM(i.qty) OVER (PARTITION BY i.external_order_id), 0))::text
               AS preco_de_tabela,
             p.payload->>'categoria'     AS folha,
@@ -803,13 +811,55 @@ export async function estimarPelaTabela(
     const simulado = preco != null && anuncio != null && preco === anuncio
       && !(real != null && real > 0) && !(tabela != null && tabela > 0);
     const marcaDoPreco = simulado ? ":preco-anuncio" : "";
-    const comissao = linha.tem_comissao ? null : comissaoPelaTabela(resolvida.categoria, preco);
+    // ⚠️ A ISENCAO ENTRA AQUI, e ela e por CONTA e por DATA DO PEDIDO.
+    //
+    // A conta da dona do produto esta isenta da tarifa de indicacao desde
+    // 01/08/2026; a do colega paga cheio. O MESMO codigo tem de produzir tarifas
+    // diferentes para as duas, so pelo atributo — e por isso a isencao e lida do
+    // banco e comparada com `linha.occurred_at`, nunca com "hoje": um pedido de
+    // julho PAGOU, e reescrever isso faria a margem daquele mes subir sozinha.
+    const isencaoDaComissao = isentoEm(isencoes, "commission", linha.occurred_at);
+    const isencaoDaLogistica = isentoEm(isencoes, "fulfillment", linha.occurred_at);
+    /** Grava a isencao como zero explicado. Ver a nota no ponto de uso. */
+    const gravarIsencao = async (feeType: string, motivo: string) => {
+      try {
+        await dbQuery(
+          `INSERT INTO workspace_channel_order_fee_estimates
+             (workspace_id, provider, connection_id, external_order_id, line_no, fee_type,
+              provider_fee_code, amount, currency, unit_price, qty, source)
+           VALUES ($1, 'amazon', $2, $3, $4, $5, $6, 0, 'BRL', $7, $8, 'tabela')
+           ON CONFLICT (workspace_id, provider, connection_id, external_order_id, line_no, fee_type)
+           DO UPDATE SET amount = 0, provider_fee_code = EXCLUDED.provider_fee_code,
+                         source = EXCLUDED.source, estimated_at = now()
+            WHERE workspace_channel_order_fee_estimates.superseded_at IS NULL`,
+          [workspaceId, connectionId, linha.external_order_id, linha.line_no,
+           feeType, `isencao:${motivo}`.slice(0, 80), preco, linha.qty],
+        );
+        gravadas += 1;
+      } catch {
+        recusadas += 1;
+      }
+    };
+    const comissao = linha.tem_comissao || isencaoDaComissao
+      ? null
+      : comissaoPelaTabela(resolvida.categoria, preco);
     // A LOGISTICA nao depende de categoria, so de preco (e de peso acima de
     // R$ 79) — por isso e calculada mesmo quando a comissao ja existe.
-    const logistica = linha.tem_logistica ? null : tarifaFbaPelaTabela(preco);
+    const logistica = linha.tem_logistica || isencaoDaLogistica ? null : tarifaFbaPelaTabela(preco);
     // Pendente sem preco publicado nao tem tarifa por tabela NENHUMA: a comissao
     // e percentual do valor, e ate a faixa fixa da logistica depende do preco.
-    if (!comissao && !logistica) { semPreco += 1; continue; }
+    // ⚠️ ISENCAO VIRA LINHA DE ZERO COM MOTIVO, nao ausencia de linha.
+    //
+    // Zero aqui e FATO ("a Amazon nao cobra isto desta conta hoje"), e ausencia
+    // seria "nao sei". Sao os dois lados da regra `null != 0`, e a tela precisa
+    // poder EXPLICAR o zero — senao a vendedora ve tarifa sumida e nao sabe se
+    // foi promocao ou defeito nosso.
+    if (isencaoDaComissao) await gravarIsencao("commission", isencaoDaComissao.motivo);
+    if (isencaoDaLogistica) await gravarIsencao("fulfillment", isencaoDaLogistica.motivo);
+    if (!comissao && !logistica) {
+      if (!isencaoDaComissao && !isencaoDaLogistica) semPreco += 1;
+      continue;
+    }
 
     const gravar = async (feeType: string, valorUnitario: number, codigo: string) => {
       const valor = +(valorUnitario * linha.qty).toFixed(2);
