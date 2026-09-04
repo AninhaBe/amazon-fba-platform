@@ -208,6 +208,46 @@ Amazon*. Se o papel for concedido, o caminho é `transportationOptions` da 2024-
 
 ## Changelog observado (mais recente primeiro)
 
+- **2026-09-04 — A ISENÇÃO DA TARIFA DE INDICAÇÃO É INFERIDA DO EXTRATO, por
+  conta.** Regra da dona do produto, verbatim: *"A isenção depende de conta pra
+  conta e só acaba quando atingir o teto de faturamento. Você pode se basear
+  nisso quando a amazon confirmar um pedido e vc ver que está com tarifa
+  cobrada, quer dizer que aquela conta já não tem mais isenção."*
+
+  **Medido nas duas contas reais, sem cadastro manual:**
+
+  | conexão | inferência | evidência |
+  |---|---|---|
+  | `amazon:A15NQMF7A6J1Y0` (Silveiras) | **teto atingido** — paga a tabela cheia | pedido `701-7810258-5669048` veio com comissão > 0 |
+  | `amazon:AO62LVXJMX3AA` | **isenta** desde 24/08/2026 | nenhum confirmado com comissão |
+
+  ⚠️ **A data é onde começa a NOSSA evidência, não onde começou a promoção.** A
+  janela abre no primeiro pedido confirmado com extrato no canônico (24/08), e
+  não em 01/08. A inferência só afirma o que consegue provar; ajustar para trás
+  é edição à mão na mesma estrutura.
+
+  **As regras, e cada uma existe por um modo de falha:**
+
+  - **o sinal é SÓ `commission`.** FBA e as demais continuam sendo cobradas na
+    isenção — usar "tem tarifa qualquer" diria que a conta perdeu a isenção no
+    primeiro pedido FBA;
+  - **pedido sem extrato não é sinal.** Sem tarifa nenhuma o extrato ainda não
+    chegou; contar como isenção faria toda conta nascer isenta ao conectar;
+  - **o flip é só para frente.** O teto é permanente: comissão zero depois não
+    reverte, vira anomalia no log. Reverter faria a tarifa dos pendentes oscilar
+    sem nada mudar no mundo;
+  - **sem histórico = paga cheio.** Desconhecido não pode virar desconto — e
+    desconto errado aparece como **lucro bom**, que ninguém questiona;
+  - **a vigência é pela data do PEDIDO.** Um pedido de julho pagou; aplicar a
+    isenção de hoje ao histórico faria a margem daquele mês subir sozinha.
+
+  📌 **E a Product Fees API mudou de papel:** o cálculo por tabela manda no
+  pendente, e a API/extrato viram **conferência**. O cálculo roda mesmo quando a
+  tarifa oficial existe, e divergência acima de R$ 0,10 por unidade vira alarme
+  (`[tarifa-calculada] divergencia calculado x postado`). **Nunca corrige
+  sozinho:** se as duas discordam, uma está errada e o código não sabe qual —
+  ajustar a tabela pelo extrato esconderia uma mudança de regra da Amazon.
+
 - **2026-09-03 — APP PÚBLICO APROVADO, e BRAND ANALYTICS CONTINUA FORA — o
   bloqueio é da CONTA, não do app.** A Amazon aprovou o acesso do app público
   ("acesso global do Marketplace com base nas funções solicitadas"), fechando em
