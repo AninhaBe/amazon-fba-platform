@@ -459,6 +459,33 @@ dependem do ledger e mantém vendas/catálogo disponíveis, sem inventar zeros.
 
 ## Changelog observado
 
+- **04/09/2026 — 🟢 AS TRÊS QUALIFICAÇÕES PENDENTES DO PARTNER CENTER FORAM
+  APROVADAS EM SETE MINUTOS.** Finance/Accounting às 18:28, Marketing/Analytics &
+  Reporting às 18:31, Shipping/OMS às 18:35 — **4 de 4 verdes** com a Catalog,
+  que já estava.
+
+  ⚠️ **A CAUSA DAS REPROVAÇÕES DE JULHO E AGOSTO ERA UM CAMPO DIGITADO ERRADO:**
+  o CNPJ informado na época divergia do documento. Reenviado com o número atual,
+  a aprovação veio automática, sem análise humana perceptível.
+
+  📌 **A lição não é sobre o TikTok, é sobre como tratamos bloqueio de terceiro.**
+  Duas qualificações ficaram ~2 meses classificadas como "aguardando aprovação do
+  marketplace" — uma espera que não existia. O que reprovava era dado nosso, e o
+  motivo estava no painel o tempo todo. É a mesma família do Go Live da Shopee,
+  que ficou 26 dias marcado como "under review" aqui porque a checagem dependia
+  de alguém abrir o console: **estado de terceiro que só se mede abrindo painel
+  envelhece calado, e o silêncio parece bloqueio quando é pendência nossa.**
+
+  **O que isso destrava:** a conciliação financeira real do TikTok deixa de estar
+  bloqueada por qualificação. ⚠️ **E "destravado" não é "medido":** a permissão
+  existir não diz o que a API entrega nem quando. Antes de desenhar qualquer
+  conciliação, medir na loja conectada o que `finance` responde de verdade —
+  `settlements`, `statements`, `payments` — e com que atraso. A regra da dona do
+  produto vale aqui inteira: cada API tem seu próprio calendário de dados.
+  Lembrando que `payments` tinha erro conhecido (entrada de 27/08 abaixo) — se
+  ele parar de falhar agora, a causa era permissão e isso precisa ser registrado;
+  se continuar, era forma do dado e continua sendo.
+
 - **27/08/2026 — o repasse (`payments`) tem forma de dinheiro DIFERENTE, e nunca
   foi lido uma vez sequer.**
   O contador de erro novo acusou **18 falhas seguidas** no recurso `payments`,
