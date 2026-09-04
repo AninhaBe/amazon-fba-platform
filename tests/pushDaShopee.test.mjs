@@ -263,13 +263,23 @@ test("o segredo e a STRING da chave, nao os bytes hex", async () => {
   assert.ok(codigo.includes('createHmac("sha256", chave).update(base, "utf8").digest("hex")'));
 });
 
-test("o evento e MARCADO como processado — fila que nao esvazia deixa de informar", async () => {
+test("o evento e MARCADO como concluido — fila que nao esvazia deixa de informar", async () => {
   // Medido em 02/09/2026: os dois primeiros pushes reais entraram, os pedidos
   // foram gravados, e as linhas ficaram em status 'pending' para sempre. Nao
   // quebrava nada — e por isso passaria despercebido ate alguem escrever um
   // reprocessador e ele varrer tudo de novo.
+  //
+  // ⚠️ ESTE TESTE JA MUDOU DE INTENCAO UMA VEZ, e a versao anterior dele estava
+  // DEFENDENDO UM DEFEITO (04/09/2026). Ele exigia a palavra 'processed', que
+  // foi a escolhida em 02/09 — e a retencao do ADR-016 remove 'complete'. Os
+  // eventos da Shopee eram imortais por construcao, ~2.600 por dia. Quem
+  // corrigisse a palavra quebraria a suite, e o vermelho diria que a CORRECAO
+  // estava errada. Registrado aqui, no proprio teste, como manda o AGENTS.
+  //
+  // 📌 A guarda de verdade agora e `tests/eventoDeWebhookMorre`, que cobra a
+  // mesma palavra de TODO canal com push, e nao de um so.
   const rota = await readFile(new URL("../src/app/api/webhooks/shopee/route.ts", import.meta.url), "utf8");
-  assert.ok(rota.includes("SET status = 'processed', processed_at = now()"));
+  assert.ok(rota.includes("SET status = 'complete', processed_at = now()"));
   assert.ok(rota.includes("WHERE workspace_id = $1 AND provider = 'shopee' AND event_key = $2"),
     "com workspace_id: parametro do cliente ESTREITA o escopo, nunca o define");
 });

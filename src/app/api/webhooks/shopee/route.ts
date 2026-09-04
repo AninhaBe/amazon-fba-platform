@@ -188,6 +188,20 @@ async function processarPush(connectionId: string, evento: EventoDePush, eventKe
     pedidos.map((pedido) => normalizeShopeeOrder(pedido)),
   );
 
+  // ⚠️ `complete`, A MESMA PALAVRA QUE O ML USA — e não é preferência de estilo.
+  //
+  // Nasceu como `'processed'` em 02/09/2026 e ficou dois dias assim. A retenção
+  // do ADR-016 remove `status = 'complete'`; nenhuma linha da Shopee casava, e
+  // os eventos dela eram **imortais por construção** — 5.258 em dois dias,
+  // ~2.600/dia, crescendo para sempre. Achado em 04/09/2026 medindo o alerta de
+  // Disk IO Budget do Supabase, não por teste.
+  //
+  // 📌 É a mesma família de `last_success_at` e `updated_at`: coluna genérica,
+  // dois escritores, e o segundo inventa vocabulário próprio para o mesmo
+  // estado. **Nada fica vermelho** — o SQL não erra, o dado não corrompe, só a
+  // linha nunca morre. Escrever a palavra que o leitor já conhece é o que
+  // impede a terceira ocorrência.
+  //
   // ⚠️ O EVENTO É MARCADO COMO PROCESSADO — medido em 02/09/2026: os dois
   // primeiros pushes reais entraram, os pedidos foram gravados, e as linhas
   // ficaram em `status = 'pending'` para sempre. Não quebrava nada hoje, e é
@@ -196,7 +210,7 @@ async function processarPush(connectionId: string, evento: EventoDePush, eventKe
   // que alguém escrever um reprocessador ele varre tudo de novo.
   await dbQuery(
     `UPDATE workspace_marketplace_events
-        SET status = 'processed', processed_at = now()
+        SET status = 'complete', processed_at = now()
       WHERE workspace_id = $1 AND provider = 'shopee' AND event_key = $2`,
     [currentWorkspaceId(), eventKey],
   );
