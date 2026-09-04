@@ -1,5 +1,5 @@
 import { dbQuery, hasDb } from "../db";
-import { estimarTarifaDosPedidosSemTarifa } from "./amazonTarifaEstimada";
+import { estimarPelaTabela, estimarTarifaDosPedidosSemTarifa } from "./amazonTarifaEstimada";
 import { currentWorkspaceId } from "../workspaceScope";
 import { runWithAccount, type AccountCtx } from "../accountContext";
 import { getOrder, getOrders, getOrderItems } from "../orders";
@@ -578,6 +578,24 @@ export async function runAmazonSyncStep(account: AccountCtx, forcarJanela = fals
               motivo: erro instanceof Error ? erro.message.slice(0, 200) : "erro desconhecido",
             });
           })],
+          // ⚠️ E A TARIFA CALCULADA PELA TABELA, que e o que a vendedora ve no
+          // pendente. Ela NAO estava ligada em lugar nenhum ate 04/09/2026: a
+          // frente subiu na v264, eu provei que funcionava CHAMANDO A FUNCAO A
+          // MAO, e tratei isso como se o sistema a chamasse. `grep` pelo nome
+          // no repo inteiro devolvia so a propria definicao.
+          //
+          // 📌 O sintoma foi exatamente o que a vendedora relatou: "esta tudo
+          // em branco". As estimativas so existiam para os pedidos que uma
+          // execucao manual minha tinha alcancado; pedido novo nascia sem
+          // nenhuma, e Taxas, Repasse e Margem caiam para travessao.
+          //
+          // Depois da observada, pela mesma razao da ordem acima: o calculo so
+          // preenche o que continua sem tarifa.
+          ["tarifaPelaTabela", () => estimarPelaTabela(connectionId).catch((erro) => {
+            console.error("[amazon] tarifa pela tabela falhou", {
+              motivo: erro instanceof Error ? erro.message.slice(0, 200) : "erro desconhecido",
+            });
+          })],
           // Captura o valor de tabela enquanto o pedido ainda tem um: a Amazon zera
           // o cancelado em toda API de pedido, então depois não há de onde tirar.
           // Ele mesmo se espaça (3h) — chamar todo ciclo não gera relatório todo ciclo.
@@ -695,6 +713,11 @@ export async function runAmazonSyncStep(account: AccountCtx, forcarJanela = fals
       // Mesma ordem do laço de conciliação: estimativa depois da tarifa real.
       await estimarTarifaDosPedidosSemTarifa(connectionId).catch((erro) => {
         console.error("[amazon] tarifa estimada falhou", {
+          motivo: erro instanceof Error ? erro.message.slice(0, 200) : "erro desconhecido",
+        });
+      });
+      await estimarPelaTabela(connectionId).catch((erro) => {
+        console.error("[amazon] tarifa pela tabela falhou", {
           motivo: erro instanceof Error ? erro.message.slice(0, 200) : "erro desconhecido",
         });
       });
