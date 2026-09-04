@@ -30,12 +30,27 @@ test("cobertura incompleta NAO anula mais o lucro no produtor", async () => {
   const inicio = texto.indexOf("const estimatedProfit =");
   assert.notEqual(inicio, -1);
   const formula = texto.slice(inicio, texto.indexOf("const marginPct = estimatedProfit"));
-  assert.match(formula, /componentesConhecidos/);
+  // ⚠️ ESTA GUARDA MUDOU DE INTENCAO EM 04/09/2026 — E ELA PASSOU A DEFENDER UM
+  // DEFEITO. Ela EXIGIA `componentesConhecidos` dentro da formula, porque em
+  // 31/08 o problema era a COBERTURA anular o lucro e a resposta certa foi
+  // trocar a condicao pelos COMPONENTES. Hoje o defeito e a propria condicao de
+  // componentes: uma venda de seis minutos sem tarifa apagava Resultado e
+  // Margem de qualquer janela, ate 30 dias (print da loja UTILEIRA).
+  //
+  // 📌 O que a guarda cobra agora e o oposto e mais forte: NENHUMA condicao de
+  // completude gateia o lucro. Ele e o residuo do que se conhece, e o que falta
+  // vira apontamento com numero.
+  assert.doesNotMatch(
+    formula,
+    /const estimatedProfit = componentesConhecidos/,
+    "condicao de completude voltou a anular o lucro — foi o defeito de 04/09/2026",
+  );
   assert.doesNotMatch(
     formula,
     /const estimatedProfit = financialComplete/,
     "cobertura incompleta voltou a anular o lucro — foi o defeito de 31/08/2026",
   );
+  assert.match(formula, /somaConhecida\(fees\)/, "o lucro soma o que se conhece");
 });
 
 test("componente DESCONHECIDO continua anulando — ausencia de componente nao e cobertura", async () => {
@@ -117,7 +132,11 @@ test("a base do lucro e da margem e o FATURAMENTO, nao o apurado", async () => {
   // espelho do problema anterior (fatia larga engolindo o vizinho).
   const fimDaMargem = texto.indexOf(";", texto.indexOf("const marginPct =", inicio));
   const formula = texto.slice(inicio, fimDaMargem + 1);
-  assert.match(formula, /faturamento - fees!/, "o numerador tem de sair do faturamento");
+  // ⚠️ ERA `faturamento - fees!` ATE 04/09/2026. O `!` sumiu porque `fees`
+  // deixou de poder ser null: uma venda sem tarifa nao anula mais as outras 154
+  // (print da vendedora, loja UTILEIRA). O que a guarda cobra continua o mesmo:
+  // o numerador SAI DO FATURAMENTO, nunca do apurado.
+  assert.match(formula, /faturamento - somaConhecida\(fees\)/, "o numerador tem de sair do faturamento");
   assert.match(formula, /estimatedProfit \/ faturamento/, "e o denominador tambem");
   assert.doesNotMatch(formula, /processedRevenue/, "a base apurada voltou para a formula");
 });

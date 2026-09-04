@@ -226,6 +226,8 @@ export interface ShopeeOverview {
     sellerShipping: number | null;
     buyerShipping: number | null;
     feesComplete: boolean;
+    /** Vendas do universo pago sem tarifa conciliada. `0` = todas conciliadas. */
+    pedidosSemTarifa: number;
     revenueProcessed: number;
     /** Fatias do widget, todas no universo da receita paga. O lucro e o residuo. */
     composicaoDaReceitaPaga: {
@@ -653,7 +655,33 @@ export async function getShopeeOverviewFromCanonical(
   const ordersProcessed = agg?.orders_processed ?? 0;
   const ordersWithFees = agg?.orders_with_fees ?? 0;
   const allKnown = (known: number | undefined) => (known ?? 0) >= ordersProcessed;
-  const fees = allKnown(agg?.orders_with_fees) ? Number(agg?.fees ?? 0) : null;
+  /**
+   * ⚠️ A TARIFA E A SOMA DO QUE SE CONHECE — UMA VENDA NAO ANULA AS OUTRAS 154.
+   *
+   * 🔴 DEFEITO MEDIDO EM 04/09/2026, print da vendedora (loja UTILEIRA, 15:33):
+   * Taxas em TRAVESSAO com a legenda "tarifa de 154 de 155 vendas". E pior: o
+   * mesmo acontecia em 7, 15 e 30 dias — em 7 dias sao **2.276 de 2.277**, e
+   * UMA venda anulava o agregado da janela inteira.
+   *
+   * 📌 A venda era `26090574W7JU8Q`, R$ 59,90, com **SEIS MINUTOS de idade**.
+   * Medido no mesmo instante: em 7 dias existe exatamente UMA venda sem tarifa,
+   * e e essa. Ou seja, nao ha buraco de conciliacao — e o pedido recem-chegado
+   * cuja tarifa o proximo ciclo traz. O agregado de uma semana inteira ficava
+   * mudo por causa de um pedido de seis minutos.
+   *
+   * ⚠️ ISTO NAO E `?? 0` DISFARCADO, e a distincao e a mesma que a casa ja usa
+   * na Amazon: o pedido que a Amazon ainda nao valorizou ENTRA na base e a tela
+   * DIZ o que falta, com numero — "isso nao encolhe a base: torna o lucro
+   * otimista, e o jeito certo de tratar e DIZER isso ao lado". Aqui igual: a
+   * soma e das 154 conhecidas, e `pedidosSemTarifa` diz que falta 1.
+   *
+   * O que continua sendo `null`: os OUTROS componentes, cada um com sua propria
+   * cobertura e seu proprio cartao. So a tarifa — o numero que ela olha — deixa
+   * de ser anulada.
+   */
+  const fees = ordersProcessed === 0 ? null : Number(agg?.fees ?? 0);
+  /** Vendas do universo pago sem NENHUMA tarifa conciliada — o que falta, com numero. */
+  const pedidosSemTarifa = Math.max(0, ordersProcessed - (agg?.orders_with_fees ?? 0));
   const sellerShipping = allKnown(agg?.orders_with_shipping) ? +Number(agg?.seller_shipping ?? 0).toFixed(2) : null;
   const ads = allKnown(agg?.orders_with_ads) ? +Number(agg?.ads ?? 0).toFixed(2) : null;
   const taxesWithheld = allKnown(agg?.orders_with_taxes_withheld) ? +Number(agg?.taxes_withheld ?? 0).toFixed(2) : null;
@@ -925,10 +953,36 @@ export async function getShopeeOverviewFromCanonical(
     )),
   };
 
-  const estimatedProfit = componentesConhecidos
-    ? +(faturamento - fees! - (cogsValue ?? 0) - (taxes ?? 0) - sellerShipping! - ads! - taxesWithheld! - refunds!).toFixed(2)
-    : null;
+  /**
+   * ⚠️ O RESULTADO E O RESIDUO DO QUE SE CONHECE, e LUCRO e MARGEM sao um PAR.
+   *
+   * Antes exigia os CINCO componentes conhecidos (`componentesConhecidos`), e
+   * uma venda de seis minutos sem tarifa apagava "Resultado processado" e
+   * "Margem" de qualquer janela — inclusive 30 dias. Mesma familia que a Amazon
+   * teve hoje, e a regra da dona e a mesma nos dois canais: **mostre o que foi
+   * capturado e APONTE o que falta, com numero.**
+   *
+   * 📌 GARANTIA REPLICADA, MECANISMO NAO. Na Amazon a lacuna e preenchida por
+   * tarifa calculada pela tabela (ADR-027) porque la o valor demora. Aqui a
+   * Shopee entrega a tarifa na hora pela API, entao nao ha tabela nenhuma e nao
+   * deve haver: a unica coisa que muda e parar de anular. Replicar o mecanismo
+   * seria resolver um problema que este canal nao tem.
+   *
+   * ⚠️ E O LUCRO FICA OTIMISTA pelo componente que falta — por isso
+   * `pedidosSemApuracao` e `pedidosSemTarifa` vao no payload e a tela os aponta.
+   * Otimista COM aviso e o que a casa aceita; otimista calado, nao.
+   *
+   * `null` continua existindo para o caso real de "nao sei": sem faturamento no
+   * periodo, nao ha residuo a calcular.
+   */
+  const estimatedProfit = ordersProcessed === 0 && faturamento === 0
+    ? null
+    : +(faturamento - somaConhecida(fees) - (cogsValue ?? 0) - (taxes ?? 0)
+        - somaConhecida(sellerShipping) - somaConhecida(ads)
+        - somaConhecida(taxesWithheld) - somaConhecida(refunds)).toFixed(2);
+  // Par: a margem existe exatamente quando o lucro existe e ha base.
   const marginPct = estimatedProfit != null && faturamento > 0 ? (estimatedProfit / faturamento) * 100 : null;
+  void componentesConhecidos; // segue nomeado para a legenda de cobertura, nunca como trava
 
   const daily = new Map(dailyRows.map((row) => [row.date, { date: row.date, revenue: Number(row.revenue), orders: row.orders, units: row.units }]));
   const dailySales: ShopeeOverview["dailySales"] = [];
@@ -1090,6 +1144,8 @@ export async function getShopeeOverviewFromCanonical(
       sellerShipping,
       buyerShipping,
       feesComplete: periodCovered && allKnown(ordersWithFees),
+      /** Vendas sem tarifa conciliada — a tela aponta com numero, nunca anula. */
+      pedidosSemTarifa,
       revenueProcessed: processedRevenue,
       /**
        * A composicao do widget "Repasses, taxas e lucro", coerente NO UNIVERSO

@@ -195,7 +195,12 @@ test("ML: o lucro do canônico já sai sem imposto quando não há alíquota", (
 test("Shopee: a alíquota saiu da condição de bloqueio, no agregado e por linha", () => {
   const canonico = fonte("src/lib/integrations/shopeeOverviewCanonical.ts");
   assert.match(canonico, /\[fees, sellerShipping, ads, taxesWithheld, refunds\]\.every/, "taxes saiu da lista");
-  assert.match(canonico, /- \(taxes \?\? 0\) -/, "o lucro sai sem imposto em vez de virar null");
+  // ⚠️ O `-` DEPOIS DE `(taxes ?? 0)` VIROU QUEBRA DE LINHA em 04/09/2026,
+  // quando a formula cresceu com `somaConhecida`. A guarda ficava vermelha por
+  // FORMATACAO, com o codigo certo — e teste que falha por formatacao ensina a
+  // ignorar vermelho. O que ela cobra continua sendo: imposto e TERMO da
+  // subtracao, nunca condicao de bloqueio.
+  assert.match(canonico, /- \(taxes \?\? 0\)/, "o lucro sai sem imposto em vez de virar null");
   assert.match(canonico, /const complete = lineFees != null && lineSellerShipping != null;/, "por linha idem");
   assert.doesNotMatch(canonico, /lineFees != null && lineSellerShipping != null && lineTax != null/);
 });
