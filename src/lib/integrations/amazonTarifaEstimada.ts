@@ -699,6 +699,25 @@ export async function estimarPelaTabela(
   // e um `if` global zeraria a tarifa de TODO cliente futuro que paga cheio —
   // em silencio, porque tarifa a menos vira lucro a mais e lucro a mais ninguem
   // questiona.
+  // ⚠️ A ISENCAO E INFERIDA DO EXTRATO ANTES DE CADA RODADA, e so depois lida.
+  //
+  // Regra da dona (03/09/2026): a isencao "so acaba quando atingir o teto de
+  // faturamento", e o sinal e a TARIFA DE INDICACAO aparecer num pedido
+  // confirmado. Ninguem sabe a data de antemao — o extrato sabe.
+  //
+  // Inferir a cada rodada mantem o estado fresco sem cadastro manual; gravar
+  // mantem ele AUDITAVEL e corrigivel a mao se um dia a Amazon fizer algo que a
+  // inferencia nao previu.
+  const { inferirIsencaoDaConexao, gravarIsencaoInferida } = await import("./amazonIsencaoDeTarifa");
+  try {
+    const inferida = await inferirIsencaoDaConexao(connectionId);
+    await gravarIsencaoInferida(connectionId, inferida);
+  } catch (erro) {
+    // Falha ao inferir NAO pode zerar tarifa: sem estado novo, vale o gravado, e
+    // sem gravado ninguem e isento (o default seguro).
+    console.error("[isencao-amazon] inferencia falhou; mantendo o estado anterior:",
+      erro instanceof Error ? erro.message : erro);
+  }
   const isencoes = await lerIsencoes(connectionId);
   const workspaceId = currentWorkspaceId();
 

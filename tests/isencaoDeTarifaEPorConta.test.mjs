@@ -99,3 +99,82 @@ test("a isenção vira ZERO EXPLICADO, não linha ausente", async () => {
   assert.ok(fonte.includes("if (isencaoDaComissao) await gravarIsencao(\"commission\", isencaoDaComissao.motivo);"));
   assert.ok(fonte.includes("`isencao:${motivo}`"), "o motivo vai junto, para a tela explicar");
 });
+
+// ═══ A INFERENCIA — a isencao sai do EXTRATO, nao de cadastro ════════════════
+//
+// Regra da dona, 03/09/2026: *"A isenção depende de conta pra conta e só acaba
+// quando atingir o teto de faturamento. Você pode se basear nisso quando a
+// amazon confirmar um pedido e vc ver que está com tarifa cobrada, quer dizer
+// que aquela conta já não tem mais isenção."*
+
+const { inferirIsencao } = await import("../src/lib/integrations/amazonIsencaoDeTarifa.ts");
+const pedido = (id, dia, comissao, temExtrato = true) =>
+  ({ external_order_id: id, dia, comissao, temExtrato });
+
+test("comissao ZERO nos confirmados => conta ISENTA", () => {
+  const r = inferirIsencao([pedido("A", "2026-08-01", 0), pedido("B", "2026-08-20", 0)]);
+  assert.equal(r.motivo, "isenta");
+  assert.equal(r.janelas.length, 1);
+  assert.equal(r.janelas[0].de, "2026-08-01", "a vigencia comeca no primeiro que provou");
+  assert.equal(r.janelas[0].ate, null, "sem fim conhecido enquanto ninguem cobrar");
+});
+
+test("🔴 PRIMEIRO confirmado com comissao > 0 encerra a isencao NA DATA dele", () => {
+  const r = inferirIsencao([
+    pedido("A", "2026-08-01", 0), pedido("B", "2026-08-20", 0),
+    pedido("C", "2026-09-01", 4.5), pedido("D", "2026-09-02", 6),
+  ]);
+  assert.equal(r.motivo, "teto-atingido");
+  assert.equal(r.primeiroComComissao, "C");
+  assert.equal(r.janelas[0].ate, "2026-09-01", "a isencao valeu ATE o pedido que cobrou");
+});
+
+test("🔴 o flip e SO PARA FRENTE — comissao zero depois NAO reverte", () => {
+  // O teto de faturamento e permanente. Reverter faria a conta oscilar a cada
+  // estorno ou pedido atipico, e a tarifa dos pendentes mudaria de valor sem
+  // nada ter mudado no mundo.
+  const r = inferirIsencao([
+    pedido("A", "2026-08-01", 0), pedido("C", "2026-09-01", 4.5), pedido("E", "2026-09-02", 0),
+  ]);
+  assert.equal(r.motivo, "teto-atingido");
+  assert.equal(r.janelas[0].ate, "2026-09-01", "continua encerrada");
+  assert.deepEqual(r.anomalias, ["E"], "o zero posterior vira ANOMALIA logada, nao decisao");
+});
+
+test("🔴 conta SEM historico de confirmados NAO nasce isenta", () => {
+  // Desconhecido nao pode virar desconto: uma conta nova ficaria sem tarifa ate
+  // alguem perceber, e o erro apareceria como lucro bom — que ninguem questiona.
+  assert.equal(inferirIsencao([]).motivo, "sem-historico");
+  assert.deepEqual(inferirIsencao([]).janelas, [], "sem sinal, paga cheio");
+});
+
+test("🔴 pedido SEM EXTRATO nao e sinal de isencao", () => {
+  // A distincao que sustenta tudo: pedido sem tarifa nenhuma e extrato que ainda
+  // nao chegou. Se contasse como isencao, toda conta nasceria isenta no dia em
+  // que conectasse.
+  const r = inferirIsencao([pedido("A", "2026-08-01", 0, false), pedido("B", "2026-08-02", 0, false)]);
+  assert.equal(r.motivo, "sem-historico", "sem extrato nao ha sinal");
+});
+
+test("o sinal e SO a comissao — FBA continua cobrado na isencao", async () => {
+  const fonte = await readFile(new URL("../src/lib/integrations/amazonIsencaoDeTarifa.ts", import.meta.url), "utf8");
+  assert.ok(fonte.includes("FILTER (WHERE f.fee_type = 'commission')"),
+    "usar 'tem tarifa qualquer' diria que a conta perdeu a isencao no primeiro pedido FBA");
+});
+
+test("a inferencia de uma conexao NAO vaza para a outra", async () => {
+  const fonte = await readFile(new URL("../src/lib/integrations/amazonIsencaoDeTarifa.ts", import.meta.url), "utf8");
+  // Le por conexao E por workspace; grava numa CHAVE do documento, sem tocar as
+  // outras conexoes.
+  assert.ok(fonte.includes("AND o.connection_id = $2"), "a leitura e por conexao");
+  assert.ok(fonte.includes("WHERE o.workspace_id = $1"), "e por inquilino");
+  // ⚠️ E ESTA PARTE E COMPORTAMENTO, nao string: a primeira versao casava
+  // `doc[connectionId] = ...` no fonte e continuava VERDE com um `delete` de
+  // todas as chaves inserido na linha de cima. Casar simbolo nao prova nada.
+  const { mesclarIsencao } = await import("../src/lib/integrations/amazonIsencaoDeTarifa.ts");
+  const antes = { "amazon:CONTA-B": [{ feeType: "commission", de: "2026-01-01", ate: null, motivo: "b" }] };
+  const depois = mesclarIsencao(antes, "amazon:CONTA-A", []);
+  assert.deepEqual(depois["amazon:CONTA-B"], antes["amazon:CONTA-B"],
+    "a inferencia da conta A nao pode apagar o estado da conta B");
+  assert.deepEqual(depois["amazon:CONTA-A"], [], "e a conta A recebe o estado novo");
+});
