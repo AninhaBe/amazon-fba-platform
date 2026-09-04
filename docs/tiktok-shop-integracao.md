@@ -459,6 +459,51 @@ dependem do ledger e mantém vendas/catálogo disponíveis, sem inventar zeros.
 
 ## Changelog observado
 
+- **04/09/2026 — ⏳ CONVIVÊNCIA DOS DOIS APPS, COM PRAZO DE MORTE DECLARADO.**
+  Decisão da dona do produto: **migrar é o destino**, em duas etapas, porque a
+  migração real só é possível depois da aprovação do app público.
+
+  **Etapa 1 (feita, v271):** o NEXO passa a conhecer os dois apps. Credenciais
+  separadas, `auth_code` trocado com o par certo, e o app viaja dentro do
+  `state` **assinado** do convite — o callback não adivinha com qual par trocar,
+  porque adivinhar errado devolve token negado. O custom continua atendendo a
+  loja conectada, sem uma linha de mudança no caminho dela.
+
+  **Etapa 2 (pendente, `TODO.md` → "TikTok: aposentar o app custom"):**
+
+  > app público **APROVADO** → janela combinada com a dona → a loja **reautoriza**
+  > pelo público (convite com `?app=publico`) → o custom é **aposentado** →
+  > `TIKTOK_APP_KEY`, `TIKTOK_APP_SECRET` e `TIKTOK_SERVICE_ID` **saem do Fly** →
+  > `tiktokApps.ts` e o parâmetro `app` que ele espalhou morrem junto.
+
+  ⚠️ **Por que o prazo de morte é escrito e testado:** duas vias de credencial
+  já custaram um `undefined` em produção na Amazon. A guarda
+  `tests/convivenciaDoTikTokTemPrazo` cobra que a condição continue escrita no
+  módulo e que o item exista no `TODO.md` — mas **guarda nenhuma faz a migração
+  acontecer**; ela só impede que a convivência vire desenho por inércia.
+
+  ### O fluxo do revisor, e por que ele é por CONVITE
+
+  📌 O revisor autoriza **sem ter conta aqui**. O callback só dispensa sessão e
+  cookie quando o `state` é um convite íntegro — a origem é provada pela
+  assinatura. Logo **a revisão tem de ser feita por link de convite, não pelo
+  botão do painel**. O link sai de `GET /api/tiktok/invite?app=publico`.
+
+  ⚠️ E `?app=publico` **cai no custom sozinho** se as três variáveis do público
+  não estiverem no ambiente. É o modo de falha certo: sem credencial, autorizar
+  pelo público quebraria no meio do fluxo do vendedor — melhor nem oferecer.
+
+  ### As três variáveis que faltam no Fly
+
+  | variável | de onde copiar |
+  |---|---|
+  | `TIKTOK_PUBLIC_APP_KEY` | app público → App key (`6kl9m4ajdcvpm`) |
+  | `TIKTOK_PUBLIC_APP_SECRET` | app público → App secret |
+  | `TIKTOK_PUBLIC_SERVICE_ID` | app público → Service ID da URL de autorização |
+
+  As do custom **não mudam de nome**: renomeá-las seria churn com risco de
+  quebrar a conexão viva, em troca de simetria.
+
 - **04/09/2026 — 🗺️ O MAPA DOS QUATRO APPS, e por que confundir os pares de
   credencial quebra a conexão da vendedora.**
 

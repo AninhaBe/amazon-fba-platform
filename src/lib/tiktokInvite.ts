@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { APP_PADRAO, appDaConexao, type AppDoTikTok } from "./integrations/tiktokApps";
 
 // Convite de autorização do TikTok Shop.
 //
@@ -19,6 +20,16 @@ const VALIDADE_PADRAO_DIAS = 30;
 export interface ConviteTiktok {
   workspaceId: string;
   expiraEm: string;
+  /**
+   * Qual app o link manda autorizar. ⚠️ VAI DENTRO DO STATE ASSINADO de
+   * proposito: o callback precisa saber com QUAL par trocar o `auth_code`, e o
+   * TikTok nao conta isso. Deixar de fora obrigaria a adivinhar — e adivinhar
+   * errado devolve token negado, que e o defeito que este campo evita.
+   *
+   * Convite antigo (sem o campo) le como `custom`: nenhum link ja distribuido
+   * muda de comportamento.
+   */
+  app: AppDoTikTok;
 }
 
 function chave(): Buffer {
@@ -35,10 +46,18 @@ function assinar(corpo: string): string {
 }
 
 /** Gera o `state` assinado que leva o workspace dentro do link de convite. */
-export function criarConviteTiktok(workspaceId: string, validadeDias = VALIDADE_PADRAO_DIAS): string {
+export function criarConviteTiktok(
+  workspaceId: string,
+  validadeDias = VALIDADE_PADRAO_DIAS,
+  app: AppDoTikTok = APP_PADRAO,
+): string {
   if (!workspaceId) throw new Error("Convite do TikTok exige um workspace.");
   const expira = Math.floor(Date.now() / 1000) + validadeDias * 86_400;
-  const corpo = Buffer.from(JSON.stringify({ w: workspaceId, exp: expira }), "utf8").toString("base64url");
+  // `a` so entra quando NAO e o padrao: convite de custom continua byte a byte
+  // o mesmo de antes, e os links ja distribuidos seguem validos.
+  const dados: Record<string, unknown> = { w: workspaceId, exp: expira };
+  if (app !== APP_PADRAO) dados.a = app;
+  const corpo = Buffer.from(JSON.stringify(dados), "utf8").toString("base64url");
   return `${PREFIXO}.${corpo}.${assinar(corpo)}`;
 }
 
@@ -69,7 +88,12 @@ export function validarConviteTiktok(state: string | null | undefined): ConviteT
     const dados = JSON.parse(Buffer.from(corpo, "base64url").toString("utf8"));
     if (typeof dados.w !== "string" || typeof dados.exp !== "number") return null;
     if (dados.exp * 1000 <= Date.now()) return null;
-    return { workspaceId: dados.w, expiraEm: new Date(dados.exp * 1000).toISOString() };
+    return {
+      workspaceId: dados.w,
+      expiraEm: new Date(dados.exp * 1000).toISOString(),
+      // Convite sem `a` e convite de custom — inclusive os ja distribuidos.
+      app: appDaConexao(dados.a),
+    };
   } catch {
     return null;
   }

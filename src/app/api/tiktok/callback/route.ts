@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { exchangeAuthCode, getAuthorizedShops, epochToIso, TIKTOK_OAUTH_STATE_COOKIE } from "@/lib/tiktok";
 import { saveTiktokAuthorization } from "@/lib/tiktokStore";
 import { validarConviteTiktok } from "@/lib/tiktokInvite";
+import { APP_PADRAO, type AppDoTikTok } from "@/lib/integrations/tiktokApps";
 import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
 import { currentWorkspaceId, runWithWorkspace } from "@/lib/workspaceScope";
 import { runTiktokSyncBatch, tiktokConnectionId } from "@/lib/integrations/tiktokSync";
@@ -30,15 +31,19 @@ export async function GET(req: NextRequest) {
   // O convite já identifica o workspace de destino e dispensa login: quem
   // autoriza é o vendedor, que não tem conta aqui.
   if (convite) {
-    return runWithWorkspace(convite.workspaceId, () => concluir(req, baseUrl, { exigirCookie: false }));
+    // ⚠️ O APP VEM DO CONVITE, nao de palpite. E este e o caminho que o revisor
+    // do TikTok usa: ele autoriza sem ter conta aqui, entao nao ha sessao nem
+    // cookie — quem prova a origem e a assinatura do `state`.
+    return runWithWorkspace(convite.workspaceId, () =>
+      concluir(req, baseUrl, { exigirCookie: false, app: convite.app }));
   }
-  return withAuthenticatedWorkspace(() => concluir(req, baseUrl, { exigirCookie: true }));
+  return withAuthenticatedWorkspace(() => concluir(req, baseUrl, { exigirCookie: true, app: APP_PADRAO }));
 }
 
 async function concluir(
   req: NextRequest,
   baseUrl: string,
-  opcoes: { exigirCookie: boolean }
+  opcoes: { exigirCookie: boolean; app: AppDoTikTok }
 ): Promise<NextResponse> {
   const { searchParams } = new URL(req.url);
   const code = searchParams.get("code") || searchParams.get("auth_code");
@@ -73,7 +78,7 @@ async function concluir(
   if (!code || code === "null") return fail("Autorização incompleta — código ausente.");
 
   try {
-    const tok = await exchangeAuthCode(code);
+    const tok = await exchangeAuthCode(code, opcoes.app);
     const shops = await getAuthorizedShops(tok.access_token);
 
     const accessExp = epochToIso(tok.access_token_expire_in);

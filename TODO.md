@@ -89,6 +89,21 @@ conforme for concluindo.
   ao registrar o TikTok, porque a mesma pergunta ("quem ainda diz que isto está
   bloqueado?") revelou os dois. **Estado de terceiro que só se mede abrindo
   painel envelhece calado, e o pendente que sobrevive à causa vira mentira.**
+- [ ] **TikTok: aposentar o app custom** quando o app público for aprovado.
+  ⚠️ **Isto é a segunda etapa de uma migração já decidida** (dona do produto,
+  04/09/2026), não uma melhoria opcional. Hoje os dois apps convivem porque a
+  migração real só é possível depois da aprovação — o custom atende a loja
+  conectada, o público existe para a revisão funcional.
+  **Quando a aprovação chegar, na ordem:** janela combinada com ela → a loja
+  reautoriza pelo app público (link de convite com `?app=publico`) → o custom é
+  aposentado → `TIKTOK_APP_KEY`, `TIKTOK_APP_SECRET` e `TIKTOK_SERVICE_ID` saem
+  do Fly → `src/lib/integrations/tiktokApps.ts` e o parâmetro `app` que ele
+  espalhou morrem junto.
+  📌 Duas vias de credencial já custaram um `undefined` em produção na Amazon.
+  A convivência aqui tem prazo declarado no próprio módulo, e a guarda
+  `tests/convivenciaDoTikTokTemPrazo` cobra que ele continue escrito — mas
+  guarda nenhuma faz a migração acontecer: **este item faz.**
+
 - [ ] **TikTok: MEDIR o que a qualificação Finance abriu de verdade.** As 4
   qualificações do Partner Center ficaram verdes em 04/09/2026 (Finance 18:28,
   Marketing 18:31, Shipping 18:35, com a Catalog que já estava). ⚠️ **Permissão

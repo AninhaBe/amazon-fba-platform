@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { registrarChamada } from "./integrations/contadorDeChamadas";
+import { APP_PADRAO, credenciaisDoApp, type AppDoTikTok } from "./integrations/tiktokApps";
 
 // Cliente TikTok Shop Partner API v2.
 // - Token endpoints (get/refresh): usam app_key+app_secret direto, SEM assinatura.
@@ -24,9 +25,12 @@ export function tiktokConfigured(): boolean {
 }
 
 /** Monta a autorização ROW (inclui Brasil) e sempre injeta um state novo. */
-export function tiktokAuthorizationUrl(state: string): string {
-  const configuredUrl = process.env.TIKTOK_AUTH_URL;
-  const serviceId = process.env.TIKTOK_SERVICE_ID;
+export function tiktokAuthorizationUrl(state: string, app: AppDoTikTok = APP_PADRAO): string {
+  // ⚠️ `TIKTOK_AUTH_URL` so vale para o CUSTOM: e uma URL inteira, colada do
+  // console daquele app. Usa-la para o publico mandaria o vendedor autorizar o
+  // app errado — e o consentimento pareceria ter funcionado.
+  const configuredUrl = app === "publico" ? undefined : process.env.TIKTOK_AUTH_URL;
+  const serviceId = credenciaisDoApp(app).serviceId;
 
   if (!configuredUrl && !serviceId) {
     throw new Error("Configure TIKTOK_SERVICE_ID no ambiente.");
@@ -41,11 +45,14 @@ export function tiktokAuthorizationUrl(state: string): string {
   return url.toString();
 }
 
-function creds(): { key: string; secret: string } {
-  const key = process.env.TIKTOK_APP_KEY;
-  const secret = process.env.TIKTOK_APP_SECRET;
+function creds(app: AppDoTikTok = APP_PADRAO): { key: string; secret: string } {
+  const { key, secret } = credenciaisDoApp(app);
   if (!key || !secret) {
-    throw new Error("Configure TIKTOK_APP_KEY e TIKTOK_APP_SECRET no ambiente.");
+    // A mensagem diz QUAL app falta: com dois pares no ar, "configure as
+    // credenciais" manda a pessoa conferir a variavel errada.
+    throw new Error(app === "publico"
+      ? "Configure TIKTOK_PUBLIC_APP_KEY e TIKTOK_PUBLIC_APP_SECRET no ambiente."
+      : "Configure TIKTOK_APP_KEY e TIKTOK_APP_SECRET no ambiente.");
   }
   return { key, secret };
 }
@@ -81,8 +88,8 @@ interface TokenData {
   seller_base_region?: string;
 }
 
-async function tokenCall(op: "get" | "refresh", extra: Record<string, string>, signal?: AbortSignal): Promise<TokenData> {
-  const { key, secret } = creds();
+async function tokenCall(op: "get" | "refresh", extra: Record<string, string>, signal?: AbortSignal, app: AppDoTikTok = APP_PADRAO): Promise<TokenData> {
+  const { key, secret } = creds(app);
   const url = new URL(`${TOKEN_BASE}/${op}`);
   url.searchParams.set("app_key", key);
   url.searchParams.set("app_secret", secret);
@@ -106,13 +113,17 @@ async function tokenCall(op: "get" | "refresh", extra: Record<string, string>, s
 }
 
 /** Troca o auth_code (do consentimento) por access_token + refresh_token. */
-export function exchangeAuthCode(authCode: string): Promise<TokenData> {
-  return tokenCall("get", { auth_code: authCode, grant_type: "authorized_code" });
+export function exchangeAuthCode(authCode: string, app: AppDoTikTok = APP_PADRAO): Promise<TokenData> {
+  // ⚠️ O `auth_code` e emitido PARA UM APP. Trocar com o par do outro devolve
+  // token negado — e e exatamente o que aconteceria com o revisor do TikTok se
+  // o app nao viesse ate aqui.
+  return tokenCall("get", { auth_code: authCode, grant_type: "authorized_code" }, undefined, app);
 }
 
 /** Renova o access_token usando o refresh_token. */
-export function refreshAccessToken(refreshToken: string, signal?: AbortSignal): Promise<TokenData> {
-  return tokenCall("refresh", { refresh_token: refreshToken, grant_type: "refresh_token" }, signal);
+export function refreshAccessToken(refreshToken: string, signal?: AbortSignal, app: AppDoTikTok = APP_PADRAO): Promise<TokenData> {
+  // O refresh tambem e por app: token do publico so renova com o par do publico.
+  return tokenCall("refresh", { refresh_token: refreshToken, grant_type: "refresh_token" }, signal, app);
 }
 
 export interface TiktokFetchOpts {
@@ -121,6 +132,8 @@ export interface TiktokFetchOpts {
   body?: unknown;
   accessToken: string;
   shopCipher?: string;
+  /** Qual app assina a chamada. Ausente = custom, que e a conexao de hoje. */
+  app?: AppDoTikTok;
 }
 
 /** Converte somente falhas inequívocas de credencial em um erro operacional
@@ -154,7 +167,7 @@ export function classifyTiktokApiError(input: {
 
 /** Chamada autenticada+assinada a um endpoint de negócio da TikTok Shop. */
 export async function tiktokFetch<T = unknown>(path: string, opts: TiktokFetchOpts): Promise<T> {
-  const { key, secret } = creds();
+  const { key, secret } = creds(opts.app);
   const timestamp = Math.floor(Date.now() / 1000).toString();
 
   const q: Record<string, string> = { app_key: key, timestamp };

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { tiktokAuthorizationUrl } from "@/lib/tiktok";
+import { appDaAutorizacao } from "@/lib/integrations/tiktokApps";
 import { criarConviteTiktok } from "@/lib/tiktokInvite";
 import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
 import { currentWorkspaceId } from "@/lib/workspaceScope";
@@ -10,13 +12,18 @@ export const dynamic = "force-dynamic";
 // Link privado para o vendedor autorizar a loja dele sem ter conta aqui.
 // Só quem está logado gera o link — é a sessão que define o workspace de destino,
 // e a assinatura do state impede que ele seja apontado para outro.
-export async function GET() {
+export async function GET(req: NextRequest) {
   return withAuthenticatedWorkspace(async () => {
     try {
-      const state = criarConviteTiktok(currentWorkspaceId());
+      // ⚠️ `?app=publico` existe para a REVISAO FUNCIONAL do app publico, e cai
+      // no custom sozinho se as tres variaveis do publico nao estiverem no
+      // ambiente. Ele morre com a convivencia — ver `tiktokApps.ts`.
+      const app = appDaAutorizacao(new URL(req.url).searchParams.get("app"));
+      const state = criarConviteTiktok(currentWorkspaceId(), undefined, app);
       const convite = validade(state);
       return NextResponse.json({
-        url: tiktokAuthorizationUrl(state),
+        app,
+        url: tiktokAuthorizationUrl(state, app),
         expiraEm: convite,
         instrucao:
           "Envie este link ao vendedor. Ele autoriza a loja na TikTok e a conexão " +
