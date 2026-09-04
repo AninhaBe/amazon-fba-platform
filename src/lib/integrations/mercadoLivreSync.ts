@@ -25,6 +25,12 @@ import {
   nextMercadoLivreOrderWindow,
 } from "./mercadoLivreSyncControl";
 import { inicioDoMesVigente } from "./inicioDoMes";
+import {
+  alarmeDeFreteForaDaJanela,
+  contarFreteFaltandoNoHistorico,
+  deveVarrerHistoricoCompleto,
+  enviosFaltandoNaJanela,
+} from "./freteDoMercadoLivre";
 
 const PROVIDER = "mercado_livre";
 const DAY = 86_400_000;
@@ -295,24 +301,18 @@ async function syncProducts(
   );
 }
 
+/**
+ * Ultima varredura do historico completo, POR CONEXAO e em memoria.
+ *
+ * Em memoria de proposito: persistir exigiria coluna nova, e o custo de perder
+ * a lembranca num deploy e uma varredura extra — nao um buraco. O modo de falha
+ * do esquecimento e varrer DEMAIS, nunca de menos.
+ */
+const ultimaVarreduraDeFrete = new Map<string, number>();
+
 async function syncMissingShipmentCosts(connection: IntegrationConnection): Promise<void> {
-  const shipmentRows = await dbQuery<{ shipment_id: string; order_ids: string[] }>(
-    `SELECT orders.payload #>> '{shipping,id}' AS shipment_id,
-            array_agg(orders.external_order_id) AS order_ids
-       FROM workspace_marketplace_orders orders
-       LEFT JOIN workspace_marketplace_shipments shipments
-         ON shipments.workspace_id = orders.workspace_id
-        AND shipments.provider = orders.provider
-        AND shipments.connection_id = orders.connection_id
-        AND shipments.external_shipment_id = orders.payload #>> '{shipping,id}'
-      WHERE orders.workspace_id = $1 AND orders.provider = $2 AND orders.connection_id = $3
-        AND orders.status = 'paid' AND orders.payload #>> '{shipping,id}' IS NOT NULL
-        AND shipments.external_shipment_id IS NULL
-      GROUP BY shipment_id
-      ORDER BY shipment_id DESC
-      LIMIT $4`,
-    [currentWorkspaceId(), PROVIDER, connection.id, SHIPMENT_BATCH_SIZE]
-  );
+  const shipmentRows = await enviosFaltandoNaJanela(connection.id, SHIPMENT_BATCH_SIZE);
+  await vigiarFreteForaDaJanela(connection.id);
   const orderIdsByShipment = new Map(shipmentRows.map((row) => [row.shipment_id, row.order_ids]));
   const shipmentIds = shipmentRows.map((row) => row.shipment_id);
   const records: Array<{ external_shipment_id: string; payload: MercadoLivreShipmentCosts }> = [];
@@ -348,6 +348,29 @@ async function syncMissingShipmentCosts(connection: IntegrationConnection): Prom
         externalRef: record.external_shipment_id,
       }))
     ));
+  }
+}
+
+/**
+ * O QUE SEGURA A JANELA DE 30 DIAS (04/09/2026).
+ *
+ * A janela existe porque o caminho quente varria 38 mil pedidos para achar zero
+ * (ver `freteDoMercadoLivre.ts`). Sem este vigia, ela deixaria de ser otimizacao
+ * e viraria buraco: envio antigo que faltasse nunca mais seria visto, e nada
+ * ficaria vermelho.
+ *
+ * Roda no maximo uma vez por dia por conexao, so CONTA, e nao derruba o sync se
+ * falhar — vigia que quebra a coisa que ele vigia e pior que vigia nenhum.
+ */
+async function vigiarFreteForaDaJanela(connectionId: string): Promise<void> {
+  const agora = Date.now();
+  if (!deveVarrerHistoricoCompleto(ultimaVarreduraDeFrete.get(connectionId), agora)) return;
+  ultimaVarreduraDeFrete.set(connectionId, agora);
+  try {
+    const alarme = alarmeDeFreteForaDaJanela(connectionId, await contarFreteFaltandoNoHistorico(connectionId));
+    if (alarme) console.error(alarme);
+  } catch (erro) {
+    console.error("[frete-ml] varredura do historico completo falhou:", erro instanceof Error ? erro.message : erro);
   }
 }
 
