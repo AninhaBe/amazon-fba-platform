@@ -89,6 +89,42 @@ conforme for concluindo.
   ao registrar o TikTok, porque a mesma pergunta ("quem ainda diz que isto está
   bloqueado?") revelou os dois. **Estado de terceiro que só se mede abrindo
   painel envelhece calado, e o pendente que sobrevive à causa vira mentira.**
+- [ ] **Amazon: o card de Repasse passa a dizer o que a API já sabe.**
+  ⚠️ **Aprovado pela dona do produto depois de um incidente real:** ela perguntou
+  *"os saques que estou fazendo estão indo pra onde?"* e a medição respondeu que
+  **não estavam indo** — sete transferências com `FundTransferStatus: Failed`
+  para uma conta PF (final 550), incluindo as quatro que o painel dela exibia
+  como "pagamentos recentes" de 01/09 (R$ 153,85 / 89,81 / 44,33 / 27,90). O
+  painel mostrava a TENTATIVA; o desfecho só existia na API. Conta trocada por
+  ela para a PJ no CNPJ; R$ 382,44 seguem represados e devem reprocessar
+  sozinhos depois da validação bancária.
+
+  📌 **A frente existe por isso:** o dado que teria avisado "repasse falhou"
+  semanas antes já estava na API e não estava em lugar nenhum da tela.
+
+  **Spec, e ela sai inteira de `listFinancialEventGroups` — dado provado pela
+  medição de 05/09/2026, não hipótese:**
+
+  | campo | de onde | cuidado |
+  |---|---|---|
+  | **Disponível** | soma dos grupos `Pending` | eram R$ 382,44 na medição |
+  | **Em maturação** | grupos `Open` | ⚠️ **pode ser NEGATIVO** (havia um de −R$ 128,90: tarifa maior que venda no período). A tela precisa exibir sem parecer defeito |
+  | **Última transferência** | `FundTransferStatus` + `FundTransferDate` + valor | é o campo que responde a pergunta dela |
+
+  ⚠️ **SEM "próximo repasse ~dia X", e isto é decisão, não esquecimento.** A API
+  não publica data futura: `FundTransferDate` só aparece DEPOIS da tentativa.
+  Daria para inferir pela cadência dos grupos anteriores, mas os desta conta são
+  irregulares (05/07, 16/08, 29/08, 01/09) e a tela estaria chutando.
+  **Data errada de dinheiro é pior que data nenhuma.** Quem for implementar e
+  sentir falta da data: a ausência é o desenho.
+
+  📌 E o `TraceId` (código de rastreio bancário) só vem em algumas: 1 de 9 na
+  medição. Quando existir, vale exibir — é o que casa com o extrato do banco.
+  Quando não existir, ausência, nunca traço vazio fingindo rastreio.
+
+  Entra na fila normal — **não fura** App review do TikTok, relatório do
+  cancelamento da Amazon nem a remedição de IO.
+
 - [ ] **TikTok: aposentar o app custom** quando o app público for aprovado.
   ⚠️ **Isto é a segunda etapa de uma migração já decidida** (dona do produto,
   04/09/2026), não uma melhoria opcional. Hoje os dois apps convivem porque a
