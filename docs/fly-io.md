@@ -335,6 +335,75 @@ helper daqui a um mês encontra a origem no ADR-029 e no teste.
 
 ---
 
+## 7.1 ⚠️ "Salvei o segredo" NÃO é "o processo tem o segredo"
+
+**Medido em 04/09/2026, e custou uma hora.** A dona do produto criou três
+segredos no painel do Fly e clicou em *Deploy Secrets*. O `fly secrets list`
+passou a mostrar os três como **`Deployed`**. E o processo **não os tinha**.
+
+O painel conhece um fato só: o segredo está no cofre. Se ele chegou ao
+ambiente do processo é outro fato, e ninguém mede por você.
+
+### O que NÃO bastou, medido um a um
+
+| tentativa | resultado |
+|---|---|
+| `fly secrets deploy -a nexo` (rolling update, 1/1 healthy) | **não injetou** |
+| um deploy novo por cima | **não injetou** |
+| `fly machine restart <id>` | **não injetou** |
+| `fly secrets set OUTRA_COISA=1` | **injetou — e as três atrasadas vieram junto** |
+
+📌 A leitura: `secrets deploy` e `restart` reaproveitam a configuração de
+máquina existente; foi o `secrets set` que a **regenerou**. Se você caiu neste
+estado, o conserto é um `fly secrets set` de qualquer variável — inclusive uma
+descartável.
+
+### 🔬 O MÉTODO DA SONDA — separe "quebrado para tudo" de "quebrado para estes"
+
+Antes de pedir à dona do produto que recolasse a credencial (o palpite óbvio,
+e errado), subi uma variável **sem segredo nenhum**:
+
+```bash
+fly secrets set NEXO_SONDA_SECRETS=1 -a nexo   # nenhum valor sensível
+# ... medir ...
+fly secrets unset NEXO_SONDA_SECRETS -a nexo   # e some depois
+```
+
+Ela chegou ao processo **e arrastou as três que faltavam**. Isso respondeu de
+uma vez: a injeção do app não estava quebrada, e a credencial dela nunca esteve
+errada — faltava um `set` que regenerasse a config.
+
+⚠️ **Use a sonda sempre que a hipótese for "a credencial está errada".** Uma
+variável descartável testa o CAMINHO sem tocar no segredo, e evita pedir à
+pessoa que recole uma chave que já estava certa — o que teria "consertado" por
+acidente e ensinado a lição errada.
+
+### Como medir presença sem NUNCA imprimir valor
+
+```bash
+fly ssh console -a nexo -C '/bin/sh -c "
+for v in MINHA_VAR OUTRA_VAR; do
+  eval val=\$$v
+  if [ -z "$val" ]; then echo "$v: AUSENTE/VAZIA"; else echo "$v: ${#val} caracteres"; fi
+done"'
+```
+
+O tamanho já distingue os casos que importam: ausente, vazia, ou presente com
+comprimento plausível (uma app key de 13 caracteres, um service id de 19).
+
+⚠️ **E leve um CONTROLE junto.** Ao medir `TIKTOK_PUBLIC` e receber zero, a
+primeira pergunta é se a sonda funciona: contar `SHOPEE_` (deu 4) e o
+`TIKTOK_` antigo (deu 3) provou que o ambiente respondia e que a ausência era
+real. Sem controle, "não achei" e "não sei procurar" são a mesma saída.
+
+📌 Vale procurar o nome em **qualquer posição da linha**, com `cat -A`: nome
+com espaço à esquerda ou caractere invisível — coisa que colar no painel
+produz — não casa com `grep "^MINHA_VAR"` e passaria por ausente.
+
+📌 Esta é a mesma família de **"release criado não é release no ar"** e de
+**"migration aplicada não é leitor com a coluna"**: em todas, o painel conhece
+um passo e o mundo depende do seguinte.
+
 ## 8. O piloto — e o que ele precisa provar
 
 **A decisão aprovada é testar, não migrar.** O cutover só acontece depois que a medição
