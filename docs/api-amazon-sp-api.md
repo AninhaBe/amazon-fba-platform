@@ -208,6 +208,35 @@ Amazon*. Se o papel for concedido, o caminho é `transportationOptions` da 2024-
 
 ## Changelog observado (mais recente primeiro)
 
+- **2026-09-06 — O `orderMetrics` EXCLUI pedido cancelado. Medido 7 de 7 dias.**
+  Comparação dia a dia entre o `orderMetrics` e o nosso canônico, na conta
+  `AO62LVXJMX3AA`:
+
+  | dia | orderMetrics | não-cancelados | cancelados | total |
+  |---|---|---|---|---|
+  | 29/08 | 4 | **4** | 1 | 5 |
+  | 30/08 | 3 | **3** | 0 | 3 |
+  | 31/08 | 3 | **3** | 0 | 3 |
+  | 01/09 | 4 | **4** | 0 | 4 |
+  | 03/09 | 2 | **2** | 2 | 4 |
+  | 04/09 | 2 | **2** | 1 | 3 |
+  | 05/09 | 3 | **3** | 1 | 4 |
+
+  **7 de 7 batem com os não-cancelados; zero batem com o total.** Ou seja: o
+  cancelamento sai do faturamento da própria Amazon, e o nosso produtor (que
+  filtra `status <> 'cancelled'`) está de acordo com a fonte.
+
+  ⚠️ **E A LIÇÃO DE MÉTODO É MAIS ÚTIL QUE O FATO.** No dia anterior rodei a
+  MESMA comparação na conta `A15NQMF7A6J1Y0` e o resultado foi *"não bate com
+  nenhuma das duas hipóteses"* — que eu quase registrei aqui como comportamento
+  estranho da API. Não era: aquela conta tem centenas de pedidos por dia e a
+  ingestão fica para trás, então eu comparava a API contra um retrato
+  **incompleto meu**.
+
+  📌 **Conta grande não serve para calibrar contra a fonte.** Para perguntar "a
+  API inclui ou exclui X?", use a conexão pequena e totalmente ingerida — e
+  quando os dois lados divergirem, desconfie primeiro do lado que você controla.
+
 - **2026-09-04 — A ISENÇÃO DA TARIFA DE INDICAÇÃO É INFERIDA DO EXTRATO, por
   conta.** Regra da dona do produto, verbatim: *"A isenção depende de conta pra
   conta e só acaba quando atingir o teto de faturamento. Você pode se basear

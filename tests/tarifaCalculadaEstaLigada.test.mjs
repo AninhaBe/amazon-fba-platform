@@ -40,9 +40,15 @@ const FONTES = todosOsFontes().map((u) => ({ url: u, texto: readFileSync(u, "utf
 const DEFINICAO = "amazonTarifaEstimada.ts";
 
 // Produtores que precisam rodar sozinhos, e por que cada um esta na lista.
+// ⚠️ A LISTA JA FALHOU POR SER CURTA (06/09/2026). Ela so tinha os PRODUTORES,
+// e passou verde enquanto `carimbarEstimativasSubstituidas` — a funcao que
+// APAGA — ficava sem chamador, com 252 estimativas vivas em pedidos que ja
+// tinham tarifa real. Guarda com lista fechada so cobre o que alguem lembrou de
+// listar; ao criar funcao deste modulo que precisa RODAR, acrescente aqui.
 const PRODUTORES = [
   ["estimarPelaTabela", "a tarifa calculada do pendente — o que a vendedora ve"],
   ["estimarTarifaDosPedidosSemTarifa", "a estimativa pela tarifa observada"],
+  ["carimbarEstimativasSubstituidas", "o carimbo do que a realidade ja substituiu"],
 ];
 
 test("todo produtor de tarifa tem quem o chame", async (t) => {
@@ -68,5 +74,22 @@ test("a tarifa pela tabela roda nos DOIS caminhos do sync da Amazon", async (t) 
   await t.test("🔴 no caminho pontual", () => {
     assert.ok(sync.includes("await estimarPelaTabela(connectionId).catch("),
       "o caminho pontual alcanca os recentes; sem ele a tela demora um ciclo inteiro");
+  });
+});
+
+test("o carimbo das substituidas roda nos DOIS caminhos", async (t) => {
+  // ⚠️ ESTA GUARDA NASCEU DE UMA FALHA DELA MESMA (06/09/2026). A checagem
+  // generica acima exige apenas que a funcao TENHA algum chamador — e ela ficou
+  // VERDE quando removi a etapa do laco de conciliacao, porque o caminho
+  // pontual ainda existia. "Tem chamador" nao e "roda onde precisa": o laco e
+  // quem alcanca a conta inteira a cada ciclo; o pontual so os recentes.
+  const sync = readFileSync(new URL("lib/integrations/amazonSync.ts", raiz), "utf8");
+  await t.test("🔴 no laco de conciliacao", () => {
+    assert.ok(sync.includes('["carimbarSubstituidas", () => carimbarEstimativasSubstituidas(connectionId)'),
+      "sem esta etapa a estimativa substituida vive para sempre — eram 252 vivas com tarifa real ao lado");
+  });
+  await t.test("🔴 no caminho pontual", () => {
+    assert.ok(sync.includes("await carimbarEstimativasSubstituidas(connectionId).catch("),
+      "o pontual carimba o que acabou de chegar, sem esperar o ciclo");
   });
 });

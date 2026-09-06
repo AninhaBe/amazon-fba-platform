@@ -89,6 +89,24 @@ conforme for concluindo.
   ao registrar o TikTok, porque a mesma pergunta ("quem ainda diz que isto está
   bloqueado?") revelou os dois. **Estado de terceiro que só se mede abrindo
   painel envelhece calado, e o pendente que sobrevive à causa vira mentira.**
+- [ ] **Amazon: `superseded_at` carrega DOIS significados — dívida assumida em 06/09/2026.**
+  Desde a correção do cancelamento, a coluna significa **"a tarifa real chegou"**
+  *e* **"o pedido foi cancelado"**. Para todo leitor de hoje o efeito é idêntico
+  (a estimativa não vale mais), e foi por isso que valeu a pena — mas é
+  exatamente a família de *"coluna que dois escritores tocam tem dois
+  significados"* do `AGENTS.md`, que já custou 11 horas sem varredura no ML.
+
+  **CRITÉRIO DE MORTE — quando isto vira trabalho:** no dia em que alguém
+  precisar distinguir os dois casos (auditar quantas estimativas a realidade
+  substituiu vs. quantas o cancelamento matou; medir a pontaria da tarifa
+  calculada; ou explicar na tela por que um número sumiu). Aí a resposta é
+  **coluna de motivo por migration**, não um `LIKE` no `provider_fee_code`.
+
+  ⚠️ E aí a pergunta obrigatória se aplica inteira: **quem lê isso agora?**
+  Hoje o `status` do próprio pedido responde qual foi — a distinção é
+  recuperável, só não é direta. Enquanto ninguém precisar, isto é dívida
+  registrada; sem registro central, dívida apodrece em silêncio.
+
 - [ ] **Amazon: o card de Repasse passa a dizer o que a API já sabe.**
   ⚠️ **Aprovado pela dona do produto depois de um incidente real:** ela perguntou
   *"os saques que estou fazendo estão indo pra onde?"* e a medição respondeu que

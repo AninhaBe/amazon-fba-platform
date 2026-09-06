@@ -1,5 +1,5 @@
 import { dbQuery, hasDb } from "../db";
-import { estimarPelaTabela, estimarTarifaDosPedidosSemTarifa } from "./amazonTarifaEstimada";
+import { carimbarEstimativasSubstituidas, estimarPelaTabela, estimarTarifaDosPedidosSemTarifa } from "./amazonTarifaEstimada";
 import { currentWorkspaceId } from "../workspaceScope";
 import { runWithAccount, type AccountCtx } from "../accountContext";
 import { getOrder, getOrders, getOrderItems } from "../orders";
@@ -596,6 +596,27 @@ export async function runAmazonSyncStep(account: AccountCtx, forcarJanela = fals
               motivo: erro instanceof Error ? erro.message.slice(0, 200) : "erro desconhecido",
             });
           })],
+          // ⚠️ E O CARIMBO DAS SUBSTITUIDAS, que tambem nao tinha chamador
+          // nenhum em src/ ate 06/09/2026 — so um script rodado a mao.
+          //
+          // 🔴 Medido: 279 estimativas carimbadas (as execucoes manuais) contra
+          // **252 vivas em pedidos que JA TEM tarifa real do mesmo tipo**,
+          // R$ 1.172,49. A view efetiva ja escolhe a real, entao nenhum numero
+          // da tela estava errado — o que crescia era o lixo.
+          //
+          // 📌 E a MESMA familia do `estimarPelaTabela`, que eu liguei em
+          // 04/09: funcao exportada, testada, e sem quem a chamasse. A guarda
+          // que escrevi naquele dia listava os PRODUTORES de tarifa e nao pegou
+          // esta, que e a que APAGA. Guarda com lista fechada so cobre o que
+          // alguem lembrou de listar.
+          //
+          // DEPOIS das tarifas reais e das estimativas: carimba o que a
+          // realidade ja substituiu, e o que o cancelamento tornou impossivel.
+          ["carimbarSubstituidas", () => carimbarEstimativasSubstituidas(connectionId).catch((erro) => {
+            console.error("[amazon] carimbo de estimativas falhou", {
+              motivo: erro instanceof Error ? erro.message.slice(0, 200) : "erro desconhecido",
+            });
+          })],
           // Captura o valor de tabela enquanto o pedido ainda tem um: a Amazon zera
           // o cancelado em toda API de pedido, então depois não há de onde tirar.
           // Ele mesmo se espaça (3h) — chamar todo ciclo não gera relatório todo ciclo.
@@ -726,6 +747,11 @@ export async function runAmazonSyncStep(account: AccountCtx, forcarJanela = fals
       });
       await estimarPelaTabela(connectionId).catch((erro) => {
         console.error("[amazon] tarifa pela tabela falhou", {
+          motivo: erro instanceof Error ? erro.message.slice(0, 200) : "erro desconhecido",
+        });
+      });
+      await carimbarEstimativasSubstituidas(connectionId).catch((erro) => {
+        console.error("[amazon] carimbo de estimativas falhou", {
           motivo: erro instanceof Error ? erro.message.slice(0, 200) : "erro desconhecido",
         });
       });
