@@ -343,6 +343,29 @@ export async function estimarTarifaDosPedidosSemTarifa(
  * Por (pedido, `fee_type`), pela mesma razão do resto: a comissão oficial não
  * substitui a estimativa de logística que a Amazon ainda não postou.
  */
+/**
+ * ⚠️ E O PEDIDO CANCELADO TAMBEM CARIMBA — a estimativa dele fica ORFA senao.
+ *
+ * 🔴 MEDIDO EM 06/09/2026: 16 linhas de estimativa vivas em 8 pedidos
+ * cancelados da Amazon, R$ 54,77, e **nenhuma jamais carimbada** — o contador
+ * era 0. Um dia antes eram 8 linhas / R$ 25,85: **acumula**, nao e caso
+ * isolado. A causa e simples: este carimbo so dispara quando existe tarifa REAL
+ * para o mesmo pedido e tipo, e a Amazon **nunca cobra tarifa de pedido
+ * cancelado** — entao a condicao nunca se satisfaz e a linha vive para sempre.
+ *
+ * 📌 Hoje isso NAO corrompe numero nenhum: todo leitor de tarifa filtra
+ * `o.status <> 'cancelled'`, e eu conferi. O que se conserta aqui e outra
+ * coisa — **linha que nunca morre e divida que cresce**, e o primeiro leitor que
+ * esquecer o filtro passa a contar tarifa de venda que nao aconteceu.
+ *
+ * ⚠️ CONFLACAO ASSUMIDA, e digo em vez de esconder: `superseded_at` passa a
+ * significar duas coisas — "a tarifa real chegou" e "o pedido foi cancelado".
+ * Para TODO leitor de hoje o efeito e identico (a estimativa nao vale mais), e
+ * por isso vale a pena. Mas e a familia de "coluna que dois escritores tocam
+ * tem dois significados": quem precisar distinguir os dois casos vai precisar
+ * de uma coluna de motivo, e ai e migration. Enquanto ninguem precisar, o
+ * status do proprio pedido responde qual foi.
+ */
 export async function carimbarEstimativasSubstituidas(connectionId: string): Promise<number> {
   const { dbQuery } = await import("../db");
   const { currentWorkspaceId } = await import("../workspaceScope");
@@ -352,11 +375,21 @@ export async function carimbarEstimativasSubstituidas(connectionId: string): Pro
           SET superseded_at = now()
         WHERE e.workspace_id = $1 AND e.provider = 'amazon' AND e.connection_id = $2
           AND e.superseded_at IS NULL
-          AND EXISTS (SELECT 1 FROM workspace_channel_order_fees r
-                       WHERE r.workspace_id = e.workspace_id AND r.provider = e.provider
-                         AND r.connection_id = e.connection_id
-                         AND r.external_order_id = e.external_order_id
-                         AND r.fee_type = e.fee_type)
+          AND (
+            -- (1) a tarifa REAL chegou para este pedido e tipo
+            EXISTS (SELECT 1 FROM workspace_channel_order_fees r
+                     WHERE r.workspace_id = e.workspace_id AND r.provider = e.provider
+                       AND r.connection_id = e.connection_id
+                       AND r.external_order_id = e.external_order_id
+                       AND r.fee_type = e.fee_type)
+            -- (2) ou o pedido foi CANCELADO: nao havera tarifa real nenhuma,
+            --     e sem esta clausula a estimativa vive para sempre.
+            OR EXISTS (SELECT 1 FROM workspace_channel_orders o
+                        WHERE o.workspace_id = e.workspace_id AND o.provider = e.provider
+                          AND o.connection_id = e.connection_id
+                          AND o.external_order_id = e.external_order_id
+                          AND o.status = 'cancelled')
+          )
         RETURNING 1
      )
      SELECT COUNT(*)::text AS n FROM carimbadas`,
