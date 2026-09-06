@@ -171,6 +171,25 @@ dois dias: **nome plausível + tipo que não distingue + falha silenciosa** —
 TypeScript feliz, SQL sem erro, e só a medição do EFEITO (linhas atualizadas,
 divisão conferida) denuncia.
 
+**Guarda com LISTA FECHADA só cobre o que alguém lembrou de listar.** A guarda
+de "todo produtor de tarifa tem quem o chame" (04/09/2026) enumerava os
+produtores e não viu a função que APAGA — `carimbarEstimativasSubstituidas`
+ficou dois dias sem chamador, com 252 estimativas vivas ao lado da tarifa real
+que já as substituía. Ao enumerar, escreva no próprio teste o que a lista NÃO
+cobre e quando ela precisa crescer.
+
+**"Tem chamador" não é "roda onde precisa".** A mesma guarda ficou VERDE quando
+a etapa foi removida do laço de conciliação, porque o caminho pontual ainda
+chamava a função (06/09/2026). Os dois caminhos existem por razões diferentes —
+o laço alcança a conta inteira a cada ciclo, o pontual só os recentes. Asserção
+por CAMINHO, uma para cada, ou a quebra de um passa despercebida.
+
+**Medição logo após o deploy pega o sistema no meio do passo.** Dois minutos
+depois da v281 ainda havia 12 linhas por carimbar e eu ia reportar "só pegou uma
+conexão" — o ciclo seguinte as carimbou durante a investigação (06/09/2026). O
+número que vale é o do ciclo COMPLETO da cadência daquele canal, não o do minuto
+seguinte ao deploy.
+
 **Dado que não exercita a regra não testa a regra.** Quando a amostra real fica
 inteira de UM lado de uma fronteira (teto de faixa, kg adicional, limite de
 paginação), a fronteira nunca é exercida — e o teste que só usa dados reais fica
