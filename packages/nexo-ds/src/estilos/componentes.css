@@ -1,0 +1,410 @@
+/* ============================================================================
+   NEXO Design System — REGRAS DOS COMPONENTES
+   ============================================================================
+
+   ⚠️ COPIADO de `src/app/globals.css` em 06/09/2026, regra por regra, sem
+   reescrita. A fidelidade e o produto aqui: um pacote que "parece" o app nao
+   serve para decidir nada sobre o app.
+
+   As regras estao agrupadas por peca e mantem os comentarios originais. Quando
+   uma classe aparece em mais de um lugar do `globals.css` (regra base + media
+   query + variante), as ocorrencias vem todas, na ordem em que aparecem la —
+   ordem de cascata e comportamento, nao formatacao.
+
+   ⚠️ Se voce esta lendo isto porque algo aqui diverge do app: o app esta
+   certo. Este arquivo e um retrato datado.
+   ============================================================================ */
+
+
+/* ── Mensagem do NEXO ────────────────────────────────────────────────── */
+.nexo-mensagem { display: flex; align-items: flex-start; gap: 12px; }
+.nexo-bot { animation: nexo-bot-float 3.6s ease-in-out infinite; }
+.nexo-bot-antena { animation: nexo-bot-antena 2.4s ease-in-out infinite; transform-origin: center; }
+
+/* ── Cartao de metrica ───────────────────────────────────────────────── */
+.compact-metric {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-inline-end: 1px solid var(--line);
+  /* Só tem efeito quando existe um terceiro filho (o hint); cards sem
+     explicação continuam numa linha só, exatamente como antes. */
+  flex-wrap: wrap;
+}
+.compact-metric:last-child { border-inline-end: 0; }
+.compact-metric:last-child .metric-info::after,
+.metric-cell:last-child .metric-info::after { left: auto; right: 0; translate: 0 0; }
+.compact-metric p { color: var(--ink-muted); font-size: 12px; font-weight: 650; letter-spacing: .055em; text-transform: uppercase; }
+.compact-metric strong { color: var(--ink); font-size: 16px; font-weight: 720; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.metric-info {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 13px; height: 13px; margin-inline-start: 5px; border-radius: 50%;
+  border: 1px solid currentColor; opacity: .45; cursor: help;
+  font-size: 9px; font-weight: 700; font-style: italic; line-height: 1;
+  vertical-align: middle; position: relative;
+}
+.metric-info:hover, .metric-info:focus-visible { opacity: .9; outline: none; }
+.metric-info::after {
+  content: attr(data-dica);
+  position: absolute; bottom: calc(100% + 7px); left: 50%; translate: -50% 0;
+  /* 260px e não 210: desde 24/08 o "i" carrega a explicação que antes ficava
+     embaixo do número, e frases de duas orações quebravam em coluna estreita. */
+  width: max-content; max-width: 260px; z-index: 40;
+  padding: 7px 10px; border-radius: 8px;
+  background: var(--ink, #111827); color: white;
+  font: 400 12.5px/1.5 inherit; font-style: normal; text-align: start;
+  letter-spacing: normal; white-space: normal;
+  opacity: 0; visibility: hidden; transition: opacity .12s ease;
+  box-shadow: 0 6px 18px oklch(0 0 0 / .22);
+}
+.metric-info:hover::after, .metric-info:focus-visible::after { opacity: 1; visibility: visible; }
+.revenue-trend { display: inline-flex; align-items: center; gap: 4px; border-radius: var(--radius-badge); padding: 5px 8px; font-size: 12px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+.revenue-trend svg { width: 13px; height: 13px; }
+.metric-grid {
+  display: flex !important;
+  min-width: 0;
+  gap: 0 !important;
+  overflow-x: auto;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+/* ── Faixa do resultado (cockpit) ────────────────────────────────────── */
+.cockpit-faixa {
+  display: flex;
+  align-items: stretch;
+  border-block-end: 1px solid var(--ink-08);
+}
+.cockpit-faixa { --ml-verde: #337129; --ml-coluna: #17171733; }
+.cockpit-resultado { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px; padding: 26px 30px 26px 28px; }
+.cockpit-ao-lado {
+  flex: 0 0 470px;
+  min-width: 0;
+  padding: 26px 28px;
+  border-inline-start: 1px solid var(--ink-08);
+}
+.cockpit-kicker {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+}
+.cockpit-kicker.is-menor { font-size: 10px; letter-spacing: .04em; }
+.cockpit-linha { display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; }
+.cockpit-lucro {
+  color: var(--ink);
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -.02em;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+.cockpit-lucro.is-positive { color: var(--ml-verde); }
+.cockpit-lucro.is-negative { color: var(--danger); }
+.cockpit-frase { margin: 0; color: var(--ink-muted); font-size: 12px; line-height: 1.5; }
+.cockpit-frase strong { color: var(--ink); font-weight: 600; }
+.cockpit-cascata { display: flex; height: 10px; border-radius: 5px; overflow: hidden; }
+.cockpit-cascata > span { flex-basis: 0; min-width: 2px; }
+.cockpit-legenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.cockpit-legenda li { display: inline-flex; align-items: center; gap: 5px; }
+.cockpit-marca { display: inline-block; width: 7px; height: 7px; border-radius: 2px; }
+.cockpit-pendencias {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 28px;
+  border-block-end: 1px solid var(--ink-08);
+}
+.cockpit-chip {
+  border: 1px solid var(--ink-12);
+  border-radius: 999px;
+  padding: 4px 12px;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+.cockpit-chip:hover { border-color: var(--ink); color: var(--ink); }
+.cockpit-chip.is-acao { border-color: var(--warning); color: var(--warning); font-weight: 600; }
+
+/* ── Regua de dias ───────────────────────────────────────────────────── */
+.lucro-por-dia {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-block-start: 2px;
+  border-block-start: 1px solid var(--ink-08);
+  padding-block-start: 10px;
+}
+.lucro-colunas {
+  display: flex;
+  /* ⚠️ `stretch`, e nao `flex-end`: as colunas precisam TER a altura da
+     regua para que a barra la dentro possa ser uma PORCENTAGEM dela. Com
+     `flex-end` a coluna fica do tamanho do conteudo, altura percentual nao tem
+     contra o que resolver, e toda barra vira 0px — medido, nao suposto. */
+  align-items: stretch;
+  gap: 8px;
+  /* ⚠️ A REGUA CRESCE PORQUE O TOPO ENCOLHEU (06/09/2026). Numero e
+     frase na mesma linha, cascata de 10px e legenda de 11px liberaram altura na
+     coluna esquerda, e a ordem foi aproveita-la: barras MAIS ALTAS que hoje.
+     Como o valor e o dia dividem esta altura com a pista, a regua e maior que a
+     pista — com 96px a barra mais alta media 50px. Medido a cada mudanca. */
+  height: 114px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lucro-coluna {
+  display: grid;
+  flex: 1;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  justify-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+.lucro-coluna.is-destaque .lucro-valor,
+.lucro-coluna.is-destaque .lucro-dia { color: var(--ml-verde); font-weight: 700; }
+.lucro-coluna.is-destaque .lucro-dia { color: var(--ml-verde); font-weight: 700; }
+.lucro-coluna.is-destaque .lucro-barra { background: var(--ml-verde); }
+.lucro-coluna.is-negativo .lucro-barra { background: var(--danger); }
+.lucro-coluna.is-negativo .lucro-valor { color: var(--danger); }
+.lucro-coluna.is-desconhecido .lucro-barra {
+  height: 0 !important;
+  border-block-start: 1px dashed var(--ink-12);
+  background: transparent;
+}
+.lucro-valor, .lucro-dia {
+  color: var(--ink-32);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+.lucro-barra {
+  width: 100%;
+  /* A fracao vem da peca; o "vezes 100" e geometria e mora aqui. */
+  height: calc(var(--fracao, 0) * 100%);
+  min-height: 0;
+  /* Encostada na base da pista: e o chao que da a leitura de altura. */
+  align-self: end;
+  border-radius: 3px 3px 0 0;
+  background: var(--ml-coluna);
+}
+
+/* ── Top produtos na faixa ───────────────────────────────────────────── */
+.top-faixa { display: flex; flex-direction: column; gap: 10px; }
+.top-faixa-cabecalho { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.top-faixa-meta { margin: 0; color: var(--ink-muted); font-size: 11px; }
+.top-faixa-meta a { color: inherit; text-decoration: none; }
+.top-faixa-meta a:hover { color: var(--ink); text-decoration: underline; }
+.top-faixa-lista { margin: 0; padding: 0; list-style: none; }
+.top-faixa-lista li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-block-end: 1px solid var(--ink-08);
+  padding: 5px 0;
+}
+.top-faixa-rank {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  background: var(--ink-08);
+  color: var(--ink-muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+.top-faixa-titulo {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.top-faixa-unidades { flex-shrink: 0; width: 44px; color: var(--ink-32); font-size: 11px; text-align: end; }
+.top-faixa-valor { flex-shrink: 0; width: 70px; font-size: 12px; font-variant-numeric: tabular-nums; text-align: end; }
+.top-faixa-margem {
+  flex-shrink: 0;
+  width: 48px;
+  border-radius: 5px;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.top-faixa-margem.is-positive { background: color-mix(in srgb, var(--ml-verde) 10%, transparent); color: var(--ml-verde); }
+.top-faixa-margem.is-warning { background: color-mix(in srgb, var(--warning) 14%, transparent); color: var(--warning); }
+.top-faixa-margem.is-negative { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger); }
+.top-faixa-margem.is-unknown { background: var(--ink-08); color: var(--ink-32); }
+.top-faixa-nota { margin: 0; color: var(--ink-32); font-size: 10px; }
+.top-faixa-vazio { margin: 0; color: var(--ink-muted); font-size: 13px; }
+
+/* ── Linha de rentabilidade ──────────────────────────────────────────── */
+.profit-sale { overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--paper); box-shadow: none; transition: box-shadow 160ms ease, border-color 160ms ease; }
+.profit-sale:hover, .profit-sale.is-expanded { box-shadow: var(--shadow-hover); }
+.profit-sale-main { display: grid; min-height: 92px; grid-template-columns: minmax(250px, 1.35fr) minmax(170px, .75fr) minmax(400px, 1.5fr) 40px; align-items: center; gap: 18px; padding: 14px 16px; }
+.profit-sale-product { min-width: 0; }
+.profit-sale-product strong { display: -webkit-box; overflow: hidden; color: var(--ink); font-size: 14px; font-weight: 720; letter-spacing: -.01em; line-height: 1.32; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.profit-sale-product small { margin-inline-start: 7px; color: var(--ink-muted); font-size: 12px; }
+.profit-sale-sku { display: inline-flex; margin-block-start: 6px; color: var(--ink-muted); font-size: 12px; font-weight: 600; font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace; letter-spacing: 0; }
+.profit-sale-meta { display: grid; min-width: 0; gap: 4px; border-inline-start: 1px solid var(--line); padding-inline-start: 16px; }
+.profit-sale-meta span { overflow: hidden; color: var(--ink-muted); font-size: 12px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.profit-sale-meta .is-pendente { color: var(--warning); font-weight: 700; }
+.profit-equation { display: grid; min-width: 0; grid-template-columns: minmax(88px, 1fr) 16px minmax(88px, 1fr) 16px minmax(108px, 1fr); align-items: center; gap: 7px; }
+.profit-equation > div { min-width: 0; }
+.profit-equation > div > span { display: block; color: var(--ink-muted); font-size: 12px; font-weight: 720; letter-spacing: .075em; line-height: 1.2; text-transform: uppercase; }
+.profit-equation > div > strong { display: block; margin-block-start: 4px; overflow: hidden; color: var(--ink); font-size: 13px; font-weight: 760; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
+.profit-equation > i { color: var(--ink-muted); font-size: 15px; font-style: normal; text-align: center; }
+.profit-equation .is-cost > strong { color: var(--ink-soft); }
+.profit-equation .profit-result { display: flex; min-width: 0; margin-block-start: 3px; flex-direction: row; align-items: baseline; gap: 6px; }
+.profit-equation .profit-result strong { white-space: nowrap; }
+.profit-equation .profit-result span { margin: 0; border-radius: var(--radius-badge); padding: 2px 5px; color: white; font-size: 12px; }
+.profit-equation .profit-result.is-positive span { background: var(--positive); }
+.profit-equation .profit-result.is-warning span { background: var(--warning); }
+.profit-equation .profit-result.is-negative span { background: var(--danger); }
+.profit-result { display: inline-flex; min-width: 92px; flex-direction: column; align-items: flex-end; }
+.profit-result strong { font-size: 13px; font-weight: 760; font-variant-numeric: tabular-nums; }
+.profit-result span { margin-block-start: 2px; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.profit-result.is-positive { color: var(--positive); }
+.profit-result.is-warning { color: var(--warning); }
+.profit-result.is-negative { color: var(--danger); }
+.profit-expand { display: grid; width: 40px; min-width: 40px; min-height: 40px; place-items: center; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--paper-soft); color: var(--ink-soft); transition-property: background-color, border-color, color; transition-duration: 160ms; }
+.profit-expand:hover { border-color: var(--channel-accent); background: var(--channel-accent-soft); color: var(--channel-accent-dark); }
+.profit-expand span { font-size: 18px; font-weight: 800; line-height: 1; transform: rotate(0); transition-property: transform; transition-duration: 160ms; }
+.profit-expand[aria-expanded="true"] span { transform: rotate(180deg); }
+.profit-sale-details { border-block-start: 1px solid var(--line); background: color-mix(in oklch, var(--channel-accent-soft) 35%, white); padding: 14px 16px 16px; }
+
+/* ── Estado vazio ────────────────────────────────────────────────────── */
+.empty-state {
+  display: flex;
+  min-height: 168px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+  max-width: 560px;
+  margin-inline: auto;
+  padding: 24px;
+  text-align: center;
+}
+.empty-state.is-compact { min-height: 112px; flex-direction: row; justify-content: flex-start; padding: 18px; text-align: start; }
+.empty-state.is-compact .empty-state-icon { width: 36px; height: 36px; flex: none; border-radius: 11px; }
+.empty-state.is-compact .empty-state-description { max-width: 40ch; }
+
+/* ── Aviso de cobertura / base de data ───────────────────────────────── */
+.base-de-data { max-width: 92ch; margin-block: 2px 10px; color: var(--ink-muted); font-size: 12px; line-height: 16px; text-wrap: pretty; }
+.base-de-data strong { color: var(--ink-soft); font-weight: var(--weight-semibold); }
+.progresso-da-importacao { display: flex; align-items: center; gap: 10px; }
+.sync-chip-track { position: relative; display: block; width: 88px; height: 6px; flex: 0 0 auto; overflow: hidden; border-radius: 999px; background: oklch(0.9 0 0); }
+.sync-chip-track i { position: absolute; inset-block: 0; inset-inline-start: 0; border-radius: 999px; background: var(--warning); transition: width .6s cubic-bezier(.2, 0, 0, 1); }
+.sync-chip-track.is-indeterminate i { width: 40%; animation: sync-indeterminate 1.6s cubic-bezier(.4, 0, .6, 1) infinite; }
+.sync-chip { display: flex; align-items: center; gap: 12px; border-radius: var(--radius-sm); background: var(--paper-warm); padding: 10px 14px; box-shadow: inset 0 0 0 1px oklch(0.84 0.075 76 / .6); }
+.sync-chip p { color: oklch(0.43 0.08 65); font-size: 12px; line-height: 1.4; }
+
+/* ── Esqueleto de carregamento ───────────────────────────────────────── */
+.dashboard-skeleton { display: grid; gap: 24px; }
+.skeleton-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); overflow: hidden; border-radius: var(--radius-lg); background: var(--paper); box-shadow: var(--shadow-surface); }
+.skeleton-cell { display: grid; min-height: 132px; align-content: center; gap: 12px; border-inline-end: 1px solid var(--line); padding: 20px; }
+.skeleton-cell:last-child { border-inline-end: 0; }
+.skeleton-cell i, .skeleton-panel > i {
+  position: relative;
+  display: block;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--line);
+}
+.skeleton-cell i.is-strong { height: 22px; border-radius: 7px; }
+.skeleton-cell i::after, .skeleton-panel > i::after, .skeleton-chart::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, oklch(1 0 0 / .75), transparent);
+  animation: skeleton-sweep 1.4s ease-in-out infinite;
+}
+.skeleton-panel { display: grid; gap: 16px; border-radius: var(--radius-lg); background: var(--paper); padding: 22px; box-shadow: var(--shadow-surface); }
+.skeleton-panel > i { height: 13px; }
+.skeleton-chart { position: relative; display: block; height: 210px; overflow: hidden; border-radius: var(--radius-sm); background: var(--paper-soft); }
+.skeleton-table { display: grid; gap: 12px; border-radius: var(--radius-lg); background: var(--paper); padding: 22px; box-shadow: var(--shadow-surface); }
+.inline-loading { display: grid; min-height: 100px; align-content: center; gap: 9px; padding: 18px 10%; }
+.inline-loading i:nth-of-type(1) { width: 72%; }
+.inline-loading i:nth-of-type(2) { width: 92%; }
+.inline-loading i:nth-of-type(3) { width: 58%; }
+.panel-loading { display: grid; min-height: 190px; align-content: center; gap: 14px; border-radius: var(--radius-md); background: var(--paper-soft); padding: 28px; }
+.panel-loading i { height: 16px; }
+.panel-loading i:nth-of-type(1) { width: 42%; }
+.panel-loading i:nth-of-type(2) { width: 78%; }
+.panel-loading i:nth-of-type(3) { width: 61%; }
+
+/* ── Seletor de periodo ──────────────────────────────────────────────── */
+.dashboard-period-presets { display: flex; flex-wrap: wrap; gap: 6px; border-radius: 0; background: none; padding: 0; }
+.dashboard-period-presets button {
+  display: inline-flex; align-items: center; height: 32px; min-height: 32px;
+  border-radius: var(--radius-sm); padding-inline: 10px;
+  background: var(--paper); color: var(--ink);
+  font-size: 14px; font-weight: var(--weight-body); letter-spacing: var(--track-m);
+  box-shadow: var(--shadow-xs);
+  transition: background-color var(--duration) var(--ease), box-shadow var(--duration) var(--ease);
+}
+.dashboard-period-presets button:hover { background: var(--ink-05); }
+.dashboard-period-presets button.is-active {
+  background: var(--brand); color: var(--paper);
+  box-shadow: var(--shadow-inset-highlight), 0 0 0 1px var(--brand);
+}
+.dashboard-period-presets button:active, .dashboard-period-apply:active { transform: scale(.96); }
+.dashboard-period-apply {
+  display: inline-flex; min-height: 42px; align-items: center; justify-content: center; gap: 7px; border-radius: var(--radius-sm);
+  background: var(--brand); padding-inline: 15px; color: var(--paper); font-size: 12px; font-weight: 750; box-shadow: var(--shadow-xs);
+  transition: background-color var(--duration) var(--ease), box-shadow var(--duration) var(--ease), transform var(--duration) var(--ease);
+}
+.dashboard-period-apply svg { width: 14px; height: 14px; transition: transform var(--duration) var(--ease); }
+.dashboard-period-apply:hover { background: color-mix(in oklch, var(--brand) 88%, white); box-shadow: var(--shadow-hover); transform: translateY(-1px); }
+.dashboard-period-apply:hover svg { transform: translateX(2px); }
+.dashboard-period-meta { margin-inline-start: auto; color: var(--ink-muted); font-size: 13px; line-height: 18px; white-space: nowrap; }
+.dashboard-custom-period {
+  display: grid; min-width: 0; flex: 1 0 100%; grid-template-columns: minmax(190px, .6fr) minmax(330px, auto) auto; align-items: end; gap: 14px;
+  margin-block-start: 4px; border: 1px solid var(--line); border-radius: var(--radius-md); background: color-mix(in oklch, var(--paper-soft) 78%, white);
+  padding: 12px; box-shadow: var(--shadow-xs); animation: dashboard-custom-period-enter 180ms cubic-bezier(.2, 0, 0, 1) both;
+}
+.dashboard-custom-period input {
+  width: 100%; min-height: 42px; border: 1px solid transparent; border-radius: var(--radius-sm); background: var(--paper);
+  padding-inline: 10px; color: var(--ink); font: inherit; font-size: 13px; font-weight: 620; color-scheme: light; box-shadow: var(--shadow-xs);
+  transition: border-color var(--duration) var(--ease), box-shadow var(--duration) var(--ease), background-color var(--duration) var(--ease);
+}
+.dashboard-custom-period input:hover { border-color: var(--line-strong); }
+.dashboard-custom-period input:focus-visible { outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px var(--ink-08), var(--shadow-xs); }
+.dashboard-custom-period > p { grid-column: 2 / -1; margin: -2px 0 0; padding: 0 2px 2px; color: var(--danger); font-size: 12px; }
+.dashboard-custom-period-fields { display: grid; grid-template-columns: minmax(144px, 1fr) 18px minmax(144px, 1fr); align-items: end; gap: 8px; }
+.dashboard-custom-period-fields label { display: grid; min-width: 0; gap: 5px; color: var(--ink-muted); font-size: 10px; font-weight: 760; letter-spacing: .07em; text-transform: uppercase; }
+.dashboard-custom-period-fields label > span { padding-inline-start: 2px; }
+.dashboard-custom-period-fields > svg { width: 14px; height: 14px; align-self: center; color: var(--ink-muted); }
+.dashboard-custom-period-intro { display: flex; min-width: 0; align-items: center; gap: 10px; align-self: center; }
+.dashboard-custom-period-intro > span { display: grid; width: 36px; height: 36px; flex: 0 0 auto; place-items: center; border-radius: 9px; background: var(--paper); color: var(--ink-soft); box-shadow: var(--shadow-xs); }
+.dashboard-custom-period-intro svg { width: 17px; height: 17px; }
+.dashboard-custom-period-intro div { display: grid; gap: 2px; }
+.dashboard-custom-period-intro strong { color: var(--ink); font-size: 13px; font-weight: 720; letter-spacing: -.01em; }
+.dashboard-custom-period-intro small { color: var(--ink-muted); font-size: 11px; }
+
+/* ── Acao primaria ───────────────────────────────────────────────────── */
+.central-empty > a, .meli-primary-action { display: inline-flex; min-height: 44px; align-items: center; gap: 10px; border-radius: var(--radius-sm); background: var(--brand); padding: 0 14px 0 16px; color: white; font-size: 13px; font-weight: 750; }

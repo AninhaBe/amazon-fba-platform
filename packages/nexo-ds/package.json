@@ -1,0 +1,24 @@
+{
+  "name": "@nexo/ds",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Design system do NEXO — retrato do design em producao, apresentacional e sem dependencia do app.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
+    "./estilos/tokens.css": "./src/estilos/tokens.css",
+    "./estilos/componentes.css": "./src/estilos/componentes.css"
+  },
+  "files": ["dist", "src/estilos"],
+  "scripts": {
+    "build": "node scripts/verificaExemplos.mjs && tsup && tsc -p tsconfig.build.json",
+    "verifica": "node scripts/verificaExemplos.mjs",
+    "tipos": "tsc -p tsconfig.json"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  }
+}

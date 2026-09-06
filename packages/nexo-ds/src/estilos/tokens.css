@@ -1,0 +1,186 @@
+/* ============================================================================
+   NEXO Design System — FUNDACOES
+   ============================================================================
+
+   ⚠️ ESTE ARQUIVO E UMA COPIA, NAO UMA MUDANCA DE CASA.
+
+   Os tokens abaixo foram copiados de `src/app/globals.css` em 06/09/2026,
+   verbatim, com os comentarios originais preservados — eles carregam as
+   decisoes (por que branco puro e exclusivo do modal, por que o contorno e a
+   ultima camada da sombra, por que a escada de opacidade existe). Reescrever
+   com "minhas palavras" perderia exatamente a parte que vale.
+
+   O `globals.css` do app continua sendo a fonte de verdade em producao e NAO
+   foi tocado. Este pacote e um RETRATO do design atual: se os dois divergirem,
+   quem esta certo e o app, e este arquivo e que esta velho.
+
+   Uso: importe `@nexo/ds/estilos/tokens.css` antes de qualquer componente.
+   ============================================================================ */
+
+:root {
+  /* ---- Cromo neutro (identidade monocromatica) ----
+     Escolhida a partir de peec.ai em 19/08/2026. A regra: a UNICA cor da
+     interface e a que significa alguma coisa. As cores com significado (canal,
+     positivo, alerta, perigo) estao logo abaixo e nao mudaram.
+     Ver `docs/identidade-visual.md`.
+
+     20/08/2026 — os valores sairam de aproximacao para MEDICAO. A primeira
+     passada foi feita olhando o peec.ai; esta foi lida do CSS servido por
+     app.peec.ai (657 custom properties). O que mudou de fato:
+
+       1. Existem DUAS ancoras e mais nada: tinta `#171717` e superficie
+          `#fdfdfd`. Todo cinza e uma opacidade da tinta, nunca uma cor nova.
+          Se voce precisar de um cinza que nao esta aqui, use o degrau mais
+          proximo — inventar um degrau novo e o que desfaz o sistema.
+       2. Branco puro e EXCLUSIVO do modal. A pagina e os cards sao `#fdfdfd`,
+          entao o modal flutua por ser literalmente mais branco, antes da
+          sombra entrar em acao. Por isso `--paper` deixou de ser `oklch(1 0 0)`.
+       3. Card e canvas tem o MESMO preenchimento. O que separa os dois e o
+          anel de 1px, que e a ultima camada da sombra — nao um fundo mais
+          claro. E por isso que `--shadow-surface` termina em `0 0 0 1px`.
+       4. O raio cresce com a altura: 6 badge, 8 controle, 10 base, 12 menu,
+          16 card, 20 modal. Nao e escolha caso a caso, e regra. */
+
+  /* as duas ancoras */
+  --ink: #171717;
+  --paper: #fdfdfd;
+
+  /* a escada de opacidade da tinta — o coracao do sistema */
+  --ink-03: #17171708;   /* superficie rebaixada, sidebar */
+  --ink-05: #1717170d;   /* traco padrao, anel de 1px, item de nav ativo */
+  --ink-08: #17171714;   /* separador, fundo terciario, hover */
+  --ink-12: #1717171f;   /* traco forte, divisor dentro de campo */
+  --ink-32: #17171752;   /* label de campo */
+  --ink-50: #17171780;   /* header de tabela, prefixo, placeholder */
+  --ink-64: #171717a3;   /* texto secundario */
+
+  /* superficies */
+  --canvas: var(--paper);
+  --paper-soft: var(--ink-03);
+  --paper-warm: var(--ink-03);
+  --paper-modal: #ffffff;          /* so o modal. ver nota 2 acima */
+  --surface-hover: #f6f6f6;
+  --surface-active: #ececec;
+
+  /* tinta em quatro niveis */
+  --ink-soft: var(--ink-64);
+  --ink-muted: var(--ink-50);
+  --ink-faint: var(--ink-32);
+
+  /* tracos: o anel sai da escada, o divisor solido segura estrutura de tabela */
+  --line: var(--ink-05);
+  --line-strong: var(--ink-12);
+  --divider: #ebebeb;
+  /* `brand` era um azul. Numa identidade monocromatica a acao e preta: o azul
+     competia com o azul que o canal Amazon usa para dizer onde voce esta. */
+  --brand: var(--ink);
+  --brand-dark: #000000;
+  --brand-soft: var(--ink-05);
+  --core: oklch(0.685 0.158 48);
+  --core-soft: oklch(0.955 0 0);
+  --amazon: oklch(0.548 0.142 249);
+  --amazon-dark: oklch(0.438 0.127 249);
+  --amazon-soft: oklch(0.948 0 0);
+  --meli: oklch(0.895 0.166 96);
+  --meli-dark: oklch(0.365 0.067 92);
+  --meli-soft: oklch(0.974 0 0);
+  --shopee: oklch(0.596 0.198 30);
+  --shopee-dark: oklch(0.486 0.176 30);
+  --shopee-soft: oklch(0.957 0.031 32);
+  --tiktok: oklch(0.285 0 0);
+  --tiktok-dark: oklch(0.215 0 0);
+  --tiktok-soft: oklch(0.946 0 0);
+  --positive: oklch(0.505 0.102 161);
+  --positive-soft: oklch(0.956 0.027 160);
+  --warning: oklch(0.575 0.126 72);
+  --danger: oklch(0.545 0.17 27);
+  /* Pares de STATUS. `--positive`/`--positive-soft` ja existiam nesse formato;
+     os outros tres faltavam, e por isso metade dos chips do produto usava
+     Tailwind cru (`bg-red-100 text-red-700`) enquanto a outra metade da MESMA
+     estrutura usava token — visto em `estoque/page.tsx:27-33`, e repetido no
+     monitor e na curva ABC. O `-soft` segue a mesma receita do positivo:
+     lightness 0.956 e chroma 0.027 no matiz do par. */
+  --danger-soft: oklch(0.956 0.027 27);
+  --warning-soft: oklch(0.956 0.027 72);
+  /* `--info` = estado que nao e erro nem sucesso (excesso de estoque, transacao
+     neutra). Nao e matiz nova: e o azul do proprio sistema, o mesmo de --acao. */
+  --info: var(--amazon-dark);
+  --info-soft: oklch(0.956 0.027 249);
+  /* Papel ACAO (regra de enfase, 28/08/2026): o unico texto corrido que ganha
+     cor alem de alerta. NAO e cor nova — aponta para o azul que o produto ja
+     usa. Existe porque hoje o MESMO link de acao aparece como `text-sky-700`,
+     `text-blue-600` e `meli-primary-action`, tres tratamentos crus do Tailwind
+     fora do sistema de tokens, que ninguem consegue mudar num lugar so. */
+  --acao: var(--amazon-dark);
+  /* Elevacao. Nao existe `border` no sistema: o contorno e a ULTIMA camada da
+     sombra, um anel de 1px a 5%. E isso que faz contorno e sombra subirem
+     juntos como uma coisa so quando o elemento eleva — com `border` separado,
+     um sobe e o outro fica. */
+  --shadow-xs:
+    0 1px 2px 0 var(--ink-08),
+    0 0 0 1px var(--ink-05);
+  --shadow-surface:
+    0 1px 2px -1px var(--ink-08),
+    0 1px 3px 0 var(--ink-08),
+    0 0 0 1px var(--ink-05);
+  --shadow-hover:
+    0 2px 4px -2px oklch(0 0 0 / 0.1),
+    0 4px 6px -1px var(--ink-08),
+    0 0 0 1px var(--ink-05);
+  --shadow-lg:
+    0 4px 6px -4px oklch(0 0 0 / 0.1),
+    0 10px 15px -3px var(--ink-08),
+    0 0 0 1px var(--ink-08);
+  --shadow-modal:
+    0 0 0 0.5px oklch(0 0 0 / 0.1),
+    0 20px 25px -5px var(--ink-08),
+    0 8px 10px -6px oklch(0 0 0 / 0.1);
+  /* brilho branco na aresta de cima — o relevo do botao solido */
+  --shadow-inset-highlight: inset 0 -1px 0 0 #fdfdfd1f;
+
+  /* O raio cresce com a altura. Regra, nao escolha caso a caso. */
+  --radius-badge: 6px;
+  --radius-sm: 8px;
+  --radius: 10px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-modal: 20px;
+  --radius-menu: 12px;
+
+  /* Medidas e movimento compartilhados pelo shell. */
+  --control-h: 28px;
+  --nav-item-h: 28px;
+  --duration: 150ms;
+  --ease: cubic-bezier(.4, 0, .2, 1);
+
+  /* Escala tipografica fechada: sao estes seis tamanhos e mais nenhum.
+     Peso base do corpo e 500 (nao 400) e todo tamanho acima de 12px carrega
+     tracking negativo — junto, e metade da aparencia de produto pago.
+     Numero que VARIA vai em mono; numero que so descreve fica na sans. */
+  --text-caption: 12px/12px;   --track-caption: 0;
+  --text-s: 13px/18px;         --track-s: -0.065px;
+  --text-m: 14px/20px;         --track-m: -0.112px;
+  --text-l: 16px/22px;         --track-l: -0.128px;
+  --text-h1: 20px/28px;        --track-h1: -0.56px;
+  --text-display: 28px/36px;   --track-display: -0.896px;
+  --weight-body: 500;
+  --weight-semibold: 600;
+
+  /* Overlay CLAREIA com blur, nao escurece. Manter o tom calmo do produto
+     mesmo quando ele esta bloqueando voce e uma decisao, nao um detalhe. */
+  --overlay: #3333333d;
+  --overlay-blur: 5px;
+  --layer-nav: 20;
+  --layer-overlay: 40;
+  --layer-toast: 50;
+
+  /* Medidas da casca. A altura da topbar existe como TOKEN porque todo
+     elemento sticky precisa dela para não grudar atrás da barra — foi
+     exatamente o que aconteceu com a barra de filtros: offset fixo de 10px,
+     topbar de 48px por cima, e os botões apareciam cortados pela metade em
+     todo canal menos a Amazon, que tinha um remendo pontual de 48px. */
+  --topbar-h: 48px;
+  --control-h: 28px;
+  --control-h-lg: 36px;
+}
+
