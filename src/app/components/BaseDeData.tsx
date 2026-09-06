@@ -71,6 +71,21 @@ export function explicacaoDaBase(base: Base): string {
  * discreta em vez de duas caixas, e ficam coladas na faixa de métricas que
  * explicam. A barra fina do progresso sobrevive — ela comunica em 88px o que o
  * texto levava uma faixa inteira para dizer.
+ *
+ * ⚠️ E EM 06/09/2026 UM DOS DOIS ESTADOS SAIU — o BOM. A dona, sobre a
+ * frase "Histórico 99% importado — os números abaixo já estão disponíveis":
+ * *"esse dado aqui não tem relevância alguma, nossa arquitetura tem que ter
+ * todos os dados, estamos assumindo isso"*. É a mesma doutrina que matou o
+ * banner de "100% sincronizada" em 02/09: estado normal não é notícia, e
+ * celebrar o normal treina a pessoa a ignorar a faixa no dia em que ela diz
+ * algo.
+ *
+ * ⚠️ O QUE FICOU, E POR QUE NÃO SAIU JUNTO: quando existe `cobreDesde`, os
+ * números na tela NÃO cobrem o período pedido — o histórico começa depois do
+ * início do filtro. Isso é a classe de falta que a tela deve dizer, com data e
+ * contagem, e é o que separa "não vendeu" de "não importei". Sem `cobreDesde` o
+ * período está coberto, e aí o percentual fala de um backfill que não muda
+ * nenhum número exibido: anúncio de estado bom.
  */
 export function ProgressoDaImportacao({ progresso, cobreDesde, emImportacao, pedidosImportados }: {
   /** `null` quando o backfill terminou ou o canal não informa. */
@@ -81,7 +96,10 @@ export function ProgressoDaImportacao({ progresso, cobreDesde, emImportacao, ped
   pedidosImportados?: number | null;
 }) {
   const temProgresso = typeof progresso === "number";
-  if (!temProgresso && !cobreDesde) return null;
+  // ⚠️ SEM `cobreDesde` NÃO HÁ O QUE DIZER. O percentual sozinho descreve
+  // um backfill que não altera nenhum número da tela — e a barrinha sozinha
+  // seria a mesma comemoração sem as palavras.
+  if (!cobreDesde) return null;
 
   const importados = pedidosImportados ?? 0;
   return (
@@ -92,9 +110,8 @@ export function ProgressoDaImportacao({ progresso, cobreDesde, emImportacao, ped
         </span>
       )}
       <span>
-        {temProgresso && <>Histórico <strong>{progresso}% importado</strong></>}
-        {temProgresso && cobreDesde && " — "}
-        {cobreDesde && (
+        {temProgresso && <>Histórico <strong>{progresso}% importado</strong> — </>}
+        {(
           <>
             os números abaixo cobrem a partir de <strong>{brDate(new Date(cobreDesde))}</strong>
             {/* As duas clausulas dizem coisas DIFERENTES e as duas continuam:
@@ -105,7 +122,6 @@ export function ProgressoDaImportacao({ progresso, cobreDesde, emImportacao, ped
               : <> — o histórico importado começa aí</>}
           </>
         )}
-        {temProgresso && !cobreDesde && <> — os números abaixo já estão disponíveis</>}
         .
       </span>
     </p>
