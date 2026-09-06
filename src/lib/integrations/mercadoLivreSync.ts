@@ -465,7 +465,15 @@ export async function runMercadoLivreSyncStep(
       if (move.kind === "complete") {
         await dbQuery(
           `UPDATE workspace_marketplace_syncs
-              SET status = 'complete', covered_from = COALESCE(covered_from, target_from), covered_to = target_to,
+              -- ⚠️ LEAST TAMBEM AQUI, e a falta dele foi defeito medido (06/09/2026).
+              -- covered_from guarda o ponto mais ANTIGO ja coberto. O caminho 'pending'
+              -- ja usava LEAST; este usava so COALESCE, que NUNCA abaixa o valor depois
+              -- de definido. Resultado na Shopee: o backfill de 28/08 caminhou para tras
+              -- ate 28/06 e gravou 5.103 pedidos, mas o marcador congelou em 13/07 —
+              -- onde a caminhada fechou como complete pela primeira vez. A tela passou a
+              -- dizer que os numeros cobriam so a partir de 13/07, com 20% da base antes
+              -- disso. Aviso de cobertura mentindo e defeito, nao estetica.
+              SET status = 'complete', covered_from = LEAST(COALESCE(covered_from, target_from), target_from), covered_to = target_to,
                   processed_orders = processed_orders + $4, cursor_offset = 0,
                   lease_until = NULL, last_error = NULL, last_success_at = now(), updated_at = now()
             WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
