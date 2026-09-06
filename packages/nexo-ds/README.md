@@ -63,3 +63,25 @@ reprova é o `esbuild` — `No matching export`.
 
 Os tipos saem do `tsc`, não do gerador embutido no tsup: o `rollup-plugin-dts`
 traz um TypeScript próprio e estoura contra a versão instalada aqui.
+
+## Achados do retrato — inconsistências reais do design atual
+
+Um retrato honesto mostra as rugas. Estas duas apareceram **por causa** da
+extração, e o pacote não as corrige de propósito: corrigir aqui esconderia
+delas quem decide o redesenho.
+
+**1. Não existe uma etiqueta de estado.** `sync-chip`, `meli-account-chip`,
+`inventory-status-cell` e o `is-pendente` de dentro da linha de rentabilidade
+são quatro tratamentos diferentes, cada um casado com o contexto onde vive.
+Extrair "uma etiqueta" seria inventar a abstração que a produção ainda não tem.
+
+**2. `--ml-verde` e `--ml-coluna` são definidas só em `.cockpit-faixa`.** No app
+isso nunca doeu, porque tudo que as usa vive dentro da faixa. Fora dela — que é
+exatamente o caso de `ChipDeMargem`, `ReguaDeDias` e `ListaDeTopProdutos` usados
+sozinhos — elas não resolvem, e o verde some.
+
+⚠️ **Isto fere o critério de "cada componente renderiza sozinho".** A saída
+provisória é envolver o uso isolado numa `.cockpit-faixa`, como os exemplos
+fazem. A saída definitiva é promover os dois a token de `:root` no `globals.css`
+do app — decisão do app, não deste pacote, e vale reavaliá-la quando o redesenho
+tocar essas peças.
