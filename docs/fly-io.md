@@ -272,6 +272,40 @@ fly machine list -a nexo      # estado das máquinas
 Release criado, build concluído e health 200 **não provam** que o código novo está
 rodando — o health passa igual na versão antiga.
 
+### ⚠️ A QUARTA MORDIDA (06/09/2026): o `&&` que engoliu o deploy
+
+Encadeei a conferência com o deploy numa linha só:
+
+```bash
+cd worktree && ls -d artifacts 2>/dev/null || echo ok   && grep -c "algo" arquivo && wsl bash scripts/fly-deploy.sh > log
+```
+
+O `grep -c` devolveu **0** — e zero era a resposta CERTA: provava que a frente
+que eu queria fora do deploy realmente não estava no worktree. Só que `grep`
+sai com **código 1** quando não encontra nada, e o `&&` **abortou a cadeia ali**.
+O `fly deploy` nunca rodou.
+
+⚠️ **E o pior: a tela já mostrava tudo verde.** "worktree limpo", "sujeira
+ausente", a verificação passando — todos os sinais de sucesso, e nenhum deploy.
+Eu teria reportado "no ar". Quem pegou foi o carimbo: `/api/health` ainda
+respondia o commit anterior.
+
+📌 **É a mesma família de "pipe para `tail` engole a falha"** (`git commit`
+falha, o `tail -1` esconde, e `git rev-parse HEAD` responde o commit de outro
+como se fosse o seu). A forma é idêntica: **um comando intermediário decide o
+destino do que vem depois, e o operador não vê a decisão.**
+
+**Na prática:**
+
+- **não encadeie conferência com ação por `&&`.** Conferência responde "sim/não";
+  ação responde "fiz/não fiz". Juntar as duas faz um "não" virar "não fiz",
+  silenciosamente;
+- comandos que **contam** (`grep -c`, `wc -l`, `test`) saem com código de erro no
+  caso legítimo de zero. Eles são os piores para pôr antes de um `&&`;
+- e a defesa que realmente funciona é a de sempre: **o carimbo do que aconteceu
+  no destino**, não a ausência de erro na origem. Aqui, o campo `commit` do
+  `/api/health`; lá, `git log -1` em vez de `git rev-parse HEAD`.
+
 ### ⚠️ As três mordidas de 28/08/2026, e a lição comum
 
 Em um único dia o caminho de deploy falhou três vezes, por causas diferentes.
