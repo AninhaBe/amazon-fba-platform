@@ -1,0 +1,11 @@
+{
+  "projectId": "01fb60c6-575a-4a06-a98c-54510bddfb61",
+  "shape": "package",
+  "pkg": "@nexo/ds",
+  "globalName": "NexoDS",
+  "buildCmd": "npm run build --prefix packages/nexo-ds",
+  "cssEntry": "src/estilos/componentes.css",
+  "tokensPkg": "@nexo/ds",
+  "tokensGlob": "src/estilos/tokens*.css",
+  "readmeHeader": ".design-sync/conventions.md"
+}

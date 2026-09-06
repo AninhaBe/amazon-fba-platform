@@ -1,0 +1,19 @@
+/*
+ * FONTE BASE FORA DO APP — arquivo do design-sync, não usado pelo NEXO.
+ *
+ * No app, a Inter entra pelo next/font (src/app/layout.tsx) como
+ * --font-app-sans, e o body usa `var(--font-app-sans), "Segoe UI", sans-serif`
+ * (globals.css:179). Um consumidor standalone do pacote (o claude.ai/design)
+ * não tem o next/font — sem isto, tudo cai na serifa padrão do navegador.
+ * Mesmo nome de variável, mesma pilha, fonte via Google Fonts.
+ */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+
+:root { --font-app-sans: "Inter"; }
+
+body {
+  font-family: var(--font-app-sans), "Segoe UI", sans-serif;
+  color: var(--ink);
+  background: var(--paper);
+  -webkit-font-smoothing: antialiased;
+}
