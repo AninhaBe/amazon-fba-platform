@@ -6041,13 +6041,16 @@ summary:hover { background: var(--paper-soft); }
   align-items: stretch;
   border-block-end: 1px solid var(--ink-08);
 }
-.cockpit-resultado { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 14px; padding: 26px 28px; }
-/* 400px fixos, como na prancheta: a lista tem colunas de largura conhecida
-   (rank, unidades, valor, selo) e o titulo fica com o que sobra. Deixando a
-   coluna elastica, o titulo encolhia junto com a janela e as reticencias
-   comiam o produto antes do necessario. */
+.cockpit-resultado { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px; padding: 26px 30px 26px 28px; }
+/* ⚠️ 470px, e a divisao e o assunto DELA: *"vamos redimensionar ambas
+   telas... a barra vertical vermelha vai ser a divisao"*, com a marcacao no
+   canvas (06/09/2026, Exemplo 2). Eram 400px.
+   Fixos, e nao elasticos, pelo mesmo motivo de antes: a lista tem quatro
+   colunas de largura conhecida (rank, unidades, valor, selo) e o titulo fica
+   com o que sobra. Coluna elastica encolheria o titulo junto com a janela e as
+   reticencias comeriam o produto antes do necessario. */
 .cockpit-ao-lado {
-  flex: 0 0 400px;
+  flex: 0 0 470px;
   min-width: 0;
   padding: 26px 28px;
   border-inline-start: 1px solid var(--ink-08);
@@ -6062,7 +6065,12 @@ summary:hover { background: var(--paper-soft); }
   text-transform: uppercase;
 }
 
-.cockpit-linha { display: flex; align-items: baseline; flex-wrap: wrap; gap: 14px; }
+/* ⚠️ NUMERO E FRASE NA MESMA LINHA-BASE. Eles ja compartilhavam este
+   flex, mas com 36px e 16px a linha nao cabia na coluna e o `wrap` os
+   empilhava — o que a prancheta mostrava como dois blocos era o wrap agindo.
+   Com 28 e 12 eles cabem, e o `baseline` alinha o pe dos dois em vez do topo,
+   que e o que faz a frase parecer legenda do numero e nao outro paragrafo. */
+.cockpit-linha { display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; }
 /* ⚠️ O VERDE DO MERCADO LIVRE, e ele mora AQUI e nao em `--positive`.
    `--positive` e o verde dos quatro canais; a paleta aprovada em 03/09/2026 e
    um teste num canal so. Este token e local ao cockpit, que so o ML renderiza —
@@ -6074,33 +6082,33 @@ summary:hover { background: var(--paper-soft); }
    dona aprovou a versao de 36. */
 .cockpit-lucro {
   color: var(--ink);
-  font-size: 36px;
+  font-size: 28px;
   font-weight: 800;
-  letter-spacing: -.025em;
+  letter-spacing: -.02em;
   line-height: 1.05;
   font-variant-numeric: tabular-nums;
 }
 .cockpit-lucro.is-positive { color: var(--ml-verde); }
 .cockpit-lucro.is-negative { color: var(--danger); }
-.cockpit-frase { margin: 0; color: var(--ink-muted); font-size: 16px; line-height: 1.5; }
+.cockpit-frase { margin: 0; color: var(--ink-muted); font-size: 12px; line-height: 1.5; }
 .cockpit-frase strong { color: var(--ink); font-weight: 600; }
 
-.cockpit-cascata { display: flex; height: 14px; border-radius: 7px; overflow: hidden; }
+.cockpit-cascata { display: flex; height: 10px; border-radius: 5px; overflow: hidden; }
 .cockpit-cascata > span { flex-basis: 0; min-width: 2px; }
 
 .cockpit-legenda {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 24px;
+  gap: 6px 12px;
   margin: 0;
   padding: 0;
   list-style: none;
   color: var(--ink-muted);
-  font-size: 13px;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
-.cockpit-legenda li { display: inline-flex; align-items: center; gap: 6px; }
-.cockpit-marca { display: inline-block; width: 8px; height: 8px; border-radius: 2px; }
+.cockpit-legenda li { display: inline-flex; align-items: center; gap: 5px; }
+.cockpit-marca { display: inline-block; width: 7px; height: 7px; border-radius: 2px; }
 
 /* LUCRO POR DIA — os sete dias debaixo da legenda da cascata. A coluna do dia
    mais recente sai no verde do ML; as outras num cinza que existe para dar
@@ -6108,12 +6116,12 @@ summary:hover { background: var(--paper-soft); }
 .lucro-por-dia {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-block-start: 4px;
+  gap: 6px;
+  margin-block-start: 2px;
   border-block-start: 1px solid var(--ink-08);
-  padding-block-start: 12px;
+  padding-block-start: 10px;
 }
-.cockpit-kicker.is-menor { font-size: 11px; letter-spacing: .04em; }
+.cockpit-kicker.is-menor { font-size: 10px; letter-spacing: .04em; }
 .lucro-colunas {
   display: flex;
   /* ⚠️ `stretch`, e nao `flex-end`: as colunas precisam TER a altura da
@@ -6121,11 +6129,13 @@ summary:hover { background: var(--paper-soft); }
      `flex-end` a coluna fica do tamanho do conteudo, altura percentual nao tem
      contra o que resolver, e toda barra vira 0px — medido, nao suposto. */
   align-items: stretch;
-  gap: 10px;
-  /* 120px, e nao os 96 da prancheta: la a regua era so a pista das barras;
-     aqui o valor em cima e o dia embaixo dividem a mesma altura com ela, e com
-     96 a barra mais alta media 50px em vez dos ~74 desenhados. Medido. */
-  height: 120px;
+  gap: 8px;
+  /* ⚠️ A REGUA CRESCE PORQUE O TOPO ENCOLHEU (06/09/2026). Numero e
+     frase na mesma linha, cascata de 10px e legenda de 11px liberaram altura na
+     coluna esquerda, e a ordem foi aproveita-la: barras MAIS ALTAS que hoje.
+     Como o valor e o dia dividem esta altura com a pista, a regua e maior que a
+     pista — com 96px a barra mais alta media 50px. Medido a cada mudanca. */
+  height: 114px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -6138,12 +6148,12 @@ summary:hover { background: var(--paper-soft); }
   flex: 1;
   grid-template-rows: auto minmax(0, 1fr) auto;
   justify-items: center;
-  gap: 3px;
+  gap: 2px;
   min-width: 0;
 }
 .lucro-valor, .lucro-dia {
   color: var(--ink-32);
-  font-size: 10px;
+  font-size: 9px;
   font-variant-numeric: tabular-nums;
 }
 .lucro-barra {
@@ -6153,7 +6163,7 @@ summary:hover { background: var(--paper-soft); }
   min-height: 0;
   /* Encostada na base da pista: e o chao que da a leitura de altura. */
   align-self: end;
-  border-radius: 4px 4px 0 0;
+  border-radius: 3px 3px 0 0;
   background: var(--ml-coluna);
 }
 .lucro-coluna.is-destaque .lucro-valor,
@@ -6213,7 +6223,7 @@ summary:hover { background: var(--paper-soft); }
   white-space: nowrap;
 }
 .top-faixa-unidades { flex-shrink: 0; width: 44px; color: var(--ink-32); font-size: 11px; text-align: end; }
-.top-faixa-valor { flex-shrink: 0; width: 62px; font-size: 12px; font-variant-numeric: tabular-nums; text-align: end; }
+.top-faixa-valor { flex-shrink: 0; width: 70px; font-size: 12px; font-variant-numeric: tabular-nums; text-align: end; }
 .top-faixa-margem {
   flex-shrink: 0;
   width: 48px;
@@ -6257,7 +6267,7 @@ summary:hover { background: var(--paper-soft); }
 @media (max-width: 900px) {
   .cockpit-faixa { flex-direction: column; }
   .cockpit-ao-lado { border-inline-start: 0; border-block-start: 1px solid var(--ink-08); }
-  .cockpit-lucro { font-size: 30px; }
+  .cockpit-lucro { font-size: 26px; }
 }
 
 /* As duas colunas do corpo do dashboard do ML. A regra e do CANAL (prefixo

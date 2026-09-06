@@ -223,7 +223,13 @@ test("o titulo do produto e UMA linha que nao estoura a coluna", async () => {
   }
   // A coluna da direita e a largura da prancheta, e nao pode voltar a ser
   // elastica: o titulo encolheria junto com a janela.
-  assert.ok(css.includes("flex: 0 0 400px;"), "a coluna da faixa voltou a ser elastica");
+  // ⚠️ A LARGURA E FIXA E TEM VALOR EXATO DE PROPOSITO. Ela ja foi
+  // 400px; a dona a levou para 470 em 06/09/2026, marcando a divisao no canvas
+  // (*"a barra vertical vermelha vai ser a divisao"*). Casar o numero — e nao
+  // so "existe um flex-basis" — obriga quem mexer a passar por aqui, porque a
+  // largura decide quanto do titulo do produto cabe antes das reticencias.
+  assert.ok(css.includes("flex: 0 0 470px;"),
+    "a coluna da faixa mudou de largura ou voltou a ser elastica: o corte do titulo muda junto");
 
   // E o titulo completo continua alcancavel, mesmo cortado na tela.
   const peca = semComentarios(await fonte("src/app/components/TopProdutosNaFaixa.tsx"));
@@ -468,4 +474,34 @@ test("\"hoje\" so e dito quando e hoje de verdade", async () => {
     "a data perdeu a fixacao ao meio-dia e o dia da semana pode voltar um dia");
   assert.match(ml, /timeZone: "UTC"/,
     "o dia da semana deixou de ser formatado em UTC e volta a depender do fuso do navegador");
+});
+
+test("as dimensoes do Exemplo 2 estao de pe — a esquerda encolheu para a direita crescer", async () => {
+  // ⚠️ ESTA GUARDA E DE DIMENSAO, e ela existe porque a frente inteira ERA
+  // dimensao: *"vamos redimensionar ambas telas"* (06/09/2026, Exemplo 2 do
+  // canvas). Nao ha regra de dado envolvida — o que quebra aqui e alguem
+  // "arrumar" um tamanho isolado e desmontar a proporcao que ela aprovou.
+  //
+  // As pecas sao interdependentes: o numero caiu de 36 para 28 e a frase de 16
+  // para 12 PARA CABEREM NA MESMA LINHA-BASE; a cascata e a legenda encolheram
+  // para liberar altura; e a regua do lucro por dia cresceu PARA USAR essa
+  // altura. Mexer num sozinho e o que desfaz o conjunto.
+  const css = (await fonte("src/app/globals.css")).replace(/\/\*[\s\S]*?\*\//g, "");
+
+  for (const [oQue, regra] of [
+    ["o numero do lucro", "font-size: 28px;"],
+    ["a frase ao lado dele", ".cockpit-frase { margin: 0; color: var(--ink-muted); font-size: 12px; line-height: 1.5; }"],
+    ["a cascata", ".cockpit-cascata { display: flex; height: 10px; border-radius: 5px; overflow: hidden; }"],
+    ["a marca da legenda", ".cockpit-marca { display: inline-block; width: 7px; height: 7px; border-radius: 2px; }"],
+    ["a regua do lucro por dia", "height: 114px;"],
+  ]) {
+    assert.ok(css.includes(regra), `${oQue} saiu da dimensao aprovada no Exemplo 2:
+  ${regra}`);
+  }
+
+  // ⚠️ E O NUMERO E A FRASE PRECISAM DIVIDIR A LINHA-BASE. `baseline`
+  // alinha o pe dos dois; `center` ou `flex-start` fariam a frase flutuar ao
+  // lado do numero como um segundo paragrafo, que e o que ela pediu para sair.
+  assert.ok(css.includes(".cockpit-linha { display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; }"),
+    "o numero e a frase deixaram de dividir a linha-base");
 });
