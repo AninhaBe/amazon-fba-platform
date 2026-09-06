@@ -6041,9 +6041,14 @@ summary:hover { background: var(--paper-soft); }
   align-items: stretch;
   border-block-end: 1px solid var(--ink-08);
 }
-.cockpit-resultado { flex: 1.4; display: flex; flex-direction: column; gap: 14px; padding: 26px 28px; }
+.cockpit-resultado { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 14px; padding: 26px 28px; }
+/* 400px fixos, como na prancheta: a lista tem colunas de largura conhecida
+   (rank, unidades, valor, selo) e o titulo fica com o que sobra. Deixando a
+   coluna elastica, o titulo encolhia junto com a janela e as reticencias
+   comiam o produto antes do necessario. */
 .cockpit-ao-lado {
-  flex: 1;
+  flex: 0 0 400px;
+  min-width: 0;
   padding: 26px 28px;
   border-inline-start: 1px solid var(--ink-08);
 }
@@ -6167,48 +6172,67 @@ summary:hover { background: var(--paper-soft); }
   background: transparent;
 }
 
-/* A CONTA ESCRITA — o lado direito da faixa do ML. Tres colunas fixas: o sinal,
-   o nome e o valor alinhado a direita. O valor com largura propria e o que
-   deixa a coluna de numeros alinhada, que e o que permite conferir a subtracao
-   de relance. */
-.conta-escrita {
-  margin: 12px 0 0;
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-}
-.conta-linha {
-  display: grid;
-  grid-template-columns: 16px minmax(0, 1fr) minmax(72px, auto);
-  align-items: baseline;
+/* TOP PRODUTOS na direita da faixa — Opcao A da prancheta (06/09/2026). */
+.top-faixa { display: flex; flex-direction: column; gap: 10px; }
+.top-faixa-cabecalho { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.top-faixa-meta { margin: 0; color: var(--ink-muted); font-size: 11px; }
+.top-faixa-meta a { color: inherit; text-decoration: none; }
+.top-faixa-meta a:hover { color: var(--ink); text-decoration: underline; }
+
+.top-faixa-lista { margin: 0; padding: 0; list-style: none; }
+.top-faixa-lista li {
+  display: flex;
+  align-items: center;
   gap: 8px;
-  padding: 7px 0;
-  color: var(--ink-muted);
-}
-.conta-linha dt, .conta-linha dd { margin: 0; }
-.conta-linha dd { text-align: end; }
-.conta-sinal { text-align: center; }
-.conta-linha.is-receita {
   border-block-end: 1px solid var(--ink-08);
-  color: var(--ink);
+  padding: 5px 0;
+}
+.top-faixa-rank {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  background: var(--ink-08);
+  color: var(--ink-muted);
+  font-size: 10px;
   font-weight: 600;
 }
-.conta-linha:not(.is-receita):not(.is-resultado):last-of-type {
-  border-block-end: 1px solid var(--ink-12);
+/* ⚠️ UMA LINHA, COM RETICENCIAS. `min-width: 0` e o que permite ao item
+   flex encolher abaixo do proprio conteudo — sem ele o `text-overflow` nao tem
+   efeito, a linha estica e a lista vaza para fora da faixa. */
+.top-faixa-titulo {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-/* O fundo tenue e o destaque da linha que responde a pergunta da faixa. Ele sai
-   do mesmo verde, com transparencia, para nao virar uma segunda tinta. */
-.conta-linha.is-resultado {
-  margin-block-start: 4px;
-  border-radius: var(--radius);
-  background: color-mix(in srgb, var(--ml-verde) 10%, transparent);
-  padding: 9px 8px;
-  color: var(--ml-verde);
+.top-faixa-unidades { flex-shrink: 0; width: 44px; color: var(--ink-32); font-size: 11px; text-align: end; }
+.top-faixa-valor { flex-shrink: 0; width: 62px; font-size: 12px; font-variant-numeric: tabular-nums; text-align: end; }
+.top-faixa-margem {
+  flex-shrink: 0;
+  width: 48px;
+  border-radius: 5px;
+  padding: 2px 6px;
+  font-size: 10px;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
 }
-.conta-linha.is-resultado.is-negativo {
-  background: color-mix(in srgb, var(--danger) 10%, transparent);
-  color: var(--danger);
-}
+/* Os tons saem dos mesmos tokens do resto da tela; os limiares que decidem
+   QUAL tom vem de `marginStateClass`, a regra global. */
+.top-faixa-margem.is-positive { background: color-mix(in srgb, var(--ml-verde) 10%, transparent); color: var(--ml-verde); }
+.top-faixa-margem.is-warning { background: color-mix(in srgb, var(--warning) 14%, transparent); color: var(--warning); }
+.top-faixa-margem.is-negative { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger); }
+.top-faixa-margem.is-unknown { background: var(--ink-08); color: var(--ink-32); }
+
+.top-faixa-nota { margin: 0; color: var(--ink-32); font-size: 10px; }
+.top-faixa-vazio { margin: 0; color: var(--ink-muted); font-size: 13px; }
 
 /* As pendencias numa fila: os mesmos textos e destinos de antes, sem o peso de
    cartao. Chip que exige acao dela usa a tinta de atencao — os outros informam. */

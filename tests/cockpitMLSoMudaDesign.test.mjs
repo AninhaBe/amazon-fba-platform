@@ -6,6 +6,14 @@ const fonte = (caminho) => readFile(new URL(`../${caminho}`, import.meta.url), "
 const semComentarios = (codigo) =>
   codigo.replace(/\{\/\*[\s\S]*?\*\/\}/g, "").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
 
+/**
+ * ⚠️ O DELIMITADOR DEPOIS DO NOME DA TAG, e ele nao e zelo: sem ele
+ * `"<TopProdutosNaFaixa"` casa tambem `"<TopProdutosNaFaixaX"`, e a quebra que
+ * renomeia a peca fica VERDE. Aconteceu ao rodar a quebra em 06/09/2026 — a
+ * terceira vez que casamento por prefixo passa batido neste projeto.
+ */
+const QUEBRA = String.fromCharCode(10);
+
 const ML = "src/app/components/MercadoLivreWorkspace.tsx";
 const PECA = "src/app/components/CockpitDoResultado.tsx";
 
@@ -122,30 +130,105 @@ test("nenhuma classe do cockpit e usada sem existir no CSS", async () => {
   assert.deepEqual(ausentes, [], `classes sem definição: ${ausentes.join(", ")}`);
 });
 
-test("a CONTA ESCRITA leu a mesma composicao — e o calculo continua sendo UM so", async () => {
+test("a DIREITA DA FAIXA le o mesmo produtor que o bloco de baixo", async () => {
   const codigo = semComentarios(await fonte(ML));
-  // ⚠️ ESTA GUARDA JA TEVE OUTRA INTENCAO, e vale registrar qual: ate
-  // 03/09/2026 ela exigia que a ROSQUINHA estivesse na faixa (`slices=` duas
-  // vezes, `total={overview.profit.revenueProcessed}`). A dona aprovou a Direcao
-  // D — conta escrita no lugar da rosquinha —, entao a exigencia antiga passou a
-  // defender o desenho anterior. O que NAO mudou, e e o que ela sempre quis
-  // proteger, e o UM CALCULO: quem substituiu a rosquinha le a mesma constante.
+  // ⚠️ ESTA GUARDA JA MUDOU DE INTENCAO DUAS VEZES, e vale registrar as
+  // duas: ate 03/09/2026 ela exigia a ROSQUINHA na direita da faixa; depois
+  // exigiu a CONTA ESCRITA. Em 06/09/2026 a dona tirou a conta escrita —
+  // *"a tela da esquerda ja mostra literalmente isso"* — e pos o Top produtos.
+  //
+  // O que ela sempre protegeu, e continua protegendo, e que a direita da faixa
+  // NAO monte a propria lista: ela le o mesmo produtor que o bloco de baixo.
+  // Duas listas do mesmo periodo na mesma pagina podem divergir sem nada ficar
+  // vermelho.
   assert.equal(
     (codigo.match(/buildFinancialComposition\(\{/g) ?? []).length, 1,
     "a composicao passou a ser calculada em dois lugares",
   );
-  // As linhas da conta escrita NASCEM da composicao — nao de uma lista propria.
-  assert.match(codigo, /const linhasDaContaEscrita = composicaoDoResultado/,
-    "a conta escrita passou a montar a propria lista, e pode fechar enquanto a barra nao fecha");
-  assert.match(codigo, /const fatiaDoResultado = composicaoDoResultado\.find\(\(fatia\) => fatia\.isRemainder\)/,
-    "a linha do resultado deixou de sair da composicao");
-  // E o painel de baixo continua lendo a mesma constante.
   assert.match(codigo, /slices=\{composicaoDoResultado\}/,
     "o painel de baixo deixou de ler a composicao compartilhada");
-  // ⚠️ O ML FICA SEM ROSQUINHA NENHUMA, e isso e o esperado: a de baixo
-  // ja tinha saido com `semDonut`, e a de cima virou conta escrita.
-  assert.ok(!codigo.includes("<CompositionDonut"),
-    "voltou uma rosquinha ao ML — a Direcao D aprovada substitui as duas");
+
+  // ⚠️ A LISTA DA FAIXA SAI DE `overview.topProducts` DIRETO — sem sort,
+  // sem slice, sem filter no caminho. A ordem e o corte sao do produtor, que e
+  // quem o bloco de baixo tambem consome.
+  const daFaixa = codigo.slice(codigo.indexOf("<TopProdutosNaFaixa"), codigo.indexOf("/>", codigo.indexOf("<TopProdutosNaFaixa")));
+  assert.match(daFaixa, /produtos=\{overview\.topProducts\.map\(/,
+    "a faixa deixou de ler `overview.topProducts` — a lista virou outra");
+  for (const proibido of [".sort(", ".slice(", ".filter("]) {
+    assert.ok(!daFaixa.includes(proibido),
+      `a faixa passou a ${proibido} a lista: dois rankings do mesmo periodo, e o dia em que discordarem ninguem ve nada vermelho`);
+  }
+  // E o bloco de baixo continua na pagina, lendo a mesma coisa: a dona nao
+  // pediu para tira-lo.
+  assert.match(codigo, /<TopProductsRanking products=\{overview\.topProducts\.map\(/,
+    "o bloco de baixo saiu da pagina ou trocou de fonte — e ninguem pediu isso");
+});
+
+test("a conta escrita saiu SEM ORFAO — peca, preparo e CSS", async () => {
+  // ⚠️ CODIGO MORTO DEPOIS DE UMA TROCA DE DESIGN e o que faz a proxima
+  // pessoa achar que ha duas formas suportadas. A conta escrita tinha quatro
+  // pontas: o componente, o preparo das linhas, o CSS e o import.
+  const ml = await fonte(ML);
+  const peca = await fonte(PECA);
+  const css = await fonte("src/app/globals.css");
+
+  assert.ok(!peca.includes("ContaEscrita"), "o componente da conta escrita ficou no arquivo sem consumidor");
+  for (const orfao of ["ContaEscrita", "linhasDaContaEscrita", "fatiaDoResultado", "ORDEM_DA_CONTA"]) {
+    assert.ok(!ml.includes(orfao), `sobrou \`${orfao}\` no ML depois da troca`);
+  }
+  for (const seletor of [".conta-escrita", ".conta-linha", ".conta-sinal"]) {
+    assert.ok(!css.includes(seletor), `sobrou \`${seletor}\` no CSS sem ninguem para vestir`);
+  }
+});
+
+test("o selo de margem usa o limiar GLOBAL — nao um copiado", async () => {
+  // ⚠️ A ORDEM FOI EXPLICITA: *"replicar os limiares que a tabela de baixo
+  // ja usa, nao inventar novos"*. O jeito silencioso de desobedecer e escrever
+  // `marginPct < 12` aqui: funciona hoje, e no dia em que alguem mexer na regra
+  // global o MESMO produto sai ambar na faixa e verde na tabela.
+  const faixa = semComentarios(await fonte("src/app/components/TopProdutosNaFaixa.tsx"));
+  const tabela = semComentarios(await fonte("src/app/components/TopProductsRanking.tsx"));
+
+  assert.match(faixa, /import \{ marginStateClass \} from "@\/lib\/marginTone";/,
+    "a faixa deixou de pedir o tom a regra global");
+  assert.match(faixa, /marginStateClass\(produto\.marginPct\)/, "o selo parou de consultar a regra global");
+  assert.match(tabela, /marginStateClass/, "a tabela de baixo deixou de usar a mesma regra — os dois divergem");
+  // ⚠️ COMPARACAO DE STRING LITERAL, e a primeira versao NAO era. Ela
+  // usava a RegExp `[<>]=?\s*(12|15)\b` — e o `\b` chegou ao arquivo como um
+  // BACKSPACE de verdade (0x08), entao a expressao nunca casou nada e a quebra
+  // com `marginPct < 12` injetado ficou VERDE. E a armadilha que o AGENTS.md
+  // descreve com todas as letras, e ela pegou de novo. Aqui a lista e chata,
+  // literal e verificavel a olho.
+  for (const limiar of ["<12", "< 12", "<=12", "<= 12", ">15", "> 15", ">=15", ">= 15", "<15", "< 15", ">12", "> 12"]) {
+    assert.ok(!faixa.includes(limiar),
+      `apareceu o limiar "${limiar}" escrito a mao na faixa: um dos dois lados vai ficar para tras quando a regra global mudar`);
+  }
+
+  // ⚠️ E `null` NAO VIRA 0%: custo nao cadastrado e ausencia, e o selo
+  // mostra o traco. Um `?? 0` aqui pintaria de vermelho um produto que ninguem
+  // sabe se da lucro.
+  assert.match(faixa, /produto\.marginPct == null\s*\?\s*"—"/,
+    "margem desconhecida deixou de ser traco — vira 0% e um selo vermelho falso");
+});
+
+test("o titulo do produto e UMA linha que nao estoura a coluna", async () => {
+  // ⚠️ `min-width: 0` E O QUE FAZ O `text-overflow` FUNCIONAR num item
+  // flex: sem ele o item nao encolhe abaixo do proprio conteudo, a linha estica
+  // e a lista vaza para fora da faixa. A guarda ancora nos tres juntos porque
+  // qualquer um sozinho nao entrega o corte.
+  const css = (await fonte("src/app/globals.css")).replace(/\/\*[\s\S]*?\*\//g, "");
+  const bloco = css.slice(css.indexOf(".top-faixa-titulo {"), css.indexOf("}", css.indexOf(".top-faixa-titulo {")));
+  for (const regra of ["min-width: 0;", "overflow: hidden;", "text-overflow: ellipsis;", "white-space: nowrap;"]) {
+    assert.ok(bloco.includes(regra), `o titulo perdeu \`${regra}\` e volta a empurrar a lista para fora da coluna`);
+  }
+  // A coluna da direita e a largura da prancheta, e nao pode voltar a ser
+  // elastica: o titulo encolheria junto com a janela.
+  assert.ok(css.includes("flex: 0 0 400px;"), "a coluna da faixa voltou a ser elastica");
+
+  // E o titulo completo continua alcancavel, mesmo cortado na tela.
+  const peca = semComentarios(await fonte("src/app/components/TopProdutosNaFaixa.tsx"));
+  assert.match(peca, /title=\{produto\.titulo\}/,
+    "o titulo cortado deixou de ter o texto inteiro no atributo — nao da mais para saber qual produto e");
 });
 
 test("a variante do painel e OPT-IN: so o ML passa, e o default e o de hoje", async () => {
@@ -211,7 +294,10 @@ test("A ORDEM DOS BLOCOS E A DA PRANCHETA — reprovada uma vez por nao ser", as
   const codigo = semComentarios(await fonte(ML));
   const corpo = codigo.slice(codigo.indexOf("<CockpitDoResultado"));
   const sequencia = [
-    ["a faixa do resultado", "<CockpitDoResultado"],
+    ["a faixa do resultado", "<CockpitDoResultado" + QUEBRA],
+    // A direita da faixa: era a conta escrita ate 06/09/2026, e agora e o Top
+    // produtos. Ela mora DENTRO da faixa, entao aparece antes dos chips.
+    ["o top produtos na faixa", "<TopProdutosNaFaixa" + QUEBRA],
     // ⚠️ OS SETE DIAS MORAM DENTRO DA FAIXA, debaixo da legenda — e a
     // prova disso e ele aparecer ANTES do fechamento da faixa, ou seja, antes
     // dos chips. Fora dela ele viraria mais um cartao, e a leitura "quanto
@@ -318,7 +404,7 @@ test("o verde do ML nao vaza para os outros canais", async () => {
   ]) {
     const fonteDaTela = semComentarios(await fonte(tela));
     assert.ok(!fonteDaTela.includes("CockpitDoResultado"), `${tela} passou a montar a faixa do ML`);
-    assert.ok(!fonteDaTela.includes("ContaEscrita"), `${tela} passou a montar a conta escrita do ML`);
+    assert.ok(!fonteDaTela.includes("TopProdutosNaFaixa"), `${tela} passou a montar o top produtos da faixa do ML`);
     assert.ok(!fonteDaTela.includes("PaletaDeCategoria"), `${tela} passou a pedir a paleta por categoria`);
   }
 });

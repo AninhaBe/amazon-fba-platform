@@ -34,7 +34,8 @@ import { Pagination } from "./Pagination";
 import { TopProductsRanking } from "./TopProductsRanking";
 import { BriefingLead } from "./BriefingLead";
 import { NexoDoDia } from "./NexoDoDia";
-import { CockpitDoResultado, ContaEscrita, LinhaDePendencias, LucroPorDia } from "./CockpitDoResultado";
+import { CockpitDoResultado, LinhaDePendencias, LucroPorDia } from "./CockpitDoResultado";
+import { TopProdutosNaFaixa } from "./TopProdutosNaFaixa";
 import { IntegrationDashboardFrame } from "./IntegrationDashboardFrame";
 
 /**
@@ -595,33 +596,6 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
   };
 
   /**
-   * ⚠️ A ORDEM DA CONTA ESCRITA É A DA PRANCHETA (custo, frete, taxas,
-   * impostos), e a da rosquinha era por tamanho. Só a ORDEM muda: as linhas são
-   * as fatias que `buildFinancialComposition` emitiu, então uma parcela que ele
-   * omitiu por ser desconhecida continua fora daqui — `null ≠ 0` vale
-   * principalmente numa conta com sinal de menos ao lado, onde a linha ausente
-   * é honesta e a linha "—" convida a ler zero.
-   *
-   * Categoria que a prancheta não previu (a fatia de composição pendente, por
-   * exemplo) entra no fim em vez de sumir: esconder faria a conta não fechar.
-   */
-  const ORDEM_DA_CONTA = ["cogs", "shipping", "fees", "taxes"];
-  const fatiaDoResultado = composicaoDoResultado.find((fatia) => fatia.isRemainder) ?? null;
-  const linhasDaContaEscrita = composicaoDoResultado
-    .filter((fatia) => !fatia.isRemainder)
-    .sort((a, b) => {
-      const posA = ORDEM_DA_CONTA.indexOf(a.id);
-      const posB = ORDEM_DA_CONTA.indexOf(b.id);
-      return (posA < 0 ? ORDEM_DA_CONTA.length : posA) - (posB < 0 ? ORDEM_DA_CONTA.length : posB);
-    })
-    .map((fatia) => ({
-      id: fatia.id,
-      rotulo: fatia.label,
-      valorFormatado: money(fatia.value, overview.metrics.currency),
-      cor: corDaCategoria(fatia.id),
-    }));
-
-  /**
    * ⚠️ OS SETE DIAS DO BLOCO "LUCRO POR DIA", e o cuidado todo está em NÃO
    * TRANSFORMAR `null` EM ZERO no caminho até a tela.
    *
@@ -842,28 +816,29 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
         { id: "lucro", rotulo: `${resultParcial ? "Resultado" : "Lucro"} ${overview.profit.estimatedProfit == null ? "—" : money(overview.profit.estimatedProfit, overview.metrics.currency)}`, valor: overview.profit.estimatedProfit, cor: corDaCategoria("result") },
       ]}
       aoLado={
-        /* ⚠️ A CONTA ESCRITA NO LUGAR DA ROSQUINHA — Direção D da prancheta,
-           aprovada em 03/09/2026. Com isso o ML fica sem rosquinha nenhuma (a
-           de baixo já saiu com `semDonut`), e é o esperado: as duas respondiam
-           a mesma pergunta, e a conta escrita responde melhor a que a vendedora
-           faz de verdade — "de onde saiu cada real".
+        /* ⚠️ O TOP PRODUTOS NO LUGAR DA CONTA ESCRITA (06/09/2026). O
+           motivo e dela, e estava certo: *"Quero tirar essa tela de Repasses,
+           taxas e lucro, porque a tela da esquerda ja mostra literalmente
+           isso."* A cascata e a legenda a esquerda listam as MESMAS quatro
+           parcelas e o MESMO lucro — a conta escrita era a segunda leitura do
+           mesmo numero ocupando a outra metade da faixa.
 
-           ⚠️ AS LINHAS SAEM DA MESMA `composicaoDoResultado` que o painel de
-           baixo consome. Um cálculo, dois consumidores continua valendo: se a
-           conta escrita montasse a própria lista, ela poderia fechar enquanto a
-           barra da esquerda não fecha, e nada ficaria vermelho. */
-        <ContaEscrita
-          titulo={`Repasses, taxas e ${overview.profit.coverage.complete ? "lucro" : "resultado"}`}
-          receitaRotulo="Receita processada"
-          receitaFormatada={money(overview.profit.revenueProcessed, overview.metrics.currency)}
-          linhas={linhasDaContaEscrita}
-          resultado={fatiaDoResultado == null ? null : {
-            rotulo: overview.profit.marginPct == null
-              ? fatiaDoResultado.label
-              : `${fatiaDoResultado.label} · margem ${overview.profit.marginPct.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`,
-            valorFormatado: money(fatiaDoResultado.value, overview.metrics.currency),
-            negativo: fatiaDoResultado.isLoss === true,
-          }}
+           ⚠️ A LISTA E A MESMA `overview.topProducts` que o bloco
+           "Desempenho do periodo" consome mais abaixo, na ordem que o produtor
+           ja emitiu. Um calculo, dois consumidores: ordenar ou cortar aqui
+           criaria dois rankings do mesmo periodo na mesma pagina, e o dia em
+           que discordassem ninguem veria nada vermelho. */
+        <TopProdutosNaFaixa
+          titulo={`Top produtos — ${periodoLabel}`}
+          href="/mercado-livre/produtos"
+          vazio="Sem vendas no período para ranquear."
+          produtos={overview.topProducts.map((produto) => ({
+            id: produto.id,
+            titulo: produto.title,
+            unidades: `${produto.units.toLocaleString("pt-BR")} un.`,
+            faturamento: money(produto.revenue, overview.metrics.currency),
+            marginPct: produto.marginPct,
+          }))}
         />
       }
       abaixoDaLegenda={
