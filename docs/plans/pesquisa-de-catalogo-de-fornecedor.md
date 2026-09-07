@@ -257,11 +257,27 @@ produziu a leitura errada na primeira passada (07/09/2026).
 O dado sai de `GET /finances/2024-06-19/transactions`, é barato de medir, e não
 depende desta skill estar pronta.
 
-### 8.1 Aberto, e é o de maior valor
+### 8.1 Resolvido — são dois benefícios, com prazos diferentes
 
-A comissão está zerada em **59 de 59** pedidos, o que no período equivale a uns
-R$ 220 — quatorze vezes o que a logística custou. Mas a isenção documentada na
-§2.3 de `docs/tarifas-amazon-br.md` cobre **logística, coleta e armazenagem**, e
-**não menciona comissão**. Ou seja: o benefício mais valioso da conta é o único
-cujos termos e prazo não estão registrados em lugar nenhum. Vale confirmar a
-origem e a validade antes de dimensionar uma compra grande de estoque.
+Termos oficiais lidos em 07/09/2026 e registrados em
+`docs/tarifas-amazon-br.md` §2.3.1:
+
+| Benefício | Prazo | Teto | Situação |
+|---|---|---|---|
+| Comissão zero | 90 dias (+60 se estendido) | R$ 40.000 (+R$ 20.000) | **ativa**; consumido R$ 1.672, ou 4% do teto |
+| FBA Grátis (logística, coleta, armazenagem) | 30 dias | — | **provavelmente expirada** — ver §8 |
+
+A conta se qualifica: `GET /sellers/v1/account` confirma endereço em **São Paulo**
+e CNPJ ativo, que são os dois requisitos do benefício de comissão.
+
+**Consequência para o cenário "sem isenção" da §4:** ele deixa de ser um cenário
+único e vira dois, porque os prazos não coincidem. A janela realista para uma
+compra de estoque é **comissão zero + tarifa de logística cheia** — que é
+exatamente onde a conta está entrando agora.
+
+**Risco para a extensão de +60 dias:** exige ≥ 3,5% da receita em Ads (cumprido
+com folga, 30–37%) **e** taxa de cancelamento abaixo de 2,5%. Medido em
+`orders/v0/orders`: **14 cancelados em 72 pedidos, 19%**. Cancelamento iniciado
+pelo comprador antes do envio normalmente não conta contra a métrica do vendedor
+no FBA, então isto é um **ponto a conferir no Seller Central**, não um veredito —
+mas é o que separa 3 meses de 5 meses de comissão zero.
