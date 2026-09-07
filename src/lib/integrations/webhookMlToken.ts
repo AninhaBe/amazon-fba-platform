@@ -14,12 +14,17 @@
  * a recusa da Shopee que continuou mentindo 4 horas depois de a rota passar a
  * aceitar). Por isso:
  *
- *   O QUE PRECISA ACONTECER PARA ESTA JANELA MORRER:
- *   1. `WEBHOOK_ML_TOKEN` configurado no Fly;
+ *   O QUE PRECISA ACONTECER PARA ESTA JANELA MORRER, NESTA ORDEM:
+ *   1. `WEBHOOK_ML_TOKEN` configurado no Fly — **antes** de tudo;
  *   2. a URL nova (com `?token=…`) cadastrada no DevCenter do ML;
  *   3. um push real chegando pela URL nova — medido, não suposto.
  *
  * Cumpridos os três, apague `FIM_DA_CONVIVENCIA` e a rota passa a exigir token.
+ *
+ * ⚠️ A ORDEM NÃO É DETALHE: quando a janela cai, **env ausente vira recusa**.
+ * Fechadura sem chave não é porta aberta. Se a data passar sem a env no Fly, o
+ * webhook do ML para de entrar — de propósito, e é por isso que o passo 1 vem
+ * primeiro.
  * E há teste que fica VERMELHO sozinho quando a data passar: ele existe para que
  * a janela não sobreviva ao silêncio de todo mundo.
  */
@@ -57,11 +62,22 @@ export function avaliarOrigemDoWebhook(entrada: {
 }): DecisaoDeOrigem {
   const esperado = entrada.tokenEsperado?.trim();
 
-  // ⚠️ SEM SEGREDO CONFIGURADO, ACEITA — e isto é uma escolha, não esquecimento.
-  // Recusar aqui fecharia o webhook do ML no instante do deploy, antes de alguém
-  // ter como configurar a env. O modo de falha certo para "ainda não montamos a
+  // ⚠️ SEM SEGREDO CONFIGURADO, ACEITA — ENQUANTO A JANELA ESTIVER ABERTA.
+  //
+  // Recusar no dia do deploy fecharia o webhook do ML antes de alguém ter como
+  // configurar a env: o modo de falha certo para "ainda não montamos a
   // fechadura" é a porta continuar como estava, com aviso alto no log.
-  if (!esperado) return { aceito: true, via: "sem-token-configurado" };
+  //
+  // ⚠️ MAS ESSA PERMISSÃO MORRE JUNTO COM A JANELA (visto do cérebro, 07/09/2026):
+  // **fechadura sem chave não é porta aberta.** Passada a data, env ausente vira
+  // falha FECHADA. Sem essa amarra, o fail-open sobreviveria à convivência que o
+  // justificava — que é exatamente a família de dívida que este arquivo existe
+  // para não repetir. Ou seja: a env tem de estar no Fly ANTES de a janela cair.
+  if (!esperado) {
+    return janelaAberta(entrada.agora)
+      ? { aceito: true, via: "sem-token-configurado" }
+      : { aceito: false, via: "recusado" };
+  }
 
   if (entrada.tokenRecebido !== null) {
     // Token PRESENTE e ERRADO nunca passa, nem durante a convivência: quem manda
@@ -72,9 +88,13 @@ export function avaliarOrigemDoWebhook(entrada: {
   }
 
   // Sem token: só enquanto a janela declarada estiver aberta.
-  return entrada.agora.getTime() <= Date.parse(FIM_DA_CONVIVENCIA)
+  return janelaAberta(entrada.agora)
     ? { aceito: true, via: "convivencia" }
     : { aceito: false, via: "recusado" };
+}
+
+function janelaAberta(agora: Date): boolean {
+  return agora.getTime() <= Date.parse(FIM_DA_CONVIVENCIA);
 }
 
 /** `true` quando a janela de convivência já deveria ter sido fechada. */

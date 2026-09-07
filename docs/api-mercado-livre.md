@@ -139,9 +139,15 @@ Três propriedades, cada uma com um ataque atrás:
 **Token presente e errado nunca passa**, nem durante a janela de convivência:
 quem manda token errado não é o chamador legado — o legado não manda token nenhum.
 
-**Sem `WEBHOOK_ML_TOKEN` configurado, a rota aceita tudo**, com aviso no log.
-É escolha, não esquecimento: recusar fecharia o webhook no instante do deploy,
-antes de alguém ter como configurar a env.
+**Sem `WEBHOOK_ML_TOKEN` configurado, a rota aceita tudo — enquanto a janela
+estiver aberta**, com aviso no log. É escolha, não esquecimento: recusar fecharia
+o webhook no instante do deploy, antes de alguém ter como configurar a env.
+
+⚠️ **E essa permissão morre junto com a janela.** Passada a data, env ausente vira
+**recusa**: fechadura sem chave não é porta aberta. Sem essa amarra, o fail-open
+sobreviveria à convivência que o justificava — a mesma dívida que esta seção
+inteira existe para não repetir. A consequência é deliberada: **se a data passar
+sem a env no Fly, o webhook do ML para.**
 
 #### A janela de convivência, e o que precisa acontecer para ela morrer
 
@@ -151,16 +157,19 @@ o cadastro é ato de pessoa. Até `FIM_DA_CONVIVENCIA`
 
 Para fechar:
 
-1. `WEBHOOK_ML_TOKEN` configurado no Fly;
+1. `WEBHOOK_ML_TOKEN` configurado no Fly — **antes de tudo**, senão o passo 3
+   nunca acontece e o webhook cai na virada da data;
 2. a URL com `?token=…` cadastrada no DevCenter do ML;
-3. **um push real chegando pela URL nova** — medido, não suposto.
+3. **um push real chegando pela URL nova** — medido no banco, não suposto;
+4. só então remover `FIM_DA_CONVIVENCIA` e a guarda.
 
 ⚠️ Há teste que fica **vermelho sozinho** quando a data passar
 (`tests/webhookMlExigeToken.test.mjs`). Ele existe porque este projeto já foi
 mordido por salvaguarda temporária que sobreviveu à limitação que a justificou
 (31/08/2026, a recusa da Shopee que continuou mentindo 4 horas depois de a rota
-passar a aceitar). Quando ficar vermelho: feche a janela, ou mova a data **com
-motivo escrito** — mas não apague a guarda.
+passar a aceitar). A mensagem de falha dele traz a ordem completa dos quatro
+passos, para a decisão do dia já vir com o que fazer. Quando ficar vermelho:
+feche a janela, ou mova a data **com motivo escrito** — mas não apague a guarda.
 
 ## Fees e impostos
 

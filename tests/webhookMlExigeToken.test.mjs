@@ -52,22 +52,42 @@ test("A JANELA TEM PRAZO E ELE E CONFERIVEL — este teste fica vermelho sozinho
   // e obriga alguem a decidir — fechar a janela ou mover a data com motivo.
   assert.ok(
     !convivenciaVencida(),
-    `A janela de convivencia do webhook do ML venceu em ${FIM_DA_CONVIVENCIA}. ` +
-      "Feche-a: confirme que WEBHOOK_ML_TOKEN esta no Fly, que a URL com token esta cadastrada " +
-      "no DevCenter do ML e que chegou push real por ela — e entao remova a janela. " +
-      "Se ainda nao deu, mova a data com motivo escrito, mas NAO apague esta guarda."
+    `A janela de convivencia do webhook do ML venceu em ${FIM_DA_CONVIVENCIA}.` +
+      "\n\nCOM A JANELA VENCIDA, WEBHOOK_ML_TOKEN AUSENTE VIRA RECUSA — fechadura sem chave " +
+      "nao e porta aberta. Se a env nao estiver no Fly, o webhook do ML JA PAROU.\n" +
+      "\nA ORDEM PARA FECHAR, e ela nao pode ser trocada:\n" +
+      "  1. WEBHOOK_ML_TOKEN no Fly — ANTES de tudo, senao o passo 3 nunca acontece;\n" +
+      "  2. a URL com ?token= cadastrada no DevCenter do ML;\n" +
+      "  3. push real medido chegando pela URL nova (no banco, nao suposto);\n" +
+      "  4. so entao remova FIM_DA_CONVIVENCIA e esta guarda.\n" +
+      "\nSe ainda nao deu, mova a data com motivo escrito — mas NAO apague a guarda."
   );
 });
 
-test("sem segredo configurado a rota continua aberta — e isso e escolha, com aviso", () => {
-  // Recusar aqui fecharia o webhook do ML no instante do deploy, antes de
-  // alguem ter como configurar a env. O modo de falha certo para "ainda nao
-  // montamos a fechadura" e a porta continuar como estava, gritando no log.
+test("sem segredo configurado a rota aceita — DENTRO da janela, e so dentro dela", () => {
+  // Recusar no dia do deploy fecharia o webhook do ML antes de alguem ter como
+  // configurar a env. O modo de falha certo para "ainda nao montamos a
+  // fechadura" e a porta continuar como estava, gritando no log.
   for (const vazio of [null, undefined, "", "   "]) {
-    const d = avaliarOrigemDoWebhook({ tokenRecebido: null, tokenEsperado: vazio, agora: DEPOIS });
+    const d = avaliarOrigemDoWebhook({ tokenRecebido: null, tokenEsperado: vazio, agora: DENTRO });
     assert.equal(d.aceito, true);
     assert.equal(d.via, "sem-token-configurado");
   }
+});
+
+test("PASSADA A JANELA, env ausente vira RECUSA — fechadura sem chave nao e porta aberta", () => {
+  // ⚠️ A AMARRA DO FAIL-OPEN (visto do cerebro, 07/09/2026). Sem ela, a
+  // permissao "aceita porque ainda nao configuramos" sobreviveria a convivencia
+  // que a justificava — a mesma familia de divida que este arquivo existe para
+  // nao repetir. A consequencia pratica e deliberada: se a data passar sem a env
+  // no Fly, o webhook do ML PARA. Por isso a env e o passo 1, nao o ultimo.
+  for (const vazio of [null, undefined, "", "   "]) {
+    const d = avaliarOrigemDoWebhook({ tokenRecebido: null, tokenEsperado: vazio, agora: DEPOIS });
+    assert.equal(d.aceito, false, "env ausente continuou abrindo a porta depois da janela");
+    assert.equal(d.via, "recusado");
+  }
+  // E ter token na mao nao adianta, se nao ha com o que comparar.
+  assert.equal(avaliarOrigemDoWebhook({ tokenRecebido: "qualquer", tokenEsperado: "", agora: DEPOIS }).aceito, false);
 });
 
 test("a comparacao do token nao vaza pelo tempo, e nao aceita prefixo", () => {
