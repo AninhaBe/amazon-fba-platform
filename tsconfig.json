@@ -30,5 +30,23 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", "ui-ux-pro-max-skill", ".codex", "archive"]
+  "//exclude": [
+    "⚠️ `packages` FICA DE FORA, e a razao e um deploy represado (06/09/2026).",
+    "O `include` da raiz e `**/*.ts`, e o `exclude` so tinha `node_modules` — entao",
+    "o type-check puxava `packages/nexo-ds/tsup.config.ts`, que importa `tsup`.",
+    "Na maquina de quem escreveu o pacote isso passa, porque",
+    "`packages/nexo-ds/node_modules/tsup` existe. No Docker nao existe: o `npm ci`",
+    "roda so na raiz. Resultado: `error TS2307: Cannot find module 'tsup'`, e",
+    "NENHUM deploy saiu ate alguem reproduzir a diferenca.",
+    "",
+    "📌 A licao que vale mais que a correcao: gate verde na minha maquina nao e",
+    "gate verde no Docker. O que provou isto foi ESCONDER",
+    "`packages/nexo-ds/node_modules` e rodar o type-check — o vermelho apareceu na",
+    "hora. Antes disso, o `npm run build` do repo passava e nao provava nada.",
+    "",
+    "O pacote tem build proprio (`packages/nexo-ds/package.json`), com o seu",
+    "tsconfig e as suas dependencias. Checa-lo daqui e checar duas vezes com",
+    "resolucao diferente — e a resolucao diferente e justamente o defeito."
+  ],
+  "exclude": ["node_modules", "packages", "ui-ux-pro-max-skill", ".codex", "archive"]
 }
