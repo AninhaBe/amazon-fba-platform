@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { portaoDoCron } from "@/lib/portaoDoCronHttp";
 import { runScheduledTiktokSync } from "@/lib/integrations/tiktokScheduler";
 import { runComoFundo } from "@/lib/execucaoDeFundo";
 
@@ -7,10 +8,8 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 240;
 
 export async function GET(req: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
-  }
+  const recusa = portaoDoCron(req);
+  if (recusa) return recusa;
 
   return runComoFundo(async () => {
     const startedAt = performance.now();
