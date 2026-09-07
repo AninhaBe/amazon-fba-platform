@@ -295,3 +295,22 @@ test("a matriz de diagnostico SAIU depois de responder", async () => {
   // E o diagnostico CURTO fica: e barato e responde "mudaram a assinatura?".
   assert.ok(codigo.includes("formulaQueBateria"));
 });
+
+test("a resposta do push NAO revela se a loja e nossa cliente", async () => {
+  // ⚠️ O ORACULO DE ENUMERACAO, achado na auditoria de superficie de 07/09/2026.
+  // A resposta era `{received:true, queued: N}`, e N era 0 para shop_id
+  // desconhecido e maior que zero para conhecido: bastava variar o id ate a
+  // resposta mudar para descobrir quais lojas usam o NEXO.
+  //
+  // ⚠️ E A ASSINATURA HMAC NAO FECHAVA ISSO. Ela prova posse da chave de push,
+  // que e compartilhada com a plataforma — nao prova direito de saber quem e
+  // nosso cliente.
+  //
+  // 📌 Mesmo defeito do webhook do ML, corrigido de manha. Este seguia igual a
+  // tarde porque ninguem tinha ido procurar o irmao dele — e e por isso que a
+  // auditoria varreu TODAS as rotas em vez de so a que doeu.
+  const fonte = await readFile(new URL("../src/app/api/webhooks/shopee/route.ts", import.meta.url), "utf8");
+  const codigo = fonte.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+  assert.ok(codigo.includes("{ received: true }"), "a resposta mudou de forma");
+  assert.ok(!codigo.includes("queued"), "a contagem de enfileirados voltou a resposta do push");
+});

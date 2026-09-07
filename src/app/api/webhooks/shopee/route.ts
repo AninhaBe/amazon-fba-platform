@@ -159,7 +159,19 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  return NextResponse.json({ received: true, queued: novos.length });
+  // ⚠️ A RESPOSTA NÃO DIZ QUANTOS ENTRARAM NA FILA. `novos.length` era zero para
+  // `shop_id` desconhecido e maior que zero para conhecido — o que transformava
+  // esta rota num oráculo de enumeração: bastava variar o id até a resposta
+  // mudar para descobrir quais lojas usam o NEXO.
+  //
+  // ⚠️ A ASSINATURA HMAC NÃO FECHAVA ISSO. Ela prova que o remetente tem a chave
+  // de push, não que ele pode saber quem é nosso cliente — e a chave é
+  // compartilhada com a plataforma, não é por conta.
+  //
+  // 📌 Mesmo defeito e mesma correção do webhook do Mercado Livre, encontrado na
+  // auditoria de superfície de 07/09/2026: um foi corrigido de manhã e o outro
+  // seguia igual à tarde, porque ninguém tinha ido procurar o irmão dele.
+  return NextResponse.json({ received: true });
 }
 
 /**
