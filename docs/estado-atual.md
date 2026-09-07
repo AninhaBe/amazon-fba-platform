@@ -1,9 +1,15 @@
 # Estado atual — onde cada frente parou
 
-**Última atualização: 01/09/2026** (seção 2 refeita: OAuth da Amazon está OK — a
-"revogação" era medição de 06/08 nunca reconferida; tarifa estimada implementada com
-ordem observada > tabela > api; tabela oficial versionada em `tarifas-amazon-br.md`). Leia isto antes de continuar qualquer frente em andamento; o
-"porquê" das decisões está nos docs de cada área e nos ADRs.
+**Última atualização: 07/09/2026** (produção em **v282/e217e1b**; nova seção "Front —
+Caminho do Dinheiro" com a frente em andamento e a leva SEGURADA; design system
+`@nexo/ds` extraído e sincronizado no claude.ai/design. Fechados desde 05/09, com os
+porquês nos changelogs de cada doc: faixa "Histórico N% importado" removida (v279),
+`covered_from` curado nos 3 canais (v280), cancelamento Amazon + carimbo de estimativas
+ligado no sync (v281), TACOS do ML no overview (v282). ⚠️ Regra operacional nova, paga
+três vezes em dois dias: **conferência e ação nunca no mesmo comando encadeado** — o
+gate se LÊ antes do próximo passo; ver `docs/fly-io.md` §"quarta mordida"). Leia isto
+antes de continuar qualquer frente em andamento; o "porquê" das decisões está nos docs
+de cada área e nos ADRs.
 
 Este doc responde três perguntas: **o que está pronto**, **o que está no meio do
 caminho** (com o passo exato para retomar) e **o que está bloqueado por
@@ -52,6 +58,40 @@ Estado dos cadastros de OAuth/webhook por portal (todos feitos em 19–20/08):
 | **Mercado Livre** | Em produção e sincronizando. Faturamento validado ao centavo contra o painel do ML. Saldo/liberação e auditoria de frete no ar. | 16/08 |
 | **Shopee** | Implementação local completa (OAuth, dashboard multi-loja, ingestão fail-closed/retomável, settings por loja, remoção local). **Go Live: APROVADO — os dois apps estão ONLINE no console, conferido em 02/09/2026** com a dona do produto na tela. O "under review de 07/08" ficou 26 dias desatualizado aqui porque a checagem dependia de alguém abrir o console (a extensão do navegador não tem permissão para `open.shopee.com`) e ninguém abriu. ⚠️ Estado de terceiro que só se mede abrindo painel envelhece calado — este ficou quase um mês afirmando bloqueio que não existia mais. IP de saída do Fly já medido (ver seção 5). 🟢 **PONTO SEGURO ATUAL: `f50e3b9` (v270)** — validado pela dona do produto em **04/09/2026**, verbatim: *"valores batendo"*. A conciliação foi feita na **janela FECHADA de 03/09** contra o Mercado Turbo, e bate ao centavo: faturamento **R$ 9.541,89**, tarifas **R$ 3.140,30**, canceladas **R$ 1.017,58 em 28 pedidos**, **308 unidades** — idênticos. Única diferença: **3 SKUs sem custo cadastrado (R$ 28,72)**, que é cadastro dela e já aparece apontado na tela. E Hoje/7/15/30 dias sem travessão, com a conta fechando em todas. ⚠️ **NOTA DE CRITÉRIO, para não virar falso alarme depois:** a contagem de "vendas" do Mercado Turbo difere da nossa porque ele conta **pacote** e nós contamos **pedido** — com unidades e centavos idênticos. **Isso não é divergência**, é vocabulário diferente para o mesmo fato; quem comparar contagem de vendas sem saber disso vai abrir defeito que não existe. ⚠️ **E janela fechada por DATA não é número congelado:** às 15h de 04/09 esta mesma janela dava R$ 9.516,99 em 275 pedidos, e às 16h dava R$ 9.541,89 em 276 — um pendente virou pago no meio. A data do pedido não muda, o **status** ainda anda. Comparar duas leituras da mesma janela em horários diferentes e chamar a diferença de defeito é o erro que esta nota evita. **Ponto seguro ANTERIOR, mantido no histórico: `95ad8e9` (v253, 02/09/2026)** — cadeia validada contra o Mercado Turbo (faturamento ao centavo, unidades exatas, widget e lista coerentes, push em tempo real, aba persistente). Qualquer regressão futura da Shopee se compara contra o **v270**; os commits-chave dos dois estados estão no changelog de `docs/api-shopee.md`. **Push LIGADO em 02/09/2026:** endpoint `/api/webhooks/shopee` no ar com assinatura verificada (`url|corpo` com a Live Push Partner Key), Push ON e status *Normal* no console, 29 tipos ligados. Primeiro push real confirmado às 19:12Z — dois pedidos entraram pelo caminho canônico, latência mediana pedido → push de **10,8 s** contra 3–15 min da varredura. A varredura **continua** como rede de segurança, e o push carimba `last_push_at` (0031) para não mascarar varredura parada. Detalhe da assinatura e as duas armadilhas em `docs/api-shopee.md` → Changelog. **Em medição:** cobertura do push por 7 dias (`scripts/medir-cobertura-do-push-shopee.mjs`) — o gate de ≥99% que a dona do produto pediu antes de relaxar a cadência da varredura. | 07/08 |
 | **TikTok Shop** | OAuth, sync paginado, cron, modelo canônico, overview, Dashboard, Financeiro e ledger de extratos **implementados**. **App público SUBMETIDO em 27/08** para App review + Listing review — ver seção 4. Lucro, margem e ROI aparecem quando o extrato liquidado cobre o período. 🟢 **TRANSIÇÃO PARA O APP PÚBLICO — ETAPA 1 COMPLETA E VALIDADA (04/09/2026, v271).** O NEXO conhece os dois apps: credenciais separadas, `auth_code` trocado com o par certo, e o app viaja dentro do `state` assinado do convite (adulterá-lo quebra a assinatura). **Validado ponta a ponta:** as três `TIKTOK_PUBLIC_*` conferidas DENTRO do processo (presença e tamanho, nunca valor) e `GET /api/tiktok/invite?app=publico` respondendo `app: "publico"` com o `service_id` do app público. O custom segue atendendo a loja conectada, sem uma linha de mudança. ⚠️ **A convivência tem prazo de morte declarado** (`src/lib/integrations/tiktokApps.ts`, guarda `tests/convivenciaDoTikTokTemPrazo`): aprovado o App review → janela com a dona → a loja reautoriza pelo público → custom aposentado → par extra sai do Fly. **Aguardando só o App review do TikTok** (em andamento para Brazil Local); quando ele sair, dispara a etapa 2. 📌 A armadilha que essa validação revelou está em `docs/fly-io.md` → 7.1: *salvei o segredo* não é *o processo tem o segredo*. 🟢 **AS 4 QUALIFICAÇÕES DO PARTNER CENTER ESTÃO VERDES desde 04/09/2026** — Finance/Accounting (18:28), Marketing/Analytics & Reporting (18:31) e Shipping/OMS (18:35) aprovadas em sete minutos, somando-se à Catalog. ⚠️ **A causa das reprovações de julho/agosto era o CNPJ digitado divergindo do documento**; reenviado com o número atual, a aprovação foi automática — ou seja, duas qualificações ficaram ~2 meses marcadas como "aguardando o marketplace" quando o que reprovava era dado nosso. Mesma família do Go Live da Shopee, que ficou 26 dias desatualizado aqui: **estado de terceiro que só se mede abrindo painel envelhece calado.** ⚠️ A conciliação financeira real segue parcial: 330 pedidos no backlog e o recurso `payments` com erro (seção 4) — ela deixa de estar bloqueada por QUALIFICAÇÃO, mas **"destravado" não é "medido"**: falta medir o que `finance` (`settlements`, `statements`, `payments`) entrega de verdade na loja conectada e com que atraso, antes de desenhar a conciliação. Se o `payments` parar de falhar agora, a causa era permissão; se continuar, era forma do dado. | 04/09 |
+
+## 🎨 Front — Caminho do Dinheiro + design system — atualizado em 07/09/2026
+
+**A direção visual nova foi decidida pela dona em 06/09** e está em dois arquivos que
+regem TODO trabalho de front daqui em diante (cópias em
+`G:/sc-temp/design-caminho-do-dinheiro/`): `nexo-prompt-design.md` (tokens, tipografia
+Inter+Archivo, princípios — 1 número herói/tela, cor só para estado, nada duplicado) e o
+mockup `nexo-caminho-do-dinheiro.pdf`. O canvas aprovado por ela (artifact `d4555bdd`) é
+o **contrato** da reforma do dashboard do ML. Regra dela, verbatim: *"o melhor caminho
+para mudarmos o front é voce gerar pra mim antes de implementar qualquer coisa"* —
+canvas primeiro, código depois, sempre.
+
+**Frente em andamento (Vitrine), com a leva SEGURADA até fechar:** etapas 2 (faixa de 4
+etapas + alertas, `a6c52eb`) e 3 (os três cards de tabela, `4cef027`) prontas e aceitas;
+faltam 4 (ritmo dos 7 dias com alternador), 5 (Anúncios pagos — o campo `tacos` já
+existe no overview desde v282, entra por acréscimo) e o responsivo. **As etapas sobem
+JUNTAS numa leva única** depois da validação na tela — decisão do cérebro para não expor
+meio-dashboard à vendedora. O mapa bloco→produtor completo está no report da etapa 1 da
+Vitrine; só o ML nesta frente — replicar a outros canais é reimplementar por canal, com
+aprovação dela por canal.
+
+**Design system `@nexo/ds` (packages/nexo-ds) — PRONTO e sincronizado (06/09).** Retrato
+fiel do design ATUAL (não da direção nova): tokens verbatim do `globals.css` + 16
+componentes apresentacionais, cada um com exemplo que renderiza sozinho. Sincronizado no
+**claude.ai/design** (projeto "NEXO Design System") com preview verificado peça a peça —
+lá a dona explora telas por prompt usando as peças reais; o que ela aprova volta como
+contrato para a Vitrine. Config e re-sync: `.design-sync/` (NOTES.md tem as pegadinhas —
+junction do node_modules, fonte base). ⚠️ O pacote expôs 2 inconsistências reais do
+design atual: não existe etiqueta-de-estado única (4 tratamentos diferentes), e
+`--ml-verde`/`--ml-coluna` eram escopadas à faixa do cockpit (a etapa 2 já subiu o
+escopo para `.ml-dashboard-page`). ⚠️ E ele quebrou o deploy por 1 dia: o type-check da
+raiz puxava o `tsup.config.ts` do pacote, que só compila com o node_modules local —
+corrigido em `e217e1b` (packages no exclude) com guarda que exige exclude para todo
+sub-pacote versionado.
 
 **Baseline local de qualidade: 897 testes passando** (`node --experimental-strip-types
 --test tests/*.test.mjs`, medido em 27/08 após a frente de sync imediato — eram 825 mais
