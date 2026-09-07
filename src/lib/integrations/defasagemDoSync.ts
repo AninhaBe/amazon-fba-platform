@@ -1,4 +1,5 @@
 import { dbQuery } from "../db";
+import { filtroDeAcessoLiberado } from "./assinaturaPausaSync";
 import {
   CANAIS_COM_PUSH,
   CICLOS_ATE_ALARMAR,
@@ -65,7 +66,7 @@ export interface DefasagemDeConexao {
   mensagem: string | null;
 }
 
-interface Linha {
+export interface Linha {
   provider: string;
   connection_id: string;
   last_success_at: Date | string | null;
@@ -76,6 +77,8 @@ interface Linha {
    * sintoma, e o alarme viraria ruído toda madrugada.
    */
   houve_pedido_apos_push: boolean;
+  /** O workspace está sem acesso, então esta conexão não deve sincronizar. */
+  pausada?: boolean;
 }
 
 /**
@@ -152,6 +155,21 @@ export interface DefasagemDeCanal {
   estado: EstadoDaDefasagem;
   conexoes: number;
   atrasadas: number;
+  /**
+   * Conexões que NÃO sincronizam de propósito: o workspace está sem acesso
+   * (assinatura ausente ou cortada). Ver `assinaturaPausaSync.ts`.
+   *
+   * ⚠️ ELAS EXISTEM AQUI PARA NÃO VIRAREM ALARME. Desde 07/09/2026 o scheduler
+   * pula conexão de conta sem assinatura; para o vigia, que só olhava a idade do
+   * último sucesso, isso é indistinguível de varredura quebrada — a conexão
+   * envelheceria e gritaria por um estado saudável. Alarme que grita sozinho é
+   * alarme que alguém desliga, e o alarme desligado não avisa no dia em que era
+   * pra avisar.
+   *
+   * E ficam CONTADAS, não escondidas: sumir com elas trocaria um alarme falso
+   * por uma cegueira.
+   */
+  pausadas: number;
   /** Pior caso do canal. `null` = nenhuma conexão com histórico. */
   piorCasoMinutos: number | null;
   limiteMinutos: number;
@@ -169,9 +187,15 @@ export interface ResumoDaDefasagem {
   mensagens: string[];
 }
 
-export function resumirDefasagem(conexoes: DefasagemDeConexao[]): ResumoDaDefasagem {
+export function resumirDefasagem(
+  conexoes: DefasagemDeConexao[],
+  pausadasPorCanal: Map<string, number> = new Map()
+): ResumoDaDefasagem {
   const porCanal = new Map<string, DefasagemDeConexao[]>();
   for (const c of conexoes) porCanal.set(c.provider, [...(porCanal.get(c.provider) ?? []), c]);
+  // Canal cujas conexões estão TODAS pausadas não pode desaparecer do vigia:
+  // sumir da lista é indistinguível de "canal nunca existiu".
+  for (const provider of pausadasPorCanal.keys()) if (!porCanal.has(provider)) porCanal.set(provider, []);
 
   const canais: DefasagemDeCanal[] = [...porCanal.entries()].map(([provider, lista]) => {
     const atrasadas = lista.filter((c) => c.estado === "atrasado");
@@ -180,16 +204,20 @@ export function resumirDefasagem(conexoes: DefasagemDeConexao[]): ResumoDaDefasa
       ? Math.max(...comHistorico.map((c) => c.minutosDesdeUltimoSucesso as number))
       : null;
     const cadenciaMin = Math.round(intervaloDaRota(ROTA_DE_SYNC[provider]) / 60_000);
+    const pausadas = pausadasPorCanal.get(provider) ?? 0;
     const estado: EstadoDaDefasagem = atrasadas.length
       ? "atrasado"
+      // Canal inteiro pausado é "ok": ninguém devia estar sincronizando.
+      : lista.length === 0 && pausadas > 0 ? "ok"
       : comHistorico.length === 0 ? "sem-historico" : "ok";
     return {
       provider,
       estado,
-      conexoes: lista.length,
+      conexoes: lista.length + pausadas,
       atrasadas: atrasadas.length,
+      pausadas,
       piorCasoMinutos,
-      limiteMinutos: lista[0].limiteMinutos,
+      limiteMinutos: lista[0]?.limiteMinutos ?? cadenciaMin * CICLOS_ATE_ALARMAR,
       // O canal esta mudo se QUALQUER conexao dele estiver — uma loja sem push
       // e um defeito, mesmo que a outra esteja recebendo.
       push: lista.some((c) => c.push === "mudo") ? "mudo" as const
@@ -218,7 +246,29 @@ export function resumirDefasagem(conexoes: DefasagemDeConexao[]): ResumoDaDefasa
   return { estado, ciclosAteAlarmar: CICLOS_ATE_ALARMAR, canais, mensagens };
 }
 
+/**
+ * Separa o que NAO deve sincronizar do que deveria e nao sincronizou.
+ *
+ * ⚠️ EXTRAIDA PARA PODER SER TESTADA. Enquanto isto vivia dentro de
+ * `lerDefasagemDoSync`, a unica prova possivel era olhar o texto do arquivo — e
+ * eu rodei a quebra: trocar `linhas.filter((l) => !l.pausada)` por `linhas`
+ * deixava a suite INTEIRA VERDE, porque nenhum teste chegava ate ali. Guarda de
+ * fonte nao prova comportamento; esta funcao prova.
+ */
+export function separarPausadas(linhas: Linha[]): {
+  ativas: Linha[];
+  pausadasPorCanal: Map<string, number>;
+} {
+  const ativas = linhas.filter((l) => !l.pausada);
+  const pausadasPorCanal = new Map<string, number>();
+  for (const l of linhas) {
+    if (l.pausada) pausadasPorCanal.set(l.provider, (pausadasPorCanal.get(l.provider) ?? 0) + 1);
+  }
+  return { ativas, pausadasPorCanal };
+}
+
 export async function lerDefasagemDoSync(agora = Date.now()): Promise<ResumoDaDefasagem> {
+  const filtroDeAcesso = await filtroDeAcessoLiberado("s");
   const linhas = await dbQuery<Linha>(
     `SELECT s.provider, s.connection_id,
             MAX(s.last_success_at) AS last_success_at,
@@ -236,10 +286,19 @@ export async function lerDefasagemDoSync(agora = Date.now()): Promise<ResumoDaDe
                      WHERE o.workspace_id = s.workspace_id AND o.provider = s.provider
                        AND o.connection_id = s.connection_id
                        AND o.synced_at > COALESCE(s.last_push_at, now() - interval '1 hour'))
-              AS houve_pedido_apos_push
+              AS houve_pedido_apos_push,
+            -- ⚠️ PAUSADA DE PROPOSITO NAO E ATRASADA. Mesma regra do scheduler,
+            -- mesma fonte — se este vigia tivesse a propria copia da condicao,
+            -- as duas divergiriam e o alarme voltaria a gritar sozinho.
+            NOT ${filtroDeAcesso} AS pausada
        FROM workspace_marketplace_syncs s
       GROUP BY s.workspace_id, s.provider, s.connection_id, s.last_push_at`,
     [],
   );
-  return resumirDefasagem(avaliarDefasagem(linhas, agora));
+
+  // ⚠️ A LEITURA CONTINUA ENTRE INQUILINOS, e continua devolvendo AGREGADO. A
+  // pergunta e de plataforma ("este canal parou?") e `/api/health` nao tem
+  // sessao, por construcao — mas nenhum identificador sai daqui.
+  const { ativas, pausadasPorCanal } = separarPausadas(linhas);
+  return resumirDefasagem(avaliarDefasagem(ativas, agora), pausadasPorCanal);
 }

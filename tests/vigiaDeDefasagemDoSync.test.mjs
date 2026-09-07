@@ -19,6 +19,7 @@ import "../scripts/ts-resolver.mjs";
 const {
   avaliarDefasagem,
   resumirDefasagem,
+  separarPausadas,
 } = await import("../src/lib/integrations/defasagemDoSync.ts");
 const {
   limiteDeSilencioMs,
@@ -244,4 +245,60 @@ test("o limite do push SAI da medicao, e e generoso de proposito", async () => {
   const { limiteDeSilencioMs } = await import("../src/lib/integrations/cadenciaDoSync.ts");
   assert.ok(LIMITE_PUSH_MUDO_MS > limiteDeSilencioMs("shopee") * 3,
     "limite de push apertado como o da varredura viraria ruido");
+});
+
+test("CONEXAO PAUSADA DE PROPOSITO nao vira alarme — e nao some da contagem", () => {
+  // ⚠️ O DEFEITO QUE ISTO REPROVA EU MESMO CRIEI, em 07/09/2026. O scheduler
+  // passou a pular conexao de conta sem assinatura; o vigia, que so olha a idade
+  // do ultimo sucesso, veria isso como varredura quebrada. A conexao envelheceria
+  // ate estourar o limite e o alarme gritaria por um estado SAUDAVEL.
+  //
+  // Alarme que grita sozinho e alarme que alguem desliga — e o desligado nao
+  // avisa no dia em que era pra avisar.
+  const paradaHaMuito = avaliarDefasagem([linha("amazon", "amazon:ativa", 5)], AGORA);
+  const resumo = resumirDefasagem(paradaHaMuito, new Map([["amazon", 1]]));
+  const amazon = resumo.canais.find((c) => c.provider === "amazon");
+  assert.equal(amazon.atrasadas, 0, "pausada nao pode contar como atrasada");
+  assert.equal(amazon.pausadas, 1);
+  // E CONTADA, nao escondida: sumir com ela trocaria alarme falso por cegueira.
+  assert.equal(amazon.conexoes, 2, "a pausada tem de continuar aparecendo no total");
+  assert.equal(resumo.estado, "ok");
+});
+
+test("canal com TODAS as conexoes pausadas nao desaparece do vigia", () => {
+  // Sumir da lista e indistinguivel de "este canal nunca existiu" — e a
+  // diferenca importa no dia em que alguem perguntar por que a Shopee sumiu.
+  const resumo = resumirDefasagem([], new Map([["shopee", 2]]));
+  const shopee = resumo.canais.find((c) => c.provider === "shopee");
+  assert.ok(shopee, "o canal inteiro pausado sumiu do resumo");
+  assert.equal(shopee.pausadas, 2);
+  assert.equal(shopee.conexoes, 2);
+  assert.equal(shopee.estado, "ok", "ninguem devia estar sincronizando: isso e ok, nao defeito");
+  assert.deepEqual(resumo.mensagens, [], "canal pausado nao pede acao");
+});
+
+test("separarPausadas TIRA as pausadas da conta de atraso — comportamento, nao texto", () => {
+  // ⚠️ ESTE TESTE EXISTE PORQUE O ANTERIOR NAO PEGAVA. Trocar o filtro por
+  // `linhas` (ou seja, tratar pausada como ativa) deixava a suite INTEIRA verde,
+  // porque nenhum teste chegava ate aquela linha: ela morava dentro da funcao
+  // que precisa de banco. Rodei a quebra e vi o verde. Por isso a peca foi
+  // extraida — guarda de fonte nao prova comportamento.
+  const linhas = [
+    { provider: "amazon", connection_id: "amazon:paga", last_success_at: null, last_push_at: null, houve_pedido_apos_push: false },
+    { provider: "amazon", connection_id: "amazon:sem-assinatura", last_success_at: null, last_push_at: null, houve_pedido_apos_push: false, pausada: true },
+    { provider: "shopee", connection_id: "shopee:1", last_success_at: null, last_push_at: null, houve_pedido_apos_push: false, pausada: true },
+  ];
+  const { ativas, pausadasPorCanal } = separarPausadas(linhas);
+  assert.deepEqual(ativas.map((l) => l.connection_id), ["amazon:paga"]);
+  assert.equal(pausadasPorCanal.get("amazon"), 1);
+  assert.equal(pausadasPorCanal.get("shopee"), 1);
+});
+
+test("o vigia deriva 'pausada' da MESMA regra do scheduler", async () => {
+  // Uma copia da condicao aqui divergiria da do scheduler, e o alarme voltaria a
+  // gritar sozinho no dia em que uma das duas mudasse.
+  const fonte = await readFile(new URL("../src/lib/integrations/defasagemDoSync.ts", import.meta.url), "utf8");
+  const codigo = fonte.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+  assert.ok(codigo.includes("await filtroDeAcessoLiberado("), "o vigia nao usa o filtro compartilhado");
+  assert.ok(codigo.includes("NOT ${filtroDeAcesso} AS pausada"), "a consulta nao marca as pausadas");
 });
