@@ -116,6 +116,52 @@ terceiro), `/highlights/{site}/category/{id}` (top 20 da categoria, com
 - Notificação traz só `resource` (ex.: `/orders/123`) — sempre re-buscar o recurso na API; dedupe por `_id`/chave composta antes de processar.
 - Responder 200 rápido e processar depois (fila em banco) — o ML re-tenta e pode desconectar o webhook se demorar.
 
+### Origem: token secreto na URL (07/09/2026)
+
+⚠️ **O ML NÃO assina as notificações dele.** A Shopee manda HMAC; o ML manda um
+POST cru. Isso significa que qualquer pessoa na internet podia postar no nosso
+endpoint — e foi assim até 07/09/2026.
+
+O único segredo possível é um **token na URL cadastrada no DevCenter**:
+
+```
+https://nexoaihub.com.br/api/webhooks/mercado-livre?token=<WEBHOOK_ML_TOKEN>
+```
+
+Três propriedades, cada uma com um ataque atrás:
+
+| propriedade | o ataque que ela fecha |
+|---|---|
+| origem conferida **antes** de ler o corpo | evento forjado carimbando `last_push_at` e mascarando varredura parada como saudável |
+| recusa devolve **404 seco** | 401/403 confirmam que a rota existe e que há segredo a adivinhar |
+| resposta **não** conta os enfileirados | `queued` era 0 para `user_id` desconhecido e >0 para conhecido: bastava variar o id até a resposta mudar para descobrir quem usa o NEXO |
+
+**Token presente e errado nunca passa**, nem durante a janela de convivência:
+quem manda token errado não é o chamador legado — o legado não manda token nenhum.
+
+**Sem `WEBHOOK_ML_TOKEN` configurado, a rota aceita tudo**, com aviso no log.
+É escolha, não esquecimento: recusar fecharia o webhook no instante do deploy,
+antes de alguém ter como configurar a env.
+
+#### A janela de convivência, e o que precisa acontecer para ela morrer
+
+A URL nova precisa estar cadastrada no DevCenter **antes** de a antiga fechar, e
+o cadastro é ato de pessoa. Até `FIM_DA_CONVIVENCIA`
+(`src/lib/integrations/webhookMlToken.ts`), requisição **sem** token ainda entra.
+
+Para fechar:
+
+1. `WEBHOOK_ML_TOKEN` configurado no Fly;
+2. a URL com `?token=…` cadastrada no DevCenter do ML;
+3. **um push real chegando pela URL nova** — medido, não suposto.
+
+⚠️ Há teste que fica **vermelho sozinho** quando a data passar
+(`tests/webhookMlExigeToken.test.mjs`). Ele existe porque este projeto já foi
+mordido por salvaguarda temporária que sobreviveu à limitação que a justificou
+(31/08/2026, a recusa da Shopee que continuou mentindo 4 horas depois de a rota
+passar a aceitar). Quando ficar vermelho: feche a janela, ou mova a data **com
+motivo escrito** — mas não apague a guarda.
+
 ## Fees e impostos
 
 - Comissão (`sale_fee`) vem em `order_items[].sale_fee` no pedido — por unidade; multiplicar pela quantidade.
@@ -180,7 +226,15 @@ passa a dividir pela total como os outros — e aí é seguro, porque o numerado
 também cobre o pendente.
 
 
-## Changelog observado (mais recente primeiro)
+## Changelog observado (mais recente primeiro)
+
+- **2026-09-07 — O WEBHOOK ESTAVA ABERTO, e agora exige token na URL.** Medido na
+  rota: `POST` sem validação de origem nenhuma. Três buracos fechados de uma vez
+  — origem não conferida, recusa que confirmaria a rota, e a resposta que
+  funcionava como oráculo de enumeração de vendedores. Ver "Origem: token
+  secreto na URL", acima, para a janela de convivência e a condição de morte
+  dela.
+
 
 - **2026-09-06 — TACOS DO ML: o que eu medi ANTES de escrever o produtor.**
   Três perguntas, três respostas, e duas mudaram o desenho.
