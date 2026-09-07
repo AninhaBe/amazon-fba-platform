@@ -27,6 +27,13 @@ export interface GrupoDeExtrato {
   processingStatus?: string;
   originalTotal?: { currencyAmount?: number; currencyCode?: string } | null;
   startDate?: string | null;
+  /** Desfecho da transferencia bancaria: Succeeded, Failed, Processing... */
+  fundTransferStatus?: string | null;
+  fundTransferDate?: string | null;
+  /** Codigo de rastreio bancario. Vem em POUCOS grupos — 1 de 12 na medicao. */
+  traceId?: string | null;
+  /** Ultimos digitos da conta de destino. */
+  accountTail?: string | null;
 }
 
 export interface TransacaoDeSaldo {
@@ -66,6 +73,39 @@ export interface SaldoAmazon {
    * Amazon vai COBRAR essa diferença no fechamento.
    */
   seraCobrado: boolean;
+  /**
+   * ⚠️ O QUE JÁ FECHOU E ESPERA TRANSFERÊNCIA (grupos `Pending`).
+   *
+   * É dinheiro que saiu do "em maturação" e ainda não virou depósito. Na conta
+   * da vendedora eram R$ 382,44 em 05/09/2026, represados porque **todas as
+   * transferências estavam falhando** — e isso não aparecia em lugar nenhum da
+   * tela. `null` = a Amazon não devolveu grupo fechado; zero seria afirmar que
+   * não há nada esperando.
+   */
+  aguardandoTransferencia: number | null;
+  /**
+   * ⚠️ O DESFECHO DA ÚLTIMA TRANSFERÊNCIA — o campo que teria respondido "os
+   * saques estão indo pra onde?" semanas antes de ela perguntar.
+   *
+   * O painel da Amazon mostra a TENTATIVA; só a API mostra se ela deu certo.
+   * `null` = nunca houve transferência no período lido.
+   */
+  ultimaTransferencia: UltimaTransferencia | null;
+}
+
+export interface UltimaTransferencia {
+  /** Verbatim da Amazon: Succeeded, Failed, Processing, Unknown. */
+  status: string;
+  data: string;
+  valor: number;
+  /**
+   * Rastreio bancário para casar com o extrato. `null` na maioria — medido em
+   * 06/09/2026: **1 de 12** transferências tinha. Ausência é ausência; traço
+   * vazio fingindo rastreio seria pior.
+   */
+  traceId: string | null;
+  /** Últimos dígitos da conta de destino, quando a Amazon informa. */
+  contaFinal: string | null;
 }
 
 const round = (v: number) => +v.toFixed(2);
@@ -103,11 +143,36 @@ export function calcularSaldo(grupos: GrupoDeExtrato[], transacoes: TransacaoDeS
     porDia.set(dia, atual);
   }
 
+  // O que ja fechou e espera transferencia. Grupo `Pending` = periodo fechado,
+  // dinheiro apurado, deposito ainda nao tentado.
+  const pendentes = grupos.filter((g) => g.processingStatus === "Pending");
+  const aguardandoTransferencia = pendentes.length
+    ? round(pendentes.reduce((soma, g) => soma + (g.originalTotal?.currencyAmount ?? 0), 0))
+    : null;
+
+  // A transferencia mais recente, seja qual for o desfecho. ⚠️ NAO filtra por
+  // Succeeded: era exatamente o `Failed` que precisava aparecer.
+  const transferencias = grupos
+    .filter((g): g is GrupoDeExtrato & { fundTransferStatus: string } => !!g.fundTransferStatus)
+    .sort((a, b) => (b.fundTransferDate ?? "").localeCompare(a.fundTransferDate ?? ""));
+  const recente = transferencias[0];
+  const ultimaTransferencia: UltimaTransferencia | null = recente
+    ? {
+        status: recente.fundTransferStatus,
+        data: recente.fundTransferDate ?? "",
+        valor: round(recente.originalTotal?.currencyAmount ?? 0),
+        traceId: recente.traceId ?? null,
+        contaFinal: recente.accountTail ?? null,
+      }
+    : null;
+
   const inicios = abertos.map((g) => g.startDate).filter((d): d is string => !!d).sort();
 
   return {
     currency: transacoes.find((t) => t.currency)?.currency ?? abertos[0]?.originalTotal?.currencyCode ?? "BRL",
     disponivel,
+    aguardandoTransferencia,
+    ultimaTransferencia,
     retido,
     liberacoes: [...porDia.values()].sort((a, b) => a.date.localeCompare(b.date)),
     extratoDesde: inicios[0] ?? null,

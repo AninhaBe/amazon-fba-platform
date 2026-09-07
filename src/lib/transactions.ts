@@ -460,6 +460,14 @@ interface FinancialEventGroup {
   ProcessingStatus?: string;
   OriginalTotal?: { CurrencyCode?: string; CurrencyAmount?: number };
   FinancialEventGroupStart?: string;
+  // ⚠️ Campos da TRANSFERENCIA BANCARIA. A API sempre os devolveu; nos e que
+  // nao os liamos — e por isso sete repasses falharam sem aparecer na tela.
+  // Medido em 06/09/2026 na conta da vendedora: 7 Failed, 3 Processing.
+  FundTransferStatus?: string;
+  FundTransferDate?: string;
+  /** So vem em alguns grupos: 1 de 12 na medicao. */
+  TraceId?: string;
+  AccountTail?: string;
 }
 
 interface ListEventGroupsResponse {
@@ -521,6 +529,13 @@ export function getAmazonBalance(): Promise<SaldoAmazon> {
           processingStatus: g.ProcessingStatus,
           originalTotal: { currencyAmount: g.OriginalTotal?.CurrencyAmount, currencyCode: g.OriginalTotal?.CurrencyCode },
           startDate: g.FinancialEventGroupStart ?? null,
+          // Campos da transferencia bancaria: o desfecho do repasse. Sem eles o
+          // painel mostra a tentativa e nunca o resultado — ver a nota em
+          // `UltimaTransferencia`.
+          fundTransferStatus: g.FundTransferStatus ?? null,
+          fundTransferDate: g.FundTransferDate ?? null,
+          traceId: g.TraceId ?? null,
+          accountTail: g.AccountTail ?? null,
         })),
         transacoes
       );
