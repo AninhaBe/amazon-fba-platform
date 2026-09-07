@@ -90,3 +90,35 @@ export function custoDaVenda(receita: number | null | undefined, sobrou: number 
   if (sobrou == null || !Number.isFinite(sobrou)) return null;
   return receita - sobrou;
 }
+
+/**
+ * A fatia do "Sobrou" na barra do custo — e ela SO existe quando a conta fecha.
+ *
+ * ⚠️ HIBRIDO DELIBERADO (decisao de 06/09/2026), e as duas metades tem
+ * motivo:
+ *
+ *   TODAS as parcelas conhecidas -> a fatia verde entra e a barra fecha 100%.
+ *     E o que o canvas desenhou, e conta a historia inteira: venda = custo +
+ *     sobra.
+ *
+ *   QUALQUER parcela desconhecida -> a fatia verde SOME, e o branco que sobra
+ *     significa "o que ainda nao se sabe". Uma fatia verde calculada por
+ *     diferenca com o imposto faltando afirmaria um lucro que nao esta fechado
+ *     — e afirmaria com a autoridade de um desenho, que e pior que um numero,
+ *     porque ninguem confere um desenho.
+ *
+ * Devolve a largura em pontos percentuais, ou `null` quando a fatia nao deve
+ * existir.
+ */
+export function fatiaDoSobrou({ parcelas, lucro, base }: {
+  parcelas: Array<number | null | undefined>;
+  lucro: number | null | undefined;
+  base: number | null | undefined;
+}): number | null {
+  const algumaDesconhecida = parcelas.some((valor) => valor == null || !Number.isFinite(valor));
+  if (algumaDesconhecida) return null;
+  // Prejuizo tambem nao vira fatia: a barra mede o que a venda virou, e uma
+  // largura negativa nao existe. O branco continua dizendo o que falta.
+  if (lucro == null || !Number.isFinite(lucro) || lucro <= 0) return null;
+  return sobreAVenda(lucro, base);
+}

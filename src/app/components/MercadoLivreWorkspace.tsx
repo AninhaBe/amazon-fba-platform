@@ -35,7 +35,7 @@ import { BriefingLead } from "./BriefingLead";
 import { NexoDoDia } from "./NexoDoDia";
 import { LucroPorDia } from "./CockpitDoResultado";
 import { AlertasDoCaminho, FaixaDeEtapas } from "./FaixaDeEtapas";
-import { custoDaVenda, sobreAVenda, somaDosCustos } from "./caminhoDoDinheiro";
+import { custoDaVenda, fatiaDoSobrou, sobreAVenda, somaDosCustos } from "./caminhoDoDinheiro";
 import { DecomposicaoDoCusto, RankingDaVenda, TabelaDeVendas } from "./CardsDoCaminho";
 import { IntegrationDashboardFrame } from "./IntegrationDashboardFrame";
 
@@ -907,6 +907,12 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
       <DecomposicaoDoCusto
         componentes={componentesDoCusto}
         sobreQuanto={`sobre ${money(overview.metrics.revenue30d, overview.metrics.currency)} vendidos`}
+        sobrouPct={fatiaDoSobrou({
+          parcelas: [overview.profit.cogs, overview.profit.sellerShipping, overview.profit.fees, overview.profit.taxes],
+          lucro: overview.profit.estimatedProfit,
+          base: overview.metrics.revenue30d,
+        })}
+        sobrouRotulo="Sobrou"
         explicacao="Enquanto o custo não entra, a margem desses itens fica em branco e o lucro do dia sai menor do que é."
       />
     </section>

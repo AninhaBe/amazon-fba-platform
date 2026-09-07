@@ -144,11 +144,18 @@ export interface ComponenteDoCusto {
  * barra que soma o que ninguem apurou mente com a autoridade de um desenho, e a
  * soma das larguras deixaria de bater com a conta ao lado.
  */
-export function DecomposicaoDoCusto({ componentes, sobreQuanto, explicacao }: {
+export function DecomposicaoDoCusto({ componentes, sobreQuanto, explicacao, sobrouPct, sobrouRotulo }: {
   componentes: ComponenteDoCusto[];
   /** "sobre R$ 2.819,90 vendidos" */
   sobreQuanto: string;
   explicacao: ReactNode;
+  /**
+   * A fatia verde do fim, em pontos percentuais. `null` quando a conta NAO
+   * fecha — e ai o branco que sobra na barra e o desconhecido. Quem decide isso
+   * e `fatiaDoSobrou`, no modulo testado.
+   */
+  sobrouPct?: number | null;
+  sobrouRotulo?: string;
 }) {
   const naBarra = componentes.filter((c) => c.sobreAVendaPct != null && c.sobreAVendaPct > 0);
 
@@ -159,6 +166,10 @@ export function DecomposicaoDoCusto({ componentes, sobreQuanto, explicacao }: {
           {naBarra.map((c) => (
             <i key={c.id} style={{ width: `${c.sobreAVendaPct}%`, background: c.cor }} title={c.rotulo} />
           ))}
+          {/* A fatia verde so aparece quando a conta fecha; ver `fatiaDoSobrou`. */}
+          {sobrouPct == null ? null : (
+            <i style={{ width: `${sobrouPct}%`, background: "var(--ml-verde)" }} title={sobrouRotulo ?? "Sobrou"} />
+          )}
         </div>
       )}
       <p className="card-explica">{explicacao}</p>

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { custoDaVenda, ordenaPorMargem, sobreAVenda, somaDosCustos } from "../src/app/components/caminhoDoDinheiro.ts";
+import { custoDaVenda, fatiaDoSobrou, ordenaPorMargem, sobreAVenda, somaDosCustos } from "../src/app/components/caminhoDoDinheiro.ts";
 
 const fonte = (caminho) => readFile(new URL(`../${caminho}`, import.meta.url), "utf8");
 const semComentarios = (codigo) =>
@@ -149,4 +149,62 @@ test("o ranking ordena pela funcao testada — nao por um sort no componente", a
   const css = (await fonte("src/app/globals.css")).replace(/\/\*[\s\S]*?\*\//g, "");
   assert.ok(css.includes(".card-tabela .is-desconhecida, .card-ranking .rk-mg.is-desconhecida { color: var(--ink-faint); }"),
     "a margem desconhecida ganhou cor de veredito");
+});
+
+test("a barra do custo FECHA 100% com a fatia verde quando tudo e conhecido", () => {
+  // ⚠️ O CASO QUE O CANVAS DESENHOU: venda = custo + sobra, e a barra
+  // conta a historia inteira. As quatro parcelas e o lucro somam a venda.
+  const parcelas = [1263.18, 634.41, 331.44, 253.79];
+  const lucro = 337.08;
+  const base = 2819.90;
+
+  const verde = fatiaDoSobrou({ parcelas, lucro, base });
+  assert.ok(verde != null, "a fatia verde sumiu no caso em que a conta FECHA — o canvas a desenha aqui");
+
+  const somaDasFatias = parcelas.reduce((total, valor) => total + sobreAVenda(valor, base), 0) + verde;
+  assert.ok(Math.abs(somaDasFatias - 100) < 0.05,
+    `as fatias somam ${somaDasFatias.toFixed(2)}% em vez de 100% — a barra deixou de fechar`);
+});
+
+test("com UMA parcela desconhecida a fatia verde SOME, e o branco e o desconhecido", () => {
+  // ⚠️ O CASO QUE O CANVAS NAO COBRIU, e o unico que acontece de
+  // verdade hoje (imposto sem aliquota). Uma fatia verde calculada por
+  // diferenca aqui afirmaria um lucro que nao esta fechado — e afirmaria com a
+  // autoridade de um DESENHO, que e pior que um numero, porque ninguem confere
+  // um desenho.
+  const verde = fatiaDoSobrou({
+    parcelas: [1263.18, 634.41, 331.44, null],
+    lucro: 337.08,
+    base: 2819.90,
+  });
+  assert.equal(verde, null,
+    "a fatia verde apareceu com uma parcela desconhecida — a barra afirma um lucro que nao fechou");
+
+  // E o que sobra em branco e exatamente o que nao se sabe: as tres conhecidas
+  // ocupam 79,05% (2.229,03 de 2.819,90) e os 20,95% restantes ficam vazios.
+  const conhecidas = [1263.18, 634.41, 331.44].reduce((total, valor) => total + sobreAVenda(valor, 2819.90), 0);
+  assert.ok(Math.abs(conhecidas - 79.05) < 0.01, `as fatias conhecidas somam ${conhecidas.toFixed(2)}%`);
+});
+
+test("prejuizo tambem nao vira fatia verde", () => {
+  // Largura negativa nao existe, e pintar o prejuizo de verde inverteria o
+  // significado da unica cor que a faixa usa para dizer "isto sobra para voce".
+  assert.equal(fatiaDoSobrou({ parcelas: [100, 200], lucro: -50, base: 1000 }), null);
+  assert.equal(fatiaDoSobrou({ parcelas: [100, 200], lucro: 0, base: 1000 }), null);
+  // E sem base nao ha porcentagem nenhuma.
+  assert.equal(fatiaDoSobrou({ parcelas: [100, 200], lucro: 50, base: 0 }), null);
+});
+
+test("o ML passa as QUATRO parcelas para a decisao da fatia — nao um subconjunto", async () => {
+  // ⚠️ ANCORADO NA DEFINICAO: se alguem tirar `taxes` desta lista, a
+  // fatia verde volta a aparecer com o imposto desconhecido e a barra volta a
+  // afirmar um lucro fechado. O nome da variavel nao mudaria.
+  const ml = semComentarios(await fonte("src/app/components/MercadoLivreWorkspace.tsx"));
+  assert.ok(
+    ml.includes("parcelas: [overview.profit.cogs, overview.profit.sellerShipping, overview.profit.fees, overview.profit.taxes],"),
+    "a decisao da fatia verde deixou de olhar as quatro parcelas do custo",
+  );
+  assert.ok(ml.includes("lucro: overview.profit.estimatedProfit,"), "a fatia verde trocou de fonte de lucro");
+  assert.ok(ml.includes("base: overview.metrics.revenue30d,"),
+    "a fatia verde mudou de base — ela precisa dividir pelo mesmo faturamento das outras fatias");
 });
