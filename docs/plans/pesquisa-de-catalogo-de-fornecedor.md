@@ -81,12 +81,17 @@ Duas observações que a spec precisa carregar:
    **exatamente a tarifa de tabela para item abaixo de R$ 30** (§2.1 do mesmo
    doc), ou seja: não é uma tarifa diferente, é a isenção não se aplicando.
 
-**Hipótese principal, declarada como hipótese:** a janela de 30 dias está
-terminando, e os pedidos de setembro ainda zerados são os que não tiveram a
-tarifa postada. **Não está provado** — no dia 05/09 o mesmo SKU teve três pedidos,
-dois zerados e um cobrado, e no dia 07/09 voltou a zero. O teste que falsifica:
-se a proporção de pedidos cobrados subir nos próximos dias, a janela virou; se
-ficar em dois casos isolados, foi ruído.
+**Causa encontrada: é o estágio de liquidação, não o fim do benefício.** Cruzando
+`transactionStatus` com a presença da tarifa nas 59 transações `Shipment`,
+**nenhuma transação já liquidada foi cobrada — 52 de 52 em zero** (26 `RELEASED`
++ 26 `DEFERRED_RELEASED`). As duas cobranças estão em transações ainda `DEFERRED`,
+em trânsito: a tarifa aparece bruta no estágio diferido e a isenção entra na
+liberação. E no próprio 05/09 as `ServiceFee` de `Subscription` e
+`FBAStorageBilling` saíram em **R$ 0,00** — se a janela tivesse virado, a
+armazenagem seria cobrada.
+
+Segue valendo como pendência de verificação: acompanhar os pedidos
+`701-4225468-1122630` e `702-7604013-7281816` até liberarem (§8).
 
 📌 **Consequência para esta spec, que é o motivo dela existir:** o estoque
 comprado agora chega ao FBA em semanas e vende ao longo de meses. Uma decisão de
@@ -237,10 +242,26 @@ dados reais deixaria a regra da faixa verde nos dois sentidos.
 
 ## 8. Pendência que não bloqueia, mas tem prazo
 
-Vigiar a proporção de pedidos com tarifa FBA cobrada. Hoje: 2 em 59 (3,4%), os
-dois nos últimos três dias. Se subir, a janela de isenção virou e o cenário
-"sem isenção" deixa de ser projeção e passa a ser o número corrente — o que muda
-a leitura de toda a lista gerada por esta skill.
+Acompanhar os dois pedidos ainda `DEFERRED` com tarifa lançada —
+`701-4225468-1122630` e `702-7604013-7281816` — até saírem do estágio diferido.
+
+- Se liberarem **em zero**: era artefato do diferido, a isenção segue integral.
+- Se liberarem **com a tarifa**: a isenção deixou de cobrir logística, e o cenário
+  "sem isenção" deixa de ser projeção e vira o número corrente — o que muda a
+  leitura de toda a lista gerada por esta skill.
+
+⚠️ **A medição tem de olhar `transactionStatus`.** Somar tarifa por pedido sem
+essa coluna mistura número final com número em trânsito, e foi exatamente o que
+produziu a leitura errada na primeira passada (07/09/2026).
 
 O dado sai de `GET /finances/2024-06-19/transactions`, é barato de medir, e não
 depende desta skill estar pronta.
+
+### 8.1 Aberto, e é o de maior valor
+
+A comissão está zerada em **59 de 59** pedidos, o que no período equivale a uns
+R$ 220 — quatorze vezes o que a logística custou. Mas a isenção documentada na
+§2.3 de `docs/tarifas-amazon-br.md` cobre **logística, coleta e armazenagem**, e
+**não menciona comissão**. Ou seja: o benefício mais valioso da conta é o único
+cujos termos e prazo não estão registrados em lugar nenhum. Vale confirmar a
+origem e a validade antes de dimensionar uma compra grande de estoque.
