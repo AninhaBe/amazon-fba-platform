@@ -151,15 +151,26 @@ test("ML: a alíquota saiu da condição de bloqueio e virou rótulo", () => {
   // Amazon — a ADR-028 manda dar NOMES DISTINTOS a numeros de universos
   // distintos. O que esta guarda sempre protegeu continua igual: o rotulo do
   // resultado carrega "sem imposto" quando nao ha aliquota cadastrada.
-  assert.match(tela, /comSemImposto\("Resultado da receita paga", semAliquota\)/);
-  assert.match(tela, /comSemImposto\("Margem", semAliquota\)/);
+  // ⚠️ ESTA ASSERCAO SAIU EM 07/09/2026 PORQUE O BLOCO SAIU.
+  // O canvas do Caminho do Dinheiro cortou o corpo antigo do dashboard do
+  // ML; o que ela vigiava nao existe mais nesta tela. Nao foi afrouxada por
+  // atrapalhar — o alvo deixou de existir, e o retorno dele tem guarda
+  // propria em `cockpitMLSoMudaDesign` ("os blocos CORTADOS nao voltam").
+  // Sobreviveu o que mora no MONITOR, que o corte nao tocou.
   assert.match(tela, /comSemImposto\("Margem de contribuição", semAliquota\)/);
-  assert.match(tela, /comSemImposto\("após todos os custos", semAliquota\)/);
+  // ⚠️ E O RASTRO NAO SE PERDEU, que e o que esta guarda sempre
+  // protegeu de verdade: a aliquota ausente continua marcada na coluna Situacao
+  // do card "O que o custo esconde", e na fila de alertas com o texto novo — o
+  // que diz que o imposto entra como ZERO e o lucro sai MAIOR que o real.
+  assert.match(tela, /situacao: semAliquota \? "sem alíquota"/,
+    "o rastro da aliquota sumiu da tabela do custo");
   // ⚠️ ESTA LINHA EXIGIA A FRASE ERRADA ate 01/09/2026. O que ela garante e que
   // a MARGEM leva o rotulo "sem imposto" quando nao ha aliquota — o texto da
   // base era incidental, e era mentira: dizia "sobre o faturamento" enquanto a
   // conta saia do apurado. Agora a base vem da peca compartilhada
   // (`declaracaoDeBase`) e a guarda casa o envelope, nao o recheio.
+  // ⚠️ A DECLARACAO DE BASE segue viva no ML (ela nao dependia dos
+  // blocos cortados), e por isso esta assercao continua como estava.
   assert.match(tela, /comSemImposto\(baseDoResultado \?\? BASE_SEM_DIFERENCA, semAliquota\)/);
 });
 

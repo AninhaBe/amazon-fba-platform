@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { brDate } from "@/lib/datetime";
+import { EtapaDoCaminhoView } from "./FaixaDeEtapas";
 import { readJson } from "../../lib/readJson";
 import { BaseDeData } from "./BaseDeData";
 
@@ -37,12 +38,15 @@ export function MercadoLivreSaldo({
   connectionId?: string;
   /**
    * `resumo` — o card compacto do dashboard.
+   * `etapa` — a QUARTA etapa da faixa do Caminho do Dinheiro. Mesmo dado,
+   * mesma busca, desenhado com a peca das outras tres. Existe como modo, e nao
+   * como componente novo, justamente para NAO duplicar a chamada ao saldo.
    * `transacoes` — a aba do monitor, no mesmo formato da Amazon: faixa de
    * números em cima, extrato de liberações embaixo. Mesma busca, mesma fonte;
    * só a apresentação muda, para as duas abas dizerem a mesma coisa do mesmo
    * jeito nos dois canais.
    */
-  modo?: "resumo" | "transacoes";
+  modo?: "resumo" | "transacoes" | "etapa";
 }) {
   const [saldo, setSaldo] = useState<Saldo | null>(null);
   const [erro, setErro] = useState(false);
@@ -62,6 +66,27 @@ export function MercadoLivreSaldo({
   if (erro || !saldo) return null;
 
   const proxima = saldo.liberacoes[0];
+
+  if (modo === "etapa") {
+    return (
+      <EtapaDoCaminhoView
+        rotulo={proxima ? `Cai na conta até ${brDate(proxima.date)}` : "Cai na conta"}
+        valor={money(saldo.retido, saldo.currency)}
+        contexto={
+          <>
+            {saldo.pagamentosTotais.toLocaleString("pt-BR")} pagamento(s) retido(s) no Mercado Pago,
+            já líquidos de tarifa e frete.
+            {/* ⚠️ QUANDO A LEITURA E PARCIAL, o retido REAL e maior que o
+                exibido — e a tela diz isso com numero, em vez de deixar a
+                vendedora somar um valor que ela nao pode conferir. */}
+            {saldo.parcial
+              ? ` Lidos ${saldo.pagamentosLidos} de ${saldo.pagamentosTotais} — o retido real é maior.`
+              : ""}
+          </>
+        }
+      />
+    );
+  }
 
   if (modo === "transacoes") {
     return (

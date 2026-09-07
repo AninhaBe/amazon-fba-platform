@@ -64,12 +64,20 @@ test("no canonico o imposto do painel incide sobre o centro do painel", async ()
     "o lucro do periodo nao pode ter sido movido junto");
 });
 
-test("a tela do ML le a composicao, e NAO o lucro do periodo", async () => {
+test("a tela do ML nao remonta a conta do painel por conta propria", async () => {
+  // ⚠️ INTENCAO REDUZIDA (07/09/2026). Esta guarda exigia que o
+  // dashboard do ML LESSE a composicao da receita paga. O painel que a
+  // exibia saiu com o corpo antigo, no corte do canvas do Caminho do
+  // Dinheiro: nao ha mais leitor no ML, e exigir a leitura seria pedir de
+  // volta o bloco que a Ana mandou cortar.
+  //
+  // ⚠️ O QUE ELA SEMPRE PROTEGEU DE VERDADE CONTINUA, e e a metade
+  // que pode voltar sozinha: se alguem reintroduzir um resultado no ML, ele
+  // NAO pode ser remontado com uma conta local — a conta
+  // `revenueProcessed - knownCosts` traz o imposto do faturamento de volta
+  // pela porta dos fundos, misturando universos de novo. E o defeito que
+  // produziu margem de 5673% no painel da Amazon.
   const tela = await ler("../src/app/components/MercadoLivreWorkspace.tsx");
-  assert.ok(tela.includes("  const resultadoDoPainel = composicaoDoPainel ? composicaoDoPainel.lucro : null;"),
-    "o resultado do painel tem de vir da composicao");
-  assert.ok(tela.includes("  const margemDoPainel = composicaoDoPainel ? composicaoDoPainel.margemPct : null;"),
-    "a margem do painel tem de vir da composicao");
   // ⚠️ Sem composicao o painel mostra AUSENCIA, nunca um numero remontado: a
   // conta local `revenueProcessed - knownCosts` traria o imposto do faturamento
   // de volta pela porta dos fundos.
@@ -78,11 +86,15 @@ test("a tela do ML le a composicao, e NAO o lucro do periodo", async () => {
     "fallback que remonta a conta mistura universos de novo");
 });
 
-test("o resultado do painel tem NOME PROPRIO — nao se chama Lucro", async () => {
-  const tela = await ler("../src/app/components/MercadoLivreWorkspace.tsx");
-  // Dois numeros legitimos e diferentes; o nome e o que impede a confusao. A
-  // asserção e sobre a linha inteira do bloco, nao sobre a frase solta: um
-  // rotulo igual num comentario nao pode fazer esta guarda passar.
-  assert.ok(tela.includes('comSemImposto("Resultado da receita paga", semAliquota)'),
-    "o resultado do painel precisa dizer de que universo fala");
-});
+/*
+ * ⚠️ AQUI MORAVA "o resultado do painel tem NOME PROPRIO — nao se chama
+ * Lucro", de 02/09/2026. Ela existia porque o painel da receita paga e o card
+ * de lucro do periodo sao numeros de UNIVERSOS diferentes, e exibir o nome de
+ * um sobre o centro do outro produziu margem de 5673% no painel da Amazon
+ * (ADR-028: nomes distintos para universos distintos).
+ *
+ * Ela saiu em 07/09/2026 porque o painel saiu do dashboard do ML — nao ha mais
+ * rotulo para carregar o nome. A REGRA nao saiu: ela segue cobrada na Amazon,
+ * e a metade que sobrevive no ML (nao remontar a conta localmente) esta na
+ * guarda acima.
+ */

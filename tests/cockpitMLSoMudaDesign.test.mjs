@@ -170,14 +170,14 @@ test("nenhuma classe dos cards e usada sem existir no CSS", async () => {
 
 test("os CARDS leem o mesmo produtor — e nao montam a propria lista", async () => {
   const codigo = semComentarios(await fonte(ML));
-  // ⚠️ INTENCAO INVERTIDA (etapa 3 do Caminho do Dinheiro). Esta
-  // guarda ja exigiu a rosquinha na direita da faixa, depois a conta escrita,
-  // depois o `TopProdutosNaFaixa`. O canvas trocou os tres pelo card "De onde
-  // veio a venda", com alternador — e o `TopProdutosNaFaixa` saiu da pagina.
+  // ⚠️ INTENCAO REDUZIDA (07/09/2026). Esta guarda exigia UM calculo
+  // de `buildFinancialComposition` no ML, porque a faixa e o painel de baixo
+  // liam a mesma composicao. O painel de baixo saiu com o corpo antigo, e o
+  // ML nao consome mais essa funcao — exigir a chamada agora seria pedir de
+  // volta o bloco que a Ana mandou cortar.
   //
-  // O QUE ELA SEMPRE PROTEGEU CONTINUA, e e a unica coisa que importa aqui: a
-  // lista sai de `overview.topProducts` DIRETO. Duas listas do mesmo periodo na
-  // mesma pagina podem divergir sem nada ficar vermelho.
+  // O que ela sempre protegeu continua, e e o que sobrou: a lista dos cards
+  // sai de `overview.topProducts` DIRETO, sem sort nem corte no caminho.
   const ranking = codigo.slice(codigo.indexOf("const produtosDoRanking = "), codigo.indexOf("const vendasDaTabela"));
   assert.ok(ranking.includes("overview.topProducts.map("),
     "o ranking deixou de ler `overview.topProducts` — a lista virou outra");
@@ -185,15 +185,9 @@ test("os CARDS leem o mesmo produtor — e nao montam a propria lista", async ()
     assert.ok(!ranking.includes(proibido),
       "o ranking passou a " + proibido + " a lista no ML: a ordem e o corte sao do produtor");
   }
-  // ⚠️ E A ORDENACAO POR MARGEM VIVE NO MODULO TESTADO, nao num sort
-  // solto: `null` ordenado como 0% acusaria de pior quem ninguem mediu.
-  const cards = semComentarios(await fonte("src/app/components/CardsDoCaminho.tsx"));
+  const cards = semComentarios(await fonte(CARDS));
   assert.ok(cards.includes("ordenaPorMargem(produtos)"),
     "o ranking por margem parou de usar a funcao testada");
-
-  // A composicao continua com UM calculo so para quem ainda a consome.
-  assert.equal((codigo.match(/buildFinancialComposition\(\{/g) ?? []).length, 1,
-    "a composicao passou a ser calculada em dois lugares");
 });
 
 test("o cockpit inteiro saiu SEM ORFAO — peca, preparo, import e CSS", async () => {
@@ -273,74 +267,70 @@ test("o nome do produto e UMA linha que nao estoura a coluna", async () => {
   assert.ok(cards.includes('title={venda.produto}'), "o nome da tabela perdeu o texto inteiro no atributo");
 });
 
-test("a variante do painel e OPT-IN: so o ML passa, e o default e o de hoje", async () => {
+test("a variante do painel continua OPT-IN — para quem ainda a usa", async () => {
+  // ⚠️ INTENCAO INVERTIDA (07/09/2026). Esta guarda exigia que o ML
+  // pedisse `semDonut`. O painel de baixo saiu do ML inteiro no corte do
+  // Caminho do Dinheiro, entao o ML nao pede mais nada — e exigir o pedido
+  // seria exigir o bloco de volta.
+  //
+  // O QUE CONTINUA VALENDO E O DEFAULT: os outros tres canais nunca pediram a
+  // variante e nao podem perder a rosquinha por causa de uma mudanca do ML.
   const painel = semComentarios(await fonte("src/app/components/FinancialSummaryPanel.tsx"));
-  // ⚠️ O DEFAULT E O COMPORTAMENTO DE HOJE. Sem isso, os outros tres
-  // canais perderiam a rosquinha sem ninguem ter pedido.
-  assert.match(painel, /semDonut = false/, "a variante deixou de ter default — os outros canais mudam junto");
+  assert.match(painel, /semDonut = false/,
+    "a variante deixou de ter default — os outros canais perdem a rosquinha junto");
   assert.match(painel, /\{!semDonut && total > 0 && slices\.length > 0/, "a condicao da rosquinha mudou de forma");
 
-  const ml = semComentarios(await fonte(ML));
-  assert.match(ml, /semDonut/, "o ML parou de pedir a variante e ficaria com duas rosquinhas");
-
-  for (const tela of [
-    "src/app/(app)/amazon/page.tsx",
-    "src/app/components/ShopeeWorkspace.tsx",
-    "src/app/components/TikTokWorkspace.tsx",
-    "src/app/components/ShopeeModulePage.tsx",
-  ]) {
-    const outro = semComentarios(await fonte(tela));
-    assert.ok(!/semDonut/.test(outro), `${tela}: passou a pedir a variante do ML`);
-  }
-});
-
-test("as DUAS COLUNAS sao do canal, e as pecas de dentro nao mudaram", async () => {
-  const codigo = semComentarios(await fonte(ML));
-  assert.match(codigo, /className="ml-cockpit-duas-colunas"/, "o grid das duas colunas sumiu");
-  // ⚠️ A tabela compartilhada recebe os MESMOS dados de antes: mover de
-  // lugar nao pode virar mexer no que ela mostra.
-  // ⚠️ A ANCORA E DENTRO DO BLOCO DAS DUAS COLUNAS. A tabela aparece duas
-  // vezes no arquivo (dashboard e monitor); casar o arquivo inteiro ficava verde
-  // com a do bloco quebrada, porque a outra continuava intacta.
-  const bloco = codigo.slice(codigo.indexOf('className="ml-cockpit-duas-colunas"'));
-  const dentro = bloco.slice(0, 1200);
-  assert.ok(dentro.includes("<OrderProfitabilityTable lines={overview.profitabilityLines}"),
-    "a tabela de rentabilidade mudou de dados ao mudar de lugar");
-  // As DUAS pontas do ranking: a condicao de vazio e a lista que ele recebe.
-  // Casar so o nome ficava verde com uma das duas trocada por [].
-  assert.ok(dentro.includes("overview.topProducts.length === 0"), "a condicao de vazio do ranking mudou");
-  assert.ok(dentro.includes("products={overview.topProducts.map("), "o ranking deixou de receber os produtos do periodo");
-  // E o grid e do ML: prefixo do canal, e nenhum outro o usa.
   for (const tela of [
     "src/app/(app)/amazon/page.tsx",
     "src/app/components/ShopeeWorkspace.tsx",
     "src/app/components/TikTokWorkspace.tsx",
   ]) {
-    const outro = semComentarios(await fonte(tela));
-    assert.ok(!/ml-cockpit-duas-colunas/.test(outro), `${tela}: herdou o grid do ML`);
+    const fonteDaTela = semComentarios(await fonte(tela));
+    assert.ok(!fonteDaTela.includes("semDonut"),
+      tela + " passou a pedir a variante do ML: a rosquinha some de um canal que ninguem mexeu");
   }
 });
 
-test("A ORDEM DOS BLOCOS E A DO CANVAS — e ela ja foi reprovada uma vez", async () => {
-  // ⚠️ INTENCAO ATUALIZADA na etapa 3: o `TopProdutosNaFaixa` saiu e
-  // no lugar dele entraram os dois cards lado a lado e a tabela de vendas. A
-  // sequencia do canvas e: faixa de 4 etapas -> alertas -> ranking + custo ->
-  // vendas -> ritmo.
+/*
+ * ⚠️ AQUI MORAVA "as DUAS COLUNAS sao do canal, e as pecas de dentro nao
+ * mudaram" — a guarda do grid `ml-cockpit-duas-colunas`, do redesenho de
+ * 03/09/2026. Ela saiu em 07/09 porque O BLOCO SAIU: o canvas do Caminho do
+ * Dinheiro substituiu aquelas duas colunas pelos cards `cards-caminho-2`.
+ *
+ * Nao foi apagada por estar chata nem por ter ficado vermelha: o que ela
+ * vigiava deixou de existir, e a proibicao correspondente vive agora em "os
+ * blocos CORTADOS pelo contrato nao voltam para a pagina", que reprova o
+ * retorno do grid velho.
+ */
+
+test("A ORDEM DOS BLOCOS E A DO CANVAS — e ela ja foi reprovada duas vezes", async () => {
+  // ⚠️ ESTA GUARDA DEFENDEU O DEFEITO, e o registro disso vale mais
+  // que a correcao. Ate 07/09/2026 a sequencia esperada incluia
+  // `className="metric-grid ml-dashboard-metric-grid"` — a regua de KPIs do
+  // dashboard VELHO. Ou seja: ela EXIGIA que o bloco duplicado estivesse na
+  // pagina. Quem fizesse o corte certo veria a suite ficar vermelha dizendo que
+  // a correcao estava errada.
   //
-  // ⚠️ O MOTIVO DE ELA EXISTIR NAO MUDA NUNCA: a v258 foi reprovada
-  // pela dona por blocos certos em ordem errada — *"Eu pedi pra voce fazer
-  // exatamente como me apresentou"*. Guarda de existencia nao pega isso.
+  // E a familia que o AGENTS.md nomeia — "o teste que guardava a recusa passou
+  // a defender o defeito" —, reproduzida por mim enquanto eu achava que estava
+  // protegendo a ordem do canvas. A validacao visual da v288 e que pegou: a
+  // faixa tinha TRES etapas e o corpo antigo inteiro seguia embaixo.
+  //
+  // ⚠️ A LICAO, e ela vale para toda frente de SUBSTITUICAO: "bloco
+  // novo no lugar" NAO e "bloco velho fora". Em cada etapa eu conferi se o
+  // bloco novo estava certo e nunca perguntei o que ele substitui — e o canvas
+  // cobria a tela inteira, nao um recorte.
   const codigo = semComentarios(await fonte(ML));
   const corpo = codigo.slice(codigo.indexOf("<FaixaDeEtapas"));
   const sequencia = [
-    ["a faixa de 4 etapas", "<FaixaDeEtapas etapas="],
+    ["a faixa de etapas", "<FaixaDeEtapas etapas="],
     ["os alertas", "<AlertasDoCaminho alertas="],
     ["os dois cards lado a lado", 'className="cards-caminho-2"'],
     ["o ranking", "<RankingDaVenda produtos="],
     ["a decomposicao do custo", "<DecomposicaoDoCusto"],
     ["a tabela de vendas", "<TabelaDeVendas"],
     ["o ritmo dos 7 dias", "<RitmoDosDias dias="],
-    ["a regua de cards", 'className="metric-grid ml-dashboard-metric-grid"'],
+    ["os anuncios pagos", "<AnunciosPagos"],
   ];
   let anterior = -1;
   for (const [nome, marcador] of sequencia) {
@@ -351,14 +341,93 @@ test("A ORDEM DOS BLOCOS E A DO CANVAS — e ela ja foi reprovada uma vez", asyn
   }
 });
 
-test("e o grafico e o painel DESCERAM, nao sairam", async () => {
-  // ⚠️ A prancheta era um VIEWPORT, nao a pagina inteira. Remover funcao
-  // porque ela nao cabia no recorte seria passar de "so design" para "tirei uma
-  // peca" — e a ordem dela foi o contrario disso.
-  const codigo = semComentarios(await fonte(ML));
-  assert.match(codigo, /<RevenueChart points=\{overview\.dailySales\}/, "o grafico de evolucao sumiu da pagina");
-  assert.match(codigo, /<FinancialSummaryPanel/, "o painel de composicao sumiu da pagina");
+test("os blocos CORTADOS pelo contrato nao voltam para a pagina", async () => {
+  // ⚠️ A GUARDA QUE FALTAVA. A anterior dizia o que TEM de estar na
+  // pagina; nenhuma dizia o que NAO pode. Foi por isso que o dashboard velho
+  // inteiro sobreviveu a quatro etapas de substituicao com a suite verde.
+  //
+  // Cada linha abaixo tem o substituto ao lado: o corte foi aprovado porque a
+  // funcao continua na tela, em outro lugar — nao porque ela deixou de importar.
+  // ⚠️ SO O CORPO DO DASHBOARD, e a primeira versao lia o arquivo
+  // INTEIRO: ela reprovava `SinaisDoResultado`, que segue vivo e legitimo no
+  // MONITOR. Proibicao de escopo largo demais acusa o inocente, e guarda que
+  // acusa o inocente e desligada na primeira vez que atrapalha.
+  const arquivo = semComentarios(await fonte(ML));
+  const inicioDoDashboard = arquivo.indexOf("function Dashboard(");
+  assert.ok(inicioDoDashboard > 0, "o componente Dashboard sumiu do ML");
+  const codigo = arquivo.slice(inicioDoDashboard, arquivo.indexOf(QUEBRA + "}" + QUEBRA, inicioDoDashboard));
+  const cortados = [
+    ['className="metric-grid ml-dashboard-metric-grid"', "a regua de KPIs — a faixa de etapas responde por ela"],
+    ["<SinaisDoResultado", "os sinais do resultado — os alertas respondem por eles"],
+    ['className="ml-cockpit-duas-colunas"', "as duas colunas velhas — os cards do canvas respondem por elas"],
+    ["<TopProductsRanking", "o ranking velho — `RankingDaVenda` responde por ele"],
+    ["<OrderProfitabilityTable", "a tabela velha de rentabilidade — `TabelaDeVendas` responde por ela"],
+    ['className="secondary-metrics"', "as metricas secundarias — fora das 13 funcoes do contrato"],
+    ['className="performance-panel"', "o grafico + composicao — `RitmoDosDias` responde por eles"],
+    ["<AnunciosPorProduto", "o painel de anuncios velho — `AnunciosPagos` responde por ele"],
+    ["Pedidos recentes", "os pedidos recentes — cortados pelo contrato, sem substituto"],
+  ];
+  for (const [marcador, porque] of cortados) {
+    assert.ok(!codigo.includes(marcador),
+      "o bloco cortado voltou para o dashboard do ML: " + porque + String.fromCharCode(10) +
+      "  Se a volta for deliberada, ela precisa passar pela Ana por canvas — foi assim que ela saiu.");
+  }
 });
+
+test("a faixa tem QUATRO etapas — contagem, nao so conteudo", async () => {
+  // ⚠️ A ASSERCAO QUE FALTAVA, e a ausencia dela custou uma validacao
+  // reprovada: a faixa subiu para producao com TRES etapas. As guardas
+  // conferiam os CAMPOS de cada etapa — e passam numa lista curta demais.
+  //
+  // ⚠️ E A QUARTA NAO ESTA NO MESMO ARRAY. O saldo do Mercado Pago tem
+  // busca propria, entao ela entra como FILHO da faixa, desenhada pela mesma
+  // peca. Por isso a contagem e 3 + 1, e nao 4 no array: contar so o array
+  // daria "3" com a tela certa, e "3" com a tela errada.
+  const ml = semComentarios(await fonte(ML));
+  // ⚠️ A FATIA TERMINA NO FECHO DO ARRAY. A primeira versao ia ate
+  // `const alertasDoCaminho` e engolia `componentesDoCusto` no meio — contava
+  // 7 ids em vez de 3, e reprovava a tela CERTA. Fronteira folgada mede outra
+  // coisa e chama de contagem.
+  const inicioDoArray = ml.indexOf("const etapasDoCaminho = [");
+  assert.ok(inicioDoArray > 0, "o array das etapas sumiu");
+  const array = ml.slice(inicioDoArray, ml.indexOf(QUEBRA + "  ];", inicioDoArray));
+  const ids = array.match(/^      id: "/gm) ?? [];
+  assert.equal(ids.length, 3,
+    "a faixa mudou de contagem: eram tres etapas no array mais o saldo como filho");
+
+  assert.ok(ml.includes('<MercadoLivreSaldo modo="etapa"'),
+    "a quarta etapa sumiu da faixa — foi assim que a v288 subiu com tres colunas");
+  // ⚠️ O FECHO PRECISA EXISTIR ANTES DE EU FATIAR, e a primeira
+  // versao nao conferia: com o saldo movido para fora, `</FaixaDeEtapas>` some,
+  // `indexOf` devolve -1, e `slice(inicio, -1)` fatia ate o FIM do arquivo —
+  // onde o saldo esta. A guarda passava com o defeito posto. E a armadilha do
+  // `slice` com indice negativo, prima do `indexOf` sem checagem.
+  const fecho = ml.indexOf("</FaixaDeEtapas>");
+  assert.ok(fecho > 0,
+    "a faixa deixou de ter filho: o saldo voltou a ser um bloco solto la embaixo");
+  const faixa = ml.slice(ml.indexOf("<FaixaDeEtapas"), fecho);
+  assert.ok(faixa.includes("<MercadoLivreSaldo"),
+    "o saldo saiu de DENTRO da faixa: ele volta a ser um bloco solto la embaixo");
+
+  // ⚠️ E A GRADE SEGUE A CONTAGEM. Com `repeat(4, …)` fixo, uma conta
+  // sem saldo conhecido mostraria a quarta celula VAZIA — a faixa pareceria
+  // quebrada em vez de parecer curta.
+  const css = (await fonte("src/app/components/../globals.css")).replace(/\/\*[\s\S]*?\*\//g, "");
+  assert.ok(css.includes("grid-template-columns: repeat(var(--etapas, 4), minmax(0, 1fr));"),
+    "a grade da faixa voltou a ter contagem fixa: sem saldo, sobra uma celula vazia");
+});
+
+/*
+ * ⚠️ AQUI MORAVA "e o grafico e o painel DESCERAM, nao sairam" — escrita
+ * em 03/09/2026 para provar que o redesenho da Direcao A NAO tinha removido
+ * funcao, so mudado a ordem. Era verdade naquele dia.
+ *
+ * Em 07/09 a Ana aprovou o corte: o grafico de evolucao e o painel de
+ * composicao SAIRAM mesmo, substituidos pelo `RitmoDosDias` com alternador de
+ * quatro series. A guarda foi apagada porque a afirmacao dela virou falsa —
+ * nao porque atrapalhou. O corte tem guarda propria em "os blocos CORTADOS
+ * pelo contrato nao voltam para a pagina".
+ */
 
 test("a paleta da cascata saiu JUNTO com a cascata — sem orfao", async () => {
   // ⚠️ INTENCAO INVERTIDA (06/09/2026). Esta guarda exigia que a

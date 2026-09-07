@@ -21,7 +21,11 @@ const semComentarios = (codigo) => codigo.replace(/\/\*[\s\S]*?\*\//g, "").repla
 
 test("CORTE 1 — os sinais aparecem UMA vez por tela, nao um por cartao", async () => {
   for (const tela of [
-    "src/app/components/MercadoLivreWorkspace.tsx",
+    // ⚠️ O ML SAIU DESTA LISTA em 07/09/2026 porque o BLOCO saiu: o
+    // canvas do Caminho do Dinheiro cortou o corpo antigo do dashboard. A
+    // regra continua valendo para os outros canais, e volta a valer para o ML
+    // no dia em que ele tiver um bloco que precise dela.
+    // (Os sinais seguem VIVOS no Monitor do ML, que o corte nao tocou.)
     "src/app/components/ShopeeWorkspace.tsx",
     "src/app/(app)/amazon/page.tsx",
     "src/app/components/TikTokWorkspace.tsx",
@@ -45,7 +49,10 @@ test("e NENHUM sinal desapareceu — a lista continua na tela", async () => {
   // teste nenhum. A lista cobria tres canais e a regra vale para os quatro —
   // exatamente o defeito que o guard do BriefingLead teve, numa tela de fora.
   for (const tela of [
-    "src/app/components/MercadoLivreWorkspace.tsx",
+    // ⚠️ O ML SAIU DESTA LISTA em 07/09/2026 porque o BLOCO saiu: o
+    // canvas do Caminho do Dinheiro cortou o corpo antigo do dashboard. A
+    // regra continua valendo para os outros canais, e volta a valer para o ML
+    // no dia em que ele tiver um bloco que precise dela.
     "src/app/components/ShopeeWorkspace.tsx",
     "src/app/(app)/amazon/page.tsx",
     "src/app/components/TikTokWorkspace.tsx",
@@ -64,10 +71,18 @@ test("CORTE 2 — conexao caida cala os sinais, e so onde ela EMPILHA", async ()
   assert.equal(sinaisSilenciadosPorAlarme(true), true);
   assert.equal(sinaisSilenciadosPorAlarme(false), false, "os sinais voltam quando a conexao volta");
 
-  // Amazon e ML: a faixa de conexao caida convive com o conteudo.
+  // Amazon: a faixa de conexao caida convive com o conteudo.
+  //
+  // ⚠️ O ML SAIU DAQUI em 07/09/2026 porque o BLOCO saiu: os sinais nao
+  // estao mais no dashboard do ML (o canvas do Caminho do Dinheiro cortou o
+  // corpo antigo, e a fila de alertas responde por eles). Sem os sinais na
+  // tela, nao ha o que o alarme cale — a condicao ficou sem sujeito.
+  //
+  // A REGRA CONTINUA COBRADA na Amazon, e a funcao `sinaisSilenciadosPorAlarme`
+  // segue testada acima. Se um dia os sinais voltarem ao dashboard do ML, esta
+  // linha volta com eles.
   for (const [tela, condicao] of [
     ["src/app/(app)/amazon/page.tsx", "Boolean(brokenConnection)"],
-    ["src/app/components/MercadoLivreWorkspace.tsx", "conexaoCaida"],
   ]) {
     const codigo = semComentarios(await fonte(tela));
     assert.ok(

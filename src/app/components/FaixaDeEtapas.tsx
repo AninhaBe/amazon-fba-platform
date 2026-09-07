@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 /**
  * A FAIXA DE 4 ETAPAS — o caminho do dinheiro, da venda ao que cai na conta.
@@ -33,20 +33,65 @@ export interface EtapaDoCaminho {
   negativo?: boolean;
 }
 
-export function FaixaDeEtapas({ etapas }: { etapas: EtapaDoCaminho[] }) {
+/**
+ * Uma etapa. Exportada porque a QUARTA nao vem do mesmo lugar que as tres
+ * primeiras: o saldo do Mercado Pago tem busca propria, e quem o desenha e o
+ * componente que ja o busca.
+ *
+ * ⚠️ A MARCACAO MORA AQUI, num lugar so. Se cada dono desenhasse a sua etapa,
+ * a quarta divergiria das outras na primeira vez que alguem mexesse numa —
+ * e ninguem veria, porque elas nascem em arquivos diferentes.
+ */
+export function EtapaDoCaminhoView({ rotulo, valor, contexto, destaque, negativo }: {
+  rotulo: string;
+  valor: string;
+  contexto: ReactNode;
+  destaque?: "resultado";
+  negativo?: boolean;
+}) {
   return (
-    <section className="etapas" aria-label="Caminho do dinheiro no período">
+    <div className={`etapa${destaque === "resultado" ? " is-resultado" : ""}${negativo ? " is-negativo" : ""}`}>
+      <p className="etapa-rotulo">{rotulo}</p>
+      {/* `num-display` = Archivo, que so veste numero de 24px para cima. */}
+      <p className="etapa-valor num-display">{valor}</p>
+      <p className="etapa-contexto">{contexto}</p>
+    </div>
+  );
+}
+
+export function FaixaDeEtapas({ etapas, children }: {
+  etapas: EtapaDoCaminho[];
+  /**
+   * A quarta etapa, quando ela vem de outra fonte. Entra como filho para o
+   * dono do dado continuar dono da busca — mover o fetch para ca seria trocar
+   * arquitetura numa frente de layout.
+   *
+   * ⚠️ E ELA PODE NAO VIR: sem saldo conhecido, a faixa fecha com tres. E o
+   * mesmo desenho da Amazon — ausencia e ausencia, nao "R$ 0,00" nem um
+   * "proximo repasse ~dia X" estimado por nos.
+   */
+  children?: ReactNode;
+}) {
+  return (
+    <section
+      className="etapas"
+      aria-label="Caminho do dinheiro no período"
+      /* ⚠️ A GRADE SEGUE A CONTAGEM. Com `repeat(4, …)` fixo e tres
+         etapas, a quarta celula fica vazia e a faixa parece quebrada em vez de
+         parecer curta. */
+      style={{ "--etapas": etapas.length + (children ? 1 : 0) } as CSSProperties}
+    >
       {etapas.map((etapa) => (
-        <div
+        <EtapaDoCaminhoView
           key={etapa.id}
-          className={`etapa${etapa.destaque === "resultado" ? " is-resultado" : ""}${etapa.negativo ? " is-negativo" : ""}`}
-        >
-          <p className="etapa-rotulo">{etapa.rotulo}</p>
-          {/* `num-display` = Archivo, que so veste numero de 24px para cima. */}
-          <p className="etapa-valor num-display">{etapa.valor}</p>
-          <p className="etapa-contexto">{etapa.contexto}</p>
-        </div>
+          rotulo={etapa.rotulo}
+          valor={etapa.valor}
+          contexto={etapa.contexto}
+          destaque={etapa.destaque}
+          negativo={etapa.negativo}
+        />
       ))}
+      {children}
     </section>
   );
 }

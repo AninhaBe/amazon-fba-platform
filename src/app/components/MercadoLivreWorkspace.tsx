@@ -7,7 +7,7 @@ import { AnimatedNumber, identidadeDePeriodo } from "./AnimatedNumber";
 import { EmptyState } from "./EmptyState";
 import { DashboardSkeleton } from "./LoadingState";
 import { PageHeader, pageIcons } from "./PageHeader";
-import { RevenueChart, type DailyPoint } from "./RevenueChart";
+import type { DailyPoint } from "./RevenueChart";
 import { FILTRO_DE_HOJE, JANELA_DE_SETE_DIAS, serieDoBlocoDeLucro } from "./serieDoLucroPorDia";
 import { DashboardPeriodFilter, useDashboardPeriod } from "./DashboardPeriodFilter";
 import { periodoNaUrl } from "./periodoNaUrl";
@@ -18,19 +18,15 @@ import { CustomizableMetricGrid } from "./CustomizableMetricGrid";
 // para o mesmo estado, senão "Saudável" no ML e "Ok" na Amazon parecem coisas
 // diferentes sendo a mesma.
 import { ORDEM_DO_RADAR, ROTULO_DE_COBERTURA, type StockStatus } from "@/lib/coberturaDeEstoque";
-import { LegendaDeVendas } from "./LegendaDeVendas";
-import { CompactMetric, Flow, FlowExpandable, Metric, getRevenueTrend } from "./Metric";
-import { buildFinancialComposition, FinancialSummaryPanel } from "./FinancialSummaryPanel";
+import { Flow, Metric } from "./Metric";
 import { sinaisDoResultado } from "./oQueFaltaNoResultado";
 import { SinaisDoResultado } from "./SinaisDoResultado";
-import { sinaisSilenciadosPorAlarme } from "./hierarquiaDeAvisos";
 import { brDate, brTime } from "@/lib/datetime";
 import { coberturaDoPeriodo } from "@/lib/coberturaPeriodo";
 import type { ProfitabilityLine } from "@/lib/profitability";
 import { MercadoLivreSaldo } from "./MercadoLivreSaldo";
 import { ResumoDoCustoNoFull, TabelaDoCustoNoFull, useCustoNoFull } from "./MercadoLivreCustoNoFull";
 import { Pagination } from "./Pagination";
-import { TopProductsRanking } from "./TopProductsRanking";
 import { BriefingLead } from "./BriefingLead";
 import { NexoDoDia } from "./NexoDoDia";
 import { AlertasDoCaminho, FaixaDeEtapas } from "./FaixaDeEtapas";
@@ -49,7 +45,7 @@ import { BASE_SEM_DIFERENCA, declaracaoDeBase } from "./baseDaMargem";
 import { comSemImposto } from "@/lib/semImposto";
 import { BaseDeData, ProgressoDaImportacao } from "./BaseDeData";
 import { EstadoDoSync } from "./EstadoDoSync";
-import { AnunciosPorProduto, type AnuncioDeProduto } from "./AnunciosPorProduto";
+import type { AnuncioDeProduto } from "./AnunciosPorProduto";
 import { usePrefetchDePeriodos } from "./prefetchDePeriodos";
 
 const MERCADO_LIVRE_TAX_RATE_HREF = "/mercado-livre/produtos#mercado-livre-aliquota";
@@ -247,10 +243,6 @@ function percent(value: number | null) {
   return `${value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
 }
 
-function orderStatus(status: string) {
-  const labels: Record<string, string> = { paid: "Pago", confirmed: "Confirmado", payment_required: "Aguardando pagamento", cancelled: "Cancelado" };
-  return labels[status] || status.replaceAll("_", " ");
-}
 
 /**
  * A aba inicial do monitor vem da URL (`?secao=vendas`), lida com
@@ -472,7 +464,7 @@ function MercadoLivreWorkspaceInterno({ view }: { view: keyof typeof views }) {
         </div>
       ) : !overview ? (
         <EmptyState title="Conecte sua conta do Mercado Livre" description="Autorize o NEXO para começar a importar anúncios e pedidos." action={<Link href="/integracoes" className="meli-primary-action">Gerenciar integração <span aria-hidden="true">→</span></Link>} />
-      ) : view === "dashboard" ? <Dashboard overview={overview} syncStatus={syncStatus} periodoLabel={period.label} periodoQuery={period.query} connectionId={connectionId} conexaoCaida={Boolean(brokenConnection)} serieDeSeteDias={serieDeSeteDias} /> : view === "estoque" ? <Inventory overview={overview} /> : <Monitor overview={overview} secaoInicial={secaoInicial} />}
+      ) : view === "dashboard" ? <Dashboard overview={overview} syncStatus={syncStatus} periodoLabel={period.label} periodoQuery={period.query} connectionId={connectionId} serieDeSeteDias={serieDeSeteDias} /> : view === "estoque" ? <Inventory overview={overview} /> : <Monitor overview={overview} secaoInicial={secaoInicial} />}
     </IntegrationDashboardFrame>
   );
 }
@@ -547,10 +539,8 @@ function avaliarResultado(overview: Overview) {
   return { semAliquota, resultParcial, resultIncomplete, margemSub };
 }
 
-function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectionId, conexaoCaida, serieDeSeteDias }: { overview: Overview; syncStatus: SyncStatus | null; periodoLabel: string; periodoQuery: string; conexaoCaida: boolean; connectionId: string | null; serieDeSeteDias: DailyPoint[] | null }) {
-  const [costsOpen, setCostsOpen] = useState(false);
+function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectionId, serieDeSeteDias }: { overview: Overview; syncStatus: SyncStatus | null; periodoLabel: string; periodoQuery: string; connectionId: string | null; serieDeSeteDias: DailyPoint[] | null }) {
   const profitCoverage = overview.profit.coverage;
-  const units = overview.dailySales.reduce((total, point) => total + point.units, 0);
   const critical = overview.stockRadar.filter((product) => product.status === "critical" || product.status === "out");
   const { semAliquota, resultParcial, resultIncomplete, margemSub } = avaliarResultado(overview);
   /**
@@ -558,25 +548,6 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
    * condicao mudou: aliquota ausente, produtos sem custo, pedidos cancelados e
    * estoque critico, na mesma ordem e com os mesmos textos e destinos.
    */
-
-  /**
-   * ⚠️ UM CALCULO, DOIS CONSUMIDORES (03/09/2026). A rosquinha subiu para
-   * a faixa do topo e o painel de baixo continua listando as mesmas parcelas —
-   * se cada um montasse a sua, bastaria alguem editar um lado para a tela
-   * mostrar duas composicoes diferentes do mesmo periodo, sem nada ficar
-   * vermelho. E o defeito de "dois consumidores, dois universos" que este
-   * projeto ja pagou caro.
-   */
-  const composicaoDoResultado = buildFinancialComposition({
-          total: overview.profit.revenueProcessed,
-          costs: [
-            { id: "fees", label: "Taxas do Mercado Livre", value: overview.profit.fees },
-            { id: "shipping", label: "Frete do vendedor", value: overview.profit.sellerShipping },
-            { id: "cogs", label: "Custo dos produtos", value: overview.profit.cogs },
-            { id: "taxes", label: "Impostos", value: overview.profit.taxes },
-          ],
-          result: resultIncomplete ? null : overview.profit.estimatedProfit,
-        });
 
   /**
    * ⚠️ OS SETE DIAS DO BLOCO "LUCRO POR DIA", e o cuidado todo está em NÃO
@@ -884,7 +855,16 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
     ...(semAliquota ? [{
       id: "sem-aliquota",
       titulo: "Alíquota de imposto não cadastrada",
-      detalhe: "sem ela o custo do período não fecha e o lucro fica em branco",
+      // ⚠️ ESTE TEXTO ENVELHECEU EM 07/09/2026 E EU NAO TINHA PERCEBIDO.
+      // Ele dizia "o lucro fica em branco", e era verdade ate a Ana decidir que
+      // aliquota ausente vale ZERO na conta. Depois disso o lucro NAO fica em
+      // branco: ele fecha, e fecha MAIOR que o real, porque falta um custo.
+      //
+      // A frase antiga assustava com a consequencia errada; a nova diz o que
+      // esta acontecendo com o numero que ela esta olhando agora. E a mesma
+      // familia do AGENTS.md: afirmacao verdadeira morre junto com a regra que
+      // a sustentava, e enquanto sobrevive ela mente.
+      detalhe: "A alíquota de imposto ainda não está cadastrada: o imposto entra como zero, e o lucro acima está maior que o real",
       acao: "Cadastrar alíquota",
       href: MERCADO_LIVRE_TAX_RATE_HREF,
       tom: "acao" as const,
@@ -902,16 +882,6 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
 
   // ⚠️ 30/08/2026 — custo faltando virou SINAL, nao trava (decisao da vendedora).
   // O numero aparece sempre; `sinais` anda colado nele.
-  const sinais = sinaisDoResultado({
-    skusWithoutCost: overview.profit.skusWithoutCost,
-    ordersProcessed: profitCoverage.processedOrders,
-    paidOrders: profitCoverage.paidOrders,
-    hrefDeCustos: "/mercado-livre/produtos",
-  });
-  const netReceived = overview.profit.revenueProcessed - overview.profit.fees - overview.profit.sellerShipping;
-  const ticket = overview.metrics.paidOrders > 0 ? overview.metrics.approvedRevenue / overview.metrics.paidOrders : null;
-  const roi = overview.profit.cogs > 0 && !resultParcial && overview.profit.estimatedProfit != null ? (overview.profit.estimatedProfit / overview.profit.cogs) * 100 : null;
-  const knownCosts = overview.profit.fees + overview.profit.sellerShipping + overview.profit.cogs + (overview.profit.taxes ?? 0);
   // O painel de composicao fala do universo da RECEITA PAGA, e o resultado dele
   // e o residuo do proprio bloco — nunca o lucro do periodo, que vive nos cards
   // e parte do faturamento. Os dois caminhos do ML (canonico e legado) expoem a
@@ -921,9 +891,6 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
   // `revenueProcessed - knownCosts`, e ela seria a propria doenca de volta:
   // `taxes` no caminho canonico incide sobre o FATURAMENTO, entao a subtracao
   // cobriria um universo maior que o centro. Ausencia se mostra como ausencia.
-  const composicaoDoPainel = overview.profit.composicaoDaReceitaPaga ?? null;
-  const resultadoDoPainel = composicaoDoPainel ? composicaoDoPainel.lucro : null;
-  const margemDoPainel = composicaoDoPainel ? composicaoDoPainel.margemPct : null;
   // Período do filtro vs. histórico já importado (frente K): mês ainda não
   // importado nunca vira cards zerados — "não vendeu" e "não importei" são
   // fatos diferentes. O covered_from chega pelo overview (historicoDesde).
@@ -1010,7 +977,18 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
         ganham o tratamento do canvas nas proximas etapas. Remove-los agora
         porque a caixa que os hospedava mudou seria perder funcao no meio de uma
         troca de layout. */}
-    <FaixaDeEtapas etapas={etapasDoCaminho} />
+    {/* ⚠️ A QUARTA ETAPA VEM DE OUTRA FONTE, e por isso entra como
+        filho: o saldo do Mercado Pago tem busca propria, e quem o desenha e
+        quem ja o busca. Mover o fetch para ca seria trocar arquitetura numa
+        frente de layout — e duplicar a chamada seria pior ainda.
+
+        ⚠️ E ELA PODE NAO VIR. Sem saldo conhecido o componente some em
+        silencio e a faixa fecha com tres — ausencia e ausencia, como no card da
+        Amazon. Nada de "R$ 0,00" nem de "proximo repasse ~dia X" estimado por
+        nos. */}
+    <FaixaDeEtapas etapas={etapasDoCaminho}>
+      <MercadoLivreSaldo modo="etapa" connectionId={connectionId ?? undefined} />
+    </FaixaDeEtapas>
 
     <AlertasDoCaminho alertas={alertasDoCaminho} />
 
@@ -1073,168 +1051,16 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
       />
     )}
 
-    <section className="metric-grid ml-dashboard-metric-grid" aria-label="Resumo financeiro Mercado Livre">
-      <Metric label="Faturamento" value={<AnimatedNumber periodo={identidadeDePeriodo(overview.period.from, overview.period.to)} id="ml-dash-revenue" value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={`${overview.metrics.paidOrders} aprovadas + ${overview.metrics.cancelledOrders} canceladas`} trend={getRevenueTrend(overview.dailySales)} />
-      <Metric label="Taxas" value={money(overview.profit.fees, overview.metrics.currency)} sub={`${profitCoverage.processedOrders} venda(s) processada(s)`} />
-      <Metric label="Custo dos produtos" value={money(overview.profit.cogs, overview.metrics.currency)} sub={overview.profit.unitsWithoutCost > 0 ? `${overview.profit.unitsWithoutCost} unidade(s) sem custo` : "custos cadastrados"} tone={overview.profit.unitsWithoutCost > 0 ? "warn" : "default"} />
-      <Metric label={overview.profit.estimatedProfit == null ? "Resultado processado" : resultParcial ? "Resultado processado" : "Lucro estimado"} value={overview.profit.estimatedProfit == null ? "—" : <AnimatedNumber periodo={identidadeDePeriodo(overview.period.from, overview.period.to)} id="ml-dash-profit" value={overview.profit.estimatedProfit} format={(amount) => money(amount, overview.metrics.currency)} />} sub={comSemImposto("após todos os custos", semAliquota)} tone={overview.profit.estimatedProfit == null ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />
-      <Metric label="Margem" value={percent(overview.profit.marginPct)} sub={margemSub} tone={marginMetricTone(overview.profit.marginPct)} />
-    </section>
-      {/*
-        ⚠️ OS SINAIS APARECEM UMA VEZ POR TELA — corte 1 da auditoria de
-        empilhamento (01/09/2026).
-
-        A MESMA lista era passada para tres cartoes desta faixa, e como ela tem
-        ate 3 sinais, a tela mostrava ate 9 marcas dizendo TRES coisas. Nao era
-        excesso de informacao: era a mesma informacao repetida, e repeticao
-        ensina a varrer a faixa sem ler nenhuma.
-
-        Nada sumiu — os tres sinais continuam aqui, uma vez cada, com numero e
-        link. O que saiu foi a repeticao, e os cartoes voltaram a mostrar o sub
-        deles, que e a declaracao de base: informacao que a repeticao escondia.
-
-        ⚠️ CORTE 2: CONEXAO CAIDA CALA OS SINAIS. Sem dado, "3 SKUs sem custo
-        cadastrado" nao e o problema dela — cadastrar o custo nao traz o numero
-        de volta, reconectar traz. Os sinais voltam inteiros quando a conexao
-        volta, porque a condicao e o ESTADO da conexao.
-      */}
-      {!sinaisSilenciadosPorAlarme(conexaoCaida) && sinais.length > 0 && <SinaisDoResultado sinais={sinais} />}
-
-    {/* ⚠️ A ORDEM AQUI E A DA PRANCHETA, e ela foi reprovada uma vez
-        por nao ser (03/09/2026). Palavra dela: *"Eu pedi pra voce fazer
-        exatamente como me apresentou na direcao A"*.
-
-        A sequencia aprovada e: faixa do resultado -> chips de pendencia ->
-        regua de cards -> TOP PRODUTOS + RENTABILIDADE lado a lado. O grafico de
-        evolucao e o painel de composicao vinham DEPOIS na prancheta, e no ar
-        estavam antes — a leitura chegava ao grafico antes de chegar ao produto.
-
-        ⚠️ E ELES DESCERAM, NAO SAIRAM. A prancheta era um viewport, nao a
-        pagina inteira; remover funcao porque ela nao cabia no recorte seria
-        passar de "so design" para "tirei uma peca". Se a dona quiser tira-los,
-        ela manda e ai saem. */}
-    <div className="ml-cockpit-duas-colunas">
-      <div>
-        {overview.topProducts.length === 0 ? <Empty>Sem vendas no período para ranquear.</Empty> : <TopProductsRanking products={overview.topProducts.map((product) => ({ sku: product.sku || product.id, title: product.title, units: product.units, revenue: product.revenue, marginPct: product.marginPct }))} currency={overview.metrics.currency} productsHref="/mercado-livre/produtos" />}
-      </div>
-      <div>
-        <OrderProfitabilityTable lines={overview.profitabilityLines} scopeNote={fraseDeEscopo(overview.profitabilityScope)} />
-      </div>
-    </div>
 
 
-    <section className="secondary-metrics" aria-label="Indicadores operacionais Mercado Livre">
-      <CompactMetric label="Vendas" value={overview.metrics.paidOrders.toLocaleString("pt-BR")} />
-      <CompactMetric label="Unidades" value={units.toLocaleString("pt-BR")} />
-      <CompactMetric label="Ticket médio" value={ticket == null ? "—" : money(ticket, overview.metrics.currency)} />
-      <CompactMetric label="ROI" value={roi == null ? "—" : `${roi.toFixed(1)}%`} tone={roi == null ? "default" : roi > 0 ? "positive" : roi < 0 ? "danger" : "default"} />
-      <CompactMetric label="Canceladas" value={`${money(overview.metrics.cancelledRevenue, overview.metrics.currency)} · ${overview.metrics.cancelledOrders}`} tone={overview.metrics.cancelledOrders > 0 ? "danger" : "default"} />
-      <CompactMetric label="Total recebido" value={money(netReceived, overview.metrics.currency)} />
-    </section>
-
-    <section className="performance-panel">
-      <div className="performance-chart">
-        <div className="mb-2 flex items-baseline justify-between gap-4">
-          <div><p className="section-kicker">Desempenho diário</p><h2 className="mt-1 text-lg font-semibold text-[var(--ink)]">Evolução do faturamento</h2></div>
-          <span className="text-sm font-semibold tabular-nums text-[var(--ink)]">{money(overview.metrics.revenue30d, overview.metrics.currency)} <span className="font-normal text-[var(--ink-muted)]">no período</span></span>
-        </div>
-        {/* Mesma legenda da Amazon, mesmo componente. O que é do ML é só a nota:
-            aqui o dinheiro só entra quando o comprador paga, e o repasse do
-            Mercado Pago tem data própria de liberação. */}
-        <LegendaDeVendas
-          confirmados={{ pedidos: overview.metrics.paidOrders, valor: overview.metrics.approvedRevenue }}
-          aguardando={{ pedidos: overview.metrics.pendingOrders, valor: overview.metrics.pendingRevenue }}
-          cancelados={{ pedidos: overview.metrics.cancelledOrders }}
-          nota="O Mercado Livre só confirma a venda quando o pagamento é aprovado; o repasse tem data própria de liberação."
-          money={(valor) => money(valor, overview.metrics.currency)}
-        />
-        <RevenueChart points={overview.dailySales} currency={overview.metrics.currency} explorable />
-      </div>
-      <FinancialSummaryPanel
-        semDonut
-        complete={!resultIncomplete}
-        labelledBy="meli-financial-summary-title"
-        description={profitCoverage.complete ? "Valores efetivamente identificados no período." : `Detalhamento processado em ${profitCoverage.processedOrders} de ${profitCoverage.paidOrders} vendas.`}
-        total={overview.profit.revenueProcessed}
-        totalLabel="Receita processada"
-        format={(value) => money(value, overview.metrics.currency)}
-        slices={composicaoDoResultado}
-        footer={(
-          <>
-            <Link href="/mercado-livre/monitor" className="meli-financial-link">Ver composição completa no monitor <span aria-hidden="true">→</span></Link>
-            <Link href="/mercado-livre/produtos" className="meli-financial-link">Configurar custos e imposto <span aria-hidden="true">→</span></Link>
-            {semAliquota && <p className="text-xs leading-relaxed text-amber-700">A alíquota de imposto ainda não está cadastrada. <Link href={MERCADO_LIVRE_TAX_RATE_HREF} className="meli-financial-link">Cadastrar alíquota <span aria-hidden="true">→</span></Link></p>}
-            {overview.profit.unitsWithoutCost > 0 && <p className="text-xs leading-relaxed text-amber-700">{overview.profit.unitsWithoutCost} unidade(s) vendida(s) ainda estão sem custo cadastrado.</p>}
-            {!profitCoverage.complete && <p className="text-xs leading-relaxed text-amber-700">O NEXO mostra somente os valores já capturados e não extrapola o lucro enquanto o histórico, as tarifas e os fretes não estiverem completos.</p>}
-          </>
-        )}
-      >
-          <Flow label={profitCoverage.complete ? "Receita paga" : "Receita processada"} value={money(overview.profit.revenueProcessed, overview.metrics.currency)} />
-          <FlowExpandable
-            label="Custos do canal e do produto"
-            value={resultIncomplete ? "—" : money(knownCosts, overview.metrics.currency)}
-            open={costsOpen}
-            onToggle={() => setCostsOpen((open) => !open)}
-            items={[
-              { label: "Tarifa de venda", value: money(overview.profit.fees, overview.metrics.currency) },
-              { label: "Frete pago pelo vendedor", value: money(overview.profit.sellerShipping, overview.metrics.currency) },
-              { label: "Custo dos produtos", value: money(overview.profit.cogs, overview.metrics.currency) },
-              rotuloImposto(overview.profit.taxRate, overview.profit.taxes, overview.metrics.currency),
-            ]}
-          />
-          {/* ⚠️ NOME PROPRIO PARA NUMERO DE OUTRO UNIVERSO — [ADR-028].
-              O centro deste painel e a receita PROCESSADA; o "Lucro estimado"
-              dos cards e do periodo inteiro, calculado sobre o faturamento.
-              Exibir um dentro do outro foi o que produziu margem de 5673% no
-              painel da Amazon. Aqui o resultado e o residuo DESTE bloco e se
-              chama pelo que e — os dois numeros continuam existindo, e e o nome
-              que impede a confusao. */}
-          <Flow label={resultIncomplete ? "Resultado indisponível" : comSemImposto("Resultado da receita paga", semAliquota)} value={resultIncomplete || resultadoDoPainel == null ? "—" : money(resultadoDoPainel, overview.metrics.currency)} sign="=" accent tone={resultIncomplete || resultadoDoPainel == null ? "default" : resultadoDoPainel > 0 ? "positive" : resultadoDoPainel < 0 ? "danger" : "default"} />
-          <Flow
-            label={comSemImposto("Margem", semAliquota)}
-            value={resultIncomplete ? "—" : percent(margemDoPainel)}
-            accent
-            tone={resultIncomplete ? "default" : marginMetricTone(margemDoPainel)}
-          />
-      </FinancialSummaryPanel>
-    </section>
-
-
-    <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
+    <div className="grid grid-cols-1 items-start gap-6">
       <Panel title="Estoque crítico" href="/mercado-livre/estoque" linkLabel="Ver radar">
         {critical.length === 0 ? <Empty>Nenhum produto em ruptura iminente.</Empty> : <ul className="divide-y divide-[var(--line)]">{critical.slice(0, 6).map((product) => <li key={product.id} className="flex items-center justify-between py-2.5 text-sm"><span className="min-w-0 truncate pr-3">{product.title || product.sku || product.id}</span><span className="shrink-0 font-semibold text-red-600">{product.status === "out" ? "esgotado" : `${product.daysRemaining} dias`}</span></li>)}</ul>}
       </Panel>
-      <Panel title="Pedidos recentes" href="/mercado-livre/monitor?secao=vendas" linkLabel="Ver todos os pedidos">
-        {overview.recentOrders.length === 0 ? <Empty>Nenhum pedido no período.</Empty> : <ul className="divide-y divide-[var(--line)]">{overview.recentOrders.slice(0, 6).map((order) => <li key={order.id} className="flex items-center justify-between py-2.5 text-sm"><span className="min-w-0"><span className="block truncate font-mono text-xs text-[var(--ink-muted)]">#{order.id}</span><span className="text-xs text-[var(--ink-muted)]">{brDate(order.createdAt)} · {orderStatus(order.status)}</span></span><span className="shrink-0 font-medium tabular-nums">{money(order.total, order.currency)}</span></li>)}</ul>}
-      </Panel>
     </div>
 
-    {/* Mesma posição do bloco da Amazon: logo depois da conversa sobre dinheiro,
-        respondendo o que o lucro sozinho deixa no ar — "então cadê?". */}
-    <MercadoLivreSaldo />
 
-    {/* Product Ads contra a margem real — mesmo painel da Amazon, parametrizado.
-        Só aparece quando há anúncio coletado: conta que não anuncia não ganha
-        seção vazia. Os três estados de vazio moram dentro do componente. */}
-    {(overview.adsPorProduto?.length ?? 0) > 0 && (
-      <AnunciosPorProduto
-        linhas={overview.adsPorProduto ?? []}
-        canal="Mercado Livre"
-        baseDeProdutos="/mercado-livre/produtos"
-      />
-    )}
 
-    {/* ⚠️ DUAS COLUNAS — item 5 do redesenho aprovado (03/09/2026).
-
-        O ranking e a rentabilidade respondem a mesma pergunta por angulos
-        diferentes ("o que vendeu" e "o que sobrou por venda"), e empilhados
-        obrigavam a rolar de um para o outro. Lado a lado, a comparacao e de
-        relance.
-
-        ⚠️ O GRID E DAQUI, DO CORPO DA PAGINA DO ML — as duas pecas nao
-        mudaram. Elas recebem exatamente os mesmos dados de antes, e a tabela de
-        rentabilidade e compartilhada com os outros canais, que continuam com ela
-        em largura inteira. */}
     {/* No desktop a sidebar já cobre estes atalhos; no mobile a nav é scroll
         horizontal e os cartões ajudam. */}
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:hidden">

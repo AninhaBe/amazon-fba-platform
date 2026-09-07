@@ -84,13 +84,26 @@ test("TRÊS estados de vazio, porque eles não significam a mesma coisa", async 
   assert.match(tela, /eles NÃO significam a mesma coisa/);
 });
 
-test("o ML usa o MESMO painel, com a origem e a página de custo do canal", async () => {
+test("o ML mostra anuncios com a origem e a pagina de custo do canal", async () => {
+  // ⚠️ INTENCAO REDIRECIONADA (07/09/2026), nao afrouxada. Ate aqui
+  // esta guarda exigia que o ML usasse o painel COMPARTILHADO
+  // `AnunciosPorProduto`. O canvas do Caminho do Dinheiro trocou o painel pelo
+  // card `AnunciosPagos`, que le os MESMOS campos do mesmo produtor e ainda
+  // acrescenta o TACOS.
+  //
+  // O QUE ELA PROTEGE NAO MUDOU: a pagina de custo e a do CANAL (custo e por
+  // (canal, SKU) — mandar para a pagina do canal errado seria pior que nao
+  // linkar), e conta sem anuncio nao ganha secao vazia.
   const ml = await readFile(new URL("../src/app/components/MercadoLivreWorkspace.tsx", import.meta.url), "utf8");
-  assert.match(ml, /canal="Mercado Livre"/);
-  assert.match(ml, /baseDeProdutos="\/mercado-livre\/produtos"/,
+  assert.match(ml, /href="\/mercado-livre\/produtos"/,
     "custo é por (canal, SKU): mandar para a página do canal errado seria pior que não linkar");
-  // Conta que não anuncia não ganha seção vazia no dashboard.
-  assert.match(ml, /\(overview\.adsPorProduto\?\.length \?\? 0\) > 0 &&/);
+  assert.match(ml, /anunciosDoPeriodo\.length === 0 \? null :/,
+    "conta que não anuncia voltou a ganhar seção vazia no dashboard");
+
+  // O painel compartilhado continua de pe para quem ainda o usa.
+  const amazon = await readFile(new URL("../src/app/(app)/amazon/page.tsx", import.meta.url), "utf8");
+  assert.match(amazon, /<AnunciosPorProduto/, "a Amazon perdeu o painel compartilhado");
+
   // A leitura no servidor é a mesma, parametrizada por provider.
   const leitura = await readFile(new URL("../src/lib/integrations/amazonAdsPorProduto.ts", import.meta.url), "utf8");
   assert.match(leitura, /provider = "amazon"/, "o padrão preserva a chamada da Amazon");

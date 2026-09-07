@@ -20,8 +20,15 @@ test("o caminho legado declara que nao conhece o teto — null, nunca um escopo 
 
 test("dashboard e monitor do ML passam a frase de escopo, e ela diz o que exibe sem se desculpar", async () => {
   const fonte = await readFile(new URL("../src/app/components/MercadoLivreWorkspace.tsx", import.meta.url), "utf8");
+  // ⚠️ ERAM DOIS PONTOS DE USO ATE 07/09/2026: o dashboard e o
+  // monitor. O canvas do Caminho do Dinheiro trocou a tabela do dashboard
+  // pelo card `TabelaDeVendas`, que recebe a MESMA frase pela prop `escopo`.
+  // Sobrou UM `scopeNote` — o do monitor —, e a frase continua nos dois
+  // lugares, com nomes diferentes.
   const chamadas = fonte.match(/scopeNote=\{fraseDeEscopo\(overview\.profitabilityScope\)\}/g) ?? [];
-  assert.equal(chamadas.length, 2, "dashboard e monitor — os dois pontos de uso");
+  assert.equal(chamadas.length, 1, "o monitor — o dashboard passa a mesma frase por `escopo`");
+  assert.match(fonte, /escopo=\{fraseDeEscopo\(overview\.profitabilityScope\)/,
+    "o card do dashboard parou de receber a frase de escopo");
   // Período completo = sem frase (o texto padrão da tabela serve).
   assert.match(fonte, /if \(!scope \|\| scope\.completePeriod\) return undefined/);
   assert.match(fonte, /Exibindo os \$\{scope\.detailedOrders\} pedidos mais recentes\. Os totais financeiros acima consideram o período completo\./);

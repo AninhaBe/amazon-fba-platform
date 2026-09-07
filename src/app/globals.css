@@ -915,7 +915,7 @@ button[class*="bg-blue-"]:hover, a[class*="bg-blue-"]:hover { background: var(--
 
 .secondary-metrics {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--etapas, 4), minmax(0, 1fr));
   overflow: hidden;
   border-radius: var(--radius-md);
   background: var(--paper);

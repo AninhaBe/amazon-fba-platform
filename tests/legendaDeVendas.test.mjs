@@ -16,7 +16,10 @@ const fonte = (caminho) => readFileSync(new URL(`../${caminho}`, import.meta.url
 // marketplaces atualizados".
 const TELAS = [
   ["src/app/(app)/amazon/page.tsx", "Amazon"],
-  ["src/app/components/MercadoLivreWorkspace.tsx", "Mercado Livre"],
+  // ⚠️ O ML SAIU DESTA LISTA em 07/09/2026 porque o BLOCO saiu: o
+  // canvas do Caminho do Dinheiro cortou o corpo antigo do dashboard. A
+  // regra continua valendo para os outros canais, e volta a valer para o ML
+  // no dia em que ele tiver um bloco que precise dela.
   ["src/app/components/ShopeeWorkspace.tsx", "Shopee"],
   ["src/app/components/TikTokWorkspace.tsx", "TikTok Shop"],
 ];

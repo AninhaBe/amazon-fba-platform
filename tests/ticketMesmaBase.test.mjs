@@ -38,8 +38,11 @@ test("ML: o ticket sai das aprovadas, nao do faturamento bruto", () => {
   // A regra ja morou num modulo de cards que nunca chegou a ser ligado na tela;
   // o modulo foi apagado em 26/08/2026 e a garantia voltou a ser cobrada no
   // codigo VIVO, que e onde ela pode quebrar.
+  // ⚠️ O TICKET SAIU DO DASHBOARD DO ML em 07/09/2026, com as metricas
+  // secundarias: ele nao esta entre as 13 funcoes do canvas aprovado. A regra
+  // — numerador e denominador na MESMA base — segue cobrada onde o ticket
+  // existe, e a proibicao da mistura continua valendo se ele voltar.
   const s = fonte("src/app/components/MercadoLivreWorkspace.tsx");
-  assert.match(s, /approvedRevenue \/ overview\.metrics\.paidOrders/, "numerador e denominador precisam ser aprovadas");
   assert.doesNotMatch(s, /revenue30d \/ overview\.metrics\.paidOrders/, "essa era a mistura");
 });
 
@@ -48,9 +51,8 @@ test("sem venda aprovada o ticket e desconhecido, nao zero", () => {
   const shopee = fonte("src/app/components/ShopeeWorkspace.tsx");
   assert.match(shopee, /paidOrders > 0[\s\S]{0,140}?: null/, "Shopee: ticket sem venda precisa ser null");
   assert.match(shopee, /ticket == null \? "—"/, "Shopee: a tela precisa exibir o traco");
-  const ml = fonte("src/app/components/MercadoLivreWorkspace.tsx");
-  assert.match(ml, /paidOrders > 0/, "ML: o ticket precisa depender de haver venda aprovada");
-  assert.match(ml, /ticket == null \? "—"/, "ML: a tela precisa exibir o traco");
+  // ⚠️ O ML SAIU DESTA ASSERCAO com o ticket: sem o numero na tela, nao ha
+  // traco a exibir. A Shopee, que continua com ele, segue cobrada acima.
 });
 
 test("Shopee soma receita e conta pedidos com o MESMO filtro de status", () => {
