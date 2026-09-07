@@ -1,4 +1,5 @@
 import { dbQuery, dbTransaction, hasDb } from "../db";
+import { filtroDeAssinaturaAtiva } from "./assinaturaPausaSync";
 import { getTiktokShops, refreshTiktokShopIfNeeded } from "../tiktokStore";
 import { runWithWorkspace } from "../workspaceScope";
 import { runTiktokSyncBatch, type TiktokSyncStatus } from "./tiktokSync";
@@ -56,7 +57,8 @@ export async function runScheduledTiktokSync(
          ON sync.workspace_id = shop.workspace_id
         AND sync.provider = $1
         AND sync.connection_id = $1 || ':' || shop.shop_id
-      WHERE (
+      WHERE ${filtroDeAssinaturaAtiva("shop")}
+        AND (
            NOT EXISTS (SELECT 1 FROM workspace_tiktok_shops duplicate
              WHERE duplicate.shop_id=shop.shop_id AND duplicate.workspace_id<>shop.workspace_id)
          -- Loja sintetica do workspace de demonstracao NUNCA vai para a API real.

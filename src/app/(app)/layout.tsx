@@ -1,4 +1,7 @@
+import { redirect } from "next/navigation";
 import { AppShell } from "../components/AppShell";
+import { createClient, supabaseConfigured } from "@/lib/supabase/server";
+import { lerAcesso } from "@/lib/billing/acessoDoServidor";
 
 /**
  * A CASCA MORA AQUI — no route group das telas autenticadas, e não no layout
@@ -26,6 +29,29 @@ import { AppShell } from "../components/AppShell";
  * `<body>`, a fonte e o link de pular para o conteúdo continuam no layout raiz,
  * para todo mundo. Aqui entra só a moldura.
  */
-export default function AppLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+/**
+ * ⚠️ E A TRANCA MORA AQUI TAMBÉM (07/09/2026), pelo mesmo motivo que a casca:
+ * este é o ponto por onde TODA tela autenticada passa e por onde NENHUMA tela
+ * pública passa. Uma lista de caminhos protegeria o que alguém lembrou de
+ * escrever — a tela seguinte nasceria destrancada.
+ *
+ * A decisão não é tomada aqui: vem de `billing/acesso.ts`, a mesma função que
+ * `withAuthenticatedWorkspace` usa nas rotas de dado. Antes disto, conta cortada
+ * recebia 403 no dado mas a navegação abria: a pessoa via o produto inteiro
+ * cheio de erro em vez de ser levada à reativação.
+ *
+ * ⚠️ SEM SESSÃO NÃO REDIRECIONA AQUI. Cada página já manda para o `/login` com
+ * o seu próprio `next=`; assumir isso aqui apagaria o destino de volta.
+ */
+export default async function AppLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  if (supabaseConfigured()) {
+    const supabase = await createClient();
+    const { data } = await supabase.auth.getClaims();
+    const workspaceId = data?.claims?.sub;
+    if (workspaceId) {
+      const acesso = await lerAcesso(String(workspaceId));
+      if (!acesso.liberado) redirect(`/reativar?motivo=${acesso.motivo}`);
+    }
+  }
   return <AppShell>{children}</AppShell>;
 }

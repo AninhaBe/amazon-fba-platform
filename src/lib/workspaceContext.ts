@@ -4,6 +4,8 @@ import { cookies } from "next/headers";
 import { createClient, supabaseConfigured } from "./supabase/server";
 import { chaveDaSessao, comRenovacaoUnica } from "./supabase/renovacaoUnica";
 import { runWithWorkspace } from "./workspaceScope";
+import { lerAcesso } from "./billing/acessoDoServidor";
+import { textoDoBloqueio } from "./billing/acesso";
 import { getTrial } from "./trial";
 
 export interface WorkspaceGuardOptions {
@@ -44,14 +46,30 @@ export async function withAuthenticatedWorkspace<T>(
 
   return runWithWorkspace(String(workspaceId), async () => {
     if (!options.allowExpiredTrial) {
-      // Bloqueio é reversível: estender a data no workspace_settings devolve o
-      // acesso na hora. Nenhum dado é apagado aqui.
-      const trial = await getTrial().catch(() => null);
-      if (trial?.expired) {
+      // Bloqueio é reversível: mudar a assinatura ou a data no
+      // workspace_settings devolve o acesso na hora. Nenhum dado é apagado.
+      //
+      // ⚠️ A DECISÃO NÃO MORA AQUI (07/09/2026). Ela mora em `billing/acesso.ts`,
+      // e a navegação em `(app)/layout.tsx` chama a MESMA função. Dois portões
+      // com regras próprias divergem, e o sintoma é a tela abrir e o dado não
+      // vir — que foi o defeito que este trabalho veio consertar.
+      const acesso = await lerAcesso(String(workspaceId)).catch(
+        () => ({ liberado: true, motivo: "sem-registro" }) as const
+      );
+      if (!acesso.liberado) {
+        const trial = await getTrial().catch(() => null);
         return NextResponse.json(
           {
-            error: "O período de avaliação desta conta terminou.",
-            errorInfo: { code: "TRIAL_EXPIRED", retryable: false, endsAt: trial.endsAt },
+            error: textoDoBloqueio(acesso.motivo),
+            errorInfo: {
+              // O código antigo continua saindo: é o que a interface já sabe
+              // tratar. O `motivo` é o campo novo, que distingue cortada de
+              // vencida — e é ele que a tela nova lê.
+              code: "TRIAL_EXPIRED",
+              motivo: acesso.motivo,
+              retryable: false,
+              endsAt: trial?.endsAt ?? null,
+            },
           },
           { status: 403 }
         ) as T;

@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { dbQuery, hasDb } from "../db";
 import { clearTrial, getTrialFor, setTrial } from "../trial";
+import { enviarAviso } from "./emailsDaAssinatura";
 import type {
   BloqueioDeAcesso,
   DependenciasAssinatura,
@@ -163,6 +164,12 @@ export function dependenciasDeAssinatura(): DependenciasAssinatura {
      * Fecha a porta gravando um prazo já vencido — o mesmo caminho do período de
      * avaliação. Voltar é mudar a data; nenhum canal, custo ou pedido é apagado.
      */
+    async avisar(tipo, dados): Promise<void> {
+      const falha = await enviarAviso(tipo, dados);
+      // Log, nunca exceção: ver a dependência `avisar` em `assinatura.ts`.
+      if (falha) console.error(`[billing] aviso "${tipo}" não saiu: ${falha}`);
+    },
+
     async bloquearAcesso(workspaceId: string, bloqueio: BloqueioDeAcesso): Promise<void> {
       const atual = await getTrialFor(workspaceId).catch(() => null);
       const inicioAtual = atual ? new Date(atual.startsAt) : null;

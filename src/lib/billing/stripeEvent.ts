@@ -47,7 +47,7 @@ function texto(valor: unknown): string | null {
 }
 
 /** A Stripe manda ora o id, ora o objeto expandido, no mesmo campo. */
-function referencia(valor: unknown): string | null {
+export function referencia(valor: unknown): string | null {
   if (typeof valor === "string") return texto(valor);
   if (valor && typeof valor === "object") return texto((valor as { id?: unknown }).id);
   return null;

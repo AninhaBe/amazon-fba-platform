@@ -1,4 +1,5 @@
 import { dbQuery, hasDb } from "../db";
+import { filtroDeAssinaturaAtiva } from "./assinaturaPausaSync";
 import { runWithWorkspace } from "../workspaceScope";
 import { getIntegration } from "./integrationStore";
 import {
@@ -37,6 +38,7 @@ export async function runScheduledMercadoLivreSync(
         AND integration.id = sync.connection_id
         AND integration.provider = sync.provider
       WHERE sync.provider = $1
+        AND ${filtroDeAssinaturaAtiva("sync")}
         AND integration.status = 'connected'
         -- Conexao de demonstracao nunca vai para a API real: o token e falso e
         -- cada tentativa grava erro no sync, que aparece na frente do dashboard
@@ -144,6 +146,7 @@ export async function runScheduledMercadoLivreReverify(
         AND integration.id = sync.connection_id
         AND integration.provider = sync.provider
       WHERE sync.provider = $1
+        AND ${filtroDeAssinaturaAtiva("sync")}
         AND integration.status = 'connected'
         -- Conexao de demonstracao nunca vai para a API real: o token e falso e
         -- cada tentativa grava erro no sync, que aparece na frente do dashboard

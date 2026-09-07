@@ -12,7 +12,7 @@ import { currentWorkspaceId } from "./workspaceScope";
 //   - NÃO apaga nada. Excluir a conta é ação destrutiva e fica com a dona do
 //     produto, por script explícito — nunca automática por vencimento.
 
-const SETTING_KEY = "trial";
+export const SETTING_KEY = "trial";
 const DAY = 86_400_000;
 
 export interface TrialInfo {
@@ -33,7 +33,8 @@ interface StoredTrial {
   acknowledgedAt?: string;
 }
 
-function describe(stored: StoredTrial): TrialInfo {
+/** Exportado para quem já leu a linha do banco e não quer ler de novo. */
+export function descreverTrial(stored: StoredTrial): TrialInfo {
   const endsAt = new Date(stored.endsAt).getTime();
   const daysLeft = Math.ceil((endsAt - Date.now()) / DAY);
   return {
@@ -70,7 +71,7 @@ export async function acknowledgeTrial(): Promise<TrialInfo | null> {
      ON CONFLICT (workspace_id, key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
     [workspaceId, SETTING_KEY, JSON.stringify(value)]
   );
-  return describe(value);
+  return descreverTrial(value);
 }
 
 /** Trial do workspace atual, ou null quando a conta não é de avaliação. */
@@ -78,7 +79,7 @@ export async function getTrial(): Promise<TrialInfo | null> {
   if (!hasDb()) return null;
   const stored = await readStored(currentWorkspaceId());
   if (!stored?.endsAt) return null;
-  return describe(stored);
+  return descreverTrial(stored);
 }
 
 /** Idem, para um workspace específico (uso administrativo/scripts). */
@@ -86,7 +87,7 @@ export async function getTrialFor(workspaceId: string): Promise<TrialInfo | null
   if (!hasDb()) return null;
   const stored = await readStored(workspaceId);
   if (!stored?.endsAt) return null;
-  return describe(stored);
+  return descreverTrial(stored);
 }
 
 export async function setTrial(
@@ -104,7 +105,7 @@ export async function setTrial(
      ON CONFLICT (workspace_id, key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
     [workspaceId, SETTING_KEY, JSON.stringify(value)]
   );
-  return describe(value);
+  return descreverTrial(value);
 }
 
 export async function clearTrial(workspaceId: string): Promise<void> {

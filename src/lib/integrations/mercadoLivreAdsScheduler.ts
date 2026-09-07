@@ -2,6 +2,7 @@ import { dbQuery, hasDb } from "../db";
 import { runWithWorkspace } from "../workspaceScope";
 import { getIntegration } from "./integrationStore";
 import { coletarAdsDoMercadoLivre, type ResultadoDaColeta } from "./mercadoLivreAdsSync";
+import { filtroDeAssinaturaAtiva } from "./assinaturaPausaSync";
 
 /**
  * Um ciclo de coleta de Product Ads para todas as conexões vivas do ML.
@@ -44,6 +45,7 @@ export async function runScheduledMercadoLivreAds(): Promise<ResultadoDoCicloDeA
         AND integration.id = sync.connection_id
         AND integration.provider = sync.provider
       WHERE sync.provider = $1
+        AND ${filtroDeAssinaturaAtiva("sync")}
         AND integration.status = 'connected'
         -- Demo nunca vai à API real (mesmo predicado do scheduler de sync).
         AND integration.metadata->'demo' IS DISTINCT FROM 'true'::jsonb`,

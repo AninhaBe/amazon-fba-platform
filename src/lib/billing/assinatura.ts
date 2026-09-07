@@ -1,3 +1,4 @@
+import { referencia } from "./stripeEvent";
 import type { EventoStripe, IntencaoStripe } from "./stripeEvent";
 
 // O que a intenção da Stripe faz com a conta.
@@ -49,6 +50,15 @@ export interface DependenciasAssinatura {
   gravarAssinatura(workspaceId: string, estado: EstadoAssinatura): Promise<void>;
   liberarAcesso(workspaceId: string): Promise<void>;
   bloquearAcesso(workspaceId: string, bloqueio: BloqueioDeAcesso): Promise<void>;
+  /**
+   * Manda o aviso por e-mail. OPCIONAL de propósito: e-mail que não sai não pode
+   * derrubar o processamento do pagamento. Quem chama trata a falha como log,
+   * nunca como erro do evento — a Stripe reentregaria e a pessoa receberia dois.
+   */
+  avisar?(
+    tipo: "boas-vindas" | "pagamento-falhou",
+    dados: { email: string | null; contaNova: boolean }
+  ): Promise<void>;
 }
 
 export interface ResultadoDaIntencao {
@@ -73,6 +83,21 @@ export async function aplicarIntencao(
   agora: Date = new Date()
 ): Promise<ResultadoDaIntencao> {
   if (intencao.acao === "ignorar") {
+    // ⚠️ "Ignorar" é sobre ACESSO, não sobre a pessoa. A cobrança que falhou não
+    // corta ninguém (a Stripe ainda vai tentar de novo), mas ficar calado
+    // deixaria a assinatura morrer sem que ela soubesse por quê.
+    if (evento.type === "invoice.payment_failed" && deps.avisar) {
+      // Os ids vêm do objeto do evento: a intenção "ignorar" não os carrega,
+      // porque ela é sobre acesso, e acesso não muda aqui.
+      const dono = await deps
+        .buscarWorkspacePorStripe(
+          referencia(evento.objeto.customer),
+          referencia(evento.objeto.subscription)
+        )
+        .catch(() => null);
+      const conta = dono ? await deps.lerAssinatura(dono).catch(() => null) : null;
+      await deps.avisar("pagamento-falhou", { email: conta?.email ?? null, contaNova: false }).catch(() => {});
+    }
     return { desfecho: "ignorado", workspaceId: null, detalhe: intencao.motivo };
   }
 
@@ -135,5 +160,17 @@ export async function aplicarIntencao(
   // bloqueada com a assinatura já registrada — e a Stripe reentrega o evento.
   // O inverso (acesso aberto sem registro de quem pagou) não teria conserto.
   await deps.liberarAcesso(workspaceId);
+
+  // ⚠️ SÓ NA TRANSIÇÃO. `customer.subscription.updated` chega a cada renovação e
+  // a cada mudança de cartão; mandar boas-vindas em todas transformaria o aviso
+  // em spam e ensinaria a pessoa a ignorar justamente o e-mail que importa.
+  if (deps.avisar && (!anterior || anterior.status === "cortada")) {
+    await deps
+      .avisar("boas-vindas", {
+        email: intencao.email ?? anterior?.email ?? null,
+        contaNova: desfecho === "conta_convidada",
+      })
+      .catch(() => {});
+  }
   return { desfecho, workspaceId };
 }
