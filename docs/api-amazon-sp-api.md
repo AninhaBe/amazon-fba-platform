@@ -208,6 +208,50 @@ Amazon*. Se o papel for concedido, o caminho é `transportationOptions` da 2024-
 
 ## Changelog observado (mais recente primeiro)
 
+- **07/09/2026 — Por que lucro em tempo real não existe: a receita também não é
+  final.** Pergunta da dona do produto: *"no seller central a venda sai e já
+  aparece o faturamento, mas não necessariamente já foi repassado na API, então
+  não dá pra calcular lucro em real time"*. Medido na conta:
+
+  **1. A fronteira da tarifa é o ENVIO, e ela é nítida.** Cruzando
+  `orders/v0/orders` com `finances/2024-06-19/transactions` numa janela de 20
+  dias: dos **22 pedidos `Shipped`, 22 têm transação financeira**; dos **25
+  `Pending`, zero têm**. Não é defasagem de minutos nem fila de sync — o evento
+  financeiro nasce no envio.
+
+  **2. O `Pending` dura semanas, mas resolve.** Distribuição por idade do pedido
+  (janela de 60 dias, 72 pedidos):
+
+  | idade | total | Pending | Shipped | Canceled | % Pending |
+  |---|---|---|---|---|---|
+  | 0–2 dias | 7 | 6 | 1 | 0 | 86% |
+  | 2–5 dias | 10 | 5 | 1 | 4 | 50% |
+  | 5–10 dias | 19 | 10 | 7 | 2 | 53% |
+  | 10–20 dias | 23 | 4 | 13 | 6 | 17% |
+  | 20–40 dias | 13 | 0 | 11 | 2 | **0%** |
+
+  O pedido `Pending` mais antigo tinha **12,7 dias** e janela de envio vencida em
+  27/08. Meios de pagamento observados nos `Pending`: `Installments`, `Pix`,
+  `CreditCard`, `Rewards`. Ou seja, não é só boleto.
+
+  **3. ⚠️ O achado que muda o desenho: 30% dos pedidos que resolvem, resolvem
+  como CANCELADOS** (60 dias: 33 `Shipped` contra 14 `Canceled`). E o
+  `orderMetrics` conta o pedido no momento da compra — inclusive os que serão
+  cancelados.
+
+  📌 **Conclusão.** O obstáculo ao lucro em tempo real não é só a tarifa faltar:
+  é que **a receita ainda não é final**. Somar `orderMetrics` (que já inclui o
+  que vai cancelar) e descontar tarifa (que só existe para o que já enviou)
+  mistura dois universos de pedidos diferentes — e o erro é para cima nos dois
+  lados. Por isso a tela deve dizer **"pedidos feitos"**, nunca "faturamento", e
+  o lucro só fecha sobre pedido resolvido. A lacuna entre os dois é informação
+  para a vendedora ("R$ X em N pedidos ainda não confirmados"), não um número a
+  esconder.
+
+  Isto **não** contradiz a §"Por que `orderMetrics` não sai do nosso canônico"
+  (28/08): lá o assunto era *preço de tabela vs preço praticado*; aqui é *pedido
+  que ainda não é venda*. São duas divergências independentes, e elas somam.
+
 - **2026-09-06 — O `orderMetrics` EXCLUI pedido cancelado. Medido 7 de 7 dias.**
   Comparação dia a dia entre o `orderMetrics` e o nosso canônico, na conta
   `AO62LVXJMX3AA`:
