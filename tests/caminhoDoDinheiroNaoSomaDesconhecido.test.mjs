@@ -95,16 +95,40 @@ test("ordenar por margem poe o DESCONHECIDO no fim, nao entre os piores", () => 
   assert.deepEqual(ordenado.slice(3).map((i) => i.id), ["b", "e"]);
 });
 
-test("a faixa consome ESTAS contas — e nao soma no meio do JSX", async () => {
-  // ⚠️ ANCORADO NA DEFINICAO, nao no nome da variavel: o que importa e DE
-  // ONDE cada parcela vem. Alguem pode trocar a fonte de `custos` uma linha
-  // acima sem o nome mudar, e foi assim que o ticket medio quebrou em 02/09.
+test("a faixa consome ESTAS contas — e o imposto entra JA RESOLVIDO em zero", async () => {
+  // ⚠️ INTENCAO INVERTIDA (07/09/2026), e a inversao e de REGRA, nao
+  // de layout. Ate ontem esta guarda exigia `valor: overview.profit.taxes` —
+  // imposto ausente apagava o total, e estava certo no mundo anterior.
+  //
+  // A Ana decidiu que ALIQUOTA NAO CADASTRADA VALE ZERO NA CONTA: excecao
+  // nomeada ao `null != 0`, com ADR do backend. O imposto deixou de ser uma
+  // parcela desconhecida e virou uma parcela conhecida igual a zero.
+  //
+  // ⚠️ O QUE AUTORIZA A EXCECAO E O RASTRO, e ha assercao para ele mais
+  // abaixo: a pendencia continua na fila e a coluna Situacao continua dizendo
+  // "sem aliquota". Sem isso, o `?? 0` seria o defeito que este arquivo existe
+  // para impedir — e a diferenca entre os dois e uma linha de codigo.
   const ml = semComentarios(await fonte("src/app/components/MercadoLivreWorkspace.tsx"));
+
+  assert.ok(ml.includes("const impostoNaConta = overview.profit.taxes ?? 0;"),
+    "a excecao do imposto saiu do lugar unico onde ela esta documentada");
   assert.match(
     ml,
-    /const custosDoPeriodo = somaDosCustos\(\[\s*\{ rotulo: "produtos", valor: overview\.profit\.cogs \},\s*\{ rotulo: "frete", valor: overview\.profit\.sellerShipping \},\s*\{ rotulo: "taxas", valor: overview\.profit\.fees \},\s*\{ rotulo: "impostos", valor: overview\.profit\.taxes \},\s*\]\);/,
+    /const custosDoPeriodo = somaDosCustos\(\[\s*\{ rotulo: "produtos", valor: overview\.profit\.cogs \},\s*\{ rotulo: "frete", valor: overview\.profit\.sellerShipping \},\s*\{ rotulo: "taxas", valor: overview\.profit\.fees \},\s*\{ rotulo: "impostos", valor: impostoNaConta \},\s*\]\);/,
     "a soma dos custos mudou de forma ou de FONTE — as parcelas precisam vir do produtor, nomeadas",
   );
+
+  // ⚠️ E A EXCECAO E SO DO IMPOSTO. Um `?? 0` em tarifa, frete ou custo
+  // seria o defeito antigo de volta, agora com a desculpa de uma regra que nao
+  // fala deles: la o desconhecido e desconhecido mesmo.
+  for (const proibido of [
+    "overview.profit.cogs ?? 0",
+    "overview.profit.sellerShipping ?? 0",
+    "overview.profit.fees ?? 0",
+  ]) {
+    assert.ok(!ml.includes(proibido),
+      'a excecao do imposto vazou para outra parcela: "' + proibido + '"');
+  }
 });
 
 test("o custo de uma venda e desconhecido se QUALQUER lado for desconhecido", () => {
@@ -119,20 +143,33 @@ test("o custo de uma venda e desconhecido se QUALQUER lado for desconhecido", ()
   assert.equal(custoDaVenda(0, 0), 0);
 });
 
-test("os cards leem os produtores certos — ancorado na DEFINICAO de cada campo", async () => {
+test("os cards leem os produtores certos — e o imposto zero mantem o RASTRO", async () => {
   const ml = semComentarios(await fonte("src/app/components/MercadoLivreWorkspace.tsx"));
 
   // ⚠️ O "sobre a venda" de cada componente divide pelo MESMO
-  // faturamento que a etapa "Voce vendeu" mostra. Se um deles trocar de base, a
-  // pagina passa a ter duas ideias de faturamento e as porcentagens deixam de
-  // fechar com o numero de cima — sem nada ficar vermelho.
+  // faturamento que a etapa "Voce vendeu" mostra. Base diferente faria as
+  // porcentagens nao fecharem com o numero de cima, sem nada ficar vermelho.
   const custo = ml.slice(ml.indexOf("const componentesDoCusto = ["), ml.indexOf("const produtosDoRanking"));
   assert.equal((custo.match(/sobreAVenda\([^,]+, overview\.metrics\.revenue30d\)/g) ?? []).length, 4,
     "algum componente do custo mudou de base — as porcentagens param de fechar com a etapa 'Voce vendeu'");
-  assert.ok(custo.includes('valor: overview.profit.taxes == null ? "\u2014" : money(overview.profit.taxes'),
-    "o imposto sem aliquota deixou de mostrar traco");
 
-  // A tabela deriva o custo pela funcao testada, nunca no meio do JSX.
+  // ⚠️ INTENCAO INVERTIDA (07/09/2026): esta assercao exigia que o
+  // imposto sem aliquota mostrasse TRAVESSAO. Agora ele mostra o VALOR, porque
+  // a conta fecha em zero. O travessao migrou de significado — ele continua
+  // valendo para tarifa, frete e custo, que seguem desconhecidos de verdade.
+  assert.ok(custo.includes("valor: money(impostoNaConta, overview.metrics.currency),"),
+    "o imposto voltou a mostrar traco — a conta deixou de fechar");
+
+  // ⚠️ E O RASTRO E A UNICA COISA QUE NAO PODE SUMIR. Depois que o
+  // numero vira zero, quem distingue "ninguem cadastrou" de "ela declarou 0%" e
+  // a Situacao na tabela e a pendencia na fila. Se as duas sairem, a tela passa
+  // a afirmar um imposto zero sem dizer que ninguem o configurou.
+  assert.ok(custo.includes('situacao: semAliquota ? "sem alíquota" : "completo",'),
+    "a coluna Situacao parou de marcar a aliquota ausente — o rastro na tabela sumiu");
+  const alertas = ml.slice(ml.indexOf("const alertasDoCaminho = ["), ml.indexOf("\n  ];", ml.indexOf("const alertasDoCaminho")));
+  assert.ok(alertas.includes("semAliquota ?"),
+    "a pendencia da aliquota sumiu da fila — o unico rastro que sobrava foi embora junto com o traco");
+
   assert.ok(ml.includes("const custos = custoDaVenda(linha.revenue, linha.contribution);"),
     "a tabela voltou a derivar o custo por conta propria");
   for (const campo of ["venda: linha.revenue == null", "sobrou: linha.contribution == null", "marginPct: linha.marginPct"]) {
@@ -195,16 +232,56 @@ test("prejuizo tambem nao vira fatia verde", () => {
   assert.equal(fatiaDoSobrou({ parcelas: [100, 200], lucro: 50, base: 0 }), null);
 });
 
-test("o ML passa as QUATRO parcelas para a decisao da fatia — nao um subconjunto", async () => {
-  // ⚠️ ANCORADO NA DEFINICAO: se alguem tirar `taxes` desta lista, a
-  // fatia verde volta a aparecer com o imposto desconhecido e a barra volta a
-  // afirmar um lucro fechado. O nome da variavel nao mudaria.
+test("a fatia verde olha as quatro parcelas — com o imposto ja resolvido", async () => {
+  // ⚠️ INTENCAO INVERTIDA (07/09/2026): a lista passava
+  // `overview.profit.taxes` cru, e imposto ausente apagava a fatia verde. Com a
+  // aliquota valendo zero, a conta fecha e a barra fecha com ela.
+  //
+  // O QUE NAO MUDOU: as OUTRAS TRES continuam bloqueando. Se alguem tirar uma
+  // delas da lista, a fatia verde volta a aparecer com a conta aberta e a barra
+  // afirma um lucro fechado — com a autoridade de um desenho.
   const ml = semComentarios(await fonte("src/app/components/MercadoLivreWorkspace.tsx"));
   assert.ok(
-    ml.includes("parcelas: [overview.profit.cogs, overview.profit.sellerShipping, overview.profit.fees, overview.profit.taxes],"),
+    ml.includes("parcelas: [overview.profit.cogs, overview.profit.sellerShipping, overview.profit.fees, impostoNaConta],"),
     "a decisao da fatia verde deixou de olhar as quatro parcelas do custo",
   );
   assert.ok(ml.includes("lucro: overview.profit.estimatedProfit,"), "a fatia verde trocou de fonte de lucro");
   assert.ok(ml.includes("base: overview.metrics.revenue30d,"),
     "a fatia verde mudou de base — ela precisa dividir pelo mesmo faturamento das outras fatias");
+});
+
+test("SEM aliquota e COM aliquota 0% dao a MESMA conta — so o sinal difere", () => {
+  // ⚠️ A FRONTEIRA NOVA (07/09/2026), fabricada dos dois lados. Ela e a
+  // consequencia exata da decisao da Ana, e o backend a escreveu no ADR-038:
+  // depois desta mudanca, quem cadastrou 0% e quem NAO cadastrou produzem
+  // numeros IDENTICOS. O que separa os dois nao esta na conta — esta no sinal.
+  //
+  // Testar so um dos lados nao provaria nada: os dois passam. E testar so os
+  // numeros esconderia justamente o que a excecao arrisca — perder o rastro.
+  const parcelas = (imposto) => [
+    { rotulo: "produtos", valor: 1263.18 },
+    { rotulo: "frete", valor: 634.41 },
+    { rotulo: "taxas", valor: 331.44 },
+    { rotulo: "impostos", valor: imposto },
+  ];
+
+  const semCadastro = somaDosCustos(parcelas(0));    // taxes = 0, taxRateKnown = false
+  const declarouZero = somaDosCustos(parcelas(0));   // taxes = 0, taxRateKnown = true
+
+  assert.deepEqual(semCadastro, declarouZero,
+    "os dois casos deixaram de produzir a mesma conta — a excecao vazou para o numero");
+  assert.equal(semCadastro.faltando.length, 0, "o imposto zero voltou a apagar o total");
+  assert.equal(Number(semCadastro.total.toFixed(2)), 2229.03);
+
+  // E a barra fecha nos dois — o imposto nao bloqueia mais a fatia verde.
+  const verde = fatiaDoSobrou({ parcelas: [1263.18, 634.41, 331.44, 0], lucro: 590.87, base: 2819.90 });
+  assert.ok(verde != null, "a fatia verde some com imposto zero — a conta fecha e ela deveria aparecer");
+
+  // ⚠️ MAS AS OUTRAS TRES CONTINUAM APAGANDO. A excecao e do imposto,
+  // e so dele: aqui ninguem decidiu que frete desconhecido vale zero.
+  assert.equal(somaDosCustos(parcelas(0).map((p) =>
+    p.rotulo === "frete" ? { ...p, valor: null } : p)).total, null,
+    "frete desconhecido parou de apagar o total — a excecao do imposto vazou");
+  assert.equal(fatiaDoSobrou({ parcelas: [1263.18, null, 331.44, 0], lucro: 590.87, base: 2819.90 }), null,
+    "a fatia verde apareceu com o frete desconhecido");
 });

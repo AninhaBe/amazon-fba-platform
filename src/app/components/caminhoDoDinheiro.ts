@@ -20,6 +20,19 @@
  *
  * Entao: QUALQUER parcela desconhecida torna o total desconhecido, e a peca diz
  * O QUE falta, com nome — no padrao da casa, apontar em vez de se desculpar.
+ *
+ * ⚠️ UMA EXCECAO NOMEADA, decidida pela Ana em 07/09/2026: ALIQUOTA DE
+ * IMPOSTO NAO CADASTRADA VALE ZERO NA CONTA. Ela nao e mais uma parcela
+ * desconhecida — e uma parcela conhecida e igual a zero, e a soma fecha.
+ *
+ * O que sustenta a excecao e que o rastro NAO se perde: `taxRateKnown` vem
+ * `false` do produtor e a pendencia "Alíquota não configurada → Configurar"
+ * continua na fila. Sem esse sinal a excecao seria um `?? 0` disfarcado, que e
+ * exatamente o defeito que este modulo existe para impedir.
+ *
+ * ⚠️ E ELA VALE SO PARA O IMPOSTO. Tarifa, frete e custo continuam
+ * apagando o total quando sao `null`, porque ali o desconhecido e desconhecido
+ * mesmo: ninguem decidiu que valem zero, a fonte e que ainda nao publicou.
  */
 
 export interface ParcelaDeCusto {
@@ -106,6 +119,10 @@ export function custoDaVenda(receita: number | null | undefined, sobrou: number 
  *     diferenca com o imposto faltando afirmaria um lucro que nao esta fechado
  *     — e afirmaria com a autoridade de um desenho, que e pior que um numero,
  *     porque ninguem confere um desenho.
+ *
+ * ⚠️ O IMPOSTO NAO BLOQUEIA MAIS A FATIA (07/09/2026): aliquota nao
+ * cadastrada vale zero, entao a conta fecha com ele. Quem chama passa o imposto
+ * ja resolvido em zero; as outras tres parcelas continuam bloqueando.
  *
  * Devolve a largura em pontos percentuais, ou `null` quando a fatia nao deve
  * existir.

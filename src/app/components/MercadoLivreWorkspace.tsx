@@ -623,11 +623,31 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
    * e um `?? 0` aqui daria um total exato e MENOR que o real, com o "Sobrou" ao
    * lado parecendo melhor do que e. Nada ficaria vermelho.
    */
+  /**
+   * ⚠️ ALIQUOTA NAO CADASTRADA VALE ZERO NA CONTA — excecao nomeada,
+   * decidida pela Ana em 07/09/2026, e o `?? 0` abaixo e ela, nao um descuido.
+   *
+   * O contrato acertado com o backend (ADR-038) e: `taxes` passa a vir 0 do
+   * produtor e `taxRate` CONTINUA `null` quando nao ha cadastro. O `?? 0` cobre
+   * a janela ate o produtor subir nos quatro canais; depois dela ele vira
+   * redundante e inofensivo.
+   *
+   * ⚠️ O RASTRO NAO SE PERDE, e e o que autoriza a excecao: a pendencia
+   * "Alíquota não configurada" continua na fila (ver `alertasDoCaminho`) e a
+   * linha da tabela mostra "sem alíquota" na coluna Situacao. O numero fecha; o
+   * aviso fica.
+   *
+   * ⚠️ E ISTO NAO VALE PARA TARIFA, FRETE NEM CUSTO. Naqueles o `null`
+   * e desconhecido de verdade — ninguem decidiu que valem zero, a fonte e que
+   * ainda nao publicou —, e eles continuam apagando o total.
+   */
+  const impostoNaConta = overview.profit.taxes ?? 0;
+
   const custosDoPeriodo = somaDosCustos([
     { rotulo: "produtos", valor: overview.profit.cogs },
     { rotulo: "frete", valor: overview.profit.sellerShipping },
     { rotulo: "taxas", valor: overview.profit.fees },
-    { rotulo: "impostos", valor: overview.profit.taxes },
+    { rotulo: "impostos", valor: impostoNaConta },
   ]);
 
   /** O lucro de ontem, para a etapa do resultado comparar. `null` = desconhecido. */
@@ -660,7 +680,7 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
         : (
           <>
             Produtos {money(overview.profit.cogs, overview.metrics.currency)} · frete {money(overview.profit.sellerShipping, overview.metrics.currency)}
-            {" · "}taxas {money(overview.profit.fees, overview.metrics.currency)} · impostos {money(overview.profit.taxes ?? 0, overview.metrics.currency)}
+            {" · "}taxas {money(overview.profit.fees, overview.metrics.currency)} · impostos {money(impostoNaConta, overview.metrics.currency)}
           </>
         ),
     },
@@ -722,10 +742,14 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
       rotulo: "Impostos",
       // ⚠️ Sem aliquota cadastrada o imposto e DESCONHECIDO, e a
       // celula mostra traco. Zero aqui diria "esta operacao nao paga imposto".
-      valor: overview.profit.taxes == null ? "—" : money(overview.profit.taxes, overview.metrics.currency),
-      sobreAVendaPct: sobreAVenda(overview.profit.taxes, overview.metrics.revenue30d),
-      situacao: overview.profit.taxes == null ? "sem alíquota" : "completo",
-      tomDaSituacao: overview.profit.taxes == null ? ("acao" as const) : ("ok" as const),
+      // ⚠️ O NUMERO FECHA E O AVISO FICA. Depois de 07/09/2026 o
+      // imposto sem aliquota vale zero na conta, entao a celula mostra o valor
+      // em vez do traco — e a coluna Situacao passa a ser o unico rastro na
+      // tabela, ao lado da pendencia na fila de alertas.
+      valor: money(impostoNaConta, overview.metrics.currency),
+      sobreAVendaPct: sobreAVenda(impostoNaConta, overview.metrics.revenue30d),
+      situacao: semAliquota ? "sem alíquota" : "completo",
+      tomDaSituacao: semAliquota ? ("acao" as const) : ("ok" as const),
       cor: "var(--ml-custo-4)",
     },
   ];
@@ -908,7 +932,7 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
         componentes={componentesDoCusto}
         sobreQuanto={`sobre ${money(overview.metrics.revenue30d, overview.metrics.currency)} vendidos`}
         sobrouPct={fatiaDoSobrou({
-          parcelas: [overview.profit.cogs, overview.profit.sellerShipping, overview.profit.fees, overview.profit.taxes],
+          parcelas: [overview.profit.cogs, overview.profit.sellerShipping, overview.profit.fees, impostoNaConta],
           lucro: overview.profit.estimatedProfit,
           base: overview.metrics.revenue30d,
         })}
