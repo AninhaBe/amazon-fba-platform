@@ -237,6 +237,21 @@ body:has(.lp) { background: white; }
 
 .tabular-nums, td, .font-mono { font-variant-numeric: tabular-nums slashed-zero; }
 .font-mono { font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace; }
+/* ⚠️ ARCHIVO SO EM NUMERO GRANDE (>=24px), e so onde esta classe for posta.
+   Regra da spec do Caminho do Dinheiro: *"Inter em toda a interface. Archivo
+   apenas nos numeros grandes (24px para cima)"*. Uma familia de titulo em texto
+   corrido de 12px nao le melhor — le diferente, que e outra coisa.
+
+   Enquanto o dashboard novo nao existe, NINGUEM usa esta classe, e e de
+   proposito: o `next/font` esta com `preload: false` (ver `layout.tsx`), entao
+   nenhum arquivo de fonte e baixado ate o primeiro elemento pedir a familia.
+   Classe declarada e nao usada nao muda pixel nenhum; fonte pre-carregada e nao
+   usada muda o peso de toda pagina do produto. */
+.num-display {
+  font-family: var(--font-app-display), var(--font-app-sans), "Segoe UI", sans-serif;
+  font-weight: 600;
+  letter-spacing: -.2px;
+}
 
 .operations-canvas img {
   outline: 1px solid oklch(0 0 0 / .1);
