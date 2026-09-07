@@ -70,14 +70,18 @@ o **contrato** da reforma do dashboard do ML. Regra dela, verbatim: *"o melhor c
 para mudarmos o front é voce gerar pra mim antes de implementar qualquer coisa"* —
 canvas primeiro, código depois, sempre.
 
-**Frente em andamento (Vitrine), com a leva SEGURADA até fechar:** etapas 2 (faixa de 4
-etapas + alertas, `a6c52eb`) e 3 (os três cards de tabela, `4cef027`) prontas e aceitas;
-faltam 4 (ritmo dos 7 dias com alternador), 5 (Anúncios pagos — o campo `tacos` já
-existe no overview desde v282, entra por acréscimo) e o responsivo. **As etapas sobem
-JUNTAS numa leva única** depois da validação na tela — decisão do cérebro para não expor
-meio-dashboard à vendedora. O mapa bloco→produtor completo está no report da etapa 1 da
-Vitrine; só o ML nesta frente — replicar a outros canais é reimplementar por canal, com
-aprovação dela por canal.
+**Estado em 07/09 à noite: a leva subiu (v288) e a validação visual do cérebro pegou o
+buraco** — o dashboard novo foi construído POR CIMA do antigo: a metade de cima honra o
+canvas, mas abaixo dos Anúncios o corpo velho continua inteiro (9 blocos, duplicando
+faixa/top produtos/gráficos/pedidos) e a 4ª etapa ("Cai na conta", o saldo do Mercado
+Pago) nunca foi construída. A guarda de ordem da Vitrine EXIGIA o bloco duplicado — o
+exemplo canônico de teste defendendo o defeito. **Em correção pela Vitrine com decisões
+dadas**: 4ª etapa no formato das outras (fetch do saldo reusado, nunca duplicado); os 9
+blocos antigos saem (incl. SinaisDoResultado e métricas secundárias — a Ana tem veto
+barato via canvas se sentir falta de ticket médio/ROI); guarda invertida para PROIBIR os
+cortados + contagem exata de 4 etapas. Lição de catálogo: **frente de SUBSTITUIÇÃO fecha
+com "o que isto substitui ainda está na página?", medido.** Só o ML nesta frente —
+replicar a outros canais é reimplementar por canal, com aprovação dela por canal.
 
 **Design system `@nexo/ds` (packages/nexo-ds) — PRONTO e sincronizado (06/09).** Retrato
 fiel do design ATUAL (não da direção nova): tokens verbatim do `globals.css` + 16
