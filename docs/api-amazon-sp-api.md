@@ -208,6 +208,37 @@ Amazon*. Se o papel for concedido, o caminho é `transportationOptions` da 2024-
 
 ## Changelog observado (mais recente primeiro)
 
+- **07/09/2026 — Dois endpoints dão a mesma resposta com 100× de diferença de
+  velocidade. Medir o errado custou meio dia de trabalho.** Para separar oferta
+  FBA de oferta do vendedor (a pergunta "é Prime?"), existem dois caminhos:
+
+  | Endpoint | Lote | Ritmo sustentado medido |
+  |---|---|---|
+  | `POST /batches/products/pricing/2022-05-01/items/competitiveSummary` | 20 ASINs | **1 chamada a cada ~12 s, e degrada** — 429 persistente mesmo com 15 s de espera; 1 em 4 passa a 10 s |
+  | `POST /batches/products/pricing/v0/itemOffers` | 20 ASINs | **6/6 sem recusa com 1 s de intervalo ≈ 15 ASINs/s** |
+
+  ⚠️ **O erro de método, e ele é o ponto:** medi só o `competitiveSummary`,
+  concluí *"o dado de FBA é caro"* e desenhei em cima disso — filtro de FBA
+  adiado para o fim, preço da buy box (`competitivePrice` v0) como substituto, e
+  a estimativa de que varrer o catálogo levaria 6 horas. Pelo `itemOffers` leva
+  **25 minutos**.
+
+  📌 **Não presuma o teto de uma operação a partir de outra**, nem quando as duas
+  moram no mesmo prefixo (`/products/pricing/`) e respondem à mesma pergunta. Os
+  baldes são por operação, e a diferença aqui não é de ajuste fino — é de duas
+  ordens de grandeza. Medir a alternativa custa dois minutos; não medir custou o
+  desenho inteiro.
+
+  **O que `itemOffers` entrega por ASIN:** `Offers[].IsFulfilledByAmazon` (o
+  campo que responde "é Prime?"), `ListingPrice` + `Shipping` por oferta, e
+  `Summary.NumberOfOffers` com a contagem por `fulfillmentChannel`
+  (`Amazon` / `Merchant`) — que é a contagem de concorrentes FBA por anúncio.
+
+  **Consequência que valida a troca:** numa amostra de 200 ASINs, **34% não têm
+  NENHUMA oferta FBA**. Ou seja, um terço do que estava sendo contado como
+  concorrência não disputa com um vendedor FBA — e o "menor preço do nicho"
+  calculado sobre todas as ofertas mede contra quem não está na briga.
+
 - **07/09/2026 — Data Kiosk ABRIU: sessões, visitas, buy box e CONVERSÃO por
   ASIN.** A função Brand Analytics aprovada em 03/09 não destravou o relatório
   de Brand Analytics (que exige Brand Registry na conta), mas destravou o
