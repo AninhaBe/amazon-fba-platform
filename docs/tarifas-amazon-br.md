@@ -156,6 +156,55 @@ e isenção de coleta/armazenagem, condicionado a investir ≥ 3,5% da receita e
 Amazon Ads. **É por isso que as tarifas FBA observadas na conta podem ser
 menores que a tabela (ou zero)** — mais um motivo para `observada > tabela`.
 
+### 2.3.1 Os dois benefícios são separados, com prazos diferentes (07/09/2026)
+
+**Fonte:** https://venda.amazon.com.br/termos/vender-com-amazon (termos oficiais,
+lidos em 07/09/2026) e https://venda.amazon.com.br/termos/fba-gratis.
+
+A conta acumula **dois** benefícios distintos, e confundir os dois leva a
+conclusão errada sobre "a isenção acabou":
+
+| Benefício | Cobre | Prazo | Teto |
+|---|---|---|---|
+| **Comissão zero** | tarifa de indicação (referral) | **90 dias**, +60 se estendido | **R$ 40.000**, +R$ 20.000 se estendido |
+| **FBA Grátis** | logística por unidade, coleta, armazenagem | **30 dias** | — (depois, tarifa fixa ~R$ 6/unidade) |
+
+**Elegibilidade da comissão zero, verbatim:** *"Vendedor do estado de São Paulo"*,
+*"Conta de vendedor CNPJ ativa"*, *"conta nova em programa logístico da Amazon"*.
+Confirmado em `GET /sellers/v1/account`: endereço comercial em **São Paulo**,
+`businessType SOLE_PROPRIETORSHIP`, `sellingPlan PROFESSIONAL`. A conta se
+qualifica.
+
+**Início da contagem, verbatim:** *"na data em que o vendedor tiver o primeiro
+ASIN com oferta ativa"* em programa logístico da Amazon.
+
+**Extensão (+60 dias / +R$ 20.000), verbatim:** *"Investimento mínimo de 3,5% da
+receita total de produtos elegíveis em anúncios patrocinados de Amazon Ads"*,
+mais metas de desempenho — *"taxa de cancelamento menor que 2,5% e taxa de atraso
+de envio menor que 4%"* (DBA) ou *"cancelamento menor que 0,15% e atraso menor que
+0,23%"* (FBA Onsite).
+
+**Vigência da promoção:** 10/02/2026 a 31/12/2026; é preciso ter ASIN com oferta
+ativa em programa logístico gerenciado **até 30/09/2026**, e a extensão não passa
+de 31/12/2026.
+
+📌 **Correção da leitura do changelog de 07/09.** A conclusão "as duas cobranças
+são artefato do estágio diferido, o benefício segue integral" estava **meio
+errada**, e a metade errada é a que importa:
+
+- **A comissão zero segue ativa** — 90 dias, e a conta consumiu R$ 1.672 de um
+  teto de R$ 40.000 (4%). Este é o benefício grande: no período mediu ~R$ 220
+  contra ~R$ 16 de logística.
+- **O FBA Grátis dura 30 dias, e as cobranças de 05 e 06/09 são compatíveis com
+  ele ter expirado.** As ofertas foram publicadas em 21–24/07/2026
+  (`product_site_launch_date`), e a primeira venda saiu em 10/08 — 30 dias a
+  partir da ativação no FBA cai justamente no início de setembro.
+- ⚠️ **A "confirmação independente" que citei não confirmava nada.** Eu tratei o
+  `FBAStorageBilling` de R$ 0,00 em 05/09 como prova de que a isenção seguia
+  ativa. Armazenagem é cobrada **no mês seguinte** (§2.4): a fatura de 05/09
+  cobre o uso de agosto, que estava dentro da janela. Um valor compatível com as
+  duas hipóteses foi lido como evidência de uma delas.
+
 ### 2.4 Outras tarifas FBA (registro, não entram na estimativa por pedido)
 
 - **Remoção:** R$ 0,99–3,60/unidade por faixa de peso (+R$ 0,17/kg adicional).
