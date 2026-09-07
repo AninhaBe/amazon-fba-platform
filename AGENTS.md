@@ -206,6 +206,42 @@ da fronteira**, não só os dados que a conta tem hoje.
 uma janela de `slice` fixa — ensina a ignorar teste vermelho, e é tão ruim quanto
 teste que nunca falha. Conserte a fragilidade, não o sintoma.
 
+# Salvaguarda de segurança adiada exige PRAZO DE MORTE e teste que fica vermelho sozinho
+
+**Regra fixada pela dona do produto em 07/09/2026**, depois de o webhook do
+Mercado Livre passar semanas aceitando qualquer origem: *"mega gap de segurança
+essa questão do webhook, não podemos ter essas falhas"*.
+
+**Adiamento de correção de segurança sem prazo declarado deixa de existir.** Não
+é mais uma opção do vocabulário deste projeto.
+
+Quando uma correção de segurança precisa esperar — e às vezes precisa mesmo, por
+motivo legítimo (um cadastro em painel de terceiro, uma janela de convivência,
+uma chave que só uma pessoa pode gerar) —, ela nasce com **três coisas juntas, no
+mesmo commit**:
+
+1. **Uma data no código**, constante nomeada, não comentário. Comentário não
+   falha.
+2. **Um teste que fica VERMELHO sozinho quando a data passar**, com a decisão
+   inteira dentro da mensagem de falha: o que fazer, em que ordem, e o que
+   acontece se ninguém fizer. Quem abrir o vermelho meses depois não pode
+   precisar reconstruir o raciocínio nem achar quem lembrava.
+3. **A permissão temporária amarrada ao mesmo prazo.** Se a espera existe porque
+   "ainda não configuramos a fechadura", então no dia do prazo a ausência da
+   chave vira **recusa** — *fechadura sem chave não é porta aberta*. Sem essa
+   amarra, o modo permissivo sobrevive à espera que o justificava, que é
+   exatamente o defeito que a espera deveria evitar.
+
+⚠️ **Por que teste e não lembrete:** este projeto já provou duas vezes que o que
+não falha sozinho não acontece. Em 31/08/2026 uma recusa temporária da Shopee
+sobreviveu **4 horas** à limitação que a justificava, e o teste que a guardava
+passou a **defender o defeito** — quem removesse a mentira quebraria a suíte. A
+diferença entre aquele teste e este é a direção: aquele exigia que a salvaguarda
+existisse; este exige que ela **morra**.
+
+📌 **Corolário para revisão:** ao ler qualquer código que adia proteção, procure
+a data. Se não houver, não é dívida — é defeito, e sobe na fila na hora.
+
 # Recusa temporária morre junto com a limitação que a justificou
 
 Salvaguarda escrita para contornar um limite — *"este canal ainda não aceita X,
