@@ -42,7 +42,13 @@ process.env.DATABASE_URL = url;
 const { runWithWorkspace } = await import("../src/lib/workspaceScope.ts");
 const { getMercadoLivreOverviewFromCanonical } = await import("../src/lib/integrations/mercadoLivreOverviewCanonical.ts");
 
-const WORKSPACE = "00000000-0000-4000-8000-00000000ml01";
+// ⚠️ UUID VALIDO, e ele nao era: dizia "...00000000ml01", com um "l" que nao e
+// hexadecimal. Passava por acidente — nenhuma consulta do cenario convertia o
+// valor para uuid. Quando o TACOS entrou (06/09/2026), o produtor passou a
+// tocar `workspace_ad_metrics`, cuja coluna E uuid, e o teste quebrou com
+// "invalid input syntax for type uuid". Fixture invalida que funciona por
+// acidente e a mesma familia de teste que passa pelo motivo errado.
+const WORKSPACE = "00000000-0000-4000-8000-0000000b1001";
 const CONEXAO = "mercado_livre:teste-lucro-dia";
 const periodo = {
   from: new Date("2026-09-01T03:00:00.000Z"),
@@ -61,11 +67,17 @@ async function comCliente(fn) {
   try { return await fn(cliente); } finally { await cliente.end(); }
 }
 
+// ⚠️ LIMPEZA POR CONEXAO, nao por workspace. Execucao que aborta no meio (uma
+// quebra vermelha, que e o estado NORMAL ao testar) nao chega ao `limpar` do
+// fim. Se o workspace da fixture mudar depois disso — foi o que aconteceu em
+// 06/09/2026, ao trocar o uuid invalido —, a MESMA conexao passa a existir em
+// dois inquilinos e derruba `isolamentoEntreInquilinos`, que estava certo ao
+// acusar. Vale so aqui porque o banco e descartavel e a conexao e exclusiva.
 async function limpar(cliente) {
-  for (const t of ["workspace_channel_order_fees", "workspace_channel_order_items", "workspace_channel_orders"]) {
-    await cliente.query(`DELETE FROM ${t} WHERE workspace_id = $1 AND connection_id = $2`, [WORKSPACE, CONEXAO]);
+  for (const t of ["workspace_channel_order_fees", "workspace_channel_order_items",
+                   "workspace_channel_orders", "workspace_marketplace_syncs"]) {
+    await cliente.query(`DELETE FROM ${t} WHERE connection_id = $1`, [CONEXAO]);
   }
-  await cliente.query(`DELETE FROM workspace_marketplace_syncs WHERE workspace_id = $1 AND connection_id = $2`, [WORKSPACE, CONEXAO]);
   await cliente.query(`DELETE FROM workspace_product_costs WHERE workspace_id = $1 AND id LIKE $2`, [WORKSPACE, `mercado_livre:${CONEXAO}:%`]);
 }
 
