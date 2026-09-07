@@ -208,6 +208,52 @@ Amazon*. Se o papel for concedido, o caminho é `transportationOptions` da 2024-
 
 ## Changelog observado (mais recente primeiro)
 
+- **07/09/2026 — Data Kiosk ABRIU: sessões, visitas, buy box e CONVERSÃO por
+  ASIN.** A função Brand Analytics aprovada em 03/09 não destravou o relatório
+  de Brand Analytics (que exige Brand Registry na conta), mas destravou o
+  **Data Kiosk**, que é outro caminho. Medido, com dado real:
+
+  ```
+  POST /dataKiosk/2023-11-15/queries
+  query { analytics_salesAndTraffic_2024_04_24 {
+    salesAndTrafficByAsin(aggregateBy: CHILD, startDate: "...", endDate: "...",
+                          marketplaceIds: ["..."]) {
+      childAsin startDate endDate
+      sales { unitsOrdered orderedProductSales { amount currencyCode } }
+      traffic { sessions pageViews buyBoxPercentage unitSessionPercentage } } } }
+  ```
+
+  Resposta (semana de 23–29/08): `B0HBGLBL6Y` → 10 unidades, R$ 221,10, **121
+  sessões**, 157 visitas, buy box **100%**, conversão **8,26%**.
+
+  **É dado que o NEXO não tinha.** `unitSessionPercentage` é a taxa de conversão
+  do anúncio, e separa dois diagnósticos opostos que hoje se confundem numa
+  métrica só: *ninguém vê* (poucas sessões) contra *veem e não compram*
+  (sessões altas, conversão baixa). Medido no mesmo pull: o kit 16 teve 8
+  sessões e zero venda; o kit 32 converteu 16,67% com 18 sessões.
+
+  Fluxo: `POST` devolve `queryId` (202) → consultar até `processingStatus: DONE`
+  (~40 s) → `GET /dataKiosk/2023-11-15/documents/{dataDocumentId}` → baixar do
+  `documentUrl`. O resultado é **JSONL**, uma linha por ASIN.
+
+  ⚠️ **Não confundir com o relatório de Brand Analytics.** Search Terms
+  (rank de frequência de busca e os 3 ASINs mais clicados por termo) **continua
+  fechado** e não existe no Data Kiosk — os datasets de lá são Sales and Traffic,
+  Seller Economics e Vendor Analytics. Ver a memória de Brand Analytics para a
+  exigência tripla (role + Brand Registry + representante da marca).
+
+  ⚠️ **Pegadinhas de parâmetro, medidas na marra:** com `reportPeriod=WEEK` no
+  Reports API, `dataStartTime` tem de ser um **domingo** e `dataEndTime` o
+  **sábado** seguinte — mensagens de erro distintas para cada um, e as duas
+  parecem falta de permissão para quem não lê o documento do relatório. E
+  `GET_BRAND_ANALYTICS_ITEM_COMPARISON_REPORT` respondeu **"This report is now
+  deprecated."**
+
+  📌 **E a mudança na forma da recusa:** o pedido de relatório de Brand Analytics
+  hoje é **aceito** (202 com `reportId`) e só morre depois, em `FATAL`. Em
+  03/09 era 403 na hora. Quem olhar só o código do POST conclui que tem acesso;
+  o veredito está no documento do relatório com falha.
+
 - **07/09/2026 — Por que lucro em tempo real não existe: a receita também não é
   final.** Pergunta da dona do produto: *"no seller central a venda sai e já
   aparece o faturamento, mas não necessariamente já foi repassado na API, então
