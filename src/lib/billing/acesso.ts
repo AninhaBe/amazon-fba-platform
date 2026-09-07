@@ -1,35 +1,35 @@
 import type { EstadoAssinatura } from "./assinatura";
-import type { TrialInfo } from "../trial";
 
 /**
  * A CONTA ABRE OU NÃO ABRE — uma decisão, um lugar.
  *
- * ⚠️ POR QUE ISTO EXISTE COMO SINAL PRÓPRIO (07/09/2026).
+ * ⚠️ MODELO v3, decidido pela dona do produto em 07/09/2026, verbatim: *"nao tem
+ * mais trial, todos os planos passam a valer com o pagamento, mas sera os 7 dias
+ * de garantia caso a pessoa queira cancelar, e ela recebe o dinheiro de volta"*.
  *
- * Antes, "cortada" era gravada como um trial com data no passado: cancelar
- * escrevia em `trial` e a tranca lia `trial`. Funcionava — e era exatamente a
- * família de defeito que já custou caro duas vezes neste projeto
- * (`last_success_at` e `updated_at` em 02–03/09): **uma coluna com dois
- * significados**. Quem lesse `trial.expired` não sabia dizer se a pessoa está
- * em avaliação vencida ou se cancelou a assinatura — e as duas coisas pedem
- * texto diferente na tela e caminho diferente de volta.
+ * **Só entra quem tem assinatura ativa — ou é admin.** Não há período de
+ * avaliação: o que substitui a experimentação é a GARANTIA DE 7 DIAS, que é
+ * dinheiro de volta, não acesso adiantado (ver `garantiaDeSeteDias.ts`).
  *
- * Aqui a assinatura responde por si. O trial continua respondendo por si. Esta
- * função junta os dois numa decisão e devolve **por que**, para que a tela
- * possa dizer a verdade em vez de um genérico.
+ * ⚠️ O TRIAL SAIU DA DECISÃO, e não é o mesmo que ter sido removido. As colunas,
+ * o `src/lib/trial.ts` e o aviso na tela continuam existindo, dormentes: quem
+ * tiver linha de trial hoje **não ganha acesso por ela**. Remover a infra é
+ * limpeza própria, não desta frente — e enquanto ela existir, este arquivo é o
+ * único lugar que decide, então ninguém volta a entrar por engano.
  *
- * ⚠️ A FRONTEIRA QUE NÃO PODE ESCORREGAR: conta **sem registro nenhum** passa.
- * É o mundo de hoje — a conta da dona do produto, a do colega e as de
- * demonstração não têm linha de trial nem de assinatura, e trancá-las por
- * engano seria derrubar o produto inteiro para cobrar de quem nunca foi
- * cobrado. Ausência aqui é "não se aplica", nunca "não pagou".
+ * ⚠️ ADMIN SEMPRE ENTRA, inclusive com assinatura cortada: é chave-mestra por
+ * definição, e as contas de admin são as contas reais de quem opera o produto.
+ * A exceção é ancorada na MESMA allowlist do `/admin` (`ADMIN_EMAILS`), nunca
+ * num `workspace_id` escrito aqui — ver `adminWorkspaces.ts`. Um id fixo seria
+ * uma segunda allowlist que ninguém revisa junto com a primeira.
  */
 export type MotivoDeAcesso =
-  | "sem-registro"
+  | "admin"
+  /** Não deu para perguntar ao banco. Nunca vira "não pagou". */
+  | "sem-banco"
+  | "sem-assinatura"
   | "assinatura-ativa"
-  | "trial-ativo"
-  | "assinatura-cortada"
-  | "trial-vencido";
+  | "assinatura-cortada";
 
 export interface DecisaoDeAcesso {
   liberado: boolean;
@@ -37,23 +37,25 @@ export interface DecisaoDeAcesso {
 }
 
 export function decidirAcesso(entrada: {
+  /** `true` quando o e-mail da conta está na allowlist de `/admin`. */
+  admin: boolean;
   assinatura: Pick<EstadoAssinatura, "status"> | null;
-  trial: Pick<TrialInfo, "expired"> | null;
 }): DecisaoDeAcesso {
-  // A assinatura decide primeiro quando existe: é o sinal específico. Uma conta
-  // que pagou e ainda tem sobra de avaliação não pode ser barrada pelo trial,
-  // e uma que cancelou não pode ser liberada por ele.
+  // Chave-mestra primeiro, e sem olhar mais nada: se admin dependesse do estado
+  // da assinatura, um corte acidental trancaria justamente quem precisa entrar
+  // para consertá-lo.
+  if (entrada.admin) return { liberado: true, motivo: "admin" };
+
+  // ⚠️ E só `"ativa"` libera — qualquer outro valor bloqueia. O tipo só admite
+  // dois, mas o dado vem de JSON no banco: se um dia chegar `"pausada"` ou uma
+  // string vazia, o desconhecido PARA, em vez de abrir. É a mesma escolha do
+  // `currentWorkspaceId()`, que lança em vez de devolver um padrão.
   if (entrada.assinatura) {
-    return entrada.assinatura.status === "cortada"
-      ? { liberado: false, motivo: "assinatura-cortada" }
-      : { liberado: true, motivo: "assinatura-ativa" };
+    return entrada.assinatura.status === "ativa"
+      ? { liberado: true, motivo: "assinatura-ativa" }
+      : { liberado: false, motivo: "assinatura-cortada" };
   }
-  if (entrada.trial) {
-    return entrada.trial.expired
-      ? { liberado: false, motivo: "trial-vencido" }
-      : { liberado: true, motivo: "trial-ativo" };
-  }
-  return { liberado: true, motivo: "sem-registro" };
+  return { liberado: false, motivo: "sem-assinatura" };
 }
 
 /** O que a pessoa lê na página de reativação. Diz o que houve e o que fazer. */
@@ -61,8 +63,22 @@ export function textoDoBloqueio(motivo: MotivoDeAcesso): string {
   if (motivo === "assinatura-cortada") {
     return "Sua assinatura do NEXO foi encerrada. Seus dados continuam guardados — reative para voltar a usar.";
   }
-  if (motivo === "trial-vencido") {
-    return "Seu período de avaliação do NEXO terminou. Seus dados continuam guardados — assine para continuar.";
+  if (motivo === "sem-assinatura") {
+    return "Esta conta ainda não tem uma assinatura do NEXO. Assine para começar a usar.";
   }
   return "Esta conta está sem acesso ao NEXO no momento.";
+}
+
+/**
+ * A avaliação guardada no banco vale? `false` quando a data não converte.
+ *
+ * ⚠️ `new Date("sei la").getTime()` é `NaN`, e `Date.now() > NaN` é `false` — ou
+ * seja, o caminho ingênuo trata dado torto como avaliação VÁLIDA. Enquanto
+ * ausência de registro passava, isso era inofensivo; desde 07/09/2026, em que
+ * ausência bloqueia, viraria uma chave: bastava um `endsAt` corrompido para a
+ * conta abrir. Desconhecido para tudo.
+ */
+export function trialGuardadoEhValido(endsAt: string | null | undefined): boolean {
+  if (!endsAt) return false;
+  return Number.isFinite(new Date(endsAt).getTime());
 }

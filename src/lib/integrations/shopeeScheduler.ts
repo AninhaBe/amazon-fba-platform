@@ -30,6 +30,7 @@ export async function runScheduledShopeeSync(
 ): Promise<ScheduledShopeeResult[]> {
   if (!hasDb()) return [];
 
+  const filtroDeAcesso = await filtroDeAcessoLiberado("sync");
   const candidates = await dbQuery<SyncCandidate>(
     `SELECT sync.workspace_id, sync.connection_id
        FROM workspace_marketplace_syncs sync
@@ -38,7 +39,7 @@ export async function runScheduledShopeeSync(
         AND integration.id = sync.connection_id
         AND integration.provider = sync.provider
       WHERE sync.provider = $1
-        AND ${filtroDeAcessoLiberado("sync")}
+        AND ${filtroDeAcesso}
         AND integration.status = 'connected'
         AND integration.metadata->'demo' IS DISTINCT FROM 'true'::jsonb
         AND (

@@ -30,6 +30,7 @@ export async function runScheduledMercadoLivreSync(
 ): Promise<ScheduledSyncResult[]> {
   if (!hasDb()) return [];
 
+  const filtroDeAcesso = await filtroDeAcessoLiberado("sync");
   const candidates = await dbQuery<SyncCandidate>(
     `SELECT sync.workspace_id, sync.connection_id
        FROM workspace_marketplace_syncs sync
@@ -38,7 +39,7 @@ export async function runScheduledMercadoLivreSync(
         AND integration.id = sync.connection_id
         AND integration.provider = sync.provider
       WHERE sync.provider = $1
-        AND ${filtroDeAcessoLiberado("sync")}
+        AND ${filtroDeAcesso}
         AND integration.status = 'connected'
         -- Conexao de demonstracao nunca vai para a API real: o token e falso e
         -- cada tentativa grava erro no sync, que aparece na frente do dashboard
@@ -138,6 +139,7 @@ export async function runScheduledMercadoLivreReverify(
 ): Promise<ScheduledReverifyResult[]> {
   if (!hasDb()) return [];
 
+  const filtroDeAcesso = await filtroDeAcessoLiberado("sync");
   const candidates = await dbQuery<SyncCandidate>(
     `SELECT sync.workspace_id, sync.connection_id
        FROM workspace_marketplace_syncs sync
@@ -146,7 +148,7 @@ export async function runScheduledMercadoLivreReverify(
         AND integration.id = sync.connection_id
         AND integration.provider = sync.provider
       WHERE sync.provider = $1
-        AND ${filtroDeAcessoLiberado("sync")}
+        AND ${filtroDeAcesso}
         AND integration.status = 'connected'
         -- Conexao de demonstracao nunca vai para a API real: o token e falso e
         -- cada tentativa grava erro no sync, que aparece na frente do dashboard

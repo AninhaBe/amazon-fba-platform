@@ -56,9 +56,17 @@ export interface DependenciasAssinatura {
    * nunca como erro do evento — a Stripe reentregaria e a pessoa receberia dois.
    */
   avisar?(
-    tipo: "boas-vindas" | "pagamento-falhou",
-    dados: { email: string | null; contaNova: boolean }
+    tipo: "boas-vindas" | "pagamento-falhou" | "cancelado-com-reembolso" | "cancelado-sem-reembolso",
+    dados: { email: string | null; contaNova: boolean; acessoAte?: string | null }
   ): Promise<void>;
+  /**
+   * Garantia de 7 dias: devolve o dinheiro se o cancelamento veio dentro da
+   * janela. OPCIONAL e NUNCA lança — ver `reembolsoStripe.ts`.
+   */
+  reembolsarSeDentroDaGarantia?(
+    assinaturaId: string | null,
+    agora: Date
+  ): Promise<{ reembolsar: boolean; motivo: string; reembolsoId: string | null; falha: string | null }>;
 }
 
 export interface ResultadoDaIntencao {
@@ -122,7 +130,33 @@ export async function aplicarIntencao(
       ultimoEventoTipo: evento.type,
       motivoDoCorte: intencao.motivo,
     });
-    return { desfecho: "acesso_cortado", workspaceId, detalhe: intencao.motivo };
+    // GARANTIA DE 7 DIAS (modelo v3, 07/09/2026). O corte vem PRIMEIRO e o
+    // dinheiro depois: se a ordem fosse inversa e o processo morresse no meio,
+    // a conta ficaria aberta com o pagamento já devolvido.
+    let reembolso: Awaited<ReturnType<NonNullable<DependenciasAssinatura["reembolsarSeDentroDaGarantia"]>>> | null = null;
+    if (deps.reembolsarSeDentroDaGarantia) {
+      reembolso = await deps
+        .reembolsarSeDentroDaGarantia(intencao.assinaturaId ?? null, agora)
+        .catch(() => null);
+    }
+
+    if (deps.avisar) {
+      await deps
+        .avisar(reembolso?.reembolsar ? "cancelado-com-reembolso" : "cancelado-sem-reembolso", {
+          email: anterior?.email ?? null,
+          contaNova: false,
+          acessoAte: null,
+        })
+        .catch(() => {});
+    }
+
+    return {
+      desfecho: "acesso_cortado",
+      workspaceId,
+      detalhe: reembolso
+        ? `${intencao.motivo}; reembolso: ${reembolso.motivo}${reembolso.reembolsoId ? ` (${reembolso.reembolsoId})` : ""}${reembolso.falha ? ` — falhou: ${reembolso.falha}` : ""}`
+        : intencao.motivo,
+    };
   }
 
   // liberar ------------------------------------------------------------------

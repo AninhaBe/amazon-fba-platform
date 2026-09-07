@@ -14,26 +14,29 @@ import { decidirAcesso } from "../src/lib/billing/acesso.ts";
 // literal, "\d" virou "d", e a conta de trial vencido continuava sincronizando.
 // Nenhuma revisao pegou; a medicao pegou na primeira rodada.
 //
-// ⚠️ E DADO REAL NAO EXERCITA A FRONTEIRA. Hoje nenhuma conta tem assinatura
-// gravada — um teste que so olhasse o banco de hoje ficaria verde com a regra
-// errada nos dois lados. Por isso os casos sao FABRICADOS, e cobrem os quatro
-// da fronteira mais os tres que ja morderam.
+// ⚠️ E DADO REAL NAO EXERCITA A FRONTEIRA. Um teste que so olhasse o banco de
+// hoje ficaria verde com a regra errada dos dois lados. Por isso os casos sao
+// FABRICADOS — inclusive os do trial dormente, que existem para reprovar quem
+// religar aquela leitura por engano.
 
 const dia = 86_400_000;
 
-export function casosDaFronteira(agora = Date.now()) {
-  const ontem = new Date(agora - dia).toISOString();
-  const amanha = new Date(agora + dia).toISOString();
+export function casosDaFronteira() {
   return [
-    { nome: "cortada, sem trial", linhas: [["assinatura", { status: "cortada" }]], ts: { assinatura: { status: "cortada" }, trial: null }, esperado: false },
-    { nome: "cortada + trial ativo", linhas: [["assinatura", { status: "cortada" }], ["trial", { endsAt: amanha }]], ts: { assinatura: { status: "cortada" }, trial: { expired: false } }, esperado: false },
-    { nome: "ativa + trial vencido", linhas: [["assinatura", { status: "ativa" }], ["trial", { endsAt: ontem }]], ts: { assinatura: { status: "ativa" }, trial: { expired: true } }, esperado: true },
-    { nome: "sem assinatura, trial vencido", linhas: [["trial", { endsAt: ontem }]], ts: { assinatura: null, trial: { expired: true } }, esperado: false },
-    { nome: "sem assinatura, trial ativo", linhas: [["trial", { endsAt: amanha }]], ts: { assinatura: null, trial: { expired: false } }, esperado: true },
-    { nome: "sem registro nenhum", linhas: [], ts: { assinatura: null, trial: null }, esperado: true },
-    // Sem esta linha, uma conta com dado torto derrubaria a consulta e pararia
-    // o canal inteiro para todo mundo.
-    { nome: "trial com endsAt malformado", linhas: [["trial", { endsAt: "sei la" }]], ts: { assinatura: null, trial: null }, esperado: true },
+    // Admin e chave-mestra: entra inclusive cortado, porque um corte acidental
+    // trancaria justamente quem precisa entrar para consertar.
+    { nome: "admin sem registro nenhum", admin: true, linhas: [], ts: { admin: true, assinatura: null }, esperado: true },
+    { nome: "admin com assinatura cortada", admin: true, linhas: [["assinatura", { status: "cortada" }]], ts: { admin: true, assinatura: { status: "cortada" } }, esperado: true },
+    { nome: "assinatura ativa", admin: false, linhas: [["assinatura", { status: "ativa" }]], ts: { admin: false, assinatura: { status: "ativa" } }, esperado: true },
+    { nome: "assinatura cortada", admin: false, linhas: [["assinatura", { status: "cortada" }]], ts: { admin: false, assinatura: { status: "cortada" } }, esperado: false },
+    { nome: "sem assinatura nenhuma", admin: false, linhas: [], ts: { admin: false, assinatura: null }, esperado: false },
+    // ⚠️ O TRIAL FICOU DORMENTE no modelo v3: as linhas continuam no banco e nao
+    // concedem nada. Se alguem religar a leitura "porque estava la", contas
+    // antigas voltam a entrar sem pagar — por isso os dois casos ficam aqui.
+    { nome: "trial ativo, sem assinatura", admin: false, linhas: [["trial", { endsAt: "2099-01-01T00:00:00.000Z" }]], ts: { admin: false, assinatura: null }, esperado: false },
+    { nome: "trial vencido, sem assinatura", admin: false, linhas: [["trial", { endsAt: "2020-01-01T00:00:00.000Z" }]], ts: { admin: false, assinatura: null }, esperado: false },
+    // Status que o tipo nao admite, mas o JSON permite: desconhecido para tudo.
+    { nome: "status desconhecido", admin: false, linhas: [["assinatura", { status: "pausada" }]], ts: { admin: false, assinatura: { status: "pausada" } }, esperado: false },
   ];
 }
 
@@ -42,9 +45,11 @@ export async function decidirNoSql(consultar, caso) {
   const valores = caso.linhas.length
     ? caso.linhas.map(([k, v]) => `('W','${k}','${JSON.stringify(v)}'::jsonb, now())`).join(", ")
     : `('OUTRO','x','{}'::jsonb, now())`;
+  // O alvo se chama "W"; quando o caso e de admin, "W" entra na lista de ids.
+  const filtro = await filtroDeAcessoLiberado("alvo", caso.admin ? ["W"] : []);
   const sql = `WITH workspace_settings(workspace_id, key, value, updated_at) AS (VALUES ${valores}),
       alvo(workspace_id) AS (VALUES ('W'))
-      SELECT ${filtroDeAcessoLiberado("alvo")} AS liberado FROM alvo`;
+      SELECT ${filtro} AS liberado FROM alvo`;
   const { rows } = await consultar(sql);
   return rows[0].liberado;
 }

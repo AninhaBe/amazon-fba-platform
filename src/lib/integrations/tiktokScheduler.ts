@@ -50,6 +50,7 @@ export async function runScheduledTiktokSync(
 ): Promise<ScheduledTiktokResult[]> {
   if (!hasDb()) return [];
 
+  const filtroDeAcesso = await filtroDeAcessoLiberado("shop");
   const candidates = await dbQuery<SyncCandidate>(
     `SELECT shop.workspace_id, shop.shop_id, $1 || ':' || shop.shop_id AS connection_id
        FROM workspace_tiktok_shops shop
@@ -57,7 +58,7 @@ export async function runScheduledTiktokSync(
          ON sync.workspace_id = shop.workspace_id
         AND sync.provider = $1
         AND sync.connection_id = $1 || ':' || shop.shop_id
-      WHERE ${filtroDeAcessoLiberado("shop")}
+      WHERE ${filtroDeAcesso}
         AND (
            NOT EXISTS (SELECT 1 FROM workspace_tiktok_shops duplicate
              WHERE duplicate.shop_id=shop.shop_id AND duplicate.workspace_id<>shop.workspace_id)

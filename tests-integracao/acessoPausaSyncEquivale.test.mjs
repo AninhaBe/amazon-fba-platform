@@ -40,7 +40,7 @@ const consultar = (sql) => cliente.query(sql);
 
 test.after(() => cliente.end());
 
-test("o SQL do scheduler decide igual a tranca, nos sete casos", async () => {
+test("o SQL do scheduler decide igual a tranca, em todos os casos da fronteira", async () => {
   const divergencias = await conferirEquivalencia(consultar);
   assert.deepEqual(divergencias, [], "SQL e TypeScript discordaram sobre quem tem acesso");
 });
@@ -50,6 +50,8 @@ test("os quatro casos da ordem da Ana estao entre os conferidos", async () => {
   // decisao de 07/09/2026 nomeia tem de continuar sendo exercidos.
   const nomes = casosDaFronteira().map((c) => c.nome);
   for (const obrigatorio of [
+    "admin sem registro nenhum",
+    "admin com assinatura cortada",
     "cortada, sem trial",
     "sem assinatura, trial vencido",
     "sem assinatura, trial ativo",
@@ -66,9 +68,24 @@ test("trial vencido sem assinatura PAUSA — o caso novo de 07/09/2026", async (
   assert.equal(await decidirNoSql(consultar, caso), false);
 });
 
-test("dado torto nao derruba a consulta do canal inteiro", async () => {
-  // Sem a comparacao por texto, um unico `endsAt` malformado estouraria o cast
-  // e o scheduler daquele canal pararia para TODOS os inquilinos.
+test("dado torto BLOQUEIA e nao derruba a consulta do canal inteiro", async () => {
+  // Dois perigos numa linha so. O cast estouraria e pararia o canal para TODOS
+  // os inquilinos. E a comparacao ingenua CONCEDERIA acesso, porque "sei la" e
+  // maior que qualquer data ISO — desde que ausencia bloqueia (07/09/2026),
+  // dado torto virando chave seria brecha, nao inconveniencia.
   const caso = casosDaFronteira().find((c) => c.nome === "trial com endsAt malformado");
+  assert.equal(await decidirNoSql(consultar, caso), false);
+});
+
+test("conta de ADMIN entra mesmo cortada — chave-mestra por definicao", async () => {
+  // Um corte acidental trancaria justamente quem precisa entrar para consertar.
+  const caso = casosDaFronteira().find((c) => c.nome === "admin com assinatura cortada");
   assert.equal(await decidirNoSql(consultar, caso), true);
+});
+
+test("sem registro nenhum PAUSA — a classe que morreu em 07/09/2026", async () => {
+  // Ate a manha deste dia esta era a classe que PASSAVA, e era o mundo inteiro.
+  // Quem segura as contas reais agora e a excecao de admin, nao a omissao.
+  const caso = casosDaFronteira().find((c) => c.nome === "sem registro nenhum");
+  assert.equal(await decidirNoSql(consultar, caso), false);
 });

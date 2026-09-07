@@ -32,6 +32,7 @@ export async function runScheduledAmazonSync(
 ): Promise<ScheduledAmazonSyncResult[]> {
   if (!hasDb()) return [];
 
+  const filtroDeAcesso = await filtroDeAcessoLiberado("sync");
   const candidates = await dbQuery<SyncCandidate>(
     `SELECT sync.workspace_id, sync.connection_id
        FROM workspace_marketplace_syncs sync
@@ -45,7 +46,7 @@ export async function runScheduledAmazonSync(
         AND integration.id = sync.connection_id
         AND integration.provider = sync.provider
       WHERE sync.provider = $1
-        AND ${filtroDeAcessoLiberado("sync")}
+        AND ${filtroDeAcesso}
         AND integration.metadata->'demo' IS DISTINCT FROM 'true'::jsonb
         AND (
           (sync.status IN ('pending', 'syncing')

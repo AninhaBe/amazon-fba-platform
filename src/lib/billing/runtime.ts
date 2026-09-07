@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { dbQuery, hasDb } from "../db";
 import { clearTrial, getTrialFor, setTrial } from "../trial";
 import { enviarAviso } from "./emailsDaAssinatura";
+import { reembolsarSeDentroDaGarantia } from "./reembolsoStripe";
 import type {
   BloqueioDeAcesso,
   DependenciasAssinatura,
@@ -164,6 +165,10 @@ export function dependenciasDeAssinatura(): DependenciasAssinatura {
      * Fecha a porta gravando um prazo já vencido — o mesmo caminho do período de
      * avaliação. Voltar é mudar a data; nenhum canal, custo ou pedido é apagado.
      */
+    async reembolsarSeDentroDaGarantia(assinaturaId, agora) {
+      return reembolsarSeDentroDaGarantia(assinaturaId, agora);
+    },
+
     async avisar(tipo, dados): Promise<void> {
       const falha = await enviarAviso(tipo, dados);
       // Log, nunca exceção: ver a dependência `avisar` em `assinatura.ts`.

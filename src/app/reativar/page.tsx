@@ -4,12 +4,18 @@ import { NexoWordmark } from "../components/NexoWordmark";
 import { createClient, supabaseConfigured } from "@/lib/supabase/server";
 import { lerAcesso } from "@/lib/billing/acessoDoServidor";
 import { textoDoBloqueio } from "@/lib/billing/acesso";
+import { DIAS_DE_GARANTIA } from "@/lib/billing/garantiaDeSeteDias";
 import { BotaoDeAssinar } from "./BotaoDeAssinar";
 
 export const dynamic = "force-dynamic";
 
 /**
- * A PORTA DE VOLTA — e ela mora FORA do grupo `(app)`, de propósito.
+ * A PORTA DE ENTRADA — e ela mora FORA do grupo `(app)`, de propósito.
+ *
+ * ⚠️ NÃO É SÓ "reativação" desde o modelo v3 (07/09/2026): como não existe mais
+ * período de avaliação, TODA conta sem assinatura chega aqui — a que nunca
+ * assinou e a que cancelou. O texto tem de servir aos dois sem mentir para
+ * nenhum: quem nunca assinou não pode ler "sua assinatura foi encerrada".
  *
  * ⚠️ Se estivesse dentro, a tranca do `(app)/layout.tsx` a barraria e mandaria
  * para ela mesma: laço de redirecionamento, e a pessoa cortada sem nenhuma tela
@@ -44,7 +50,11 @@ export default async function ReativarPage({
         <NexoWordmark className="mb-6" />
         <p className="auth-kicker">Assinatura</p>
         <h1 id="reativar-title">
-          {acesso.liberado ? "Pagamento recebido." : "Sua conta está sem acesso."}
+          {acesso.liberado
+            ? "Pagamento recebido."
+            : acesso.motivo === "assinatura-cortada"
+              ? "Sua assinatura está encerrada."
+              : "Assine para começar a usar o NEXO."}
         </h1>
         <div className="auth-intro-copy">
           {acesso.liberado ? (
@@ -60,9 +70,18 @@ export default async function ReativarPage({
           ) : (
             <>
               <p>{textoDoBloqueio(acesso.motivo)}</p>
+              {acesso.motivo === "assinatura-cortada" && (
+                <p>
+                  Nada foi apagado: canais conectados, custos cadastrados e histórico continuam onde
+                  estavam e voltam a aparecer assim que o pagamento for confirmado.
+                </p>
+              )}
+              {/* ⚠️ A GARANTIA APARECE AQUI, e não só na landing: esta é a tela
+                  onde a pessoa decide pagar. Escondê-la do ponto da decisão
+                  seria vender o produto e guardar a parte que tira o medo. */}
               <p>
-                Nada foi apagado: canais conectados, custos cadastrados e histórico continuam onde
-                estavam e voltam a aparecer assim que o pagamento for confirmado.
+                Você tem <strong>{DIAS_DE_GARANTIA} dias de garantia</strong>: se cancelar dentro
+                desse prazo, devolvemos o valor pago, sem perguntas.
               </p>
             </>
           )}

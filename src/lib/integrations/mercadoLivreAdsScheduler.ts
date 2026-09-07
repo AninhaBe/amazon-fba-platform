@@ -37,6 +37,7 @@ export interface ResultadoDoCicloDeAds {
 export async function runScheduledMercadoLivreAds(): Promise<ResultadoDoCicloDeAds[]> {
   if (!hasDb()) return [];
 
+  const filtroDeAcesso = await filtroDeAcessoLiberado("sync");
   const conexoes = await dbQuery<{ workspace_id: string; connection_id: string }>(
     `SELECT sync.workspace_id::text AS workspace_id, sync.connection_id
        FROM workspace_marketplace_syncs sync
@@ -45,7 +46,7 @@ export async function runScheduledMercadoLivreAds(): Promise<ResultadoDoCicloDeA
         AND integration.id = sync.connection_id
         AND integration.provider = sync.provider
       WHERE sync.provider = $1
-        AND ${filtroDeAcessoLiberado("sync")}
+        AND ${filtroDeAcesso}
         AND integration.status = 'connected'
         -- Demo nunca vai à API real (mesmo predicado do scheduler de sync).
         AND integration.metadata->'demo' IS DISTINCT FROM 'true'::jsonb`,

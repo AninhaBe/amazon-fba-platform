@@ -5,7 +5,11 @@
  * que manda o recibo. Repetir o preço aqui seria uma segunda fonte da verdade
  * sobre dinheiro — no dia em que o preço mudar no painel, o e-mail mente.
  */
-export type TipoDeAvisoDaAssinatura = "boas-vindas" | "pagamento-falhou";
+export type TipoDeAvisoDaAssinatura =
+  | "boas-vindas"
+  | "pagamento-falhou"
+  | "cancelado-com-reembolso"
+  | "cancelado-sem-reembolso";
 
 export interface AvisoDaAssinatura {
   assunto: string;
@@ -14,7 +18,39 @@ export interface AvisoDaAssinatura {
 
 const ENTRAR = "https://nexoaihub.com.br";
 
-export function montarAviso(tipo: TipoDeAvisoDaAssinatura, dados: { contaNova: boolean }): AvisoDaAssinatura {
+export function montarAviso(
+  tipo: TipoDeAvisoDaAssinatura,
+  dados: { contaNova: boolean; acessoAte?: string | null }
+): AvisoDaAssinatura {
+  if (tipo === "cancelado-com-reembolso") {
+    return {
+      assunto: "Assinatura cancelada e valor devolvido",
+      texto: [
+        "Sua assinatura do NEXO foi cancelada dentro dos 7 dias de garantia, e o valor",
+        "pago já foi devolvido pela Stripe.",
+        "",
+        "O prazo para o estorno aparecer na fatura é do banco, normalmente alguns dias.",
+        "",
+        "Seus dados continuam guardados. Se quiser voltar, é só assinar de novo em",
+        ENTRAR + "/reativar — nada foi apagado.",
+      ].join("\n"),
+    };
+  }
+  if (tipo === "cancelado-sem-reembolso") {
+    return {
+      assunto: "Assinatura do NEXO cancelada",
+      texto: [
+        "Sua assinatura do NEXO foi cancelada.",
+        "",
+        dados.acessoAte
+          ? `O acesso vale até ${dados.acessoAte}.`
+          : "Os 7 dias de garantia já haviam passado, então não houve devolução — o acesso se encerra agora.",
+        "",
+        "Seus dados continuam guardados: canais conectados, custos cadastrados e histórico",
+        "seguem onde estavam. Se quiser voltar, é só assinar de novo em " + ENTRAR + "/reativar.",
+      ].join("\n"),
+    };
+  }
   if (tipo === "boas-vindas") {
     return {
       assunto: "Sua assinatura do NEXO está ativa",
@@ -62,13 +98,13 @@ const REMETENTE = "NEXO <assinatura@nexoaihub.com.br>";
  */
 export async function enviarAviso(
   tipo: TipoDeAvisoDaAssinatura,
-  dados: { email: string | null; contaNova: boolean }
+  dados: { email: string | null; contaNova: boolean; acessoAte?: string | null }
 ): Promise<string | null> {
   const chave = process.env.RESEND_API_KEY;
   if (!chave) return "RESEND_API_KEY ausente";
   if (!dados.email) return "evento sem e-mail: não há para quem mandar";
 
-  const aviso = montarAviso(tipo, { contaNova: dados.contaNova });
+  const aviso = montarAviso(tipo, { contaNova: dados.contaNova, acessoAte: dados.acessoAte ?? null });
   try {
     const resposta = await fetch("https://api.resend.com/emails", {
       method: "POST",
