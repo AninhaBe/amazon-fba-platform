@@ -96,7 +96,23 @@ async function semear(workspace, connection, seller, valor, sku) {
     `INSERT INTO workspace_channel_orders
        (workspace_id, provider, connection_id, external_order_id, status, provider_status, occurred_at, gross, ordered_gross, currency, fulfillment, buyer_shipping)
      VALUES ($1,'amazon',$2,$3,'shipped','Shipped',$4,$5,$5,'BRL','platform',0)
-     ON CONFLICT (workspace_id, provider, connection_id, external_order_id) DO UPDATE SET gross = EXCLUDED.gross`,
+     ON CONFLICT (workspace_id, provider, connection_id, external_order_id)
+       -- ⚠️ occurred_at TAMBEM, e a falta dele era uma BOMBA-RELOGIO
+       -- (diagnosticada em 07/09/2026). O upsert renovava so o gross, entao a
+       -- data da PRIMEIRA semeadura ficava para sempre — enquanto o periodo do
+       -- teste e "os ultimos 7 dias", que anda com o relogio.
+       --
+       -- Resultado: o teste passava por 7 dias depois de o banco ser criado e
+       -- falhava para sempre a partir dali, com revenueProcessed = 0. Medido:
+       -- num banco antigo o pedido estava em 31/08 03:03 e a janela comecava
+       -- em 31/08 13:45 — ONZE HORAS fora; num banco recriado no dia anterior,
+       -- passava. Parecia residuo, parecia commit de outro agente, e nao era
+       -- nenhum dos dois: era a fixture envelhecendo.
+       --
+       -- 📌 Guarda de ISOLAMENTO que falha por idade e pior que guarda nenhuma:
+       -- ela ensina a suite a ser ignorada justamente onde o vermelho deveria
+       -- parar tudo.
+       DO UPDATE SET gross = EXCLUDED.gross, occurred_at = EXCLUDED.occurred_at`,
     [workspace, connection, PEDIDO_COMPARTILHADO, ONTEM, valor],
   );
   await dbQuery(
