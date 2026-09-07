@@ -11,6 +11,7 @@ import { auditarFrete, type FreteEsperado, type PagamentoAuditoria, type Resulta
 import { dbQuery } from "../db";
 import { currentWorkspaceId } from "../workspaceScope";
 import { registrarChamada } from "./contadorDeChamadas";
+import { tacosDoPeriodo } from "./tacosDoCanal";
 
 const API_BASE = "https://api.mercadolibre.com";
 const AUTH_BASE = "https://auth.mercadolivre.com.br/authorization";
@@ -1124,6 +1125,12 @@ export async function getMercadoLivreOverview(
       ads: null,
       adsDesconhecido: false,
       adsAteDia: null,
+      // ⚠️ O caminho AO VIVO nao coleta anuncio — entao o gasto e DESCONHECIDO,
+      // nao zero. O TACOS de verdade sai do produtor canonico, que le
+      // `workspace_ad_product_metrics`. Aqui o campo existe para o tipo ser um
+      // so; devolver 0 afirmaria que a conta nao anuncia.
+      tacos: tacosDoPeriodo({ gasto: null, faturamento: null }),
+      tacosAteDia: null as string | null,
       marginPct: processedRevenue > 0 ? estimatedProfit / processedRevenue * 100 : null,
       // ⚠️ ESTE CAMINHO NÃO TEM A BASE DO FATURAMENTO, E ISSO É DECLARADO EM VEZ
       // DE FINGIDO (01/09/2026).

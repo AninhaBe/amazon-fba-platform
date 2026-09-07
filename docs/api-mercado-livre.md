@@ -180,7 +180,48 @@ passa a dividir pela total como os outros — e aí é seguro, porque o numerado
 também cobre o pendente.
 
 
-## Changelog observado (mais recente primeiro)
+## Changelog observado (mais recente primeiro)
+
+- **2026-09-06 — TACOS DO ML: o que eu medi ANTES de escrever o produtor.**
+  Três perguntas, três respostas, e duas mudaram o desenho.
+
+  **1) A base certa é o NÃO CANCELADO, não a do painel.** O ML tem duas bases de
+  propósito: `paid_revenue` (aprovadas + canceladas, que espelha as "Vendas
+  brutas" do painel dele, ADR-020) e `faturamento` (todo pedido não cancelado,
+  que é a base do lucro). **TACOS usa a segunda** — cancelada no denominador o
+  infla, e denominador inflado produz percentual MENOR que a realidade, que é
+  exatamente o "mentir para baixo" que a garantia proíbe.
+
+  **2) NÃO existe análogo de "sem repasse postado" neste canal.** Na Amazon a
+  recusa existe porque a base do card é o APURADO e ele chega na liquidação. No
+  ML a base sai do próprio pedido, no instante em que ele existe. **Implantar a
+  recusa da Amazon aqui seria defesa contra um problema que o canal não tem** —
+  e foi por isso que a regra da casa manda replicar a garantia, nunca o
+  mecanismo. O buraco análogo do ML é outro: pedido não cancelado com
+  `gross IS NULL`. Ele ENCOLHE o denominador, o que faz o TACOS subir — lado
+  seguro, então é **declarado** (`pedidosSemValor`) em vez de bloquear.
+
+  **3) ⚠️ O GASTO DE ADS VOLTOU A SER CONFIÁVEL — e sem esta medição eu teria
+  publicado um número 17× inflado.** Em 30/08/2026 o console do ML mostrava
+  R$ 44,00 / 71 cliques e nós tínhamos gravado **R$ 768,86 / 1.228 cliques** (a
+  janela de 7 dias do PADS carimbada como UM dia). O agendador foi corrigido —
+  um pedido por dia, soma feita por nós — e **medido hoje, o mesmo 30/08 lê
+  R$ 46,55 / 84 cliques**, contra os R$ 44,00 do console. Diferença de ~6%, que
+  vale registrar e não explicar por chute.
+
+  📌 O gasto do ML mora em `workspace_ad_product_metrics` (por produto), não em
+  `workspace_ad_metrics` (por campanha) — o helper `anuncioDoCanal` já cai no
+  segundo quando o primeiro não tem linha. E o **dia corrente ainda soma**: o
+  payload devolve `tacosAteDia` para a tela poder dizer até quando conta.
+
+  Medido no produtor, conta `1191100170`: **1 dia 2,98% · 7 dias 1,03% ·
+  30 dias 0,50%**.
+
+  ⚠️ E TACOS existir aqui **não** contradiz a decisão de 30/08 de tirar o
+  anúncio do LUCRO do ML (*"o ads o seller desconta depois, no seu próprio
+  fechamento"*). Lucro SUBTRAI; TACOS só DIVIDE. São perguntas diferentes, e
+  nenhum número do lucro mudou.
+
 
 - **2026-08-31** — **As duas visões do PADS consolidam em velocidades
   diferentes, e o dia recente ainda se move.** O `ads/search` (por anúncio) e o

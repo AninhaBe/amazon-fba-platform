@@ -12,6 +12,8 @@ import {
 } from "./mercadoLivre";
 import { classificarCobertura, ORDEM_DO_RADAR, type StockStatus } from "../coberturaDeEstoque";
 import type { IntegrationConnection } from "./types";
+import { tacosDoPeriodo } from "./tacosDoCanal";
+import { anuncioDoCanal } from "../anuncioDoCanal";
 
 // Overview do Mercado Livre servido pelo modelo canônico (fase 4 da migração,
 // docs/canonical-schema.md): agregados em SQL sobre colunas indexadas + linhas
@@ -534,6 +536,10 @@ export async function getMercadoLivreOverviewFromCanonical(
   // Pendente ENTRA (é o que ela pediu), cancelada FICA FORA (é o que a conta
   // exige), e o que falta é sinalizado sem encolher a base.
   const faturamentoDoLucro = Number(totals.faturamento ?? 0);
+  // Gasto com anuncio do periodo, para o TACOS. Uma ida a mais, e ela e a mesma
+  // que a Amazon ja faz — o helper cai em `workspace_ad_product_metrics` quando
+  // nao ha linha por campanha, que e exatamente onde o ML grava.
+  const anuncio = await anuncioDoCanal(PROVIDER, period.from.toISOString(), period.to.toISOString());
   /**
    * ⚠️ O IMPOSTO INCIDE SOBRE A MESMA BASE DO LUCRO (01/09/2026).
    *
@@ -735,11 +741,34 @@ export async function getMercadoLivreOverviewFromCanonical(
       composicaoDaReceitaPaga,
       coverage: { processedOrders: ordersProcessed, paidOrders: totals.paid_orders, complete: periodCovered && ordersProcessed >= totals.paid_orders },
       estimatedProfit,
+      /**
+       * ⚠️ TACOS EXISTE AQUI SEM O ANUNCIO ENTRAR NO LUCRO — e os dois fatos
+       * convivem de proposito. A decisao dela de 30/08 tirou o anuncio do LUCRO
+       * do ML ("o ads o seller desconta depois, no seu proprio fechamento");
+       * TACOS nao desconta nada, so DIVIDE. Sao perguntas diferentes.
+       *
+       * 📌 E o dado voltou a ser confiavel, medido em 06/09/2026: em 30/08 —
+       * o dia do defeito — gravamos R$ 46,55 / 84 cliques contra R$ 44,00 / 71
+       * do console do ML. Antes da correcao do agendador eram R$ 768,86 e 1.228
+       * cliques. Sem essa medicao eu teria publicado um TACOS 17x inflado.
+       */
       // `ads: null` = "este canal não desconta anúncio", não "não sei quanto foi".
       // O gasto existe e a aba de Anúncios o mostra; ele só não entra no lucro.
       ads: null,
       adsDesconhecido: false,
       adsAteDia: null,
+      /**
+       * TACOS do periodo. A base e `faturamentoDoLucro` (todo pedido NAO
+       * cancelado), nunca `paid_revenue` — cancelada no denominador o infla, e
+       * denominador inflado e o "mentir para baixo" que a garantia proibe.
+       */
+      tacos: tacosDoPeriodo({
+        gasto: anuncio.gasto,
+        faturamento: faturamentoDoLucro,
+        pedidosSemValor: totals.sem_valor ?? 0,
+      }),
+      /** Ultimo dia com gasto coletado — o dia corrente ainda soma. */
+      tacosAteDia: anuncio.ateDia,
       // Numerador e denominador saem da MESMA base — trocar só um dos dois é o
       // que produziu −90,5% e +120,9% na Amazon em 31/08/2026.
       marginPct: faturamentoDoLucro > 0 ? estimatedProfit / faturamentoDoLucro * 100 : null,
