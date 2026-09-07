@@ -179,17 +179,41 @@ menores que a tabela (ou zero)** — mais um motivo para `observada > tabela`.
   Os R$ 5,65 são **exatamente a tarifa de tabela da §2.1 para preço < R$ 30**, ou
   seja: não é tarifa diferente, é a isenção não se aplicando àqueles dois pedidos.
 
-  ⚠️ **Não está explicado.** A condição de Ads da §2.3 está cumprida com folga
-  (`workspace_ad_metrics`: R$ 445,92 em agosto e R$ 138,37 em setembro, 30–37% da
-  receita contra o mínimo de 3,5%), então não é isso. E a hipótese "a janela de 30
-  dias virou" não fecha sozinha: em 05/09 o **mesmo SKU** teve três pedidos, dois
-  zerados e um cobrado, e em 07/09 voltou a zero. Pode ser a janela terminando com
-  a tarifa dos demais ainda por postar, ou ruído.
+  ⚠️ **A causa é o estágio de liquidação, não o fim do benefício.** Cruzando
+  `transactionStatus` com a presença da tarifa nas 59 transações `Shipment`:
 
-  **O que falsifica:** acompanhar a proporção de pedidos cobrados. Se subir, a
-  janela virou e o cenário "sem isenção" passa a ser o número corrente. Registrado
-  como pendência em `docs/plans/pesquisa-de-catalogo-de-fornecedor.md` §8, porque
-  muda decisão de compra de estoque.
+  | status | tem tarifa FBA | transações |
+  |---|---|---|
+  | `RELEASED` | não | 26 |
+  | `DEFERRED_RELEASED` | não | 26 |
+  | `DEFERRED` | não | 5 |
+  | `DEFERRED` | **sim** | **2** |
+
+  **Nenhuma transação já liquidada foi cobrada — 52 de 52 em zero.** As duas
+  cobranças estão em transações ainda `DEFERRED`, ou seja, em trânsito. A tarifa
+  aparece bruta no estágio diferido; a isenção é aplicada na liberação.
+
+  Duas evidências independentes de que o benefício seguia ativo **no mesmo dia da
+  primeira cobrança** (05/09): as duas transações `ServiceFee` daquela data —
+  `Subscription` e `FBAStorageBilling` — foram faturadas em **R$ 0,00**. Se a
+  janela tivesse virado, a armazenagem seria cobrada.
+
+  Descartado antes disso: a condição de Ads da §2.3 está cumprida com folga
+  (`workspace_ad_metrics`: R$ 445,92 em agosto e R$ 138,37 em setembro, 30–37% da
+  receita contra o mínimo de 3,5%).
+
+  **O que falsifica:** acompanhar os dois pedidos até liberarem —
+  `701-4225468-1122630` e `702-7604013-7281816`. Se saírem de `DEFERRED` **com** a
+  tarifa, a isenção deixou de cobrir logística e o cenário "sem isenção" passa a
+  ser o número corrente. Se liberarem em zero, era artefato do estágio diferido.
+  Registrado como pendência em
+  `docs/plans/pesquisa-de-catalogo-de-fornecedor.md` §8, porque muda decisão de
+  compra de estoque.
+
+  📌 **Lição de método:** somar tarifa por pedido sem olhar `transactionStatus`
+  mistura número final com número em trânsito. A primeira leitura desta mesma
+  medição concluiu "duas cobranças novas, a janela pode ter virado" — e a
+  diferença entre as duas conclusões era uma coluna.
 - **01/09/2026** — Tabela FBA capturada da página de ajuda do Seller Central
   (201112670) na sessão da conta NEXAHUB BR, a pedido da Ana: "essa é a tabela
   que você precisa usar como regra pra calcular as tarifas de cada pedido antes
