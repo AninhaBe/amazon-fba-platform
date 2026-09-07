@@ -33,10 +33,9 @@ import { Pagination } from "./Pagination";
 import { TopProductsRanking } from "./TopProductsRanking";
 import { BriefingLead } from "./BriefingLead";
 import { NexoDoDia } from "./NexoDoDia";
-import { LucroPorDia } from "./CockpitDoResultado";
 import { AlertasDoCaminho, FaixaDeEtapas } from "./FaixaDeEtapas";
 import { custoDaVenda, fatiaDoSobrou, sobreAVenda, somaDosCustos } from "./caminhoDoDinheiro";
-import { DecomposicaoDoCusto, RankingDaVenda, TabelaDeVendas } from "./CardsDoCaminho";
+import { DecomposicaoDoCusto, RankingDaVenda, RitmoDosDias, TabelaDeVendas } from "./CardsDoCaminho";
 import { IntegrationDashboardFrame } from "./IntegrationDashboardFrame";
 
 /**
@@ -599,20 +598,50 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
     serieDoPeriodo: overview.dailySales,
     janelaDeSeteDias: serieDeSeteDias,
   });
-  const seteDiasDeLucro = serieDoBloco.map((ponto) => {
+  const contagem = (n: number) => n.toLocaleString("pt-BR");
+  const seteDiasDoRitmo = serieDoBloco.map((ponto) => {
     const lucro = ponto.profit ?? null;
     const ehHoje = ponto.date === hojeNoBrasil;
+    const dia = diaBrasileiro(ponto.date);
     return {
-      data: ponto.date,
+      id: ponto.date,
       rotulo: ehHoje ? "hoje" : diaDaSemana(ponto.date),
-      valor: lucro,
-      // O rótulo em cima da coluna é curto porque a coluna é estreita: só a
-      // parte inteira, sem símbolo. O valor por extenso vai no nome acessível.
-      compacto: lucro == null ? "—" : Math.round(lucro).toLocaleString("pt-BR"),
-      completo: lucro == null
-        ? `${diaBrasileiro(ponto.date)}: lucro ainda desconhecido`
-        : `${diaBrasileiro(ponto.date)}: ${money(lucro, overview.metrics.currency)}`,
       destaque: ponto.date === serieDoBloco[serieDoBloco.length - 1]?.date,
+      /**
+       * ⚠️ UMA ENTRADA POR SERIE, e o `null` e por PAR dia+serie, nao
+       * por dia. Um dia pode ter faturamento conhecido e lucro desconhecido ao
+       * mesmo tempo — e o caso normal, porque o lucro depende de custo e tarifa
+       * que chegam depois. Amarrar a ausencia ao dia inteiro apagaria colunas
+       * de faturamento que existem.
+       *
+       * ⚠️ E O ROTULO CURTO E SO A PARTE INTEIRA, sem simbolo, porque a
+       * coluna e estreita. O valor por extenso vai no nome acessivel, senao
+       * quem le por leitor de tela ouve um numero sem moeda e sem dia.
+       */
+      series: {
+        lucro: {
+          valor: lucro,
+          compacto: lucro == null ? "—" : contagem(Math.round(lucro)),
+          completo: lucro == null
+            ? `${dia}: lucro ainda desconhecido`
+            : `${dia}: ${money(lucro, overview.metrics.currency)} de lucro`,
+        },
+        faturamento: {
+          valor: ponto.revenue,
+          compacto: contagem(Math.round(ponto.revenue)),
+          completo: `${dia}: ${money(ponto.revenue, overview.metrics.currency)} de faturamento`,
+        },
+        pedidos: {
+          valor: ponto.orders,
+          compacto: contagem(ponto.orders),
+          completo: `${dia}: ${contagem(ponto.orders)} pedido(s)`,
+        },
+        unidades: {
+          valor: ponto.units,
+          compacto: contagem(ponto.units),
+          completo: `${dia}: ${contagem(ponto.units)} unidade(s)`,
+        },
+      },
     };
   });
 
@@ -952,7 +981,7 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
       }
     />
 
-    <LucroPorDia titulo="Lucro por dia — últimos 7" dias={seteDiasDeLucro} />
+    <RitmoDosDias dias={seteDiasDoRitmo} />
 
     <section className="metric-grid ml-dashboard-metric-grid" aria-label="Resumo financeiro Mercado Livre">
       <Metric label="Faturamento" value={<AnimatedNumber periodo={identidadeDePeriodo(overview.period.from, overview.period.to)} id="ml-dash-revenue" value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={`${overview.metrics.paidOrders} aprovadas + ${overview.metrics.cancelledOrders} canceladas`} trend={getRevenueTrend(overview.dailySales)} />

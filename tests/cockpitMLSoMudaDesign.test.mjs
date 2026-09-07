@@ -25,7 +25,7 @@ const semComentarios = (codigo) =>
 const QUEBRA = String.fromCharCode(10);
 
 const ML = "src/app/components/MercadoLivreWorkspace.tsx";
-const PECA = "src/app/components/CockpitDoResultado.tsx";
+const CARDS = "src/app/components/CardsDoCaminho.tsx";
 
 /**
  * ⚠️ A RESTRIÇÃO DA DONA FOI LITERAL (03/09/2026): *"SEM ALTERAÇÃO NENHUMA QUE
@@ -36,25 +36,34 @@ const PECA = "src/app/components/CockpitDoResultado.tsx";
  * NÃO pode fazer: calcular, buscar, decidir condição.
  */
 
-test("a peca do cockpit NAO calcula nada — ela so apresenta", async () => {
-  const codigo = semComentarios(await fonte(PECA));
-  // Nenhuma aritmética de dinheiro: a peça recebe valores prontos e formatados.
-  for (const proibido of [/\/ 100/, /\* 100/, /toFixed\(/, /marginPct/, /estimatedProfit/]) {
-    assert.ok(!proibido.test(codigo), `a peça passou a calcular: ${proibido}`);
+test("as pecas dos cards NAO calculam — elas so apresentam", async () => {
+  // ⚠️ MESMA PROPRIEDADE, ALVO NOVO. Ela vigiava o `CockpitDoResultado`,
+  // que saiu da arvore quando o Caminho do Dinheiro substituiu a faixa e o
+  // grafico. A regra nao mudou: numero derivado na peca diverge do produtor sem
+  // nada ficar vermelho, e por isso as contas moram em `caminhoDoDinheiro.ts`,
+  // onde da para chamar e conferir a saida.
+  const codigo = semComentarios(await fonte(CARDS));
+  for (const proibido of [/\/ 100/, /\* 100/, /toFixed\(/, /estimatedProfit/]) {
+    assert.ok(!proibido.test(codigo), "a peca passou a calcular: " + proibido);
   }
-  // E não busca nada: sem fetch, sem hook de dados.
-  assert.ok(!/fetch\(|useEffect|useState/.test(codigo), "a peça ganhou vida própria — ela é de apresentação");
+  // E nao busca nada: sem fetch, sem hook de dados. `useState` e permitido —
+  // o alternador e estado de APRESENTACAO, nao de dado.
+  assert.ok(!/fetch\(|useEffect/.test(codigo), "a peca ganhou vida propria — ela e de apresentacao");
 });
 
-test("a cascata OMITE parcela desconhecida em vez de desenhar zero", async () => {
-  // ⚠️ `null ≠ 0` vale para a proporção como vale para o número: uma barra que
-  // soma o que ninguém sabe mente com a autoridade de um desenho.
-  const codigo = semComentarios(await fonte(PECA));
-  assert.match(
-    codigo,
-    /parte\.valor != null && Math\.abs\(parte\.valor\) > 0/,
-    "a cascata voltou a aceitar parcela desconhecida como fatia",
-  );
+test("a barra do custo OMITE parcela desconhecida em vez de desenhar zero", async () => {
+  // ⚠️ INTENCAO MIGRADA: a assercao era sobre a cascata da faixa do
+  // cockpit, que saiu. A MESMA regra vale para a barra do card "O que o custo
+  // esconde", que e onde a proporcao mora agora. `null != 0` vale para a
+  // proporcao como vale para o numero — uma barra que soma o que ninguem apurou
+  // mente com a autoridade de um desenho.
+  const codigo = semComentarios(await fonte(CARDS));
+  assert.ok(codigo.includes("componentes.filter((c) => c.sobreAVendaPct != null && c.sobreAVendaPct > 0)"),
+    "a barra do custo voltou a aceitar parcela desconhecida como fatia");
+  // E a fatia verde do fim so entra quando quem chama mandou — a decisao de
+  // quando ela existe mora em `fatiaDoSobrou`, testada pelos dois cenarios.
+  assert.ok(codigo.includes("{sobrouPct == null ? null : ("),
+    "a fatia verde deixou de ser opcional: ela passaria a afirmar lucro fechado sempre");
 });
 
 test("os numeros da FAIXA DE ETAPAS saem dos mesmos campos de sempre", async () => {
@@ -132,16 +141,31 @@ test("e o BriefingLead continua servindo os quatro — a peca compartilhada nao 
   assert.match(briefing, /acoes/, "a capacidade de ações sumiu da peça compartilhada");
 });
 
-test("nenhuma classe do cockpit e usada sem existir no CSS", async () => {
-  const codigo = (await fonte(PECA)) + (await fonte(ML));
+test("nenhuma classe dos cards e usada sem existir no CSS", async () => {
+  // ⚠️ MESMA PROPRIEDADE, ALVO NOVO. Classe escrita no JSX e ausente do
+  // CSS nao quebra build nem teste: ela simplesmente nao veste nada, e o
+  // elemento aparece sem estilo numa tela que ninguem abriu ainda.
+  const codigo = (await fonte(CARDS)) + (await fonte("src/app/components/FaixaDeEtapas.tsx"));
   const css = await fonte("src/app/globals.css");
-  // ⚠️ O BACKTICK CONTA: `className={`cockpit-chip${...}`}` nao tem aspas,
-  // e a extracao que so olhava aspas deixava a classe fora da conferencia — a
-  // quebra de renomear `.cockpit-chip` ficou verde por isso.
-  const usadas = new Set([...codigo.matchAll(/["`](cockpit-[\w-]+)/g)].map((m) => m[1]));
-  const FIM = [" ", ",", ":", ".", "{", String.fromCharCode(10)];
-  const ausentes = [...usadas].filter((classe) => !FIM.some((fim) => css.includes("." + classe + fim)));
-  assert.deepEqual(ausentes, [], `classes sem definição: ${ausentes.join(", ")}`);
+  const classes = new Set();
+  // ⚠️ SO OS TRECHOS LITERAIS. A primeira versao casava
+  // `className={ordem === valor ? ...}` e colhia `ordem` como se fosse classe —
+  // a guarda reprovava pedindo `.ordem` no CSS. Classe vem de aspas ou do texto
+  // fixo dentro da crase; o que esta dentro de `${...}` e expressao.
+  for (const achado of codigo.matchAll(/className="([^"]*)"/g)) {
+    for (const classe of achado[1].split(" ")) {
+      if (classe && !classe.startsWith("is-")) classes.add(classe);
+    }
+  }
+  for (const achado of codigo.matchAll(/className={`([a-z][a-z0-9 -]*)/g)) {
+    for (const classe of achado[1].split(" ")) {
+      if (classe && !classe.startsWith("is-")) classes.add(classe);
+    }
+  }
+  assert.ok(classes.size > 0, "nenhuma classe encontrada — a guarda passaria vazia");
+  for (const classe of classes) {
+    assert.ok(css.includes("." + classe), "a classe `" + classe + "` e usada no JSX e nao existe no CSS");
+  }
 });
 
 test("os CARDS leem o mesmo produtor — e nao montam a propria lista", async () => {
@@ -172,20 +196,26 @@ test("os CARDS leem o mesmo produtor — e nao montam a propria lista", async ()
     "a composicao passou a ser calculada em dois lugares");
 });
 
-test("a conta escrita saiu SEM ORFAO — peca, preparo e CSS", async () => {
-  // ⚠️ CODIGO MORTO DEPOIS DE UMA TROCA DE DESIGN e o que faz a proxima
-  // pessoa achar que ha duas formas suportadas. A conta escrita tinha quatro
-  // pontas: o componente, o preparo das linhas, o CSS e o import.
+test("o cockpit inteiro saiu SEM ORFAO — peca, preparo, import e CSS", async () => {
+  // ⚠️ A GUARDA CRESCEU COM A REMOCAO. Ela nasceu vigiando a saida da
+  // conta escrita; hoje vigia a saida do `CockpitDoResultado` inteiro, que
+  // perdeu o ultimo consumidor quando o ritmo virou card. Codigo morto depois de
+  // uma troca de design e o que faz a proxima pessoa achar que ha duas formas
+  // suportadas de montar a mesma tela.
   const ml = await fonte(ML);
-  const peca = await fonte(PECA);
   const css = await fonte("src/app/globals.css");
 
-  assert.ok(!peca.includes("ContaEscrita"), "o componente da conta escrita ficou no arquivo sem consumidor");
-  for (const orfao of ["ContaEscrita", "linhasDaContaEscrita", "fatiaDoResultado", "ORDEM_DA_CONTA"]) {
-    assert.ok(!ml.includes(orfao), `sobrou \`${orfao}\` no ML depois da troca`);
+  // ⚠️ COM DELIMITADOR, e a primeira versao NAO tinha: procurar
+  // "LucroPorDia" solto casa dentro de `serieDoLucroPorDia`, que e um modulo
+  // VIVO e nada tem a ver. A guarda reprovava um orfao que nao existe. Quinta
+  // vez que casamento por substring passa batido neste projeto — aqui ele
+  // produziu falso vermelho, que ensina a ignorar teste que reprova.
+  for (const orfao of ["<CockpitDoResultado", "<LucroPorDia", "<ContaEscrita", "linhasDaContaEscrita", "pendenciasDoCanal"]) {
+    assert.ok(!ml.includes(orfao), "sobrou `" + orfao + "` no ML depois da troca");
   }
-  for (const seletor of [".conta-escrita", ".conta-linha", ".conta-sinal"]) {
-    assert.ok(!css.includes(seletor), `sobrou \`${seletor}\` no CSS sem ninguem para vestir`);
+  assert.ok(!ml.includes('from "./CockpitDoResultado"'), "sobrou o import da peca removida");
+  for (const seletor of [".conta-escrita", ".conta-linha", ".cockpit-cascata", ".cockpit-legenda", ".lucro-colunas"]) {
+    assert.ok(!css.includes(seletor), "sobrou `" + seletor + "` no CSS sem ninguem para vestir");
   }
 });
 
@@ -309,7 +339,7 @@ test("A ORDEM DOS BLOCOS E A DO CANVAS — e ela ja foi reprovada uma vez", asyn
     ["o ranking", "<RankingDaVenda produtos="],
     ["a decomposicao do custo", "<DecomposicaoDoCusto"],
     ["a tabela de vendas", "<TabelaDeVendas"],
-    ["o lucro por dia", "<LucroPorDia titulo="],
+    ["o ritmo dos 7 dias", "<RitmoDosDias dias="],
     ["a regua de cards", 'className="metric-grid ml-dashboard-metric-grid"'],
   ];
   let anterior = -1;
@@ -406,36 +436,36 @@ test("as cores do ML alcancam a pagina do canal — e so ela", async () => {
 });
 
 test("dia DESCONHECIDO nao vira coluna no chao — nem no caminho ate a tela", async () => {
-  // ⚠️ O DEFEITO QUE ESTA GUARDA REPROVA nunca chegou a existir, e o
-  // motivo de ela existir mesmo assim e que ele nao ficaria vermelho em lugar
-  // nenhum: um `?? 0` no mapeamento passa no TypeScript (o tipo e
-  // `number | null | undefined`), passa no build, e desenha uma coluna rente a
-  // base num dia em que a custo ainda nao chegou.
+  // ⚠️ MESMA PROPRIEDADE, ALVO NOVO: o `LucroPorDia` virou o card do
+  // ritmo, com quatro series. O defeito que ela reprova nao mudou e continua
+  // sem ficar vermelho em lugar nenhum: um `?? 0` passa no TypeScript, passa no
+  // build, e desenha uma coluna rente a base num dia em que o custo nao chegou.
+  // Numa serie temporal zero nao parece ausencia — parece NOTICIA RUIM.
   //
-  // Numa serie temporal isso e pior que numa tela estatica: zero num grafico nao
-  // parece ausencia, parece NOTICIA RUIM — uma queda que nao aconteceu. O
-  // contrato do backend distingue os dois na origem (0 = nao vendeu, e fato;
-  // null = vendeu e falta custo, tarifa ou aliquota), e a tela tem de preservar
-  // a distincao ate o pixel.
+  // ⚠️ E AGORA A REGRA E POR PAR DIA+SERIE. Um dia pode ter faturamento
+  // conhecido e lucro desconhecido ao mesmo tempo; amarrar a ausencia ao dia
+  // inteiro apagaria colunas de faturamento que existem.
   const ml = semComentarios(await fonte(ML));
-  const peca = semComentarios(await fonte(PECA));
+  const cards = semComentarios(await fonte(CARDS));
 
-  // No ML: o lucro do ponto entra como esta, e o `null` vira traco — nao zero.
-  assert.match(ml, /const lucro = ponto\.profit \?\? null;/,
+  assert.ok(ml.includes("const lucro = ponto.profit ?? null;"),
     "o lucro do dia deixou de preservar o desconhecido");
-  assert.match(ml, /compacto: lucro == null \? "—" :/,
-    "o dia desconhecido deixou de aparecer como traco");
-  const seteDias = ml.slice(ml.indexOf("const seteDiasDeLucro"), ml.indexOf("const pendenciasDoCanal"));
-  assert.ok(!/profit \?\? 0|valor: 0|lucro \?\? 0/.test(seteDias),
+  const ritmo = ml.slice(ml.indexOf("const seteDiasDoRitmo"), ml.indexOf("const componentesDoCusto"));
+  assert.ok(!/profit \?\? 0|valor: 0\b/.test(ritmo),
     "apareceu um zero no caminho do lucro diario: desconhecido virou queda");
+  assert.ok(ritmo.includes('compacto: lucro == null ? "—"'),
+    "o dia desconhecido deixou de aparecer como traco");
+  // As outras tres series NAO tem `null`: elas sempre existem, e zero ali e fato.
+  assert.ok(ritmo.includes("valor: ponto.revenue,") && ritmo.includes("valor: ponto.orders,"),
+    "uma serie do ritmo trocou de fonte");
 
   // Na peca: sem valor, sem altura — e a escala ignora o desconhecido, senao um
   // dia sem dado encolheria os outros.
-  assert.match(peca, /dia\.valor == null \? 0 : Math\.abs\(dia\.valor\)/,
+  assert.ok(cards.includes("return valor == null ? 0 : Math.abs(valor);"),
     "a escala das colunas voltou a contar o dia desconhecido");
-  assert.match(peca, /maior > 0 && dia\.valor != null \? Math\.abs\(dia\.valor\) \/ maior : 0/,
+  assert.ok(cards.includes("const fracao = maior > 0 && valor != null ? Math.abs(valor) / maior : 0;"),
     "a altura da coluna deixou de exigir valor conhecido");
-  assert.ok(peca.includes('dia.valor == null ? " is-desconhecido" : ""'),
+  assert.ok(cards.includes('valor == null ? " is-desconhecido" : ""'),
     "o dia desconhecido deixou de ser marcado — a coluna some sem dizer por que");
 });
 
@@ -466,32 +496,42 @@ test("\"hoje\" so e dito quando e hoje de verdade", async () => {
     "o dia da semana deixou de ser formatado em UTC e volta a depender do fuso do navegador");
 });
 
-test("as dimensoes do Exemplo 2 estao de pe — a esquerda encolheu para a direita crescer", async () => {
-  // ⚠️ ESTA GUARDA E DE DIMENSAO, e ela existe porque a frente inteira ERA
-  // dimensao: *"vamos redimensionar ambas telas"* (06/09/2026, Exemplo 2 do
-  // canvas). Nao ha regra de dado envolvida — o que quebra aqui e alguem
-  // "arrumar" um tamanho isolado e desmontar a proporcao que ela aprovou.
+test("as dimensoes do canvas do Caminho do Dinheiro estao de pe", async () => {
+  // ⚠️ INTENCAO SUBSTITUIDA (07/09/2026). Esta guarda vigiava as cinco
+  // medidas do Exemplo 2 — numero de 28px, frase de 12px, cascata de 10px,
+  // marca de 7px, regua de 114px. Elas dimensionavam a FAIXA DO COCKPIT, que
+  // saiu inteira quando o Caminho do Dinheiro entrou; vigia-las agora seria
+  // defender medidas de um bloco que nao existe.
   //
-  // As pecas sao interdependentes: o numero caiu de 36 para 28 e a frase de 16
-  // para 12 PARA CABEREM NA MESMA LINHA-BASE; a cascata e a legenda encolheram
-  // para liberar altura; e a regua do lucro por dia cresceu PARA USAR essa
-  // altura. Mexer num sozinho e o que desfaz o conjunto.
+  // ⚠️ O MOTIVO DE EXISTIR NAO MUDOU, e por isso ela nao foi apagada: a
+  // frente e de DIMENSAO, e as pecas sao interdependentes. O que quebra aqui e
+  // alguem "arrumar" um tamanho isolado e desmontar a proporcao que a Ana
+  // aprovou olhando o canvas inteiro.
   const css = (await fonte("src/app/globals.css")).replace(/\/\*[\s\S]*?\*\//g, "");
 
   for (const [oQue, regra] of [
-    ["o numero do lucro", "font-size: 28px;"],
-    ["a frase ao lado dele", ".cockpit-frase { margin: 0; color: var(--ink-muted); font-size: 12px; line-height: 1.5; }"],
-    ["a cascata", ".cockpit-cascata { display: flex; height: 10px; border-radius: 5px; overflow: hidden; }"],
-    ["a marca da legenda", ".cockpit-marca { display: inline-block; width: 7px; height: 7px; border-radius: 2px; }"],
-    ["a regua do lucro por dia", "height: 114px;"],
+    ["o numero das etapas", ".etapa-valor { margin: 0 0 4px; font-size: 24px; line-height: 1.1; }"],
+    ["o rotulo das etapas", ".etapa-rotulo { margin: 0 0 4px; color: var(--ink-muted); font-size: 11.5px; }"],
+    ["a barra do custo", ".card-cascata { display: flex; height: 8px; overflow: hidden; border-radius: 4px; margin-block: 2px 11px; }"],
+    ["a marca de cor da tabela", ".card-marca { display: inline-block; width: 7px; height: 7px; border-radius: 2px; margin-inline-end: 7px; }"],
+    ["a regua do ritmo", "height: 118px;"],
   ]) {
-    assert.ok(css.includes(regra), `${oQue} saiu da dimensao aprovada no Exemplo 2:
-  ${regra}`);
+    assert.ok(css.includes(regra), oQue + " saiu da dimensao do canvas:" + QUEBRA + "  " + regra);
   }
 
-  // ⚠️ E O NUMERO E A FRASE PRECISAM DIVIDIR A LINHA-BASE. `baseline`
-  // alinha o pe dos dois; `center` ou `flex-start` fariam a frase flutuar ao
-  // lado do numero como um segundo paragrafo, que e o que ela pediu para sair.
-  assert.ok(css.includes(".cockpit-linha { display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; }"),
-    "o numero e a frase deixaram de dividir a linha-base");
+  // ⚠️ A REGUA DO RITMO PRECISA DAS TRES REGRAS JUNTAS, e isto e a
+  // licao mais cara desta frente: em 03/09 a versao anterior deste grafico
+  // renderizou com TODAS as barras em 0px, com as guardas verdes. Altura
+  // percentual so resolve contra um pai de altura DEFINIDA — `stretch` faz a
+  // coluna ter a altura da regua, e a faixa `1fr` do grid da a pista contra a
+  // qual a barra calcula.
+  const regua = css.slice(css.indexOf(".ritmo-colunas {"), css.indexOf("}", css.indexOf(".ritmo-colunas {")));
+  assert.ok(regua.includes("align-items: stretch;"),
+    "a regua do ritmo voltou a `flex-end`: a coluna fica do tamanho do conteudo e TODA barra vira 0px");
+  const coluna = css.slice(css.indexOf(".ritmo-coluna {"), css.indexOf("}", css.indexOf(".ritmo-coluna {")));
+  assert.ok(coluna.includes("grid-template-rows: auto minmax(0, 1fr) auto;"),
+    "a coluna do ritmo perdeu a pista `1fr` — a altura percentual da barra deixa de ter contra o que resolver");
+  const barra = css.slice(css.indexOf(".ritmo-barra {"), css.indexOf("}", css.indexOf(".ritmo-barra {")));
+  assert.ok(barra.includes("height: calc(var(--fracao, 0) * 100%);"),
+    "a barra do ritmo mudou de forma de calcular a altura");
 });

@@ -6061,12 +6061,6 @@ summary:hover { background: var(--paper-soft); }
    Amazon, Shopee e TikTok continuam com o layout de hoje, e ha guarda provando
    que nenhum deles renderiza diferente. */
 
-.cockpit-faixa {
-  display: flex;
-  align-items: stretch;
-  border-block-end: 1px solid var(--ink-08);
-}
-.cockpit-resultado { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px; padding: 26px 30px 26px 28px; }
 /* ⚠️ 470px, e a divisao e o assunto DELA: *"vamos redimensionar ambas
    telas... a barra vertical vermelha vai ser a divisao"*, com a marcacao no
    canvas (06/09/2026, Exemplo 2). Eram 400px.
@@ -6074,13 +6068,6 @@ summary:hover { background: var(--paper-soft); }
    colunas de largura conhecida (rank, unidades, valor, selo) e o titulo fica
    com o que sobra. Coluna elastica encolheria o titulo junto com a janela e as
    reticencias comeriam o produto antes do necessario. */
-.cockpit-ao-lado {
-  flex: 0 0 470px;
-  min-width: 0;
-  padding: 26px 28px;
-  border-inline-start: 1px solid var(--ink-08);
-}
-
 .cockpit-kicker {
   margin: 0;
   color: var(--ink-muted);
@@ -6095,7 +6082,6 @@ summary:hover { background: var(--paper-soft); }
    empilhava — o que a prancheta mostrava como dois blocos era o wrap agindo.
    Com 28 e 12 eles cabem, e o `baseline` alinha o pe dos dois em vez do topo,
    que e o que faz a frase parecer legenda do numero e nao outro paragrafo. */
-.cockpit-linha { display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; }
 /* ⚠️ O VERDE DO MERCADO LIVRE, e ele mora AQUI e nao em `--positive`.
    `--positive` e o verde dos quatro canais; a paleta aprovada em 03/09/2026 e
    um teste num canal so. Este token e local ao cockpit, que so o ML renderiza —
@@ -6130,108 +6116,18 @@ summary:hover { background: var(--paper-soft); }
 /* 36px e o tamanho da prancheta aprovada. Ele ja foi 44px na versao anterior:
    com o numero em verde saturado, 44 pesava mais que a frase que o explica, e a
    dona aprovou a versao de 36. */
-.cockpit-lucro {
-  color: var(--ink);
-  font-size: 28px;
-  font-weight: 800;
-  letter-spacing: -.02em;
-  line-height: 1.05;
-  font-variant-numeric: tabular-nums;
-}
-.cockpit-lucro.is-positive { color: var(--ml-verde); }
-.cockpit-lucro.is-negative { color: var(--danger); }
-.cockpit-frase { margin: 0; color: var(--ink-muted); font-size: 12px; line-height: 1.5; }
-.cockpit-frase strong { color: var(--ink); font-weight: 600; }
-
-.cockpit-cascata { display: flex; height: 10px; border-radius: 5px; overflow: hidden; }
-.cockpit-cascata > span { flex-basis: 0; min-width: 2px; }
-
-.cockpit-legenda {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 12px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  color: var(--ink-muted);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-}
-.cockpit-legenda li { display: inline-flex; align-items: center; gap: 5px; }
-.cockpit-marca { display: inline-block; width: 7px; height: 7px; border-radius: 2px; }
-
 /* LUCRO POR DIA — os sete dias debaixo da legenda da cascata. A coluna do dia
    mais recente sai no verde do ML; as outras num cinza que existe para dar
    escala, nao para competir com ela. */
-.lucro-por-dia {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-block-start: 2px;
-  border-block-start: 1px solid var(--ink-08);
-  padding-block-start: 10px;
-}
 .cockpit-kicker.is-menor { font-size: 10px; letter-spacing: .04em; }
-.lucro-colunas {
-  display: flex;
-  /* ⚠️ `stretch`, e nao `flex-end`: as colunas precisam TER a altura da
-     regua para que a barra la dentro possa ser uma PORCENTAGEM dela. Com
-     `flex-end` a coluna fica do tamanho do conteudo, altura percentual nao tem
-     contra o que resolver, e toda barra vira 0px — medido, nao suposto. */
-  align-items: stretch;
-  gap: 8px;
-  /* ⚠️ A REGUA CRESCE PORQUE O TOPO ENCOLHEU (06/09/2026). Numero e
-     frase na mesma linha, cascata de 10px e legenda de 11px liberaram altura na
-     coluna esquerda, e a ordem foi aproveita-la: barras MAIS ALTAS que hoje.
-     Como o valor e o dia dividem esta altura com a pista, a regua e maior que a
-     pista — com 96px a barra mais alta media 50px. Medido a cada mudanca. */
-  height: 114px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
 /* Tres faixas: o valor em cima, a PISTA da barra no meio e o dia embaixo. A
    pista e `1fr` de um container de altura definida, e e por isso que a altura
    percentual da barra resolve. */
-.lucro-coluna {
-  display: grid;
-  flex: 1;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  justify-items: center;
-  gap: 2px;
-  min-width: 0;
-}
-.lucro-valor, .lucro-dia {
-  color: var(--ink-32);
-  font-size: 9px;
-  font-variant-numeric: tabular-nums;
-}
-.lucro-barra {
-  width: 100%;
-  /* A fracao vem da peca; o "vezes 100" e geometria e mora aqui. */
-  height: calc(var(--fracao, 0) * 100%);
-  min-height: 0;
-  /* Encostada na base da pista: e o chao que da a leitura de altura. */
-  align-self: end;
-  border-radius: 3px 3px 0 0;
-  background: var(--ml-coluna);
-}
-.lucro-coluna.is-destaque .lucro-valor,
-.lucro-coluna.is-destaque .lucro-dia { color: var(--ml-verde); font-weight: 700; }
-.lucro-coluna.is-destaque .lucro-barra { background: var(--ml-verde); }
 /* Prejuizo e fato e aparece: a coluna cresce igual e troca de tinta. Esconde-la
    seria a mesma mentira que desenhar o desconhecido no chao. */
-.lucro-coluna.is-negativo .lucro-barra { background: var(--danger); }
-.lucro-coluna.is-negativo .lucro-valor { color: var(--danger); }
 /* ⚠️ DIA DESCONHECIDO NAO TEM COLUNA — tem um traco no lugar dela. Uma
    barra de altura zero aqui leria como queda, e o contrato garante que zero so
    chega quando o dia realmente nao vendeu. */
-.lucro-coluna.is-desconhecido .lucro-barra {
-  height: 0 !important;
-  border-block-start: 1px dashed var(--ink-12);
-  background: transparent;
-}
-
 /* ── CAMINHO DO DINHEIRO: os cards de tabela (06/09/2026) ─────────────────── */
 .cards-caminho-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; }
 .card-caminho {
@@ -6318,6 +6214,54 @@ summary:hover { background: var(--paper-soft); }
 .card-explica { margin: 0 0 9px; color: var(--ink-faint); font-size: 11px; line-height: 1.5; }
 .card-vazio { margin: 0; color: var(--ink-muted); font-size: 12px; }
 
+/* ── O RITMO: as colunas do card, com a pista que ja funcionava ──────────────
+   ⚠️ `align-items: stretch` + grid de tres faixas E O QUE FAZ A ALTURA
+   PERCENTUAL RESOLVER — a licao de 03/09, quando a versao anterior deste
+   grafico renderizou com TODAS as barras em 0px porque a coluna tinha altura
+   automatica e nao havia contra o que calcular a porcentagem. As guardas
+   estavam verdes; so a medicao no render pegou. */
+.ritmo-colunas {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  height: 118px;
+  margin: 0;
+  padding-block-start: 4px;
+  list-style: none;
+}
+.ritmo-coluna {
+  display: grid;
+  flex: 1;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  justify-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+.ritmo-valor, .ritmo-dia { color: var(--ink-32); font-size: 10px; font-variant-numeric: tabular-nums; }
+.ritmo-barra {
+  width: 100%;
+  /* A fracao vem da peca; o "vezes 100" e geometria e mora aqui. */
+  height: calc(var(--fracao, 0) * 100%);
+  min-height: 0;
+  align-self: end;
+  border-radius: 3px 3px 0 0;
+  background: var(--ml-coluna);
+}
+.ritmo-coluna.is-destaque .ritmo-valor,
+.ritmo-coluna.is-destaque .ritmo-dia { color: var(--ml-verde); font-weight: var(--weight-semibold); }
+.ritmo-coluna.is-destaque .ritmo-barra { background: var(--ml-verde); }
+/* Prejuizo e fato e aparece: a coluna cresce igual e troca de tinta. */
+.ritmo-coluna.is-negativo .ritmo-barra { background: var(--danger); }
+.ritmo-coluna.is-negativo .ritmo-valor { color: var(--danger); }
+/* ⚠️ DIA DESCONHECIDO NAO TEM COLUNA — tem um traco no lugar dela.
+   Barra de altura zero aqui leria como QUEDA, e numa serie temporal isso nao
+   parece ausencia: parece noticia ruim. */
+.ritmo-coluna.is-desconhecido .ritmo-barra {
+  height: 0 !important;
+  border-block-start: 1px dashed var(--ink-12);
+  background: transparent;
+}
+
 .card-tag { display: inline-block; border-radius: 4px; padding: 1px 6px; font-size: 10.5px; font-weight: var(--weight-semibold); }
 .card-tag.is-ok { background: color-mix(in srgb, var(--ml-verde) 10%, transparent); color: var(--ml-verde); }
 .card-tag.is-acao { background: color-mix(in srgb, var(--danger) 10%, transparent); color: var(--danger); }
@@ -6331,11 +6275,6 @@ summary:hover { background: var(--paper-soft); }
   .cards-caminho-2 { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* ── CAMINHO DO DINHEIRO: a faixa de 4 etapas (06/09/2026) ─────────────────
-   A leitura e uma frase da esquerda para a direita — vendeu, custou, sobrou,
-   cai na conta. Elas dividem UMA faixa com divisao de 1px em vez de virarem
-   quatro cartoes: cartao separado sugere quatro indicadores independentes, e
-   estes sao quatro passos do mesmo dinheiro. */
 .etapas {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -6377,7 +6316,6 @@ summary:hover { background: var(--paper-soft); }
 .alerta.is-atencao { box-shadow: var(--shadow-surface), inset 3px 0 0 0 var(--warning); }
 
 /* TOP PRODUTOS na direita da faixa — Opcao A da prancheta (06/09/2026). */
-.top-faixa { display: flex; flex-direction: column; gap: 10px; }
 .top-faixa-cabecalho { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .top-faixa-meta { margin: 0; color: var(--ink-muted); font-size: 11px; }
 .top-faixa-meta a { color: inherit; text-decoration: none; }
@@ -6440,24 +6378,6 @@ summary:hover { background: var(--paper-soft); }
 
 /* As pendencias numa fila: os mesmos textos e destinos de antes, sem o peso de
    cartao. Chip que exige acao dela usa a tinta de atencao — os outros informam. */
-.cockpit-pendencias {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 28px;
-  border-block-end: 1px solid var(--ink-08);
-}
-.cockpit-chip {
-  border: 1px solid var(--ink-12);
-  border-radius: 999px;
-  padding: 4px 12px;
-  color: var(--ink-muted);
-  font-size: 13px;
-}
-.cockpit-chip:hover { border-color: var(--ink); color: var(--ink); }
-.cockpit-chip.is-acao { border-color: var(--warning); color: var(--warning); font-weight: 600; }
-
 @media (max-width: 900px) {
   .cockpit-faixa { flex-direction: column; }
   .cockpit-ao-lado { border-inline-start: 0; border-block-start: 1px solid var(--ink-08); }

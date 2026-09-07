@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 import { ordenaPorMargem } from "./caminhoDoDinheiro";
 
 /**
@@ -255,6 +255,100 @@ export function TabelaDeVendas({ vendas, escopo, rodape, vazio }: {
           </tbody>
         </table>
       )}
+    </CardDoCaminho>
+  );
+}
+
+/* ── 4. RITMO DOS ULTIMOS 7 DIAS ─────────────────────────────────────────── */
+
+export type SerieDoRitmo = "lucro" | "faturamento" | "pedidos" | "unidades";
+
+export interface DiaDoRitmo {
+  id: string;
+  /** "seg", "hoje" — quem chama decide, porque so ele sabe que dia e hoje. */
+  rotulo: string;
+  destaque: boolean;
+  /**
+   * Uma entrada por serie. `valor` `null` = desconhecido: NAO desenha coluna.
+   * `compacto` e o rotulo curto em cima; `completo` e o nome acessivel.
+   */
+  series: Record<SerieDoRitmo, { valor: number | null; compacto: string; completo: string }>;
+}
+
+/**
+ * O RITMO — a mesma semana por quatro angulos, num alternador so.
+ *
+ * ⚠️ O CORTE APROVADO FOI "2 GRAFICOS -> 1 COM ALTERNADOR". Antes a
+ * pagina tinha o lucro por dia e o grafico de evolucao dizendo coisas parecidas
+ * em dois lugares; agora e um bloco que troca de serie. Isso so foi possivel
+ * porque o contrato do backend passou a entregar `profit` por dia — sem ele,
+ * "lucro" seria a unica opcao sem dado.
+ *
+ * ⚠️ E A REGRA DO `null` VALE POR SERIE, nao pelo bloco. Um dia pode ter
+ * faturamento conhecido e lucro desconhecido ao mesmo tempo: no "faturamento"
+ * ele desenha coluna, no "lucro" ele mostra o traco. Amarrar a ausencia ao dia
+ * em vez de ao par dia+serie apagaria colunas que existem.
+ */
+export function RitmoDosDias({ dias, serieInicial = "lucro" }: {
+  dias: DiaDoRitmo[];
+  serieInicial?: SerieDoRitmo;
+}) {
+  const [serie, setSerie] = useState<SerieDoRitmo>(serieInicial);
+  if (dias.length === 0) return null;
+
+  // A escala sai do maior valor CONHECIDO da serie exibida: um dia sem dado nao
+  // pode encolher os outros, porque ele nao tem tamanho.
+  const maior = Math.max(...dias.map((dia) => {
+    const valor = dia.series[serie].valor;
+    return valor == null ? 0 : Math.abs(valor);
+  }), 0);
+
+  const opcoes: Array<[SerieDoRitmo, string]> = [
+    ["lucro", "lucro"],
+    ["faturamento", "faturamento"],
+    ["pedidos", "pedidos"],
+    ["unidades", "unidades"],
+  ];
+
+  return (
+    <CardDoCaminho
+      titulo="Ritmo dos últimos 7 dias"
+      meta={
+        <span className="card-alternador" role="group" aria-label="Série do gráfico">
+          {opcoes.map(([valor, rotulo], indice) => (
+            <span key={valor}>
+              {indice > 0 ? <i aria-hidden="true"> · </i> : null}
+              <button
+                type="button"
+                aria-pressed={serie === valor}
+                className={serie === valor ? "is-ativo" : ""}
+                onClick={() => setSerie(valor)}
+              >
+                {rotulo}
+              </button>
+            </span>
+          ))}
+        </span>
+      }
+    >
+      <ol className="ritmo-colunas">
+        {dias.map((dia) => {
+          const { valor, compacto, completo } = dia.series[serie];
+          const fracao = maior > 0 && valor != null ? Math.abs(valor) / maior : 0;
+          const negativo = valor != null && valor < 0;
+          return (
+            <li
+              key={dia.id}
+              className={`ritmo-coluna${dia.destaque ? " is-destaque" : ""}${valor == null ? " is-desconhecido" : ""}${negativo ? " is-negativo" : ""}`}
+              aria-label={completo}
+            >
+              <span className="ritmo-valor" aria-hidden="true">{compacto}</span>
+              <span className="ritmo-barra" style={{ "--fracao": fracao } as CSSProperties} aria-hidden="true" />
+              <span className="ritmo-dia" aria-hidden="true">{dia.rotulo}</span>
+            </li>
+          );
+        })}
+      </ol>
     </CardDoCaminho>
   );
 }
