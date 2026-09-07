@@ -237,6 +237,35 @@ também cobre o pendente.
 
 ## Changelog observado (mais recente primeiro)
 
+- **07/09/2026 — O campo de URL de notificação do DevCenter tem teto de 120
+  caracteres, e ele TRUNCA em silêncio.** Descoberto ao cadastrar a URL nova com
+  o token de origem (commit `0daf5d5`). A base
+  `https://nexoaihub.com.br/api/webhooks/mercado-livre?token=` ocupa **58**
+  caracteres, então sobram **62** para o token. Um token hex de 32 bytes tem 64
+  — e os **dois últimos caracteres simplesmente não entram no campo**.
+
+  ⚠️ **O modo de falha é o pior possível: silencioso dos dois lados.** O
+  DevCenter aceita o cadastro sem reclamar, e a rota recusa com **404**, porque
+  token *presente e errado* nunca passa (`webhookMlToken.ts`) — nem durante a
+  janela de convivência. Ou seja: o webhook morreria na hora, não na data
+  planejada, e o único sintoma seria push parando de chegar.
+
+  E dois caracteres a menos numa string de 64 **não são perceptíveis a olho**.
+  Foi a contagem de comprimento que denunciou, não a leitura.
+
+  **Regra que fica:** o token do webhook do ML tem **32 caracteres** (16 bytes,
+  128 bits) — URL total de 90, com 30 de folga para o caminho mudar. 128 bits é
+  muito acima do necessário para um segredo que só autoriza *entregar*
+  notificação; o que estava faltando não era entropia, era caber.
+
+  **Ao trocar o token, a ordem é Fly primeiro, DevCenter depois.** Invertida,
+  existe uma janela em que o ML manda o token novo e o app ainda espera o antigo
+  — e aí é 404 com notificação perdida. Na ordem certa, o pior caso é o ML mandar
+  o token antigo por alguns minutos, e o antigo ainda é aceito.
+
+  📌 **Conferir por contagem, nunca por leitura.** Depois de colar: a URL inteira
+  tem 90 caracteres e a parte após `token=` tem 32.
+
 - **2026-09-07 — O WEBHOOK ESTAVA ABERTO, e agora exige token na URL.** Medido na
   rota: `POST` sem validação de origem nenhuma. Três buracos fechados de uma vez
   — origem não conferida, recusa que confirmaria a rota, e a resposta que
