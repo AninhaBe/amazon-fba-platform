@@ -2,7 +2,7 @@ import { dbQuery, hasDb } from "../db";
 import { runWithWorkspace } from "../workspaceScope";
 import { getAccount } from "../accountStore";
 import { runAmazonSyncBatch } from "./amazonSync";
-import { filtroDeAssinaturaAtiva } from "./assinaturaPausaSync";
+import { filtroDeAcessoLiberado } from "./assinaturaPausaSync";
 
 // Agendador do sync canônico da Amazon (cron): avança o histórico e a
 // conciliação de itens sem depender de visitas ao dashboard. Mesmo desenho do
@@ -45,7 +45,7 @@ export async function runScheduledAmazonSync(
         AND integration.id = sync.connection_id
         AND integration.provider = sync.provider
       WHERE sync.provider = $1
-        AND ${filtroDeAssinaturaAtiva("sync")}
+        AND ${filtroDeAcessoLiberado("sync")}
         AND integration.metadata->'demo' IS DISTINCT FROM 'true'::jsonb
         AND (
           (sync.status IN ('pending', 'syncing')

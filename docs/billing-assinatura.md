@@ -50,25 +50,65 @@ nesta tela.
 Crescer essa lista é decisão, não acidente: `tests/trancaDaAssinatura.test.mjs`
 conta quantas rotas ignoram a tranca e fica vermelho quando o número muda.
 
-## Sync: "cortou, parou"
+## Sync: só sincroniza quem tem acesso
 
-O filtro olha `workspace_settings.assinatura`, **nunca** `sync.status` — reusar a
-coluna de status daria dois significados a ela, que é a família de defeito que
-custou 11 horas de varredura parada em 03/09/2026.
+Decisão da dona do produto em 07/09/2026, verbatim: *"basicamente todos que não
+estão com assinatura ativa, pode pausar"*.
 
-A **retomada é de graça**, e é por isso que o desenho é um filtro e não uma
-escrita: nada é marcado ao cortar, nada precisa ser desmarcado ao reativar. No
-ciclo seguinte a conexão volta a ser eleita com o `covered_from` intocado e o
-scheduler recupera a janela parada pelo caminho que já usa.
+**O sync pausa exatamente quando o acesso está bloqueado** — mesma fronteira da
+tranca, mesmos quatro casos:
 
-**Medido em 07/09/2026, contra produção, sem escrever nada** (CTE sombreando
-`workspace_settings`): eleitos para a Amazon passaram de **3 para 3** com o filtro
-e assinatura ausente — *nenhuma regressão para as contas de hoje* — e de **3 para
-2** ao cortar a conta `4f73ae94`, com as outras duas intactas.
+| assinatura | trial | sync | por quê |
+|---|---|---|---|
+| `cortada` | qualquer | **pausa** | cortou, parou |
+| ausente | vencido | **pausa** | quem não vê o dado não precisa dele |
+| ausente | ativo | continua | avaliação sem dado não converte ninguém |
+| ausente | ausente | continua | o mundo interno de hoje |
 
-⚠️ **O que o filtro NÃO cobre:** conta com **avaliação vencida** e sem assinatura
-continua sincronizando. Isso é intencional — a ordem foi sobre conta cortada. Se
-mudar, o lugar é um só, e está escrito no próprio arquivo.
+(`ativa` continua em qualquer combinação: é o sinal específico.)
+
+### Uma regra, uma fonte — e como isso é provado
+
+A tranca decide em TypeScript (`decidirAcesso`), o scheduler decide em SQL
+(`filtroDeAcessoLiberado`). Como SQL não roda em JavaScript, a equivalência não
+é promessa: `tests-integracao/acessoPausaSyncEquivale.test.mjs` roda os **sete**
+casos nos dois motores e compara um a um. `scripts/prova-equivalencia-acesso.mjs`
+roda a mesma conferência contra qualquer banco, **só lendo**.
+
+⚠️ **Isso não é zelo — pegou um defeito na primeira execução.** A primeira versão
+do SQL protegia um cast com RegExp escrita dentro de template literal: `\d` virou
+`d`, o filtro nasceu comparando com `^d{4}-d{2}-d{2}T` e a conta de trial vencido
+**continuava sincronizando**. Passou na leitura em voz alta. É a mesma família do
+`` virando BACKSPACE já registrada no `AGENTS.md`.
+
+Por isso o filtro hoje **não usa RegExp nem cast**: compara `endsAt` como texto
+ISO. O cast também era perigoso por outro motivo, medido — uma única linha com
+`endsAt` malformado devolve `invalid input syntax for type timestamp with time
+zone` e **derruba a consulta do canal inteiro, para todos os inquilinos**.
+
+### Por que é filtro e não uma coluna
+
+A **retomada é de graça**: nada é marcado ao cortar, nada precisa ser desmarcado
+ao reativar. No ciclo seguinte a conexão volta a ser eleita com o `covered_from`
+intocado e o scheduler recupera a janela parada pelo caminho que já usa. Uma
+coluna `pausada` exigiria lembrar de limpá-la — e o dia em que alguém esquecesse,
+a conta paga ficaria muda.
+
+E o filtro **não olha `sync.status`**: reusar a coluna de status daria dois
+significados a ela, que é a família que custou 11 horas de varredura parada em
+03/09/2026.
+
+### Efeito medido em produção (07/09/2026, sem escrever nada)
+
+Elegíveis hoje: **7 → 6**. A única conexão que passa a pausar é a
+`amazon:A16J64DRXI7OAU` (workspace `4f73ae94`), cujo trial venceu em 26/08 e que
+sincronizava enquanto a pessoa levava 403 em toda tela. As contas com registro
+nenhum — a da dona, a do colega, as de demonstração — **não são afetadas**.
+
+⚠️ **Se essa conta precisar voltar a sincronizar, o caminho é estender o trial
+dela no banco — nunca uma exceção no código.** Exceção no código vira a próxima
+salvaguarda temporária que sobrevive à limitação que a justificou; um `endsAt`
+novo é reversível, visível e não mente.
 
 ## E-mails
 
@@ -100,6 +140,11 @@ O e-mail de **criação de senha** não sai daqui: é o convite do Supabase
   (`checkout.session.expired`, 27/08, ignorado): o webhook já provara que
   *recebe*, mas o caminho de pagamento confirmado nunca fora exercido, nem no
   sandbox. `workspace_settings` não tinha nenhuma assinatura gravada.
+- **07/09/2026** — a fronteira do sync passou de "só cortada" para "todos que
+  não estão com assinatura ativa", por decisão da dona, e passou a **derivar da
+  mesma decisão da tranca**. A tradução para SQL nasceu errada (RegExp comida
+  pelo template literal) e foi pega pela primeira execução da prova de
+  equivalência, não pela revisão.
 - **07/09/2026** — a tranca das rotas de dado **já existia** e eu havia relatado
   o contrário na medição da manhã: cortei um `grep` com `head -12` e tratei a
   truncagem como o conjunto. O que faltava era a navegação, a porta de volta, o

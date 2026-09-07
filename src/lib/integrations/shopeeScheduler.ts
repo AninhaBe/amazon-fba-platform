@@ -3,7 +3,7 @@ import { runWithWorkspace } from "../workspaceScope";
 import { getIntegration } from "./integrationStore";
 import { runShopeeSyncBatch, type ShopeeSyncStatus } from "./shopeeSync";
 import { isShopeeDemoConnection } from "./shopeeConnection";
-import { filtroDeAssinaturaAtiva } from "./assinaturaPausaSync";
+import { filtroDeAcessoLiberado } from "./assinaturaPausaSync";
 
 // Agendamento do sync da Shopee (ADR-003: cron por GitHub Actions).
 // Mesmo desenho do scheduler do Mercado Livre: escolhe conexões elegíveis,
@@ -38,7 +38,7 @@ export async function runScheduledShopeeSync(
         AND integration.id = sync.connection_id
         AND integration.provider = sync.provider
       WHERE sync.provider = $1
-        AND ${filtroDeAssinaturaAtiva("sync")}
+        AND ${filtroDeAcessoLiberado("sync")}
         AND integration.status = 'connected'
         AND integration.metadata->'demo' IS DISTINCT FROM 'true'::jsonb
         AND (
