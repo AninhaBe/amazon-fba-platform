@@ -34,8 +34,8 @@ import { TopProductsRanking } from "./TopProductsRanking";
 import { BriefingLead } from "./BriefingLead";
 import { NexoDoDia } from "./NexoDoDia";
 import { AlertasDoCaminho, FaixaDeEtapas } from "./FaixaDeEtapas";
-import { custoDaVenda, fatiaDoSobrou, sobreAVenda, somaDosCustos } from "./caminhoDoDinheiro";
-import { DecomposicaoDoCusto, RankingDaVenda, RitmoDosDias, TabelaDeVendas } from "./CardsDoCaminho";
+import { custoDaVenda, fatiaDoSobrou, fraseDoTacos, sobreAVenda, somaDosCustos } from "./caminhoDoDinheiro";
+import { AnunciosPagos, DecomposicaoDoCusto, RankingDaVenda, RitmoDosDias, TabelaDeVendas } from "./CardsDoCaminho";
 import { IntegrationDashboardFrame } from "./IntegrationDashboardFrame";
 
 /**
@@ -86,6 +86,30 @@ interface Overview {
     revenueDoLucro?: number | null;
     /** Pedidos que ainda nao entraram na base — a causa da diferenca. */
     pedidosSemApuracao?: number | null;
+    /**
+     * ⚠️ TACOS DIVIDE, MAS NAO SUBTRAI. Ele mede quanto da operacao
+     * inteira a midia consome — gasto sobre o faturamento TOTAL —, e nao entra
+     * no lucro do ML: a decisao da Ana de 30/08/2026 continua de pe, porque
+     * neste canal o seller desconta o anuncio depois, no fechamento dele.
+     *
+     * ⚠️ E TACOS NAO E ACOS. ACOS e gasto sobre a venda que o ANUNCIO
+     * gerou; TACOS e sobre tudo que a loja vendeu. Trocar o rotulo troca a
+     * pergunta que o numero responde.
+     */
+    tacos?: {
+      /** Percentual pronto, ja arredondado em 2 casas. `null` = ver `motivo`. */
+      pct: number | null;
+      /**
+       * ⚠️ `gasto-desconhecido` NAO E "NAO ANUNCIOU". E "nao sabemos
+       * quanto foi o anuncio" — fato diferente, e escrever o primeiro na tela e
+       * mentir. O produtor renomeou o motivo justamente para impedir isso.
+       */
+      motivo: "gasto-desconhecido" | "sem-faturamento" | null;
+      /** Pedidos nao cancelados sem valor conhecido. Nao bloqueia o numero. */
+      pedidosSemValor: number;
+    } | null;
+    /** Ultimo dia com gasto coletado. O dia corrente ainda soma. */
+    tacosAteDia?: string | null;
     coverage: { processedOrders: number; paidOrders: number; complete: boolean; }; estimatedProfit: number | null; marginPct: number | null; unitsWithoutCost: number; skusWithoutCost: number; };
   dailySales: DailyPoint[];
   topProducts: Array<{ id: string; sku: string | null; title: string; units: number; revenue: number; cost: number; contribution: number; complete: boolean; marginPct: number | null; }>;
@@ -809,6 +833,45 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
     };
   });
 
+  /**
+   * ⚠️ O CARD DE ANUNCIOS LE `adsPorProduto`, que a frente de Ads de
+   * 28/08/2026 ja entrega com ACOS, ROAS e a MARGEM REAL cruzada com custo e
+   * tarifas. Nada aqui e calculado: as sete colunas sao campos do produtor.
+   */
+  const anunciosDoPeriodo = overview.adsPorProduto ?? [];
+  const gastoEmAnuncios = anunciosDoPeriodo.reduce((total, anuncio) => total + anuncio.cost, 0);
+  const vendasAtribuidas = anunciosDoPeriodo.reduce((total, anuncio) => total + anuncio.sales, 0);
+
+  const anunciosDaTabela = anunciosDoPeriodo.slice(0, 5).map((anuncio) => {
+    // ⚠️ SEM VENDA ATRIBUIDA nao ha ACOS nem ROAS para mostrar. O
+    // produtor distingue isso por `purchases`, e nao pelo `acos` — um `acos: 0`
+    // vindo da fonte significaria "gastou e vendeu muito", que e o OPOSTO de
+    // "nao vendeu". A frente de Ads ja pagou por essa confusao.
+    const semVenda = anuncio.purchases === 0;
+    return {
+      id: anuncio.productId,
+      produto: anuncio.title ?? anuncio.sku ?? anuncio.productId,
+      impressoes: contagem(anuncio.impressions),
+      cliques: contagem(anuncio.clicks),
+      gasto: money(anuncio.cost, anuncio.currency),
+      vendasAtribuidas: semVenda
+        ? "sem venda"
+        : `${money(anuncio.sales, anuncio.currency)} · ${contagem(anuncio.purchases)}`,
+      semVenda,
+      acos: anuncio.acos == null ? "—" : `${anuncio.acos.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`,
+      roas: anuncio.roas == null ? "—" : `${anuncio.roas.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}×`,
+      marginPct: anuncio.margemRealPct,
+    };
+  });
+
+  /**
+   * ⚠️ O TACOS ENTRA COMO ACRESCIMO, e os dois motivos de ausencia NAO
+   * podem virar a mesma frase. `fraseDoTacos` guarda essa distincao no modulo
+   * testado: "nao sabemos o gasto" nao e "nao anunciou", e nenhum dos dois e
+   * "0%", que seria a unica boa noticia das tres.
+   */
+  const faltaDoTacos = fraseDoTacos(overview.profit.tacos);
+
   const alertasDoCaminho = [
     ...(overview.metrics.productsWithoutCost > 0 ? [{
       id: "sem-custo",
@@ -982,6 +1045,33 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
     />
 
     <RitmoDosDias dias={seteDiasDoRitmo} />
+
+    {/* ⚠️ ANUNCIOS PAGOS — o ultimo bloco do canvas. Ele so aparece
+        quando ha anuncio no periodo: sem campanha nenhuma, um card vazio falaria
+        de um assunto que nao existe na operacao dela. */}
+    {anunciosDoPeriodo.length === 0 ? null : (
+      <AnunciosPagos
+        titulo="Anúncios pagos"
+        resumo={
+          <>
+            {contagem(anunciosDoPeriodo.length)} SKU(s) · gasto {money(gastoEmAnuncios, overview.metrics.currency)}
+            {" · "}vendas atribuídas {money(vendasAtribuidas, overview.metrics.currency)}
+            {/* O TACOS quando ha numero; a frase do motivo quando nao ha. */}
+            {faltaDoTacos == null && overview.profit.tacos?.pct != null
+              ? <> · TACOS {overview.profit.tacos.pct.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%</>
+              : <> · {faltaDoTacos}</>}
+          </>
+        }
+        anuncios={anunciosDaTabela}
+        explicacao="O ACOS e o ROAS vêm do Mercado Livre. A margem real cruza esse gasto com o seu custo e as tarifas — é a coluna que diz se o anúncio valeu. Este gasto não está descontado do lucro acima: no Mercado Livre ele sai no seu fechamento."
+        vazio="Sem anúncios no período."
+        rodape={
+          anunciosDoPeriodo.length > anunciosDaTabela.length
+            ? <Link className="card-verlink" href="/mercado-livre/produtos">Ver os {contagem(anunciosDoPeriodo.length)} produtos anunciados →</Link>
+            : null
+        }
+      />
+    )}
 
     <section className="metric-grid ml-dashboard-metric-grid" aria-label="Resumo financeiro Mercado Livre">
       <Metric label="Faturamento" value={<AnimatedNumber periodo={identidadeDePeriodo(overview.period.from, overview.period.to)} id="ml-dash-revenue" value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={`${overview.metrics.paidOrders} aprovadas + ${overview.metrics.cancelledOrders} canceladas`} trend={getRevenueTrend(overview.dailySales)} />

@@ -352,3 +352,100 @@ export function RitmoDosDias({ dias, serieInicial = "lucro" }: {
     </CardDoCaminho>
   );
 }
+
+/* ── 5. ANUNCIOS PAGOS ───────────────────────────────────────────────────── */
+
+export interface AnuncioDaTabela {
+  id: string;
+  produto: string;
+  /** Ja formatados por quem chama. "—" quando a fonte nao informou. */
+  impressoes: string;
+  cliques: string;
+  gasto: string;
+  /** "R$ 75,80 · 2" ou o texto de ausencia ("sem venda"). */
+  vendasAtribuidas: string;
+  /** `true` quando nao houve venda atribuida: as colunas de retorno ficam vazias. */
+  semVenda: boolean;
+  acos: string;
+  roas: string;
+  marginPct: number | null;
+}
+
+/**
+ * ANUNCIOS PAGOS — o gasto de midia ao lado da margem real do produto.
+ *
+ * ⚠️ TACOS NAO E ACOS, e a diferenca e a pergunta que cada um responde.
+ * ACOS e gasto sobre a venda que O ANUNCIO gerou — mede se aquele anuncio se
+ * pagou. TACOS e sobre o faturamento INTEIRO da loja — mede dependencia de
+ * midia. Rotular um com o nome do outro troca a pergunta sem trocar o numero.
+ *
+ * ⚠️ E O QUE ESTA AQUI NAO ESTA NO LUCRO. No Mercado Livre o seller
+ * desconta o anuncio depois, no fechamento dele, e a decisao da Ana de
+ * 30/08/2026 e que o lucro do canal NAO subtrai esse gasto. O card divide; o
+ * lucro nao subtrai. Se o texto der a entender o contrario, ele contradiz a
+ * faixa de 4 etapas logo acima.
+ *
+ * ⚠️ A COLUNA QUE JUSTIFICA O CARD E A "MARGEM REAL": ACOS e ROAS vem do
+ * Mercado Livre e falam da venda atribuida; a margem real cruza o gasto com o
+ * custo e as tarifas que so o NEXO conhece. E a unica coluna que responde "o
+ * anuncio valeu".
+ */
+export function AnunciosPagos({ titulo, resumo, anuncios, explicacao, rodape, vazio }: {
+  titulo: string;
+  /** "85 SKUs · gasto R$ 34,99 · vendas atribuídas R$ 75,80 · TACOS 1,24%" */
+  resumo: ReactNode;
+  anuncios: AnuncioDaTabela[];
+  explicacao: ReactNode;
+  rodape?: ReactNode;
+  vazio: string;
+}) {
+  return (
+    <CardDoCaminho titulo={titulo} meta={resumo} rodape={rodape}>
+      <p className="card-explica">{explicacao}</p>
+      {anuncios.length === 0 ? <p className="card-vazio">{vazio}</p> : (
+        <table className="card-tabela card-tabela-ads">
+          <thead>
+            <tr>
+              <th scope="col">Produto</th>
+              <th scope="col" className="dir">Impressões</th>
+              <th scope="col" className="dir">Cliques</th>
+              <th scope="col" className="dir">Gasto</th>
+              <th scope="col" className="dir">Vendas atribuídas</th>
+              <th scope="col" className="dir">ACOS</th>
+              <th scope="col" className="dir">ROAS</th>
+              <th scope="col" className="dir">Margem real</th>
+            </tr>
+          </thead>
+          <tbody>
+            {anuncios.map((anuncio) => (
+              <tr key={anuncio.id}>
+                <td className="tb-nome" title={anuncio.produto}>{anuncio.produto}</td>
+                <td className="dir num">{anuncio.impressoes}</td>
+                <td className="dir num">{anuncio.cliques}</td>
+                <td className="dir num">{anuncio.gasto}</td>
+                {/* ⚠️ SEM VENDA ATRIBUIDA, o texto ocupa as tres colunas
+                    de retorno em vez de escrever "0%" em cada uma. Zero de ACOS
+                    seria lido como "otimo", quando o fato e que nao houve venda
+                    para dividir — sao coisas opostas. */}
+                {anuncio.semVenda ? (
+                  <td className="dir ads-sem-venda" colSpan={3}>{anuncio.vendasAtribuidas}</td>
+                ) : (
+                  <>
+                    <td className="dir num">{anuncio.vendasAtribuidas}</td>
+                    <td className="dir num">{anuncio.acos}</td>
+                    <td className="dir num">{anuncio.roas}</td>
+                  </>
+                )}
+                <td className={`dir num${anuncio.marginPct == null ? " is-desconhecida" : anuncio.marginPct < 0 ? " is-negativa" : ""}`}>
+                  {anuncio.marginPct == null
+                    ? "—"
+                    : `${anuncio.marginPct.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </CardDoCaminho>
+  );
+}

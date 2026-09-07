@@ -139,3 +139,34 @@ export function fatiaDoSobrou({ parcelas, lucro, base }: {
   if (lucro == null || !Number.isFinite(lucro) || lucro <= 0) return null;
   return sobreAVenda(lucro, base);
 }
+
+/**
+ * O que a tela escreve no lugar do TACOS.
+ *
+ * ⚠️ OS DOIS MOTIVOS DIZEM COISAS DIFERENTES, e trocar um pelo outro e
+ * mentir com naturalidade:
+ *
+ *   `gasto-desconhecido` = NAO SABEMOS quanto foi o anuncio. Escrever "sem
+ *     anuncios" aqui afirma que ela nao anunciou — pode ter anunciado muito e a
+ *     coleta e que nao chegou. O produtor renomeou o motivo justamente para
+ *     impedir essa leitura; a tela nao pode desfazer isso.
+ *
+ *   `sem-faturamento` = nao houve venda no periodo, entao nao ha sobre o que o
+ *     gasto incidir. Aqui o silencio e do denominador, nao do gasto.
+ *
+ * ⚠️ E NENHUM DOS DOIS VIRA "0%". Zero afirmaria "a midia nao pesou
+ * nada", que e uma terceira coisa, e a unica das tres que e uma boa noticia.
+ *
+ * Devolve `null` quando ha numero (a tela mostra o percentual) ou a frase curta
+ * que explica a ausencia.
+ */
+export function fraseDoTacos(tacos: {
+  pct: number | null;
+  motivo: "gasto-desconhecido" | "sem-faturamento" | null;
+} | null | undefined): string | null {
+  if (tacos == null) return "TACOS ainda não calculado";
+  if (tacos.pct != null) return null;
+  if (tacos.motivo === "gasto-desconhecido") return "TACOS sem o gasto de anúncios do período";
+  if (tacos.motivo === "sem-faturamento") return "TACOS sem faturamento no período para comparar";
+  return "TACOS ainda não calculado";
+}

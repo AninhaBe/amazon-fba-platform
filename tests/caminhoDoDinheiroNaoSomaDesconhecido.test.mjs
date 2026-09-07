@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { custoDaVenda, fatiaDoSobrou, ordenaPorMargem, sobreAVenda, somaDosCustos } from "../src/app/components/caminhoDoDinheiro.ts";
+import { custoDaVenda, fatiaDoSobrou, fraseDoTacos, ordenaPorMargem, sobreAVenda, somaDosCustos } from "../src/app/components/caminhoDoDinheiro.ts";
 
 const fonte = (caminho) => readFile(new URL(`../${caminho}`, import.meta.url), "utf8");
 const semComentarios = (codigo) =>
@@ -284,4 +284,79 @@ test("SEM aliquota e COM aliquota 0% dao a MESMA conta — so o sinal difere", (
     "frete desconhecido parou de apagar o total — a excecao do imposto vazou");
   assert.equal(fatiaDoSobrou({ parcelas: [1263.18, null, 331.44, 0], lucro: 590.87, base: 2819.90 }), null,
     "a fatia verde apareceu com o frete desconhecido");
+});
+
+test("os DOIS motivos do TACOS dizem coisas diferentes — e nenhum vira zero", () => {
+  // ⚠️ ESTE E O DEFEITO QUE O BACKEND PEDIU PARA EU NAO COMETER, com
+  // todas as letras: `gasto-desconhecido` NAO E "nao anunciou". Ela pode ter
+  // anunciado muito e a coleta e que nao chegou. Ele renomeou o motivo justamente
+  // para impedir essa leitura, e a tela nao pode desfazer isso escrevendo "sem
+  // anuncios".
+  const semGasto = fraseDoTacos({ pct: null, motivo: "gasto-desconhecido" });
+  const semBase = fraseDoTacos({ pct: null, motivo: "sem-faturamento" });
+
+  assert.ok(semGasto, "gasto desconhecido ficou sem frase — a tela mostraria vazio");
+  assert.ok(semBase, "sem faturamento ficou sem frase");
+  assert.notEqual(semGasto, semBase,
+    "os dois motivos viraram a MESMA frase — a tela deixou de distinguir 'nao sei o gasto' de 'nao houve venda'");
+
+  // ⚠️ E NENHUM DOS DOIS PODE AFIRMAR QUE ELA NAO ANUNCIOU. Esta e a
+  // assercao que o pedido do backend pede ao pe da letra.
+  for (const frase of [semGasto, semBase]) {
+    for (const proibido of ["sem anúncio", "sem anuncio", "não anunciou", "nao anunciou", "0%"]) {
+      assert.ok(!frase.toLowerCase().includes(proibido.toLowerCase()),
+        'a frase "' + frase + '" afirma o que a ausencia do TACOS NAO diz: "' + proibido + '"');
+    }
+  }
+
+  // Com numero, a tela mostra o numero — a frase some.
+  assert.equal(fraseDoTacos({ pct: 1.24, motivo: null }), null,
+    "a frase de ausencia apareceu junto com o numero");
+  // E sem o campo (produtor antigo) a tela diz que nao ha calculo, nao que e zero.
+  assert.ok(fraseDoTacos(null), "TACOS ausente do payload ficou sem frase");
+  assert.ok(fraseDoTacos(undefined), "TACOS undefined ficou sem frase");
+});
+
+test("o card de anuncios le o produtor — e distingue SEM VENDA de acos zero", async () => {
+  const ml = semComentarios(await fonte("src/app/components/MercadoLivreWorkspace.tsx"));
+
+  // ⚠️ `purchases === 0` E O SINAL DE "NAO VENDEU", nao `acos === 0`.
+  // Um `acos: 0` vindo da fonte significaria "gastou e vendeu muito" — o OPOSTO.
+  // A frente de Ads ja pagou por essa confusao uma vez.
+  assert.ok(ml.includes("const semVenda = anuncio.purchases === 0;"),
+    "o card passou a inferir 'sem venda' de outro campo — acos zero e o oposto de nao vender");
+
+  // As sete colunas saem de campos do produtor, sem conta no meio.
+  for (const campo of [
+    "impressoes: contagem(anuncio.impressions)",
+    "cliques: contagem(anuncio.clicks)",
+    "gasto: money(anuncio.cost, anuncio.currency)",
+    "marginPct: anuncio.margemRealPct",
+  ]) {
+    assert.ok(ml.includes(campo), "a coluna mudou de fonte: " + campo);
+  }
+  // ACOS e ROAS respeitam o desconhecido em vez de virar zero.
+  assert.ok(ml.includes('acos: anuncio.acos == null ? "—"'), "o ACOS desconhecido deixou de ser traco");
+  assert.ok(ml.includes('roas: anuncio.roas == null ? "—"'), "o ROAS desconhecido deixou de ser traco");
+});
+
+test("o card diz que o anuncio NAO esta descontado do lucro do ML", async () => {
+  // ⚠️ A DECISAO DA ANA DE 30/08/2026 CONTINUA DE PE: no Mercado Livre
+  // o seller desconta o anuncio depois, no fechamento dele, e o lucro do canal
+  // NAO subtrai esse gasto. TACOS divide; o lucro nao subtrai.
+  //
+  // Se o card der a entender o contrario, ele contradiz a faixa de 4 etapas que
+  // esta logo acima na mesma tela — e a vendedora fica com dois numeros que nao
+  // fecham, sem saber qual esta errado.
+  const ml = await fonte("src/app/components/MercadoLivreWorkspace.tsx");
+  const inicio = ml.indexOf("explicacao=\"O ACOS e o ROAS");
+  assert.ok(inicio > 0, "a explicacao do card de anuncios sumiu");
+  const explicacao = ml.slice(inicio, ml.indexOf("\"", inicio + 12) + 1);
+  assert.ok(explicacao.includes("não está descontado do lucro"),
+    "o card parou de dizer que o gasto de anuncio NAO entra no lucro do ML — passa a contradizer a faixa acima");
+
+  // E o gasto de anuncio NAO entra na soma dos custos da faixa.
+  const custos = ml.slice(ml.indexOf("const custosDoPeriodo = somaDosCustos(["), ml.indexOf("];", ml.indexOf("const custosDoPeriodo")));
+  assert.ok(!custos.includes("gastoEmAnuncios") && !custos.includes("adsPorProduto"),
+    "o gasto de anuncio entrou na conta do custo — o lucro do ML passou a subtrair midia, contra a decisao de 30/08");
 });

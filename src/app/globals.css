@@ -6262,6 +6262,24 @@ summary:hover { background: var(--paper-soft); }
   background: transparent;
 }
 
+/* ── ANUNCIOS PAGOS: oito colunas, entao larguras proprias ─────────────────
+   ⚠️ Sob `table-layout: fixed` as larguras vem da primeira linha, e
+   esta tabela tem o dobro de colunas das outras. Sem largura declarada, as oito
+   dividiriam o espaco em partes iguais e o nome do produto — a unica coluna que
+   pode ser cortada sem perder informacao — ficaria do tamanho de "Impressoes". */
+.card-tabela-ads th:nth-child(2),
+.card-tabela-ads th:nth-child(3) { width: 82px; }
+.card-tabela-ads th:nth-child(4) { width: 86px; }
+.card-tabela-ads th:nth-child(5) { width: 132px; }
+.card-tabela-ads th:nth-child(6),
+.card-tabela-ads th:nth-child(7) { width: 68px; }
+.card-tabela-ads th:nth-child(8) { width: 88px; }
+/* ⚠️ "sem venda" ocupa as tres colunas de retorno em vez de escrever
+   "0%" em cada uma. Zero de ACOS seria lido como otimo, quando o fato e que nao
+   houve venda para dividir — sao coisas opostas. O tom e o neutro do
+   desconhecido, nao o de alerta: gastar sem vender num periodo curto e comum. */
+.card-tabela-ads .ads-sem-venda { color: var(--ink-32); font-size: 11.5px; }
+
 .card-tag { display: inline-block; border-radius: 4px; padding: 1px 6px; font-size: 10.5px; font-weight: var(--weight-semibold); }
 .card-tag.is-ok { background: color-mix(in srgb, var(--ml-verde) 10%, transparent); color: var(--ml-verde); }
 .card-tag.is-acao { background: color-mix(in srgb, var(--danger) 10%, transparent); color: var(--danger); }
