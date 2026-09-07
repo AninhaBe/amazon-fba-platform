@@ -54,7 +54,11 @@ test("perguntas diferentes nunca se cruzam", async () => {
 test("as tres perguntas repetidas da abertura usam o helper", async () => {
   const casos = [
     ["src/app/components/useEhAdmin.ts", /buscaCompartilhada\("admin\/eu"/],
-    ["src/app/components/TrialNotice.tsx", /buscaCompartilhada\("trial"/],
+    // ⚠️ O `TrialNotice` SAIU DESTA LISTA em 07/09/2026 porque a peca
+    // saiu da arvore, nao porque a regra afrouxou. Ela cobria uma chamada dupla
+    // real, medida em producao em 28/08; com a faixa removida nao ha mais
+    // chamada a /api/trial no cliente. A rota continua de pe — o destino dela e
+    // do backend.
     ["src/app/components/AccountSwitcher.tsx", /buscaCompartilhada\("auth\/accounts"/],
     ["src/app/(app)/amazon/page.tsx", /buscaCompartilhada\("auth\/accounts"/],
   ];

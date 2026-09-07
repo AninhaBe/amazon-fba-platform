@@ -12,7 +12,6 @@ import { SidebarNexo } from "./SidebarNexo";
 import { workspaceFromPath } from "@/lib/integrations/workspaces";
 import { LogoutButton } from "./LogoutButton";
 import { CrispChat } from "./CrispChat";
-import { TrialNotice } from "./TrialNotice";
 import { NexoOnboarding } from "./NexoOnboarding";
 import { ShellTopbar } from "./ShellTopbar";
 import Link from "next/link";
@@ -136,7 +135,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           sidebarCollapsed={sidebarCollapsed}
           onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
         />
-        <TrialNotice />
         <NexoOnboarding />
         {/* Suporte via Crisp — só aqui, DEPOIS do early-return das rotas
             públicas: landing/login/privacidade nunca carregam o script. */}
