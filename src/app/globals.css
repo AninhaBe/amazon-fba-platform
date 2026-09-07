@@ -6110,7 +6110,22 @@ summary:hover { background: var(--paper-soft); }
    Continuam ESCOPADOS ao dashboard do ML — nao sobem para o `:root`. O verde e
    da marca do Mercado Livre; nos outros tres canais ele nao significa nada, e
    `--positive` segue sendo o verde de todos. */
-.ml-dashboard-page { --ml-verde: #337129; --ml-coluna: #17171733; }
+.ml-dashboard-page {
+  --ml-verde: #337129;
+  --ml-coluna: #17171733;
+  /* ⚠️ A RAMPA DO CUSTO, do canvas do Caminho do Dinheiro. Ela e
+     UMA tinta em quatro degraus, do custo mais pesado ao mais leve — nao quatro
+     cores categoricas. A escolha e a mesma da rosquinha dos outros canais e tem
+     o mesmo motivo: quatro matizes disputando atencao fazem o olho procurar
+     significado onde so ha ordem de grandeza.
+
+     Escopadas ao dashboard do ML, como o verde: nos outros tres canais elas nao
+     significam nada, e o `:root` alcancaria quem nao pediu. */
+  --ml-custo-1: #B4453A;
+  --ml-custo-2: #C97A5E;
+  --ml-custo-3: #D9A48A;
+  --ml-custo-4: #E7C6B3;
+}
 
 /* 36px e o tamanho da prancheta aprovada. Ele ja foi 44px na versao anterior:
    com o numero em verde saturado, 44 pesava mais que a frase que o explica, e a
@@ -6215,6 +6230,105 @@ summary:hover { background: var(--paper-soft); }
   height: 0 !important;
   border-block-start: 1px dashed var(--ink-12);
   background: transparent;
+}
+
+/* ── CAMINHO DO DINHEIRO: os cards de tabela (06/09/2026) ─────────────────── */
+.cards-caminho-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; }
+.card-caminho {
+  min-width: 0;
+  border-radius: var(--radius-md);
+  background: var(--paper);
+  padding: 13px 15px;
+  box-shadow: var(--shadow-surface);
+}
+.card-cab { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-block-end: 11px; }
+.card-cab h2 { margin: 0; font-size: 13px; font-weight: var(--weight-semibold); }
+.card-meta { color: var(--ink-faint); font-size: 11.5px; text-align: end; }
+
+/* O alternador do canvas e texto, nao botao: ele muda a LEITURA da mesma lista,
+   e um controle com moldura sugeriria que algo vai ser buscado. */
+.card-alternador button {
+  border: 0;
+  background: none;
+  color: var(--ink-faint);
+  font: inherit;
+  cursor: pointer;
+}
+.card-alternador button:hover { color: var(--ink-soft); text-decoration: underline; }
+.card-alternador button.is-ativo { color: var(--ink-muted); font-weight: var(--weight-semibold); }
+
+/* ⚠️ `table-layout: fixed` E O QUE FAZ AS LARGURAS VALEREM, e a
+   diferenca foi MEDIDA: com o layout automatico (o padrao), o navegador
+   dimensiona as colunas pelo conteudo e IGNORA o `max-width` das celulas — o
+   nome de produto pedia 230px e ocupava 341px, empurrando as colunas de numero.
+   Com layout fixo, a primeira linha define as larguras e o `text-overflow`
+   passa a ter contra o que cortar. */
+.card-ranking, .card-tabela { width: 100%; table-layout: fixed; border-collapse: collapse; }
+.card-tabela th {
+  border-block-end: 1px solid var(--line);
+  padding: 0 10px 6px;
+  color: var(--ink-faint);
+  font-size: 10.5px;
+  font-weight: var(--weight-body);
+  text-align: start;
+}
+.card-tabela th.dir, .card-tabela td.dir, .card-ranking td.rk-un, .card-ranking td.rk-val, .card-ranking td.rk-mg { text-align: end; }
+.card-ranking td, .card-tabela td { border-block-end: 1px solid var(--ink-05); padding: 7px 10px; font-size: 12px; }
+.card-ranking tr:last-child td, .card-tabela tbody tr:last-child td { border-block-end: 0; }
+.num, .card-ranking .rk-val, .card-ranking .rk-un { font-variant-numeric: tabular-nums; }
+
+/* ⚠️ NOME DE PRODUTO E UMA LINHA COM RETICENCIAS, e o `max-width` em
+   celula de tabela e o que faz o `text-overflow` valer: sem largura maxima a
+   celula cresce e empurra as colunas de numero para fora do card. */
+/* ⚠️ SEM `max-width` AQUI, e a ausencia e deliberada: sob
+   `table-layout: fixed` a largura da coluna vem da primeira linha, e o
+   `max-width` da celula e IGNORADO — medido, com a declaracao presente e a
+   celula em 347px. Deixa-la seria uma linha que a proxima pessoa leria como se
+   fizesse algo.
+
+   A coluna do nome fica com o que sobra depois das colunas de numero, que tem
+   largura propria. E a unica que deve encolher: e a unica que pode ser cortada
+   sem perder informacao, porque o texto inteiro continua no `title`. */
+.card-ranking .rk-nome, .card-tabela .tb-nome {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.card-ranking .rk-pos { width: 18px; color: var(--ink-faint); font-size: 10.5px; }
+.card-ranking .rk-un { width: 52px; color: var(--ink-muted); }
+.card-ranking .rk-val { width: 78px; }
+.card-ranking .rk-mg { width: 56px; font-weight: var(--weight-body); }
+.card-ranking .rk-mg.is-positiva { color: var(--ml-verde); }
+.card-tabela .is-negativa, .card-ranking .rk-mg.is-negativa { color: var(--danger); }
+/* Margem desconhecida nao ganha cor NENHUMA: verde diria "bom", vermelho diria
+   "ruim", e o que ha e ausencia de custo cadastrado. */
+.card-tabela .is-desconhecida, .card-ranking .rk-mg.is-desconhecida { color: var(--ink-faint); }
+.card-tabela .tb-ped { color: var(--ink-faint); font-size: 11.5px; }
+/* Com layout fixo a primeira linha manda: as colunas de numero recebem largura
+   propria e o nome fica com o que sobra — que e a unica coluna que deve
+   encolher, porque e a unica que pode ser cortada sem perder informacao (o
+   texto inteiro continua no `title`). */
+.card-tabela th:nth-child(2) { width: 88px; }
+.card-tabela th:nth-child(3), .card-tabela th:nth-child(4), .card-tabela th:nth-child(5) { width: 92px; }
+.card-tabela th:nth-child(6) { width: 78px; }
+
+.card-cascata { display: flex; height: 8px; overflow: hidden; border-radius: 4px; margin-block: 2px 11px; }
+.card-cascata i { display: block; height: 100%; }
+.card-marca { display: inline-block; width: 7px; height: 7px; border-radius: 2px; margin-inline-end: 7px; }
+.card-explica { margin: 0 0 9px; color: var(--ink-faint); font-size: 11px; line-height: 1.5; }
+.card-vazio { margin: 0; color: var(--ink-muted); font-size: 12px; }
+
+.card-tag { display: inline-block; border-radius: 4px; padding: 1px 6px; font-size: 10.5px; font-weight: var(--weight-semibold); }
+.card-tag.is-ok { background: color-mix(in srgb, var(--ml-verde) 10%, transparent); color: var(--ml-verde); }
+.card-tag.is-acao { background: color-mix(in srgb, var(--danger) 10%, transparent); color: var(--danger); }
+.card-tag.is-atencao { background: color-mix(in srgb, var(--warning) 14%, transparent); color: var(--warning); }
+.card-tag.is-neutro { background: var(--ink-05); color: var(--ink-muted); }
+
+.card-verlink { display: block; margin-block-start: 9px; color: var(--ml-verde); font-size: 11.5px; font-weight: var(--weight-body); text-decoration: none; }
+.card-verlink:hover { text-decoration: underline; }
+
+@media (max-width: 1024px) {
+  .cards-caminho-2 { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* ── CAMINHO DO DINHEIRO: a faixa de 4 etapas (06/09/2026) ─────────────────

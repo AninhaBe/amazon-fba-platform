@@ -35,8 +35,8 @@ import { BriefingLead } from "./BriefingLead";
 import { NexoDoDia } from "./NexoDoDia";
 import { LucroPorDia } from "./CockpitDoResultado";
 import { AlertasDoCaminho, FaixaDeEtapas } from "./FaixaDeEtapas";
-import { somaDosCustos } from "./caminhoDoDinheiro";
-import { TopProdutosNaFaixa } from "./TopProdutosNaFaixa";
+import { custoDaVenda, sobreAVenda, somaDosCustos } from "./caminhoDoDinheiro";
+import { DecomposicaoDoCusto, RankingDaVenda, TabelaDeVendas } from "./CardsDoCaminho";
 import { IntegrationDashboardFrame } from "./IntegrationDashboardFrame";
 
 /**
@@ -683,6 +683,79 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
     },
   ];
 
+  /**
+   * ⚠️ OS COMPONENTES DO CUSTO, cada um com a sua SITUACAO — que e o
+   * ponto do card: a decomposicao sozinha ja existia; o que ela nao dizia era
+   * quanto de cada linha esta conferido. "5 sem custo" ao lado de "Custo dos
+   * produtos" e o que transforma um numero num pedido de acao.
+   */
+  const componentesDoCusto = [
+    {
+      id: "cogs",
+      rotulo: "Custo dos produtos",
+      valor: money(overview.profit.cogs, overview.metrics.currency),
+      sobreAVendaPct: sobreAVenda(overview.profit.cogs, overview.metrics.revenue30d),
+      situacao: overview.profit.skusWithoutCost > 0 ? `${overview.profit.skusWithoutCost} sem custo` : "completo",
+      tomDaSituacao: overview.profit.skusWithoutCost > 0 ? ("acao" as const) : ("ok" as const),
+      cor: "var(--ml-custo-1)",
+    },
+    {
+      id: "shipping",
+      rotulo: "Frete",
+      valor: money(overview.profit.sellerShipping, overview.metrics.currency),
+      sobreAVendaPct: sobreAVenda(overview.profit.sellerShipping, overview.metrics.revenue30d),
+      situacao: overview.profit.shippingCostsComplete ? "completo" : "em apuração",
+      tomDaSituacao: overview.profit.shippingCostsComplete ? ("ok" as const) : ("atencao" as const),
+      cor: "var(--ml-custo-2)",
+    },
+    {
+      id: "fees",
+      rotulo: "Taxas do Mercado Livre",
+      valor: money(overview.profit.fees, overview.metrics.currency),
+      sobreAVendaPct: sobreAVenda(overview.profit.fees, overview.metrics.revenue30d),
+      situacao: `${profitCoverage.processedOrders} processada(s)`,
+      tomDaSituacao: "neutro" as const,
+      cor: "var(--ml-custo-3)",
+    },
+    {
+      id: "taxes",
+      rotulo: "Impostos",
+      // ⚠️ Sem aliquota cadastrada o imposto e DESCONHECIDO, e a
+      // celula mostra traco. Zero aqui diria "esta operacao nao paga imposto".
+      valor: overview.profit.taxes == null ? "—" : money(overview.profit.taxes, overview.metrics.currency),
+      sobreAVendaPct: sobreAVenda(overview.profit.taxes, overview.metrics.revenue30d),
+      situacao: overview.profit.taxes == null ? "sem alíquota" : "completo",
+      tomDaSituacao: overview.profit.taxes == null ? ("acao" as const) : ("ok" as const),
+      cor: "var(--ml-custo-4)",
+    },
+  ];
+
+  const produtosDoRanking = overview.topProducts.map((produto) => ({
+    id: produto.id,
+    titulo: produto.title,
+    unidades: `${produto.units.toLocaleString("pt-BR")} un`,
+    faturamento: money(produto.revenue, overview.metrics.currency),
+    marginPct: produto.marginPct,
+    ordemFaturamento: produto.revenue,
+    ordemUnidades: produto.units,
+  }));
+
+  const vendasDaTabela = overview.profitabilityLines.slice(0, 6).map((linha) => {
+    const custos = custoDaVenda(linha.revenue, linha.contribution);
+    return {
+      id: linha.id,
+      produto: linha.product,
+      // O final do numero basta para ela achar o pedido, e o numero inteiro
+      // ocupa a coluna toda.
+      pedido: `#…${linha.orderId.slice(-6)}`,
+      venda: linha.revenue == null ? "—" : money(linha.revenue, linha.currency),
+      custos: custos == null ? "—" : money(custos, linha.currency),
+      sobrou: linha.contribution == null ? "—" : money(linha.contribution, linha.currency),
+      marginPct: linha.marginPct,
+      negativa: linha.contribution != null && linha.contribution < 0,
+    };
+  });
+
   const alertasDoCaminho = [
     ...(overview.metrics.productsWithoutCost > 0 ? [{
       id: "sem-custo",
@@ -825,20 +898,31 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
 
     <AlertasDoCaminho alertas={alertasDoCaminho} />
 
-    <LucroPorDia titulo="Lucro por dia — últimos 7" dias={seteDiasDeLucro} />
+    {/* ⚠️ OS DOIS CARDS LADO A LADO — a linha 2 do canvas. O ranking
+        responde "de onde veio a venda" e a decomposicao responde "para onde foi
+        o dinheiro"; sao a mesma pergunta por dois angulos, e empilhados
+        obrigavam a rolar de um para o outro. */}
+    <section className="cards-caminho-2">
+      <RankingDaVenda produtos={produtosDoRanking} vazio="Sem vendas no período para ranquear." />
+      <DecomposicaoDoCusto
+        componentes={componentesDoCusto}
+        sobreQuanto={`sobre ${money(overview.metrics.revenue30d, overview.metrics.currency)} vendidos`}
+        explicacao="Enquanto o custo não entra, a margem desses itens fica em branco e o lucro do dia sai menor do que é."
+      />
+    </section>
 
-    <TopProdutosNaFaixa
-      titulo={`Top produtos — ${periodoLabel}`}
-      href="/mercado-livre/produtos"
-      vazio="Sem vendas no período para ranquear."
-      produtos={overview.topProducts.map((produto) => ({
-        id: produto.id,
-        titulo: produto.title,
-        unidades: `${produto.units.toLocaleString("pt-BR")} un.`,
-        faturamento: money(produto.revenue, overview.metrics.currency),
-        marginPct: produto.marginPct,
-      }))}
+    <TabelaDeVendas
+      vendas={vendasDaTabela}
+      escopo={fraseDeEscopo(overview.profitabilityScope) ?? `${overview.profitabilityLines.length} venda(s) no período`}
+      vazio="Nenhuma venda no período."
+      rodape={
+        overview.profitabilityLines.length > vendasDaTabela.length
+          ? <Link className="card-verlink" href="/mercado-livre/monitor">Ver as {overview.profitabilityLines.length} vendas →</Link>
+          : null
+      }
     />
+
+    <LucroPorDia titulo="Lucro por dia — últimos 7" dias={seteDiasDeLucro} />
 
     <section className="metric-grid ml-dashboard-metric-grid" aria-label="Resumo financeiro Mercado Livre">
       <Metric label="Faturamento" value={<AnimatedNumber periodo={identidadeDePeriodo(overview.period.from, overview.period.to)} id="ml-dash-revenue" value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={`${overview.metrics.paidOrders} aprovadas + ${overview.metrics.cancelledOrders} canceladas`} trend={getRevenueTrend(overview.dailySales)} />

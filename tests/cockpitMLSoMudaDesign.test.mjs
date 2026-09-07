@@ -144,38 +144,32 @@ test("nenhuma classe do cockpit e usada sem existir no CSS", async () => {
   assert.deepEqual(ausentes, [], `classes sem definição: ${ausentes.join(", ")}`);
 });
 
-test("a DIREITA DA FAIXA le o mesmo produtor que o bloco de baixo", async () => {
+test("os CARDS leem o mesmo produtor — e nao montam a propria lista", async () => {
   const codigo = semComentarios(await fonte(ML));
-  // ⚠️ ESTA GUARDA JA MUDOU DE INTENCAO DUAS VEZES, e vale registrar as
-  // duas: ate 03/09/2026 ela exigia a ROSQUINHA na direita da faixa; depois
-  // exigiu a CONTA ESCRITA. Em 06/09/2026 a dona tirou a conta escrita —
-  // *"a tela da esquerda ja mostra literalmente isso"* — e pos o Top produtos.
+  // ⚠️ INTENCAO INVERTIDA (etapa 3 do Caminho do Dinheiro). Esta
+  // guarda ja exigiu a rosquinha na direita da faixa, depois a conta escrita,
+  // depois o `TopProdutosNaFaixa`. O canvas trocou os tres pelo card "De onde
+  // veio a venda", com alternador — e o `TopProdutosNaFaixa` saiu da pagina.
   //
-  // O que ela sempre protegeu, e continua protegendo, e que a direita da faixa
-  // NAO monte a propria lista: ela le o mesmo produtor que o bloco de baixo.
-  // Duas listas do mesmo periodo na mesma pagina podem divergir sem nada ficar
-  // vermelho.
-  assert.equal(
-    (codigo.match(/buildFinancialComposition\(\{/g) ?? []).length, 1,
-    "a composicao passou a ser calculada em dois lugares",
-  );
-  assert.match(codigo, /slices=\{composicaoDoResultado\}/,
-    "o painel de baixo deixou de ler a composicao compartilhada");
-
-  // ⚠️ A LISTA DA FAIXA SAI DE `overview.topProducts` DIRETO — sem sort,
-  // sem slice, sem filter no caminho. A ordem e o corte sao do produtor, que e
-  // quem o bloco de baixo tambem consome.
-  const daFaixa = codigo.slice(codigo.indexOf("<TopProdutosNaFaixa"), codigo.indexOf("/>", codigo.indexOf("<TopProdutosNaFaixa")));
-  assert.match(daFaixa, /produtos=\{overview\.topProducts\.map\(/,
-    "a faixa deixou de ler `overview.topProducts` — a lista virou outra");
+  // O QUE ELA SEMPRE PROTEGEU CONTINUA, e e a unica coisa que importa aqui: a
+  // lista sai de `overview.topProducts` DIRETO. Duas listas do mesmo periodo na
+  // mesma pagina podem divergir sem nada ficar vermelho.
+  const ranking = codigo.slice(codigo.indexOf("const produtosDoRanking = "), codigo.indexOf("const vendasDaTabela"));
+  assert.ok(ranking.includes("overview.topProducts.map("),
+    "o ranking deixou de ler `overview.topProducts` — a lista virou outra");
   for (const proibido of [".sort(", ".slice(", ".filter("]) {
-    assert.ok(!daFaixa.includes(proibido),
-      `a faixa passou a ${proibido} a lista: dois rankings do mesmo periodo, e o dia em que discordarem ninguem ve nada vermelho`);
+    assert.ok(!ranking.includes(proibido),
+      "o ranking passou a " + proibido + " a lista no ML: a ordem e o corte sao do produtor");
   }
-  // E o bloco de baixo continua na pagina, lendo a mesma coisa: a dona nao
-  // pediu para tira-lo.
-  assert.match(codigo, /<TopProductsRanking products=\{overview\.topProducts\.map\(/,
-    "o bloco de baixo saiu da pagina ou trocou de fonte — e ninguem pediu isso");
+  // ⚠️ E A ORDENACAO POR MARGEM VIVE NO MODULO TESTADO, nao num sort
+  // solto: `null` ordenado como 0% acusaria de pior quem ninguem mediu.
+  const cards = semComentarios(await fonte("src/app/components/CardsDoCaminho.tsx"));
+  assert.ok(cards.includes("ordenaPorMargem(produtos)"),
+    "o ranking por margem parou de usar a funcao testada");
+
+  // A composicao continua com UM calculo so para quem ainda a consome.
+  assert.equal((codigo.match(/buildFinancialComposition\(\{/g) ?? []).length, 1,
+    "a composicao passou a ser calculada em dois lugares");
 });
 
 test("a conta escrita saiu SEM ORFAO — peca, preparo e CSS", async () => {
@@ -195,60 +189,58 @@ test("a conta escrita saiu SEM ORFAO — peca, preparo e CSS", async () => {
   }
 });
 
-test("o selo de margem usa o limiar GLOBAL — nao um copiado", async () => {
-  // ⚠️ A ORDEM FOI EXPLICITA: *"replicar os limiares que a tabela de baixo
+test("a margem usa o limiar GLOBAL — e o desconhecido nao ganha veredito", async () => {
+  // ⚠️ A GUARDA MUDOU DE ALVO, nao de intencao. Ela vigiava o selo do
+  // `TopProdutosNaFaixa`, que saiu da pagina na etapa 3 do Caminho do Dinheiro;
+  // a propriedade migrou para o ranking e a tabela dos cards novos. Guarda que
+  // continua testando peca que ninguem renderiza defende codigo morto.
+  //
+  // A ORDEM DELA CONTINUA A MESMA: *"replicar os limiares que a tabela de baixo
   // ja usa, nao inventar novos"*. O jeito silencioso de desobedecer e escrever
-  // `marginPct < 12` aqui: funciona hoje, e no dia em que alguem mexer na regra
-  // global o MESMO produto sai ambar na faixa e verde na tabela.
-  const faixa = semComentarios(await fonte("src/app/components/TopProdutosNaFaixa.tsx"));
+  // `marginPct < 12` na peca: funciona hoje, e no dia em que a regra global
+  // mudar o MESMO produto sai ambar num lugar e verde no outro.
+  const cards = semComentarios(await fonte("src/app/components/CardsDoCaminho.tsx"));
   const tabela = semComentarios(await fonte("src/app/components/TopProductsRanking.tsx"));
 
-  assert.match(faixa, /import \{ marginStateClass \} from "@\/lib\/marginTone";/,
-    "a faixa deixou de pedir o tom a regra global");
-  assert.match(faixa, /marginStateClass\(produto\.marginPct\)/, "o selo parou de consultar a regra global");
-  assert.match(tabela, /marginStateClass/, "a tabela de baixo deixou de usar a mesma regra — os dois divergem");
-  // ⚠️ COMPARACAO DE STRING LITERAL, e a primeira versao NAO era. Ela
-  // usava a RegExp `[<>]=?\s*(12|15)\b` — e o `\b` chegou ao arquivo como um
-  // BACKSPACE de verdade (0x08), entao a expressao nunca casou nada e a quebra
-  // com `marginPct < 12` injetado ficou VERDE. E a armadilha que o AGENTS.md
-  // descreve com todas as letras, e ela pegou de novo. Aqui a lista e chata,
-  // literal e verificavel a olho.
+  assert.ok(tabela.includes("marginStateClass"), "a tabela de baixo deixou de usar a regra global");
   for (const limiar of ["<12", "< 12", "<=12", "<= 12", ">15", "> 15", ">=15", ">= 15", "<15", "< 15", ">12", "> 12"]) {
-    assert.ok(!faixa.includes(limiar),
-      `apareceu o limiar "${limiar}" escrito a mao na faixa: um dos dois lados vai ficar para tras quando a regra global mudar`);
+    assert.ok(!cards.includes(limiar),
+      'apareceu o limiar "' + limiar + '" escrito a mao nos cards: um dos lados vai ficar para tras');
   }
 
-  // ⚠️ E `null` NAO VIRA 0%: custo nao cadastrado e ausencia, e o selo
-  // mostra o traco. Um `?? 0` aqui pintaria de vermelho um produto que ninguem
-  // sabe se da lucro.
-  assert.match(faixa, /produto\.marginPct == null\s*\?\s*"—"/,
-    "margem desconhecida deixou de ser traco — vira 0% e um selo vermelho falso");
+  // ⚠️ E `null` NAO GANHA VEREDITO NENHUM. Verde diria "bom",
+  // vermelho diria "ruim", e o que ha e ausencia de custo cadastrado. O
+  // desconhecido sai como traco, em tinta neutra.
+  assert.ok(cards.includes('produto.marginPct == null' + QUEBRA + '                    ? "\u2014"'),
+    "a margem desconhecida do ranking deixou de ser traco");
+  assert.ok(cards.includes('venda.marginPct == null' + QUEBRA + '                    ? "\u2014"'),
+    "a margem desconhecida da tabela deixou de ser traco");
 });
 
-test("o titulo do produto e UMA linha que nao estoura a coluna", async () => {
-  // ⚠️ `min-width: 0` E O QUE FAZ O `text-overflow` FUNCIONAR num item
-  // flex: sem ele o item nao encolhe abaixo do proprio conteudo, a linha estica
-  // e a lista vaza para fora da faixa. A guarda ancora nos tres juntos porque
-  // qualquer um sozinho nao entrega o corte.
+test("o nome do produto e UMA linha que nao estoura a coluna", async () => {
+  // ⚠️ MESMA PROPRIEDADE, ALVO NOVO: a lista da faixa virou as tabelas
+  // dos cards. E aqui a guarda ganhou uma peca que a versao anterior nao tinha,
+  // porque o defeito so apareceu ao MEDIR: em tabela, `max-width` na celula e
+  // IGNORADO sob o layout automatico (medido: pedia 230px e ocupava 347px, e as
+  // colunas de numero eram empurradas). Quem faz a largura valer e
+  // `table-layout: fixed`.
   const css = (await fonte("src/app/globals.css")).replace(/\/\*[\s\S]*?\*\//g, "");
-  const bloco = css.slice(css.indexOf(".top-faixa-titulo {"), css.indexOf("}", css.indexOf(".top-faixa-titulo {")));
-  for (const regra of ["min-width: 0;", "overflow: hidden;", "text-overflow: ellipsis;", "white-space: nowrap;"]) {
-    assert.ok(bloco.includes(regra), `o titulo perdeu \`${regra}\` e volta a empurrar a lista para fora da coluna`);
-  }
-  // A coluna da direita e a largura da prancheta, e nao pode voltar a ser
-  // elastica: o titulo encolheria junto com a janela.
-  // ⚠️ A LARGURA E FIXA E TEM VALOR EXATO DE PROPOSITO. Ela ja foi
-  // 400px; a dona a levou para 470 em 06/09/2026, marcando a divisao no canvas
-  // (*"a barra vertical vermelha vai ser a divisao"*). Casar o numero — e nao
-  // so "existe um flex-basis" — obriga quem mexer a passar por aqui, porque a
-  // largura decide quanto do titulo do produto cabe antes das reticencias.
-  assert.ok(css.includes("flex: 0 0 470px;"),
-    "a coluna da faixa mudou de largura ou voltou a ser elastica: o corte do titulo muda junto");
 
-  // E o titulo completo continua alcancavel, mesmo cortado na tela.
-  const peca = semComentarios(await fonte("src/app/components/TopProdutosNaFaixa.tsx"));
-  assert.match(peca, /title=\{produto\.titulo\}/,
-    "o titulo cortado deixou de ter o texto inteiro no atributo — nao da mais para saber qual produto e");
+  assert.ok(css.includes(".card-ranking, .card-tabela { width: 100%; table-layout: fixed; border-collapse: collapse; }"),
+    "as tabelas dos cards voltaram ao layout automatico: as larguras de coluna param de valer");
+
+  const inicio = css.indexOf(".card-ranking .rk-nome, .card-tabela .tb-nome {");
+  assert.ok(inicio >= 0, "a regra do nome do produto sumiu");
+  const bloco = css.slice(inicio, css.indexOf("}", inicio));
+  for (const regra of ["overflow: hidden;", "text-overflow: ellipsis;", "white-space: nowrap;"]) {
+    assert.ok(bloco.includes(regra), "o nome perdeu `" + regra + "` e volta a empurrar a lista");
+  }
+
+  // ⚠️ E O TEXTO INTEIRO CONTINUA ALCANCAVEL, mesmo cortado na tela —
+  // senao o corte esconde qual produto e.
+  const cards = semComentarios(await fonte("src/app/components/CardsDoCaminho.tsx"));
+  assert.ok(cards.includes('title={produto.titulo}'), "o nome do ranking perdeu o texto inteiro no atributo");
+  assert.ok(cards.includes('title={venda.produto}'), "o nome da tabela perdeu o texto inteiro no atributo");
 });
 
 test("a variante do painel e OPT-IN: so o ML passa, e o default e o de hoje", async () => {
@@ -300,24 +292,25 @@ test("as DUAS COLUNAS sao do canal, e as pecas de dentro nao mudaram", async () 
 });
 
 test("A ORDEM DOS BLOCOS E A DO CANVAS — e ela ja foi reprovada uma vez", async () => {
-  // ⚠️ INTENCAO INVERTIDA (06/09/2026): a sequencia era a da Direcao A
-  // (faixa do lucro -> chips -> regua de cards -> duas colunas). O canvas do
-  // Caminho do Dinheiro poe a faixa de 4 etapas primeiro e os alertas logo
-  // depois, porque a leitura e "quanto sobrou -> o que precisa de mim".
+  // ⚠️ INTENCAO ATUALIZADA na etapa 3: o `TopProdutosNaFaixa` saiu e
+  // no lugar dele entraram os dois cards lado a lado e a tabela de vendas. A
+  // sequencia do canvas e: faixa de 4 etapas -> alertas -> ranking + custo ->
+  // vendas -> ritmo.
   //
-  // ⚠️ E O MOTIVO DE ELA EXISTIR NAO MUDOU: a v258 foi reprovada pela
-  // dona por blocos certos em ordem errada — *"Eu pedi pra voce fazer exatamente
-  // como me apresentou"*. Guarda de existencia nao pega isso.
+  // ⚠️ O MOTIVO DE ELA EXISTIR NAO MUDA NUNCA: a v258 foi reprovada
+  // pela dona por blocos certos em ordem errada — *"Eu pedi pra voce fazer
+  // exatamente como me apresentou"*. Guarda de existencia nao pega isso.
   const codigo = semComentarios(await fonte(ML));
   const corpo = codigo.slice(codigo.indexOf("<FaixaDeEtapas"));
   const sequencia = [
     ["a faixa de 4 etapas", "<FaixaDeEtapas etapas="],
     ["os alertas", "<AlertasDoCaminho alertas="],
+    ["os dois cards lado a lado", 'className="cards-caminho-2"'],
+    ["o ranking", "<RankingDaVenda produtos="],
+    ["a decomposicao do custo", "<DecomposicaoDoCusto"],
+    ["a tabela de vendas", "<TabelaDeVendas"],
     ["o lucro por dia", "<LucroPorDia titulo="],
-    ["o top produtos", "<TopProdutosNaFaixa" + QUEBRA],
     ["a regua de cards", 'className="metric-grid ml-dashboard-metric-grid"'],
-    ["as duas colunas", 'className="ml-cockpit-duas-colunas"'],
-    ["o grafico e a composicao", 'className="performance-panel"'],
   ];
   let anterior = -1;
   for (const [nome, marcador] of sequencia) {
@@ -359,22 +352,44 @@ test("a paleta da cascata saiu JUNTO com a cascata — sem orfao", async () => {
   assert.ok(donut.includes("tom: tomDaFatia(i, s)"), "a rosquinha voltou a decidir a cor por conta propria");
 });
 
-test("o verde do ML alcanca a pagina inteira do canal — e so ela", async () => {
-  // ⚠️ INTENCAO AJUSTADA (06/09/2026), e o motivo veio de um achado do
-  // design-sync: --ml-verde e --ml-coluna so existiam dentro de .cockpit-faixa.
-  // Enquanto tudo que as usava morava la dentro, ninguem viu; com a faixa de 4
-  // etapas, o lucro por dia e o top produtos viraram irmaos na pagina e a caixa
-  // que os continha deixou de existir — as tres pecas ficariam sem cor.
+test("as cores do ML alcancam a pagina do canal — e so ela", async () => {
+  // ⚠️ INTENCAO AJUSTADA na etapa 3: o bloco de tokens do ML ganhou a
+  // rampa do custo do canvas (quatro degraus de uma tinta so), entao a assercao
+  // de string literal do bloco inteiro deixou de valer. Ela passa a casar cada
+  // token, um a um — mais chato e igualmente verificavel.
   //
   // O QUE NAO MUDOU, e e a ordem literal dela: *"O verde #337129 e do ML — NAO
-  // mexa no token global --positive dos outros canais"*. Ele subiu de escopo,
-  // nao virou global.
+  // mexa no token global --positive dos outros canais"*.
   const css = (await fonte("src/app/globals.css")).replace(/\/\*[\s\S]*?\*\//g, "");
 
   assert.ok(css.includes("--positive: oklch(0.505 0.102 161);"),
     "o token global --positive mudou de valor: os outros tres canais mudaram de verde junto");
-  assert.ok(css.includes(".ml-dashboard-page { --ml-verde: #337129; --ml-coluna: #17171733; }"),
-    "os tokens do ML mudaram de escopo: no :root alcancam quem nao pediu, num seletor menor as pecas ficam sem cor");
+
+  // ⚠️ O ESCOPO E A PAGINA DO CANAL. No `:root` as cores alcancam
+  // quem nao pediu; num seletor menor as pecas irmas ficam sem cor — foi o
+  // achado #2 do design-sync, com `--ml-verde` preso a `.cockpit-faixa`.
+  // ⚠️ ACHA O BLOCO PELO TOKEN, e nao pelo primeiro seletor de mesmo
+  // nome: `.ml-dashboard-page` aparece varias vezes no arquivo (a primeira e o
+  // layout da pagina, sem token nenhum). Um `indexOf` do seletor recortava o
+  // bloco errado e a guarda reprovava dizendo que o token sumiu — com o token
+  // la. Foi o que aconteceu ao rodar esta versao pela primeira vez.
+  const ondeMoraOVerde = css.indexOf("--ml-verde: #337129;");
+  assert.ok(ondeMoraOVerde >= 0, "o verde do ML sumiu do CSS");
+  const abertura = css.lastIndexOf("{", ondeMoraOVerde);
+  const seletor = css.slice(css.lastIndexOf("}", abertura) + 1, abertura).trim();
+  assert.equal(seletor, ".ml-dashboard-page",
+    "os tokens do ML mudaram de escopo: no :root alcancam quem nao pediu, num seletor menor as pecas irmas ficam sem cor");
+  const bloco = css.slice(abertura, css.indexOf("}", abertura));
+  for (const token of [
+    "--ml-verde: #337129;",
+    "--ml-coluna: #17171733;",
+    "--ml-custo-1: #B4453A;",
+    "--ml-custo-2: #C97A5E;",
+    "--ml-custo-3: #D9A48A;",
+    "--ml-custo-4: #E7C6B3;",
+  ]) {
+    assert.ok(bloco.includes(token), "token do ML fora do escopo da pagina do canal: " + token);
+  }
   assert.equal((css.match(/#337129/g) ?? []).length, 1,
     "o verde do ML foi copiado para outro seletor; um deles vai ficar para tras");
 
@@ -385,6 +400,7 @@ test("o verde do ML alcanca a pagina inteira do canal — e so ela", async () =>
   ]) {
     const fonteDaTela = semComentarios(await fonte(tela));
     assert.ok(!fonteDaTela.includes("FaixaDeEtapas"), tela + " passou a montar a faixa do Caminho do Dinheiro");
+    assert.ok(!fonteDaTela.includes("RankingDaVenda"), tela + " passou a montar os cards do Caminho do Dinheiro");
     assert.ok(!fonteDaTela.includes("ml-dashboard-page"), tela + " passou a usar a classe do dashboard do ML");
   }
 });

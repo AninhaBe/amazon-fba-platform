@@ -75,3 +75,18 @@ export function ordenaPorMargem<T extends { marginPct: number | null }>(itens: T
   conhecidos.sort((a, b) => (b.marginPct as number) - (a.marginPct as number));
   return [...conhecidos, ...desconhecidos];
 }
+
+/**
+ * O que a venda custou: o que entrou menos o que sobrou.
+ *
+ * ⚠️ A TABELA MOSTRA "CUSTOS" E O PRODUTOR NAO ENTREGA ESSE CAMPO — ele
+ * entrega a receita e a contribuicao. Derivar aqui, e nao no JSX, e o que
+ * permite testar o caso que importa: com receita OU contribuicao desconhecida,
+ * o custo e desconhecido. Um `(revenue ?? 0) - (contribution ?? 0)` daria um
+ * numero exato e errado, e a linha inteira pareceria conferida.
+ */
+export function custoDaVenda(receita: number | null | undefined, sobrou: number | null | undefined): number | null {
+  if (receita == null || !Number.isFinite(receita)) return null;
+  if (sobrou == null || !Number.isFinite(sobrou)) return null;
+  return receita - sobrou;
+}
