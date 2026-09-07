@@ -7,6 +7,20 @@
 > separado** — o agendador interno (ADR-019) consome a fila no mesmo processo,
 > porque criar peça nova para operar contraria a decisão que acabou de ser tomada.
 
+> 📌 **Estado medido em 07/09/2026: nada disto está no ar.** Consultado
+> `GET /notifications/v1/subscriptions/{tipo}` com o token do vendedor, os cinco
+> tipos testados (`TRANSACTION_UPDATE`, `ORDER_CHANGE`,
+> `FBA_INVENTORY_AVAILABILITY_CHANGES`, `ANY_OFFER_CHANGED`,
+> `REPORT_PROCESSING_FINISHED`) devolvem **404 NotFound** — não há assinatura
+> nenhuma. E `GET /notifications/v1/destinations`, com token grantless de escopo
+> `sellingpartnerapi::notifications`, devolve **lista vazia**: não existe nem
+> destino cadastrado, que é o pré-requisito da assinatura.
+>
+> Ou seja, hoje **toda a ingestão da Amazon é por varredura**. O ADR-023 continua
+> `Proposto`. Isto está registrado aqui para que a próxima leitura não precise
+> chamar a API para descobrir — e para que "o repo menciona a notificação" não
+> seja confundido com "a notificação está ativa".
+
 ## Objetivo
 
 Substituir parte das consultas periódicas por eventos da Amazon, mantendo as consultas atuais como reconciliação e recuperação em caso de atraso.
