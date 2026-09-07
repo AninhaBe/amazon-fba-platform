@@ -3,8 +3,18 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const fonte = (caminho) => readFile(new URL(`../${caminho}`, import.meta.url), "utf8");
+/**
+ * ⚠️ NORMALIZA O CR ANTES DE QUALQUER COISA, e e a SEGUNDA vez que
+ * esta familia morde neste projeto. A guarda de ordem casa
+ * `"<TopProdutosNaFaixa" + QUEBRA`, e QUEBRA e o char 10: num arquivo gravado
+ * em CRLF o que vem depois da tag e `\r\n`, entao a assercao nao casa e o teste
+ * reprova dizendo "o bloco sumiu da pagina" — sendo que o bloco esta la.
+ *
+ * Falso VERMELHO e tao ruim quanto falso verde: ensina a ignorar teste que
+ * reprova. A arvore tem arquivos nos dois formatos e vai continuar tendo.
+ */
 const semComentarios = (codigo) =>
-  codigo.replace(/\{\/\*[\s\S]*?\*\/\}/g, "").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+  codigo.split(String.fromCharCode(13)).join("").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
 
 /**
  * ⚠️ O DELIMITADOR DEPOIS DO NOME DA TAG, e ele nao e zelo: sem ele
