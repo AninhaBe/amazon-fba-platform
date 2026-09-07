@@ -535,3 +535,41 @@ test("as dimensoes do canvas do Caminho do Dinheiro estao de pe", async () => {
   assert.ok(barra.includes("height: calc(var(--fracao, 0) * 100%);"),
     "a barra do ritmo mudou de forma de calcular a altura");
 });
+
+test("em tela estreita as tabelas viram cartoes de chave e valor", async () => {
+  // ⚠️ TABELA DE SEIS OU OITO COLUNAS NAO ENCOLHE: ela rola na
+  // horizontal, e rolagem horizontal dentro de um card e o jeito mais rapido de
+  // esconder uma coluna sem ninguem perceber que ela existe. A spec pede cartao
+  // empilhado de chave e valor abaixo de 768px, e e isso que esta guarda ancora.
+  //
+  // Medido em iframes de 1180, 900 e 420px (media query responde a largura do
+  // iframe): a 420 as celulas empilham, o cabecalho sai, os rotulos aparecem e o
+  // nome do produto fica inteiro. Nas outras duas nada muda.
+  const css = (await fonte("src/app/globals.css")).replace(/\/\*[\s\S]*?\*\//g, "");
+  const inicio = css.indexOf("@media (max-width: 768px) {");
+  assert.ok(inicio >= 0, "a media query de tela estreita sumiu");
+  const bloco = css.slice(inicio, css.indexOf(QUEBRA + "}", inicio));
+
+  for (const [oQue, regra] of [
+    ["o cabecalho sai de cena", ".card-tabela thead { position: absolute;"],
+    ["as celulas empilham", ".card-tabela td { "],
+    ["o rotulo de cada valor aparece", "content: attr(data-rotulo);"],
+    ["o nome do produto deixa de ser cortado", "white-space: normal;"],
+  ]) {
+    assert.ok(bloco.includes(regra), oQue + " nao acontece mais em tela estreita: " + regra);
+  }
+
+  // ⚠️ O ROTULO VEM DO `data-rotulo` DA CELULA, e por isso ele PRECISA
+  // existir em toda celula de valor. Com o `thead` fora de cena, uma celula sem
+  // rotulo vira um numero solto no cartao — e a coluna que ela representava
+  // some da leitura sem deixar rastro.
+  const cards = await fonte("src/app/components/CardsDoCaminho.tsx");
+  for (const rotulo of [
+    "Pedido", "Venda", "Custos", "Sobrou", "Margem",
+    "Impressões", "Cliques", "Gasto", "Vendas atribuídas", "ACOS", "ROAS", "Margem real",
+    "Valor", "Sobre a venda", "Situação",
+  ]) {
+    assert.ok(cards.includes('data-rotulo="' + rotulo + '"'),
+      'a celula de "' + rotulo + '" perdeu o data-rotulo: em tela estreita ela vira um numero sem nome');
+  }
+});

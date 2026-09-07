@@ -189,10 +189,10 @@ export function DecomposicaoDoCusto({ componentes, sobreQuanto, explicacao, sobr
                 <span className="card-marca" aria-hidden="true" style={{ background: c.cor }} />
                 {c.rotulo}
               </td>
-              <td className="dir num">{c.valor}</td>
+              <td className="dir num" data-rotulo="Valor">{c.valor}</td>
               {/* Sem divisor valido nao ha porcentagem: celula vazia, nunca NaN%. */}
-              <td className="dir num">{c.sobreAVendaPct == null ? "—" : `${c.sobreAVendaPct.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`}</td>
-              <td><span className={`card-tag is-${c.tomDaSituacao ?? "neutro"}`}>{c.situacao}</span></td>
+              <td className="dir num" data-rotulo="Sobre a venda">{c.sobreAVendaPct == null ? "—" : `${c.sobreAVendaPct.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`}</td>
+              <td data-rotulo="Situação"><span className={`card-tag is-${c.tomDaSituacao ?? "neutro"}`}>{c.situacao}</span></td>
             </tr>
           ))}
         </tbody>
@@ -241,11 +241,11 @@ export function TabelaDeVendas({ vendas, escopo, rodape, vazio }: {
             {vendas.map((venda) => (
               <tr key={venda.id}>
                 <td className="tb-nome" title={venda.produto}>{venda.produto}</td>
-                <td className="tb-ped">{venda.pedido}</td>
-                <td className="dir num">{venda.venda}</td>
-                <td className="dir num">{venda.custos}</td>
-                <td className={`dir num${venda.negativa ? " is-negativa" : ""}`}>{venda.sobrou}</td>
-                <td className={`dir num${venda.marginPct == null ? " is-desconhecida" : venda.marginPct < 0 ? " is-negativa" : ""}`}>
+                <td className="tb-ped" data-rotulo="Pedido">{venda.pedido}</td>
+                <td className="dir num" data-rotulo="Venda">{venda.venda}</td>
+                <td className="dir num" data-rotulo="Custos">{venda.custos}</td>
+                <td className={`dir num${venda.negativa ? " is-negativa" : ""}`} data-rotulo="Sobrou">{venda.sobrou}</td>
+                <td className={`dir num${venda.marginPct == null ? " is-desconhecida" : venda.marginPct < 0 ? " is-negativa" : ""}`} data-rotulo="Margem">
                   {venda.marginPct == null
                     ? "—"
                     : `${venda.marginPct.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`}
@@ -420,23 +420,23 @@ export function AnunciosPagos({ titulo, resumo, anuncios, explicacao, rodape, va
             {anuncios.map((anuncio) => (
               <tr key={anuncio.id}>
                 <td className="tb-nome" title={anuncio.produto}>{anuncio.produto}</td>
-                <td className="dir num">{anuncio.impressoes}</td>
-                <td className="dir num">{anuncio.cliques}</td>
-                <td className="dir num">{anuncio.gasto}</td>
+                <td className="dir num" data-rotulo="Impressões">{anuncio.impressoes}</td>
+                <td className="dir num" data-rotulo="Cliques">{anuncio.cliques}</td>
+                <td className="dir num" data-rotulo="Gasto">{anuncio.gasto}</td>
                 {/* ⚠️ SEM VENDA ATRIBUIDA, o texto ocupa as tres colunas
                     de retorno em vez de escrever "0%" em cada uma. Zero de ACOS
                     seria lido como "otimo", quando o fato e que nao houve venda
                     para dividir — sao coisas opostas. */}
                 {anuncio.semVenda ? (
-                  <td className="dir ads-sem-venda" colSpan={3}>{anuncio.vendasAtribuidas}</td>
+                  <td className="dir ads-sem-venda" colSpan={3} data-rotulo="Retorno">{anuncio.vendasAtribuidas}</td>
                 ) : (
                   <>
-                    <td className="dir num">{anuncio.vendasAtribuidas}</td>
-                    <td className="dir num">{anuncio.acos}</td>
-                    <td className="dir num">{anuncio.roas}</td>
+                    <td className="dir num" data-rotulo="Vendas atribuídas">{anuncio.vendasAtribuidas}</td>
+                    <td className="dir num" data-rotulo="ACOS">{anuncio.acos}</td>
+                    <td className="dir num" data-rotulo="ROAS">{anuncio.roas}</td>
                   </>
                 )}
-                <td className={`dir num${anuncio.marginPct == null ? " is-desconhecida" : anuncio.marginPct < 0 ? " is-negativa" : ""}`}>
+                <td className={`dir num${anuncio.marginPct == null ? " is-desconhecida" : anuncio.marginPct < 0 ? " is-negativa" : ""}`} data-rotulo="Margem real">
                   {anuncio.marginPct == null
                     ? "—"
                     : `${anuncio.marginPct.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`}

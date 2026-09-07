@@ -6293,6 +6293,57 @@ summary:hover { background: var(--paper-soft); }
   .cards-caminho-2 { grid-template-columns: minmax(0, 1fr); }
 }
 
+/* ── TELA ESTREITA: as tabelas viram cartoes de chave e valor ──────────────
+   ⚠️ TABELA COM SEIS OU OITO COLUNAS NAO ENCOLHE — ela rola na
+   horizontal, e rolagem horizontal dentro de um card e o jeito mais rapido de
+   esconder uma coluna sem que ninguem perceba que ela existe. Empilhar troca a
+   leitura "linha por linha" por "produto por produto", que e a que cabe no
+   telefone.
+
+   O rotulo de cada valor vem do `data-rotulo` da celula, porque o `thead` sai
+   de cena: sem ele, quatro numeros empilhados nao dizem qual e qual. */
+@media (max-width: 768px) {
+  .card-tabela thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .card-tabela, .card-tabela tbody, .card-tabela tr, .card-tabela td { display: block; width: auto; }
+  .card-tabela tr {
+    border-radius: var(--radius-sm);
+    background: var(--paper-soft);
+    padding: 10px 12px;
+  }
+  .card-tabela tr + tr { margin-block-start: 8px; }
+  .card-tabela td {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    width: auto;
+    border-block-end: 0;
+    padding: 3px 0;
+    text-align: start;
+  }
+  /* A celula que tem rotulo mostra o rotulo; a primeira (o nome do produto)
+     ocupa a linha inteira como titulo do cartao. */
+  .card-tabela td[data-rotulo]::before {
+    content: attr(data-rotulo);
+    color: var(--ink-faint);
+    font-size: 11px;
+    font-weight: var(--weight-body);
+  }
+  .card-tabela td:first-child {
+    margin-block-end: 4px;
+    color: var(--ink);
+    font-weight: var(--weight-semibold);
+    /* No cartao o nome tem a largura toda: nao ha coluna vizinha para empurrar,
+       entao cortar aqui seria esconder de graca. */
+    overflow: visible;
+    white-space: normal;
+  }
+  /* O ranking e curto e continua tabela: cinco colunas estreitas cabem. */
+  .card-ranking .rk-nome { max-width: 46vw; }
+  .ritmo-colunas { height: 96px; }
+}
+
+
 .etapas {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
