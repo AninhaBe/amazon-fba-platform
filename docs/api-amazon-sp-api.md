@@ -252,6 +252,41 @@ Amazon*. Se o papel for concedido, o caminho é `transportationOptions` da 2024-
   (28/08): lá o assunto era *preço de tabela vs preço praticado*; aqui é *pedido
   que ainda não é venda*. São duas divergências independentes, e elas somam.
 
+  **O que a documentação oficial declara** (lida em 07/09/2026), para separar o
+  que é regra da Amazon do que é comportamento medido nesta conta:
+
+  - **`Pending` é definido como pagamento não autorizado**, verbatim:
+    *"The order has been placed but payment has not been authorized."* E a doc
+    avisa que nesse estado `getOrderItems` **"does not return information about
+    pricing, taxes, shipping charges, gift status or promotions"**. Ou seja, o
+    preço ausente é regra declarada, não falha de sync — e é `null`, não `0`.
+    ([ordersV0.json](https://github.com/amzn/selling-partner-api-models/blob/main/models/orders-api-model/ordersV0.json))
+  - **A única latência que a Amazon assume por escrito são 48 horas**, e a
+    formulação é de teto, não de promessa: *"Financial events might **not**
+    include orders from the last 48 hours."* Aparece nas quatro operações da
+    Finances (v0 e 2024-06-19).
+  - **O `deferralReason` da conta é `DD7`** — reserva por data de entrega — e o
+    `maturityDate` bate **exatamente +7 dias** sobre o `postedDate` nas 7
+    transações medidas (postado 30/08 → libera 06/09; 01/09 → 08/09; 03/09 →
+    12/09; 06/09 → 13/09).
+    ⚠️ **Onde o campo mora, na prática:** dentro de `contexts[]`, como
+    `{"contextType":"DeferredContext","deferralReason":"DD7","maturityDate":…}`
+    — **não** num campo `deferredContext` de primeiro nível, que é onde a leitura
+    da doc sugere procurar. `src/lib/amazonBalance.ts` já lê do lugar certo.
+  - **`transactionStatus` é filtro de query**, não só campo de resposta:
+    `?transactionStatus=DEFERRED` funciona e devolveu as 7.
+  - **Existe push para finanças: `TRANSACTION_UPDATE`**, *"sent whenever there is
+    a new transaction posted to the seller's account"*, em todos os marketplaces
+    ([changelog](https://developer-docs.amazon.com/sp-api/changelog/update-notification-for-new-transactions)).
+    Ele encurta a latência de **descoberta** (deixa de depender de varredura),
+    não as 48 h da Amazon. `docs/sp-api-notifications.md` já o lista.
+  - **`ORDER_STATUS_CHANGE` está morta** — sunset em 31/12/2023, substituída por
+    `ORDER_CHANGE`. O repo já usa a certa.
+  - ⚠️ **"Near real-time" para o Sales API não existe na documentação.** A
+    expressão circula em fórum; a Amazon não declara latência nenhuma para
+    `getOrderMetrics`, nem diz se pedidos `Pending` entram na métrica. A medição
+    acima mostra que **entram** — mas isso é observação nossa, não regra citável.
+
 - **2026-09-06 — O `orderMetrics` EXCLUI pedido cancelado. Medido 7 de 7 dias.**
   Comparação dia a dia entre o `orderMetrics` e o nosso canônico, na conta
   `AO62LVXJMX3AA`:
