@@ -254,6 +254,20 @@ Amazon*. Se o papel for concedido, o caminho é `transportationOptions` da 2024-
   03/09 era 403 na hora. Quem olhar só o código do POST conclui que tem acesso;
   o veredito está no documento do relatório com falha.
 
+  ❌ **A tag "X vendidos no último mês" NÃO existe na API — medido, não suposto.**
+  Puxados os **nove** valores de `includedData` que `/catalog/2022-04-01/items`
+  aceita para o seller (`attributes, classifications, dimensions, identifiers,
+  images, productTypes, relationships, salesRanks, summaries` — o décimo,
+  `vendorDetails`, responde `FORBIDDEN`), a resposta completa de 9.688 bytes não
+  contém **nenhum** campo casando `sold`, `bought`, `purchase`, `monthly`,
+  `demand` ou `velocity`. O único dado de venda é `salesRanks`, que é **posição,
+  não quantidade**.
+
+  A tag é elemento de vitrine e não é exposta ao vendedor por endpoint nenhum.
+  Vias possíveis: ler na vitrine (pessoa) ou fornecedor de dados pago (Keepa
+  expõe "monthly sold brackets", ~€49/mês — avaliado e recusado em 07/09 por não
+  se pagar no volume atual). Não reabrir esta busca sem fato novo.
+
 - **07/09/2026 — Por que lucro em tempo real não existe: a receita também não é
   final.** Pergunta da dona do produto: *"no seller central a venda sai e já
   aparece o faturamento, mas não necessariamente já foi repassado na API, então
