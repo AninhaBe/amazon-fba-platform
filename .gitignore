@@ -94,3 +94,20 @@ ds-bundle/
 .design-sync/.cache/
 .design-sync/learnings/
 .design-sync/node_modules
+
+# ⚠️ RASCUNHO DE LANDING QUE NAO PODE SUBIR POR ACIDENTE (07/09/2026).
+#
+# `src/app/landing-v4/` tem um `page.tsx`, e no App Router isso e uma ROTA
+# PUBLICA: bastaria o diretorio entrar num commit para /landing-v4 nascer no ar
+# sem ninguem ter revisado. A regra da Ana e que nenhuma landing sobe sem ela
+# aprovar o visual, e nao ha canvas aprovado para uma v4.
+#
+# Ate 07/09 ele ficava de fora por OMISSAO — so por ninguem ter feito `git add`.
+# Um `git add -A` de qualquer um dos tres agentes que compartilham esta arvore
+# varreria os tres arquivos para dentro da leva. Esta linha troca a omissao por
+# uma trava, e o gatilho deixa de estar fora da mao de quem decide.
+#
+# Para publicar de verdade: leve o desenho ao canvas, pegue o aval dela, e ai
+# tire esta linha no mesmo commit que sobe a pagina — assim o motivo da remocao
+# fica no historico junto com a autorizacao.
+src/app/landing-v4/
