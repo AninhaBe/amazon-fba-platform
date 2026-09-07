@@ -33,7 +33,9 @@ export interface TiktokFinancialInput {
 export interface TiktokFinancialOverviewV2 {
   currency: string; revenue: number | null; fees: number | null; sellerShipping: number | null;
   buyerShipping: number | null; ads: number | null; taxesWithheld: number | null; refunds: number | null;
-  tax: number | null; taxRate: number | null; cogs: number | null; profit: number | null;
+  tax: number | null; taxRate: number | null;
+  /** `false` = zero por falta de cadastro, nao por isencao (ADR-038). */
+  taxRateKnown: boolean; cogs: number | null; profit: number | null;
   /** Unidades sem custo (a TikTok nao expoe sku nesta linha — ver o calculo). */
   unitsWithoutCost?: number;
   marginPct: number | null; roiPct: number | null;
@@ -128,7 +130,9 @@ export function calculateTiktokFinancialV2(input: TiktokFinancialInput, currency
     sellerShipping.coverage.missing + input.orders.length - buyerKnown.length, sellerShipping.coverage.pending, null);
   const taxKnown = input.taxRate != null && revenue != null;
   const taxCoverage = coverage("period", 1, taxKnown ? 1 : 0, taxKnown ? 0 : 1, 0, taxKnown ? +(revenue! * input.taxRate! / 100).toFixed(2) : null);
-  const tax = taxKnown ? +(revenue! * input.taxRate! / 100).toFixed(2) : null;
+  // ADR-038: sem aliquota o imposto e zero. `taxRate: null` no payload segue
+  // sendo o rastro, junto do sinal proprio de cada canal.
+  const tax = taxKnown ? +(revenue! * input.taxRate! / 100).toFixed(2) : (revenue == null ? null : 0);
   const units = input.orders.flatMap((order) => order.items);
   const totalUnits = units.reduce((total, item) => total + item.quantity, 0);
   const knownCostUnits = units.reduce((total, item) => total + (item.unitCost != null && item.unitCost >= 0 ? item.quantity : 0), 0);
@@ -171,7 +175,7 @@ export function calculateTiktokFinancialV2(input: TiktokFinancialInput, currency
   const complete = input.periodCovered && components.every((value) => value != null);
   const profit = complete ? +(revenue! - fees.value! - sellerShipping.value! - ads.value! - taxesWithheld.value! - refunds.value! - (tax ?? 0) - cogsParcial).toFixed(2) : null;
   return { overview: { currency, revenue, fees: fees.value, sellerShipping: sellerShipping.value, buyerShipping,
-    ads: ads.value, taxesWithheld: taxesWithheld.value, refunds: refunds.value, tax, taxRate: input.taxRate, cogs, profit,
+    ads: ads.value, taxesWithheld: taxesWithheld.value, refunds: refunds.value, tax, taxRate: input.taxRate, taxRateKnown: input.taxRate != null, cogs, profit,
     marginPct: profit != null && revenue! > 0 ? +(profit / revenue! * 100).toFixed(2) : null,
     roiPct: profit != null && cogsParcial > 0 ? +(profit / cogsParcial * 100).toFixed(2) : null, unitsWithoutCost },
     coverage: (() => {

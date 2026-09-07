@@ -51,8 +51,12 @@ test("no canonico o imposto do painel incide sobre o centro do painel", async ()
   // A armadilha exata que a Shopee e o ML ja tiveram: o imposto do periodo
   // incide sobre o faturamento. Usa-lo aqui faria a subtracao cobrir um universo
   // maior que a soma — e o bloco nao fecharia por centavos que ninguem acha.
+  // ⚠️ O `null` VIROU `0` em 07/09/2026 (ADR-038) — a intencao anterior estava
+  // certa no mundo anterior. O que este teste cobra continua sendo o mesmo e e
+  // outra coisa: a BASE. O imposto do painel incide sobre `processedRevenue`, o
+  // centro do proprio painel, e nao sobre o faturamento do periodo.
   assert.ok(fonte.includes(
-    "  const impostoDaReceitaPaga = taxRate == null ? null : +(processedRevenue * taxRate / 100).toFixed(2);"),
+    "  const impostoDaReceitaPaga = taxRate == null ? 0 : +(processedRevenue * taxRate / 100).toFixed(2);"),
     "o imposto do painel sai da receita processada, nao do faturamento");
   // E o lucro do PERIODO continua saindo do faturamento — os dois convivem.
   assert.ok(fonte.includes(

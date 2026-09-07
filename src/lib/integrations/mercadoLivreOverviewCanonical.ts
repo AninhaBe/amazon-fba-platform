@@ -453,7 +453,8 @@ export async function getMercadoLivreOverviewFromCanonical(
       const lineSellerShipping = shippingKnown ? sellerShares[index] : null;
       const lineBuyerShipping = orderBuyerShipping == null ? null : buyerShares[index];
       // Mesmo contrato do caminho legado: sem alíquota, imposto é desconhecido.
-      const lineTax = taxRate == null ? null : lineRevenue * taxRate / 100;
+      // ADR-038: sem aliquota, o imposto da LINHA e zero — nao desconhecido.
+      const lineTax = taxRate == null ? 0 : lineRevenue * taxRate / 100;
       const lineProductCost = unitCost > 0 ? unitCost * line.qty : null;
       const complete = lineFees != null && lineSellerShipping != null;
       const lineResult = complete
@@ -560,7 +561,8 @@ export async function getMercadoLivreOverviewFromCanonical(
    * muda junto — e e por isso que os dois leem a mesma variavel, em vez de duas
    * variaveis que por acaso coincidem hoje.
    */
-  const taxes = taxRate == null ? null : faturamentoDoLucro * taxRate / 100;
+  // ADR-038: aliquota ausente vale zero; `taxRateKnown` carrega a pendencia.
+  const taxes = taxRate == null ? 0 : faturamentoDoLucro * taxRate / 100;
   const pedidosSemValor = totals.sem_valor ?? 0;
   const estimatedProfit = faturamentoDoLucro - fees - cogs - (taxes ?? 0) - sellerShipping;
 
@@ -582,7 +584,7 @@ export async function getMercadoLivreOverviewFromCanonical(
    * nos cards. Sao dois numeros legitimos e diferentes — e e o NOME que impede a
    * confusao, nao a supressao de um deles.
    */
-  const impostoDaReceitaPaga = taxRate == null ? null : +(processedRevenue * taxRate / 100).toFixed(2);
+  const impostoDaReceitaPaga = taxRate == null ? 0 : +(processedRevenue * taxRate / 100).toFixed(2);
   const composicaoDaReceitaPaga = {
     receita: processedRevenue,
     fees,
@@ -734,6 +736,14 @@ export async function getMercadoLivreOverviewFromCanonical(
       cogs,
       taxes,
       taxRate,
+      /**
+       * ⚠️ O RASTRO DA EXCECAO (ADR-038). `false` = zero porque ninguem
+       * cadastrou aliquota; `true` = zero porque ela declarou 0%. As duas
+       * contas sao IDENTICAS, e este booleano e a unica diferenca — a tela nao
+       * pode derivar a pendencia de `taxRate == null`, que se apaga sozinho no
+       * dia em que alguem cadastrar 0 de verdade.
+       */
+      taxRateKnown: taxRate != null,
       sellerShipping,
       buyerShipping,
       shippingCostsComplete: periodCovered && ordersWithShippingKnown >= ordersProcessed,

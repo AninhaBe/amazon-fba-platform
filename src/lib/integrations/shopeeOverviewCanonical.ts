@@ -803,7 +803,9 @@ export async function getShopeeOverviewFromCanonical(
    * muda junto — e e por isso que os dois leem a mesma variavel, em vez de duas
    * variaveis que por acaso coincidem hoje.
    */
-  const taxes = taxRateKnown ? faturamento * taxRate! / 100 : null;
+  // ADR-038: a linha ja usava zero desde antes; o AGREGADO ainda devolvia null
+  // — meia-implementacao que fazia o total travar com as linhas fechando.
+  const taxes = taxRateKnown ? faturamento * taxRate! / 100 : 0;
 
   const coveredFrom = syncRow.covered_from ? new Date(syncRow.covered_from).getTime() : Number.POSITIVE_INFINITY;
   const coveredTo = syncRow.covered_to ? new Date(syncRow.covered_to).getTime() : 0;

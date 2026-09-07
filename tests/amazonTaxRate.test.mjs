@@ -16,10 +16,23 @@ import {
 // e transforma "não configurado" em "0%", que é a confusão entre null e zero
 // que o projeto proíbe.
 
-test("nao configurado nao vira zero", () => {
-  assert.equal(amazonTaxAmount(39.8, null), null, "sem aliquota o imposto e desconhecido");
-  // Isenção declarada é outra coisa: é um fato, e vale zero.
-  assert.equal(amazonTaxAmount(39.8, 0), 0);
+test("nao configurado VIRA zero — e o sinal e que separa os dois casos", () => {
+  // ⚠️ ESTE TESTE MUDOU DE INTENCAO EM 07/09/2026, e a versao anterior estava
+  // CERTA no mundo anterior. Ele exigia `amazonTaxAmount(x, null) === null`
+  // ("sem aliquota o imposto e desconhecido"), e isso valeu ate a dona do
+  // produto decidir o contrario, verbatim: *"nesse caso, ausencia e zero
+  // mesmo"* (ADR-038). O motivo esta la: o dado e DELA, ela resolve num campo,
+  // e existe default honesto — travessao apagava lucro e margem inteiros de
+  // quem so nao preencheu.
+  //
+  // ⚠️ E A FRONTEIRA QUE ISSO CRIA E O QUE ESTE TESTE PASSA A GUARDAR: quem
+  // cadastrou 0% e quem nao cadastrou produzem a MESMA conta. Os dois valores
+  // sao identicos de proposito; quem os separa e `taxRateKnown`, que viaja no
+  // payload. Testar so o numero aqui nao provaria nada.
+  assert.equal(amazonTaxAmount(39.8, null), 0, "sem aliquota, nada incide (ADR-038)");
+  assert.equal(amazonTaxAmount(39.8, 0), 0, "isencao declarada tambem e zero");
+  // O par indistinguivel, dito na cara: mesmo numero, e e isso mesmo.
+  assert.equal(amazonTaxAmount(39.8, null), amazonTaxAmount(39.8, 0));
 });
 
 test("o imposto incide sobre o faturamento", () => {

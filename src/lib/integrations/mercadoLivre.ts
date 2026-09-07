@@ -955,7 +955,7 @@ export async function getMercadoLivreOverview(
       const lineRevenue = line.unit_price * line.quantity;
       // `null` sem alíquota: a linha some do detalhe em vez de exibir
       // "Impostos R$ 0,00", que afirmaria isenção.
-      const lineTax = taxRate == null ? null : lineRevenue * taxRate / 100;
+      const lineTax = taxRate == null ? 0 : lineRevenue * taxRate / 100; // ADR-038
       const lineProductCost = unitCost > 0 ? unitCost * line.quantity : null;
       const lineSellerShipping = sellerShippingByLine.get(reference.key) ?? null;
       const lineBuyerShipping = buyerShippingByLine.get(reference.key) ?? null;
@@ -998,7 +998,7 @@ export async function getMercadoLivreOverview(
   }
   const revenue = paidOrders.reduce((total, order) => total + (order.total_amount || 0), 0);
   const processedRevenue = detailedPaidOrders.reduce((total, order) => total + (order.total_amount || 0), 0);
-  const taxes = taxRate == null ? null : processedRevenue * taxRate / 100;
+  const taxes = taxRate == null ? 0 : processedRevenue * taxRate / 100; // ADR-038
   sellerShipping = +sellerShipping.toFixed(2);
   buyerShipping = +buyerShipping.toFixed(2);
   // `taxes ?? 0`: sem alíquota o lucro sai sem imposto, exatamente como saía
@@ -1095,6 +1095,14 @@ export async function getMercadoLivreOverview(
       cogs,
       taxes,
       taxRate,
+      /**
+       * ⚠️ O RASTRO DA EXCECAO (ADR-038). `false` = zero porque ninguem
+       * cadastrou aliquota; `true` = zero porque ela declarou 0%. As duas
+       * contas sao IDENTICAS, e este booleano e a unica diferenca — a tela nao
+       * pode derivar a pendencia de `taxRate == null`, que se apaga sozinho no
+       * dia em que alguem cadastrar 0 de verdade.
+       */
+      taxRateKnown: taxRate != null,
       sellerShipping,
       buyerShipping,
       shippingCostsComplete: collectedOrders.complete && shipmentCosts.size === shipmentIds.length && [...shipmentCosts.values()].every(Boolean),

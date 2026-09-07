@@ -20,14 +20,24 @@ test("a aliquota nao configurada e null, nunca zero", () => {
   assert.doesNotMatch(s, /Number\(connection\.metadata\.taxRate \?\? 0\)/, "o `?? 0` era o defeito");
 });
 
-test("imposto desconhecido nao vira zero nos dois caminhos de leitura", () => {
+test("imposto desconhecido VIRA zero nos dois caminhos de leitura", () => {
+  // ⚠️ INTENCAO INVERTIDA EM 07/09/2026 (ADR-038). Ate aqui este teste exigia
+  // `taxRate == null ? null :` nos dois caminhos, e estava CERTO no mundo
+  // anterior — `null != 0` valia tambem para imposto. A dona do produto decidiu
+  // o contrario, verbatim: *"nesse caso, ausencia e zero mesmo"*.
+  //
+  // 📌 O que NAO mudou, e este teste continua guardando: os DOIS caminhos de
+  // leitura (legado e canonico) tem de concordar. Um devolver zero e o outro
+  // null faria o mesmo periodo fechar numa tela e nao fechar na outra.
   for (const modulo of [
     "src/lib/integrations/mercadoLivre.ts",              // caminho legado
     "src/lib/integrations/mercadoLivreOverviewCanonical.ts", // caminho por SQL
   ]) {
     const s = fonte(modulo);
-    assert.match(s, /const taxes = taxRate == null \? null :/, `${modulo}: total precisa ser null sem aliquota`);
-    assert.match(s, /const lineTax = taxRate == null \? null :/, `${modulo}: linha precisa ser null sem aliquota`);
+    assert.match(s, /const taxes = taxRate == null \? 0 :/, `${modulo}: total e zero sem aliquota (ADR-038)`);
+    assert.match(s, /const lineTax = taxRate == null \? 0 :/, `${modulo}: linha e zero sem aliquota (ADR-038)`);
+    // E o RASTRO viaja junto: sem ele, o zero fica mudo e a pendencia some.
+    assert.match(s, /taxRateKnown: taxRate != null/, `${modulo}: o sinal da pendencia precisa estar no payload`);
   }
 });
 

@@ -90,7 +90,13 @@ test("TikTok: sem alíquota, lucro e margem saem calculados sem o imposto", () =
     periodCovered: true, taxRate: null, orders: [pedidoTiktok()],
   });
   assert.notEqual(overview.profit, null, "sem alíquota o lucro tem que existir");
-  assert.equal(overview.tax, null, "o imposto em si continua desconhecido — null, nunca zero");
+  // ⚠️ INTENCAO INVERTIDA EM 07/09/2026 (ADR-038): era `null`, virou `0`. A
+  // versao anterior estava CERTA no mundo anterior — `null != 0` valia tambem
+  // para imposto. A dona do produto decidiu o contrario: *"nesse caso, ausencia
+  // e zero mesmo"*, porque o dado e DELA, tem default honesto, e o travessao
+  // apagava lucro e margem de quem so nao preencheu um campo.
+  assert.equal(overview.tax, 0, "sem aliquota o imposto e zero (ADR-038)");
+  assert.equal(overview.taxRateKnown, false, "e o rastro da pendencia continua no payload");
   assert.equal(coverage.financials.status, "complete");
   assert.equal(coverage.tax.status, "partial", "a cobertura do imposto continua apontando o que falta");
   // 1000 − 100 − 50 − 400 = 450, sem imposto.

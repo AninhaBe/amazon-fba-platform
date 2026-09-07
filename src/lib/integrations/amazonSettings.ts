@@ -83,11 +83,24 @@ export async function setAmazonTaxRateSetting(
 }
 
 /**
- * Imposto do período. `null` quando a alíquota não foi configurada — e `null`
- * NÃO pode virar zero na tela: "isento" e "não sei" levam a decisões de preço
- * diferentes.
+ * ⚠️ EXCECAO NOMEADA AO `null != 0` — ADR-038, decisao da dona do produto em
+ * 07/09/2026, verbatim: *"nesse caso, ausencia e zero mesmo"*.
+ *
+ * Aliquota nao cadastrada entra na conta como ZERO, e nao como desconhecido.
+ * O motivo esta na ADR: o dado e DELA (nao do marketplace), ela resolve num
+ * campo, e existe default honesto — sem aliquota declarada, nada incide.
+ * Travessao apagava lucro e margem inteiros de quem so nao preencheu um campo.
+ *
+ * ⚠️ O QUE NAO MUDA: tarifa, frete e custo continuam `null` quando
+ * desconhecidos. Ali a fonte e o marketplace e nao ha default honesto.
+ *
+ * ⚠️ E O ZERO NAO E SILENCIOSO: `taxRateKnown` viaja no payload para a tela
+ * manter a pendencia "cadastrar aliquota". Depois desta mudanca, **quem
+ * cadastrou 0% e quem nao cadastrou produzem a MESMA conta** — o sinal e a
+ * unica diferenca, e por isso ele e booleano e nao derivado de `taxRate == null`
+ * (que se apaga sozinho no dia em que alguem cadastrar 0 de verdade).
  */
-export function amazonTaxAmount(revenue: number, taxRate: number | null): number | null {
-  if (taxRate == null) return null;
+export function amazonTaxAmount(revenue: number, taxRate: number | null): number {
+  if (taxRate == null) return 0;
   return +((Math.max(0, revenue) * taxRate) / 100).toFixed(2);
 }

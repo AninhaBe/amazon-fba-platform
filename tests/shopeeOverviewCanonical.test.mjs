@@ -105,7 +105,12 @@ test("override true não torna alíquota ausente ou inválida conhecida", async 
     const result = await overview({ taxRate, taxRateKnown: true });
     assert.equal(result.profit.taxRate, null, `taxRate: ${String(taxRate)}`);
     assert.equal(result.profit.taxRateKnown, false, `taxRateKnown: ${String(taxRate)}`);
-    assert.equal(result.profit.taxes, null, `taxes: ${String(taxRate)}`);
+  // ⚠️ INTENCAO INVERTIDA EM 07/09/2026 (ADR-038): era `null`, virou `0`. A
+  // versao anterior estava CERTA no mundo anterior — `null != 0` valia tambem
+  // para imposto. A dona do produto decidiu o contrario: *"nesse caso, ausencia
+  // e zero mesmo"*, porque o dado e DELA, tem default honesto, e o travessao
+  // apagava lucro e margem de quem so nao preencheu um campo.
+    assert.equal(result.profit.taxes, 0, `taxes: ${String(taxRate)}`);
   }
 });
 
@@ -119,7 +124,12 @@ test("alíquota ausente NAO bloqueia mais: lucro e margem saem sem o imposto", a
   assert.equal(result.profit.taxRateKnown, false);
   // O imposto EM SI continua desconhecido — `null`, nunca zero. É o valor
   // derivado que passa a existir, não o imposto.
-  assert.equal(result.profit.taxes, null);
+  // ⚠️ INTENCAO INVERTIDA EM 07/09/2026 (ADR-038): era `null`, virou `0`. A
+  // versao anterior estava CERTA no mundo anterior — `null != 0` valia tambem
+  // para imposto. A dona do produto decidiu o contrario: *"nesse caso, ausencia
+  // e zero mesmo"*, porque o dado e DELA, tem default honesto, e o travessao
+  // apagava lucro e margem de quem so nao preencheu um campo.
+  assert.equal(result.profit.taxes, 0);
   assert.equal(result.profit.coverage.complete, true);
   assert.equal(result.profit.estimatedProfit, 56);
   assert.ok(Math.abs(result.profit.marginPct - 56) < 1e-9);
@@ -140,7 +150,15 @@ test("override explícito false mantém o imposto desconhecido, mas o lucro sai 
   const result = await overview({ taxRate: 10, taxRateKnown: false });
   assert.equal(result.profit.taxRate, 10);
   assert.equal(result.profit.taxRateKnown, false);
-  assert.equal(result.profit.taxes, null, "imposto desconhecido continua null, nunca zero");
+  // ⚠️ INTENCAO INVERTIDA EM 07/09/2026 (ADR-038): era `null`, virou `0`. A
+  // versao anterior estava CERTA no mundo anterior — `null != 0` valia tambem
+  // para imposto. A dona do produto decidiu o contrario: *"nesse caso, ausencia
+  // e zero mesmo"*, porque o dado e DELA, tem default honesto, e o travessao
+  // apagava lucro e margem de quem so nao preencheu um campo.
+  assert.equal(result.profit.taxes, 0, "sem aliquota o imposto e zero (ADR-038)");
+  // ⚠️ E O RASTRO E O QUE SOBRA: sem `taxRateKnown` o zero fica mudo e a
+  // pendencia "cadastrar aliquota" some da tela.
+  assert.equal(result.profit.taxRateKnown, false, "o sinal da pendencia tem de continuar falso");
   assert.equal(result.profit.estimatedProfit, 56, "o lucro sai sem imposto, como quando não há alíquota");
 });
 

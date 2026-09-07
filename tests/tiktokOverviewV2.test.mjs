@@ -16,7 +16,7 @@ test("contrato completo calcula lucro, margem e ROI", () => {
   assert.deepEqual(result.overview, {
     currency: "BRL", revenue: 100, fees: 10, sellerShipping: 5, buyerShipping: 0,
     ads: 0, taxesWithheld: 0, refunds: 0,
-    tax: 10, taxRate: 10, cogs: 10, profit: 65, marginPct: 65, roiPct: 650,
+    tax: 10, taxRate: 10, taxRateKnown: true, cogs: 10, profit: 65, marginPct: 65, roiPct: 650,
     unitsWithoutCost: 0,
   });
   assert.equal(result.coverage.financials.status, "complete");
@@ -62,9 +62,22 @@ test("buyer e seller shipping possuem coberturas independentes sem total fabrica
   assert.equal(result.coverage.shipping.capturedValue, null);
 });
 
-test("imposto ausente difere de alíquota explícita 0%", () => {
-  assert.equal(calculate({ taxRate: null }).overview.tax, null);
-  assert.equal(calculate({ taxRate: 0 }).overview.tax, 0);
+test("imposto ausente NAO difere mais no VALOR de aliquota 0% — so no SINAL", () => {
+  // ⚠️ ESTE TESTE INVERTEU EM 07/09/2026, e a inversao E a fronteira da ADR-038.
+  // Ele existia para provar que "nao cadastrou" e "cadastrou 0%" eram numeros
+  // DIFERENTES (null vs 0). Depois da decisao da dona, os dois produzem a MESMA
+  // conta de proposito — e o que os separa passa a ser `taxRateKnown`.
+  //
+  // 📌 Por isso a assercao do VALOR agora prova a igualdade, e a do SINAL prova
+  // a diferenca. Testar so o valor aqui deixaria de cobrir o unico rastro que
+  // sobrou; testar so o sinal esconderia que a conta ficou igual.
+  const semCadastro = calculate({ taxRate: null }).overview;
+  const isentoDeclarado = calculate({ taxRate: 0 }).overview;
+  assert.equal(semCadastro.tax, 0);
+  assert.equal(isentoDeclarado.tax, 0);
+  assert.equal(semCadastro.tax, isentoDeclarado.tax, "as duas contas sao identicas — e e assim mesmo");
+  assert.equal(semCadastro.taxRateKnown, false, "nao cadastrou: o sinal denuncia");
+  assert.equal(isentoDeclarado.taxRateKnown, true, "declarou 0%: nao ha pendencia a apontar");
 });
 
 test("custo ausente permanece desconhecido, mas NAO apaga mais o lucro", () => {

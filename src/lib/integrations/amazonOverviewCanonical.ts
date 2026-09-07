@@ -102,6 +102,8 @@ export interface AmazonCanonicalOverview {
     estimatedProfit: number | null;
     /** Alíquota declarada pela vendedora. `null` = não cadastrada. */
     taxRate: number | null;
+    /** `false` = zero por falta de cadastro, nao por isencao (ADR-038). */
+    taxRateKnown: boolean;
     /** Imposto do período sobre a MESMA base do lucro. `null` sem alíquota. */
     taxes: number | null;
     /**
@@ -1345,6 +1347,14 @@ export async function getAmazonOverviewFromCanonical(
       pedidosCompletos,
       estimatedProfit,
       taxRate,
+      /**
+       * ⚠️ O RASTRO DA EXCECAO (ADR-038). `false` = o imposto e zero porque
+       * ninguem cadastrou aliquota; `true` = zero porque ela declarou 0%.
+       * As duas contas sao IDENTICAS — este booleano e a unica diferenca, e e
+       * por isso que a tela nao pode derivar a pendencia de `taxRate == null`:
+       * no dia em que alguem cadastrar 0 de verdade, aquele rastro se apaga.
+       */
+      taxRateKnown: taxRate != null,
       taxes,
       refunds: +refunds.toFixed(2),
       refundCount,
