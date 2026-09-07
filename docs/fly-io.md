@@ -302,6 +302,12 @@ destino do que vem depois, e o operador não vê a decisão.**
   silenciosamente;
 - comandos que **contam** (`grep -c`, `wc -l`, `test`) saem com código de erro no
   caso legítimo de zero. Eles são os piores para pôr antes de um `&&`;
+- ⚠️ **E a forma reaparece fora do deploy: rodar o teste e o `maestri ask` no
+  MESMO comando encadeado faz você reportar o número antes de vê-lo.** Aconteceu
+  em 06/09/2026: reportei "67 de integração, 0 falhas" e o resultado real era
+  62/1 — o comando seguinte já estava a caminho quando o teste falhou. É o mesmo
+  padrão: **um comando decide, e o operador não vê a decisão.** Rode a
+  verificação, LEIA, e só então reporte;
 - e a defesa que realmente funciona é a de sempre: **o carimbo do que aconteceu
   no destino**, não a ausência de erro na origem. Aqui, o campo `commit` do
   `/api/health`; lá, `git log -1` em vez de `git rev-parse HEAD`.
