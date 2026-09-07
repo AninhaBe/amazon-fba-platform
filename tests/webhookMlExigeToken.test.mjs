@@ -115,7 +115,12 @@ test("a origem e conferida ANTES de ler o corpo — senao o forjado carimba last
   const codigo = semComentarios(await rota());
   const decide = codigo.indexOf("avaliarOrigemDoWebhook({");
   const recusa = codigo.indexOf("if (!origem.aceito) return naoEncontrado();");
-  const leCorpo = codigo.indexOf("await req.json()");
+  // ⚠️ O corpo passou a ser lido com `req.text()` quando o teto de bytes entrou
+  // (auditoria de 07/09/2026). A guarda acompanha a forma real da leitura —
+  // senao ela mede a posicao de uma string que nao existe mais, `indexOf`
+  // devolve -1, e -1 e menor que TUDO: a asserção de ordem passaria a ficar
+  // verde por acidente, sempre.
+  const leCorpo = codigo.indexOf("await req.text()");
   const enfileira = codigo.indexOf("enqueueMercadoLivreNotification(");
   assert.ok(decide > -1 && recusa > -1 && leCorpo > -1 && enfileira > -1, "sumiu um dos passos");
   assert.ok(decide < recusa, "decide depois de recusar?");

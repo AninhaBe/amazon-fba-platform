@@ -10,6 +10,7 @@ import {
 } from "@/lib/integrations/mercadoLivreNotification";
 import { depoisDaResposta } from "@/lib/depoisDaResposta";
 import { avaliarOrigemDoWebhook } from "@/lib/integrations/webhookMlToken";
+import { LIMITE_DE_CORPO } from "@/lib/limiteDeCorpo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -64,7 +65,16 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const body = await req.json() as unknown;
+    // ⚠️ TETO DE BYTES ANTES DO `JSON.parse`. O limite de 100 eventos existia,
+    // mas só vale DEPOIS de parsear — e parsear é a parte cara. Rota pública
+    // recebe o que mandarem; um lote legítimo do ML é pequeno. A Shopee já
+    // tinha teto (64KB) e o formulário de orçamento também (4KB): só estes dois
+    // webhooks não tinham, achado na auditoria de 07/09/2026.
+    const bruto = await req.text();
+    if (bruto.length > LIMITE_DE_CORPO) {
+      return NextResponse.json({ error: "Corpo grande demais." }, { status: 413 });
+    }
+    const body = JSON.parse(bruto) as unknown;
     const candidates = body && typeof body === "object" && Array.isArray((body as { messages?: unknown[] }).messages)
       ? (body as { messages: unknown[] }).messages
       : [body];

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { processarWebhookStripe } from "@/lib/billing/webhookStripe";
 import { dependenciasDeAssinatura, registroDeEventos, webhookPronto } from "@/lib/billing/runtime";
+import { LIMITE_DE_CORPO } from "@/lib/limiteDeCorpo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,9 +28,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Webhooks exigem DATABASE_URL configurada." }, { status: 503 });
   }
 
+  // ⚠️ TETO DE BYTES ANTES DE QUALQUER TRABALHO. A verificação de assinatura já
+  // recusaria o corpo forjado, mas `req.text()` bufferiza tudo ANTES de a
+  // assinatura ser conferida — então sem teto o custo é pago mesmo por quem vai
+  // ser recusado. Achado na auditoria de superfície de 07/09/2026.
+  const bruto = await req.text();
+  if (bruto.length > LIMITE_DE_CORPO) {
+    return NextResponse.json({ error: "Corpo grande demais." }, { status: 413 });
+  }
+
   const { status, corpo } = await processarWebhookStripe(
     {
-      corpo: await req.text(),
+      corpo: bruto,
       cabecalhoAssinatura: req.headers.get("stripe-signature"),
       segredo: process.env.STRIPE_WEBHOOK_SECRET,
     },
