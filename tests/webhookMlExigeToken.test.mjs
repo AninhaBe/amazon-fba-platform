@@ -3,98 +3,78 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import "../scripts/ts-resolver.mjs";
 
-const {
-  avaliarOrigemDoWebhook,
-  convivenciaVencida,
-  FIM_DA_CONVIVENCIA,
-} = await import("../src/lib/integrations/webhookMlToken.ts");
+const { avaliarOrigemDoWebhook } = await import("../src/lib/integrations/webhookMlToken.ts");
 
 const rota = () => readFile(new URL("../src/app/api/webhooks/mercado-livre/route.ts", import.meta.url), "utf8");
 const semComentarios = (s) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
 
 const SEGREDO = "segredo-de-verdade";
-const DENTRO = new Date(Date.parse(FIM_DA_CONVIVENCIA) - 60_000);
-const DEPOIS = new Date(Date.parse(FIM_DA_CONVIVENCIA) + 60_000);
 
 // O WEBHOOK DO ML ESTAVA ABERTO — qualquer um podia postar nele. O ML nao assina
 // as notificacoes (a Shopee assina, com HMAC), entao o unico segredo possivel e
 // um token na URL cadastrada no DevCenter.
+//
+// ⚠️ ESTE ARQUIVO JA MUDOU DE INTENCAO, no mesmo dia, e o registro fica aqui
+// porque teste que inverte sem dizer por que e o primeiro a ser afrouxado
+// depois:
+//
+//   07/09 tarde:  requisicao SEM token ENTRAVA (janela de convivencia com prazo
+//                 declarado em FIM_DA_CONVIVENCIA), e havia um teste que ficava
+//                 vermelho sozinho na data para obrigar o fechamento.
+//   07/09 noite:  a janela morreu com os quatro passos cumpridos e MEDIDOS —
+//                 env no Fly, URL no DevCenter, 33 pushes "aceito COM token" e
+//                 ZERO "SEM token" nos logs do Fly, e entao a remocao.
+//
+// A guarda de data saiu junto: ela existia para forcar esta decisao, e a decisao
+// foi tomada. Manter uma guarda que ja cumpriu o proposito e ruido.
 
-test("token correto entra; token errado NAO entra, nem durante a convivencia", () => {
-  // Quem manda token ERRADO nao e o chamador legado: o legado nao manda token
-  // nenhum. Deixar token errado passar durante a janela seria abrir a porta que
-  // a janela existe para nao arrombar.
-  const ok = avaliarOrigemDoWebhook({ tokenRecebido: SEGREDO, tokenEsperado: SEGREDO, agora: DENTRO });
-  assert.equal(ok.aceito, true);
-  assert.equal(ok.via, "token");
-
-  const errado = avaliarOrigemDoWebhook({ tokenRecebido: "chute", tokenEsperado: SEGREDO, agora: DENTRO });
-  assert.equal(errado.aceito, false, "token errado passou durante a convivencia");
-  assert.equal(errado.via, "recusado");
+test("token correto entra", () => {
+  const d = avaliarOrigemDoWebhook({ tokenRecebido: SEGREDO, tokenEsperado: SEGREDO });
+  assert.equal(d.aceito, true);
+  assert.equal(d.via, "token");
 });
 
-test("SEM token entra so ate a data declarada — e depois nao entra mais", () => {
-  // A janela existe porque a URL nova precisa ser cadastrada no DevCenter do ML
-  // antes de a antiga fechar, e o cadastro e ato de pessoa.
-  const dentro = avaliarOrigemDoWebhook({ tokenRecebido: null, tokenEsperado: SEGREDO, agora: DENTRO });
-  assert.equal(dentro.aceito, true);
-  assert.equal(dentro.via, "convivencia", "a via precisa dizer que foi pela janela, nao pelo token");
-
-  const depois = avaliarOrigemDoWebhook({ tokenRecebido: null, tokenEsperado: SEGREDO, agora: DEPOIS });
-  assert.equal(depois.aceito, false, "a janela nao fechou sozinha na data declarada");
+test("SEM token NAO entra mais — a janela de convivencia acabou", () => {
+  // Ate a tarde de 07/09/2026 isto era `true`. A inversao e o produto de uma
+  // medicao, nao de uma opiniao.
+  const d = avaliarOrigemDoWebhook({ tokenRecebido: null, tokenEsperado: SEGREDO });
+  assert.equal(d.aceito, false);
+  assert.equal(d.via, "recusado");
 });
 
-test("A JANELA TEM PRAZO E ELE E CONFERIVEL — este teste fica vermelho sozinho", () => {
-  // ⚠️ ESTE E O TESTE QUE IMPEDE A SALVAGUARDA TEMPORARIA DE VIRAR PERMANENTE.
-  // Em 31/08/2026 uma recusa temporaria da Shopee sobreviveu 4 horas a
-  // limitacao que a justificava, e o teste que a guardava passou a DEFENDER o
-  // defeito. Aqui e o contrario: quando a data passar, este teste fica vermelho
-  // e obriga alguem a decidir — fechar a janela ou mover a data com motivo.
-  assert.ok(
-    !convivenciaVencida(),
-    `A janela de convivencia do webhook do ML venceu em ${FIM_DA_CONVIVENCIA}.` +
-      "\n\nCOM A JANELA VENCIDA, WEBHOOK_ML_TOKEN AUSENTE VIRA RECUSA — fechadura sem chave " +
-      "nao e porta aberta. Se a env nao estiver no Fly, o webhook do ML JA PAROU.\n" +
-      "\nA ORDEM PARA FECHAR, e ela nao pode ser trocada:\n" +
-      "  1. WEBHOOK_ML_TOKEN no Fly — ANTES de tudo, senao o passo 3 nunca acontece;\n" +
-      "  2. a URL com ?token= cadastrada no DevCenter do ML;\n" +
-      "  3. push real medido chegando pela URL nova (no banco, nao suposto);\n" +
-      "  4. so entao remova FIM_DA_CONVIVENCIA e esta guarda.\n" +
-      "\nSe ainda nao deu, mova a data com motivo escrito — mas NAO apague a guarda."
-  );
+test("token errado nao entra", () => {
+  assert.equal(avaliarOrigemDoWebhook({ tokenRecebido: "chute", tokenEsperado: SEGREDO }).aceito, false);
 });
 
-test("sem segredo configurado a rota aceita — DENTRO da janela, e so dentro dela", () => {
-  // Recusar no dia do deploy fecharia o webhook do ML antes de alguem ter como
-  // configurar a env. O modo de falha certo para "ainda nao montamos a
-  // fechadura" e a porta continuar como estava, gritando no log.
+test("SEM segredo configurado, NINGUEM entra — fechadura sem chave nao e porta aberta", () => {
+  // Enquanto a janela existiu, env ausente deixava passar: era a unica forma de
+  // nao fechar o webhook antes de alguem ter como configura-la. Com a janela
+  // fechada, a permissao morre junto — foi a amarra exigida no visto da decisao.
   for (const vazio of [null, undefined, "", "   "]) {
-    const d = avaliarOrigemDoWebhook({ tokenRecebido: null, tokenEsperado: vazio, agora: DENTRO });
-    assert.equal(d.aceito, true);
-    assert.equal(d.via, "sem-token-configurado");
+    assert.equal(avaliarOrigemDoWebhook({ tokenRecebido: null, tokenEsperado: vazio }).aceito, false);
+    assert.equal(avaliarOrigemDoWebhook({ tokenRecebido: "qualquer", tokenEsperado: vazio }).aceito, false);
   }
-});
-
-test("PASSADA A JANELA, env ausente vira RECUSA — fechadura sem chave nao e porta aberta", () => {
-  // ⚠️ A AMARRA DO FAIL-OPEN (visto do cerebro, 07/09/2026). Sem ela, a
-  // permissao "aceita porque ainda nao configuramos" sobreviveria a convivencia
-  // que a justificava — a mesma familia de divida que este arquivo existe para
-  // nao repetir. A consequencia pratica e deliberada: se a data passar sem a env
-  // no Fly, o webhook do ML PARA. Por isso a env e o passo 1, nao o ultimo.
-  for (const vazio of [null, undefined, "", "   "]) {
-    const d = avaliarOrigemDoWebhook({ tokenRecebido: null, tokenEsperado: vazio, agora: DEPOIS });
-    assert.equal(d.aceito, false, "env ausente continuou abrindo a porta depois da janela");
-    assert.equal(d.via, "recusado");
-  }
-  // E ter token na mao nao adianta, se nao ha com o que comparar.
-  assert.equal(avaliarOrigemDoWebhook({ tokenRecebido: "qualquer", tokenEsperado: "", agora: DEPOIS }).aceito, false);
 });
 
 test("a comparacao do token nao vaza pelo tempo, e nao aceita prefixo", () => {
   // Sem tempo constante, o tempo de resposta entrega o tamanho do prefixo certo.
-  assert.equal(avaliarOrigemDoWebhook({ tokenRecebido: SEGREDO.slice(0, -1), tokenEsperado: SEGREDO, agora: DENTRO }).aceito, false);
-  assert.equal(avaliarOrigemDoWebhook({ tokenRecebido: SEGREDO + "x", tokenEsperado: SEGREDO, agora: DENTRO }).aceito, false);
-  assert.equal(avaliarOrigemDoWebhook({ tokenRecebido: "", tokenEsperado: SEGREDO, agora: DENTRO }).aceito, false);
+  for (const chute of [SEGREDO.slice(0, -1), SEGREDO + "x", "", " " + SEGREDO]) {
+    assert.equal(avaliarOrigemDoWebhook({ tokenRecebido: chute, tokenEsperado: SEGREDO }).aceito, false, `"${chute}" passou`);
+  }
+});
+
+test("nao sobrou nenhum resto da janela no codigo", async () => {
+  // ⚠️ Salvaguarda temporaria que sobrevive a limitacao que a justificou e a
+  // familia de defeito que este projeto ja pagou caro (31/08/2026). O oposto
+  // tambem vale: resto de janela morta confunde quem ler depois.
+  const politica = semComentarios(
+    await readFile(new URL("../src/lib/integrations/webhookMlToken.ts", import.meta.url), "utf8")
+  );
+  assert.ok(!politica.includes("FIM_DA_CONVIVENCIA"), "a constante da janela ficou no codigo");
+  assert.ok(!politica.includes("convivencia"), "sobrou a via de convivencia na politica");
+  const codigo = semComentarios(await rota());
+  assert.ok(!codigo.includes("convivencia"), "a rota ainda fala em convivencia");
+  assert.ok(!codigo.includes("agora:"), "a rota ainda passa a data para a politica");
 });
 
 test("origem recusada devolve 404 SECO — 401 e 403 confirmam que a rota existe", async () => {
@@ -107,19 +87,14 @@ test("origem recusada devolve 404 SECO — 401 e 403 confirmam que a rota existe
 test("a origem e conferida ANTES de ler o corpo — senao o forjado carimba last_push_at", async () => {
   // ⚠️ ESTA E A ORDEM QUE PROTEGE O VIGIA. `last_push_at` e carimbado dentro do
   // processamento; se um evento forjado chegasse la, um atacante mascararia
-  // varredura parada como saudavel — exatamente a cegueira que custou 11 horas
-  // em 03/09/2026, so que provocada de fora.
+  // varredura parada como saudavel.
   //
-  // Comparacao de POSICAO, nao de existencia: os dois trechos podem existir e
-  // estar na ordem errada.
+  // Comparacao de POSICAO, e com PRESENCA exigida antes: `indexOf` devolve -1
+  // para o que nao existe, e -1 e menor que tudo — sem exigir presenca, a
+  // asserção fica verde justamente quando o codigo muda de forma.
   const codigo = semComentarios(await rota());
   const decide = codigo.indexOf("avaliarOrigemDoWebhook({");
   const recusa = codigo.indexOf("if (!origem.aceito) return naoEncontrado();");
-  // ⚠️ O corpo passou a ser lido com `req.text()` quando o teto de bytes entrou
-  // (auditoria de 07/09/2026). A guarda acompanha a forma real da leitura —
-  // senao ela mede a posicao de uma string que nao existe mais, `indexOf`
-  // devolve -1, e -1 e menor que TUDO: a asserção de ordem passaria a ficar
-  // verde por acidente, sempre.
   const leCorpo = codigo.indexOf("await req.text()");
   const enfileira = codigo.indexOf("enqueueMercadoLivreNotification(");
   assert.ok(decide > -1 && recusa > -1 && leCorpo > -1 && enfileira > -1, "sumiu um dos passos");
@@ -129,20 +104,14 @@ test("a origem e conferida ANTES de ler o corpo — senao o forjado carimba last
 });
 
 test("a resposta NAO revela se o user_id casou com alguma conexao", async () => {
-  // O oraculo de enumeracao: `queued` era 0 para id desconhecido e >0 para
-  // conhecido. Bastava variar o id ate a resposta mudar para descobrir quais
-  // vendedores usam o NEXO — dado de cliente, numa rota publica.
   const codigo = semComentarios(await rota());
   assert.ok(codigo.includes("{ received: true }"), "a resposta mudou de forma");
   assert.ok(!codigo.includes("queued: queued.length"), "a contagem de enfileirados voltou a resposta");
 });
 
 test("o GET de diagnostico nao diz mais nada alem de service e configured", async () => {
-  // Cada campo a mais e um campo que ajuda quem esta sondando: se ha token
-  // configurado, quando a janela fecha, quantas conexoes existem.
   const codigo = semComentarios(await rota());
   const corpo = codigo.slice(codigo.indexOf("export async function GET()"), codigo.indexOf("function naoEncontrado"));
   assert.ok(!/token/i.test(corpo), "o GET passou a falar de token");
-  assert.ok(!/CONVIVENCIA|convivencia/i.test(corpo), "o GET passou a revelar a janela");
   assert.ok(!/connection|workspace|user_id/i.test(corpo), "o GET passou a revelar dado de conexao");
 });

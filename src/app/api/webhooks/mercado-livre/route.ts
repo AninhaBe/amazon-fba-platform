@@ -43,26 +43,8 @@ export async function POST(req: NextRequest) {
   const origem = avaliarOrigemDoWebhook({
     tokenRecebido: req.nextUrl.searchParams.get("token"),
     tokenEsperado: process.env.WEBHOOK_ML_TOKEN,
-    agora: new Date(),
   });
   if (!origem.aceito) return naoEncontrado();
-  if (origem.via === "sem-token-configurado") {
-    console.warn("[webhook-ml] WEBHOOK_ML_TOKEN ausente: a rota aceita qualquer origem.");
-  }
-  // ⚠️ REGISTRA POR QUAL CAMINHO O PUSH ENTROU — só o nome do caminho, nunca o
-  // token. Sem isto, o passo 3 da lista de morte da janela ("um push real
-  // chegando pela URL nova — MEDIDO, não suposto", ver `webhookMlToken.ts`) é
-  // inverificável: push chegando prova que a rota funciona, não que o DevCenter
-  // já aponta para a URL com token. E é justamente essa diferença que decide se
-  // o webhook continua vivo depois de FIM_DA_CONVIVENCIA.
-  //
-  // `convivencia` em 07/09/2026 = o cadastro no DevCenter ainda é o antigo, e
-  // o push MORRE na data. `token` = o cadastro foi trocado e a janela pode cair.
-  if (origem.via === "convivencia") {
-    console.warn("[webhook-ml] push aceito SEM token (janela de convivência): o DevCenter do ML ainda aponta para a URL antiga.");
-  } else if (origem.via === "token") {
-    console.info("[webhook-ml] push aceito COM token: a URL nova está cadastrada no DevCenter.");
-  }
 
   try {
     // ⚠️ TETO DE BYTES ANTES DO `JSON.parse`. O limite de 100 eventos existia,

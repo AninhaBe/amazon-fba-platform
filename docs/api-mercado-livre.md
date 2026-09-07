@@ -149,27 +149,27 @@ sobreviveria à convivência que o justificava — a mesma dívida que esta seç
 inteira existe para não repetir. A consequência é deliberada: **se a data passar
 sem a env no Fly, o webhook do ML para.**
 
-#### A janela de convivência, e o que precisa acontecer para ela morrer
+#### A janela de convivência: aberta e fechada em 07/09/2026
 
-A URL nova precisa estar cadastrada no DevCenter **antes** de a antiga fechar, e
-o cadastro é ato de pessoa. Até `FIM_DA_CONVIVENCIA`
-(`src/lib/integrations/webhookMlToken.ts`), requisição **sem** token ainda entra.
+Ela existiu por poucas horas, porque a URL nova precisava ser cadastrada no
+DevCenter antes de a antiga fechar — e o cadastro é ato de pessoa. **Morreu com
+os quatro passos cumpridos e medidos**, não por alguém achar que já dava:
 
-Para fechar:
+1. `WEBHOOK_ML_TOKEN` no Fly;
+2. URL com `?token=` cadastrada no DevCenter;
+3. **push real medido**: 33 eventos `aceito COM token` e **zero** `aceito SEM
+   token` nos logs do Fly, a partir das 18:50:26;
+4. remoção da janela, da guarda de data e da via `convivencia`.
 
-1. `WEBHOOK_ML_TOKEN` configurado no Fly — **antes de tudo**, senão o passo 3
-   nunca acontece e o webhook cai na virada da data;
-2. a URL com `?token=…` cadastrada no DevCenter do ML;
-3. **um push real chegando pela URL nova** — medido no banco, não suposto;
-4. só então remover `FIM_DA_CONVIVENCIA` e a guarda.
+⚠️ **Hoje, requisição sem token é 404 — e sem `WEBHOOK_ML_TOKEN` configurado
+também.** Enquanto a janela existiu, env ausente deixava passar: era a única
+forma de não fechar o webhook antes de alguém ter como configurá-la. Com a janela
+fechada, vale a regra da casa — *fechadura sem chave não é porta aberta*.
 
-⚠️ Há teste que fica **vermelho sozinho** quando a data passar
-(`tests/webhookMlExigeToken.test.mjs`). Ele existe porque este projeto já foi
-mordido por salvaguarda temporária que sobreviveu à limitação que a justificou
-(31/08/2026, a recusa da Shopee que continuou mentindo 4 horas depois de a rota
-passar a aceitar). A mensagem de falha dele traz a ordem completa dos quatro
-passos, para a decisão do dia já vir com o que fazer. Quando ficar vermelho:
-feche a janela, ou mova a data **com motivo escrito** — mas não apague a guarda.
+📌 A guarda que ficava vermelha sozinha na data saiu junto com a janela: ela
+existia para **forçar esta decisão**, e a decisão foi tomada. Guarda que já
+cumpriu o propósito vira ruído — e ruído é como o próximo vermelho passa a ser
+ignorado.
 
 ## Fees e impostos
 
@@ -236,6 +236,10 @@ também cobre o pendente.
 
 
 ## Changelog observado (mais recente primeiro)
+
+- **2026-09-07 (noite) — A JANELA DE CONVIVÊNCIA DO WEBHOOK MORREU, com prova.**
+  Medido nos logs do Fly: 33 pushes `aceito COM token`, zero `SEM token`. A
+  partir daqui, requisição sem token válido é 404 — e env ausente também.
 
 - **07/09/2026 — O campo de URL de notificação do DevCenter tem teto de 120
   caracteres, e ele TRUNCA em silêncio.** Descoberto ao cadastrar a URL nova com

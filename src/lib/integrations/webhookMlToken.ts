@@ -1,3 +1,5 @@
+import { timingSafeEqual } from "node:crypto";
+
 /**
  * ORIGEM DO WEBHOOK DO MERCADO LIVRE — token secreto na URL.
  *
@@ -5,35 +7,30 @@
  * A única coisa que podemos exigir é um segredo que só nós e o DevCenter
  * conhecemos, embutido na URL cadastrada lá.
  *
- * ⚠️ JANELA DE CONVIVÊNCIA COM PRAZO DE MORTE DECLARADO. A URL nova precisa ser
- * cadastrada no DevCenter do ML ANTES de a antiga fechar — e o cadastro é ato de
- * pessoa, no navegador. Enquanto isso, a rota aceita os dois formatos.
+ * ⚠️ A JANELA DE CONVIVÊNCIA MORREU EM 07/09/2026, no mesmo dia em que nasceu, e
+ * morreu do jeito certo: com os quatro passos cumpridos e medidos, não por
+ * alguém achar que já dava.
  *
- * ⚠️ ISTO É DÍVIDA COM PRAZO, NÃO DESENHO — e este projeto já foi mordido por
- * salvaguarda temporária que sobreviveu à limitação que a justificou (31/08/2026,
- * a recusa da Shopee que continuou mentindo 4 horas depois de a rota passar a
- * aceitar). Por isso:
+ *   1. `WEBHOOK_ML_TOKEN` no Fly — feito;
+ *   2. URL com `?token=` cadastrada no DevCenter — feito;
+ *   3. push real chegando pela URL nova — **medido nos logs do Fly**: 33 pushes
+ *      "aceito COM token" e ZERO "aceito SEM token", a partir das 18:50:26;
+ *   4. remoção da janela e da guarda de data — este commit.
  *
- *   O QUE PRECISA ACONTECER PARA ESTA JANELA MORRER, NESTA ORDEM:
- *   1. `WEBHOOK_ML_TOKEN` configurado no Fly — **antes** de tudo;
- *   2. a URL nova (com `?token=…`) cadastrada no DevCenter do ML;
- *   3. um push real chegando pela URL nova — medido, não suposto.
+ * Fica registrado porque a intenção deste arquivo já mudou uma vez, e teste que
+ * inverte sem dizer por que é o primeiro a ser afrouxado depois: até hoje à
+ * tarde, requisição SEM token entrava. Agora não entra mais, nunca.
  *
- * Cumpridos os três, apague `FIM_DA_CONVIVENCIA` e a rota passa a exigir token.
+ * ⚠️ E SEM `WEBHOOK_ML_TOKEN` CONFIGURADO, NINGUÉM ENTRA. Enquanto a janela
+ * existiu, a env ausente deixava passar — era a única forma de não fechar o
+ * webhook antes de alguém ter como configurá-la. Com a janela fechada, vale a
+ * regra da casa: *fechadura sem chave não é porta aberta.*
  *
- * ⚠️ A ORDEM NÃO É DETALHE: quando a janela cai, **env ausente vira recusa**.
- * Fechadura sem chave não é porta aberta. Se a data passar sem a env no Fly, o
- * webhook do ML para de entrar — de propósito, e é por isso que o passo 1 vem
- * primeiro.
- * E há teste que fica VERMELHO sozinho quando a data passar: ele existe para que
- * a janela não sobreviva ao silêncio de todo mundo.
+ * 📌 O CAMPO DE URL DO DEVCENTER TRUNCA EM 120 CARACTERES, em silêncio dos dois
+ * lados. A base ocupa 58, então o token tem **32 caracteres** — não por
+ * segurança, por caber. Ver o changelog de `docs/api-mercado-livre.md`.
  */
-import { timingSafeEqual } from "node:crypto";
-
-/** Depois desta data, requisição sem token é 404. Formato ISO, UTC. */
-export const FIM_DA_CONVIVENCIA = "2026-09-14T23:59:59.000Z";
-
-export type ViaDoWebhook = "token" | "convivencia" | "sem-token-configurado" | "recusado";
+export type ViaDoWebhook = "token" | "recusado";
 
 export interface DecisaoDeOrigem {
   aceito: boolean;
@@ -42,7 +39,7 @@ export interface DecisaoDeOrigem {
 
 /**
  * Comparação em tempo constante. Comparar com `===` vaza o tamanho do prefixo
- * correto pelo tempo de resposta — é pouco, mas é grátis não vazar.
+ * correto pelo tempo de resposta — é pouco, e é grátis não vazar.
  */
 function iguais(a: string, b: string): boolean {
   const x = Buffer.from(a);
@@ -58,46 +55,11 @@ export function avaliarOrigemDoWebhook(entrada: {
   tokenRecebido: string | null;
   /** O segredo configurado. `null`/vazio = ainda não configuramos. */
   tokenEsperado: string | null | undefined;
-  agora: Date;
 }): DecisaoDeOrigem {
   const esperado = entrada.tokenEsperado?.trim();
-
-  // ⚠️ SEM SEGREDO CONFIGURADO, ACEITA — ENQUANTO A JANELA ESTIVER ABERTA.
-  //
-  // Recusar no dia do deploy fecharia o webhook do ML antes de alguém ter como
-  // configurar a env: o modo de falha certo para "ainda não montamos a
-  // fechadura" é a porta continuar como estava, com aviso alto no log.
-  //
-  // ⚠️ MAS ESSA PERMISSÃO MORRE JUNTO COM A JANELA (visto do cérebro, 07/09/2026):
-  // **fechadura sem chave não é porta aberta.** Passada a data, env ausente vira
-  // falha FECHADA. Sem essa amarra, o fail-open sobreviveria à convivência que o
-  // justificava — que é exatamente a família de dívida que este arquivo existe
-  // para não repetir. Ou seja: a env tem de estar no Fly ANTES de a janela cair.
-  if (!esperado) {
-    return janelaAberta(entrada.agora)
-      ? { aceito: true, via: "sem-token-configurado" }
-      : { aceito: false, via: "recusado" };
-  }
-
-  if (entrada.tokenRecebido !== null) {
-    // Token PRESENTE e ERRADO nunca passa, nem durante a convivência: quem manda
-    // token errado não é o chamador legado — o legado não manda token nenhum.
-    return iguais(entrada.tokenRecebido, esperado)
-      ? { aceito: true, via: "token" }
-      : { aceito: false, via: "recusado" };
-  }
-
-  // Sem token: só enquanto a janela declarada estiver aberta.
-  return janelaAberta(entrada.agora)
-    ? { aceito: true, via: "convivencia" }
+  if (!esperado) return { aceito: false, via: "recusado" };
+  if (entrada.tokenRecebido === null) return { aceito: false, via: "recusado" };
+  return iguais(entrada.tokenRecebido, esperado)
+    ? { aceito: true, via: "token" }
     : { aceito: false, via: "recusado" };
-}
-
-function janelaAberta(agora: Date): boolean {
-  return agora.getTime() <= Date.parse(FIM_DA_CONVIVENCIA);
-}
-
-/** `true` quando a janela de convivência já deveria ter sido fechada. */
-export function convivenciaVencida(agora: Date = new Date()): boolean {
-  return agora.getTime() > Date.parse(FIM_DA_CONVIVENCIA);
 }
