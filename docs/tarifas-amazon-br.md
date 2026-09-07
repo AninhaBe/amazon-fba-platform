@@ -167,6 +167,29 @@ menores que a tabela (ou zero)** — mais um motivo para `observada > tabela`.
 
 ## Changelog observado
 
+- **07/09/2026** — **Primeiras tarifas FBA cobradas na conta.** Medição de
+  `finances/2024-06-19/transactions`, janela de 90 dias (série começa em
+  10/08/2026): 59 pedidos postados, todos `AFN` confirmados por `orders/v0/orders`
+  (72 de 72). Comissão **R$ 0,00 em 59 de 59** — não existe linha `Commission`.
+  `FBAPerUnitFulfillmentFee` cobrada em **2 de 59**, R$ 5,65 cada, ambas no SKU
+  `kitprote-8` (ASIN `B0H9SFW8KR`, preço R$ 21,90), em **05/09 e 06/09** — as
+  primeiras de toda a série; agosto teve 43 pedidos e nenhuma. Total de tarifas:
+  R$ 16,08 sobre R$ 1.672,01, ou **0,96%**.
+
+  Os R$ 5,65 são **exatamente a tarifa de tabela da §2.1 para preço < R$ 30**, ou
+  seja: não é tarifa diferente, é a isenção não se aplicando àqueles dois pedidos.
+
+  ⚠️ **Não está explicado.** A condição de Ads da §2.3 está cumprida com folga
+  (`workspace_ad_metrics`: R$ 445,92 em agosto e R$ 138,37 em setembro, 30–37% da
+  receita contra o mínimo de 3,5%), então não é isso. E a hipótese "a janela de 30
+  dias virou" não fecha sozinha: em 05/09 o **mesmo SKU** teve três pedidos, dois
+  zerados e um cobrado, e em 07/09 voltou a zero. Pode ser a janela terminando com
+  a tarifa dos demais ainda por postar, ou ruído.
+
+  **O que falsifica:** acompanhar a proporção de pedidos cobrados. Se subir, a
+  janela virou e o cenário "sem isenção" passa a ser o número corrente. Registrado
+  como pendência em `docs/plans/pesquisa-de-catalogo-de-fornecedor.md` §8, porque
+  muda decisão de compra de estoque.
 - **01/09/2026** — Tabela FBA capturada da página de ajuda do Seller Central
   (201112670) na sessão da conta NEXAHUB BR, a pedido da Ana: "essa é a tabela
   que você precisa usar como regra pra calcular as tarifas de cada pedido antes
