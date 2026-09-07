@@ -21,7 +21,6 @@ import { ORDEM_DO_RADAR, ROTULO_DE_COBERTURA, type StockStatus } from "@/lib/cob
 import { LegendaDeVendas } from "./LegendaDeVendas";
 import { CompactMetric, Flow, FlowExpandable, Metric, getRevenueTrend } from "./Metric";
 import { buildFinancialComposition, FinancialSummaryPanel } from "./FinancialSummaryPanel";
-import { tomDaFatia, type PaletaDeCategoria } from "./CompositionDonut";
 import { sinaisDoResultado } from "./oQueFaltaNoResultado";
 import { SinaisDoResultado } from "./SinaisDoResultado";
 import { sinaisSilenciadosPorAlarme } from "./hierarquiaDeAvisos";
@@ -34,39 +33,18 @@ import { Pagination } from "./Pagination";
 import { TopProductsRanking } from "./TopProductsRanking";
 import { BriefingLead } from "./BriefingLead";
 import { NexoDoDia } from "./NexoDoDia";
-import { CockpitDoResultado, LinhaDePendencias, LucroPorDia } from "./CockpitDoResultado";
+import { LucroPorDia } from "./CockpitDoResultado";
+import { AlertasDoCaminho, FaixaDeEtapas } from "./FaixaDeEtapas";
+import { somaDosCustos } from "./caminhoDoDinheiro";
 import { TopProdutosNaFaixa } from "./TopProdutosNaFaixa";
 import { IntegrationDashboardFrame } from "./IntegrationDashboardFrame";
 
-/**
- * ⚠️ A PALETA APROVADA PELA ANA EM 03/09/2026, e ela é DO MERCADO LIVRE.
- *
- * Vermelho decrescente para o que consome a venda — quanto mais escuro, mais
- * pesado — e o verde da marca do ML para o que sobra. A dona aprovou olhando a
- * prancheta "Lucro no tempo": *"Boa. Upa a opção 3 pro sistema."*
- *
- * ⚠️ POR QUE HEX AQUI E NÃO UM TOKEN GLOBAL: `--positive` é o verde de TODOS os
- * canais. Trocá-lo pintaria Amazon, Shopee e TikTok de verde-ML sem ninguém
- * pedir, e a ordem foi explícita: o redesenho é um teste num canal só. Este
- * dicionário é o único lugar que conhece estes valores, e ele é passado ao mapa
- * de cor compartilhado em vez de duplicá-lo.
- *
- * As chaves são os `id` que `buildFinancialComposition` emite — não os rótulos,
- * que mudam de texto quando o período está parcial.
- */
 /**
  * `YYYY-MM-DD` -> `DD/MM`. A string só é reordenada: passá-la por `new Date`
  * a leria como meia-noite UTC e devolveria o dia anterior em São Paulo.
  */
 const diaBrasileiro = (data: string) => data.slice(5).split("-").reverse().join("/");
 
-const PALETA_DO_ML: PaletaDeCategoria = {
-  cogs: "#FF0000",
-  shipping: "#FF4D4D",
-  fees: "#FF8585",
-  taxes: "#FFC2C2",
-  result: "#337129",
-};
 import { marginMetricTone } from "@/lib/marginTone";
 import { BASE_SEM_DIFERENCA, declaracaoDeBase } from "./baseDaMargem";
 import { comSemImposto } from "@/lib/semImposto";
@@ -578,24 +556,6 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
         });
 
   /**
-   * ⚠️ A COR DA CASCATA VEM DA MESMA FATIA DA ROSQUINHA — pela
-   * CATEGORIA, nao pela posicao na barra.
-   *
-   * As duas listas tem ordens diferentes de proposito (a barra segue a leitura
-   * da prancheta; a rosquinha ordena por tamanho), entao usar o indice de cada
-   * uma daria cores diferentes para a mesma categoria. Procurar a fatia pelo
-   * `id` garante que "Taxas" e a mesma tinta nos dois lugares.
-   *
-   * Categoria que a rosquinha nao tem (porque o valor e nulo ou zero) cai no
-   * tom mais leve: ela nao aparece na barra tambem, entao a cor nunca chega a
-   * ser usada — mas a funcao nao pode devolver `undefined` no caminho.
-   */
-  const corDaCategoria = (id: string) => {
-    const indice = composicaoDoResultado.findIndex((fatia) => fatia.id === id);
-    return (indice < 0 ? null : tomDaFatia(indice, composicaoDoResultado[indice], PALETA_DO_ML)) ?? "var(--ink-12)";
-  };
-
-  /**
    * ⚠️ OS SETE DIAS DO BLOCO "LUCRO POR DIA", e o cuidado todo está em NÃO
    * TRANSFORMAR `null` EM ZERO no caminho até a tela.
    *
@@ -656,20 +616,100 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
     };
   });
 
-  const pendenciasDoCanal = [
-    ...(semAliquota
-      ? [{ label: "Cadastrar alíquota", href: MERCADO_LIVRE_TAX_RATE_HREF, tone: "pendencia" as const }]
-      : []),
-    ...(overview.metrics.productsWithoutCost > 0
-      ? [{ label: `Cadastrar custo de ${overview.metrics.productsWithoutCost} produto(s)`, href: "/mercado-livre/produtos", tone: "pendencia" as const }]
-      : []),
-    ...(overview.metrics.cancelledOrders > 0
-      ? [{ label: `${overview.metrics.cancelledOrders} pedido(s) cancelado(s) no período`, href: "/mercado-livre/monitor", tone: "alerta" as const }]
-      : []),
-    ...(critical.length > 0
-      ? [{ label: `${critical.length} produto(s) em estoque crítico`, href: "/mercado-livre/estoque", tone: "alerta" as const }]
-      : []),
+  /**
+   * ⚠️ O "CUSTOU" DA FAIXA NAO EXISTE COMO CAMPO — e a soma das quatro
+   * parcelas, e por isso ela passa por `somaDosCustos`, que se recusa a somar
+   * quando alguma e desconhecida. Sem aliquota cadastrada, `taxes` chega `null`
+   * e um `?? 0` aqui daria um total exato e MENOR que o real, com o "Sobrou" ao
+   * lado parecendo melhor do que e. Nada ficaria vermelho.
+   */
+  const custosDoPeriodo = somaDosCustos([
+    { rotulo: "produtos", valor: overview.profit.cogs },
+    { rotulo: "frete", valor: overview.profit.sellerShipping },
+    { rotulo: "taxas", valor: overview.profit.fees },
+    { rotulo: "impostos", valor: overview.profit.taxes },
+  ]);
+
+  /** O lucro de ontem, para a etapa do resultado comparar. `null` = desconhecido. */
+  const lucroDeOntem = serieDoBloco.length >= 2 ? serieDoBloco[serieDoBloco.length - 2]?.profit ?? null : null;
+
+  const etapasDoCaminho = [
+    {
+      id: "vendeu",
+      rotulo: "Você vendeu",
+      valor: money(overview.metrics.revenue30d, overview.metrics.currency),
+      contexto: (
+        <>
+          {overview.metrics.paidOrders} pedido(s) aprovado(s)
+          {overview.metrics.cancelledOrders === 0
+            ? ", nenhum cancelado"
+            : `, ${overview.metrics.cancelledOrders} cancelado(s)`}
+          . Contados pela data do pedido.
+        </>
+      ),
+    },
+    {
+      id: "custou",
+      rotulo: "Custou",
+      valor: custosDoPeriodo.total == null ? "—" : money(custosDoPeriodo.total, overview.metrics.currency),
+      contexto: custosDoPeriodo.total == null
+        // ⚠️ O total sumiu, entao a tela diz O QUE falta — e nao "custo
+        // parcial", que explicaria a ela algo que ela ja sabe sem dizer o que
+        // fazer. As parcelas conhecidas continuam visiveis logo abaixo.
+        ? <>Falta {custosDoPeriodo.faltando.join(" e ")} para fechar a conta.</>
+        : (
+          <>
+            Produtos {money(overview.profit.cogs, overview.metrics.currency)} · frete {money(overview.profit.sellerShipping, overview.metrics.currency)}
+            {" · "}taxas {money(overview.profit.fees, overview.metrics.currency)} · impostos {money(overview.profit.taxes ?? 0, overview.metrics.currency)}
+          </>
+        ),
+    },
+    {
+      id: "sobrou",
+      rotulo: "Sobrou",
+      valor: overview.profit.estimatedProfit == null ? "—" : money(overview.profit.estimatedProfit, overview.metrics.currency),
+      destaque: "resultado" as const,
+      negativo: overview.profit.estimatedProfit != null && overview.profit.estimatedProfit < 0,
+      contexto: overview.profit.estimatedProfit == null ? margemSub : (
+        <>
+          {overview.profit.marginPct == null
+            ? "Margem sem alíquota cadastrada."
+            : `Margem de ${overview.profit.marginPct.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}% sobre a venda.`}
+          {/* ⚠️ "Ontem" so aparece quando ontem TEM numero. Dia sem lucro
+              conhecido nao vira comparacao com zero — seria inventar uma queda. */}
+          {lucroDeOntem == null ? null : <> Ontem foram {money(lucroDeOntem, overview.metrics.currency)}.</>}
+        </>
+      ),
+    },
   ];
+
+  const alertasDoCaminho = [
+    ...(overview.metrics.productsWithoutCost > 0 ? [{
+      id: "sem-custo",
+      titulo: `${overview.metrics.productsWithoutCost} produto(s) sem custo cadastrado`,
+      detalhe: "a margem deles fica em branco até o custo entrar",
+      acao: "Cadastrar custos",
+      href: "/mercado-livre/produtos",
+      tom: "acao" as const,
+    }] : []),
+    ...(semAliquota ? [{
+      id: "sem-aliquota",
+      titulo: "Alíquota de imposto não cadastrada",
+      detalhe: "sem ela o custo do período não fecha e o lucro fica em branco",
+      acao: "Cadastrar alíquota",
+      href: MERCADO_LIVRE_TAX_RATE_HREF,
+      tom: "acao" as const,
+    }] : []),
+    ...(critical.length > 0 ? [{
+      id: "estoque",
+      titulo: `${critical.length} produto(s) em estoque crítico`,
+      detalhe: "no ritmo de venda desta semana",
+      acao: "Ver no radar",
+      href: "/mercado-livre/estoque",
+      tom: "atencao" as const,
+    }] : []),
+  ];
+
 
   // ⚠️ 30/08/2026 — custo faltando virou SINAL, nao trava (decisao da vendedora).
   // O numero aparece sempre; `sinais` anda colado nele.
@@ -739,9 +779,10 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
       moeda={overview.metrics.currency}
       briefingHref="/mercado-livre/monitor"
       briefingLabel="Ver detalhes"
-      // ⚠️ AS PENDENCIAS SAIRAM DAQUI E VIRARAM UMA LINHA DE CHIPS
-      // (03/09/2026, redesenho aprovado). A LISTA E A MESMA — os textos, os
-      // links e as condicoes vem de `pendenciasDoCanal`, logo abaixo, e sao
+      // ⚠️ AS PENDENCIAS SAIRAM DAQUI. Viraram chips em 03/09/2026 e,
+      // em 06/09, os cartoes de alerta do Caminho do Dinheiro. A LISTA E A
+      // MESMA em condicao e destino — os textos, os
+      // links e as condicoes vem de `alertasDoCaminho`, logo acima, e sao
       // exatamente os que estavam aqui. O que mudou foi a FORMA: cartoes
       // empilhados a direita viraram chips em fila.
       //
@@ -766,91 +807,38 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
     {/* Faturamento do ML conta aprovadas + canceladas, sem frete (regra do
         proprio canal) — e sempre pela data do pedido. */}
     <BaseDeData base="pedido" />
-    {/* ⚠️ A FAIXA DO RESULTADO — redesenho aprovado em 03/09/2026,
-        direcao "Cockpit". A restricao da dona foi literal: *"sem alteracao
-        nenhuma que nao seja o design"*.
+    {/* ⚠️ A FAIXA DE 4 ETAPAS NO LUGAR DO COCKPIT (06/09/2026, canvas
+        "Caminho do dinheiro" aprovado pela Ana).
 
-        TODO NUMERO AQUI JA ERA EXIBIDO NESTA TELA: o lucro e a margem sao os
-        mesmos do cartao de Lucro, as parcelas sao as mesmas do painel de
-        composicao, e a contagem de vendas e a mesma do cartao de Pedidos. Nada
-        e recalculado, nada e buscado a mais — o `CockpitDoResultado` recebe
-        pronto e so decide tamanho, ordem e proporcao.
+        O que saiu daqui saiu por DUPLICACAO, e os cortes foram aprovados: o
+        lucro aparecia tres vezes na pagina e passa a aparecer uma; a cascata e
+        a legenda diziam a decomposicao do custo, que agora e a linha de
+        contexto da etapa "Custou". Nenhum numero novo entrou e nenhum produtor
+        mudou — os quatro valores saem dos mesmos campos de antes.
 
-        ⚠️ A cascata OMITE parcela desconhecida em vez de desenha-la como
-        zero. Barra que soma o que ninguem sabe mente com a autoridade de um
-        desenho — e o `null != 0` vale para a proporcao como vale para o
-        numero. */}
-    <CockpitDoResultado
-      titulo={`Resultado — ${periodoLabel}`}
-      // ⚠️ A REGRA E A MESMA DO CARTAO DE HOJE, LITERAL — e a primeira
-      // versao desta faixa NAO era (03/09/2026).
-      //
-      // Eu tinha posto `resultIncomplete` como porta: com custo, tarifa ou
-      // imposto faltando, o numero grande sairia "—". O CARTAO DA PAGINA NAO FAZ
-      // ISSO: ele mostra o numero sempre que `estimatedProfit != null`, e quando
-      // o resultado e parcial ele muda o ROTULO para "Resultado processado" em
-      // vez de esconder o valor.
-      //
-      // Um gate novo aqui seria mudanca de COMPORTAMENTO, e a ordem da dona foi
-      // "sem alteracao nenhuma que nao seja o design": mesmo payload, mesmos
-      // numeros que hoje, so em nova posicao. Entao a faixa replica a regra
-      // existente — inclusive a troca de rotulo, para nao chamar de LUCRO o que
-      // a pagina chama de resultado processado.
-      lucro={overview.profit.estimatedProfit}
-      lucroFormatado={overview.profit.estimatedProfit == null
-        ? "—"
-        : money(overview.profit.estimatedProfit, overview.metrics.currency)}
-      frase={overview.profit.estimatedProfit == null ? margemSub : (
-        <>
-          de {resultParcial ? "resultado processado" : "lucro"} em <strong>{overview.metrics.paidOrders} venda(s)</strong>
-          {overview.profit.marginPct == null ? null : (
-            <> · margem <strong>{overview.profit.marginPct.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%</strong></>
-          )}
-        </>
-      )}
-      parcelas={[
-        { id: "fees", rotulo: `Taxas ${money(overview.profit.fees ?? 0, overview.metrics.currency)}`, valor: overview.profit.fees, cor: corDaCategoria("fees") },
-        { id: "cogs", rotulo: `Custo ${money(overview.profit.cogs ?? 0, overview.metrics.currency)}`, valor: overview.profit.cogs, cor: corDaCategoria("cogs") },
-        { id: "shipping", rotulo: `Frete ${money(overview.profit.sellerShipping ?? 0, overview.metrics.currency)}`, valor: overview.profit.sellerShipping, cor: corDaCategoria("shipping") },
-        { id: "taxes", rotulo: `Impostos ${money(overview.profit.taxes ?? 0, overview.metrics.currency)}`, valor: overview.profit.taxes, cor: corDaCategoria("taxes") },
-        { id: "lucro", rotulo: `${resultParcial ? "Resultado" : "Lucro"} ${overview.profit.estimatedProfit == null ? "—" : money(overview.profit.estimatedProfit, overview.metrics.currency)}`, valor: overview.profit.estimatedProfit, cor: corDaCategoria("result") },
-      ]}
-      aoLado={
-        /* ⚠️ O TOP PRODUTOS NO LUGAR DA CONTA ESCRITA (06/09/2026). O
-           motivo e dela, e estava certo: *"Quero tirar essa tela de Repasses,
-           taxas e lucro, porque a tela da esquerda ja mostra literalmente
-           isso."* A cascata e a legenda a esquerda listam as MESMAS quatro
-           parcelas e o MESMO lucro — a conta escrita era a segunda leitura do
-           mesmo numero ocupando a outra metade da faixa.
+        ⚠️ E OS DOIS BLOCOS QUE MORAVAM DENTRO DA FAIXA CONTINUAM NA PAGINA,
+        logo abaixo: o lucro por dia e o top produtos. Eles nao foram cortados —
+        ganham o tratamento do canvas nas proximas etapas. Remove-los agora
+        porque a caixa que os hospedava mudou seria perder funcao no meio de uma
+        troca de layout. */}
+    <FaixaDeEtapas etapas={etapasDoCaminho} />
 
-           ⚠️ A LISTA E A MESMA `overview.topProducts` que o bloco
-           "Desempenho do periodo" consome mais abaixo, na ordem que o produtor
-           ja emitiu. Um calculo, dois consumidores: ordenar ou cortar aqui
-           criaria dois rankings do mesmo periodo na mesma pagina, e o dia em
-           que discordassem ninguem veria nada vermelho. */
-        <TopProdutosNaFaixa
-          titulo={`Top produtos — ${periodoLabel}`}
-          href="/mercado-livre/produtos"
-          vazio="Sem vendas no período para ranquear."
-          produtos={overview.topProducts.map((produto) => ({
-            id: produto.id,
-            titulo: produto.title,
-            unidades: `${produto.units.toLocaleString("pt-BR")} un.`,
-            faturamento: money(produto.revenue, overview.metrics.currency),
-            marginPct: produto.marginPct,
-          }))}
-        />
-      }
-      abaixoDaLegenda={
-        /* ⚠️ DEBAIXO DA LEGENDA, dentro da faixa — é onde a prancheta
-           aprovada o pôs, ocupando o branco que sobrava à esquerda. Fora da
-           faixa ele viraria mais um cartão, e a leitura "quanto sobrou hoje ->
-           foi um dia bom?" se quebraria no meio. */
-        <LucroPorDia titulo="Lucro por dia — últimos 7" dias={seteDiasDeLucro} />
-      }
+    <AlertasDoCaminho alertas={alertasDoCaminho} />
+
+    <LucroPorDia titulo="Lucro por dia — últimos 7" dias={seteDiasDeLucro} />
+
+    <TopProdutosNaFaixa
+      titulo={`Top produtos — ${periodoLabel}`}
+      href="/mercado-livre/produtos"
+      vazio="Sem vendas no período para ranquear."
+      produtos={overview.topProducts.map((produto) => ({
+        id: produto.id,
+        titulo: produto.title,
+        unidades: `${produto.units.toLocaleString("pt-BR")} un.`,
+        faturamento: money(produto.revenue, overview.metrics.currency),
+        marginPct: produto.marginPct,
+      }))}
     />
-
-    <LinhaDePendencias itens={pendenciasDoCanal} />
 
     <section className="metric-grid ml-dashboard-metric-grid" aria-label="Resumo financeiro Mercado Livre">
       <Metric label="Faturamento" value={<AnimatedNumber periodo={identidadeDePeriodo(overview.period.from, overview.period.to)} id="ml-dash-revenue" value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={`${overview.metrics.paidOrders} aprovadas + ${overview.metrics.cancelledOrders} canceladas`} trend={getRevenueTrend(overview.dailySales)} />

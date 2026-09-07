@@ -58,6 +58,10 @@ test("o Archivo veste NUMERO GRANDE, e sempre com Inter atras", async () => {
   // ⚠️ O FALLBACK NAO E ZELO: com `preload: false` o arquivo chega DEPOIS
   // do primeiro paint. Sem Inter atras, o numero apareceria na fonte do sistema
   // por um quadro — trocando de largura no meio de uma tabela de numeros.
-  assert.ok(regra.includes("var(--font-app-display), var(--font-app-sans)"),
-    "o Archivo perdeu a Inter como fallback imediato: o numero pisca na fonte do sistema antes de trocar");
+  assert.ok(regra.includes("var(--font-app-display, var(--font-app-sans)), var(--font-app-sans)"),
+    "o Archivo perdeu a Inter atras. SAO DOIS CASOS e os dois importam:\n" +
+      "  1. variavel AUSENTE -> precisa do fallback DENTRO do var(). Medido numa fixture\n" +
+      "     sem a variavel: com `var(--a), var(--b)` e `--a` indefinida, a declaracao\n" +
+      "     inteira vira invalida e a fonte cai em Times New Roman, nao na Inter.\n" +
+      "  2. arquivo ainda CARREGANDO -> a virgula resolve, e cobre o FOUT.");
 });

@@ -248,7 +248,17 @@ body:has(.lp) { background: white; }
    Classe declarada e nao usada nao muda pixel nenhum; fonte pre-carregada e nao
    usada muda o peso de toda pagina do produto. */
 .num-display {
-  font-family: var(--font-app-display), var(--font-app-sans), "Segoe UI", sans-serif;
+  /* ⚠️ O FALLBACK MORA DENTRO DO `var()`, e a diferenca foi MEDIDA numa
+     fixture sem a variavel: com `var(--a), var(--b)` e `--a` INDEFINIDA, a
+     declaracao inteira vira invalida e a fonte cai no padrao do navegador —
+     Times New Roman —, nao na Inter. A virgula so escolhe entre familias que
+     EXISTEM; variavel ausente envenena a linha toda.
+
+     No app a variavel existe (o `next/font` a poe no <html>), entao isto nao
+     muda pixel nenhum hoje. Protege o dia em que alguem renderizar esta classe
+     fora da arvore do layout raiz — que e o caso do pacote do design system, e
+     e o achado #2 do retrato. */
+  font-family: var(--font-app-display, var(--font-app-sans)), var(--font-app-sans), "Segoe UI", sans-serif;
   font-weight: 600;
   letter-spacing: -.2px;
 }
@@ -6090,7 +6100,17 @@ summary:hover { background: var(--paper-soft); }
    `--positive` e o verde dos quatro canais; a paleta aprovada em 03/09/2026 e
    um teste num canal so. Este token e local ao cockpit, que so o ML renderiza —
    e por isso mudar de ideia depois nao mexe em Amazon, Shopee nem TikTok. */
-.cockpit-faixa { --ml-verde: #337129; --ml-coluna: #17171733; }
+/* ⚠️ OS TOKENS DO ML SUBIRAM DA FAIXA PARA A PAGINA (06/09/2026), e nao
+   foi arrumacao: o design-sync mostrou que `--ml-verde` e `--ml-coluna` so
+   existiam dentro de `.cockpit-faixa`, entao qualquer peca usada FORA dela
+   ficava sem cor. Enquanto tudo morava dentro da faixa isso nunca doeu; com a
+   faixa de 4 etapas, o lucro por dia e o top produtos passaram a ser irmaos na
+   pagina, e a caixa que os continha deixou de existir.
+
+   Continuam ESCOPADOS ao dashboard do ML — nao sobem para o `:root`. O verde e
+   da marca do Mercado Livre; nos outros tres canais ele nao significa nada, e
+   `--positive` segue sendo o verde de todos. */
+.ml-dashboard-page { --ml-verde: #337129; --ml-coluna: #17171733; }
 
 /* 36px e o tamanho da prancheta aprovada. Ele ja foi 44px na versao anterior:
    com o numero em verde saturado, 44 pesava mais que a frase que o explica, e a
@@ -6196,6 +6216,51 @@ summary:hover { background: var(--paper-soft); }
   border-block-start: 1px dashed var(--ink-12);
   background: transparent;
 }
+
+/* ── CAMINHO DO DINHEIRO: a faixa de 4 etapas (06/09/2026) ─────────────────
+   A leitura e uma frase da esquerda para a direita — vendeu, custou, sobrou,
+   cai na conta. Elas dividem UMA faixa com divisao de 1px em vez de virarem
+   quatro cartoes: cartao separado sugere quatro indicadores independentes, e
+   estes sao quatro passos do mesmo dinheiro. */
+.etapas {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--paper);
+  box-shadow: var(--shadow-surface);
+}
+.etapa { border-inline-end: 1px solid var(--line); padding: 15px; }
+.etapa:last-child { border-inline-end: 0; }
+/* A alternancia de fundo separa os passos sem precisar de mais um traco. */
+.etapa:nth-child(even) { background: var(--paper-soft); }
+.etapa-rotulo { margin: 0 0 4px; color: var(--ink-muted); font-size: 11.5px; }
+.etapa-valor { margin: 0 0 4px; font-size: 24px; line-height: 1.1; }
+/* ⚠️ UM SO NUMERO EM VERDE, e e o "Sobrou". Se o faturamento tambem fosse
+   verde, o olho leria dois destaques e a faixa deixaria de ter UMA resposta. */
+.etapa.is-resultado .etapa-valor { color: var(--ml-verde); }
+.etapa.is-resultado.is-negativo .etapa-valor { color: var(--danger); }
+.etapa-contexto { margin: 0; color: var(--ink-faint); font-size: 11px; line-height: 1.45; }
+
+/* ── Os alertas: o que precisa dela, com numero e destino ─────────────────── */
+.alertas { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.alerta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-radius: var(--radius-md);
+  background: var(--paper);
+  padding: 12px 14px;
+  box-shadow: var(--shadow-surface);
+}
+.alerta-titulo { margin: 0; color: var(--ink); font-size: 13px; font-weight: var(--weight-semibold); }
+.alerta-detalhe { margin: 2px 0 0; color: var(--ink-faint); font-size: 11.5px; }
+.alerta-acao { flex-shrink: 0; color: var(--acao); font-size: 12px; font-weight: var(--weight-semibold); text-decoration: none; white-space: nowrap; }
+.alerta-acao:hover { text-decoration: underline; }
+/* Estoque e informacao, nao acao imediata: a tinta de atencao marca a borda,
+   nao o texto — empilhar dois vermelhos treina a pessoa a ignorar os dois. */
+.alerta.is-atencao { box-shadow: var(--shadow-surface), inset 3px 0 0 0 var(--warning); }
 
 /* TOP PRODUTOS na direita da faixa — Opcao A da prancheta (06/09/2026). */
 .top-faixa { display: flex; flex-direction: column; gap: 10px; }

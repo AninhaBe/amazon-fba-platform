@@ -47,49 +47,53 @@ test("a cascata OMITE parcela desconhecida em vez de desenhar zero", async () =>
   );
 });
 
-test("os numeros da faixa saem dos MESMOS campos que a tela ja exibia", async () => {
+test("os numeros da FAIXA DE ETAPAS saem dos mesmos campos de sempre", async () => {
+  // ⚠️ INTENCAO INVERTIDA (06/09/2026). Ate aqui esta guarda exigia os
+  // campos do `CockpitDoResultado`, que saiu: o Caminho do Dinheiro trocou a
+  // faixa do lucro pela faixa de 4 etapas, e o lucro deixou de aparecer tres
+  // vezes na pagina para aparecer uma. O corte foi aprovado pela Ana.
+  //
+  // O QUE ELA SEMPRE PROTEGEU CONTINUA: a faixa nao inventa numero. Cada etapa
+  // le o MESMO campo do produtor que a tela ja exibia — trocar de layout nao
+  // pode trocar o numero, e o jeito silencioso de errar isso e derivar um valor
+  // novo no meio do JSX.
   const codigo = semComentarios(await fonte(ML));
-  const faixa = codigo.slice(codigo.indexOf("<CockpitDoResultado"), codigo.indexOf("/>", codigo.indexOf("parcelas=")));
-  // Cada parcela tem de vir do produtor, não de uma conta nova na tela.
-  // ⚠️ A ANCORA E O PAR `valor: <campo>,` — casar so o nome do campo
-  // ficava verde com o valor multiplicado, porque o mesmo campo aparece tambem
-  // no ROTULO da parcela. Duas ocorrencias, e a assercao achava a inocente.
-  for (const campo of ["overview.profit.fees", "overview.profit.cogs", "overview.profit.sellerShipping", "overview.profit.taxes"]) {
-    assert.ok(faixa.includes(`valor: ${campo},`), `a faixa deixou de ler ${campo} cru do produtor`);
+  const faixa = codigo.slice(codigo.indexOf("const etapasDoCaminho = ["), codigo.indexOf("const alertasDoCaminho"));
+
+  assert.ok(faixa.includes("valor: money(overview.metrics.revenue30d, overview.metrics.currency)"),
+    "a etapa 'Voce vendeu' trocou de fonte");
+  assert.ok(faixa.includes('valor: overview.profit.estimatedProfit == null ? "\u2014"'),
+    "a etapa 'Sobrou' deixou de mostrar traco quando o lucro e desconhecido");
+  assert.ok(faixa.includes('custosDoPeriodo.total == null ? "\u2014" : money(custosDoPeriodo.total'),
+    "a etapa 'Custou' deixou de respeitar o total desconhecido");
+  // ⚠️ E NENHUMA ARITMETICA NO MEIO DA FAIXA: as contas moram no modulo
+  // puro, onde da para testa-las pelo comportamento, com os dois lados do null.
+  for (const proibido of ["+ overview.profit", "/ overview.", "* 100"]) {
+    assert.ok(!faixa.includes(proibido),
+      "apareceu conta dentro da faixa (" + proibido + ") — ela pertence a caminhoDoDinheiro.ts");
   }
-  // E a contagem de vendas é a mesma do cartão de pedidos.
-  assert.ok(faixa.includes("overview.metrics.paidOrders"), "a contagem de vendas virou outra");
-  // ⚠️ O lucro respeita `resultIncomplete`: enquanto falta custo, tarifa ou
-  // imposto, ele é DESCONHECIDO. Mostrar o parcial em 44px seria a mentira mais
-  // cara possível — o número grande é o que a pessoa lê primeiro.
-  // ⚠️ A REGRA DO NUMERO GRANDE E A DO CARTAO DE HOJE, LITERAL. A
-  // primeira versao punha `resultIncomplete` como porta e o cartao NAO faz isso:
-  // ele mostra o numero sempre que `estimatedProfit != null` e troca o ROTULO
-  // quando o resultado e parcial. Gate novo seria mudanca de comportamento, e a
-  // ordem era "mesmo payload, mesmos numeros que hoje".
-  assert.ok(faixa.includes("lucro={overview.profit.estimatedProfit}"),
-    "a faixa ganhou uma regra de exibicao que o cartao nao tem");
-  assert.ok(!/resultIncomplete/.test(faixa), "voltou o gate que esconde numero que a pagina de hoje mostra");
-  // E o rotulo acompanha: nao chamar de LUCRO o que a pagina chama de resultado
-  // processado.
-  assert.ok(faixa.includes('resultParcial ? "resultado processado" : "lucro"'),
-    "a faixa passou a chamar de lucro o resultado parcial");
 });
 
-test("as PENDENCIAS sao as mesmas — mesma condicao, mesmo texto, mesmo destino", async () => {
+test("os ALERTAS mantem condicao e destino — so a forma mudou", async () => {
+  // ⚠️ INTENCAO INVERTIDA DUAS VEZES. Esta guarda ja exigiu os cartoes
+  // de pendencia (ate 03/09), depois os chips, e agora os cartoes de alerta do
+  // Caminho do Dinheiro. O que ela protege nao mudou nenhuma das vezes: a lista
+  // nasce das MESMAS condicoes e leva aos MESMOS destinos. Aviso que muda de
+  // forma pode perder um caso sem ninguem ver.
   const codigo = semComentarios(await fonte(ML));
-  const lista = codigo.slice(codigo.indexOf("const pendenciasDoCanal"), codigo.indexOf("];", codigo.indexOf("const pendenciasDoCanal")));
-  for (const parte of [
-    "semAliquota",
-    "Cadastrar alíquota",
-    "overview.metrics.productsWithoutCost > 0",
-    "/mercado-livre/produtos",
-    "overview.metrics.cancelledOrders > 0",
-    "/mercado-livre/monitor",
-    "critical.length > 0",
-    "/mercado-livre/estoque",
-  ]) {
-    assert.ok(lista.includes(parte), `a pendência mudou de condição ou destino: ${parte}`);
+  const inicio = codigo.indexOf("const alertasDoCaminho = [");
+  const alertas = codigo.slice(inicio, codigo.indexOf("\n  ];", inicio));
+
+  assert.ok(alertas.includes("overview.metrics.productsWithoutCost > 0"), "o alerta de custo perdeu a condicao");
+  assert.ok(alertas.includes('href: "/mercado-livre/produtos"'), "o alerta de custo perdeu o destino");
+  assert.ok(alertas.includes("semAliquota ?"), "o alerta de aliquota sumiu");
+  assert.ok(alertas.includes("critical.length > 0"), "o alerta de estoque perdeu a condicao");
+  assert.ok(alertas.includes('href: "/mercado-livre/estoque"'), "o alerta de estoque perdeu o destino");
+
+  // ⚠️ E CADA UM DIZ O QUE FALTA COM NUMERO. Nada de adjetivo que se
+  // desculpa: a regra da casa proibe "parcial" e irmaos.
+  for (const proibido of ["parcial", "incompleto", "incompleta"]) {
+    assert.ok(!alertas.toLowerCase().includes(proibido), "apareceu " + proibido + " num alerta");
   }
 });
 
@@ -285,31 +289,22 @@ test("as DUAS COLUNAS sao do canal, e as pecas de dentro nao mudaram", async () 
   }
 });
 
-test("A ORDEM DOS BLOCOS E A DA PRANCHETA — reprovada uma vez por nao ser", async () => {
-  // ⚠️ A v258 FOI REPROVADA PELA DONA por isto, verbatim: *"Eu pedi pra
-  // voce fazer exatamente como me apresentou na direcao A"*.
+test("A ORDEM DOS BLOCOS E A DO CANVAS — e ela ja foi reprovada uma vez", async () => {
+  // ⚠️ INTENCAO INVERTIDA (06/09/2026): a sequencia era a da Direcao A
+  // (faixa do lucro -> chips -> regua de cards -> duas colunas). O canvas do
+  // Caminho do Dinheiro poe a faixa de 4 etapas primeiro e os alertas logo
+  // depois, porque a leitura e "quanto sobrou -> o que precisa de mim".
   //
-  // O que estava no ar tinha os blocos certos na ORDEM ERRADA: depois da regua
-  // de cards vinham o grafico de evolucao e o painel de composicao, e o Top
-  // produtos + Rentabilidade ficavam la embaixo. A leitura chegava ao grafico
-  // antes de chegar ao produto — o contrario da prancheta aprovada.
-  //
-  // Ancorado nos BLOCOS REAIS (a marcacao que cada um abre), nao em nomes
-  // soltos: casar "TopProductsRanking" provaria que a peca existe, nao que ela
-  // esta na posicao aprovada.
+  // ⚠️ E O MOTIVO DE ELA EXISTIR NAO MUDOU: a v258 foi reprovada pela
+  // dona por blocos certos em ordem errada — *"Eu pedi pra voce fazer exatamente
+  // como me apresentou"*. Guarda de existencia nao pega isso.
   const codigo = semComentarios(await fonte(ML));
-  const corpo = codigo.slice(codigo.indexOf("<CockpitDoResultado"));
+  const corpo = codigo.slice(codigo.indexOf("<FaixaDeEtapas"));
   const sequencia = [
-    ["a faixa do resultado", "<CockpitDoResultado" + QUEBRA],
-    // A direita da faixa: era a conta escrita ate 06/09/2026, e agora e o Top
-    // produtos. Ela mora DENTRO da faixa, entao aparece antes dos chips.
-    ["o top produtos na faixa", "<TopProdutosNaFaixa" + QUEBRA],
-    // ⚠️ OS SETE DIAS MORAM DENTRO DA FAIXA, debaixo da legenda — e a
-    // prova disso e ele aparecer ANTES do fechamento da faixa, ou seja, antes
-    // dos chips. Fora dela ele viraria mais um cartao, e a leitura "quanto
-    // sobrou hoje -> foi um dia bom?" se quebraria no meio.
+    ["a faixa de 4 etapas", "<FaixaDeEtapas etapas="],
+    ["os alertas", "<AlertasDoCaminho alertas="],
     ["o lucro por dia", "<LucroPorDia titulo="],
-    ["os chips de pendencia", "<LinhaDePendencias itens={pendenciasDoCanal}"],
+    ["o top produtos", "<TopProdutosNaFaixa" + QUEBRA],
     ["a regua de cards", 'className="metric-grid ml-dashboard-metric-grid"'],
     ["as duas colunas", 'className="ml-cockpit-duas-colunas"'],
     ["o grafico e a composicao", 'className="performance-panel"'],
@@ -317,8 +312,8 @@ test("A ORDEM DOS BLOCOS E A DA PRANCHETA — reprovada uma vez por nao ser", as
   let anterior = -1;
   for (const [nome, marcador] of sequencia) {
     const posicao = corpo.indexOf(marcador);
-    assert.ok(posicao >= 0, `${nome}: o bloco sumiu da pagina`);
-    assert.ok(posicao > anterior, `${nome}: saiu da ordem da prancheta`);
+    assert.ok(posicao >= 0, nome + ": o bloco sumiu da pagina");
+    assert.ok(posicao > anterior, nome + ": saiu da ordem do canvas");
     anterior = posicao;
   }
 });
@@ -332,86 +327,55 @@ test("e o grafico e o painel DESCERAM, nao sairam", async () => {
   assert.match(codigo, /<FinancialSummaryPanel/, "o painel de composicao sumiu da pagina");
 });
 
-test("A COR SAI DO MAPA UNICO — e a paleta nova e opt-in do ML", async () => {
-  // ⚠️ ESTA GUARDA MUDOU DE INTENCAO UMA VEZ. Ate 03/09/2026 ela PROIBIA
-  // hex no ML e exigia `cor: "var(--positive)"` no lucro. A dona aprovou uma
-  // paleta por categoria so para o ML (Custo #FF0000 -> Impostos #FFC2C2, lucro
-  // no verde #337129 da marca), entao a proibicao passou a defender o cinza que
-  // ela mandou tirar.
+test("a paleta da cascata saiu JUNTO com a cascata — sem orfao", async () => {
+  // ⚠️ INTENCAO INVERTIDA (06/09/2026). Esta guarda exigia que a
+  // cascata pintasse pelo mapa compartilhado, com a paleta por categoria em
+  // opt-in. A cascata saiu no Caminho do Dinheiro: a decomposicao do custo virou
+  // a linha de contexto da etapa "Custou". Exigir a paleta agora seria defender
+  // uma peca que nao existe.
   //
-  // O que a guarda protege agora e a MESMA propriedade por outro caminho: os
-  // hex existem em UM dicionario, passado ao mapa de cor compartilhado. A
-  // cascata continua sem conhecer tinta nenhuma.
-  const donut = semComentarios(await fonte("src/app/components/CompositionDonut.tsx"));
+  // O que ela passa a proteger e o contrario: que a paleta tenha ido embora
+  // INTEIRA. Constante de cor sem consumidor e a proxima pessoa achando que ha
+  // duas formas suportadas de pintar o ML.
   const ml = semComentarios(await fonte(ML));
-
-  assert.match(donut, /export function tomDaFatia\(/, "o mapa de cor deixou de ser compartilhavel");
-  assert.equal((donut.match(/const TONS_CUSTO = \[/g) ?? []).length, 1, "a escala de tinta foi duplicada");
-  assert.match(donut, /tom: tomDaFatia\(i, s\)/, "a rosquinha voltou a decidir a cor por conta propria");
-
-  // A cascata busca pela CATEGORIA, nao pela posicao na barra.
-  assert.match(ml, /composicaoDoResultado\.findIndex\(\(fatia\) => fatia\.id === id\)/,
-    "a cascata voltou a pintar por posicao, e a mesma categoria muda de cor entre os dois lados da faixa");
-  for (const categoria of ["fees", "cogs", "shipping", "taxes", "result"]) {
-    assert.ok(ml.includes(`cor: corDaCategoria("${categoria}")`), `a parcela ${categoria} voltou a ter cor propria`);
+  for (const orfao of ["PALETA_DO_ML", "corDaCategoria", "tomDaFatia"]) {
+    assert.ok(!ml.includes(orfao), "sobrou " + orfao + " no ML depois de a cascata sair");
   }
 
-  // ⚠️ OS HEX MORAM NUM LUGAR SO. A cascata e a conta escrita pedem a
-  // cor a `corDaCategoria`; nenhuma das duas escreve tinta.
-  const paleta = ml.slice(ml.indexOf("const PALETA_DO_ML"), ml.indexOf("};", ml.indexOf("const PALETA_DO_ML")));
-  for (const [id, hex] of [["cogs", "#FF0000"], ["shipping", "#FF4D4D"], ["fees", "#FF8585"], ["taxes", "#FFC2C2"], ["result", "#337129"]]) {
-    assert.ok(paleta.includes(`${id}: "${hex}"`), `a paleta aprovada mudou: ${id} deixou de ser ${hex}`);
-  }
-  const semPaleta = ml.slice(0, ml.indexOf("const PALETA_DO_ML")) + ml.slice(ml.indexOf("};", ml.indexOf("const PALETA_DO_ML")));
-  assert.ok(!/#[0-9a-fA-F]{6}/.test(semPaleta),
-    "apareceu hex fora da paleta: cor copiada e como a mesma categoria acaba com duas tintas");
-
-  // ⚠️ E A PALETA E OPT-IN. Sem o parametro, `tomDaFatia` devolve o que
-  // sempre devolveu — e por isso os outros tres canais nao mudam de cor.
-  assert.match(donut, /paleta\?: PaletaDeCategoria,/, "a paleta deixou de ser opcional e repinta os quatro canais");
-  assert.match(donut, /const daCategoria = paleta && fatia\.id \? paleta\[fatia\.id\] : undefined;/,
-    "a consulta a paleta mudou de forma");
-  assert.match(ml, /tomDaFatia\(indice, composicaoDoResultado\[indice\], PALETA_DO_ML\)/,
-    "o ML parou de passar a paleta e voltaria ao cinza");
+  // ⚠️ E O MAPA CONTINUA DE PE PARA QUEM AINDA USA: a rosquinha dos
+  // outros tres canais consome tomDaFatia, e ela nao pode ter ido junto.
+  const donut = semComentarios(await fonte("src/app/components/CompositionDonut.tsx"));
+  assert.ok(donut.includes("export function tomDaFatia("), "o mapa de cor foi removido — os outros canais perdem a rosquinha");
+  assert.ok(donut.includes("tom: tomDaFatia(i, s)"), "a rosquinha voltou a decidir a cor por conta propria");
 });
 
-test("o verde do ML nao vaza para os outros canais", async () => {
-  // ⚠️ A ORDEM FOI EXPLICITA (03/09/2026): *"O verde #337129 e do ML — NAO
-  // mexa no token global --positive dos outros canais"*.
+test("o verde do ML alcanca a pagina inteira do canal — e so ela", async () => {
+  // ⚠️ INTENCAO AJUSTADA (06/09/2026), e o motivo veio de um achado do
+  // design-sync: --ml-verde e --ml-coluna so existiam dentro de .cockpit-faixa.
+  // Enquanto tudo que as usava morava la dentro, ninguem viu; com a faixa de 4
+  // etapas, o lucro por dia e o top produtos viraram irmaos na pagina e a caixa
+  // que os continha deixou de existir — as tres pecas ficariam sem cor.
   //
-  // O jeito silencioso de desobedecer seria trocar o token: a tela do ML ficaria
-  // certa, e Amazon, Shopee e TikTok mudariam de verde sem ninguem notar, porque
-  // nenhum teste olha a cor deles. Por isso a guarda ancora na DEFINICAO do
-  // token, nao no uso.
+  // O QUE NAO MUDOU, e e a ordem literal dela: *"O verde #337129 e do ML — NAO
+  // mexa no token global --positive dos outros canais"*. Ele subiu de escopo,
+  // nao virou global.
   const css = (await fonte("src/app/globals.css")).replace(/\/\*[\s\S]*?\*\//g, "");
 
-  // ⚠️ COMPARACAO DE STRING LITERAL, e a primeira versao desta assercao
-  // NAO era. Ela proibia `--positive: #337129` — e ficou VERDE com a quebra
-  // rodada, porque o token nunca foi hex: ele e `oklch(...)`. A guarda "esperta"
-  // vigiava uma forma que nao acontece. O que reprova e o valor de hoje, inteiro.
   assert.ok(css.includes("--positive: oklch(0.505 0.102 161);"),
     "o token global --positive mudou de valor: os outros tres canais mudaram de verde junto");
-
-  // O verde do ML mora num token LOCAL da faixa, que so o ML renderiza.
-  assert.ok(css.includes(".cockpit-faixa { --ml-verde: #337129; --ml-coluna: #17171733; }"),
-    "o verde do ML saiu do escopo da faixa — fora dela ele alcanca quem nao pediu");
-
-  // E o unico lugar do CSS que escreve este hex e essa declaracao.
+  assert.ok(css.includes(".ml-dashboard-page { --ml-verde: #337129; --ml-coluna: #17171733; }"),
+    "os tokens do ML mudaram de escopo: no :root alcancam quem nao pediu, num seletor menor as pecas ficam sem cor");
   assert.equal((css.match(/#337129/g) ?? []).length, 1,
     "o verde do ML foi copiado para outro seletor; um deles vai ficar para tras");
 
-  // ⚠️ E A FAIXA E DO ML: nenhuma outra tela monta o cockpit. Se um dia
-  // alguem a reusar, o `--ml-verde` vai junto — e ai a decisao tem de ser da
-  // dona, nao efeito colateral de um import.
   for (const tela of [
     "src/app/(app)/amazon/page.tsx",
     "src/app/components/ShopeeWorkspace.tsx",
     "src/app/components/TikTokWorkspace.tsx",
   ]) {
     const fonteDaTela = semComentarios(await fonte(tela));
-    assert.ok(!fonteDaTela.includes("CockpitDoResultado"), `${tela} passou a montar a faixa do ML`);
-    assert.ok(!fonteDaTela.includes("TopProdutosNaFaixa"), `${tela} passou a montar o top produtos da faixa do ML`);
-    assert.ok(!fonteDaTela.includes("PaletaDeCategoria"), `${tela} passou a pedir a paleta por categoria`);
+    assert.ok(!fonteDaTela.includes("FaixaDeEtapas"), tela + " passou a montar a faixa do Caminho do Dinheiro");
+    assert.ok(!fonteDaTela.includes("ml-dashboard-page"), tela + " passou a usar a classe do dashboard do ML");
   }
 });
 
