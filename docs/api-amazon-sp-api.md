@@ -195,13 +195,49 @@ Para saber qual transportadora a Amazon oferece num envio (a "parceira da Amazon
 / TEXBR), as duas portas estão fechadas para este app:
 
 - `GET /inbound/fba/2024-03-20/inboundPlans/{id}/shipments` → **403 Unauthorized**.
-  Falta papel na aplicação SP-API (mesmo padrão do relatório de tráfego, que exige
-  Brand Analytics). `GET .../inboundPlans/{id}` sozinho responde 200 — o bloqueio é
-  só no nível de shipments.
+  `GET .../inboundPlans/{id}` sozinho responde 200 — o bloqueio é só no nível de
+  shipments.
+
+  ⚠️ **CORREÇÃO (08/09/2026): atribuir isto a falta de papel estava errado, e a
+  correção muda a conclusão.** A Amazon documenta a exclusão do Brasil em dois
+  níveis, e nenhum deles é permissão da aplicação:
+
+  > *"Amazon-partnered carrier shipments are available only in the contiguous
+  > United States. For shipments outside this region, you must use your own
+  > carrier."*
+  > — [Create a shipment with an Amazon-partnered carrier](https://developer-docs.amazon.com/sp-api/docs/create-amazon-partnered-carrier-shipment)
+
+  > *"The Fulfillment Inbound API supports shipment creation in all Amazon stores
+  > **except Brazil**."*
+  > — [Fulfillment Inbound API](https://developer-docs.amazon.com/sp-api/docs/fulfillment-inbound-api)
+
+  O [FAQ](https://developer-docs.amazon.com/sp-api/docs/fulfillment-inbound-faq)
+  lista Brasil, Turquia e Índia sob *"we will announce support for these Amazon
+  stores as they become available"* — sem data.
+
+  **O desenho é deliberado**, e as operações de self-ship provam: elas trazem no
+  modelo, verbatim, *"Only available in the following marketplaces: MX, BR, EG,
+  SA, AE, IN."* O Brasil recebeu a trilha do self-ship **porque** não tem a da
+  transportadora parceira.
+
+  📌 Consequência prática: **pedir o papel não resolveria.** Não é a porta
+  trancada, é o cômodo que não existe no BR. Não abrir caso na Amazon por isso.
 - `GET /fba/inbound/v0/shipments/{id}/transport` → **400: "This API is deprecated.
   Please migrate to the new Fulfillment Inbound v2024-03-20 APIs."** A listagem
   `v0/shipments` ainda responde 200 (exige `ShipmentStatusList` ou `ShipmentIdList`),
   mas o transporte não.
+
+**O serviço existe comercialmente, só não por API.** Chama-se **Coleta FBA**:
+transportadora parceira coleta no endereço do vendedor, sujeita a área de
+cobertura, destino Cajamar
+([Programa de Transportadoras Parceiras](https://sellercentral.amazon.com.br/help/hub/reference/external/G201119120?locale=pt-BR)).
+É produto do Seller Central brasileiro, servido por trilha diferente da PCP da
+SP-API — fluxo manual, sem superfície programável conhecida.
+
+⚠️ **Antes de concluir "não tem PCP" por teste empírico**, o tutorial avisa que
+ausência na resposta nem sempre é indisponibilidade: *"Transportation options are
+paginated with a default pageSize of 10 and a maximum of 20 results. Always review
+all pages using nextToken before concluding that PCP options are unavailable."*
 
 Conclusão: a escolha de transportadora só é verificável na tela *Enviar para a
 Amazon*. Se o papel for concedido, o caminho é `transportationOptions` da 2024-03-20.
