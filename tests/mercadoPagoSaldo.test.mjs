@@ -113,3 +113,39 @@ test("leitura completa nao se declara parcial", () => {
   const s = calcularSaldoML([PAGO_RETIDO], { agora: AGORA, totalDaBusca: 1 });
   assert.equal(s.parcial, false);
 });
+
+/**
+ * ⚠️ DEFEITO ACHADO POR ELA NA TELA, 10/09/2026: *"esses dados
+ * fazem sentido?"*. O cartao dizia 276 pagamentos retidos com um extrato de 34
+ * — e o "parcial" acendia sem leitura truncada nenhuma.
+ *
+ * A causa: `parcial` comparava o total da BUSCA com a contagem dos RETIDOS.
+ * A busca vai de `agora - 24h` ate `agora + 180d`, entao ela inclui o que ja
+ * foi liberado nas ultimas 24 horas. Qualquer pagamento ja liberado fazia
+ * `totalDaBusca > pagamentosLidos` e a tela afirmava *"o retido real e maior
+ * que o exibido"* — mentira, e a mentira que a regra da casa manda subir na
+ * fila na hora.
+ *
+ * ⚠️ POR QUE A SUITE NAO PEGOU: os dois testes de `parcial`
+ * acima usam SO pagamento retido. O caso que quebra a regra — um liberado ao
+ * lado de um retido — nunca entrou na amostra. E o irmao do "dado que nao
+ * exercita a regra nao testa a regra" do AGENTS.md: nao faltou asserção,
+ * faltou o CASO.
+ */
+test("pagamento ja liberado NAO faz a leitura se declarar parcial", () => {
+  const liberado = { ...PAGO_RETIDO, id: 99, money_release_date: new Date(AGORA.getTime() - 3_600_000).toISOString() };
+  // Dois pagamentos na janela, os dois lidos: um ja caiu, um ainda cai.
+  const s = calcularSaldoML([PAGO_RETIDO, liberado], { agora: AGORA, totalDaBusca: 2 });
+  assert.equal(s.parcial, false, "a tela afirma que o retido real e maior sem leitura truncada");
+  assert.equal(s.pagamentosLidos, 1, "o retido continua sendo um so");
+});
+
+test("a contagem de retidos e a MESMA que a soma do extrato", () => {
+  // O cartao "Pagamentos retidos" e a coluna "Pagamentos" da tabela saem do
+  // mesmo lugar; se divergirem, a tela se contradiz a si mesma na mesma altura
+  // da pagina — que foi exatamente o que ela viu.
+  const outroRetido = { ...PAGO_RETIDO, id: 100 };
+  const s = calcularSaldoML([PAGO_RETIDO, outroRetido], { agora: AGORA, totalDaBusca: 2 });
+  const soma = s.liberacoes.reduce((total, l) => total + l.pagamentos, 0);
+  assert.equal(soma, s.pagamentosLidos, "o cartao e o extrato deixaram de contar a mesma coisa");
+});

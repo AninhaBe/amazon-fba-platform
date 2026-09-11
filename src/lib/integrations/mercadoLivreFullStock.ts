@@ -33,6 +33,13 @@ export interface OfertaFull {
   /** `null` = a fonte não informou o estoque. Ver ADR-033. */
   availableQty: number | null;
   userProductId: string | null;
+  /**
+   * Preço de venda do anúncio. `null` = a fonte não informou.
+   *
+   * ⚠️ NUNCA ZERO POR OMISSÃO. Anúncio sem preço lido é anúncio
+   * cujo valor de venda a gente não sabe — e `0` diria que ele é de graça.
+   */
+  price?: number | null;
 }
 
 export type ChaveDeAgrupamento = "user_product" | "sku" | "oferta";
@@ -46,6 +53,10 @@ export interface ItemFull {
   custoUnitario: number | null;
   /** `null` sempre que `custoUnitario` for `null` — não se estima subtotal. */
   subtotal: number | null;
+  /** Preço de venda do anúncio representante. `null` = a fonte não informou. */
+  precoUnitario: number | null;
+  /** `null` sempre que `precoUnitario` for `null`. */
+  subtotalVenda: number | null;
   /** Ofertas que dividem este estoque. Mais de uma é o caso do catálogo. */
   ofertas: string[];
   agrupadoPor: ChaveDeAgrupamento;
@@ -58,6 +69,15 @@ export interface CustoDoFull {
    * é "R$ 0,00 parado no Full", é "ainda não dá para dizer".
    */
   total: number | null;
+  /**
+   * Soma dos subtotais de VENDA conhecidos — quanto essa mercadoria vale se for
+   * vendida pelo preço de hoje.
+   *
+   * ⚠️ NÃO É LUCRO, e o nome importa: daqui ainda saem tarifa,
+   * frete e imposto. É o outro lado do `total`: um diz quanto custou pôr a
+   * mercadoria lá, o outro quanto ela devolve se vender.
+   */
+  totalVenda: number | null;
   moeda: string;
   unidades: number;
   unidadesComCusto: number;
@@ -121,12 +141,26 @@ export function custoDoEstoqueNoFull(
     // Basta uma oferta do grupo ter custo: é o mesmo produto.
     const custoUnitario = doGrupo.map(custoDe).find((custo) => custo != null) ?? null;
     const representante = doGrupo.find((oferta) => oferta.availableQty === qtyFull) ?? doGrupo[0];
+    /**
+     * ⚠️ O PREÇO É O DO REPRESENTANTE, não uma média do grupo.
+     *
+     * Quando várias ofertas dividem o mesmo estoque (o caso do catálogo), elas
+     * podem ter preços diferentes — e média seria um número que não existe em
+     * anúncio nenhum. O representante é a mesma oferta que dá o título e a
+     * quantidade, então a linha inteira fala de um anúncio só.
+     *
+     * O custo continua vindo de QUALQUER oferta do grupo (é o mesmo produto
+     * físico); o preço, não (é decisão comercial por anúncio).
+     */
+    const precoUnitario = representante.price ?? null;
     return {
       produto: representante.title,
       sku: representante.sku,
       qtyFull,
       custoUnitario,
       subtotal: custoUnitario == null ? null : round2(custoUnitario * qtyFull),
+      precoUnitario,
+      subtotalVenda: precoUnitario == null ? null : round2(precoUnitario * qtyFull),
       ofertas: doGrupo.map((oferta) => oferta.externalProductId),
       agrupadoPor: tipo,
     };
@@ -136,9 +170,11 @@ export function custoDoEstoqueNoFull(
   itens.sort((a, b) => (b.subtotal ?? -1) - (a.subtotal ?? -1) || b.qtyFull - a.qtyFull);
 
   const comCusto = itens.filter((item) => item.subtotal != null);
+  const comPreco = itens.filter((item) => item.subtotalVenda != null);
   return {
     itens,
     total: comCusto.length ? round2(comCusto.reduce((soma, item) => soma + item.subtotal!, 0)) : null,
+    totalVenda: comPreco.length ? round2(comPreco.reduce((soma, item) => soma + item.subtotalVenda!, 0)) : null,
     moeda,
     unidades: itens.reduce((soma, item) => soma + item.qtyFull, 0),
     unidadesComCusto: comCusto.reduce((soma, item) => soma + item.qtyFull, 0),

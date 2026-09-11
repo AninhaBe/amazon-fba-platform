@@ -44,7 +44,7 @@ export const mercadoLivreMargemDetector: Detector = {
             evidence: { aliquotaConfigurada: "não" },
             impact: { premissa: "sem a alíquota de imposto, calcular margem superestimaria todos os produtos" },
             recommendation: "Cadastre a alíquota de imposto do Mercado Livre para a margem por produto ser avaliada.",
-            actionHref: "/mercado-livre/produtos",
+            actionHref: "/mercado-livre/anuncios",
           });
         }
         continue;

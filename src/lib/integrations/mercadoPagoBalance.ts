@@ -112,6 +112,13 @@ export function calcularSaldoML(
   let retido = 0;
   let liberadoNaJanela = 0;
   let pagamentosLidos = 0;
+  /* ⚠️ CONTA TUDO QUE FOI LIDO, retido E liberado. `parcial`
+     significa "a busca tem mais do que coube nas paginas" — e a busca vai de
+     `agora - 24h` a `agora + 180d`, entao ela inclui o que ja caiu. Comparar o
+     total dela com a contagem dos RETIDOS acendia "o retido real e maior" a
+     cada pagamento liberado nas ultimas 24 horas, sem truncar nada. Ela viu
+     pela tela em 10/09/2026. */
+  let pagamentosVistos = 0;
   const porDia = new Map<string, LiberacaoML>();
 
   for (const pagamento of pagamentos) {
@@ -125,6 +132,7 @@ export function calcularSaldoML(
     const quando = new Date(pagamento.money_release_date).getTime();
     if (!Number.isFinite(quando)) continue;
 
+    pagamentosVistos += 1;
     if (quando > agora) {
       retido += valor;
       pagamentosLidos += 1;
@@ -138,7 +146,7 @@ export function calcularSaldoML(
     }
   }
 
-  const totalDaBusca = input.totalDaBusca ?? pagamentosLidos;
+  const totalDaBusca = input.totalDaBusca ?? pagamentosVistos;
   return {
     currency: input.currency ?? "BRL",
     retido: round(retido),
@@ -146,6 +154,6 @@ export function calcularSaldoML(
     liberacoes: [...porDia.values()].sort((a, b) => a.date.localeCompare(b.date)),
     pagamentosLidos,
     pagamentosTotais: Math.max(totalDaBusca, pagamentosLidos),
-    parcial: totalDaBusca > pagamentosLidos,
+    parcial: totalDaBusca > pagamentosVistos,
   };
 }
