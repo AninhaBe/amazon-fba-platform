@@ -206,6 +206,20 @@ da fronteira**, não só os dados que a conta tem hoje.
 uma janela de `slice` fixa — ensina a ignorar teste vermelho, e é tão ruim quanto
 teste que nunca falha. Conserte a fragilidade, não o sintoma.
 
+**Antes de chamar vermelho de defeito do projeto, rode o comando DO PROJETO.**
+`package.json` → `scripts` é o lugar, e leva cinco segundos. Suite invocada por
+caminho próprio mede o **seu caminho**, não o projeto.
+
+⚠️ Aconteceu em 11/09/2026 e quase custou uma frente inteira de conserto: rodar
+`node --experimental-strip-types --test tests/*.test.mjs` na mão, **sem o
+`--import ./scripts/ts-resolver.mjs` que o próprio repo já liga em `npm test`**,
+faz ~45 arquivos falharem com `ERR_MODULE_NOT_FOUND` nos imports sem extensão.
+Esses 45 falsos vermelhos foram lidos como defeito de ambiente, reportados duas
+vezes, e o conserto chegou a ser autorizado — de algo que não estava quebrado.
+Pelo comando certo: **1857 testes, 1855 passam**. É a família de *"medir o errado
+custou o desenho"*: o sintoma era compatível com a hipótese (import sem extensão
+existe mesmo no código), e compatibilidade não é prova.
+
 # Salvaguarda de segurança adiada exige PRAZO DE MORTE e teste que fica vermelho sozinho
 
 **Regra fixada pela dona do produto em 07/09/2026**, depois de o webhook do

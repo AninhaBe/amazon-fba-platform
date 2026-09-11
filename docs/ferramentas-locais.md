@@ -52,6 +52,61 @@ ser reproduzível).
 ⚠️ Grava em **produção**, no workspace da conta demo — nunca no da usuária. O
 isolamento por `workspace_id` é o que garante isso.
 
+## Postgres descartável, para validar migration por EXECUÇÃO
+
+Levantado em 11/09/2026 para provar a `0033` (e a `0032`, pendente junto) antes
+da janela de apply. O caminho é o que o repo já prevê:
+
+```
+TEST_DATABASE_URL=postgres://...@127.0.0.1:5433/nexo_migracao npm run ci:preparar-banco
+```
+
+`ci-preparar-banco.mjs` cria o bootstrap pré-migrations (as tabelas antigas que
+nasceram no `db.ts`, antes de as migrations existirem) e empilha `migrations/`
+em ordem. Ele recusa alvo não-local e alvo igual a `DATABASE_URL` **antes** de
+qualquer escrita.
+
+⚠️ **NUNCA escreva um segundo script que aplique `.sql` em ordem.** Um caminho de
+apply fora do portão assinado é o atalho que um dia alguém aponta para produção.
+Um foi escrito neste dia, por não se ter achado o `ci-preparar-banco.mjs` de
+primeira, e foi **apagado** — o caminho previsto já existia.
+
+### ⚠️ A porta 5432 desta máquina JÁ TEM UM POSTGRES, e ele não é do NEXO
+
+Medido em 11/09/2026 com `Get-NetTCPConnection -LocalPort 5432`: há um Postgres
+**nativo do Windows** escutando em `0.0.0.0:5432` (processo `postgres`). **Não
+sabemos de quem é** e ninguém o configurou para este projeto.
+
+O sintoma de esbarrar nele é traiçoeiro: a conexão **funciona** e falha com
+*"password authentication failed"* — ela chegou num servidor real, só que no
+errado. Quem apontar `TEST_DATABASE_URL` para `localhost:5432` achando que é
+descartável **escreve no banco de outra pessoa**. Use outra porta; o Postgres
+levantado aqui ficou na **5433**.
+
+### Onde ele roda, e as duas armadilhas do WSL
+
+Não há `docker` nem `podman` nesta máquina. Há WSL2 (Ubuntu e Debian), e lá
+dentro se roda como root, sem senha de sudo: `apt-get install postgresql` dá o
+16.x. Nada é instalado no Windows. Trocar a porta: `pg_conftool 16 main set port
+5433`.
+
+1. **O encaminhamento de `localhost` do WSL2 cai quando a VM ocioso-desliga.**
+   Conecta, funciona, e minutos depois `ECONNREFUSED` — com o Postgres
+   provadamente no ar (`ss -lntp` mostra ele escutando). Segure um processo vivo
+   (`wsl -d Ubuntu -e sleep 3000 &`) durante o trabalho. **Não** "conserte"
+   abrindo `pg_hba.conf` para `0.0.0.0/0`: não é a causa, e é brecha.
+2. **Rode pelo Node do Windows, não pelo do WSL.** O Ubuntu 24.04 traz Node 18,
+   que não descasca tipos (`--experimental-strip-types`).
+
+### O que essa prova cobre — e o que não cobre
+
+Cobre **sintaxe, semântica e idempotência**, contra um schema construído do zero,
+e permite medir o efeito (coluna, `CHECK`, índices, default, e quantas views
+leem a tabela — a pergunta da lição da `0029`).
+
+⚠️ **Não mede tempo de lock.** O banco está vazio; produção tem dado, estatística
+e tamanho reais. Estimativa de lock em tabela quente continua estimativa.
+
 ## Outros já existentes
 
 `migrate.mjs` (migrações versionadas), `backfill-canonical.mjs` (reprocessa
