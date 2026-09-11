@@ -1,7 +1,9 @@
 "use client";
 
+import { TemaDoMenu } from "./TemaDoMenu";
+
 import Link from "next/link";
-import { CircleHelp, Lightbulb, PanelLeftClose, PanelLeftOpen, Plug, Search } from "lucide-react";
+import { CircleHelp, PanelLeftClose, PanelLeftOpen, Plug, Search } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { workspaceFromPath } from "@/lib/integrations/workspaces";
 import { MarketplaceIcon } from "./MarketplaceIcon";
@@ -81,10 +83,18 @@ export function ShellTopbar({
           <Plug aria-hidden />
           <span>Integrações</span>
         </Link>
-        <Link href="/briefing">
-          <Lightbulb aria-hidden />
-          <span>Briefing</span>
-        </Link>
+        {/* ⚠️ O "Briefing" DA BARRA DE TOPO SAIU (pedido dela,
+            10/09/2026). Ele levava ao briefing GLOBAL (`/briefing`), enquanto o
+            item do menu lateral leva ao do CANAL (`/mercado-livre/briefing`) —
+            dois destinos com o mesmo nome na mesma tela.
+
+            ⚠️ E ISSO DEIXA O BRIEFING GLOBAL SEM ENTRADA VISIVEL.
+            A rota continua de pe e responde por endereco direto; o que sumiu foi
+            o atalho. Se ele precisar voltar, o lugar nao e aqui com o mesmo
+            rotulo do item do canal — e distinguir os dois pelo nome. */}
+        {/* Sol/lua no fim da fila: é ajuste de aparência, não navegação — fica
+            depois de tudo que leva a algum lugar. */}
+        <TemaDoMenu />
       </nav>
     </header>
   );

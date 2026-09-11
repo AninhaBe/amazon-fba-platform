@@ -128,10 +128,26 @@ test("parcela ausente NAO vira zero na procedencia da linha", async () => {
 
 test("a marca fica COLADA ao numero, na face e no detalhe", async () => {
   const tabela = await fonte("src/app/components/OrderProfitabilityTable.tsx");
-  // Face: dentro do <strong> do valor, nao numa terceira linha do cartao.
-  assert.match(
-    tabela,
-    /<strong>\{money\(line\.contribution, line\.currency\)\}\{marcaDaLinha\(line\)\}<\/strong>/,
+  // ⚠️ A FACE MUDOU DE FORMA EM 11/09/2026, e a exigencia nao: a
+  // linha da tabela era `<strong>{money(contribution)}{marca}</strong>` com o
+  // percentual ao lado; no v3 ela virou UM chip com o percentual, e o valor em
+  // R$ passou a aparecer no detalhe que abre. A marca da estimativa continua
+  // onde ela precisa estar — colada ao numero da FACE, visivel sem abrir nada —,
+  // e e isso que a ADR-027 exige: estimativa marcada na tela.
+  //
+  // ⚠️ NAO vale afrouxar para "marcaDaLinha aparece no arquivo": ela
+  // aparece tres vezes, e duas sao no detalhe expandido. Se a guarda casasse o
+  // identificador solto, a marca poderia sair da face e o teste ficaria verde —
+  // e a face e justamente a parte que a pessoa le sem clicar. Por isso o bloco
+  // inteiro do chip, literal.
+  // String simples, sem template literal: a linha do chip tem `${classe}` dentro
+  // de uma template string do componente, e reproduzi-la com backtick aqui fazia
+  // o TESTE interpolar a variavel. Guarda que nao roda nao guarda nada.
+  assert.ok(
+    tabela.includes([
+      "      {percent(line.marginPct)}",
+      "      {marcaDaLinha(line)}",
+    ].join(String.fromCharCode(10))),
     "a marca saiu de perto do numero na face da linha",
   );
   // Detalhe: colada a TARIFA, que e a parcela que a estimativa substitui.

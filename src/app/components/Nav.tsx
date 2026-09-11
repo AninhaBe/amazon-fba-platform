@@ -1,5 +1,7 @@
 "use client";
 
+import { pictogramasNexo } from "./pictogramasNexo";
+
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -46,34 +48,40 @@ interface NavGroup {
  * medida que centraliza o ícone na calha de 60px do menu fechado. Ver a conta
  * em `globals.css` → "Menu que encolhe".
  */
-const iconProps = { className: "h-[18px] w-[18px]", strokeWidth: 1.5, "aria-hidden": true } as const;
 /**
- * Glifos escolhidos pelo mesmo critério do menu do DataDive: **um objeto só,
- * sem detalhe interno**. Quatro dos nossos eram desenhos carregados e é o que
- * fazia a calha parecer suja, mais do que a espessura do traço:
+ * ⚠️ O MENU USA O CONJUNTO PRÓPRIO (`pictogramasNexo`), aprovado por
+ * ela em 09/09/2026. Quatro peças são desenho nosso (Dashboard, Produtos,
+ * Anúncios e o Radar, este a partir da referência de tela de radar que ela
+ * mandou); as outras dez são DERIVADAS do Fluent Emoji (Microsoft, MIT) com a
+ * paleta trocada para a nossa — geometria deles, tinta nossa.
  *
- *   Boxes (3 cubos sobrepostos)   → Box       — uma caixa lisa
- *   Radar (arcos + varredura)     → Gauge     — um ponteiro
- *   Sparkles (3 estrelas)         → Lightbulb — uma lâmpada
- *   Blocks (blocos em 3D)         → Plug      — uma tomada
+ * ⚠️ DERIVAR NÃO É PREGUIÇA, É ONDE O OFÍCIO FALTA. Quatro
+ * tentativas próprias de desenhar o radar falharam pelo mesmo motivo: ilustração
+ * com curva, braço e proporção é trabalho de ilustrador, não de regra. Onde o
+ * objeto é geométrico (blocos, cubo, etiqueta), o desenho é nosso e fica melhor;
+ * onde é ilustração, derivar entrega qualidade que a gente não produziria.
  *
- * `Calculator` fica: a grade de teclas é detalhada, mas qualquer troca perde o
- * significado, e significado ganha de limpeza num menu.
+ * ⚠️ AS CHAVES AQUI SÃO AS DO MENU, não as do conjunto: `ads`,
+ * `products` e `stock` são nomes históricos deste arquivo e apontam para
+ * `anuncios`, `produtos` e `estoque`. Renomear os dois lados de uma vez é
+ * churn sem ganho — o mapeamento explícito abaixo é o lugar certo para a
+ * tradução morar.
  */
 const icons = {
-  dashboard: <LayoutDashboard {...iconProps} />,
-  integrations: <Plug {...iconProps} />,
-  calculator: <Calculator {...iconProps} />,
-  monitor: <Activity {...iconProps} />,
-  performance: <TrendingUp {...iconProps} />,
-  ads: <Megaphone {...iconProps} />,
-  create: <SquarePen {...iconProps} />,
-  products: <Box {...iconProps} />,
-  stock: <Gauge {...iconProps} />,
-  search: <Search {...iconProps} />,
-  history: <History {...iconProps} />,
-  briefing: <Lightbulb {...iconProps} />,
-  health: <HeartPulse {...iconProps} />,
+  dashboard: pictogramasNexo.dashboard,
+  briefing: pictogramasNexo.briefing,
+  monitor: pictogramasNexo.monitor,
+  auditoria: pictogramasNexo.auditoria,
+  ads: pictogramasNexo.anuncios,
+  products: pictogramasNexo.produtos,
+  stock: pictogramasNexo.estoque,
+  performance: pictogramasNexo.performance,
+  calculator: pictogramasNexo.calculator,
+  integrations: pictogramasNexo.integrations,
+  search: pictogramasNexo.search,
+  history: pictogramasNexo.history,
+  create: pictogramasNexo.create,
+  health: pictogramasNexo.health,
 };
 
 // Briefing por canal + global na Visão geral — decisão da Ana em 27/08/2026,
@@ -162,15 +170,14 @@ const navigation: Record<WorkspaceId, NavGroup[]> = {
         { href: "/mercado-livre", label: "Dashboard", desc: "Visão do canal", icon: icons.dashboard, exact: true },
         briefingDoCanal("/mercado-livre"),
         { href: "/mercado-livre/monitor", label: "Monitor da conta", desc: "Pedidos e financeiro", icon: icons.monitor },
-        { href: "/mercado-livre/auditoria", label: "Pedidos a revisar", desc: "Frete cobrado × declarado", icon: icons.monitor },
+        { href: "/mercado-livre/auditoria", label: "Pedidos a revisar", desc: "Frete cobrado × declarado", icon: icons.auditoria },
       ],
     },
     {
       title: "Catálogo",
       tone: "emerald",
       items: [
-        { href: "/mercado-livre/anuncios", label: "Anúncios", desc: "Catálogo publicado", icon: icons.ads },
-        { href: "/mercado-livre/produtos", label: "Produtos", desc: "Custos e impostos", icon: icons.products },
+        { href: "/mercado-livre/anuncios", label: "Anúncios", desc: "Catálogo, custos e alíquota", icon: icons.ads },
         { href: "/mercado-livre/estoque", label: "Radar de estoque", desc: "Cobertura e ruptura", icon: icons.stock },
       ],
     },
@@ -213,7 +220,7 @@ const navigation: Record<WorkspaceId, NavGroup[]> = {
         { href: "/tiktok", label: "Dashboard", desc: "Visão do canal", icon: icons.dashboard, exact: true },
         briefingDoCanal("/tiktok"),
         { href: "/tiktok/monitor", label: "Monitor da conta", desc: "Pedidos e conciliação", icon: icons.monitor },
-        { href: "/tiktok/auditoria", label: "Pedidos a revisar", desc: "Frete cobrado × declarado", icon: icons.monitor },
+        { href: "/tiktok/auditoria", label: "Pedidos a revisar", desc: "Frete cobrado × declarado", icon: icons.auditoria },
         { href: "/tiktok/financeiro", label: "Financeiro", desc: "Transações e cobertura", icon: icons.performance },
       ],
     },

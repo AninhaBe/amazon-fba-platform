@@ -49,13 +49,35 @@ vira spec quando a frente web correspondente fechar):
 
 | Tela web | Estado web | Nota mobile |
 |---|---|---|
-| Dashboard ML — Caminho do Dinheiro | ✅ no ar (v289): faixa de 4 etapas, alertas, 3 cards de tabela, ritmo 7 dias, anúncios com TACOS, estoque crítico | A faixa vira a tela inicial do app: 4 etapas empilhadas, "Sobrou" como herói. Tabelas já têm forma-cartão definida (responsivo <768px do web é o rascunho do mobile). Alternadores viram segmented control. |
+| Dashboard ML — **v3** | ✅ fechado 11/09 (substitui a faixa de 4 etapas): 7 colunas do período, margem, top produtos, ritmo 7 dias com alternador, pendências, Pedidos a revisar, anúncios com TACOS, Radar do FULL, saldo | As **7 colunas não caibem** no celular: viram lista empilhada com "Lucro" como herói e as quatro parcelas do custo abaixo, cada uma com o "% da venda". O chip de margem sobe para o topo. Alternador de métrica do ritmo = segmented control. |
 | Dashboards Amazon/Shopee/TikTok | design atual (réplica do Caminho do Dinheiro pendente, por canal) | Espelham quando a réplica web de cada canal fechar. |
 | Central (/) | passagem | No mobile provavelmente morre: o app abre direto no canal principal ou num agregado — decidir em canvas. |
 | /reativar + checkout | ✅ no ar (v288, mínima; a bonita vem por canvas) | Fluxo de assinar no mobile depende da decisão de loja (in-app purchase vs web checkout) — registrar na fase dev. |
 | Briefing / narração | no ar (Gemini, cache diário) | Candidata forte a push/resumo matinal. |
 | Pendências (custo, alíquota) | ✅ padrão consolidado (número + link) | Push + deep link para a tela de resolver. |
-| Monitor / Pedidos a revisar | no ar | Leitura ok no celular; revisão em massa fica melhor no desktop. |
+| Monitor / Pedidos a revisar | ✅ fechado 11/09 (linguagem v3) | A tabela de 11 colunas vira **um cartão por pedido** (produto, data e as parcelas em pares chave-valor); o chip de margem é a face do cartão. Revisão em massa continua melhor no desktop. |
+| Bancadas do ML (`/mercado-livre/bancada*`) | ✅ 11/09: passaram a montar a tela real, sem dado simulado | **Não existem no app.** Eram atalho de desenvolvimento; no mobile não há URL para colar. |
+
+## 3.1 O que o v3 do ML fixou — e o app herda sem negociar
+
+Cinco regras ganharam **lugar concreto** na tela no fechamento de 11/09. No
+mobile elas não mudam de valor, só de forma — e a forma é a parte que costuma
+cair na tradução para telas estreitas:
+
+- **A margem nunca aparece sozinha.** A linha sob o número diz a base do cálculo
+  ou o que falta ("falta 26 unidade(s) sem custo"). No celular ela é a primeira
+  coisa que o layout tenta cortar por falta de espaço — ela não é cortável.
+- **O lucro só sai verde com as quatro parcelas fechadas**, e prejuízo sai
+  vermelho. Cor é estado: no app, o mesmo par verde/vermelho, nunca o verde de
+  "tem número".
+- **Lista recortada diz que é recorte.** "Pedidos a revisar" mostra cinco linhas
+  debaixo de totais do período inteiro e a frase de escopo explica isso. No
+  mobile a lista é ainda mais curta — a frase fica mais necessária, não menos.
+- **Estimativa marcada junto do número** (ADR-027), na face do cartão, não no
+  detalhe que abre. Tooltip não existe no celular: a marca tem de ser visível.
+- **Dia sem apuração fechada** fica só com o contorno da barra e não entra na
+  média. Em tela pequena, a tentação é desenhar zero para a barra "não ficar
+  vazia" — zero numa série temporal lê como queda, não como ausência.
 
 ## 4. O que o mobile NÃO herda (diferenças estruturais a especificar)
 
@@ -77,5 +99,12 @@ três front-ends (web + iOS + Android) — trazer essa conta feita para a decis�
 
 ## Changelog do espelho
 
+- 11/09/2026 — espelho do **redesign v3 do Mercado Livre** (dashboard, monitor,
+  anúncios, auditoria): as 7 colunas do período, o cartão-por-pedido e a seção
+  3.1 com as cinco regras que ganharam lugar na tela. As bancadas entram como
+  "não existem no app". ⚠️ O espelho cobre **só o Mercado Livre**: Amazon,
+  Shopee e TikTok seguem no desenho anterior, e a casca compartilhada (sidebar,
+  tema, marca) ficou FORA desta leva por decisão dela — quando ela subir, esta
+  seção precisa de outra passada, porque a navegação do app sai da casca.
 - 08/09/2026 — doc criado com a decisão da dona (nativo; documental até ordem
   de dev; paralelo ao web) e o espelho do estado atual do web (v289).

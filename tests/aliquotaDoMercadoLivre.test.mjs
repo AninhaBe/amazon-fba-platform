@@ -69,7 +69,11 @@ test("null continua significando 'nao configurada' na leitura", () => {
 test("o erro de salvar mostra o motivo real, nao o palpite", () => {
   // Qualquer falha exibia "Informe um percentual entre 0 e 100" — culpando o
   // número digitado, que estava certo. Foi isso que escondeu o problema.
-  const pagina = arquivo("src/app/(app)/mercado-livre/produtos/page.tsx");
+  // AVISO: O ARQUIVO MUDOU, A REGRA NAO. Em 10/09/2026 a tela
+  // de Produtos foi absorvida pela de Anuncios (decisao dela — quatro das cinco
+  // colunas eram as mesmas) e `produtos/page.tsx` virou redirecionamento. O
+  // formulario da aliquota, com o erro real, foi junto.
+  const pagina = arquivo("src/app/(app)/mercado-livre/anuncios/page.tsx");
   assert.match(pagina, /setTaxError\(reason instanceof Error \? reason\.message/);
   assert.match(pagina, /taxError \?\? "Não foi possível salvar a alíquota\."/);
 });

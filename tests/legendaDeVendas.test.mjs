@@ -72,13 +72,39 @@ test("a legenda aparece quando ha pedido, mesmo sem pendente", () => {
   );
 });
 
-test("o monitor tem as mesmas tres abas nos dois canais", () => {
+// ⚠️ ESTE TESTE SE CHAMAVA "as mesmas TRES abas nos dois
+// canais" e exigia a de Composicao nos dois. A intencao mudou em 10/09/2026,
+// por decisao dela: tirar aquela aba do ML e por a rentabilidade no lugar.
+//
+// O MOTIVO, medido antes de propor: das sete linhas daquela aba no ML, duas ja
+// apareciam na faixa a 20px dali (Total recebido e Margem, como "Resultado
+// processado") e quatro na faixa do dashboard. So uma era exclusiva.
+//
+// ⚠️ A AMAZON CONTINUA COM AS TRES, e a divergencia e
+// DELIBERADA, nao esquecimento — ninguem mediu a duplicata la, e a regra da
+// casa e que replicar entre canais e reimplementar, nunca copiar. Se a mesma
+// medicao for feita na Amazon e der o mesmo resultado, este teste muda de novo;
+// ate la, ele guarda o que os dois canais REALMENTE tem em comum.
+test("as duas abas comuns aos dois monitores continuam de pé", () => {
   const amazon = fonte("src/app/(app)/monitor/page.tsx");
   const ml = fonte("src/app/components/MercadoLivreWorkspace.tsx");
   // "Transações" faltava no ML: o extrato do Mercado Pago existia só no card do
   // dashboard, e quem abria o monitor não achava onde ver quando o dinheiro cai.
-  for (const aba of ["Composição", "Transações", "Rentabilidade por venda"]) {
+  for (const aba of ["Transações", "Rentabilidade por venda"]) {
     assert.ok(amazon.includes(aba), `Amazon perdeu a aba "${aba}"`);
     assert.ok(ml.includes(aba), `Mercado Livre perdeu a aba "${aba}"`);
   }
+});
+
+test("a aba de Composição não volta ao monitor do ML — nem na tela, nem no tipo", () => {
+  const ml = fonte("src/app/components/MercadoLivreWorkspace.tsx");
+  // ⚠️ SEM COMENTARIOS: a explicacao da remocao, no proprio
+  // arquivo, CITA o rotulo e o valor proibidos — casar o texto cru reprovaria a
+  // documentacao do conserto. E a armadilha que o AGENTS.md nomeia e que ja
+  // pegou quatro vezes neste projeto em dois dias.
+  const codigo = ml.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+  assert.ok(!codigo.includes("Composi"), "a aba de Composição voltou para o monitor do ML");
+  // O valor sai do TIPO junto com a aba: deixado la, um `?secao=composition`
+  // antigo cairia numa aba em branco em vez de cair no padrao.
+  assert.ok(!codigo.includes("composition"), "o valor composition voltou ao tipo da seção");
 });

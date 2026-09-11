@@ -46,18 +46,38 @@ test("o guard da narracao NAO le a URL — le o periodo do hook", async () => {
   assert.ok(!/janela\?: string/.test(lead), "a janela virou opcional e o defeito pode voltar numa tela so");
 });
 
-test("AS QUATRO telas passam a janela — nao tres", async () => {
+test("as telas com narracao por periodo passam a janela — e o ML nao traz uma cega de volta", async () => {
   // A licao do defeito: uma tela de fora nao aparece, porque as outras
-  // funcionam. Entao o teste cobre as quatro, sempre.
-  for (const [tela, esperado] of [
+  // funcionam. Entao o teste cobre todas, sempre.
+  //
+  // ⚠️ O ML SAIU DA LISTA OBRIGATORIA EM 11/09/2026, por decisao
+  // dela: o redesign v3 substituiu o `BriefingLead` — a narracao por periodo —
+  // e a tela ficou com o `NexoDoDia`, que e a leitura do DIA (uma por workspace,
+  // sem periodo: `/api/central/briefing?modo=resumo` nao recebe janela). Nao ha
+  // o que passar, entao exigir `janela` ali seria exigir um parametro que a peca
+  // nao tem.
+  //
+  // ⚠️ MAS A GUARDA NAO ABRE A PORTA: se alguem devolver o
+  // `BriefingLead` ao ML, ele tem de vir COM a janela. Guarda que simplesmente
+  // remove a tela da lista deixa o defeito original poder voltar por ali — e era
+  // exatamente uma tela de fora que originou este arquivo.
+  const OBRIGATORIAS = [
     ["src/app/(app)/amazon/page.tsx", /janela=\{period\.query\}/],
     ["src/app/components/TikTokWorkspace.tsx", /janela=\{period\.query\}/],
-    ["src/app/components/MercadoLivreWorkspace.tsx", /janela=\{periodoQuery\}/],
     ["src/app/components/ShopeeWorkspace.tsx", /janela=\{periodoQuery\}/],
-  ]) {
+  ];
+  for (const [tela, esperado] of OBRIGATORIAS) {
     const codigo = await fonte(tela);
-    const chamada = codigo.slice(codigo.indexOf("<BriefingLead"), codigo.indexOf("<BriefingLead") + 700);
-    assert.match(chamada, esperado, `${tela}: a narracao voltou a nao saber o periodo`);
+    const onde = codigo.indexOf("<BriefingLead");
+    assert.ok(onde >= 0, `${tela}: a narracao por periodo sumiu da tela`);
+    assert.match(codigo.slice(onde, onde + 700), esperado, `${tela}: a narracao voltou a nao saber o periodo`);
+  }
+
+  const ml = await fonte("src/app/components/MercadoLivreWorkspace.tsx");
+  const noMl = ml.indexOf("<BriefingLead");
+  if (noMl >= 0) {
+    assert.match(ml.slice(noMl, noMl + 700), /janela=\{periodoQuery\}/,
+      "o BriefingLead voltou ao ML SEM a janela — se ele volta, volta sabendo o periodo");
   }
 });
 

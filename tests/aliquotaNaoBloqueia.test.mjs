@@ -151,19 +151,42 @@ test("ML: a alíquota saiu da condição de bloqueio e virou rótulo", () => {
   // Amazon — a ADR-028 manda dar NOMES DISTINTOS a numeros de universos
   // distintos. O que esta guarda sempre protegeu continua igual: o rotulo do
   // resultado carrega "sem imposto" quando nao ha aliquota cadastrada.
-  // ⚠️ ESTA ASSERCAO SAIU EM 07/09/2026 PORQUE O BLOCO SAIU.
-  // O canvas do Caminho do Dinheiro cortou o corpo antigo do dashboard do
-  // ML; o que ela vigiava nao existe mais nesta tela. Nao foi afrouxada por
-  // atrapalhar — o alvo deixou de existir, e o retorno dele tem guarda
-  // propria em `cockpitMLSoMudaDesign` ("os blocos CORTADOS nao voltam").
-  // Sobreviveu o que mora no MONITOR, que o corte nao tocou.
-  assert.match(tela, /comSemImposto\("Margem de contribuição", semAliquota\)/);
+  // ⚠️ ESTA ASSERCAO JA MUDOU DE ALVO DUAS VEZES, e as duas
+  // por REMOCAO de tela — nunca por ela ficar inconveniente. O registro das
+  // duas fica aqui porque a terceira vai parecer a mesma coisa e pode nao ser.
+  //
+  //   07/09/2026 — o canvas do Caminho do Dinheiro cortou o corpo antigo do
+  //     DASHBOARD do ML. Sobreviveu o que morava no monitor.
+  //   10/09/2026 — a aba "Composicao" do MONITOR saiu por decisao dela
+  //     ("pode tirar essa aba de composicao"), e com ela a cascata onde
+  //     morava o rotulo da margem sem imposto.
+  //
+  // ⚠️ A REGRA NAO MORREU COM A TELA, e e ela que este teste
+  // protege: sem aliquota cadastrada, o resultado do ML nao pode ser exibido
+  // como se fosse final. Quem cumpre isso hoje no MONITOR e o CHAMADO PARA
+  // ACAO — "Cadastrar aliquota" —, que so aparece quando `semAliquota`. E uma
+  // forma melhor do que o rotulo antigo, alias: aponta o que falta E leva ao
+  // lugar de resolver, que e a regra da casa para dado incompleto.
+  //
+  // Casa a RAMIFICACAO inteira (a condicao junto do link), nao o texto solto:
+  // um link para a mesma URL sem o `semAliquota &&` passaria a aparecer
+  // sempre, e a guarda nao veria diferenca.
+  assert.match(
+    tela,
+    /\{semAliquota && <div className="flex justify-end"><Link href=\{MERCADO_LIVRE_TAX_RATE_HREF\}/,
+    "o monitor parou de apontar a alíquota que falta",
+  );
   // ⚠️ E O RASTRO NAO SE PERDEU, que e o que esta guarda sempre
   // protegeu de verdade: a aliquota ausente continua marcada na coluna Situacao
   // do card "O que o custo esconde", e na fila de alertas com o texto novo — o
   // que diz que o imposto entra como ZERO e o lucro sai MAIOR que o real.
-  assert.match(tela, /situacao: semAliquota \? "sem alíquota"/,
-    "o rastro da aliquota sumiu da tabela do custo");
+  // ⚠️ O RASTRO MUDOU DE ENDERECO EM 11/09/2026, nao de existencia:
+  // ele morava na coluna "Situacao" do card "O que o custo esconde", que o v3
+  // substituiu pelas colunas do periodo. Hoje quem diz que ninguem cadastrou a
+  // aliquota e a linha SOB a coluna de imposto — mesmo peso, mesma tela, sem
+  // hover.
+  assert.match(tela, /share: overview\.profit\.taxRate == null \? "alíquota não configurada"/,
+    "o rastro da aliquota sumiu da coluna de imposto");
   // ⚠️ ESTA LINHA EXIGIA A FRASE ERRADA ate 01/09/2026. O que ela garante e que
   // a MARGEM leva o rotulo "sem imposto" quando nao ha aliquota — o texto da
   // base era incidental, e era mentira: dizia "sobre o faturamento" enquanto a
