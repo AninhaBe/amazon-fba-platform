@@ -459,6 +459,86 @@ dependem do ledger e mantém vendas/catálogo disponíveis, sem inventar zeros.
 
 ## Changelog observado
 
+- **11/09/2026 — 🚦 O APP PÚBLICO FOI PUBLICADO, E A ETAPA 2 ACHOU UM BLOQUEIO QUE
+  A ETAPA 1 NÃO PODIA TER VISTO.** O e-mail do Go Live Review chegou (serviço NEXO
+  publicado, já no Service Market do Seller Center) e a dona do produto pediu o
+  link de reautorização. Antes de mandá-lo, a leitura do caminho revelou que
+  **clicar nele quebraria no meio**.
+
+  **O defeito: o app da conexão nunca era PERSISTIDO.** O app viajava dentro do
+  `state` assinado do convite e chegava ao callback, que trocava o `auth_code`
+  com o par certo — isso a etapa 1 validou e continua verdade. Mas
+  `workspace_tiktok_shops` não tinha coluna para ele, e `appDaConexao()` só era
+  usado para ler o app de dentro do convite (`tiktokInvite.ts`), nunca para
+  gravar. **Do instante seguinte à autorização em diante, ninguém no sistema
+  sabia de qual app o token era** — e todo caminho que precisa da credencial caía
+  no `APP_PADRAO`, que é o custom:
+
+  | caminho | o que fazia | consequência |
+  |---|---|---|
+  | `getAuthorizedShops` (`tiktok.ts`) | `tiktokFetch` sem `app` | assina com a chave do custom **logo após** a troca do `auth_code` |
+  | `tiktokFinancialApi` | `tiktokFetch` sem `app` | toda conciliação financeira assinada com o custom |
+  | `tiktokSync` | monta o ref sem `app` | toda leitura de pedido assinada com o custom |
+  | `tiktokStore` (2 sítios) | `refreshAccessToken` sem `app` | renova token do público com o par do custom |
+
+  ⚠️ **É a família do `undefined` em produção que a Amazon já pagou** (`.env` ×
+  `workspace_accounts`), e o cabeçalho de `tiktokApps.ts` já a nomeava como o
+  motivo de não conviver para sempre. O que faltava não era aviso — era **campo**.
+
+  📌 **E o mais instrutivo: a etapa 1 estava certa no que ela mediu.** Ela validou
+  as três `TIKTOK_PUBLIC_*` dentro do processo e o invite respondendo
+  `app: "publico"`. Nunca passou uma autorização REAL pelo público, porque não
+  havia como — o par do público só tinha sido usado para **montar URL**, nunca
+  para **assinar chamada**. Validação de credencial que não assina nada não prova
+  que a credencial assina.
+
+  📌 **O modo de falha era benigno por acidente, não por desenho.** Como a quebra
+  acontece em `getAuthorizedShops`, ou seja **antes** do `save`, a conexão viva
+  não seria sobrescrita: a Ana veria "Autorizado, mas nenhuma loja retornada" e
+  continuaria conectada pelo custom. Ninguém perderia o TikTok tentando — mas a
+  etapa 2 não andaria, e a causa ficaria parecendo problema do TikTok.
+
+  **A correção (migration `0033` + 5 arquivos):** a coluna `app` passa a existir,
+  com `CHECK (app IN ('custom','publico'))` — lista **fechada**, o oposto da lista
+  negra que este projeto matou em 31/08/2026 — e `DEFAULT 'custom'`, que é a
+  **verdade** da conexão viva (autorizada pelo custom em 10/08/2026), não uma
+  conveniência. O callback grava o app que veio do convite; `TiktokShopRef` ganha
+  o campo; os 4 endpoints de negócio, os 2 refresh e os 2 sítios que montam ref
+  propagam. Guarda: `tests/credencialDoTiktokNaoSeAdivinha`.
+
+  ⚠️ **A guarda enumera, e por isso diz no próprio arquivo o que NÃO cobre:**
+  chamador novo de `tiktokFetch`/`refreshAccessToken` e endpoint de negócio novo
+  entram na lista no mesmo commit em que nascerem. As 9 quebras foram rodadas
+  **uma a uma** e todas ficaram vermelhas no teste certo; rodada contra a árvore
+  sem a correção, a guarda acusou exatamente os 5 testes de código.
+
+  📌 **Isto é também o que torna a ETAPA 3 verificável.** Sem a coluna, "a loja
+  migrou para o público" não teria como ser provado — só torcido. Com ela,
+  aposentar o custom é uma consulta: nenhuma linha com `app='custom'` restando.
+
+  **Duas pegadinhas do próprio portão de migration, pagas aqui:**
+
+  1. `classify()` (`scripts/migration-safety.mjs`) casa a palavra de remoção por
+     RegExp **sobre o arquivo inteiro, comentário incluído**. Um
+     `DROP CONSTRAINT IF EXISTS` defensivo carimbou a 0033 como **DESTRUCTIVE**,
+     e depois o **comentário que explicava a troca** a carimbou de novo. Rótulo
+     de risco errado é pior que nenhum: ensina quem autoriza a ignorar o rótulo.
+     A idempotência passou a vir de um bloco `DO $$ ... pg_constraint ... $$`, e a
+     classificação virou `DDL` puro. É a mesma família de "asserção que proíbe uma
+     string tem de olhar o fonte sem comentários" — aqui do lado do classificador.
+  2. **O manifesto do plano é write-once** (`savePlan` usa `flag: "wx"`).
+     Regerar por cima falha com `EEXIST` e **o arquivo em disco continua sendo o
+     antigo** — que foi exatamente o que quase virou report: plano velho, com o
+     hash velho e o carimbo DESTRUCTIVE, lido como se fosse o novo. Plano se
+     gera em arquivo novo, e o `planHash` se confere.
+
+  ⚠️ **E o apply arrasta a `0032` junto:** ela também está pendente em produção, e
+  o cabeçalho dela avisa que os `CREATE INDEX` são **sem `CONCURRENTLY`** (o
+  runner aplica em transação), ou seja, tomam lock nas tabelas quentes. A janela
+  não é "aditiva e rápida" como a da 0033 sozinha. Além disso, o apply remoto
+  **exige worktree limpo** (`migration-safety.mjs`) — com trabalho não commitado
+  de outra frente na árvore, ele recusa antes de tocar no banco.
+
 - **04/09/2026 — ⏳ CONVIVÊNCIA DOS DOIS APPS, COM PRAZO DE MORTE DECLARADO.**
   Decisão da dona do produto: **migrar é o destino**, em duas etapas, porque a
   migração real só é possível depois da aprovação do app público.
