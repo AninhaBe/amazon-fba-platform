@@ -206,6 +206,30 @@ da fronteira**, não só os dados que a conta tem hoje.
 uma janela de `slice` fixa — ensina a ignorar teste vermelho, e é tão ruim quanto
 teste que nunca falha. Conserte a fragilidade, não o sintoma.
 
+**Busca restrita não autoriza afirmação geral — e afirmação de completude é
+PIOR que lacuna.** A lacuna deixa a próxima pessoa desconfiada; a afirmação a faz
+**parar de procurar**.
+
+⚠️ Três vezes em 11/09/2026, sempre a mesma forma: procurar num recorte que eu
+mesmo escolhi e depois escrever a conclusão sobre o todo. (1) rodei a suíte por
+um caminho próprio e chamei 45 falsos vermelhos de defeito do projeto; (2) li
+checkpoints agrupados por recurso e escrevi *"conexão real"* sem ter filtrado por
+conexão — acertei sem ter feito o trabalho que autorizava afirmar, que não deixa
+rastro; (3) grepei `accessToken:` em três arquivos que já suspeitava e escrevi no
+teste *"os DOIS únicos sítios que constroem um ref"*. **Eram quatro**, e um dos
+esquecidos era o que roda a cada ciclo. Quem achou foi outra pessoa, perseguindo
+outra coisa — a suíte estava verde e mentindo.
+
+**Na prática:** se a frase que você vai escrever diz *todos*, *os únicos*, *nenhum*
+ou *sempre*, a busca que a sustenta varre o diretório inteiro, não a sua lista de
+suspeitos. E quando a garantia couber num tipo, prefira o tipo: `app?:` deixou dois
+sítios esquecerem o campo em silêncio; `app:` fez o compilador apontar os dois, ao
+custo medido de 5 erros e zero colateral. **Guarda por grep é segunda linha —
+troque-a por reprovação do compilador sempre que o custo for esse.**
+
+É a irmã de *"sintoma compatível com a hipótese não é prova dela"*: ali a evidência
+não provava a conclusão; aqui a busca não cobria o que a conclusão afirmava.
+
 **Antes de chamar vermelho de defeito do projeto, rode o comando DO PROJETO.**
 `package.json` → `scripts` é o lugar, e leva cinco segundos. Suite invocada por
 caminho próprio mede o **seu caminho**, não o projeto.
