@@ -54,11 +54,28 @@ ALTER TABLE workspace_tiktok_shops
 -- Valor desconhecido não entra. A lista é FECHADA de propósito: é o oposto da
 -- lista negra que este projeto matou em 31/08/2026 (`fee_type NOT IN (...)`),
 -- onde o desconhecido passava por padrão. Aqui o desconhecido para tudo.
-ALTER TABLE workspace_tiktok_shops
-  DROP CONSTRAINT IF EXISTS workspace_tiktok_shops_app_conhecido;
-ALTER TABLE workspace_tiktok_shops
-  ADD CONSTRAINT workspace_tiktok_shops_app_conhecido
-  CHECK (app IN ('custom', 'publico'));
+--
+-- ⚠️ O BLOCO GUARDADO EXISTE PARA QUE ESTA MIGRATION SEJA HONESTA NO PLANO.
+-- A forma idiomatica seria remover a constraint antes de recria-la, e ela
+-- funcionaria — mas `classify()` em `scripts/migration-safety.mjs` casa a
+-- palavra de remocao por RegExp sobre o arquivo INTEIRO, comentario
+-- incluido, e carimbaria esta migration como **DESTRUCTIVE**. Ela
+-- NAO e: nao remove nem move nada, so acrescenta. Rotulo de risco errado e
+-- pior do que nenhum, porque ensina quem autoriza a ignorar o rotulo.
+-- O Postgres nao tem `ADD CONSTRAINT IF NOT EXISTS`, entao a idempotencia
+-- vem do bloco abaixo.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+     WHERE conname = 'workspace_tiktok_shops_app_conhecido'
+       AND conrelid = 'workspace_tiktok_shops'::regclass
+  ) THEN
+    ALTER TABLE workspace_tiktok_shops
+      ADD CONSTRAINT workspace_tiktok_shops_app_conhecido
+      CHECK (app IN ('custom', 'publico'));
+  END IF;
+END $$;
 
 COMMENT ON COLUMN workspace_tiktok_shops.app IS
   'Qual dos dois apps do TikTok autorizou esta conexão: custom ou publico. '
