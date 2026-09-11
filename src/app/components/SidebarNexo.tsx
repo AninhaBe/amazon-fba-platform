@@ -1,6 +1,5 @@
 "use client";
 
-
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -9,9 +8,9 @@ import { useEhAdmin } from "./useEhAdmin";
 import type { WorkspaceId } from "@/lib/integrations/workspaces";
 import { MarketplaceIcon } from "./MarketplaceIcon";
 import { NavLinks } from "./Nav";
-import { MarcaDoSeletor } from "./MarcaDoSeletor";
 import { LogoutButton } from "./LogoutButton";
 import { AccountSwitcher } from "./AccountSwitcher";
+import { NexoSymbol } from "./NexoSymbol";
 import accountStyles from "./ShellAccountLinks.module.css";
 import { NEXO_ONBOARDING_CHANNELS_EVENT } from "@/lib/productTour";
 
@@ -95,46 +94,14 @@ export function SidebarNexo({ workspace, collapsed = false }: { workspace: Works
             data-onboarding="channels"
             aria-expanded={aberto}
             aria-haspopup="menu"
-            /* ⚠️ O NOME ACESSIVEL VIRA EXPLICITO porque a marca
-               agora e um monograma com aria-hidden. Sem isto o botao seria
-               anunciado so como "Mercado Livre", e nao como o CONTROLE que
-               troca de canal. */
-            aria-label={`Canal atual: ${NOME_CANAL[workspace]}. Trocar de canal`}
             onClick={() => setAberto((v) => !v)}
           >
-            {/* ⚠️ A MARCA SE RECOLHE: NEXO → NX → so o icone. Decisao
-                dela em 09/09/2026, reafirmada depois do meu parecer contrario —
-                o parecer inteiro esta em MarcaDoSeletor.tsx, junto do codigo.
-
-                O ganho medido: em repouso sobra o icone sozinho, e o nome do
-                canal passa de 81px para 116px. Com "seta + NEXO" escrito,
-                "Todos os canais" cortava em -10px. */}
-            <MarcaDoSeletor />
-            {/* ⚠️ ICONE E NOME NUM GRUPO SO, e o grupo e que centra.
-                Antes o nome centrava sozinho numa faixa de 112px enquanto o
-                icone ficava fixo ao lado da marca — com um nome curto como
-                "Amazon" abria um vao entre os dois, fotografado por ela em
-                09/09/2026. Ícone e nome dizem a MESMA coisa (qual canal), entao
-                andam juntos: sem vao entre eles, e o par inteiro centrado. */}
-            <span className="nexo-switcher-canal">
-              {/* ⚠️ COMENTARIO FORA DA CONDICIONAL, nao dentro. Um
-                  comentario JSX dentro do parenteses de `cond && (...)` vira
-                  uma SEGUNDA expressao e o arquivo nao compila — quebrou a
-                  barra inteira em 09/09/2026.
-
-                  E cuidado ao ESCREVER sobre isso: citar o delimitador de
-                  fechamento dentro do proprio comentario o encerra na hora.
-                  Quebrou de novo, no comentario que explicava a primeira
-                  quebra.
-
-                  17px: dois a mais que os 15 originais, pedido dela. O icone do
-                  canal e o chevron ficaram pequenos ao lado da marca, que subiu
-                  para 22px na rodada anterior. */}
-              {workspace !== "overview" && (
-                <MarketplaceIcon provider={workspace} size={17} app />
-              )}
-              <span className="nexo-switcher-channel">{NOME_CANAL[workspace]}</span>
-            </span>
+            <NexoSymbol size={18} className="nexo-switcher-brand-symbol" />
+            <strong className="nexo-switcher-brand-name">NEXO</strong>
+            {workspace !== "overview" && (
+              <MarketplaceIcon provider={workspace} size={15} app />
+            )}
+            <span className="nexo-switcher-channel">{NOME_CANAL[workspace]}</span>
             <svg className="nexo-switcher-chevron" viewBox="0 0 14 14" fill="none" aria-hidden>
               <path
                 d="M8.67171 5.25C9.66052 5.25031 10.2007 6.40372 9.56777 7.16351L7.8964 9.1693C7.43003 9.72866 6.57066 9.72854 6.10423 9.1693L4.43286 7.16351C3.79969 6.40366 4.33991 5.25012 5.32894 5.25H8.67171Z"

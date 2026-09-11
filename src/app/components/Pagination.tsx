@@ -11,26 +11,11 @@ function pageWindow(page: number, count: number): (number | "…")[] {
 
 export function Pagination({ page, pageCount, total, pageSize, onPage }: { page: number; pageCount: number; total: number; pageSize: number; onPage: (page: number) => void }) {
   if (pageCount <= 1) return null;
-  /**
-   * ⚠️ ESTA FRASE JA ERROU DE DOIS JEITOS OPOSTOS NO MESMO DIA
-   * (10/09/2026), e o registro serve para ninguem tentar um terceiro:
-   *
-   *   1. `16–22 de 22` — intervalo. Aritmeticamente certo (os itens 16 a 22 sao
-   *      sete), mas o primeiro numero de um par le como QUANTIDADE: *"tem 7
-   *      aparecendo mas mostra 16, esta errado"*.
-   *   2. `7 de 22` — contagem do que esta na tela. Tambem certo, e tambem lido
-   *      como defeito: *"eu pedi de 15 em 15, e ta aparecendo 7 ainda"*. O 7 e
-   *      o RESTO da ultima pagina, mas ao lado de um pedido de "15 em 15"
-   *      qualquer numero diferente de 15 parece falha.
-   *
-   * A raiz e a mesma nas duas: um numero solto ao lado dos botoes convida a ser
-   * lido como "o tamanho da pagina". Dizer PAGINA e TOTAL nao deixa espaco para
-   * essa leitura — nem promete um tamanho fixo que a ultima pagina nao cumpre.
-   */
-
+  const from = (page - 1) * pageSize + 1;
+  const to = Math.min(page * pageSize, total);
   return (
     <nav className="pagination" aria-label="Paginação">
-      <span className="pagination-info">Página {page} de {pageCount} · {total} itens</span>
+      <span className="pagination-info">{from}–{to} de {total}</span>
       <div className="pagination-controls">
         <button type="button" className="pagination-btn" disabled={page <= 1} onClick={() => onPage(page - 1)} aria-label="Página anterior">‹</button>
         {pageWindow(page, pageCount).map((p, index) =>

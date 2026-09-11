@@ -42,15 +42,7 @@
   --ink-64: #171717a3;   /* texto secundario */
 
   /* superficies */
-  /* ⚠️ O FUNDO SAIU DO QUASE-BRANCO (09/09/2026). Ele era
-     `--paper` (#fdfdfd) e os cards do v3 sao branco puro: a diferenca entre os
-     dois era quase nada, e por isso a tela lia chapada — sem profundidade, com
-     card e canvas parecendo o mesmo plano.
-
-     Cinza QUENTE, nao azulado: a borda dos cards e #e3e3df, que e neutra-quente.
-     Um cinza frio ao lado dela deixaria a borda parecendo suja. E o mesmo
-     familia do `--suave` (#f6f6f4) que o v3 ja usa na linha do ranking. */
-  --canvas: #f6f5f2;
+  --canvas: var(--paper);
   --paper-soft: var(--ink-03);
   --paper-warm: var(--ink-03);
   --paper-modal: #ffffff;          /* so o modal. ver nota 2 acima */
@@ -1628,24 +1620,11 @@ summary:hover { background: var(--paper-soft); }
 .listing-table { width: 100%; min-width: 1120px; font-size: 12px; }
 .listing-table th { padding: 11px 18px; white-space: nowrap; }
 .pagination { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-block-start: 4px; }
-/* ⚠️ TINTA CHEIA, nao `--ink-muted` (pedido dela, 10/09/2026).
-   Esta linha diz em que pagina a pessoa esta — e informacao de navegacao, nao
-   nota de rodape. Em cinza medio ela sumia ao lado dos botoes e a pessoa
-   precisava procurar. */
-.pagination-info { font-size: 12px; color: var(--ink); }
+.pagination-info { font-size: 12px; color: var(--ink-muted); }
 .pagination-controls { display: flex; align-items: center; gap: 4px; }
-/* ⚠️ TRACO EM `--ink-32`, NAO `--line`. Com o traco de 12% os
-   botoes de pagina sumiam contra o fundo claro — *"muito apagados"*
-   (10/09/2026) — e um alvo de clique que nao se ve nao e um alvo. E o mesmo
-   caso dos campos de filtro, que subiram de 12% para 50% pelo mesmo motivo.
-
-   Fica mais claro que o campo (32% contra 50%) de proposito: sao seis
-   caixinhas lado a lado, e o mesmo peso do campo de busca criaria uma cerca. */
-.pagination-btn { min-width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; padding-inline: 8px; border: 1px solid var(--ink-32); border-radius: 9px; background: var(--paper); color: var(--ink-soft); font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; cursor: pointer; transition-property: background-color, color, box-shadow; transition-duration: 130ms; }
+.pagination-btn { min-width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; padding-inline: 8px; border: 1px solid var(--line); border-radius: 9px; background: var(--paper); color: var(--ink-soft); font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; cursor: pointer; transition-property: background-color, color, box-shadow; transition-duration: 130ms; }
 .pagination-btn:hover:not(:disabled) { background: var(--paper-soft); color: var(--ink); }
-/* A pagina atual troca o traco pela versao escura do acento — sem borda ela
-   parecia flutuar entre as vizinhas, que agora tem contorno. */
-.pagination-btn.is-current { background: var(--channel-accent); color: var(--channel-on-accent); border-color: color-mix(in oklch, var(--channel-accent) 62%, var(--ink)); box-shadow: 0 4px 12px color-mix(in oklch, var(--channel-accent) 28%, transparent); }
+.pagination-btn.is-current { background: var(--channel-accent); color: var(--channel-on-accent); border-color: transparent; box-shadow: 0 4px 12px color-mix(in oklch, var(--channel-accent) 28%, transparent); }
 .pagination-btn:disabled { opacity: .4; cursor: default; }
 .pagination-gap { padding-inline: 4px; color: var(--ink-muted); }
 .listing-pagination { padding: 14px 18px; border-block-start: 1px solid var(--line); }
@@ -3539,187 +3518,10 @@ summary:hover { background: var(--paper-soft); }
   transition: background-color var(--duration) var(--ease);
 }
 .nexo-switcher:hover { background: var(--ink-05); }
-/* A marca que se transforma dentro do seletor de canal: NEXO → NX → a seta.
-
-   ⚠️ OS TRES QUADROS DIVIDEM UM SLOT SO. `display: grid` com todos
-   os filhos em `grid-area: 1 / 1` empilha texto e icone no mesmo ponto, e so a
-   opacidade decide quem se ve. A primeira versao (09/09/2026) punha a seta ao
-   LADO do texto e animava so a largura — resultado: o icone ficava visivel o
-   tempo todo e nao havia transformacao nenhuma, so um texto encolhendo.
-
-   ⚠️ O QUE ANIMA E `width` NO CONTAINER, nao no texto. O texto tem
-   largura de conteudo e some por opacidade; quem empurra o nome do canal para
-   a esquerda e a caixa. Animar `width` do texto brigaria com o `white-space:
-   nowrap` e daria um passo de reflow visivel no meio da troca. */
-.nexo-switcher-marca {
-  position: relative;
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 36px;
-  height: 22px;
-  /* ⚠️ A LARGURA NAO TRANSICIONA, e isso e correcao de defeito, nao
-     preferencia. Medido duas vezes em 09/09/2026: com `transition: width` o
-     valor computado ficava PRESO no quadro inicial, sem nenhuma animacao em
-     curso (`getAnimations()` vazio), e a caixa parava em 36px no repouso —
-     comendo os 18px que o efeito existe para devolver ao nome do canal.
-     `transition: none` fazia saltar para o valor certo na hora.
-
-     Sem a transicao a largura muda de uma vez, e nao se perde efeito nenhum:
-     quem carrega o movimento e o morfismo do desenho, nao o deslize da caixa. */
-}
-
-.nexo-switcher-marca-txt,
-.nexo-switcher-marca-icone { grid-area: 1 / 1; }
-
-.nexo-switcher-marca-txt {
-  color: var(--ink);
-  font-size: 11px;
-  font-weight: var(--weight-semibold);
-  letter-spacing: .015em;
-  white-space: nowrap;
-  /* Toca a cada remontagem — e o `key={passo}` do componente que a dispara no
-     NEXO → NX. `both` segura o quadro final para o texto nao piscar no fim. */
-  animation: nexo-marca-entra 200ms var(--ease) both;
-}
-
-/* A seta nasce pequena e girada, e assenta com uma leve ultrapassagem — e o
-   unico quadro que PERMANECE, entao vale a ela ter o gesto mais marcado.
-   O atraso deixa o "NX" sair antes de ela entrar; sem ele os dois se cruzam
-   no meio e a troca fica suja. */
-.nexo-switcher-marca-icone {
-  animation: nexo-marca-seta 420ms cubic-bezier(.2, 1.35, .4, 1) both;
-}
-
-/* ⚠️ COMECA EM 0.25, NAO EM ZERO. O `key={passo}` desmonta o texto
-   e monta outro, entao entre "NEXO" e "NX" existe um instante em que so ha o
-   quadro inicial da animacao. Com opacidade zero esse instante e um BURACO —
-   fotografado em 09/09/2026, um print inteiro sem marca nenhuma. Comecando
-   quase visivel, a troca vira uma piscada, que e o efeito, e nao uma ausencia,
-   que parece defeito. */
-/* ── O morfismo: o NX vira a seta ────────────────────────────────────────────
-
-   ⚠️ A ANIMACAO E DO `d`, NAO DE OPACIDADE. Trocar um elemento por
-   outro com fade e corte; o que ela pediu (verbatim, 09/09/2026: *"quero o nx
-   se TRANSFORMANDO na seta"*) e a forma virando a outra. Cada haste do X e um
-   `path` de duas ancoras (`M a b L c d`), e um `d` desses interpola para outro
-   da MESMA estrutura — o navegador anima o traco ponto a ponto.
-
-   Por isso hastes sao `path` e nao `line`: `line` nao tem `d` para animar.
-
-   O destino de cada haste sai da geometria da marca, nao de gosto: a seta e um
-   ponteiro com a ponta em (4.2, 4.2) e duas arestas longas saindo dela, uma
-   ate (20.6, 10.9) e outra ate (11.2, 20.5). Sao essas duas que o X vira. */
-/* ⚠️ TEM DE CASAR COM `TAMANHO_DA_MARCA` em MarcaDoSeletor.tsx.
-   Um crescer sem o outro faz a seta mudar de tamanho no instante em que o
-   morfismo termina. */
-.nexo-marca-morf { width: 22px; height: 22px; display: block; overflow: visible; }
-
-.nexo-marca-morf-n {
-  fill: none;
-  stroke: var(--ink);
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  transform-origin: 9.5px 12px;
-  /* O N nao vira nada: ele desaba para dentro da ponta e sai. Forcar as tres
-     hastes dele a virarem alguma coisa daria movimento sem leitura — a seta
-     tem duas arestas, nao cinco. */
-  animation: nexo-morf-n 260ms cubic-bezier(.5, 0, .75, 0) both;
-}
-
-.nexo-marca-morf-haste {
-  fill: none;
-  stroke: var(--ink);
-  stroke-width: 1.9;
-  stroke-linecap: round;
-  animation-duration: 560ms;
-  animation-timing-function: cubic-bezier(.55, 0, .1, 1);
-  animation-fill-mode: both;
-}
-.nexo-marca-morf-haste.is-desce { animation-name: nexo-morf-desce; }
-.nexo-marca-morf-haste.is-abre { animation-name: nexo-morf-abre; }
-
-/* ⚠️ A DEMAO PRETA ENTRA POR BAIXO, no fim do trajeto — nao no
-   comeco. Enquanto as hastes viajam, o que se ve e o traco; quando elas chegam,
-   o corpo ja esta la e os tracos somem dentro dele. Sem isto o efeito terminaria
-   num contorno vazio e a seta cheia apareceria por CORTE, que e exatamente o
-   problema que este bloco existe para resolver. */
-.nexo-marca-morf-corpo {
-  fill: var(--ink);
-  stroke: var(--paper);
-  stroke-width: 1.5;
-  stroke-linejoin: round;
-  paint-order: stroke fill;
-  animation: nexo-morf-corpo 560ms cubic-bezier(.4, 0, .2, 1) both;
-}
-
-/* A haste "\" do X desce ate virar a aresta de baixo da seta. */
-@keyframes nexo-morf-desce {
-  from { d: path("M8 8L16 16"); opacity: 1; }
-  70% { opacity: 1; }
-  to { d: path("M4.4 4.4L11.2 20.5"); opacity: 0; }
-}
-/* A haste "/" abre ate virar a aresta da direita. Ela parte de baixo-esquerda
-   para cima-direita, que e o sentido em que a aresta cresce — invertida, o
-   traco cruzaria a si mesmo no meio do caminho. */
-@keyframes nexo-morf-abre {
-  from { d: path("M8 16L16 8"); opacity: 1; }
-  70% { opacity: 1; }
-  to { d: path("M4.4 4.4L20.6 10.9"); opacity: 0; }
-}
-@keyframes nexo-morf-n {
-  from { opacity: 1; transform: none; }
-  to { opacity: 0; transform: translate(-2px, -3px) scale(.2); }
-}
-@keyframes nexo-morf-corpo {
-  0%, 55% { opacity: 0; transform: scale(.94); }
-  100% { opacity: 1; transform: none; }
-}
-
-@keyframes nexo-marca-entra {
-  from { opacity: .25; transform: scale(1.16); }
-  to { opacity: 1; transform: none; }
-}
-
-/* A seta nasce pequena e girada e assenta com uma leve ultrapassagem — e o
-   unico quadro que PERMANECE, entao vale a ela ter o gesto mais marcado. */
-@keyframes nexo-marca-seta {
-  from { opacity: 0; transform: scale(.45) rotate(-25deg); }
-  to { opacity: 1; transform: none; }
-}
-
-/* Colapso instantaneo de quem ja viu a entrada, e o caminho do
-   `prefers-reduced-motion`: nenhum movimento, so o estado final. */
-.nexo-switcher-marca[data-sem-transicao],
-.nexo-switcher-marca[data-sem-transicao] .nexo-switcher-marca-icone,
-.nexo-switcher-marca[data-sem-transicao] .nexo-switcher-marca-txt {
-  transition: none;
-  animation: none;
-}
-/* ⚠️ O NOME DO CANAL FICA CENTRADO NO ESPACO DELE, nao encostado
-   na marca. Pedido dela em 09/09/2026 — e antes eu tinha entendido errado duas
-   vezes: primeiro centrei nada, depois colei o CHEVRON no texto, que e o
-   oposto (o texto continuava a esquerda e quem se mexeu foi a setinha).
-
-   `flex: 1` devolve ao nome a faixa inteira entre o icone do canal e o chevron;
-   `text-align: center` centra a palavra dentro dessa faixa. Os dois juntos sao
-   necessarios: so o `text-align` sem o `flex: 1` nao teria espaco onde centrar.
-
-   O `min-width: 0` continua sendo o que permite o `text-overflow` funcionar
-   quando o nome nao couber. */
-/* O grupo do canal ocupa a faixa entre a marca e o chevron e se centra nela
-   inteiro — icone colado no nome, sempre. */
-.nexo-switcher-canal {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-}
-.nexo-switcher-channel { min-width: 0; overflow: hidden; color: var(--ink-muted); font-size: 13px; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
-.nexo-switcher-chevron { width: 16px; height: 16px; flex: none; color: var(--ink-muted); }
+.nexo-switcher-brand-symbol { width: 18px; height: 18px; }
+.nexo-switcher > .nexo-switcher-brand-name { flex: none; font-size: 11px; font-weight: var(--weight-semibold); letter-spacing: .015em; }
+.nexo-switcher-channel { min-width: 0; flex: 1; overflow: hidden; color: var(--ink-muted); font-size: 12px; text-align: start; text-overflow: ellipsis; white-space: nowrap; }
+.nexo-switcher-chevron { width: 14px; height: 14px; flex: none; color: var(--ink-muted); }
 .nexo-switcher[aria-expanded="true"] .nexo-switcher-chevron { rotate: 180deg; }
 .nexo-sidebar-busca {
   display: grid; width: 28px; height: 28px; flex: none; place-items: center;
@@ -3727,7 +3529,7 @@ summary:hover { background: var(--paper-soft); }
   transition: background-color var(--duration) var(--ease), color var(--duration) var(--ease);
 }
 .nexo-sidebar-busca:hover { background: var(--ink-05); color: var(--ink); }
-.nexo-sidebar-busca svg { width: 18px; height: 18px; }
+.nexo-sidebar-busca svg { width: 16px; height: 16px; }
 
 .nexo-sidebar.is-collapsed { width: 48px; flex-basis: 48px; }
 .nexo-sidebar.is-collapsed .nexo-sidebar-topo { padding-inline: 8px; }
@@ -3735,9 +3537,8 @@ summary:hover { background: var(--paper-soft); }
 .nexo-sidebar.is-collapsed .nexo-switcher {
   width: 32px; padding-inline: 8px; overflow: hidden;
 }
-/* Recolhida, o monograma e a UNICA coisa que fica — antes ficava a seta.
-   Esconde-lo aqui deixaria o botao vazio. */
-.nexo-sidebar.is-collapsed .nexo-switcher .nexo-switcher-canal,
+.nexo-sidebar.is-collapsed .nexo-switcher > .nexo-switcher-brand-name,
+.nexo-sidebar.is-collapsed .nexo-switcher > .marketplace-icon,
 .nexo-sidebar.is-collapsed .nexo-switcher-channel,
 .nexo-sidebar.is-collapsed .nexo-switcher-chevron,
 .nexo-sidebar.is-collapsed .nexo-sidebar-busca { display: none; }
@@ -3803,47 +3604,7 @@ summary:hover { background: var(--paper-soft); }
   transition: background-color var(--duration) var(--ease);
 }
 .nexo-sidebar .rail-nav-item:hover { background: var(--ink-03); }
-/* ── Item ativo com presenca (variante C de /lab/menu) ──────────────────────
-   Escolha dela em 10/09/2026, depois de comparar cinco variantes na tela.
-
-   ⚠️ O ATIVO PRECISA DIFERIR DO HOVER, e antes nao diferia: os
-   dois eram cinza translucido (`--ink-05` contra `--ink-03`), a um passo de
-   distancia. Numa lista de doze itens, isso significa que a pessoa nao sabe
-   em que pagina esta sem ler a URL.
-
-   Sao tres coisas juntas, e cada uma faz uma parte: superficie BRANCA (destaca
-   do fundo morno da barra, que e o oposto do que um cinza faz), tinta CHEIA no
-   rotulo e no pictograma, e uma barra de 2px na cor do CANAL — que amarra o
-   menu ao marketplace em que se esta, em vez de usar uma cor de marca que seria
-   a mesma nos quatro.
-
-   ⚠️ `--channel-accent` VEM DO `app-shell`, nao daqui: e o
-   `data-channel` do shell que decide se a barra e amarela (ML), laranja
-   (Amazon) ou vermelha (Shopee). Cravar a cor aqui daria uma barra amarela na
-   Amazon sem ninguem perceber. O `var(--ink-32)` de reserva cobre o caso de a
-   barra ser montada fora do shell — a bancada `/lab/menu` e exatamente isso. */
-.nexo-sidebar .rail-nav-item.is-active {
-  position: relative;
-  background: var(--card, #ffffff);
-  color: var(--ink);
-  font-weight: var(--weight-semibold);
-  box-shadow: 0 1px 2px oklch(0 0 0 / .06);
-}
-.nexo-sidebar .rail-nav-item.is-active::before {
-  content: "";
-  position: absolute;
-  inset-block: 6px;
-  inset-inline-start: -4px;
-  width: 2px;
-  border-radius: 2px;
-  background: var(--channel-accent, var(--ink-32));
-}
-/* O hover do proprio ativo nao pode apaga-lo: ele ja e a superficie mais clara
-   da barra, entao so ganha um fio de sombra a mais. */
-.nexo-sidebar .rail-nav-item.is-active:hover {
-  background: var(--card, #ffffff);
-  box-shadow: 0 1px 3px oklch(0 0 0 / .1);
-}
+.nexo-sidebar .rail-nav-item.is-active { background: var(--ink-05); }
 .nexo-sidebar .rail-nav-text > span:first-child {
   font-size: 14px !important;
   font-weight: var(--weight-body) !important;
@@ -3896,12 +3657,7 @@ summary:hover { background: var(--paper-soft); }
   color: var(--ink-muted); font-size: 13px; font-weight: var(--weight-body);
   line-height: 18px; letter-spacing: var(--track-s); text-transform: none;
 }
-/* ⚠️ A COR DA SETA MORA AQUI, nao em `.rail-group-chevron`. Este
-   seletor tem especificidade 0-2-1 e vence o da classe (0-1-0) — eu escrevi a
-   cor nova la e ela nao pegou; o computado continuou em --ink-faint. Medido em
-   10/09/2026, e so apareceu porque li a cor do elemento renderizado em vez de
-   confiar no arquivo. Quem for clarear ou escurecer a seta mexe NESTA linha. */
-.nexo-sidebar .rail-group-header svg { width: 14px; height: 14px; flex: none; color: var(--ink-64); }
+.nexo-sidebar .rail-group-header svg { width: 14px; height: 14px; flex: none; color: var(--ink-faint); }
 .nexo-sidebar .rail-group-chevron { transform: rotate(-90deg); }
 .nexo-sidebar .rail-group-chevron.is-open { transform: rotate(0deg); }
 .nexo-sidebar .rail-group-header:hover .rail-group-label { color: var(--ink); }
@@ -7404,10 +7160,10 @@ summary:hover { background: var(--paper-soft); }
    Caixa fixa de 18px: a mesma que o glifo de traco ocupava, para nenhuma linha
    do menu mudar de altura. A arte e colorida por natureza — nao herda
    `currentColor` e nao muda com o estado do item. */
-.picto { width: 18px; height: 18px; flex: none; display: block; }
+
 /* Item em repouso levemente contido; ativo e hover soltam a cor cheia. */
-.nav-link .picto, .nav-item .picto, a .picto { opacity: .9; transition: opacity var(--duration) var(--ease); }
-a:hover .picto, a[aria-current="page"] .picto, .is-ativo .picto { opacity: 1; }
+
+
 
 /* ── Cabecalho de grupo do menu — ajuste de 09/09/2026 ──────────────────────
    O que estava errado, na ordem em que doia:
@@ -7423,22 +7179,10 @@ a:hover .picto, a[aria-current="page"] .picto, .is-ativo .picto { opacity: 1; }
    caixa; e a seta so aparece no hover/foco. A afordancia continua (o cabecalho
    segue sendo botao, com aria-expanded), mas em repouso o menu le como lista de
    produto, nao como sanfona. */
-.rail-group + .rail-group { margin-block-start: 14px; }
-.rail-group-header {
-  min-height: 0;
-  padding-block: 5px;
-  padding-inline: 12px;
-  /* A seta sai do fluxo: sem isso, some-la no repouso reflui o rotulo e o texto
-     "pula" ao passar o mouse. */
-  position: relative;
-}
-.rail-group:first-child .rail-group-header { min-height: 0; padding-block: 5px; }
-.rail-group-label {
-  color: var(--ink-faint);
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.09em;
-}
+
+
+
+
 /* ⚠️ A SETA E VISIVEL SEMPRE, nao so no hover. Ela era
    `opacity: 0` em repouso e aparecia ao passar o mouse — pedido dela em
    10/09/2026 para torna-la visivel.
@@ -7451,24 +7195,12 @@ a:hover .picto, a[aria-current="page"] .picto, .is-ativo .picto { opacity: 1; }
    Tres coisas juntas para ela sair do cinza claro: tinta mais escura
    (--ink-64 no lugar de --ink-faint, que e o tom de texto secundario), corpo
    de 14px, e traco de 2 (o glifo padrao e fino demais nesse tamanho). */
-.rail-group-chevron {
-  position: absolute;
-  inset-inline-end: 10px;
-  width: 14px;
-  height: 14px;
-  opacity: .7;
-  /* A cor NAO vem daqui: `.nexo-sidebar .rail-group-header svg` vence este
-     seletor. Deixar a declaracao aqui criaria dois donos para a mesma cor, e o
-     proximo a mexer editaria o que nao tem efeito. */
-  stroke-width: 2;
-  transition: opacity 140ms, transform 200ms cubic-bezier(0.2, 0, 0, 1), color 140ms;
-}
-.rail-group-header:hover .rail-group-chevron,
-.rail-group-header:focus-visible .rail-group-chevron { opacity: 1; color: var(--ink); }
+
+
 /* Grupo fechado destaca mais: ali a seta deixa de ser affordance e passa a ser
    a unica pista de que ha conteudo escondido. */
-.rail-group-chevron:not(.is-open) { opacity: 1; }
-.rail-group-header:hover .rail-group-label { color: var(--ink-soft); }
+
+
 
 /* ── A faixa vira SETE CARDS, nao um card com fios ──────────────────────────
    Pedido dela em 09/09/2026: *"ao inves de manter parecendo que e a mesma
@@ -7730,47 +7462,10 @@ a:hover .picto, a[aria-current="page"] .picto, .is-ativo .picto { opacity: 1; }
    traco e estados vem de tokens pensados para fundo claro (`--ink`, `--ink-64`);
    trocar so o `background` deixaria texto escuro sobre escuro. Por isso o bloco
    redefine a escada INTEIRA dentro da barra, em vez de pintar item por item. */
-:root[data-tema="escuro"] .nexo-sidebar {
-  --ink: #f4f3f0;
-  --ink-03: #ffffff0a;
-  --ink-05: #ffffff12;
-  --ink-08: #ffffff1f;
-  --ink-12: #ffffff2b;
-  --ink-32: #ffffff52;
-  --ink-50: #ffffff85;
-  --ink-64: #ffffffab;
-  --ink-80: #ffffffd6;
-  --ink-soft: var(--ink-64);
-  --ink-muted: var(--ink-50);
-  --ink-faint: var(--ink-32);
-  --paper: #1b1a17;
-  --paper-soft: #1b1a17;
-  --canvas: #1b1a17;
-  --line: var(--ink-08);
-  --divider: var(--ink-08);
-  /* ⚠️ `--paper-modal` FICOU DE FORA DA PRIMEIRA VERSAO e o menu
-     de canais continuou BRANCO no escuro, com texto claro por cima — ilegivel,
-     fotografado por ela em 10/09/2026.
 
-     A licao e sobre o metodo, nao sobre a cor: inverter uma escada de tinta
-     acerta tudo que a usa, e por isso a maior parte da barra ficou certa de
-     primeira — mas superficie que tem token PROPRIO (modal, cartao, popover)
-     precisa ser listada uma a uma. Ao adicionar um token de superficie novo,
-     ele nasce devendo uma linha aqui.
-
-     `--card` entra junto: o item ativo do menu usa `var(--card, #ffffff)`, e o
-     branco de reserva reapareceria no escuro pelo mesmo caminho. */
-  --paper-modal: #23211d;
-  --card: #23211d;
-
-  background: #1b1a17;
-  border-inline-end-color: #000;
-  color: var(--ink);
-}
 /* O item ativo deixa de ser "cinza um pouco mais escuro" e passa a ser um
    realce claro — no escuro, a hierarquia se inverte. */
-:root[data-tema="escuro"] .nexo-sidebar a[aria-current="page"],
-:root[data-tema="escuro"] .nexo-sidebar .is-ativo { background: var(--ink-12); color: #fff; }
+
 
 
 
@@ -7799,70 +7494,25 @@ a:hover .picto, a[aria-current="page"] .picto, .is-ativo .picto { opacity: 1; }
 
    ⚠️ E NADA DE RECUO COM A BARRA RECOLHIDA: ali sobra so o
    icone, e empurra-lo 10px o tira do centro da calha de 48px. */
-.nexo-sidebar:not(.is-collapsed) .nexo-sidebar-nav .rail-group-body-inner {
-  padding-inline-start: 10px;
-}
+
 /* ⚠️ O TITULO TAMBEM ANDA — PARA TRAS. So recuar os itens deu
    10px de diferenca, e ela leu como "os titulos foram pra frente junto": 10px
    com o texto do rotulo menor e mais claro nao chega a desenhar hierarquia.
    Tirando o recuo proprio do cabecalho, o rotulo volta para a borda da calha
    (x=12) e a distancia para os itens vira 18px — visivel sem empurrar o menu
    inteiro para a direita, que era o outro caminho e custava largura util. */
-.nexo-sidebar:not(.is-collapsed) .nexo-sidebar-nav .rail-group-header {
-  padding-inline-start: 0;
-}
 
-.tema-do-menu {
-  display: inline-flex;
-  align-items: center;
-  border: 0;
-  background: none;
-  padding: 3px;
-  cursor: pointer;
-}
-.tema-do-menu-trilho {
-  position: relative;
-  display: block;
-  width: 46px;
-  height: 24px;
-  border: 1px solid var(--ink-12);
-  border-radius: 999px;
-  background: var(--ink-05);
-  transition: background 180ms var(--ease), border-color 180ms var(--ease);
-}
-.tema-do-menu:hover .tema-do-menu-trilho { border-color: var(--ink-32); }
-.tema-do-menu-bola {
-  position: absolute;
-  display: grid;
-  place-items: center;
-  inset-block-start: 2px;
-  inset-inline-start: 2px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: #f0a91c;
-  color: #ffffff;
-  transition: translate 200ms cubic-bezier(0.2, 0, 0, 1), background 200ms var(--ease);
-}
-.tema-do-menu[data-tema="escuro"] .tema-do-menu-bola {
-  translate: 22px 0;
-  background: #2f2b52;
-}
-.tema-do-menu-bola svg { width: 11px; height: 11px; }
-.tema-do-menu-apagado {
-  position: absolute;
-  display: grid;
-  place-items: center;
-  inset-block: 0;
-  inset-inline-end: 5px;
-  color: var(--ink-32);
-}
+
+
+
+
+
+
+
+
 /* Escuro: a bola está à direita, então o apagado (o sol) vai para a esquerda. */
-.tema-do-menu[data-tema="escuro"] .tema-do-menu-apagado {
-  inset-inline-end: auto;
-  inset-inline-start: 5px;
-}
-.tema-do-menu-apagado svg { width: 11px; height: 11px; }
+
+
 
 
 /* ── Radar de estoque (/mercado-livre/estoque) na linguagem nova ────────────
@@ -8257,12 +7907,7 @@ a:hover .picto, a[aria-current="page"] .picto, .is-ativo .picto { opacity: 1; }
 .menu-variante .rail-nav-item.is-ativo { background: var(--ink-05); color: var(--ink); }
 
 /* ── B · contadores ──────────────────────────────────────────────────────── */
-.rail-nav-contador {
-  flex: none; min-width: 18px; padding: 1px 6px; border-radius: 999px;
-  background: var(--ink-08); color: var(--ink-64);
-  font-size: 11px; font-style: normal; font-weight: 650; text-align: center;
-  font-variant-numeric: tabular-nums;
-}
+
 
 /* ── C · ativo com presenca ──────────────────────────────────────────────── */
 .menu-variante-ativo .rail-nav-item.is-ativo,
@@ -9208,4 +8853,13 @@ a:hover .picto, a[aria-current="page"] .picto, .is-ativo .picto { opacity: 1; }
 /* Diferença a favor da vendedora (cobrança a menor) em verde. */
 .v3-cel-num.is-positivo { color: var(--verde); font-weight: var(--weight-semibold); }
 
+/* ── A identidade do v3, escopada ao Mercado Livre ──────────────────────────
+   ⚠️ ESTE SELETOR E A FRONTEIRA DA LEVA. O cinza quente do
+   redesign vinha de `--canvas` trocado no `:root`, e por isso vazava para os
+   quatro canais; aqui ele alcanca so o que esta sob `/mercado-livre/*`, pelo
+   wrapper em `(app)/mercado-livre/layout.tsx`.
 
+   `min-height: 100%` para o cinza cobrir a area inteira mesmo quando a tela tem
+   pouco conteudo — sem isso sobra uma faixa clara embaixo, que le como erro de
+   render, nao como escolha. */
+.ml-identidade { min-height: 100%; background: #f6f5f2; }

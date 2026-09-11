@@ -1,7 +1,6 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
-import { SeletorNexo } from "./SeletorNexo";
+import { useMemo, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import type { ProfitabilityLine } from "@/lib/profitability";
 import { brDate } from "@/lib/datetime";
@@ -80,39 +79,18 @@ function marcaDaLinha(line: ProfitabilityLine) {
   return <MarcaDeEstimativa procedencia={procedencia.texto} rotulo={rotuloDaMarca(fonte)} origemConhecida={procedencia.origemConhecida} />;
 }
 
-/**
- * A margem da linha, como CHIP de porcentagem.
- *
- * ⚠️ ERA VALOR + PORCENTAGEM EM DUAS LINHAS, e virou chip a
- * pedido dela (10/09/2026). O motivo nao e so estetico: numa tabela de nove
- * colunas, uma celula com duas linhas obriga a linha inteira a crescer, e a
- * margem passa a ser a unica coluna com peso de bloco. O chip diz a mesma coisa
- * em uma linha, e e a peca que o resto do produto ja usa para margem.
- *
- * ⚠️ O VALOR EM R$ NAO SE PERDEU: ele esta na propria tabela
- * (venda menos tarifa, frete, custo e imposto) e no detalhe que abre na linha,
- * onde aparece com a procedencia da tarifa. Aqui ficaria repetindo colunas
- * vizinhas.
- *
- * ⚠️ MARGEM DESCONHECIDA NAO VIRA CHIP CINZA MUDO: o motivo
- * (custo nao cadastrado, tarifa nao postada) continua no `title`, que e o que
- * diz o que FAZER — a regra da casa de apontar a falta em vez de escrever
- * "incompleto".
- */
 function Margin({ line }: { line: ProfitabilityLine }) {
   if (line.contribution == null || line.marginPct == null) {
     const motivo = motivoPendente(line);
-    return (
-      <em className="v3-chip v3-chip-vazio" title={`${motivo.titulo} — ${motivo.ajuda}`}>—</em>
-    );
+    return <div className={`profit-pending ${styles.pending}${motivo.deNos ? " is-acao" : ""}`}>
+      <strong>{motivo.titulo}</strong>
+      <span>{motivo.ajuda}</span>
+    </div>;
   }
-  const classe = line.marginPct < 0 ? "v3-chip-neg" : line.marginPct < 10 ? "v3-chip-aten" : "v3-chip-pos";
-  return (
-    <em className={`v3-chip ${classe}`} title={money(line.contribution, line.currency)}>
-      {percent(line.marginPct)}
-      {marcaDaLinha(line)}
-    </em>
-  );
+  const tone = profitabilityMarginTone(line);
+  // A marca vai COLADA AO NÚMERO, não numa terceira linha: é o valor que ela
+  // qualifica, e a face desta linha já tem duas informações (valor e %).
+  return <div className={`profit-result ${styles.result} is-${tone}`}><strong>{money(line.contribution, line.currency)}{marcaDaLinha(line)}</strong><span>{percent(line.marginPct)}</span></div>;
 }
 
 function profitabilityMarginTone(line: ProfitabilityLine): "positive" | "warning" | "negative" | "pending" {
@@ -160,7 +138,6 @@ export function OrderProfitabilityTable({
 }) {
   const [query, setQuery] = useState("");
   const [resultFilter, setResultFilter] = useState<"all" | "positive" | "negative" | "incomplete">("all");
-  const [logistica, setLogistica] = useState("all");
   // Conjunto, não um id só: comparar dois pedidos lado a lado é o uso normal
   // desta tela, e o acordeão fechava o anterior a cada clique.
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
@@ -171,178 +148,29 @@ export function OrderProfitabilityTable({
   });
   const [pagination, setPagination] = useState<{ lines: ProfitabilityLine[]; page: number }>({ lines, page: 1 });
   const page = pagination.lines === lines ? pagination.page : 1;
-  /**
-   * As opcoes de logistica saem dos DADOS, nao de uma lista fixa.
-   *
-   * ⚠️ O MERCADO LIVRE MUDA ESSES NOMES SEM AVISAR (full, flex,
-   * self_service, xd_drop_off…). Uma lista cravada no codigo passaria a esconder
-   * pedidos no dia em que um valor novo aparecesse — e o filtro nao mostraria
-   * nada de errado, so deixaria de oferecer a opcao. Derivando, valor novo
-   * aparece sozinho.
-   */
-  const logisticas = useMemo(
-    () => [...new Set(lines.map((line) => line.fulfillment).filter((valor): valor is string => Boolean(valor)))].sort(),
-    [lines],
-  );
   const visible = useMemo(() => lines.filter((line) => {
     const matches = `${line.product} ${line.sku || ""} ${line.orderId}`.toLocaleLowerCase("pt-BR").includes(query.toLocaleLowerCase("pt-BR"));
     const resultMatches = resultFilter === "all" || (resultFilter === "incomplete" ? !line.complete : resultFilter === "positive" ? (line.contribution ?? 0) >= 0 && line.complete : (line.contribution ?? 0) < 0 && line.complete);
-    /* ⚠️ "sem" CASA O PEDIDO SEM LOGISTICA CONHECIDA, e por isso
-       existe como opcao separada: sem ela, esses pedidos so apareceriam em
-       "Todas" e ninguem conseguiria isola-los para investigar. */
-    const logisticaMatches = logistica === "all"
-      || (logistica === "sem" ? !line.fulfillment : line.fulfillment === logistica);
-    return matches && resultMatches && logisticaMatches;
-  }), [lines, query, resultFilter, logistica]);
+    return matches && resultMatches;
+  }), [lines, query, resultFilter]);
   const complete = lines.filter((line) => line.complete).length;
   const pageCount = Math.max(1, Math.ceil(visible.length / pageSize));
   const current = Math.min(page, pageCount);
   const paged = visible.slice((current - 1) * pageSize, current * pageSize);
 
-  const semMoeda = (valor: number | null | undefined, moeda: string) =>
-    valor == null ? "—" : money(valor, moeda).replace(/^R\$\s*/, "");
-
-  return <section className="v3-card" aria-labelledby="profitability-title">
-    {/* ⚠️ A MESMA TABELA DO CARTAO "Pedidos" DO DASHBOARD, e
-        isso e o pedido dela (10/09/2026): o botao "Abrir vendas" cai aqui, e
-        chegar numa lista com OUTRA forma faz parecer que se mudou de assunto.
-        La sao os 5 mais recentes; aqui a lista inteira, com busca, filtro e
-        paginacao.
-
-        ⚠️ O EXPANDIR CONTINUA. A tabela mostra venda, tarifa,
-        frete, custo, imposto e margem — mas o detalhe traz o que ela nao tem:
-        preco de tabela, cupom aplicado, frete pago pelo COMPRADOR, liquido
-        repassado e a marca de tarifa estimada. Trocar cartao por tabela sem
-        manter o detalhe teria apagado essas cinco informacoes em silencio. */}
-    <div className="v3-card-cab">
-      <h2 id="profitability-title">Pedidos</h2>
-      {!loading && lines.length > 0 && (
-        <span className="v3-meta">{complete} de {lines.length} vendas com cálculo completo</span>
-      )}
-    </div>
-    <p className="v3-nota">{scopeNote || "Veja o que entrou, os custos identificados e quanto sobrou em cada produto vendido."}</p>
-
-    <div className="v3-filtros v3-filtros-vendas" role="search" aria-label="Filtros das vendas">
-      <label className="v3-busca">
-        <span className="sr-only">Buscar produto, SKU ou pedido</span>
-        <input
-          value={query}
-          onChange={(event) => { setQuery(event.target.value); setPagination({ lines, page: 1 }); }}
-          placeholder="Buscar produto, SKU ou pedido"
-        />
-      </label>
-      {/* ⚠️ SELETOR NOSSO, NAO `<select>` NATIVO. A lista que o
-          Chrome abre e desenhada pelo sistema operacional e nao aceita CSS —
-          ela pediu para melhorar aquela lista (10/09/2026) e nao havia como,
-          sem trocar a peca. O porque completo esta em `SeletorNexo.tsx`,
-          junto do que se perde: a busca por digitacao. */}
-      <SeletorNexo
-        valor={resultFilter}
-        rotuloAcessivel="Filtrar resultado das vendas"
-        aoEscolher={(valor) => { setResultFilter(valor as typeof resultFilter); setPagination({ lines, page: 1 }); }}
-        opcoes={[
-          { valor: "all", rotulo: "Todos os resultados" },
-          /* Sem cor: decisao dela em 10/09/2026, depois de ver a versao
-             colorida. A cor de margem continua na COLUNA da tabela, onde ela
-             qualifica um numero; aqui qualificaria um filtro. */
-          { valor: "positive", rotulo: "Margem positiva" },
-          { valor: "negative", rotulo: "Margem negativa" },
-          { valor: "incomplete", rotulo: "Cálculo incompleto" },
-        ]}
-      />
-      {logisticas.length > 0 && (
-        <SeletorNexo
-          valor={logistica}
-          rotuloAcessivel="Filtrar logística"
-          aoEscolher={(valor) => { setLogistica(valor); setPagination({ lines, page: 1 }); }}
-          opcoes={[
-            { valor: "all", rotulo: "Todas as logísticas" },
-            ...logisticas.map((valor) => ({ valor, rotulo: valor })),
-            /* "sem logistica" so entra quando existe venda sem ela: opcao que
-               nunca filtra nada e opcao que faz a pessoa duvidar do filtro. */
-            ...(lines.some((line) => !line.fulfillment) ? [{ valor: "sem", rotulo: "sem logística" }] : []),
-          ]}
-        />
-      )}
-      {expanded.size > 0 && (
-        <button type="button" className="v3-btn" onClick={() => setExpanded(new Set())}>
-          Recolher {expanded.size} {expanded.size === 1 ? "aberto" : "abertos"}
-        </button>
-      )}
+  return <section className={`profitability-view ${styles.view}`} aria-labelledby="profitability-title">
+    <header className="profitability-heading">
+      <div><p className="section-kicker">Resultado por venda</p><h2 id="profitability-title">Rentabilidade dos pedidos</h2><p>{scopeNote || "Veja o que entrou, os custos identificados e quanto sobrou em cada produto vendido."}</p></div>
+      {!loading && lines.length > 0 && <span>{complete} de {lines.length} vendas com cálculo completo</span>}
+    </header>
+    <div className="profitability-filters">
+      <label><span className="sr-only">Buscar produto, SKU ou pedido</span><input value={query} onChange={(event) => { setQuery(event.target.value); setPagination({ lines, page: 1 }); }} placeholder="Buscar produto, SKU ou pedido" /></label>
+      <select value={resultFilter} onChange={(event) => { setResultFilter(event.target.value as typeof resultFilter); setPagination({ lines, page: 1 }); }} aria-label="Filtrar resultado das vendas"><option value="all">Todos os resultados</option><option value="positive">Margem positiva</option><option value="negative">Margem negativa</option><option value="incomplete">Cálculo incompleto</option></select>
+      {/* Só aparece quando há o que recolher — com vários abertos, fechar um a um cansa. */}
+      {expanded.size > 0 && <button type="button" className="profit-collapse-all" onClick={() => setExpanded(new Set())}>Recolher {expanded.size} {expanded.size === 1 ? "aberto" : "abertos"}</button>}
     </div>
 
-    {error ? <div role="alert" className="v3-nota">{error}</div>
-      : loading ? <TableLoading label="Calculando rentabilidade das vendas" />
-      : lines.length === 0 ? <EmptyState title="Nenhuma venda no período" description="Amplie o período para consultar vendas anteriores." />
-      : visible.length === 0 ? <EmptyState kind="search" title="Nenhuma venda encontrada" description="Ajuste a busca ou altere o filtro de resultado." />
-      : <>
-        {/* ⚠️ CLASSE PROPRIA, NAO A DO CARTAO DO DASHBOARD. As
-            duas tabelas sao irmas mas nao iguais: la sao nove colunas (previa
-            dos 5 mais recentes), aqui onze — data e quantidade ganharam coluna
-            propria a pedido dela (10/09/2026). Reusar `v3-tabela-pedidos`
-            obrigaria as duas a andarem sempre juntas, e a do dashboard nao tem
-            espaco para onze. */}
-        <div className="v3-tabela v3-tabela-vendas">
-          <div className="v3-revisar-cab">
-            <span>Produto</span>
-            <span>Pedido</span>
-            <span>Data</span>
-            <span>Qtd</span>
-            <span>Logística</span>
-            <span>Venda</span>
-            <span>Tarifa ML</span>
-            <span>Frete</span>
-            <span>Custo</span>
-            <span>Imposto</span>
-            <span>Margem</span>
-          </div>
-          {paged.map((line) => {
-            const aberta = expanded.has(line.id);
-            return (
-              <Fragment key={line.id}>
-                <div className={`v3-revisar-linha${aberta ? " is-aberta" : ""}`}>
-                  <span className="v3-cel-nome">
-                    {/* O nome e o botao que abre o detalhe: alvo grande, sem um
-                        icone a mais competindo com as nove colunas. */}
-                    <button
-                      type="button"
-                      className="v3-linha-abrir"
-                      aria-expanded={aberta}
-                      onClick={() => toggleExpanded(line.id)}
-                    >
-                      <span className="v3-margem-titulo" title={line.product}>{line.product}</span>
-                    </button>
-                    {/* Quantidade e data sairam daqui: viraram coluna. O sub
-                        fica so com o SKU, que e o que identifica o produto. */}
-                    <span className="v3-cel-sub">{line.sku || "sem SKU"}</span>
-                  </span>
-                  <span className="v3-cel-pedido">#…{String(line.orderId).slice(-6)}</span>
-                  <span className="v3-cel-meio">{brDate(line.date)}</span>
-                  <span className="v3-cel-num">{line.quantity}</span>
-                  <span className="v3-cel-meio">{line.fulfillment ?? "—"}</span>
-                  <span className="v3-cel-num">{line.revenueKnown === false ? "—" : semMoeda(line.revenue, line.currency)}</span>
-                  <span className={`v3-cel-num${line.marketplaceFees == null ? " is-vazio" : ""}`}>{semMoeda(line.marketplaceFees, line.currency)}</span>
-                  <span className={`v3-cel-num${line.sellerShipping == null ? " is-vazio" : ""}`}>{semMoeda(line.sellerShipping, line.currency)}</span>
-                  <span className={`v3-cel-num${line.productCost == null ? " is-vazio" : ""}`}>{semMoeda(line.productCost, line.currency)}</span>
-                  <span className={`v3-cel-num${line.tax == null ? " is-vazio" : ""}`}>{semMoeda(line.tax, line.currency)}</span>
-                  <span className="v3-cel-fim"><Margin line={line} /></span>
-                </div>
-                {aberta && (
-                  <div className="v3-revisar-detalhe">
-                    <Breakdown line={line} />
-                  </div>
-                )}
-              </Fragment>
-            );
-          })}
-        </div>
-        <div className="v3-rodape-solto">
-          <span />
-          <div className="v3-paginacao">
-            <Pagination page={current} pageCount={pageCount} total={visible.length} pageSize={pageSize} onPage={(nextPage) => setPagination({ lines, page: nextPage })} />
-          </div>
-        </div>
-      </>}
+    {error ? <div role="alert" className="profitability-error">{error}</div> : loading ? <TableLoading label="Calculando rentabilidade das vendas" /> : lines.length === 0 ? <EmptyState title="Nenhuma venda no período" description="Amplie o período para consultar vendas anteriores." /> : visible.length === 0 ? <EmptyState kind="search" title="Nenhuma venda encontrada" description="Ajuste a busca ou altere o filtro de resultado." /> : <><div className={`profitability-list ${styles.list}`}>{paged.map((line) => <ProfitabilitySale key={line.id} line={line} expanded={expanded.has(line.id)} onToggle={() => toggleExpanded(line.id)} />)}</div><Pagination page={current} pageCount={pageCount} total={visible.length} pageSize={pageSize} onPage={(nextPage) => setPagination({ lines, page: nextPage })} /></>}
   </section>;
 }
 

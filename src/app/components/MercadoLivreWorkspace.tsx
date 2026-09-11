@@ -11,7 +11,7 @@ import type { DailyPoint } from "./RevenueChart";
 import { JANELA_DE_SETE_DIAS, serieDoBlocoDeLucro } from "./serieDoLucroPorDia";
 import { DashboardPeriodFilter, useDashboardPeriod } from "./DashboardPeriodFilter";
 import { periodoNaUrl } from "./periodoNaUrl";
-import { OrderProfitabilityTable } from "./OrderProfitabilityTable";
+import { OrderProfitabilityTableV3 } from "./OrderProfitabilityTableV3";
 import { ConnectionBroken, isBrokenConnection } from "./ConnectionBroken";
 // O mesmo dicionário do radar da Amazon: equalizar canal é usar a MESMA palavra
 // para o mesmo estado, senão "Saudável" no ML e "Ok" na Amazon parecem coisas
@@ -1581,6 +1581,6 @@ function Monitor({ overview, secaoInicial, periodoQuery }: { overview: Overview;
       * conciliacao em andamento ("Conciliando N de M vendas"). A segunda e a
       * que aponta falta com numero — se alguem sentir a ausencia, e ela.
       */}
-    {section === "profitability" && <OrderProfitabilityTable lines={overview.profitabilityLines} scopeNote={fraseDeEscopo(overview.profitabilityScope)} />}
+    {section === "profitability" && <OrderProfitabilityTableV3 lines={overview.profitabilityLines} scopeNote={fraseDeEscopo(overview.profitabilityScope)} />}
   </div>;
 }

@@ -126,36 +126,42 @@ test("parcela ausente NAO vira zero na procedencia da linha", async () => {
   assert.ok(!/FBA R\$ 0/.test(procedenciaDaFonte({ fonte: "api", comissao: 3.47, fba: null }).texto));
 });
 
-test("a marca fica COLADA ao numero, na face e no detalhe", async () => {
-  const tabela = await fonte("src/app/components/OrderProfitabilityTable.tsx");
-  // ⚠️ A FACE MUDOU DE FORMA EM 11/09/2026, e a exigencia nao: a
-  // linha da tabela era `<strong>{money(contribution)}{marca}</strong>` com o
-  // percentual ao lado; no v3 ela virou UM chip com o percentual, e o valor em
-  // R$ passou a aparecer no detalhe que abre. A marca da estimativa continua
-  // onde ela precisa estar — colada ao numero da FACE, visivel sem abrir nada —,
-  // e e isso que a ADR-027 exige: estimativa marcada na tela.
+test("a marca fica COLADA ao numero nas DUAS formas da tabela", async () => {
+  // ⚠️ A TABELA BIFURCOU EM 11/09/2026, e a marca tem de estar nas
+  // duas pontas. `OrderProfitabilityTable` e a forma que Amazon, Shopee e a
+  // central renderizam; `OrderProfitabilityTableV3` e a do Mercado Livre. A
+  // duplicacao e declarada e temporaria (ver o cabecalho do arquivo V3), e
+  // existe porque a identidade nova sobe SO no ML.
   //
-  // ⚠️ NAO vale afrouxar para "marcaDaLinha aparece no arquivo": ela
-  // aparece tres vezes, e duas sao no detalhe expandido. Se a guarda casasse o
-  // identificador solto, a marca poderia sair da face e o teste ficaria verde —
-  // e a face e justamente a parte que a pessoa le sem clicar. Por isso o bloco
-  // inteiro do chip, literal.
-  // String simples, sem template literal: a linha do chip tem `${classe}` dentro
-  // de uma template string do componente, e reproduzi-la com backtick aqui fazia
-  // o TESTE interpolar a variavel. Guarda que nao roda nao guarda nada.
+  // ⚠️ E E EXATAMENTE AQUI QUE DUPLICACAO COSTUMA MATAR REGRA:
+  // alguem conserta numa copia e esquece a outra, e a ADR-027 passa a valer em
+  // tres telas e nao em quatro. Por isso a guarda cobre as duas no mesmo teste —
+  // quem apagar a marca de qualquer uma ve vermelho.
+  const original = await fonte("src/app/components/OrderProfitabilityTable.tsx");
+  const v3 = await fonte("src/app/components/OrderProfitabilityTableV3.tsx");
+
+  // Forma original: dentro do <strong> do valor, nao numa terceira linha.
+  assert.match(
+    original,
+    /<strong>\{money\(line\.contribution, line\.currency\)\}\{marcaDaLinha\(line\)\}<\/strong>/,
+    "a marca saiu de perto do numero na face da linha (forma original)",
+  );
+  // Forma v3: dentro do chip de margem, que e a face da linha no ML.
   assert.ok(
-    tabela.includes([
+    v3.includes([
       "      {percent(line.marginPct)}",
       "      {marcaDaLinha(line)}",
     ].join(String.fromCharCode(10))),
-    "a marca saiu de perto do numero na face da linha",
+    "a marca saiu de perto do numero na face da linha (forma v3 do ML)",
   );
-  // Detalhe: colada a TARIFA, que e a parcela que a estimativa substitui.
-  assert.match(
-    tabela,
-    /− \{money\(line\.marketplaceFees, line\.currency\)\}\{marcaDaLinha\(line\)\}/,
-    "a tarifa estimada deixou de ser marcada onde ela mora",
-  );
+  // Detalhe: colada a TARIFA, que e a parcela que a estimativa substitui — nas duas.
+  for (const [nome, fonteDaVez] of [["original", original], ["v3", v3]]) {
+    assert.match(
+      fonteDaVez,
+      /− \{money\(line\.marketplaceFees, line\.currency\)\}\{marcaDaLinha\(line\)\}/,
+      `a tarifa estimada deixou de ser marcada onde ela mora (${nome})`,
+    );
+  }
 });
 
 test("linha sem tarifa nenhuma continua dizendo o que falta — nao marca ausencia", async () => {
