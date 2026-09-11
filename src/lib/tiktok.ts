@@ -217,9 +217,17 @@ export interface TiktokShopInfo {
 }
 
 /** Lojas autorizadas pelo vendedor (contém o shop_cipher usado nas demais chamadas). */
-export async function getAuthorizedShops(accessToken: string): Promise<TiktokShopInfo[]> {
+export async function getAuthorizedShops(
+  accessToken: string,
+  app: AppDoTikTok = APP_PADRAO
+): Promise<TiktokShopInfo[]> {
+  // ⚠️ ESTA e a primeira chamada assinada depois do consentimento, e era por
+  // ela que a migracao para o app publico quebrava: o `auth_code` ia trocado
+  // com o par certo e esta chamada assinava com o custom. O callback sabe qual
+  // app autorizou — quem sabe passa.
   const data = await tiktokFetch<{ shops?: TiktokShopInfo[] }>("/authorization/202309/shops", {
     accessToken,
+    app,
   });
   return data.shops ?? [];
 }
@@ -248,6 +256,14 @@ export const PRODUCT_PAGE_SIZE = 50;
 export interface TiktokShopRef {
   accessToken: string;
   shopCipher?: string;
+  /**
+   * De qual app este token e — e portanto com qual par de credencial assinar.
+   * ⚠️ Ausente cai no CUSTOM, que e o valor certo para a conexao de hoje e o
+   * ERRADO para qualquer conexao do publico. Quem monta um ref a partir da loja
+   * guardada TEM de copiar este campo; a guarda `credencialDoTiktokNaoSeAdivinha`
+   * reprova quem esquecer.
+   */
+  app?: AppDoTikTok;
 }
 
 interface Paginado<T> {
@@ -274,6 +290,7 @@ export async function getTiktokOrderList(
     method: "POST",
     accessToken: shop.accessToken,
     shopCipher: shop.shopCipher,
+    app: shop.app,
     query: { page_size: ORDER_PAGE_SIZE, page_token: opts.pageToken },
     body: { create_time_ge: opts.createTimeGe, create_time_lt: opts.createTimeLt },
   });
@@ -297,6 +314,7 @@ export async function getTiktokOrderDetail(
   const data = await tiktokFetch<{ orders?: unknown[] }>("/order/202507/orders", {
     accessToken: shop.accessToken,
     shopCipher: shop.shopCipher,
+    app: shop.app,
     query: { ids: ids.join(",") },
   });
   return data.orders ?? [];
@@ -313,6 +331,7 @@ export async function getTiktokOrderStatement(
   return tiktokFetch(`/finance/202501/orders/${encodeURIComponent(orderId)}/statement_transactions`, {
     accessToken: shop.accessToken,
     shopCipher: shop.shopCipher,
+    app: shop.app,
   });
 }
 
@@ -327,6 +346,7 @@ export async function getTiktokProducts(
       method: "POST",
       accessToken: shop.accessToken,
       shopCipher: shop.shopCipher,
+      app: shop.app,
       query: { page_size: PRODUCT_PAGE_SIZE, page_token: opts.pageToken },
       body: {},
     }

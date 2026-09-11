@@ -79,7 +79,10 @@ async function concluir(
 
   try {
     const tok = await exchangeAuthCode(code, opcoes.app);
-    const shops = await getAuthorizedShops(tok.access_token);
+    // ⚠️ PRIMEIRA CHAMADA ASSINADA do consentimento. Sem `opcoes.app` ela ia
+    // com a chave do CUSTOM enquanto o token era do PUBLICO — o que fazia a
+    // etapa 2 quebrar exatamente aqui. Ver migration 0033.
+    const shops = await getAuthorizedShops(tok.access_token, opcoes.app);
 
     const accessExp = epochToIso(tok.access_token_expire_in);
     const refreshExp = epochToIso(tok.refresh_token_expire_in);
@@ -97,6 +100,9 @@ async function concluir(
         refreshToken: tok.refresh_token,
         accessExpiresAt: accessExp,
         refreshExpiresAt: refreshExp,
+        // Grava DE QUAL APP este token e. Adivinhar depois erra em silencio:
+        // token do publico renovado com o par do custom e recusado.
+        app: opcoes.app,
       })));
 
     // Primeira sincronização disparada na hora (o seed do estado já saiu no

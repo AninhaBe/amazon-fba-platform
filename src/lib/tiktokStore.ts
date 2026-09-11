@@ -5,6 +5,7 @@ import { hasDb, dbQuery, dbTransaction } from "./db";
 import { currentWorkspaceId } from "./workspaceScope";
 import { protectSecret, revealSecret } from "./integrations/secrets";
 import { epochToIso, refreshAccessToken } from "./tiktok";
+import { APP_PADRAO, appDaConexao, type AppDoTikTok } from "./integrations/tiktokApps";
 import { TiktokConnectionError } from "./integrations/tiktokContract";
 import { deduplicateTiktokRefresh, tiktokRefreshGrantKey } from "./integrations/tiktokRefreshControl";
 import { coordinateOAuthRefresh, oauthRefreshFingerprint } from "./integrations/oauthRefreshLease";
@@ -30,6 +31,12 @@ export interface TiktokShop {
   refreshExpiresAt?: string;
   connectedAt: string;
   taxRate?: number;
+  /**
+   * De qual app esta conexao e. ⚠️ NAO e enfeite de auditoria: e o que decide
+   * com qual par de credencial assinar chamada e renovar token. Ver a migration
+   * 0033 para o defeito que a ausencia dele causava.
+   */
+  app: AppDoTikTok;
 }
 
 interface Row {
@@ -43,6 +50,7 @@ interface Row {
   refresh_expires_at: Date | string | null;
   connected_at: Date | string;
   tax_rate?: string | number | null;
+  app?: string | null;
   ownership_count?: number;
 }
 
@@ -58,6 +66,8 @@ function rowToShop(r: Row): TiktokShop {
     refreshExpiresAt: r.refresh_expires_at ? new Date(r.refresh_expires_at).toISOString() : undefined,
     connectedAt: new Date(r.connected_at).toISOString(),
     taxRate: r.tax_rate == null ? undefined : Number(r.tax_rate),
+    // Linha gravada antes da 0033 nao tem valor; `custom` e a verdade dela.
+    app: appDaConexao(r.app),
   };
 }
 
@@ -81,7 +91,7 @@ export async function getTiktokShops(): Promise<TiktokShop[]> {
   if (hasDb()) {
     const rows = await dbQuery<Row>(
       `SELECT shop.shop_id, shop.shop_name, shop.shop_cipher, shop.region, shop.access_token, shop.refresh_token,
-              shop.access_expires_at, shop.refresh_expires_at, shop.connected_at, shop.tax_rate,
+              shop.access_expires_at, shop.refresh_expires_at, shop.connected_at, shop.tax_rate, shop.app,
               (SELECT COUNT(DISTINCT owner.workspace_id)::int FROM workspace_tiktok_shops owner
                 WHERE owner.shop_id=shop.shop_id) AS ownership_count
          FROM workspace_tiktok_shops shop WHERE shop.workspace_id = $1 ORDER BY shop.shop_id`,
@@ -94,6 +104,8 @@ export async function getTiktokShops(): Promise<TiktokShop[]> {
   }
   return Object.values(await readAll())
     .filter((shop) => shop.workspaceId === workspaceId)
+    // Arquivo gravado antes da 0033 nao tem o campo; `custom` e a verdade dele.
+    .map((shop) => ({ ...shop, app: appDaConexao(shop.app) }))
     .sort((a, b) => a.shopId.localeCompare(b.shopId));
 }
 
@@ -123,8 +135,8 @@ export async function saveTiktokShop(
       return query<Row>(
       `INSERT INTO workspace_tiktok_shops
          (workspace_id, shop_id, shop_name, shop_cipher, region, access_token, refresh_token,
-          access_expires_at, refresh_expires_at, connected_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now())
+          access_expires_at, refresh_expires_at, connected_at, app)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now(), $10)
        ON CONFLICT (workspace_id, shop_id) DO UPDATE SET
          shop_name          = COALESCE(EXCLUDED.shop_name, workspace_tiktok_shops.shop_name),
          shop_cipher        = COALESCE(EXCLUDED.shop_cipher, workspace_tiktok_shops.shop_cipher),
@@ -133,9 +145,10 @@ export async function saveTiktokShop(
          refresh_token      = EXCLUDED.refresh_token,
          access_expires_at  = EXCLUDED.access_expires_at,
          refresh_expires_at = EXCLUDED.refresh_expires_at,
-         connected_at       = now()
+         connected_at       = now(),
+         app                = EXCLUDED.app
        RETURNING shop_id, shop_name, shop_cipher, region, access_token, refresh_token,
-                 access_expires_at, refresh_expires_at, connected_at`,
+                 access_expires_at, refresh_expires_at, connected_at, app`,
       [
         workspaceId,
         s.shopId,
@@ -146,6 +159,7 @@ export async function saveTiktokShop(
         protectSecret(s.refreshToken),
         s.accessExpiresAt ?? null,
         s.refreshExpiresAt ?? null,
+        s.app ?? APP_PADRAO,
       ]
       );
     });
@@ -198,16 +212,16 @@ export async function saveTiktokAuthorization(
         await query(
           `INSERT INTO workspace_tiktok_shops
              (workspace_id, shop_id, shop_name, shop_cipher, region, access_token, refresh_token,
-              access_expires_at, refresh_expires_at, connected_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,now())
+              access_expires_at, refresh_expires_at, connected_at, app)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,now(),$10)
            ON CONFLICT (workspace_id, shop_id) DO UPDATE SET
              shop_name=EXCLUDED.shop_name, shop_cipher=EXCLUDED.shop_cipher, region=EXCLUDED.region,
              access_token=EXCLUDED.access_token, refresh_token=EXCLUDED.refresh_token,
              access_expires_at=EXCLUDED.access_expires_at, refresh_expires_at=EXCLUDED.refresh_expires_at,
-             connected_at=now()`,
+             connected_at=now(), app=EXCLUDED.app`,
           [workspaceId, shop.shopId, shop.shopName ?? null, shop.shopCipher ?? null, shop.region ?? null,
             protectSecret(shop.accessToken), protectSecret(shop.refreshToken), shop.accessExpiresAt ?? null,
-            shop.refreshExpiresAt ?? null]
+            shop.refreshExpiresAt ?? null, shop.app ?? APP_PADRAO]
         );
         await query(
           `INSERT INTO workspace_marketplace_syncs
@@ -254,7 +268,7 @@ export async function refreshTiktokShopIfNeeded(
     // Outra chamada pode ter renovado enquanto esta aguardava a deduplicação.
     const rows = hasDb() ? await dbQuery<Row>(
       `SELECT shop_id, shop_name, shop_cipher, region, access_token, refresh_token,
-              access_expires_at, refresh_expires_at, connected_at
+              access_expires_at, refresh_expires_at, connected_at, app
          FROM workspace_tiktok_shops WHERE workspace_id = $1 ORDER BY shop_id`,
       [workspaceId]
     ) : [];
@@ -276,7 +290,7 @@ export async function refreshTiktokShopIfNeeded(
         workspaceId, provider: "tiktok_shop", refreshToken: previousRefreshToken, leaseMs: 35_000,
         readFresh: async () => {
           const reread = await dbQuery<Row>(`SELECT shop_id, shop_name, shop_cipher, region, access_token, refresh_token,
-            access_expires_at, refresh_expires_at, connected_at FROM workspace_tiktok_shops
+            access_expires_at, refresh_expires_at, connected_at, app FROM workspace_tiktok_shops
             WHERE workspace_id=$1 AND shop_id=$2`, [workspaceId, shop.shopId]);
           if (!reread[0]) throw new TiktokConnectionError("REAUTH_REQUIRED", "A loja TikTok não está mais conectada.");
           const value = rowToShop(reread[0]);
@@ -284,7 +298,7 @@ export async function refreshTiktokShopIfNeeded(
           const expiry = value.accessExpiresAt ? new Date(value.accessExpiresAt).getTime() : 0;
           return expiry && expiry - Date.now() > minValidityMs ? value : null;
         },
-        refresh: (signal) => refreshAccessToken(previousRefreshToken, signal),
+        refresh: (signal) => refreshAccessToken(previousRefreshToken, signal, latest.app),
         isInvalidGrant: (error) => error instanceof Error && (error as Error & { code?: string }).code === "REAUTH_REQUIRED",
         // Depois de in_flight, a implementação HTTP não consegue provar que uma
         // falha aconteceu antes de o provedor receber o refresh token.
@@ -292,7 +306,7 @@ export async function refreshTiktokShopIfNeeded(
         finalizeInvalidGrant: async (query) => {
           await assertGlobalTiktokShopOwnership(query, workspaceId, initialIds, true);
           const locked = await query<Row>(`SELECT shop_id, shop_name, shop_cipher, region, access_token, refresh_token,
-            access_expires_at, refresh_expires_at, connected_at FROM workspace_tiktok_shops
+            access_expires_at, refresh_expires_at, connected_at, app FROM workspace_tiktok_shops
             WHERE workspace_id=$1 ORDER BY shop_id FOR UPDATE`, [workspaceId]);
           const grant = locked.filter((row) => revealSecret(row.refresh_token) === previousRefreshToken);
           const ids = grant.map((row) => row.shop_id).sort();
@@ -304,7 +318,7 @@ export async function refreshTiktokShopIfNeeded(
         finalize: async (query, token) => {
           await assertGlobalTiktokShopOwnership(query, workspaceId, initialIds, true);
           const locked = await query<Row>(`SELECT shop_id, shop_name, shop_cipher, region, access_token, refresh_token,
-            access_expires_at, refresh_expires_at, connected_at FROM workspace_tiktok_shops
+            access_expires_at, refresh_expires_at, connected_at, app FROM workspace_tiktok_shops
             WHERE workspace_id=$1 ORDER BY shop_id FOR UPDATE`, [workspaceId]);
           const grant = locked.filter((row) => revealSecret(row.refresh_token) === previousRefreshToken);
           const ids = grant.map((row) => row.shop_id).sort();
@@ -332,7 +346,7 @@ export async function refreshTiktokShopIfNeeded(
 
     let token: Awaited<ReturnType<typeof refreshAccessToken>>;
     try {
-      token = await refreshAccessToken(latest.refreshToken);
+      token = await refreshAccessToken(latest.refreshToken, undefined, latest.app);
     } catch (error) {
       const reread = await getTiktokShops();
       const current = reread.find((candidate) => candidate.shopId === shop.shopId);

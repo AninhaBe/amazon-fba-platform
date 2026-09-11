@@ -301,7 +301,8 @@ export async function requestTiktokFullReprocess(connectionId: string): Promise<
 
 /** Referência de chamada da loja: token + cipher. */
 function refDaLoja(loja: TiktokShop): TiktokShopRef {
-  return { accessToken: loja.accessToken, shopCipher: loja.shopCipher };
+  // ⚠️ `app` viaja junto: sem ele o ref assina com o custom (ver migration 0033).
+  return { accessToken: loja.accessToken, shopCipher: loja.shopCipher, app: loja.app };
 }
 
 async function withLeaseFence<T>(
