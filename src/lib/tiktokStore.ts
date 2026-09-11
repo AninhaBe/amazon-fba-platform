@@ -5,7 +5,7 @@ import { hasDb, dbQuery, dbTransaction } from "./db";
 import { currentWorkspaceId } from "./workspaceScope";
 import { protectSecret, revealSecret } from "./integrations/secrets";
 import { epochToIso, refreshAccessToken } from "./tiktok";
-import { APP_PADRAO, appDaConexao, type AppDoTikTok } from "./integrations/tiktokApps";
+import { appDaConexao, type AppDoTikTok } from "./integrations/tiktokApps";
 import { TiktokConnectionError } from "./integrations/tiktokContract";
 import { deduplicateTiktokRefresh, tiktokRefreshGrantKey } from "./integrations/tiktokRefreshControl";
 import { coordinateOAuthRefresh, oauthRefreshFingerprint } from "./integrations/oauthRefreshLease";
@@ -159,7 +159,13 @@ export async function saveTiktokShop(
         protectSecret(s.refreshToken),
         s.accessExpiresAt ?? null,
         s.refreshExpiresAt ?? null,
-        s.app ?? APP_PADRAO,
+        // ⚠️ SEM `?? APP_PADRAO` DE PROPOSITO. O default estava aqui e era MORTO
+        // (`TiktokShop.app` e obrigatorio; `tsc` fica em 0 sem ele), mas default
+        // morto nao e inofensivo: ele DIZ ao leitor que o campo pode faltar, e
+        // voltaria a engolir o esquecimento em silencio no dia em que alguem
+        // afrouxasse o tipo. Achado da Batida em 11/09/2026, conferindo se o
+        // `app` obrigatorio nao tinha sido silenciado por cast ou default.
+        s.app,
       ]
       );
     });
@@ -221,7 +227,7 @@ export async function saveTiktokAuthorization(
              connected_at=now(), app=EXCLUDED.app`,
           [workspaceId, shop.shopId, shop.shopName ?? null, shop.shopCipher ?? null, shop.region ?? null,
             protectSecret(shop.accessToken), protectSecret(shop.refreshToken), shop.accessExpiresAt ?? null,
-            shop.refreshExpiresAt ?? null, shop.app ?? APP_PADRAO]
+            shop.refreshExpiresAt ?? null, shop.app]
         );
         await query(
           `INSERT INTO workspace_marketplace_syncs
