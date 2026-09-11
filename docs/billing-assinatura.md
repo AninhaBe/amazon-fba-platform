@@ -158,6 +158,39 @@ seria mexer no workspace errado.
 Crescer essa lista é decisão, não acidente: `tests/trancaDaAssinatura.test.mjs`
 conta quantas rotas ignoram a tranca e fica vermelho quando o número muda.
 
+### ⚠️ A tranca mora no layout de `(app)` — quem fica fora dele não passa por ela
+
+`/lab/*` **não está no grupo `(app)`**. Consequência exata, e ela não é acidente:
+o proxy exige **sessão** (em produção `/lab` não está em `publicPaths`, então
+visitante sem login leva redirect para `/login`), mas a **tranca não é aplicada**,
+porque quem a aplica é `src/app/(app)/layout.tsx`. Um workspace **logado e
+inadimplente alcança `/lab/*`**.
+
+Hoje isso é inofensivo e de propósito: `/lab` é protótipo visual — sem dado real,
+sem API atrás. A assimetria está registrada aqui porque o dia em que alguém puser
+**dado real numa página de `/lab`**, ela nasce sem tranca e **nada fica vermelho**
+para avisar. A guarda que existe (`tests/trancaDaAssinatura.test.mjs`) conta
+**rotas de API** sem guarda; página fora de `(app)` não entra nessa conta.
+
+**Na prática:** página que serve dado de workspace mora **dentro de `(app)`**.
+Se precisar mesmo ficar fora, ela chama `lerAcesso()` por conta própria — e o
+motivo de estar fora fica escrito ao lado da chamada.
+
+📌 Vale para **qualquer** rota fora de `(app)`, não só `/lab`. `/reativar` já é o
+caso legítimo e está logo acima: ela fica fora **porque** a tranca a barraria e a
+mandaria para ela mesma, em laço. A diferença entre as duas é que uma escolheu
+ficar fora e disse por quê; a outra ficou fora por ser protótipo — e é essa que
+envelhece calada.
+
+⚠️ E a mesma fronteira vale para **código de bancada**: instrumento que existe
+para desenhar (dado de amostra, intercepto de `fetch`, atalho de acesso) precisa
+**morrer de produção por construção** — guarda de `NODE_ENV` no código, nunca
+aviso em comentário. Encontrado em 11/09/2026 na leva do redesign do ML: um
+atalho de `lerAcesso` por variável de ambiente, e um intercepto global de
+`window.fetch` sem desinstalação que servia dado de exemplo às telas reais e
+respondia `{ ok: true }` a `/api/costs` sem persistir nada. Os dois se anunciavam
+locais em comentário; comentário não é guarda.
+
 ## Sync: só sincroniza quem tem acesso
 
 **O sync pausa exatamente quando o acesso está bloqueado** — a mesma fronteira da
@@ -244,6 +277,15 @@ O e-mail de **criação de senha** não sai daqui: é o convite do Supabase
 
 ## Changelog observado
 
+- **11/09/2026** — registrada a assimetria de **quem fica fora do grupo `(app)`**:
+  o proxy exige sessão, mas a tranca não alcança essas rotas, porque ela mora no
+  layout de `(app)`. Vale hoje para `/lab/*` (protótipo, sem dado), e a nota
+  existe para o dia em que alguém puser dado real lá — nada ficaria vermelho.
+  Veio da auditoria da leva do redesign do ML, que trouxe junto dois instrumentos
+  de bancada atravessando para produção (atalho de `lerAcesso` por variável de
+  ambiente, e intercepto global de `window.fetch` sem desinstalação). Ambos
+  barrados antes de subir. A regra que ficou: **instrumento de desenho morre de
+  produção por construção — guarda de `NODE_ENV` no código, nunca em comentário.**
 - **07/09/2026 (v3)** — o trial saiu do modelo: só assinatura ativa e admin
   entram, e a experimentação virou **garantia de 7 dias**. As contas de
   demonstração passaram de trial semeado para assinatura interna, porque o trial
