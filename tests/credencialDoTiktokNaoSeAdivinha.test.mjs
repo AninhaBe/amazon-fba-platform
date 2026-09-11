@@ -48,6 +48,8 @@ const STORE = fonte("../src/lib/tiktokStore.ts");
 const SYNC = fonte("../src/lib/integrations/tiktokSync.ts");
 const FINANCEIRO = fonte("../src/lib/integrations/tiktokFinancialApi.ts");
 const CALLBACK = fonte("../src/app/api/tiktok/callback/route.ts");
+const SCHEDULER = fonte("../src/lib/integrations/tiktokScheduler.ts");
+const AMOSTRA = fonte("../src/app/api/tiktok/amostra/route.ts");
 const MIGRATION = fonte("../migrations/0033_a_conexao_do_tiktok_diz_de_qual_app_ela_e.sql");
 
 test("todo endpoint de negocio assina com o app DA LOJA, nao com o padrao", () => {
@@ -103,9 +105,47 @@ test("os DOIS refresh renovam com o par da propria conexao", () => {
 });
 
 test("quem monta um TiktokShopRef copia o app da loja", () => {
-  // Os dois unicos sitios que constroem um ref a partir da loja guardada. Um ref
-  // sem `app` cai no custom em silencio — o campo e opcional no tipo de
-  // proposito, porque a conexao de hoje E custom.
+  // ⚠️ ESTE TESTE JA MENTIU, E A CORRECAO E DE 11/09/2026 — MESMO DIA EM QUE ELE
+  // NASCEU. A versao original dizia "os DOIS unicos sitios que constroem um ref"
+  // e listava so `tiktokSync` e `tiktokFinancialApi`. Eram QUATRO. Os outros dois
+  // — `tiktokScheduler` e a rota `amostra` — ficaram de fora porque quem escreveu
+  // a guarda (eu) procurou `accessToken:` APENAS nos tres arquivos que ja
+  // suspeitava, em vez de varrer `src/` inteiro, e depois afirmou completude.
+  //
+  // 📌 Afirmacao de completude e PIOR que lacuna: a lacuna deixa a proxima pessoa
+  // desconfiada; a afirmacao a faz parar de procurar. Quem achou foi a Batida,
+  // lendo por que so havia 5 janelas de extrato, nao a suite.
+  //
+  // ⚠️ E O SITIO DO SCHEDULER ERA O QUE MAIS DOIA: e o caminho que roda A CADA
+  // CICLO. Depois da reautorizacao pelo app publico, ele assinaria com o par do
+  // custom -> 401 em toda chamada financeira -> pedidos entrando (sync corrigido)
+  // e LEDGER MORTO, sem nada vermelho, e indistinguivel do travamento que o
+  // PLATFORM_REIMBURSEMENT ja causava.
+  //
+  // ⚠️ A PARTIR DE 11/09/2026 ESTA GUARDA E A SEGUNDA LINHA, NAO A PRIMEIRA.
+  // No mesmo dia, `app` deixou de ser opcional em `TiktokShopRef` — justamente
+  // porque ser opcional foi o que deixou estes dois sitios esquecerem-no sem o
+  // `tsc` reclamar. Agora quem monta um ref sem `app` NAO COMPILA, e isso foi
+  // medido, nao suposto: remover o campo de cada sitio devolve
+  // `error TS2345: ... is not assignable to parameter of type 'TiktokShopRef'`.
+  //
+  // 📌 O QUE SOBROU PARA ESTA GUARDA e a ORIGEM do valor, e nao a ausencia dele.
+  // O tipo garante que ALGUM app foi passado; so a leitura do fonte garante que
+  // ele veio de `shop.app`/`loja.app` e nao de uma constante.
+  //
+  // ⚠️ E a fronteira entre os dois e mais estreita do que eu escrevi na primeira
+  // versao desta nota, que dizia "constante passa no tsc e so a guarda pega".
+  // Medi: trocar `app: loja.app` por `app: "custom"` da QUATRO erros de tsc —
+  // o literal alarga para `string` dentro do objeto e deixa de ser atribuivel a
+  // `AppDoTikTok`. Ou seja, o compilador pega tambem esse caso, por acidente
+  // feliz do alargamento. O que ele NAO pega e a constante BEM TIPADA
+  // (`APP_PADRAO`, ou `"custom" as AppDoTikTok`): ali o tsc fica verde e so esta
+  // guarda reprova. A nota anterior estava certa na conclusao e errada no
+  // exemplo — e eu so soube porque rodei, nao porque reli.
+  //
+  // A lista continua FECHADA e tem QUATRO. Ao criar um ref novo, a entrada entra
+  // aqui no mesmo commit — o compilador vai te obrigar a passar algo, mas nao a
+  // passar a coisa certa.
   assert.ok(
     SYNC.includes("return { accessToken: loja.accessToken, shopCipher: loja.shopCipher, app: loja.app };"),
     "tiktokSync monta o ref do sync: sem `app: loja.app` toda leitura de " +
@@ -115,6 +155,16 @@ test("quem monta um TiktokShopRef copia o app da loja", () => {
     FINANCEIRO.includes("accessToken:shop.accessToken,shopCipher:shop.shopCipher,app:shop.app}"),
     "tiktokFinancialApi e o unico chamador de tiktokFetch fora do modulo: " +
       "sem `app:shop.app` a conciliacao financeira assina com o custom."
+  );
+  assert.ok(
+    SCHEDULER.includes("liveTiktokFinancialAdapters({accessToken:shop.accessToken,shopCipher:shop.shopCipher,app:shop.app})"),
+    "o scheduler financeiro roda A CADA CICLO: sem `app:shop.app` o ledger " +
+      "inteiro assina com o custom depois da reautorizacao pelo publico."
+  );
+  assert.ok(
+    AMOSTRA.includes("const shop = { accessToken: loja.accessToken, shopCipher: loja.shopCipher, app: loja.app };"),
+    "a rota de amostra monta o proprio ref: sem `app: loja.app` ela mede o " +
+      "canal com a credencial errada e o diagnostico sai invertido."
   );
 });
 

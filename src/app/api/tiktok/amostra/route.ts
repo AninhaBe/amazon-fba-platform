@@ -41,7 +41,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Nenhuma loja TikTok conectada." }, { status: 404 });
     }
     const loja = await refreshTiktokShopIfNeeded(selecionada);
-    const shop = { accessToken: loja.accessToken, shopCipher: loja.shopCipher };
+    // ⚠️ `app` viaja junto. Montar um ref novo sem ele descarta de qual app
+    // a conexao e, e `tiktokFetch` cai em APP_PADRAO = custom: token do
+    // publico assinado com a chave do custom da 401 em TODA chamada. Ver a
+    // migration 0033 e a guarda `credencialDoTiktokNaoSeAdivinha`.
+    const shop = { accessToken: loja.accessToken, shopCipher: loja.shopCipher, app: loja.app };
 
     const agora = Math.floor(Date.now() / 1000);
     const resultado: Record<string, unknown> = {

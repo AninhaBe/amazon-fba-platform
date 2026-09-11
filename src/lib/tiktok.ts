@@ -258,12 +258,24 @@ export interface TiktokShopRef {
   shopCipher?: string;
   /**
    * De qual app este token e — e portanto com qual par de credencial assinar.
-   * ⚠️ Ausente cai no CUSTOM, que e o valor certo para a conexao de hoje e o
-   * ERRADO para qualquer conexao do publico. Quem monta um ref a partir da loja
-   * guardada TEM de copiar este campo; a guarda `credencialDoTiktokNaoSeAdivinha`
-   * reprova quem esquecer.
+   *
+   * ⚠️ OBRIGATORIO DESDE 11/09/2026, E A DATA IMPORTA: ele nasceu OPCIONAL nesta
+   * mesma leva, e ser opcional deixou DOIS sitios esquecerem-no sem o `tsc`
+   * reclamar — `tiktokScheduler` (que roda a cada ciclo) e a rota `amostra`. A
+   * correcao tinha herdado a propriedade que permitiu o defeito original: nome
+   * plausivel, tipo que nao distingue, falha silenciosa.
+   *
+   * Torna-lo obrigatorio custou 5 erros de `tsc`, todos nos dois arquivos que ja
+   * estavam sendo corrigidos — zero colateral. E era agora ou nunca: o campo
+   * inteiro morre quando o app custom for aposentado, entao "apertar depois"
+   * nunca aconteceria, e o periodo ate la e justamente o de maior risco, com os
+   * dois apps vivos.
+   *
+   * 📌 Quem monta um ref a partir da loja guardada copia este campo, e agora quem
+   * esquecer NAO COMPILA. A guarda `credencialDoTiktokNaoSeAdivinha` continua,
+   * como segunda linha.
    */
-  app?: AppDoTikTok;
+  app: AppDoTikTok;
 }
 
 interface Paginado<T> {
