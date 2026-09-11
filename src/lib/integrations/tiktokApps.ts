@@ -6,12 +6,23 @@
  * destino é **um app só, o público**.
  *
  *   hoje ......... o app CUSTOM atende a loja conectada, em produção;
- *                  o app PÚBLICO existe para a revisão funcional do TikTok.
- *   quando o público for APROVADO -> janela com a dona do produto -> a loja
- *   reautoriza pelo público -> o custom é aposentado -> o par extra sai do Fly
- *   -> **este arquivo morre junto**.
+ *                  o app PÚBLICO já foi APROVADO e PUBLICADO — Go Live Review
+ *                  em 11/09/2026, e ele já está no Service Market.
+ *   o que falta .. apply da migration 0033 -> deploy da leva -> janela com a
+ *                  dona do produto -> a loja reautoriza pelo público -> o
+ *                  custom é aposentado -> o par extra sai do Fly
+ *                  -> **este arquivo morre junto**.
  *
- * 📌 Por que não migrar de uma vez: a migração real só é possível depois da
+ * ⚠️ QUEM SEGURA A ETAPA 2 SOMOS NÓS, NÃO O TIKTOK. Até 11/09/2026 este
+ * cabeçalho dizia *"quando o público for aprovado"* e *"o público existe para
+ * a revisão funcional"* — quem o lesse depois da publicação concluiria que a
+ * fila esperava o marketplace, e **inverter o dono do bloqueio é o erro mais
+ * caro de uma fila**. É a família que este projeto já pagou duas vezes: o Go
+ * Live da Shopee ficou 26 dias afirmando um bloqueio que não existia mais, e
+ * duas qualificações do TikTok passaram ~2 meses marcadas como "aguardando o
+ * marketplace" quando o que reprovava era dado nosso.
+ *
+ * 📌 Por que não migrou de uma vez: a migração real só era possível depois da
  * aprovação, e trocar antes cortaria a loja que está conectada e funcionando.
  * Por que não conviver para sempre: dois pares de credencial é a família do
  * `undefined` em produção que a Amazon já pagou (`.env` × `workspace_accounts`).

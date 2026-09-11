@@ -143,15 +143,25 @@ conforme for concluindo.
   Entra na fila normal — **não fura** App review do TikTok, relatório do
   cancelamento da Amazon nem a remedição de IO.
 
-- [ ] **TikTok: aposentar o app custom** quando o app público for aprovado.
+- [ ] **TikTok: aposentar o app custom** — a aprovação **já chegou**.
   ⚠️ **Isto é a segunda etapa de uma migração já decidida** (dona do produto,
-  04/09/2026), não uma melhoria opcional. Hoje os dois apps convivem porque a
-  migração real só é possível depois da aprovação — o custom atende a loja
-  conectada, o público existe para a revisão funcional.
-  **Quando a aprovação chegar, na ordem:** janela combinada com ela → a loja
-  reautoriza pelo app público (link de convite com `?app=publico`) → o custom é
+  04/09/2026), não uma melhoria opcional. Os dois apps ainda convivem, mas
+  **não é mais o TikTok que segura**: o app público foi **aprovado e publicado
+  em 11/09/2026** (Go Live Review; já está no Service Market). Até esta data o
+  item dizia *"quando o app público for aprovado"* e *"o público existe para a
+  revisão funcional"* — quem o lesse concluiria que a fila esperava o
+  marketplace. **Quem bloqueia somos nós**, e o bloqueio tem nome: o apply da
+  migration `0033` e o deploy da leva do TikTok.
+  **Na ordem, e ela não inverte:** apply da `0033` (a `0032` vai junto, e ela
+  toma lock — janela calma) → deploy da leva → confirmação da dona do produto
+  de que a loja conectada é dela → janela combinada com ela → a loja
+  reautoriza pelo app público (link de convite com `?app=publico`; o Service
+  Market **não** serve, porque o app viaja dentro do `state` assinado do
+  convite) → **a assinatura pelo público é validada de verdade** (linha com
+  `app='publico'` e chamada de negócio respondendo) → o custom é
   aposentado → `TIKTOK_APP_KEY`, `TIKTOK_APP_SECRET` e `TIKTOK_SERVICE_ID` saem
-  do Fly → `src/lib/integrations/tiktokApps.ts` e o parâmetro `app` que ele
+  do Fly, **passo da dona do produto** → e só então
+  `src/lib/integrations/tiktokApps.ts` e o parâmetro `app` que ele
   espalhou morrem junto.
   📌 Duas vias de credencial já custaram um `undefined` em produção na Amazon.
   A convivência aqui tem prazo declarado no próprio módulo, e a guarda
