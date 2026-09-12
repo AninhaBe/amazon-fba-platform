@@ -14,6 +14,7 @@ import { lucroPorDiaDaAmazon } from "./lucroPorDiaDaAmazon";
 import type { Period } from "../period";
 import { amazonConnectionId } from "./amazonSync";
 import { brazilDateKey } from "./mercadoLivre";
+import { SQL_TARIFAS_QUE_CUSTAM } from "./canonical";
 
 // Overview da Amazon servido pelo modelo canônico (fase 5 da migração,
 // docs/canonical-schema.md). Espelha o mercadoLivreOverviewCanonical: agregados
@@ -466,7 +467,7 @@ export async function getAmazonOverviewFromCanonical(
          LEFT JOIN LATERAL (
            SELECT SUM(amount) AS amount FROM workspace_channel_order_fees_efetivas f
             WHERE f.workspace_id = $1 AND f.provider = $2 AND f.connection_id = $3
-              AND f.external_order_id = d.external_order_id AND f.fee_type <> 'refund'
+              AND f.external_order_id = d.external_order_id AND f.fee_type IN (${SQL_TARIFAS_QUE_CUSTAM})
          ) ff ON true
         ORDER BY d.occurred_at DESC, d.external_order_id, i.line_no`,
       [...scopeParams(connectionId, period), DETAILED_ORDER_LIMIT]
@@ -890,14 +891,14 @@ export async function getAmazonOverviewFromCanonical(
               (SELECT SUM(f.amount) FROM workspace_channel_order_fees_efetivas f
                 WHERE f.workspace_id = o.workspace_id AND f.provider = o.provider
                   AND f.connection_id = o.connection_id AND f.external_order_id = o.external_order_id
-                  AND f.fee_type <> 'refund')::text AS tarifa_do_pedido,
+                  AND f.fee_type IN (${SQL_TARIFAS_QUE_CUSTAM}))::text AS tarifa_do_pedido,
               -- A parte ESTIMADA da mesma tarifa, para o lucro POR DIA marcar a
               -- coluna como estimativa (ADR-027). Mesma view, mesmo grao: parte
               -- do todo por construcao, nunca soma por cima do total.
               (SELECT SUM(f.amount) FROM workspace_channel_order_fees_efetivas f
                 WHERE f.workspace_id = o.workspace_id AND f.provider = o.provider
                   AND f.connection_id = o.connection_id AND f.external_order_id = o.external_order_id
-                  AND f.fee_type <> 'refund' AND f.basis = 'estimated')::text AS tarifa_estimada_do_pedido,
+                  AND f.fee_type IN (${SQL_TARIFAS_QUE_CUSTAM}) AND f.basis = 'estimated')::text AS tarifa_estimada_do_pedido,
               -- O PRECO SOBRE O QUAL A TARIFA FOI CALCULADA. E ele que serve de
               -- receita quando a Amazon ainda nao publicou valor: assim receita
               -- e tarifa saem do MESMO preco, que e o que faz a conta fechar.
@@ -995,10 +996,10 @@ export async function getAmazonOverviewFromCanonical(
   // construção. `FILTER` mantém o grão: é a mesma linha contada de dois jeitos,
   // não um join a mais — nenhum risco de inflar por fan-out.
   const tarifaRows = await dbQuery<{ total: string | null; estimada: string | null; pedidos_estimados: number }>(
-    `SELECT COALESCE(SUM(f.amount) FILTER (WHERE f.fee_type <> 'refund'), 0)::text AS total,
-            COALESCE(SUM(f.amount) FILTER (WHERE f.fee_type <> 'refund' AND f.basis = 'estimated'), 0)::text AS estimada,
+    `SELECT COALESCE(SUM(f.amount) FILTER (WHERE f.fee_type IN (${SQL_TARIFAS_QUE_CUSTAM})), 0)::text AS total,
+            COALESCE(SUM(f.amount) FILTER (WHERE f.fee_type IN (${SQL_TARIFAS_QUE_CUSTAM}) AND f.basis = 'estimated'), 0)::text AS estimada,
             COUNT(DISTINCT f.external_order_id)
-              FILTER (WHERE f.fee_type <> 'refund' AND f.basis = 'estimated')::int AS pedidos_estimados
+              FILTER (WHERE f.fee_type IN (${SQL_TARIFAS_QUE_CUSTAM}) AND f.basis = 'estimated')::int AS pedidos_estimados
        FROM workspace_channel_order_fees_efetivas f
        JOIN workspace_channel_orders o
          ON o.workspace_id = f.workspace_id AND o.provider = f.provider

@@ -27,6 +27,61 @@ export type CanonicalFeeType =
   | "refund"
   | "other";
 
+/**
+ * OS TIPOS DE TARIFA QUE REDUZEM O RESULTADO — tudo menos `refund`.
+ *
+ * ⚠️ ESTA CONSTANTE EXISTE PARA MATAR A LISTA NEGRA. Ordem da dona do produto em
+ * 12/09/2026, verbatim: *"lista negra nao existe, se esta no nexo com esse termo,
+ * pode remover"*. Onze consultas escreviam `fee_type <> 'refund'` ou
+ * `NOT IN ('refund','estimated')`; agora escrevem `= ANY(...)` com esta lista.
+ *
+ * ✅ A TROCA É EQUIVALENTE POR CONSTRUÇÃO, não por medição: o CHECK
+ * `channel_order_fees_vocabulario_canonico` (migration 0028) só permite os oito
+ * valores de `CanonicalFeeType`. Esta lista é esses oito menos `refund`, então
+ * **não existe linha no banco que distinga as duas formas** — nenhum número
+ * muda. Foi por isso que ela pôde ser trocada sem janela de medição.
+ *
+ * 🔴 E `other` FICA AQUI, o que é o ponto mais importante deste comentário.
+ * Medido em 12/09/2026: a Amazon tem 452 linhas `other` somando R$ 1.786,73.
+ * Uma lista positiva "semântica" (só commission + fulfillment) tiraria esse
+ * dinheiro do custo e **inflaria o lucro em R$ 1.786,73 em silêncio**. A
+ * migration 0028 já tinha decidido isso por escrito: descartar um fato do
+ * extrato é pior que rotulá-lo grosseiramente.
+ *
+ * ⚠️ A DIREÇÃO DO FAIL-CLOSED AQUI É O INVERSO DA HABITUAL, e quem mexer nisto
+ * precisa saber: o argumento normal contra lista negra é que o desconhecido
+ * entra por padrão. Como aqui se trata de **dinheiro que reduz o resultado**,
+ * deixar o desconhecido entrar é o lado SEGURO — tipo novo esquecido de fora
+ * não dá erro, só infla o lucro. Por isso a lista é fechada COM alarme:
+ * `tests-integracao/vocabularioDeTarifaNaoCresceSozinho` reprova quando o CHECK
+ * do banco ganha um valor que esta lista não tem.
+ *
+ * 📌 O QUE ELA NÃO COBRE, e quando cresce: só serve para a tabela REAL
+ * (`workspace_channel_order_fees`) e para a view efetiva. A tabela de
+ * ESTIMATIVAS tem vocabulário mais estreito — a migration 0026 baniu `other`
+ * lá de propósito. Cresce quando o CHECK da 0028 crescer, e o teste acima
+ * avisa.
+ */
+export const TIPOS_DE_TARIFA_QUE_CUSTAM: readonly CanonicalFeeType[] = [
+  "commission",
+  "shipping_seller",
+  "fulfillment",
+  "payment",
+  "ads",
+  "taxes_withheld",
+  "other",
+];
+
+/**
+ * A mesma lista, pronta para interpolar em SQL: `'commission', 'shipping_seller', ...`.
+ *
+ * Interpolar em vez de passar por parâmetro é deliberado — são literais de um
+ * tipo fechado, nunca entrada de usuário, e um `$n` a mais em nove consultas
+ * renumeraria todos os parâmetros seguintes, que é exatamente o tipo de churn
+ * onde nasce defeito silencioso.
+ */
+export const SQL_TARIFAS_QUE_CUSTAM = TIPOS_DE_TARIFA_QUE_CUSTAM.map((t) => `'${t}'`).join(", ");
+
 export interface CanonicalFee {
   feeType: CanonicalFeeType;
   /** Código original do canal ('sale_fee', 'FBAPerUnitFulfillmentFee', …). */

@@ -14,6 +14,7 @@ import { classificarCobertura, ORDEM_DO_RADAR, type StockStatus } from "../cober
 import type { IntegrationConnection } from "./types";
 import { tacosDoPeriodo } from "./tacosDoCanal";
 import { anuncioDoCanal } from "../anuncioDoCanal";
+import { SQL_TARIFAS_QUE_CUSTAM } from "./canonical";
 
 // Overview do Mercado Livre servido pelo modelo canônico (fase 4 da migração,
 // docs/canonical-schema.md): agregados em SQL sobre colunas indexadas + linhas
@@ -242,7 +243,7 @@ export async function getMercadoLivreOverviewFromCanonical(
             WHERE f2.workspace_id = o.workspace_id AND f2.provider = o.provider
               AND f2.connection_id = o.connection_id
               AND f2.external_order_id = o.external_order_id
-              AND f2.fee_type <> 'refund'
+              AND f2.fee_type IN (${SQL_TARIFAS_QUE_CUSTAM})
          ) f ON true
         WHERE o.workspace_id = $1 AND o.provider = $2 AND o.connection_id = $3
           AND o.occurred_at >= $4 AND o.occurred_at <= $5 AND o.status = ANY($6::text[])

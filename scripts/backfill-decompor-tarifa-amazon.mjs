@@ -73,6 +73,7 @@ import { runWithWorkspace } from "../src/lib/workspaceScope.ts";
 import { runWithAccount } from "../src/lib/accountContext.ts";
 import { periodFromRange } from "../src/lib/period.ts";
 import { naturezaDaTarifa } from "../src/lib/integrations/amazonSync.ts";
+import { SQL_TARIFAS_QUE_CUSTAM } from "../src/lib/integrations/canonical.ts";
 
 const LIMITE_DE_CRESCIMENTO_MB = 8;
 
@@ -220,7 +221,7 @@ for (const { workspace_id: WS, connection_id: CONN } of alvosDeConexao) {
         await query(
           `DELETE FROM workspace_channel_order_fees
             WHERE workspace_id = $1 AND provider = 'amazon' AND connection_id = $2
-              AND external_order_id = $3 AND fee_type NOT IN ('refund', 'estimated')`,
+              AND external_order_id = $3 AND fee_type IN (${SQL_TARIFAS_QUE_CUSTAM})`,
           [WS, CONN, externalOrderId]);
         for (const [tipoDaAmazon, valor] of rubricas) {
           await query(
@@ -256,7 +257,7 @@ for (const { workspace_id: WS, connection_id: CONN } of alvosDeConexao) {
          ON o.workspace_id = f.workspace_id AND o.provider = f.provider
         AND o.connection_id = f.connection_id AND o.external_order_id = f.external_order_id
       WHERE f.workspace_id = $1 AND f.connection_id = $2 AND o.status <> 'cancelled'
-        AND o.occurred_at >= now() - interval '30 days' AND f.fee_type <> 'refund'
+        AND o.occurred_at >= now() - interval '30 days' AND f.fee_type IN (${SQL_TARIFAS_QUE_CUSTAM})
       GROUP BY 1 ORDER BY 2::numeric DESC`, [WS, CONN]);
   console.log("\ntarifa REAL de 30 dias, por rubrica:");
   for (const r of depois) console.log(`  ${r.fee_type.padEnd(14)} ${brl(r.total).padStart(13)}  (${r.linhas} linhas)`);

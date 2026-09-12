@@ -1,4 +1,5 @@
 import { spapiFetch, defaultMarketplaceId } from "../spapi";
+import { SQL_TARIFAS_QUE_CUSTAM } from "./canonical";
 
 /**
  * TARIFA ESTIMADA PELA PRÓPRIA AMAZON, EM LOTE — a implementação da ADR-027.
@@ -506,7 +507,7 @@ export async function estimarPelaTarifaObservada(
           AND f.connection_id = o.connection_id AND f.external_order_id = o.external_order_id
         WHERE o.workspace_id = $1 AND o.provider = 'amazon' AND o.connection_id = $2
           AND o.status <> 'cancelled'
-          AND f.fee_type NOT IN ('refund', 'estimated')
+          AND f.fee_type IN (${SQL_TARIFAS_QUE_CUSTAM})
         GROUP BY 1, 2, 3
      ),
      -- Só pedido de UM ASIN: com dois produtos diferentes não há como saber
@@ -563,7 +564,7 @@ export async function estimarPelaTarifaObservada(
            WHERE f.workspace_id = i.workspace_id AND f.provider = i.provider
              AND f.connection_id = i.connection_id
              AND f.external_order_id = i.external_order_id
-             AND f.fee_type NOT IN ('refund', 'estimated')
+             AND f.fee_type IN (${SQL_TARIFAS_QUE_CUSTAM})
         )
         AND NOT EXISTS (
           SELECT 1 FROM workspace_channel_order_fee_estimates e
