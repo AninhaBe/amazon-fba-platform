@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { esquecerCanaisConectados } from "@/app/components/useCanaisConectados";
 import { PageHeader, pageIcons } from "../../components/PageHeader";
 import { PanelLoading } from "../../components/LoadingState";
 import { MarketplaceIcon } from "../../components/MarketplaceIcon";
@@ -60,6 +61,12 @@ export default function IntegracoesPage() {
 
   async function load() {
     try {
+      // ⚠️ ESTA E A UNICA TELA QUE MUDA CONEXAO SEM RECARREGAR
+      // A PAGINA (o desconectar roda por fetch e fica aqui). Conectar volta de
+      // um redirect de OAuth, entao o cache do seletor nasce novo sozinho; o
+      // desconectar nao — sem esta linha o canal removido continuaria no menu
+      // ate a proxima carga inteira.
+      esquecerCanaisConectados();
       const response = await fetch("/api/integrations", { cache: "no-store" });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Erro ao carregar integrações.");

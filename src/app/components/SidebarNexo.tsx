@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Search, Settings, ShieldCheck } from "lucide-react";
 import { useEhAdmin } from "./useEhAdmin";
+import { canalEntraNoSeletor, useCanaisConectados } from "./useCanaisConectados";
 import type { WorkspaceId } from "@/lib/integrations/workspaces";
 import { MarketplaceIcon } from "./MarketplaceIcon";
 import { NavLinks } from "./Nav";
@@ -59,6 +60,7 @@ const CANAIS: Array<{ id: WorkspaceId; href: string }> = [
 
 export function SidebarNexo({ workspace, collapsed = false }: { workspace: WorkspaceId; collapsed?: boolean }) {
   const ehAdmin = useEhAdmin();
+  const canaisConectados = useCanaisConectados();
   const pathname = usePathname();
   const [aberto, setAberto] = useState(false);
   const switcherRef = useRef<HTMLButtonElement>(null);
@@ -121,7 +123,13 @@ export function SidebarNexo({ workspace, collapsed = false }: { workspace: Works
                 onClick={() => setAberto(false)}
               />
               <div className="nexo-switcher-menu" role="menu" data-onboarding="channels">
-                {CANAIS.map((canal) => (
+                {/* ⚠️ O SELETOR LISTA SO O QUE ESTA CONECTADO
+                    (pedido dela, 12/09/2026) — e a regra mora em
+                    `canalEntraNoSeletor`, compartilhada com a tira do mobile,
+                    porque duas copias de uma condicao de quatro ramos divergem
+                    no primeiro ajuste e o defeito aparece so num tamanho de
+                    tela. Admin continua vendo os quatro. */}
+                {CANAIS.filter((canal) => canalEntraNoSeletor(canal.id, { canais: canaisConectados, ehAdmin, atual: workspace })).map((canal) => (
                   <Link
                     key={canal.id}
                     href={canal.href}
