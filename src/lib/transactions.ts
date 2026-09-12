@@ -460,6 +460,8 @@ interface FinancialEventGroup {
   ProcessingStatus?: string;
   OriginalTotal?: { CurrencyCode?: string; CurrencyAmount?: number };
   FinancialEventGroupStart?: string;
+  /** Quando o extrato fechou — só existe em grupo Closed. */
+  FinancialEventGroupEnd?: string;
   // ⚠️ Campos da TRANSFERENCIA BANCARIA. A API sempre os devolveu; nos e que
   // nao os liamos — e por isso sete repasses falharam sem aparecer na tela.
   // Medido em 06/09/2026 na conta da vendedora: 7 Failed, 3 Processing.
@@ -529,6 +531,7 @@ export function getAmazonBalance(): Promise<SaldoAmazon> {
           processingStatus: g.ProcessingStatus,
           originalTotal: { currencyAmount: g.OriginalTotal?.CurrencyAmount, currencyCode: g.OriginalTotal?.CurrencyCode },
           startDate: g.FinancialEventGroupStart ?? null,
+          endDate: g.FinancialEventGroupEnd ?? null,
           // Campos da transferencia bancaria: o desfecho do repasse. Sem eles o
           // painel mostra a tentativa e nunca o resultado — ver a nota em
           // `UltimaTransferencia`.

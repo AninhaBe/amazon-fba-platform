@@ -27,6 +27,8 @@ export interface GrupoDeExtrato {
   processingStatus?: string;
   originalTotal?: { currencyAmount?: number; currencyCode?: string } | null;
   startDate?: string | null;
+  /** Quando o extrato fechou — a API só o publica em grupo Closed. */
+  endDate?: string | null;
   /** Desfecho da transferencia bancaria: Succeeded, Failed, Processing... */
   fundTransferStatus?: string | null;
   fundTransferDate?: string | null;
@@ -91,6 +93,24 @@ export interface SaldoAmazon {
    * `null` = nunca houve transferência no período lido.
    */
   ultimaTransferencia: UltimaTransferencia | null;
+  /**
+   * ⚠️ COBRANÇAS FECHADAS — extrato que FECHOU NEGATIVO e nunca vira depósito:
+   * a Amazon desconta do próximo fechamento (ou cobra). Aprovado pela Ana em
+   * 12/09/2026 para o bloco de repasses do v3.
+   *
+   * `valor` é SEMPRE POSITIVO e significa "quanto SERÁ cobrado" — contrato com
+   * a Vitrine: sinal cru exigiria Math.abs na tela, que é onde sinal se perde
+   * em silêncio. `fechadaEm` `null` = fechou e a API não disse quando (a tela
+   * escreve "fechada", sem data). A ORIGEM da cobrança não vem no grupo — a
+   * tela afirma só a aritmética do extrato, nunca composição.
+   */
+  cobrancasFechadas: CobrancaFechada[];
+}
+
+export interface CobrancaFechada {
+  /** Sempre positivo: quanto será cobrado. */
+  valor: number;
+  fechadaEm: string | null;
 }
 
 export interface UltimaTransferencia {
@@ -150,10 +170,31 @@ export function calcularSaldo(grupos: GrupoDeExtrato[], transacoes: TransacaoDeS
     ? round(pendentes.reduce((soma, g) => soma + (g.originalTotal?.currencyAmount ?? 0), 0))
     : null;
 
+  // ═══ COBRANÇA NÃO É TRANSFERÊNCIA (12/09/2026) ═══════════════════════════
+  //
+  // Grupo fechado NEGATIVO vem da API com FundTransferStatus "Unknown" e uma
+  // data — mas nenhum dinheiro se moveu: extrato que fecha devendo vira
+  // desconto no próximo fechamento, não depósito. Deixá-lo na lista fazia
+  // `ultimaTransferencia` mostrar uma transferência que NUNCA EXISTIU sempre
+  // que a cobrança fosse o grupo mais recente — o card existe justamente
+  // porque a tela mostrava tentativa como se fosse pagamento. A cobrança tem
+  // casa própria (`cobrancasFechadas`); um grupo, UM significado.
+  const eCobrancaFechada = (g: GrupoDeExtrato) =>
+    g.processingStatus === "Closed" && (g.originalTotal?.currencyAmount ?? 0) < 0;
+
+  const cobrancasFechadas: CobrancaFechada[] = grupos
+    .filter(eCobrancaFechada)
+    .map((g) => ({
+      // Positivo por contrato: "quanto SERÁ cobrado". Ver a nota no tipo.
+      valor: round(-(g.originalTotal?.currencyAmount ?? 0)),
+      fechadaEm: g.endDate ?? null,
+    }))
+    .sort((a, b) => (b.fechadaEm ?? "").localeCompare(a.fechadaEm ?? ""));
+
   // A transferencia mais recente, seja qual for o desfecho. ⚠️ NAO filtra por
   // Succeeded: era exatamente o `Failed` que precisava aparecer.
   const transferencias = grupos
-    .filter((g): g is GrupoDeExtrato & { fundTransferStatus: string } => !!g.fundTransferStatus)
+    .filter((g): g is GrupoDeExtrato & { fundTransferStatus: string } => !!g.fundTransferStatus && !eCobrancaFechada(g))
     .sort((a, b) => (b.fundTransferDate ?? "").localeCompare(a.fundTransferDate ?? ""));
   const recente = transferencias[0];
   const ultimaTransferencia: UltimaTransferencia | null = recente
@@ -177,5 +218,6 @@ export function calcularSaldo(grupos: GrupoDeExtrato[], transacoes: TransacaoDeS
     liberacoes: [...porDia.values()].sort((a, b) => a.date.localeCompare(b.date)),
     extratoDesde: inicios[0] ?? null,
     seraCobrado: disponivel != null && disponivel < 0,
+    cobrancasFechadas,
   };
 }

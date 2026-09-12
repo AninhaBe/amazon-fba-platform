@@ -77,3 +77,57 @@ test("transação diferida sem maturityDate entra no retido mas não no cronogra
   assert.equal(s.retido, 42);
   assert.deepEqual(s.liberacoes, []);
 });
+
+// ── COBRANCAS FECHADAS (12/09/2026, aprovado pela Ana) ──────────────────────
+// Cenario medido na conta real em 12/09/2026: dois grupos Closed NEGATIVOS
+// (-119,50 fechado em 30/08 e -6,12 fechado em 16/08) com FundTransferStatus
+// "Unknown" — extrato que fechou devendo, que a Amazon desconta no proximo
+// fechamento. Nenhum dinheiro se moveu.
+
+const COBRANCA_RECENTE = {
+  processingStatus: "Closed",
+  originalTotal: { currencyAmount: -119.5, currencyCode: "BRL" },
+  startDate: "2026-08-16T04:02:02Z",
+  endDate: "2026-08-30T04:02:02Z",
+  fundTransferStatus: "Unknown",
+  fundTransferDate: "2026-08-30T04:02:02Z",
+};
+const TRANSFERENCIA_ANTIGA = {
+  processingStatus: "Closed",
+  originalTotal: { currencyAmount: 44.33, currencyCode: "BRL" },
+  startDate: "2026-08-01T00:00:00Z",
+  endDate: "2026-08-05T00:00:00Z",
+  fundTransferStatus: "Succeeded",
+  fundTransferDate: "2026-08-05T00:00:00Z",
+  accountTail: "991",
+};
+
+test("cobranca fechada sai com valor POSITIVO ('quanto SERA cobrado') e a data do fechamento", () => {
+  // Reprova o sinal cru: Math.abs na tela e onde o sinal se perde em silencio
+  // (contrato com a Vitrine, 12/09/2026).
+  const s = calcularSaldo([...GRUPOS, COBRANCA_RECENTE], TRANSACOES);
+  assert.deepEqual(s.cobrancasFechadas, [{ valor: 119.5, fechadaEm: "2026-08-30T04:02:02Z" }]);
+});
+
+test("a COBRANCA MAIS RECENTE nao vira ultimaTransferencia — cobranca nao e transferencia", () => {
+  // Reprova a transferencia que NUNCA EXISTIU: o grupo negativo vem com
+  // FundTransferStatus 'Unknown' e data, e se for o mais recente da lista a
+  // exclusao e a UNICA coisa que muda o que aparece — e exatamente este caso
+  // que o teste cobre (pedido da Vitrine: cobranca no meio da lista passaria
+  // sem provar nada).
+  const s = calcularSaldo([TRANSFERENCIA_ANTIGA, COBRANCA_RECENTE], TRANSACOES);
+  assert.equal(s.ultimaTransferencia.status, "Succeeded");
+  assert.equal(s.ultimaTransferencia.valor, 44.33);
+});
+
+test("fechadaEm null quando a API omite o fim — 'fechada' sem data, nunca data inventada", () => {
+  const s = calcularSaldo([{ ...COBRANCA_RECENTE, endDate: null }], []);
+  assert.equal(s.cobrancasFechadas[0].fechadaEm, null);
+});
+
+test("extrato ABERTO negativo NAO e cobranca fechada — ele segue em disponivel/seraCobrado", () => {
+  // Reprova contar o mesmo debito duas vezes (aberto ja aparece no disponivel).
+  const s = calcularSaldo(GRUPOS, TRANSACOES);
+  assert.deepEqual(s.cobrancasFechadas, []);
+  assert.equal(s.seraCobrado, true);
+});
