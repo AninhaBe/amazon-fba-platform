@@ -1342,6 +1342,111 @@ do DOM.
 
 ---
 
+## ⏸️ PAUSADA 09/09/2026, ~22h20 — decisão da Ana, contra a leitura do dado
+
+A `Manual - Clips 320` foi religada às 14h com a Fase 1 do plano de lucro e **pausada
+pela Ana no mesmo dia**, ~8h depois. Decisão dela, executada por API.
+
+**Como o dia fechou (parcial, atribuição ainda entrando):**
+
+```
+1.188 impressões · 18 cliques · CTR 1,52% · gasto R$ 16,99 · CPC R$ 0,94
+2 compras atribuídas · R$ 44,22 · ACOS 38,42% · ROAS 2,60
+```
+
+- **CPC caiu de R$ 1,25–1,29 para R$ 0,94** — o corte na `clips`/EXATA funcionou.
+- ACOS 38,42% contra equilíbrio de **69,2%**: lucro de **+R$ 13,59** no dia pelo
+  atribuído.
+- ROAS 2,60 **acima da meta de 2,5** que o próprio gate de 16/09 definia.
+- A loja vendeu **4 unidades de clips + 1 kit 8** no dia (Orders API); só 2 carimbadas
+  como anúncio até 22h. TACOS do dia: **~6,3%**.
+
+**O motivo dela:** o gasto de R$ 16,99 pareceu caro e a campanha "não estava legal".
+Levantei que o dado dizia o contrário e ela reafirmou — decisão do dono do negócio.
+
+⚠️ **Erro meu que contribuiu:** subi o orçamento de R$ 15 para R$ 20 junto com a Fase 1.
+Foi isso que deixou o gasto quase triplicar depois das 19h, no bloco que converte pior
+(R$ 10,06 para 1 venda, contra R$ 6,93 para 1 venda no bloco da tarde). Duas mudanças de
+natureza diferente no mesmo passo — corte de desperdício **e** abertura de torneira —
+e a segunda apagou a percepção da primeira. **Separar as duas em levas distintas.**
+
+**Estado agora: as 7 campanhas PAUSED.** Orçamento da Manual - Clips ficou gravado em
+R$ 20 (não revertido) — se religar, começar por devolver para R$ 15.
+
+**Pendências que continuam de pé:**
+- Relatório de termos de 09/09 não existia ainda; puxar depois para saber se a
+  `clipe`/EXATA a R$ 2,50 (minha aposta) foi quem comeu o gasto da noite.
+- Data de término da promoção de tarifa zerada — só a Ana consegue, é painel.
+- ⚠️ **BSR decai sem velocidade de venda.** O #15 em Fixadores de Papel foi comprado com
+  R$ 610 e agora não tem nada sustentando.
+
+---
+
+## ✅ APLICADO 09/09/2026, ~14h — FASE 1 DO PLANO DE LUCRO (via Ads API, escrita)
+
+```
+Período lido: 13/08 a 05/09/2026 (relatório spSearchTerm, 418 linhas, direto da API)
+Recorte de decisão: 23/08 a 05/09 — 14 dias fechados, 3 de folga do presente
+Recarreguei: n/a — dado veio da API, não da tela
+Volume: 81.091 impressões · 626 cliques · atribuição fechada
+```
+
+**Contexto:** a Ana pausou as 7 campanhas em ~08/09 ao ver ROAS 1,88. Estoque estava
+normal. Ela pediu a virada de ranqueamento para **lucro** e autorizou escrita por API.
+
+**O que o dado mostrou:**
+
+- ROAS 1,67 e lucro **+R$ 50,85** nos 14 dias — não era prejuízo, era margem fina.
+- ACOS de equilíbrio: clips **69,2%** · martelo **79,1%** · kit 8 **56,7%** · kit 32 **13,6%**.
+- BSR saiu de vazio (agosto) para **#15 em Fixadores de Papel** e **#34 em Marretas de
+  Borracha** — as campanhas compraram posição, que era o objetivo da fase anterior.
+- Só **4 das 28 palavras** da `Manual - Clips 320` realmente gastam. `clips de papel` e
+  `clipes` como palavras POSITIVAS estão dormentes (nunca gastaram) — pausá-las seria
+  cosmético, e por isso ficaram de fora.
+- Mapa palavra → termo (o que separou vencedor de perdedor):
+
+| palavra | gasto | compras | lucro | pior termo dentro dela |
+|---|---|---|---|---|
+| `clips`/FRASE | R$ 149,14 | 12 | **+R$ 34,34** | `clips de papel` −R$ 15,37 (39 cli) |
+| `clipe`/FRASE | R$ 61,92 | 6 | **+R$ 29,82** | `clipes` −R$ 8,67 |
+| `clipe`/EXATA | R$ 14,06 | 3 | **+R$ 31,81** | `clipes` −R$ 6,27 |
+| `clips`/EXATA | R$ 65,75 | 4 | **−R$ 4,59** | `clips` (único termo), ACOS 74% |
+
+**MUDANÇAS APLICADAS — só na `Manual - Clips 320` (176641766548010):**
+
+| # | mudança | motivo |
+|---|---|---|
+| 1 | negativa exata **`clips de papel`** | 39 cliques, ACOS 164%, −R$ 15,37 |
+| 2 | negativa exata **`clipes`** | 13 cliques em três palavras, ZERO venda, −R$ 15,49 |
+| 3 | `clips`/EXATA **R$ 2,00 → R$ 1,05** | única palavra com lucro negativo; CPC R$ 1,29 contra equilíbrio R$ 1,19 |
+| 4 | `clipe`/EXATA **R$ 2,00 → R$ 2,50** | melhor da conta (ACOS 11%) com só 11 cliques — foco em lucro é comprar MAIS do que rende |
+| 5 | orçamento **R$ 15 → R$ 20/dia** | batia no teto (R$ 14,56/dia de média) e todo o resto opera abaixo do equilíbrio |
+| 6 | campanha **PAUSED → ENABLED** | é a que sustenta a conta: 18 das 22 compras do período |
+
+Conferido lendo de volta da API: as 2 negativas `NEGATIVE_EXACT` ENABLED, os 4 lances
+corretos, campanha ENABLED com R$ 20.
+
+⚠️ **Armadilha da API, custou uma tentativa:** o enum de negativa de campanha é
+**`NEGATIVE_EXACT`**, não `CAMPAIGN_NEGATIVE_EXACT` (esse dá HTTP 400). Como os passos
+3–6 tinham passado antes, a campanha ficou **no ar sem as negativas por alguns minutos**
+— em escrita que religa campanha, pôr a proteção ANTES de ligar.
+
+**Mantidos de propósito:** `clipe`/FRASE e `clips`/FRASE em R$ 1,50 — são as fontes dos
+vencedores, e a negativa já corta o vazamento delas sem mexer no lance. Cortar o grupo
+Frase inteiro (plano original) mataria `clips colorido`, +R$ 37,70.
+
+**Fases 2 a 4 NÃO foram executadas** (martelo, protetores, regime de colheita). Plano
+completo em `~/.claude/projects/G--amazon-fba-platform/memory/plano-de-lucro-ads-set-2026.md`.
+
+**JULGAR EM 7 DIAS (16/09):** ROAS ≥ 2,5 · ACOS ≤ 40% · **compras ≥ 12 na semana**. O
+terceiro é o freio — abaixo de 8 significa que o lance foi longe demais e devolve-se lance.
+
+⚠️ **Pendente com a Ana, vence antes de qualquer otimização:** a data de término da
+promoção de tarifa zerada. Quando acabar, o equilíbrio do clips cai de 69% para 15–20% e
+esta campanha vira prejuízo do jeito que está agora.
+
+---
+
 ## Leitura de 19/08/2026, ~meio-dia — dia 18 FECHADO + dia 19 parcial
 
 ```
