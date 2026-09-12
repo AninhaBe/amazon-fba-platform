@@ -28,6 +28,16 @@ ui-ux-pro-max-skill
 .tmp
 G:/sc-temp
 
+# Worktrees aninhados e sync de design — medido em 11/09/2026: 315 MB dos
+# 323 MB do contexto eram .nexo-conferir (208) + .nexo-hoje (67) + .ds-sync (40).
+# São árvores de trabalho de outros agentes: além de lentos, podem estar sujos
+# no momento do upload — exatamente o que o portão de árvore limpa não alcança.
+.nexo-hoje
+.nexo-conferir
+.ds-sync
+.design-sync
+artifacts
+
 # Documentação e material de estudo — não servem em runtime
 docs
 *.md
