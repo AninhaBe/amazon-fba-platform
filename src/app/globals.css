@@ -6579,7 +6579,13 @@ summary:hover { background: var(--paper-soft); }
      uma faixa que ja existia vazia. */
   padding-block-start: 26px;
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  /* ⚠️ A CONTAGEM VEM DO CONTEUDO, NAO DE UMA CONSTANTE. Cravada
+     em 7, a faixa da Amazon — que tem OITO colunas, porque la o anuncio entra
+     no lucro — jogava a Margem para uma segunda fileira, sozinha e longe das
+     outras (ela fotografou em 12/09/2026: "cade?"). E o mesmo padrao que a
+     faixa de etapas ja usava com `--etapas`: quem sabe quantas colunas existem
+     e a peca, nao o CSS. */
+  grid-template-columns: repeat(var(--colunas, 7), minmax(0, 1fr));
   align-items: stretch;
 }
 .v3-coluna {
@@ -8885,3 +8891,6 @@ summary:hover { background: var(--paper-soft); }
    nunca sabe do padding do pai. `.operations-canvas` e essa area, e o
    `[data-channel]` mantem o alcance no canal certo. */
 .app-shell[data-channel="mercado_livre"] .operations-canvas { background: #f6f5f2; }
+/* A Amazon entra na mesma identidade em 12/09/2026, pelo MESMO mecanismo e com
+   o MESMO escopo: `[data-channel]` mantem Shopee, TikTok e central intactas. */
+.app-shell[data-channel="amazon"] .operations-canvas { background: #f6f5f2; }

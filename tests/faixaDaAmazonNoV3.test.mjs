@@ -131,3 +131,33 @@ test("as colunas da Amazon levam o valor BRUTO — sem ele o numero nao rola", (
   const semAnuncio = colunasDoPeriodoAmazon({ ...BASE, anuncio: null }).find((c) => c.id === "anuncio");
   assert.equal(semAnuncio.bruto, null, "travessao ganhou contagem: ausencia viraria queda na tela");
 });
+
+test("a faixa da Amazon veste a linguagem v3 — e a frase da apuracao nao inventa fracao", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const ler = (c) => readFile(new URL(`../${c}`, import.meta.url), "utf8");
+  const pagina = await ler("src/app/(app)/amazon/page.tsx");
+  const codigo = pagina.replace(/\{\/\*[\s\S]*?\*\/\}/g, "").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+
+  // ⚠️ SEM O EMBRULHO `v3` A FAIXA SAI SEM CARTAO. Os tokens da
+  // linguagem (`--card`, `--linha`, `--verde`) vivem na classe `.v3`; fora dela
+  // `border: 1px solid var(--linha)` resolve para nada e cada metrica vira
+  // texto solto. Foi o que ela viu em 12/09/2026: numeros certos, sem o vestido.
+  assert.match(codigo, /<div className="v3">\s*<FaixaDoPeriodoV3/,
+    "a faixa da Amazon perdeu o embrulho v3 — volta a aparecer sem cartao nem cor");
+
+  // ⚠️ "41 de 11": `processedOrders` e `paidOrders` sao universos
+  // diferentes, e fracao exige o mesmo universo em cima e embaixo.
+  assert.ok(
+    !/\$\{conciliacao\.processedOrders\} de \$\{conciliacao\.paidOrders\}/.test(codigo),
+    "a fracao invertida voltou: processados sobre pagos nao e uma fracao",
+  );
+  assert.match(codigo, /conciliacao\.complete/,
+    "a frase da apuracao parou de olhar se o periodo fechou");
+
+  // E o fundo do canal, pelo mesmo mecanismo do ML e com o mesmo escopo.
+  const css = await ler("src/app/globals.css");
+  assert.match(css, /\.app-shell\[data-channel="amazon"\] \.operations-canvas \{ background: #f6f5f2; \}/,
+    "a Amazon perdeu o fundo da identidade");
+  assert.match(css, /grid-template-columns: repeat\(var\(--colunas, 7\), minmax\(0, 1fr\)\);/,
+    "a grade voltou a cravar a contagem: a oitava coluna cai para outra fileira");
+});

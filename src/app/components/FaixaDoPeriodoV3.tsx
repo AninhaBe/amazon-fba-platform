@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 import { AnimatedNumber } from "./AnimatedNumber";
 
@@ -96,7 +96,12 @@ export function FaixaDoPeriodoV3({
         </div>
       </div>
 
-      <div className="v3-colunas">
+      {/* ⚠️ A PECA DIZ QUANTAS COLUNAS TEM. O CSS nao pode
+          cravar: o ML manda sete e a Amazon manda oito, e numero cravado
+          empurra a ultima para outra fileira — ela fotografou isso em
+          12/09/2026 ("cade?"). O `+ 1` e a Margem, que e coluna mas nao esta
+          na lista. */}
+      <div className="v3-colunas" style={{ "--colunas": colunas.length + 1 } as CSSProperties}>
         {colunas.map((c) => (
           <div className="v3-coluna" key={c.id}>
             <p className="v3-coluna-rotulo">

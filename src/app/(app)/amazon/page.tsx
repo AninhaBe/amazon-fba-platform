@@ -1026,12 +1026,28 @@ function Dashboard() {
           baseDoResultado: cards.find((c) => c.key === "marginPct")?.baseDeclarada ?? null,
         });
         return (
+          /* ⚠️ O EMBRULHO `v3` NAO E ENFEITE: os tokens da
+             linguagem (`--card`, `--linha`, `--verde`, `--vermelho`) vivem na
+             classe `.v3`. Sem ele, `border: 1px solid var(--linha)` resolve para
+             nada e cada metrica vira texto solto — foi exatamente o que ela viu
+             em 12/09/2026 e chamou de "cade?": os numeros certos, sem o vestido. */
+          <div className="v3">
           <FaixaDoPeriodoV3
             periodoLabel={period.label}
+            /* ⚠️ NAO E "X DE Y" AQUI, e a diferenca foi medida.
+               `processedOrders` conta pedidos COM LINHA de rentabilidade e
+               `paidOrders` conta pagos DO PERIODO — universos diferentes, e o
+               proprio produtor admite isso ao tratar `processed >= paid` como
+               completo. Na conta dela a fracao saiu "41 de 11" (ela mandou o
+               print), que nao quer dizer nada: fracao exige o mesmo universo em
+               cima e embaixo. No ML os dois coincidem e "81 de 81" e honesto;
+               aqui a frase diz o que se sabe — quantos faltam, ou que fechou. */
             resumoApuracao={
-              conciliacao && conciliacao.paidOrders > 0
-                ? `${conciliacao.processedOrders} de ${conciliacao.paidOrders} pedidos apurados`
-                : ""
+              !conciliacao || conciliacao.paidOrders === 0
+                ? ""
+                : conciliacao.complete
+                  ? `${conciliacao.paidOrders} pedidos apurados`
+                  : `faltam apurar ${Math.max(0, conciliacao.paidOrders - conciliacao.processedOrders)} de ${conciliacao.paidOrders} pedidos`
             }
             hrefResultado="/monitor"
             colunas={colunasDoPeriodoAmazon(faixa)}
@@ -1039,6 +1055,7 @@ function Dashboard() {
             notaDoImposto={null}
             identidadeDoPeriodo={cobertura ? identidadeDePeriodo(cobertura.periodo.from, cobertura.periodo.to) : undefined}
           />
+          </div>
         );
       })()}
       {/* O dashboard conta pela data do PEDIDO; o monitor, pela data do
