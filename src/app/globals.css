@@ -6833,7 +6833,21 @@ summary:hover { background: var(--paper-soft); }
 .v3-margem-linha > :not(.v3-margem-barra) { position: relative; }
 .v3-margem-pos { color: var(--ink-50); font-size: 12px; text-align: center; }
 .v3-margem-nome { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.v3-margem-titulo { overflow: hidden; font-size: 13.5px; text-overflow: ellipsis; white-space: nowrap; }
+/* ⚠️ `display: block` NAO E ENFEITE — E O QUE FAZ A ELIPSE
+   EXISTIR (defeito fotografado por ela em 11/09/2026: *"nome do produto aparece
+   em cima de pedido e data"*).
+
+   A regra ja tinha `overflow: hidden` e `text-overflow: ellipsis` desde sempre,
+   e mesmo assim o titulo atravessava a linha inteira. O motivo: este seletor
+   veste um `<span>`, e **caixa inline ignora `overflow`** — nao ha o que cortar,
+   entao o texto simplesmente transborda e PINTA POR CIMA das colunas vizinhas.
+   Onde o span era filho direto de um flex (Radar, Full) ele funcionava, porque
+   item de flex e blocado pelo proprio flex; na tabela de vendas ele esta dentro
+   do `<button>` que abre a linha, e ali continuava inline.
+
+   Por isso a correcao e uma propriedade e nao um `max-width` a mais: sem virar
+   bloco, nenhuma largura resolve. */
+.v3-margem-titulo { display: block; max-width: 100%; overflow: hidden; font-size: 13.5px; text-overflow: ellipsis; white-space: nowrap; }
 .v3-margem-sku { color: var(--ink-50); font-size: 11.5px; font-family: ui-monospace, Menlo, monospace; }
 .v3-margem-un { color: var(--ink-64); font-size: 12.5px; text-align: center; white-space: nowrap; }
 /* `nowrap` e o par do `auto` acima: sem ele a coluna encolheria ate a maior
@@ -8854,12 +8868,20 @@ summary:hover { background: var(--paper-soft); }
 .v3-cel-num.is-positivo { color: var(--verde); font-weight: var(--weight-semibold); }
 
 /* ── A identidade do v3, escopada ao Mercado Livre ──────────────────────────
-   ⚠️ ESTE SELETOR E A FRONTEIRA DA LEVA. O cinza quente do
-   redesign vinha de `--canvas` trocado no `:root`, e por isso vazava para os
-   quatro canais; aqui ele alcanca so o que esta sob `/mercado-livre/*`, pelo
-   wrapper em `(app)/mercado-livre/layout.tsx`.
+   ESTE SELETOR E A FRONTEIRA DA LEVA: o cinza quente do redesign vinha de
+   `--canvas` trocado no `:root` e vazava para os quatro canais; aqui ele alcanca
+   so quem esta sob `/mercado-livre/*`, pelo `data-channel` que a propria casca
+   ja carrega.
 
-   `min-height: 100%` para o cinza cobrir a area inteira mesmo quando a tela tem
-   pouco conteudo — sem isso sobra uma faixa clara embaixo, que le como erro de
-   render, nao como escolha. */
-.ml-identidade { min-height: 100%; background: #f6f5f2; }
+   ⚠️ A PRIMEIRA VERSAO PINTAVA UM WRAPPER INTERNO E DEIXAVA
+   BRANCO EM VOLTA — ela fotografou em 11/09/2026: *"ainda aparece branco no
+   fundo junto com cinza, precisa padronizar tudo"*. Medido no navegador, o
+   porque: o wrapper media 1160x1279 dentro de um `main` de 1200x1375. Sobrava
+   uma tira de 40px de cada lado e ~96px embaixo, alem da barra de periodo, que
+   fica ACIMA do wrapper. Tudo isso mostrava o `body`, que e quase branco.
+
+   ⚠️ E A LICAO E DE ONDE PINTAR, NAO DE QUE COR: fundo de
+   pagina se pinta na AREA DE CONTEUDO da casca, nunca num filho dela — um filho
+   nunca sabe do padding do pai. `.operations-canvas` e essa area, e o
+   `[data-channel]` mantem o alcance no canal certo. */
+.app-shell[data-channel="mercado_livre"] .operations-canvas { background: #f6f5f2; }
