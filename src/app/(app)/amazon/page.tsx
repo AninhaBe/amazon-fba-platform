@@ -3,33 +3,23 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { RevenueChart, type DailyPoint } from "../../components/RevenueChart";
+import type { DailyPoint } from "../../components/RevenueChart";
 import { PageHeader, pageIcons } from "../../components/PageHeader";
 import { DashboardSkeleton, InlineLoading } from "../../components/LoadingState";
-import { LegendaDeVendas } from "../../components/LegendaDeVendas";
 import { NexoDoDia } from "../../components/NexoDoDia";
 import { EmptyState } from "../../components/EmptyState";
 import { DashboardPeriodFilter, useDashboardPeriod } from "../../components/DashboardPeriodFilter";
 import { periodoNaUrl } from "../../components/periodoNaUrl";
 import type { OperationPendingItem } from "../../components/OperationPending";
-import { CompactMetric } from "../../components/Metric";
-import { amazonFinancialCards, lucroDoPeriodo, diasSemAnuncio, type AmazonAdsInput } from "./amazonFinancialCards";
+import { amazonFinancialCards, diasSemAnuncio, type AmazonAdsInput } from "./amazonFinancialCards";
 import { identidadeDePeriodo } from "../../components/AnimatedNumber";
-import { FaixaDoPeriodoV3 } from "../../components/FaixaDoPeriodoV3";
-import { colunasDoPeriodoAmazon, entradaDaFaixaDosCards, margemDoPeriodoAmazon } from "./amazonPainelV3";
+import { PainelV3, type DadosV3 } from "../../components/PainelV3";
+import { colunasDoPeriodoAmazon, diasDoRitmoAmazon, entradaDaFaixaDosCards, margemDoPeriodoAmazon, produtosDoTopAmazon } from "./amazonPainelV3";
 import { buscaCompartilhada } from "../../components/buscaCompartilhada";
-import { OrderProfitabilityTable } from "../../components/OrderProfitabilityTable";
+import { OrderProfitabilityTableV3 } from "../../components/OrderProfitabilityTableV3";
 import { AnunciosPorProduto, type AnuncioDeProduto } from "../../components/AnunciosPorProduto";
 import { ConnectionBroken, isBrokenConnection } from "../../components/ConnectionBroken";
-import { TopProductsRanking } from "../../components/TopProductsRanking";
-import { buildFinancialComposition, FinancialSummaryPanel } from "../../components/FinancialSummaryPanel";
-import { sinaisDoResultado } from "../../components/oQueFaltaNoResultado";
-import { SinaisDoResultado } from "../../components/SinaisDoResultado";
-import { sinaisSilenciadosPorAlarme } from "../../components/hierarquiaDeAvisos";
-import { BriefingLead } from "../../components/BriefingLead";
-import { nomeDaTarifa } from "@/lib/nomeDaTarifa";
 import { IntegrationDashboardFrame } from "../../components/IntegrationDashboardFrame";
-import { marginMetricTone } from "@/lib/marginTone";
 
 /**
  * Cobertura do cálculo de rentabilidade, como a API devolve. É objeto, não
@@ -256,7 +246,11 @@ interface DashboardPayload {
    */
   cancelled: { revenue: number | null; orders: number };
   metrics: { totalOrders: number; paidOrders: number; fbaOrders: number; revenue: number };
-  dailySales: Array<{ date: string; revenue: number; orders: number; units: number }>;
+  /** ⚠️ Ganhou lucro por dia em 12/09/2026 (contrato fechado com o backend):
+   *  `profit` null = dia nao apuravel (so contorno, fora da media);
+   *  `profitEstimated` = a tarifa do dia inclui estimativa ADR-027;
+   *  `refunds` = estorno postado no dia, que explica barra derrubada por venda antiga. */
+  dailySales: Array<{ date: string; revenue: number; orders: number; units: number; profit?: number | null; profitEstimated?: boolean; refunds?: number }>;
   topProducts: Array<{ sku: string; title: string; units: number; revenue: number; marginPct: number | null }>;
   profit: { revenueProcessed: number; revenueDoLucro?: number | null; baseDoResultado?: number | null; pedidosCompletos?: number; pedidosDoPeriodo?: number; pedidosComValor?: number; pedidosSemValor?: number; feesEstimadas?: number; pedidosComTarifaEstimada?: number; composicaoDoConciliado?: { receita: number; custo: number; tarifa: number; pedidos: number; lucro: number; margemPct: number | null }; fees: number; cogs: number; estimatedProfit: number | null; taxRate?: number | null; taxes?: number | null; refunds?: number; refundCount?: number; ads?: number | null; unitsWithCost: number; unitsWithoutCost: number; skusWithoutCost: number; coverage?: { processedOrders: number; paidOrders: number; complete: boolean } };
   ads?: AmazonAdsInput | null;
@@ -403,6 +397,7 @@ function Dashboard() {
   // É o que permite à seção "Financeiro conciliado" DIZER que está parcial em vez
   // de exibir um número menor que o faturamento sem explicação (20/08/2026).
   const [conciliacaoBruta, setConciliacao] = useState<ConciliacaoData | null>(initialDash?.conciliacao ?? null);
+  const [metricaV3, setMetricaV3] = useState("Faturamento");
   // Faturamento do período — o MESMO número que a central mostra. Antes o card
   // exibia a receita conciliada (subconjunto), e por isso três telas do produto
   // mostravam três valores diferentes de "faturamento" (20/08/2026).
@@ -412,7 +407,6 @@ function Dashboard() {
   const [pedidosFeitosBruto, setPedidosFeitos] = useState<PedidosFeitosData | null>(initialDash?.pedidosFeitos ?? null);
   // Canceladas entram no bruto (ADR-020); mostrar à parte é o que impede o número
   // de parecer inflado sem explicação — o ML já fazia, a Amazon não tinha.
-  const [canceladasBrutas, setCanceladas] = useState<CanceladasData | null>(initialDash?.canceladas ?? null);
   const [profitabilityScopeBruto, setProfitabilityScope] = useState<ProfitabilityScope | undefined>(initialDash?.profitabilityScope);
   const [saldo, setSaldo] = useState<SaldoData | null>(null);
   const [profitabilityLoadingBruto, setProfitabilityLoading] = useState(!initialDash);
@@ -459,7 +453,6 @@ function Dashboard() {
   const conciliacao = naMao ? conciliacaoBruta : cacheDoPeriodo?.conciliacao ?? null;
   const faturamento = naMao ? faturamentoBruto : cacheDoPeriodo?.faturamento ?? null;
   const pedidosFeitos = naMao ? pedidosFeitosBruto : cacheDoPeriodo?.pedidosFeitos ?? null;
-  const canceladas = naMao ? canceladasBrutas : cacheDoPeriodo?.canceladas ?? null;
   const cobertura = naMao ? coberturaBruta : cacheDoPeriodo?.cobertura ?? null;
   // Carregando = nao ha NADA daquele periodo na mao. Derivado pelo mesmo motivo
   // dos valores: o estado chegava um quadro depois do rotulo.
@@ -606,7 +599,7 @@ function Dashboard() {
       next.conciliacao = payload.profit.coverage ?? null; setConciliacao(next.conciliacao);
       next.faturamento = payload.receitaValorizadaPeloBanco ?? null; setFaturamento(next.faturamento);
       next.pedidosFeitos = payload.ordered ?? null; setPedidosFeitos(next.pedidosFeitos);
-      next.canceladas = payload.cancelled ?? null; setCanceladas(next.canceladas);
+      next.canceladas = payload.cancelled ?? null;
       next.cobertura = payload.period && payload.sync ? { periodo: payload.period, sync: payload.sync } : null;
       setCobertura(next.cobertura);
       next.profitabilityScope = payload.profitabilityScope; setProfitabilityScope(payload.profitabilityScope);
@@ -716,111 +709,17 @@ function Dashboard() {
   const critical = radar.filter((r) => r.status === "critical" || r.status === "out");
   const noCost = products.filter((p) => p.cost == null || p.cost === 0).length;
   const pendencias = useAmazonPendencias({ products: products.length, productsLoading, missingCosts: noCost });
-  // Faturamento/vendas/unidades pela Sales API (data do pedido) = Seller Central.
-  const revenue = sales?.totalRevenue ?? orders?.metrics.totalRevenue ?? 0;
   const salesCount = sales?.totalOrders ?? orders?.metrics.totalOrders ?? 0;
-  const unitsCount = sales?.totalUnits ?? 0;
-  // ⚠️ `?? 0` só para o ROI abaixo, que é indicador secundário: lucro ausente
-  // vira ROI 0%, e o card de lucro (a autoridade) já mostra "—" nesse caso.
-  const estProfit = profit?.estimatedProfit ?? 0;
-  const cogs = profit?.cogs ?? 0;
-  const missingCostUnits = profit?.unitsWithoutCost ?? 0;
-  const costsIncomplete = missingCostUnits > 0;
-  // ⚠️ 30/08/2026 — custo faltando virou SINAL, nao trava (decisao da
-  // vendedora). `costsIncomplete` segue vivo para o CARD de custo e para o selo
-  // do painel; o que ele nao faz mais e apagar lucro, margem e ROI.
-  const sinais = sinaisDoResultado({
-    skusWithoutCost: profit?.skusWithoutCost ?? 0,
-    hrefDeCustos: "/amazon/produtos",
-  });
-  // FONTE ÚNICA do lucro desta tela — a MESMA função que a faixa de cards usa.
-  // A rosca de composição e a cascata escrita abaixo dela leem as duas daqui.
-  // Ver `lucroDoPeriodo`: três superfícies mostravam este número, e enquanto
-  // cada uma fazia a própria subtração, cada conserto alcançava só a cópia que
-  // alguém tinha visto.
-  const anuncio = lucroDoPeriodo({
-    estimatedProfit: profit?.estimatedProfit ?? null,
-    adsNoLucro: profit?.adsNoLucro ?? null,
-  });
-  const anuncioNoLucro = anuncio.gastoComAnuncio || null;
-  // Sem subtração aqui, DE PROPÓSITO — e desde 30/08/2026 nem aqui nem no card:
-  // o anúncio já saiu do lucro em `profit.ts`, sob a fronteira de
-  // `src/lib/financialMath.ts`. A tela mostra o que foi descontado; subtrair
-  // outra vez contaria o mesmo dinheiro duas vezes.
-  const lucroComAnuncio = anuncio.lucro;
-  /** Cupom resgatado pelo comprador — já abatido de `revenue` pela camada financeira. */
-  const promocoes = profit?.finance.promotions ?? 0;
-  // O financeiro vem das transações, que a Amazon posta na data de POSTAGEM —
-  // uma venda recém-feita já conta no faturamento e ainda não tem repasse.
-  // Repasse ausente é desconhecido, não zero: exibir "R$ 0,00 / 0,0% de margem"
-  // afirmaria que a venda não deu lucro.
-  const hasFinance =
-    !!profit &&
-    (profit.finance.orderCount > 0 ||
-      profit.finance.units > 0 ||
-      (profit.finance.netProceeds ?? 0) !== 0 ||
-      (profit.finance.fees ?? 0) !== 0 ||
-      profit.finance.refunds !== 0);
   // Ticket e faturamento têm de sair da MESMA base. `revenue`/`salesCount` vêm do
   // orderMetrics (data do pedido, preço de tabela, inclui pendente); o card de
   // Faturamento mostra o conciliado. Misturar os dois exibia R$ 39,80 de
   // faturamento ao lado de um ticket de R$ 21,67 — que é 108,34/5, de um total
   // que não está em lugar nenhum da tela. O ticket real é 39,80/2 = R$ 19,90.
   const vendasConciliadas = profit?.finance.orderCount ?? 0;
-  /**
-   * ⚠️ O PAINEL DO CONCILIADO FALA DE UM UNIVERSO SO (02/09/2026).
-   *
-   * O defeito, no print da vendedora: o centro exibia "R$ 12,89 Faturamento
-   * conciliado" e as fatias traziam o custo do PERIODO (R$ 446,50), a tarifa
-   * postada e um "Lucro estimado" de R$ 731,27 — que e o lucro do periodo, cuja
-   * conta fecha em OUTRO card (1.665,54 - 487,77 - 446,50). A subtracao literal
-   * do painel dava NEGATIVA e a margem saia 5673%.
-   *
-   * Mesma anatomia do painel da Shopee, corrigido em f88dbb9/c37a8bd. Agora as
-   * fatias, o fluxo e a margem saem de `composicaoDoConciliado`, somada no
-   * produtor a partir das MESMAS linhas que formam o centro.
-   *
-   * ⚠️ E O ANUNCIO FICA DE FORA DESTE PAINEL, o que e uma mudanca em relacao a
-   * ADR-025. O motivo e o mesmo que motivou a ADR: nao exibir dois numeros
-   * chamados lucro com valores diferentes. Anuncio e custo DE PERIODO e nao tem
-   * atribuicao por pedido — somar aqui quebraria a igualdade centro = fatias
-   * outra vez. Por isso o resultado deste painel se chama RESULTADO DOS
-   * REPASSES, nao "lucro estimado": o lucro do periodo, com anuncio, e o dos
-   * cards, e a diferenca de nome e o que impede a confusao que a ADR-025
-   * combateu.
-   */
-  const conciliadoDoPainel = profit?.composicaoDoConciliado ?? null;
-  const faturamentoConciliado = conciliadoDoPainel?.receita ?? profit?.finance.revenue ?? 0;
-  // Decisão dela (22/08): sem base, o cartão mostra R$ 0,00 em vez de "—".
-  // Antes disso, porém, tenta o número REAL: quando ainda não há venda conciliada
-  // mas o período tem faturamento (pendente com valor de tabela), o ticket existe
-  // e é faturamento ÷ vendas — mostrar zero ali seria esconder um número que temos.
-  // ⚠️ O SEGUNDO RAMO DIVIDIA UMA RECEITA PARCIAL POR TODAS AS VENDAS
-  // (01/09/2026). Ele usava `faturamento.revenue` — o campo `billing`, que só
-  // soma pedido com valor JÁ publicado pela Amazon — sobre `salesCount`, que
-  // conta TODOS os pedidos. Numerador de um conjunto, denominador de outro: a
-  // mesma família da base misturada, agora no ticket.
-  //
-  // Medido às 12:22 na Silveiras Import: R$ 12,89 (de 1 pedido com valor) ÷ 19
-  // vendas = **R$ 0,68**, ao lado de um Faturamento de R$ 348,07. O ticket real
-  // era 348,07 ÷ 19 = R$ 18,32.
-  //
-  // A base do ticket passa a ser a MESMA do card de Faturamento — o
-  // `orderMetrics`, que cobre todos os pedidos e é o que bate com o Seller
-  // Central. `billing` não serve para isto e não deve ser lido aqui.
-  const faturamentoDaTela = pedidosFeitos?.revenue ?? null;
-  const ticketMedio =
-    vendasConciliadas > 0
-      ? faturamentoConciliado / vendasConciliadas
-      : (faturamentoDaTela ?? 0) > 0 && salesCount > 0
-        ? (faturamentoDaTela ?? 0) / salesCount
-        : 0;
   // Quanto dos pedidos recebidos a Amazon ainda não confirmou. As duas bases só
   // podem ser subtraídas no MESMO critério: `revenue` (orderMetrics) é preço de
   // tabela, então o conciliado precisa voltar ao bruto somando o cupom.
   const pedidosAguardando = Math.max(0, salesCount - vendasConciliadas);
-  const valorAguardando = Math.max(0, revenue - (faturamentoConciliado + promocoes));
-  const roiPct = cogs > 0 ? (estProfit / cogs) * 100 : 0;
   /* ⚠️ A SETA DE TENDENCIA DO FATURAMENTO SAIU DA TELA COM A
      REGUA DE CARTOES (12/09/2026) e NAO tem casa na faixa do periodo: a
      coluna tem rotulo, numero e uma linha de contexto, e a linha ja diz
@@ -917,6 +816,88 @@ function Dashboard() {
     .filter((c) => ["acos", "tacos", "roiPct"].includes(c.key) && c.raw != null)
     .map((c) => ({ rotulo: c.label, valor: c.value }));
 
+  /**
+   * O PAINEL INTEIRO DA AMAZON, no esqueleto do Mercado Livre.
+   *
+   * Ordem dela em 12/09/2026: *"cara, e replicar a mesma estrutura do mercado
+   * livre na amazon"*. A sequencia passa a ser a mesma — faixa, Top 8 + Ritmo
+   * lado a lado, o que falta para o numero fechar — e o que este canal tem de
+   * proprio entra como DADO, nunca como estrutura paralela.
+   */
+  const faixaDaAmazon = entradaDaFaixaDosCards(cards, {
+    moeda: currency,
+    pedidosPagos: conciliacao?.paidOrders ?? 0,
+    tarifasEstimadas: profit?.feesEstimadas ?? null,
+    pedidosComTarifaEstimada: profit?.pedidosComTarifaEstimada ?? null,
+    aliquota: profit?.taxRate ?? null,
+    dicaDoFaturamento: legendaFaturamento(faturamento, salesCount),
+    baseDoResultado: cards.find((c) => c.key === "marginPct")?.baseDeclarada ?? null,
+  });
+  const serieDoRitmo = (sales?.points ?? []).slice(-7);
+  const diasDoRitmo = diasDoRitmoAmazon(
+    serieDoRitmo.map((d) => ({ ...d, profit: d.profit ?? null })),
+    {
+      metrica: metricaV3,
+      moeda: currency,
+      hoje: new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" }),
+      diaDaSemana: (data) =>
+        new Date(`${data}T12:00:00Z`).toLocaleDateString("pt-BR", { weekday: "short", timeZone: "UTC" }).replace(".", ""),
+    },
+  );
+  /**
+   * ⚠️ A PARTE CHEIA SO APARECE SE HOUVER LUCRO CONHECIDO EM
+   * ALGUM DIA. Sem isso o grafico seria sete contornos — parece defeito, e nao
+   * "ainda nao apurado". Quando o produtor comeca a mandar lucro, o verde
+   * aparece sozinho, sem tocar em codigo.
+   */
+  const temLucroNoRitmo = diasDoRitmo.some((d) => d.lucro != null);
+  const dadosV3: DadosV3 = {
+    periodoLabel: period.label,
+    identidadeDoPeriodo: cobertura ? identidadeDePeriodo(cobertura.periodo.from, cobertura.periodo.to) : undefined,
+    resumoApuracao:
+      !conciliacao || conciliacao.paidOrders === 0
+        ? ""
+        : conciliacao.complete
+          ? `${conciliacao.paidOrders} pedidos apurados`
+          : `faltam apurar ${Math.max(0, conciliacao.paidOrders - conciliacao.processedOrders)} de ${conciliacao.paidOrders} pedidos`,
+    colunas: colunasDoPeriodoAmazon(faixaDaAmazon),
+    margem: margemDoPeriodoAmazon(faixaDaAmazon),
+    notaDoImposto: null,
+    produtos: produtosDoTopAmazon(top, currency),
+    ritmo: {
+      metricas: ["Faturamento", "Pedidos", "Unidades"],
+      metricaAtiva: metricaV3,
+      aoTrocarMetrica: setMetricaV3,
+      legendaTotal: metricaV3.toLowerCase(),
+      legendaMedia: metricaV3 === "Faturamento" ? "média de lucro do período" : "média de " + metricaV3.toLowerCase() + " por dia",
+      mostraLucro: metricaV3 === "Faturamento" && temLucroNoRitmo,
+      media: (() => {
+        const base = metricaV3 === "Faturamento"
+          ? diasDoRitmo.filter((d) => d.lucro != null).map((d) => d.lucro as number)
+          : diasDoRitmo.map((d) => d.total);
+        return base.length ? base.reduce((soma, v) => soma + v, 0) / base.length : 0;
+      })(),
+      dias: diasDoRitmo,
+      nota: metricaV3 === "Faturamento"
+        ? "A parte cheia é o que sobrou do que foi vendido naquele dia. Dia sem apuração fechada fica só com o contorno e não conta na média; dia no vermelho desce abaixo da linha."
+        : "Volume por dia, sem valor: serve para ver o ritmo de venda separado do dinheiro.",
+    },
+    /**
+     * As pendencias que viviam na abertura da tela passam para o cartao "O que
+     * falta para o numero fechar" — o mesmo lugar do ML. Uma pergunta, um lugar.
+     */
+    pendencias: [
+      ...pendencias.map((p) => ({ id: p.href, titulo: p.label, efeito: "", acao: "Resolver", href: p.href, tom: "atencao" as const })),
+      ...(!loading && profit?.taxRate === null
+        ? [{ id: "aliquota", titulo: "Cadastrar alíquota", efeito: "Sem ela o lucro sai sem imposto.", acao: "Cadastrar", href: AMAZON_TAX_RATE_HREF, tom: "atencao" as const }]
+        : []),
+      ...(critical.length > 0
+        ? [{ id: "estoque", titulo: `${critical.length} produto(s) com estoque crítico`, efeito: "Acaba antes da próxima reposição.", acao: "Ver radar", href: "/amazon/estoque", tom: "neutro" as const }]
+        : []),
+    ],
+    hrefs: { resultado: "/monitor", produtos: "/amazon/produtos", historico: "/amazon/desempenho", pendencias: "/amazon/produtos" },
+  };
+
   return (
     <IntegrationDashboardFrame
       className="dashboard-page amazon-dashboard"
@@ -936,58 +917,6 @@ function Dashboard() {
           narração própria do canal. Aparece só se já estiver escrita; nenhuma
           tela de canal espera o modelo. */}
       <NexoDoDia />
-      {/* A leitura executiva abre todos os canais antes das métricas. */}
-      <BriefingLead
-        periodo={period.label}
-        janela={period.query}
-                // ⚠️ A FRASE LE A MESMA BASE DO CARD (01/09/2026). Ela lia o `billing`,
-        // que so soma pedido com valor ja publicado: as 12:22 disse "R$ 12,89
-        // hoje" com o card ao lado em R$ 348,07 e o Seller Central em R$ 348.
-        // Texto e card discordando na mesma tela e o defeito que a vendedora
-        // detecta primeiro — e o que ela cobrou.
-        faturamento={faturamentoDaTela}
-        pedidos={salesCount}
-        /**
-         * ⚠️ A FRASE NAO AFIRMA LUCRO QUE A TELA NAO MOSTRA (01/09/2026).
-         *
-         * Achado num print dela das 11:38: os cards de Faturamento, Ads, Custo,
-         * Repasse e Margem estavam TODOS em branco — porque `profit.finance`
-         * veio `null`, e e dele que os cards saem — e a frase do topo dizia
-         * "15 vendas e R$ 12,89 hoje — sobraram R$ 234,71".
-         *
-         * Duas mentiras na mesma linha:
-         *   • afirmava LUCRO numa tela onde o lucro esta em branco;
-         *   • afirmava um lucro MAIOR que o faturamento que ela acabara de
-         *     dizer — 234,71 sobre 12,89 —, porque os dois numeros vem de
-         *     universos diferentes: `billing.revenue` e `profit.estimatedProfit`.
-         *
-         * A frase e o fallback calculado (`montarFrase`), nao a narracao do
-         * modelo. Ela ja tem o ramo certo para isto: sem lucro, escreve "quanto
-         * sobrou ainda nao da para dizer — falta custo ou tarifa". O que faltava
-         * era CAIR nele quando a base financeira nao existe.
-         *
-         * Amarrar a frase a MESMA condicao dos cards e o que impede os dois de
-         * discordarem de novo: sem `finance`, nem card nem frase afirmam lucro.
-         */
-        lucro={profit?.finance ? profit?.estimatedProfit ?? null : null}
-        loading={loading}
-        format={(v) => money(v, currency)}
-        escopo="amazon"
-        canalNome="Amazon"
-        moeda={currency}
-        briefingHref="/amazon/briefing"
-        // Uma pergunta, um lugar. As pendências de conta e de sincronização
-        // vêm do hook; estoque crítico vem do radar já carregado nesta tela.
-        acoes={[
-          ...pendencias.map((p) => ({ ...p, tone: "pendencia" as const })),
-          ...(!loading && profit?.taxRate === null
-            ? [{ label: "Cadastrar alíquota", href: AMAZON_TAX_RATE_HREF, tone: "pendencia" as const }]
-            : []),
-          ...(critical.length > 0
-            ? [{ label: `${critical.length} produto(s) com estoque crítico`, href: "/amazon/estoque", tone: "alerta" as const }]
-            : []),
-        ]}
-      />
 
       {brokenConnection && <ConnectionBroken channel="amazon" message={brokenConnection} />}
 
@@ -998,66 +927,18 @@ function Dashboard() {
       )}
 
 
-      {/* ⚠️ A FAIXA DO PERIODO NO LUGAR DA REGUA DE CARTOES
-          (12/09/2026, aprovada por ela). A Amazon passa a usar A MESMA peca do
-          Mercado Livre — ordem dela: "usar o meli de base" — com as colunas que
-          este canal tem: oito, porque aqui o ANUNCIO ENTRA NO LUCRO (decisao de
-          25/08/2026) e no ML nao.
+      {/* ⚠️ A TELA INTEIRA NO ESQUELETO DO MERCADO LIVRE
+          (12/09/2026, ordem dela: "replicar a mesma estrutura do mercado livre
+          na amazon"). O `PainelV3` e a MESMA peca que o ML monta: faixa do
+          periodo, Top 8 produtos e Ritmo lado a lado, e o cartao do que falta
+          para o numero fechar. O que este canal tem de proprio — oito colunas,
+          tarifa estimada marcada, dia que fecha no vermelho — entra como DADO.
 
-          ⚠️ E OS NUMEROS SAO OS MESMOS CARTOES, por construcao: a
-          faixa le o `raw` de cada card que esta regua ja exibia, em vez de
-          recalcular do payload. O criterio de aceite e "mudou pixel, nao
-          valor", e ler a mesma fonte e mais forte que conferir depois.
-
-          O que saiu daqui: a regua de cartoes (`Kpi`). O detalhamento fino —
-          comissao, estorno e frete do comprador — nao sumiu: virou a dica da
-          coluna de Taxas, que e onde a pergunta nasce. */}
-      {(() => {
-        const faixa = entradaDaFaixaDosCards(cards, {
-          moeda: currency,
-          pedidosPagos: conciliacao?.paidOrders ?? 0,
-          tarifasEstimadas: profit?.feesEstimadas ?? null,
-          pedidosComTarifaEstimada: profit?.pedidosComTarifaEstimada ?? null,
-          aliquota: profit?.taxRate ?? null,
-          dicaDoFaturamento: legendaFaturamento(faturamento, salesCount),
-          // `baseDeclarada` e o campo que o proprio produtor manda para ser
-          // exibido SEM interacao — a licao de 31/08/2026, quando a frase
-          // existia mas dentro do "i" e ninguem a lia.
-          baseDoResultado: cards.find((c) => c.key === "marginPct")?.baseDeclarada ?? null,
-        });
-        return (
-          /* ⚠️ O EMBRULHO `v3` NAO E ENFEITE: os tokens da
-             linguagem (`--card`, `--linha`, `--verde`, `--vermelho`) vivem na
-             classe `.v3`. Sem ele, `border: 1px solid var(--linha)` resolve para
-             nada e cada metrica vira texto solto — foi exatamente o que ela viu
-             em 12/09/2026 e chamou de "cade?": os numeros certos, sem o vestido. */
-          <div className="v3">
-          <FaixaDoPeriodoV3
-            periodoLabel={period.label}
-            /* ⚠️ NAO E "X DE Y" AQUI, e a diferenca foi medida.
-               `processedOrders` conta pedidos COM LINHA de rentabilidade e
-               `paidOrders` conta pagos DO PERIODO — universos diferentes, e o
-               proprio produtor admite isso ao tratar `processed >= paid` como
-               completo. Na conta dela a fracao saiu "41 de 11" (ela mandou o
-               print), que nao quer dizer nada: fracao exige o mesmo universo em
-               cima e embaixo. No ML os dois coincidem e "81 de 81" e honesto;
-               aqui a frase diz o que se sabe — quantos faltam, ou que fechou. */
-            resumoApuracao={
-              !conciliacao || conciliacao.paidOrders === 0
-                ? ""
-                : conciliacao.complete
-                  ? `${conciliacao.paidOrders} pedidos apurados`
-                  : `faltam apurar ${Math.max(0, conciliacao.paidOrders - conciliacao.processedOrders)} de ${conciliacao.paidOrders} pedidos`
-            }
-            hrefResultado="/monitor"
-            colunas={colunasDoPeriodoAmazon(faixa)}
-            margem={margemDoPeriodoAmazon(faixa)}
-            notaDoImposto={null}
-            identidadeDoPeriodo={cobertura ? identidadeDePeriodo(cobertura.periodo.from, cobertura.periodo.to) : undefined}
-          />
-          </div>
-        );
-      })()}
+          ⚠️ O QUE ISTO SUBSTITUI SAIU DA TELA, e a lista esta no
+          relatorio da leva: a abertura com a frase solta, a tira de indicadores
+          complementares, a "Evolucao das vendas" e o donut de repasses. Somar
+          em vez de substituir foi o defeito que a v288 do ML cometeu. */}
+      <PainelV3 dados={dadosV3} />
       {/* O dashboard conta pela data do PEDIDO; o monitor, pela data do
           LANÇAMENTO. Sem esta linha as duas telas exibiam "hoje" com valores
           diferentes e nenhuma dizia por quê. */}
@@ -1071,306 +952,8 @@ function Dashboard() {
       />
       <BaseDeData base="pedido" />
 
-      {/* Indicadores de contexto: uma faixa, não uma segunda parede de cartões. */}
-      <div className="secondary-metrics" aria-label="Indicadores complementares">
-        {/*
-          Os dois números lado a lado, cada um com nome próprio.
-          "Confirmado" é o que o comprador já pagou; "Pedidos feitos" é o que a
-          Sales API conta — pendente entra, cancelado não, e a preço de tabela.
-          Antes a tela mostrava só o primeiro, sem dizer que era só o primeiro — e
-          conferir a diferença exigia somar pedido a pedido no painel da Amazon.
-        */}
-        <CompactMetric
-          label="Pedidos feitos"
-          value={
-            pedidosFeitos
-              ? `${money(pedidosFeitos.revenue, currency)} · ${pedidosFeitos.orders}`
-              : "—"
-          }
-          // ⚠️ NA FACE, NÃO NO "i" (31/08/2026). Esta frase distingue DUAS
-          // receitas que convivem na mesma tela: "Pedidos feitos" vem a preço de
-          // tabela e "Faturamento" é o que o comprador pagou. Quem não lê isso
-          // conclui que um dos dois está errado — e foi o que aconteceu.
-          hint={pedidosFeitos ? "Preço de tabela, antes do cupom — é o número do Seller Central." : undefined}
-          loading={loading}
-        />
-        {/*
-          CUPOM — a ponte entre os dois números acima. "Pedidos feitos" vem a
-          preço de tabela e "Faturamento" é o que o comprador pagou; sem esta
-          linha a diferença ficava sem nome na tela e ela conferia à mão contra o
-          Seller Central (22/08: R$ 449,94 lá contra R$ 455,01 aqui, em 15 dias).
-          Só aparece quando houve cupom — período sem resgate não ganha um card
-          de R$ 0,00 ocupando a faixa.
-        */}
-        {(faturamento?.coupon ?? 0) > 0 && (
-          <CompactMetric
-            label="Cupom resgatado"
-            value={`− ${money(faturamento?.coupon ?? 0, currency)}`}
-            // Fecha a conta na tela: este é EXATAMENTE o valor que separa
-            // "Pedidos feitos" de "Faturamento". Sem dizer isso, o número fica
-            // solto e a pessoa não liga um card ao outro.
-            // Só afirma a igualdade quando ela SE SUSTENTA: numa conta com
-            // pedidos sem preço de tabela, este valor é piso, não a diferença.
-            // ⚠️ UMA LINHA NA FACE, E É A QUE MUDA A LEITURA.
-            //
-            // "Pode haver mais" é ressalva de COBERTURA: sem ela a pessoa toma
-            // um piso por um total. Ela vai na face. Já "a diferença entre
-            // Pedidos feitos e Faturamento" só explica o que o número é, sem
-            // mudar como ele é lido — essa continua no "i".
-            hint={faturamento?.couponPartial
-              ? "Apurado só nos pedidos com preço de tabela importado — pode haver mais."
-              : undefined}
-            info={faturamento?.couponPartial ? undefined : "A diferença entre Pedidos feitos e Faturamento."}
-            loading={loading}
-          />
-        )}
-        {/* ⚠️ O ROTULO DIZ O QUE O NUMERO CONTA (02/09/2026, ADR-028).
-            "Vendas" aqui e `metrics.totalOrders`, que inclui CANCELADAS; os
-            avisos dos cards falam de `pedidosDoPeriodo`, que as exclui. Medido
-            em 01/09: 54 vendas menos 4 canceladas = 50 pedidos do periodo — a
-            relacao e exata e os dois numeros estao certos.
-            O que confundia era o NOME: a tela chamava os dois de pedido sem
-            dizer que um inclui cancelado, e "15 de 50" ao lado de "62 vendas"
-            parecia contradicao. Mesma familia dos renames de 01/09. */}
-        <CompactMetric label="Vendas (com canceladas)" value={String(salesCount)} loading={loading} />
-        <CompactMetric label="Unidades" value={String(unitsCount)} loading={loading} />
-        <CompactMetric label="Ticket médio" value={money(ticketMedio, currency)} loading={loading} />
-        <CompactMetric
-          label="ROI"
-          value={`${roiPct.toFixed(1)}%`}
-          tone={cogs > 0 ? (roiPct > 0 ? "positive" : roiPct < 0 ? "danger" : "default") : "default"}
-          loading={loading}
-        />
-        <CompactMetric
-          label="Canceladas"
-          // A Amazon ZERA o pedido ao cancelar — some o OrderTotal, some a
-          // quantidade, some do orderMetrics. Testado nas quatro fontes em
-          // 22/08/2026. O valor só existe se foi capturado antes (migrations/0010,
-          // relatório ALL_ORDERS, que é a única fonte que precifica pendente).
-          //
-          // Daí os três estados, e o do meio é o que quase virou bug: com 160
-          // cancelados e 1 com valor, exibir só a soma afirmaria que os 160
-          // custaram R$ 89,70. Cobertura parcial tem que aparecer como parcial.
-          // SEM cancelamento no período, R$ 0,00 é FATO — "não houve" — e é o que
-          // ela pediu ver (22/08). O "—" ali sugeria "não sei", que é pior.
-          // Só continua desconhecido quando EXISTE cancelado e a Amazon não
-          // informou o valor de nenhum deles: aí zero seria afirmar que cancelar
-          // não custou nada, e isso a legenda abaixo explica.
-          value={
-            !canceladas || canceladas.orders === 0
-              ? money(0, currency)
-              : canceladas.revenue === null
-                ? "—"
-                : money(canceladas.revenue, currency)
-          }
-          tone={canceladas && canceladas.orders > 0 ? "danger" : "default"}
-          loading={loading}
-        />
-      </div>
 
-      {/* Uma única superfície explica desempenho e composição financeira. */}
-      <section className="performance-panel">
-        <div className="performance-chart">
-          <div className="mb-2 flex items-baseline justify-between gap-4">
-            <div>
-              <p className="section-kicker">Desempenho diário</p>
-              {/* NÃO chamar de "faturamento": este total é o orderMetrics (data do
-                  pedido, preço de tabela, inclui pendente) e é maior que o card
-                  de Faturamento, que mostra o conciliado. Dois números com o
-                  mesmo nome na mesma tela era o que confundia. */}
-              <h2 className="mt-1 text-lg font-semibold text-[var(--ink)]">Evolução das vendas</h2>
-            </div>
-            <span className="text-sm font-semibold tabular-nums text-[var(--ink)]">
-              {money(revenue, currency)}{" "}
-              <span className="font-normal text-[var(--ink-muted)]">
-                {pedidosFeitos ? "em pedidos recebidos" : "confirmado (pedidos recebidos indisponível)"}
-              </span>
-            </span>
-          </div>
-          {/* Regras e armadilhas moram no componente — ele é o mesmo nos quatro
-              canais. O que é da Amazon é só a `nota`. */}
-          {!loading && (
-            <LegendaDeVendas
-              confirmados={{ pedidos: vendasConciliadas, valor: faturamentoConciliado }}
-              aguardando={{ pedidos: pedidosAguardando, valor: valorAguardando }}
-              cancelados={{ pedidos: canceladas?.orders ?? 0 }}
-              nota="A Amazon confirma o pagamento antes de informar o valor, e só libera o repasse depois da entrega."
-              money={(valor) => money(valor, currency)}
-            />
-          )}
-          {loading ? (
-            <span className="skeleton-chart" role="status" aria-label="Carregando evolução das vendas" />
-          ) : (
-            <RevenueChart points={sales?.points ?? []} currency={currency} explorable />
-          )}
-        </div>
 
-        <FinancialSummaryPanel
-          // Anúncio desconhecido também deixa a composição incompleta: selo
-          // verde em cima de lucro "—" foi o par exato que enganou antes.
-          complete={!costsIncomplete && !anuncio.desconhecido && conciliacao?.complete !== false}
-          labelledBy="amazon-financial-summary-title"
-          description={(
-            <>
-              <span>Base dos repasses da Amazon (data de postagem) — difere do faturamento acima, que segue a data do pedido como o Seller Central.</span>
-              {conciliacao && !conciliacao.complete ? (
-                <span className="mt-2 block rounded-md bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
-                  {conciliacao.paidOrders - conciliacao.processedOrders} pedido(s) ainda sem repasse postado pela Amazon. Os valores desta seção sobem conforme ela posta.
-                </span>
-              ) : null}
-            </>
-          )}
-          total={loading ? 0 : faturamentoConciliado}
-          totalLabel="Faturamento conciliado"
-          format={(value) => money(value, currency)}
-          slices={buildFinancialComposition({
-            total: faturamentoConciliado,
-            costs: conciliadoDoPainel ? [
-              { id: "fees", label: "Taxas da Amazon", value: conciliadoDoPainel.tarifa },
-              { id: "cogs", label: "Custo dos produtos", value: conciliadoDoPainel.custo },
-            ] : [
-              ...(profit?.finance.feeBreakdown ?? []).map((fee) => ({ id: fee.type, label: nomeDaTarifa(fee.type), value: fee.amount })),
-              // ⚠️ O MESMO tudo-ou-nada da Shopee, achado no mesmo dia (29/08/2026):
-              // `costsIncomplete ? null` some com o custo INTEIRO por causa das
-              // unidades sem cadastro. A soma das que TÊM custo é fato, e a
-              // pendência já aparece nomeada com número e link no rodapé.
-              // Lucro e margem seguem esperando — `result` abaixo continua com o
-              // portão, porque lucro com custo incompleto é otimista sem aviso.
-              { id: "cogs", label: "Custo dos produtos", value: profit?.cogs },
-              // ⚠️ ANÚNCIO ENTRA NA COMPOSIÇÃO (29/08/2026). Ele não é repasse da
-              // Amazon, e era por isso que estava fora — mas o painel não mostra
-              // "repasses", mostra COMO O FATURAMENTO VIRA LUCRO, e anúncio sai
-              // do bolso dela no meio desse caminho.
-              //
-              // Sem esta fatia a tela exibia DOIS números chamados lucro com
-              // sinais opostos: −R$ 35,61 na faixa e +R$ 365,53 aqui, e a
-              // diferença era a MAIOR despesa do período. Ver ADR-025.
-              { id: "ads", label: "Anúncios", value: anuncioNoLucro },
-            ],
-            // O MESMO lucro da faixa, pela MESMA função. Duas cópias da conta
-            // foi o que deixou uma para trás quando a decisão dela de 25/08 foi
-            // aplicada só ao card.
-            result: conciliadoDoPainel ? conciliadoDoPainel.lucro : lucroComAnuncio,
-            resultLabel: conciliadoDoPainel ? "Resultado dos repasses" : undefined,
-          })}
-          empty={!loading && !hasFinance ? (
-            // Sem transação postada não há cascata: zerar receita, taxas e lucro
-            // faria a tela afirmar que a venda não rendeu nada.
-            <p className="text-sm leading-relaxed text-[var(--ink-muted)]">
-              A Amazon ainda não postou repasse deste período. As vendas já aparecem no faturamento
-              (data do pedido); taxas e lucro entram aqui quando o pedido é postado e liquidado.
-            </p>
-          ) : undefined}
-        >
-              {/* O cupom é dedução de verdade — sai do bolso dela e merece o "−",
-                  como qualquer custo. Mas `revenue` já vem líquido dele, então
-                  descontá-lo do líquido contaria duas vezes. A cascata parte do
-                  preço de tabela, desconta, e FECHA num subtotal igual ao card
-                  de Faturamento — a ponte que faltava entre os dois números. */}
-              {promocoes > 0 ? (
-                <>
-                  <Flow label="Faturamento (preço de tabela)" value={loading ? "…" : money(faturamentoConciliado + promocoes, currency)} />
-                  <Flow label="Cupons e promoções" value={loading ? "…" : money(promocoes, currency)} muted sign="−" />
-                  <Flow label="Faturamento líquido" value={loading ? "…" : money(faturamentoConciliado, currency)} subtotal sign="=" />
-                </>
-              ) : (
-                <Flow label="Faturamento" value={loading ? "…" : money(faturamentoConciliado, currency)} />
-              )}
-              {/* ⚠️ A LISTA LE A MESMA COMPOSICAO DA ROSQUINHA. Foi o segundo
-                  consumidor que me escapou na Shopee: consertei as fatias, dei o
-                  painel por pronto, e a lista continuou lendo os cards. Dois
-                  consumidores exigem duas correcoes — e as duas guardas. */}
-              <Flow label="Taxas Amazon" value={loading ? "…" : money(conciliadoDoPainel?.tarifa ?? profit?.finance.fees ?? 0, currency)} muted sign="−" />
-              {!loading && conciliadoDoPainel == null && (profit?.finance.feeBreakdown ?? []).map((t) => (
-                <Flow key={t.type} label={nomeDaTarifa(t.type)} value={money(t.amount, currency)} detail muted />
-              ))}
-              <Flow label="Custo dos produtos" value={loading ? "…" : money(conciliadoDoPainel?.custo ?? profit?.cogs ?? 0, currency)} muted sign="−" />
-              {/* ⚠️ A CASCATA TAMBÉM DESCONTA O ANÚNCIO (29/08/2026).
-                  Era a TERCEIRA cópia da conta de lucro na mesma tela: a faixa
-                  já descontava o Ads desde 25/08, a rosca passou a descontar
-                  hoje, e estas linhas ainda fechavam no número antigo — maior e
-                  positivo. Agora as três leem o MESMO `lucroDoPeriodo` —
-                  nenhuma delas refaz a subtração por conta própria. */}
-              {/* O anuncio NAO entra neste painel quando a composicao do
-                  conciliado existe: e custo de PERIODO, sem atribuicao por
-                  pedido, e soma-lo aqui quebraria a igualdade centro = fatias.
-                  Ele continua no card de Ads e no lucro do periodo. */}
-              {!loading && conciliadoDoPainel == null && (anuncioNoLucro != null || anuncio.desconhecido) && (
-                <Flow
-                  label="Anúncios"
-                  value={anuncio.desconhecido ? "—" : money(anuncioNoLucro ?? 0, currency)}
-                  muted
-                  sign="−"
-                />
-              )}
-              {/* ⚠️ "Resultado dos repasses", NAO "Lucro estimado": este numero e
-                  o residuo do universo CONCILIADO, sem anuncio. O lucro do
-                  periodo, com anuncio, e o do card — e a diferenca de NOME e o
-                  que impede a confusao que a ADR-025 combateu, agora que os dois
-                  numeros sao legitimamente diferentes. */}
-              <Flow
-                label={conciliadoDoPainel ? "Resultado dos repasses" : (lucroComAnuncio == null ? "Repasse líquido" : "Lucro estimado")}
-                value={loading ? "…" : conciliadoDoPainel ? money(conciliadoDoPainel.lucro, currency) : (lucroComAnuncio == null ? "—" : money(lucroComAnuncio, currency))}
-                accent
-                tone={(() => {
-                  const v = conciliadoDoPainel ? conciliadoDoPainel.lucro : lucroComAnuncio;
-                  return loading || v == null ? "default" : v > 0 ? "positive" : v < 0 ? "danger" : "default";
-                })()}
-                sign="="
-              />
-              {/* Gasto de anúncio desconhecido não vira zero: sem ele, o lucro e
-                  a margem são "—" e a tela diz o que falta, com o link. */}
-              {!loading && anuncio.desconhecido && (
-                <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
-                  Falta a métrica de gasto do Amazon Ads deste período — lucro e margem entram quando ela sincronizar.{" "}
-                  <Link href="/ads" className="underline">Ver Ads</Link>
-                </p>
-              )}
-              {/* A margem sai sobre o CENTRO deste painel. Dividir o lucro do
-                  periodo pela receita conciliada foi o que produziu os 5673% do
-                  print: numerador de um universo, denominador de outro. */}
-              {!loading && (conciliadoDoPainel?.margemPct != null || (lucroComAnuncio != null && (profit?.finance.revenue ?? 0) > 0)) && (
-                <Flow
-                  label="Margem"
-                  value={`${(conciliadoDoPainel?.margemPct ?? ((lucroComAnuncio! / (profit?.finance.revenue || 1)) * 100)).toFixed(1).replace(".", ",")}%`}
-                  accent
-                  tone={marginMetricTone(conciliadoDoPainel?.margemPct ?? ((lucroComAnuncio! / (profit?.finance.revenue || 1)) * 100))}
-                />
-              )}
-        </FinancialSummaryPanel>
-        {/* ⚠️ OS SINAIS SAIRAM DE DENTRO DO `value` DO FLOW DE MARGEM (01/09/2026).
-            Eram o ultimo canal nessa forma: ML, Shopee, o modulo da Shopee e o
-            TikTok ja os traziam em bloco proprio. O sinal e do RESULTADO, nao de
-            um numero — dentro do `value` ele vira parte do dado. E a Amazon e a
-            tela mais olhada, entao e a que mais serve de modelo para copia: era
-            daqui que a forma errada ia se espalhar.
-
-            ⚠️ E ELES DEIXARAM DE DEPENDER DO RAMO DA MARGEM. Dentro do `value`
-            a condicao era `lucroComAnuncio != null && revenue > 0` — ou seja,
-            "3 SKUs sem custo cadastrado" so aparecia quando o lucro JA fechava.
-            A pendencia ficava escondida exatamente quando ela e a causa do
-            numero que falta. Acoplamento acidental do lugar, nao decisao.
-
-            CORTE 2 DA AUDITORIA: conexao caida cala os sinais. Sem dado,
-            "3 SKUs sem custo cadastrado" nao e o problema dela — cadastrar o
-            custo nao traz o numero de volta, reconectar traz. Os dois lado a
-            lado pedem duas acoes e so uma resolve. Nada some do produto: os
-            sinais voltam inteiros quando a conexao volta, porque a condicao e o
-            ESTADO da conexao. */}
-        {!loading && !sinaisSilenciadosPorAlarme(Boolean(brokenConnection)) && sinais.length > 0 && <SinaisDoResultado sinais={sinais} />}
-      </section>
-
-      {/* O ranking ocupa a mesma posição em todos os canais: depois da leitura
-          temporal e antes dos módulos operacionais de detalhe. */}
-      {productsLoading ? (
-        <div className="top-products-loading">
-          <InlineLoading label="Carregando produtos com melhor desempenho" />
-        </div>
-      ) : top.length === 0 ? (
-        <div className="top-products-loading"><Empty>Sem vendas no período para ranquear.</Empty></div>
-      ) : (
-        <TopProductsRanking products={top} currency={currency} productsHref="/amazon/produtos" />
-      )}
 
       {/* Logo abaixo da cascata: é a mesma conversa sobre dinheiro, e responde a
           pergunta que o lucro sozinho deixa no ar — "então cadê?". */}
@@ -1443,7 +1026,7 @@ function Dashboard() {
       )}
 
       {/* Rentabilidade por venda — a mesma visão do monitor, direto no dashboard. */}
-      <OrderProfitabilityTable
+      <OrderProfitabilityTableV3
         lines={profitability}
         loading={profitabilityLoading}
         scopeNote={scopeSentence(profitabilityScope)}
@@ -1465,57 +1048,6 @@ function Dashboard() {
 
 
 
-// A Transactions API nomeia cada tarifa em inglês. "Taxas Amazon" somava tudo num
-// número só e a pergunta "qual taxa é essa?" não tinha resposta na tela.
-// Tipo desconhecido aparece com o nome original — nunca some nem vira "Outras".
-
-function Flow({
-  label,
-  value,
-  muted,
-  accent,
-  tone = "default",
-  sign,
-  detail,
-  subtotal,
-}: {
-  detail?: boolean;
-  label: string;
-  /** ReactNode desde 30/08/2026: a margem leva o SINAL colado nela. */
-  value: React.ReactNode;
-  muted?: boolean;
-  accent?: boolean;
-  tone?: "default" | "positive" | "danger" | "warn";
-  sign?: "−" | "=";
-  /** Fecha um trecho da cascata sem ser o resultado final (que é verde). */
-  subtotal?: boolean;
-}) {
-  return (
-    <div className={`financial-line ${accent ? `is-result is-result-${tone}` : ""} ${subtotal ? "is-subtotal" : ""}`}>
-      <span className="financial-sign" aria-hidden="true">{sign}</span>
-      <p className={detail ? "pl-3 text-xs text-[var(--ink-muted)]" : "text-xs font-medium text-[var(--ink-muted)]"}>{label}</p>
-      <p
-        className={`tabular-nums ${detail ? "text-xs text-[var(--ink-muted)]" : "text-sm font-bold"} ${
-          accent
-            ? tone === "positive"
-              ? "text-[var(--positive)]"
-              : tone === "danger"
-                ? "text-[var(--danger)]"
-                : tone === "warn"
-                  ? "text-[var(--warning)]"
-                : "text-[var(--ink)]"
-            : muted && !detail
-              ? "text-[var(--ink-soft)]"
-              : detail
-                ? ""
-                : "text-[var(--ink)]"
-        }`}
-      >
-        {value}
-      </p>
-    </div>
-  );
-}
 
 /**
  * Saldo e liberação. Existe porque o dashboard dizia "lucro R$ 20,04" enquanto o

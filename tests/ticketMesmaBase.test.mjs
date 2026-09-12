@@ -68,9 +68,20 @@ test("TikTok deriva receita e contagem do mesmo conjunto de pedidos", () => {
   assert.match(s, /ticket: orders\.length \? \+\(revenue\/orders\.length\)/);
 });
 
-test("Amazon: ticket e faturamento saem do par conciliado", () => {
-  const s = fonte("src/app/(app)/amazon/page.tsx");
-  assert.match(s, /faturamentoConciliado \/ vendasConciliadas/);
-  // `revenue`/`salesCount` sao do orderMetrics — base diferente da exibida.
-  assert.doesNotMatch(s, /const ticketMedio = salesCount > 0 \? revenue \/ salesCount/);
+test("Amazon: o ticket saiu da tela — e a mistura continua proibida se ele voltar", () => {
+  // ⚠️ O TICKET SAIU DO DASHBOARD DA AMAZON em 12/09/2026, com a
+  // tira de indicadores complementares, por ordem dela (*"replicar a mesma
+  // estrutura do mercado livre na amazon"*) — o ML nao tem ticket, e ter o
+  // esqueleto dele significa nao ter. MESMO caminho do ML em 07/09, inclusive o
+  // que esta guarda passa a fazer: so a PROIBICAO, que e o que protege a volta.
+  //
+  // A forma CERTA, para quem devolver o numero: numerador e denominador no mesmo
+  // universo — `faturamentoConciliado / vendasConciliadas`, com queda para a base
+  // do orderMetrics (`faturamentoDaTela / salesCount`) quando o conciliado esta
+  // vazio. Nunca `revenue / salesCount`, que e faturamento de um universo sobre
+  // contagem de outro. Ver `nomesQueNaoMentem`, que cobra a FONTE da base.
+  const codigo = fonte("src/app/(app)/amazon/page.tsx")
+    .replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+  assert.doesNotMatch(codigo, /const ticketMedio = salesCount > 0 \? revenue \/ salesCount/,
+    "voltou a dividir faturamento de um universo pela contagem de outro");
 });

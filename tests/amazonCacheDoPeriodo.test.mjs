@@ -42,11 +42,21 @@ test("toda fatia aplicada do payload tambem entra no snapshot do periodo", () =>
   );
 });
 
-test("as cinco fatias que escaparam sao derivadas no render, nao lidas cruas", () => {
+test("as fatias que escaparam sao derivadas no render, nao lidas cruas", () => {
   // Guardar no snapshot nao basta: a tela tem de LER o derivado. Se alguem
   // voltar a ler o estado bruto, o defeito volta inteiro.
+  //
+  // `canceladas` SAIU DESTA LISTA em 12/09/2026: a tira de indicadores
+  // complementares — a unica leitora da contagem de canceladas — saiu da tela
+  // quando o PainelV3 substituiu o corpo do dashboard, por ordem dela
+  // ("replicar a mesma estrutura do mercado livre na amazon"). O DADO continua
+  // entrando no snapshot do periodo (`next.canceladas`, conferido pelo teste
+  // acima), de proposito: devolver a exibicao custa a linha derivada de volta, e
+  // ela volta A ESTA LISTA no mesmo commit. Fatia sem leitor na tela nao tem o
+  // defeito de 28/08 — ninguem ve valor do recorte anterior de um numero que
+  // nao aparece.
   const brutoDe = { conciliacao: "conciliacaoBruta", faturamento: "faturamentoBruto",
-    pedidosFeitos: "pedidosFeitosBruto", canceladas: "canceladasBrutas", cobertura: "coberturaBruta" };
+    pedidosFeitos: "pedidosFeitosBruto", cobertura: "coberturaBruta" };
   for (const [fatia, bruto] of Object.entries(brutoDe)) {
     const esperado = `const ${fatia} = naMao ? ${bruto} : cacheDoPeriodo?.${fatia} ?? null;`;
     assert.ok(

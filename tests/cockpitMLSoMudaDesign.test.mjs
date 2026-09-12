@@ -136,12 +136,21 @@ test("os ALERTAS mantem condicao e destino — so a forma mudou", async () => {
   }
 });
 
-test("OS OUTROS TRES CANAIS NAO FORAM TOCADOS — o teste e do canal, nao do app", async () => {
+test("OS CANAIS QUE NAO PEDIRAM NAO FORAM TOCADOS — o teste e do canal, nao do app", async () => {
   // ⚠️ A dona chamou o redesenho de TESTE e quer validar num canal antes de
   // mandar replicar. Se a peça vazasse para os outros, ela estaria validando
   // quatro telas achando que valida uma.
+  //
+  // ⚠️ A AMAZON SAIU DESTA LISTA EM 12/09/2026 PORQUE ELA PEDIU:
+  // *"cara, e replicar a mesma estrutura do mercado livre na amazon"*. Ou seja,
+  // a validacao canal por canal FUNCIONOU — o ML foi aprovado e a ordem de
+  // replicar chegou. A Amazon nao monta o `CockpitDoResultado` (aquele e o corpo
+  // antigo do ML); ela monta o `PainelV3`, e quem cobra a estrutura dela e
+  // `faixaDaAmazonNoV3` e `amazonNoEsqueletoDoML`.
+  //
+  // A lista continua com DOIS canais porque a Shopee e o TikTok ainda estao na
+  // forma antiga. Cada um sai daqui no dia em que ela mandar replicar.
   for (const tela of [
-    "src/app/(app)/amazon/page.tsx",
     "src/app/components/ShopeeWorkspace.tsx",
     "src/app/components/TikTokWorkspace.tsx",
   ]) {
@@ -516,8 +525,20 @@ test("dia DESCONHECIDO nao vira coluna no chao — nem no caminho ate a tela", a
   // existe, senao um dia sem lucro encolheria os outros.
   assert.ok(painel.includes("const semApuracao = ritmo.mostraLucro && d.lucro == null;"),
     "o dia sem apuracao deixou de ser distinguido na peca");
-  assert.ok(painel.includes("{ritmo.mostraLucro && d.lucro != null ? ("),
-    "a parte cheia da coluna deixou de exigir lucro conhecido");
+  // A CONDICAO GANHOU `> 0` EM 12/09/2026, e a intencao anterior fica
+  // registrada: ela era `ritmo.mostraLucro && d.lucro != null`. O dia no
+  // vermelho passou a descer ABAIXO da linha (adaptacao minima para a Amazon,
+  // onde gasto de Ads em dia sem venda da lucro negativo — medido em 05/09:
+  // -17,18), e preenchimento para cima com lucro negativo nao existe: a barra
+  // ficaria vazia e o dia pareceria apenas "sem lucro", nao prejuizo.
+  //
+  // O QUE NAO MUDOU, e e o que esta asercao protege: `d.lucro != null` continua
+  // na condicao. Desconhecido nao vira altura nenhuma — nem para cima nem para
+  // baixo — e e por isso que as duas pontas aparecem juntas aqui.
+  assert.ok(painel.includes("{ritmo.mostraLucro && d.lucro != null && d.lucro > 0 ? ("),
+    "a parte cheia da coluna deixou de exigir lucro conhecido e positivo");
+  assert.ok(painel.includes("const prejuizo = ritmo.mostraLucro && d.lucro != null && d.lucro < 0;"),
+    "o dia no vermelho deixou de exigir lucro conhecido para descer abaixo da linha");
   assert.ok(painel.includes("const teto = Math.max(1, ...ritmo.dias.map((d) => d.total));"),
     "a escala das colunas voltou a depender do lucro — dia desconhecido encolhe os vizinhos");
   assert.ok(painel.includes("{d.rotuloLucro ?? \"—\"}"),

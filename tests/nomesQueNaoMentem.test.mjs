@@ -55,16 +55,26 @@ test("o TICKET MEDIO nao volta a dividir a receita parcial por todas as vendas",
   // `faturamentoDaTela` reintroduz o bug inteiro sem mudar uma letra no calculo
   // do ticket, porque o nome da variavel continua o mesmo. Casar o nome de uma
   // variavel nao prova de onde ela vem.
+  // ⚠️ O TICKET SAIU DA TELA DA AMAZON EM 12/09/2026, com a tira de
+  // indicadores complementares (ordem dela: *"replicar a mesma estrutura do
+  // mercado livre na amazon"* — e o ML nao tem ticket). A guarda nao foi apagada
+  // porque o defeito que ela reprova volta junto com o numero: ela passou a
+  // cobrar a forma CERTA no dia em que alguem devolver o calculo.
+  //
+  // ⚠️ E A CONDICAO E A EXISTENCIA DO CALCULO, nao a do arquivo: o
+  // `if` olha `const ticketMedio`, que e o que materializa o defeito. Enquanto
+  // nao existir, nao ha numerador nem denominador para misturar.
   const pagina = semComentario(await fonte("src/app/(app)/amazon/page.tsx"));
-  assert.match(pagina, /const faturamentoDaTela = pedidosFeitos\?\.revenue \?\? null;/,
-    "a base do ticket tem de vir do orderMetrics (pedidosFeitos), que cobre TODOS os pedidos");
   const i = pagina.indexOf("const ticketMedio");
-  assert.ok(i > 0, "o calculo do ticket mudou de nome — reancore esta guarda");
-  const calculo = pagina.slice(i, i + 400);
-  assert.match(calculo, /faturamentoDaTela/,
-    "o ticket precisa usar a base da tela, nao a receita parcial");
-  assert.doesNotMatch(calculo, /receitaValorizadaPeloBanco|billing/,
-    "voltou a dividir a receita que o banco valoriza pelo total de vendas");
+  if (i > 0) {
+    assert.match(pagina, /const faturamentoDaTela = pedidosFeitos\?\.revenue \?\? null;/,
+      "a base do ticket tem de vir do orderMetrics (pedidosFeitos), que cobre TODOS os pedidos");
+    const calculo = pagina.slice(i, i + 400);
+    assert.match(calculo, /faturamentoDaTela/,
+      "o ticket precisa usar a base da tela, nao a receita parcial");
+    assert.doesNotMatch(calculo, /receitaValorizadaPeloBanco|billing/,
+      "voltou a dividir a receita que o banco valoriza pelo total de vendas");
+  }
 });
 
 test("a coluna que guarda SKU esta documentada onde alguem vai casar por ASIN", async () => {

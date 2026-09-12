@@ -306,3 +306,107 @@ export function entradaDaFaixaDosCards(
     dicaDoFaturamento: extras.dicaDoFaturamento,
   };
 }
+
+/* ── O painel inteiro: a Amazon no esqueleto do Mercado Livre ─────────────────
+   Ordem dela em 12/09/2026, verbatim: *"cara, e replicar a mesma estrutura do
+   mercado livre na amazon"*. Não é entrega incremental: a tela passa a ter a
+   MESMA sequência — faixa, Top 8 + Ritmo lado a lado, o que falta para o número
+   fechar, e os pedidos. O que o canal tem de diferente entra como DADO, não
+   como estrutura própria.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+export interface ProdutoDoTopAmazon {
+  sku: string;
+  /** ⚠️ Pode faltar: a Amazon as vezes devolve SKU sem titulo, e ai a linha mostra o SKU. */
+  title?: string;
+  units: number;
+  revenue: number;
+  marginPct: number | null;
+}
+
+export interface DiaDaSerieAmazon {
+  date: string;
+  revenue: number;
+  orders: number;
+  units: number;
+  /** `null` = dia não apurável — fica só com o contorno e não entra na média. */
+  profit: number | null;
+  /** A tarifa daquele dia inclui estimativa (ADR-027). */
+  profitEstimated?: boolean;
+  /** Estorno POSTADO no dia — explica barra derrubada por venda antiga. */
+  refunds?: number;
+}
+
+/**
+ * O Top N produtos.
+ *
+ * ⚠️ A CONTRIBUIÇÃO SAI COMO TRAVESSÃO, e isso é fidelidade ao
+ * que a Amazon entrega: o produtor do ML manda contribuição por produto e o da
+ * Amazon não. Preencher com o faturamento, ou com zero, seria inventar — e a
+ * coluna existe justamente para dizer quanto sobrou. Travessão diz "não sei",
+ * que é a verdade.
+ */
+export function produtosDoTopAmazon(
+  produtos: ProdutoDoTopAmazon[],
+  moeda: string,
+): Array<{ id: string; posicao: number; titulo: string; sku: string | null; unidades: string; faturamento: string; fracao: number; contribuicao: string; margemPct: number | null }> {
+  const maior = produtos.reduce((topo, p) => Math.max(topo, p.revenue), 0);
+  return produtos.slice(0, 8).map((p, i) => ({
+    id: p.sku || String(i),
+    posicao: i + 1,
+    titulo: p.title || p.sku,
+    sku: p.sku || null,
+    unidades: `${p.units.toLocaleString("pt-BR")} un`,
+    faturamento: dinheiro(p.revenue, moeda),
+    fracao: maior > 0 ? p.revenue / maior : 0,
+    contribuicao: "—",
+    margemPct: p.marginPct,
+  }));
+}
+
+/**
+ * Os dias do ritmo.
+ *
+ * ⚠️ TRES FATOS DA AMAZON QUE O ML NAO TEM, medidos pelo backend
+ * na conta real em 12/09/2026 — e os três quebram a suposição de que o lucro
+ * cabe dentro da barra de receita:
+ *
+ *   1. dia SEM VENDA com gasto de anúncio dá lucro NEGATIVO (05/09: −17,18).
+ *      "Gastou sem vender" é situação real aqui, porque o anúncio entra no
+ *      lucro deste canal;
+ *   2. dia com barra de receita ZERO e lucro POSITIVO (07–10/09): pedido
+ *      pendente valorizado por tabela entra no lucro e não na receita, que só
+ *      conta pago;
+ *   3. pelo mesmo motivo o lucro pode EXCEDER a receita da barra (06/09: barra
+ *      21,90, lucro 22,68).
+ *
+ * A decisão (cérebro, 12/09) foi manter a FORMA do ML e adaptar o mínimo: o dia
+ * negativo desce abaixo do eixo, e a dica explica quando o lucro vem de pedido
+ * ainda não pago. Nada de forma nova — ela refina depois, vendo.
+ */
+export function diasDoRitmoAmazon(
+  serie: DiaDaSerieAmazon[],
+  { metrica, moeda, hoje, diaDaSemana }: { metrica: string; moeda: string; hoje: string; diaDaSemana: (data: string) => string },
+): Array<{ id: string; dia: string; total: number; lucro: number | null; rotuloTotal: string; rotuloLucro: string | null; destaque?: boolean; dica?: string }> {
+  const ultimo = serie[serie.length - 1]?.date;
+  return serie.map((d) => {
+    const total = metrica === "Faturamento" ? d.revenue : metrica === "Pedidos" ? d.orders : d.units;
+    const excedeAReceita = d.profit != null && d.profit > 0 && d.profit > d.revenue;
+    return {
+      id: d.date,
+      dia: d.date === hoje ? "hoje" : diaDaSemana(d.date),
+      total,
+      lucro: d.profit,
+      rotuloTotal: metrica === "Faturamento"
+        ? dinheiro(d.revenue, moeda)
+        : total.toLocaleString("pt-BR") + (metrica === "Pedidos" ? " ped." : " un."),
+      rotuloLucro: d.profit == null ? null : dinheiro(d.profit, moeda),
+      destaque: d.date === ultimo,
+      dica: [
+        d.profitEstimated ? "Inclui tarifa estimada, substituída na liquidação." : null,
+        excedeAReceita ? "O lucro passa da barra porque há pedido já valorizado que ainda não foi pago — a barra conta só o pago." : null,
+        d.refunds ? `Inclui ${dinheiro(d.refunds, moeda)} de estorno lançado neste dia, de venda anterior.` : null,
+      ].filter(Boolean).join(" ") || undefined,
+    };
+  });
+}

@@ -50,7 +50,8 @@ vira spec quando a frente web correspondente fechar):
 | Tela web | Estado web | Nota mobile |
 |---|---|---|
 | Dashboard ML — **v3** | ✅ fechado 11/09 (substitui a faixa de 4 etapas): 7 colunas do período, margem, top produtos, ritmo 7 dias com alternador, pendências, Pedidos a revisar, anúncios com TACOS, Radar do FULL, saldo | As **7 colunas não caibem** no celular: viram lista empilhada com "Lucro" como herói e as quatro parcelas do custo abaixo, cada uma com o "% da venda". O chip de margem sobe para o topo. Alternador de métrica do ritmo = segmented control. |
-| Dashboards Amazon/Shopee/TikTok | design atual (réplica do Caminho do Dinheiro pendente, por canal) | Espelham quando a réplica web de cada canal fechar. |
+| Dashboard Amazon — **v3** | ✅ fechado 12/09 (mesma peça do ML): 7 colunas + Margem, Top 8, ritmo 7 dias, pendências, Pedidos a revisar. **Oito colunas, não sete** — a Amazon tem Ads no lucro e tarifa estimada marcada. | Mesma regra do ML, com um agravante: **oito** colunas empilham pior que sete. O dia no vermelho desce abaixo da linha no ritmo — no celular isso precisa de altura reservada nos dois sentidos, senão a coluna negativa corta. A marca de tarifa estimada não pode depender de hover. |
+| Dashboards Shopee/TikTok | design atual (réplica pendente, por canal) | Espelham quando a réplica web de cada canal fechar. |
 | Central (/) | passagem | No mobile provavelmente morre: o app abre direto no canal principal ou num agregado — decidir em canvas. |
 | /reativar + checkout | ✅ no ar (v288, mínima; a bonita vem por canvas) | Fluxo de assinar no mobile depende da decisão de loja (in-app purchase vs web checkout) — registrar na fase dev. |
 | Briefing / narração | no ar (Gemini, cache diário) | Candidata forte a push/resumo matinal. |
@@ -98,6 +99,17 @@ duplicar toda tela. A doutrina "correção vale para todos" pesa contra manter
 três front-ends (web + iOS + Android) — trazer essa conta feita para a decisão.
 
 ## Changelog do espelho
+
+- 12/09/2026 — espelho do **v3 da Amazon** (ordem dela: *"replicar a mesma
+  estrutura do mercado livre na amazon"*). A Amazon passa a montar a MESMA peça do
+  ML (`PainelV3`), então o app herda um desenho só para os dois canais — o que o
+  mobile precisa especificar é a **diferença**: oito colunas em vez de sete, dia
+  de lucro negativo descendo abaixo da linha, e a marca de tarifa estimada
+  (ADR-027) visível sem hover. Saíram da tela da Amazon, registrados como
+  reversíveis em `docs/amazon-v3-leva-12-09.md`: ticket médio, canceladas, cupom
+  resgatado, "Vendas (com canceladas)", seta de tendência e o painel de
+  repasses — nenhum deles deve ser desenhado para o app antes de ela decidir se
+  volta ao web. ⚠️ Shopee e TikTok seguem no desenho anterior.
 
 - 11/09/2026 — espelho do **redesign v3 do Mercado Livre** (dashboard, monitor,
   anúncios, auditoria): as 7 colunas do período, o cartão-por-pedido e a seção

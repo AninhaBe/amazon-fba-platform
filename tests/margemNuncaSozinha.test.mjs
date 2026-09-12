@@ -99,8 +99,17 @@ const TELAS = [
  * A regra continua sendo a do teste la de cima ("A REGRA INEGOCIAVEL"): havendo
  * pendencia, o numero exige sinal AO LADO. No v3 o sinal e a linha sob o numero
  * (`margemSub`), nas duas telas do canal. E o que esta guarda passa a exigir.
+ *
+ * ⚠️ A AMAZON ENTROU NESSA MESMA SITUACAO EM 12/09/2026, pela
+ * ordem dela (*"replicar a mesma estrutura do mercado livre na amazon"*): o
+ * PainelV3 substituiu o corpo do dashboard e a `SinaisDoResultado` saiu junto.
+ * A regra e cumprida pela MESMA peca do ML — a linha sob o numero da Margem —, e
+ * quem a monta e `margemDoPeriodoAmazon`. Por isso a Amazon sai da lista de
+ * fonte e entra no teste de COMPORTAMENTO logo abaixo, que chama a funcao: e
+ * asercao mais forte do que casar `<SinaisDoResultado` no arquivo.
  */
-const TELAS_COM_FAIXA = TELAS.filter(([caminho]) => !caminho.endsWith("MercadoLivreWorkspace.tsx"));
+const TELAS_COM_FAIXA = TELAS.filter(([caminho]) =>
+  !caminho.endsWith("MercadoLivreWorkspace.tsx") && !caminho.endsWith("amazon/page.tsx"));
 
 test("as QUATRO telas de faixa renderizam o sinal — uma copia esquecida e o defeito de sempre", async () => {
   for (const [caminho, nome] of TELAS_COM_FAIXA) {
@@ -152,4 +161,27 @@ test("nenhuma tela volta a apagar a margem por causa de custo", async () => {
       assert.ok(!padrao.test(fonte), `${nome}: voltou a travar a margem como ${dono} fazia`);
     }
   }
+});
+
+test("na Amazon, a Margem nunca aparece sozinha — a nota sai da FUNCAO", async () => {
+  // QUAL DEFEITO ESTE TESTE REPROVA: o do ML em 10/09/2026, que custou dois dias
+  // de Margem sozinha na tela — `resultParcial` era calculado e ninguem o
+  // renderizava. A Amazon entrou na mesma forma em 12/09, e aqui a asercao e de
+  // comportamento: chama a funcao e confere a saida, em vez de casar texto.
+  const { margemDoPeriodoAmazon } = await import("../src/app/(app)/amazon/amazonPainelV3.ts");
+
+  // 1. HAVENDO PENDENCIA, a nota diz O QUE falta — com a palavra "falta", que e
+  //    o que transforma um numero otimista num numero com ressalva.
+  const comFalta = margemDoPeriodoAmazon({ margemPct: 18.4, faltas: ["o custo de 2 SKUs"] });
+  assert.match(comFalta.nota, /^falta o custo de 2 SKUs$/);
+  assert.equal(comFalta.valor, "18,40%");
+
+  // 2. SEM PENDENCIA, a nota e a declaracao da base — a margem nunca fica muda.
+  const semFalta = margemDoPeriodoAmazon({ margemPct: 18.4, baseDoResultado: "sobre o faturamento do período" });
+  assert.equal(semFalta.nota, "sobre o faturamento do período");
+
+  // 3. E O NUMERO APARECE MESMO COM PENDENCIA — decisao dela em 30/08/2026, que
+  //    e a razao de o sinal ter deixado de ser cortesia: apagar a margem foi o
+  //    comportamento que ela mandou remover.
+  assert.notEqual(comFalta.valor, "—", "a margem voltou a ser apagada por pendencia");
 });

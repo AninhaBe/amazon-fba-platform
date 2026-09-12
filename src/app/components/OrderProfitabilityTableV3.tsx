@@ -1,11 +1,16 @@
 /**
- * A tabela de rentabilidade na linguagem **v3** — usada SÓ pelo Mercado Livre.
+ * A tabela de rentabilidade na linguagem **v3** — usada pelo Mercado Livre e,
+ * desde 12/09/2026, pela Amazon.
  *
  * ⚠️ ESTA DUPLICAÇÃO É DECLARADA E TEMPORÁRIA, e existe por uma
- * razão medida (11/09/2026): `OrderProfitabilityTable` é renderizada por quatro
- * telas — Amazon, Shopee, a central e o ML. Converter o arquivo compartilhado
- * levava a identidade nova para os outros três canais, e a ordem da dona do
- * produto é *"somente mercado livre"*, duas vezes.
+ * razão medida (11/09/2026): `OrderProfitabilityTable` era renderizada por
+ * quatro telas — Amazon, Shopee, a central e o ML. Converter o arquivo
+ * compartilhado levava a identidade nova para canal que não tinha pedido.
+ *
+ * A Amazon ATRAVESSOU em 12/09/2026, por ordem dela (*"replicar a mesma
+ * estrutura do mercado livre na amazon"*): ela lê esta cópia, e quem ainda lê a
+ * original é a Shopee e a central. A dívida encolheu de três canais para dois —
+ * é exatamente a morte canal por canal prevista abaixo, e não um caminho novo.
  *
  * ⚠️ E NÃO DAVA PARA RESOLVER POR ESCOPO DE CSS: a conversão mudou
  * o DOM (cartão, filtros, chips), não só as classes. CSS escopado não devolve

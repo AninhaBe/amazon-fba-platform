@@ -51,52 +51,66 @@ test("o produtor soma a composicao a partir das MESMAS linhas do centro", async 
     "e a margem sai sobre o próprio centro — dividir pelo outro universo deu 5673%");
 });
 
-test("a ROSQUINHA consome a composicao do conciliado", async () => {
+/**
+ * O PAINEL SAIU DA TELA DA AMAZON EM 12/09/2026 — e este arquivo mudou de
+ * intencao junto, sem perder nada do que sabia.
+ *
+ * A ordem dela foi *"cara, e replicar a mesma estrutura do mercado livre na
+ * amazon"*: o PainelV3 substituiu o corpo antigo do dashboard, e a rosquinha
+ * "Repasses, taxas e lucro" e a cascata escrita sairam juntas. Com elas, saiu o
+ * unico bloco da tela que podia misturar universos — porque agora ha UM bloco de
+ * numeros, a faixa do periodo, com a propria base (`baseDoLucro`).
+ *
+ * O QUE CONTINUA COBRADO, e nao e pouco:
+ *   1. o PRODUTOR continua somando a composicao no mesmo ramo (teste acima) — ele
+ *      nao foi tocado, e e de onde o defeito de 02/09 nasceria de novo;
+ *   2. se o painel VOLTAR, volta com os DOIS consumidores na forma certa. Meio
+ *      painel lendo a composicao e meio lendo `profit.finance` e exatamente a
+ *      mistura que a ADR-028 proibe — e foi o erro que ela reprovou na Shopee.
+ *
+ * 📌 REGISTRADO PARA O BACKEND: `composicaoDoConciliado` segue sendo produzida e
+ * enviada no payload, e hoje NENHUMA tela a le. Nao foi removida de proposito —
+ * e ela que faz o painel voltar em uma linha.
+ */
+test("se o painel voltar, os DOIS consumidores voltam juntos e na forma certa", async () => {
   const pagina = await fonte("src/app/(app)/amazon/page.tsx");
-  assert.ok(pagina.includes("value: conciliadoDoPainel.tarifa"), "a fatia de taxas");
-  assert.ok(pagina.includes("value: conciliadoDoPainel.custo"), "a fatia de custo");
-  assert.ok(pagina.includes("result: conciliadoDoPainel ? conciliadoDoPainel.lucro : lucroComAnuncio,"),
+  const codigo = semComentario(pagina);
+
+  // Enquanto nao ha painel, nao ha o que conferir — e dizer isso em voz alta e
+  // parte da guarda: laco vazio que parece verde foi o que o AGENTS chama de
+  // teste decorativo.
+  if (!codigo.includes("FinancialSummaryPanel")) {
+    assert.ok(!codigo.includes("conciliadoDoPainel"),
+      "a composicao voltou a ser lida sem o painel que a explica — de onde ela entra na tela?");
+    return;
+  }
+
+  // A ROSQUINHA.
+  assert.ok(codigo.includes("value: conciliadoDoPainel.tarifa"), "a fatia de taxas");
+  assert.ok(codigo.includes("value: conciliadoDoPainel.custo"), "a fatia de custo");
+  assert.ok(codigo.includes("result: conciliadoDoPainel ? conciliadoDoPainel.lucro : lucroComAnuncio,"),
     "e o resultado é o resíduo, não o lucro do período");
-});
 
-test("a LISTA DE FLUXO consome a MESMA composicao — dois consumidores, duas guardas", async () => {
-  // ⚠️ Esta é a guarda que faltou na Shopee. Lá a rosquinha ficou certa e a lista
-  // continuou lendo os cards; a vendedora reprovou o painel "consertado".
-  const pagina = await fonte("src/app/(app)/amazon/page.tsx");
-  assert.ok(pagina.includes("money(conciliadoDoPainel?.tarifa ?? profit?.finance.fees ?? 0, currency)"),
+  // A LISTA DE FLUXO — a guarda que faltou na Shopee. La a rosquinha ficou certa
+  // e a lista continuou lendo os cards; a vendedora reprovou o painel "consertado".
+  assert.ok(codigo.includes("money(conciliadoDoPainel?.tarifa ?? profit?.finance.fees ?? 0, currency)"),
     "a linha de Taxas da lista");
-  assert.ok(pagina.includes("money(conciliadoDoPainel?.custo ?? profit?.cogs ?? 0, currency)"),
+  assert.ok(codigo.includes("money(conciliadoDoPainel?.custo ?? profit?.cogs ?? 0, currency)"),
     "a linha de Custo da lista");
-  assert.ok(pagina.includes('label={conciliadoDoPainel ? "Resultado dos repasses"'),
-    "o resultado da lista sai da composição e muda de NOME");
-  assert.ok(pagina.includes("conciliadoDoPainel?.margemPct ??"),
+  assert.ok(codigo.includes("conciliadoDoPainel?.margemPct ??"),
     "e a margem da lista sai sobre o centro do painel");
-});
 
-test("o ANUNCIO fica FORA deste painel, e o resultado muda de nome por isso", async () => {
-  // ⚠️ MUDANÇA EM RELAÇÃO À ADR-025, e o motivo é o MESMO que a motivou.
-  //
-  // A ADR-025 mandou pôr o anúncio na composição porque a tela exibia dois
-  // números chamados "lucro" com sinais opostos. Mas anúncio é custo DE PERÍODO
-  // e não tem atribuição por pedido: somá-lo ao painel do conciliado quebraria a
-  // igualdade centro = fatias que acabamos de restaurar.
-  //
-  // A saída não é esconder a diferença — é NOMEAR: este painel mostra
-  // "Resultado dos repasses" (sem anúncio, universo conciliado) e o card mostra
-  // "Lucro" (com anúncio, universo do período). Dois nomes diferentes para dois
-  // números que são legitimamente diferentes é exatamente o que a ADR-025 queria.
-  const pagina = await fonte("src/app/(app)/amazon/page.tsx");
-  assert.ok(pagina.includes("conciliadoDoPainel == null && (anuncioNoLucro != null || anuncio.desconhecido)"),
+  // O NOME, que e a mudanca em relacao a ADR-025 e o motivo dela: este painel
+  // mostra "Resultado dos repasses" (sem anuncio, universo conciliado) e o card
+  // mostra "Lucro" (com anuncio, universo do periodo). Dois nomes diferentes para
+  // dois numeros legitimamente diferentes.
+  assert.ok(codigo.includes('label={conciliadoDoPainel ? "Resultado dos repasses"'),
+    "o resultado da lista sai da composição e muda de NOME");
+  assert.ok(codigo.includes("conciliadoDoPainel == null && (anuncioNoLucro != null || anuncio.desconhecido)"),
     "a linha de Anúncios só aparece no caminho antigo, sem a composição");
-  assert.ok(pagina.includes('"Resultado dos repasses"'),
-    "o nome tem de mudar — dois números iguais de nome e diferentes de valor foi o defeito da ADR-025");
-});
 
-test("o caminho antigo continua existindo para quem nao tem a composicao", async () => {
-  // Períodos sem linha detalhada, telas de teste e o estado de carregamento
-  // caem no comportamento anterior em vez de exibir vazio. Consertar não é
-  // remover.
-  const pagina = await fonte("src/app/(app)/amazon/page.tsx");
-  assert.ok(pagina.includes("conciliadoDoPainel?.receita ?? profit?.finance.revenue ?? 0"),
+  // E o caminho antigo continua existindo para periodo sem linha detalhada:
+  // consertar nao e remover.
+  assert.ok(codigo.includes("conciliadoDoPainel?.receita ?? profit?.finance.revenue ?? 0"),
     "o centro cai no valor antigo quando não há composição");
 });

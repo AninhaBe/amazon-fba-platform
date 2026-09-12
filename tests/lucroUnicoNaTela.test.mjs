@@ -98,16 +98,48 @@ test("quem nao anuncia tem lucro conhecido", () => {
 });
 
 test("a tela da Amazon nao recalcula o anuncio por conta propria", async () => {
-  // A trava contra o defeito voltar: a pagina tem que CHAMAR a funcao, e nao
-  // reescrever a subtracao. Duas copias da conta foi o que deixou uma para tras.
+  // A trava contra o defeito voltar: ninguem na tela pode reescrever a
+  // subtracao. Duas copias da conta foi o que deixou uma para tras.
+  //
+  // A TELA DEIXOU DE CHAMAR `lucroDoPeriodo` EM 12/09/2026 — e nao porque a
+  // conta virou duas, mas porque SOBROU UMA SUPERFICIE. A rosca e a cascata, que
+  // eram as outras duas, sairam com o corpo antigo do dashboard quando o
+  // PainelV3 o substituiu (ordem dela: "replicar a mesma estrutura do mercado
+  // livre na amazon"). A faixa le o lucro do CARTAO, e o cartao e quem chama a
+  // fonte unica — conferido por comportamento no ultimo teste deste arquivo.
+  //
+  // A PROIBICAO E QUE SEGURA ESTA FAMILIA, e ela continua incondicional: o
+  // defeito de 29/08 nao foi "parou de chamar a funcao", foi "refez a subtracao
+  // por fora".
   const page = await fonte("src/app/(app)/amazon/page.tsx");
-  // A fonte unica cresceu: era `gastoComAnuncioDoPeriodo` (so o gasto) e virou
-  // `lucroDoPeriodo` (a conta inteira), quando ficou claro que a SUBTRACAO
-  // tambem estava duplicada.
-  assert.match(page, /lucroDoPeriodo\(\{/, "o painel precisa usar a fonte unica do lucro");
+  const codigo = page.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+  // ⚠️ A FORMA ANTERIOR DESTA PROIBICAO FICAVA VERDE COM O
+  // DEFEITO REINTRODUZIDO, e so apareceu ao RODAR a quebra em 12/09/2026. Ela
+  // era `/estimatedProfit\s*-\s*\(?\s*(profit\??\.)?ads/`, que exige os dois
+  // nomes QUASE colados — e a forma natural de escrever o defeito nesta tela tem
+  // ruido no meio:
+  //
+  //   const lucroNaMao = (profit?.estimatedProfit ?? 0) - (profit?.ads ?? 0);
+  //
+  // Os `?? 0` e os parenteses bastavam para a guarda nao casar. E a familia do
+  // AGENTS: guarda esperta que erra a fronteira prova menos que guarda burra que
+  // acerta.
+  //
+  // O conserto e NORMALIZAR antes de procurar — tirar string, template, espaco,
+  // parenteses e `?? 0`, e so entao exigir que `estimatedProfit` e um nome de
+  // anuncio nao apareçam nos dois lados de um menos.
+  const nu = codigo
+    .replace(/"[^"]*"/g, '""')
+    .replace(/`[^`]*`/g, "``")
+    .replace(/\?\?\s*0/g, "")
+    .replace(/[\s()]/g, "");
   assert.ok(
-    !/estimatedProfit\s*-\s*\(?\s*(profit\??\.)?ads/.test(page),
+    !/estimatedProfit[\w?.]*-[\w?.]*ads/i.test(nu),
     "descontar `ads` direto na tela recria a segunda copia da conta"
+  );
+  assert.ok(
+    !/-[\w?.]*(anuncioNoLucro|adsNoLucro|gastoComAnuncio)/.test(nu),
+    "apareceu uma subtracao de anuncio na tela — ela mora no produtor"
   );
 });
 
@@ -137,19 +169,32 @@ test("a cascata escrita fecha no MESMO lucro da rosca e da faixa", async () => {
   // registro ate a auditoria do dashboard decidir — e se a decisao for outra,
   // este teste volta a exigir o que exigia.
   const page = await fonte("src/app/(app)/amazon/page.tsx");
-  // ⚠️ O PORTAO MUDOU EM 30/08/2026 (decisao da vendedora): custo faltando nao
-  // apaga mais o lucro. A exigencia deste teste NAO mudou — a cascata continua
-  // tendo que fechar em `lucroComAnuncio`, a fonte unica. So o rotulo passou a
-  // depender do lucro existir, e nao de o custo estar completo.
-  assert.match(page, /label=\{conciliadoDoPainel \? "Resultado dos repasses"/,
-    "o resultado do painel sai da composicao do conciliado, com nome proprio");
-  assert.match(page, /: \(lucroComAnuncio == null \? "Repasse líquido" : "Lucro estimado"\)/,
-    "e o caminho antigo continua para quem nao tem a composicao");
+  const codigo = page.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+
+  // A CASCATA SAIU DA TELA EM 12/09/2026, junto com a rosquinha — o PainelV3
+  // substituiu o corpo do dashboard por ordem dela. Entao a questao de ADR acima
+  // (o NOME do resultado) deixou de estar em producao: nao ha painel de repasses
+  // na tela da Amazon para nomear. A auditoria do dashboard decide o que volta —
+  // e decide com a tela nova na frente.
+  //
+  // O PORTAO DE 30/08/2026 (custo faltando nao apaga o lucro) continua valendo e
+  // e cobrado em `aliquotaNaoBloqueia`.
+  //
+  // O QUE ESTA GUARDA COBRA AGORA e a volta INTEIRA: se o painel de repasses
+  // voltar, volta com o nome proprio do universo que ele declara e com a linha
+  // de Anuncios visivel.
+  if (/FinancialSummaryPanel/.test(codigo)) {
+    assert.match(codigo, /label=\{conciliadoDoPainel \? "Resultado dos repasses"/,
+      "o resultado do painel sai da composicao do conciliado, com nome proprio");
+    assert.match(codigo, /: \(lucroComAnuncio == null \? "Repasse líquido" : "Lucro estimado"\)/,
+      "e o caminho antigo continua para quem nao tem a composicao");
+    assert.match(codigo, /label="Anúncios"/, "a cascata precisa MOSTRAR a linha que ela desconta");
+  }
+  // A divisao errada fica proibida SEMPRE — ela nao depende de o painel existir.
   assert.ok(
-    !/estimatedProfit \?\? 0\) \/ \(profit\?\.finance\.revenue/.test(page),
+    !/estimatedProfit \?\? 0\) \/ \(profit\?\.finance\.revenue/.test(codigo),
     "a margem da cascata nao pode dividir o lucro sem anuncio pela receita"
   );
-  assert.match(page, /label="Anúncios"/, "a cascata precisa MOSTRAR a linha que ela desconta");
 });
 
 // AS TRES SUPERFICIES. O mesmo numero aparecia em tres lugares da tela da Amazon:
@@ -169,17 +214,28 @@ test("as tres superficies leem o lucro da MESMA funcao", async () => {
   // 1) FAIXA DE CARDS — comportamento: o card devolve o mesmo numero.
   assert.equal(carta(amazonFinancialCards({ ...base, ads: ADS }), "profit").raw, esperado);
 
-  // 2 e 3) ROSCA e CASCATA vivem em JSX e nao dao para instanciar aqui. O que da
-  // para exigir e que nenhuma das duas REFACA a conta: a tela chama a funcao uma
-  // vez, guarda em `lucroComAnuncio`, e as duas leem essa variavel.
+  // DE TRES SUPERFICIES SOBROU UMA, em 12/09/2026: a rosca e a cascata sairam da
+  // tela com o corpo antigo do dashboard. O teste nao ficou mais fraco por isso —
+  // ficou mais FORTE, porque a superficie que sobrou da para medir por
+  // COMPORTAMENTO, em vez de casar texto do JSX.
+  //
+  // E A PERGUNTA MUDOU DE NOVO, pela terceira vez neste arquivo: de "quem
+  // subtrai?" (29/08) para "alguem alem do produtor subtrai?" (30/08) e agora
+  // para "a faixa mostra EXATAMENTE o numero do cartao?". E a mesma propriedade
+  // vista de outro lugar: duas copias da conta nao divergem se existe UMA copia,
+  // lida crua.
+  const { entradaDaFaixaDosCards, colunasDoPeriodoAmazon } = await import("../src/app/(app)/amazon/amazonPainelV3.ts");
+  const entrada = entradaDaFaixaDosCards(amazonFinancialCards({ ...base, ads: ADS }), { moeda: "BRL", pedidosPagos: 3 });
+  const colunaDoLucro = colunasDoPeriodoAmazon(entrada).find((c) => c.id === "lucro");
+  assert.equal(entrada.lucro, esperado,
+    "a faixa deixou de ler o lucro do cartao — e uma segunda copia da conta nasceu");
+  assert.equal(colunaDoLucro.bruto, esperado,
+    "a coluna de lucro da faixa deixou de mostrar o numero do cartao");
+
+  // E a tela nao pode montar a faixa a partir de outra coisa que nao os cartoes.
   const page = await fonte("src/app/(app)/amazon/page.tsx");
-  assert.match(page, /const anuncio = lucroDoPeriodo\(\{/, "a tela precisa chamar a fonte unica");
-  assert.match(page, /const lucroComAnuncio = anuncio\.lucro;/, "a tela nao pode recalcular o lucro");
-  assert.match(page, /result: conciliadoDoPainel \? conciliadoDoPainel\.lucro : lucroComAnuncio,/, "a rosca fecha no residuo do conciliado");
-  assert.match(page, /label=\{conciliadoDoPainel \? "Resultado dos repasses"/,
-    "o resultado do painel sai da composicao do conciliado, com nome proprio");
-  assert.match(page, /: \(lucroComAnuncio == null \? "Repasse líquido" : "Lucro estimado"\)/,
-    "e o caminho antigo continua para quem nao tem a composicao");
+  assert.match(page, /const faixaDaAmazon = entradaDaFaixaDosCards\(cards, \{/,
+    "a faixa da Amazon deixou de sair dos MESMOS cartoes que a tela calculou");
 });
 
 test("a subtracao do anuncio existe em UM lugar no codigo inteiro", async () => {

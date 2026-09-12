@@ -61,8 +61,12 @@ test("as telas com narracao por periodo passam a janela — e o ML nao traz uma 
   // `BriefingLead` ao ML, ele tem de vir COM a janela. Guarda que simplesmente
   // remove a tela da lista deixa o defeito original poder voltar por ali — e era
   // exatamente uma tela de fora que originou este arquivo.
+  // ⚠️ A AMAZON SEGUIU O ML EM 12/09/2026, pela ordem dela
+  // (*"replicar a mesma estrutura do mercado livre na amazon"*): o PainelV3
+  // substituiu o `BriefingLead` e a tela ficou com o `NexoDoDia`, que e a leitura
+  // do DIA, sem periodo. Ela passa para o bloco CONDICIONAL abaixo, junto com o
+  // ML — e pelo mesmo motivo: se o `BriefingLead` voltar, volta com a janela.
   const OBRIGATORIAS = [
-    ["src/app/(app)/amazon/page.tsx", /janela=\{period\.query\}/],
     ["src/app/components/TikTokWorkspace.tsx", /janela=\{period\.query\}/],
     ["src/app/components/ShopeeWorkspace.tsx", /janela=\{periodoQuery\}/],
   ];
@@ -73,11 +77,18 @@ test("as telas com narracao por periodo passam a janela — e o ML nao traz uma 
     assert.match(codigo.slice(onde, onde + 700), esperado, `${tela}: a narracao voltou a nao saber o periodo`);
   }
 
-  const ml = await fonte("src/app/components/MercadoLivreWorkspace.tsx");
-  const noMl = ml.indexOf("<BriefingLead");
-  if (noMl >= 0) {
-    assert.match(ml.slice(noMl, noMl + 700), /janela=\{periodoQuery\}/,
-      "o BriefingLead voltou ao ML SEM a janela — se ele volta, volta sabendo o periodo");
+  // As duas telas que TROCARAM a narracao por periodo pelo PainelV3: a guarda
+  // nao as obriga a ter o lead, mas exige a janela se ele voltar.
+  for (const [tela, esperado] of [
+    ["src/app/components/MercadoLivreWorkspace.tsx", /janela=\{periodoQuery\}/],
+    ["src/app/(app)/amazon/page.tsx", /janela=\{period\.query\}/],
+  ]) {
+    const codigo = await fonte(tela);
+    const onde = codigo.indexOf("<BriefingLead");
+    if (onde >= 0) {
+      assert.match(codigo.slice(onde, onde + 700), esperado,
+        `${tela}: o BriefingLead voltou SEM a janela — se ele volta, volta sabendo o periodo`);
+    }
   }
 });
 

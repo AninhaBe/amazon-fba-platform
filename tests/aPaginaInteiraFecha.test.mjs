@@ -96,29 +96,53 @@ test("EQUACAO DAS CONTAGENS: com valor + sem valor = pedidos do periodo", () => 
   assert.match(nota, /30 de 50 pedidos do período/);
 });
 
-test("O ROTULO DO HERO diz que conta canceladas — 54 - 4 = 50, medido", () => {
-  // Nenhum dos dois numeros esta errado: o hero conta o que a Amazon chama de
-  // venda, o lucro conta o que rende. O defeito era o NOME.
-  return readFile(new URL("../src/app/(app)/amazon/page.tsx", import.meta.url), "utf8")
-    .then((pagina) => {
-      assert.ok(pagina.includes('label="Vendas (com canceladas)"'),
-        "o hero tem de dizer que inclui canceladas");
-    });
+test("O ROTULO QUE CONTAVA CANCELADAS SAIU DA TELA — e o que ele protegia nao voltou", async () => {
+  // O DEFEITO ORIGINAL: dois numeros certos e um nome errado. A tira de
+  // indicadores contava 54 vendas (o que a Amazon chama de venda, canceladas
+  // inclusive) ao lado de um lucro de 50 pedidos, e o rotulo dizia so "Vendas".
+  // O conserto foi o NOME: "Vendas (com canceladas)".
+  //
+  // A TIRA INTEIRA SAIU EM 12/09/2026, por ordem dela ("replicar a mesma
+  // estrutura do mercado livre na amazon"). Sem o par na tela nao ha nome para
+  // desambiguar — e e isso que esta guarda passa a cobrar: que ele nao volte
+  // SEM a ressalva. Registrada no relatorio da leva como remocao de proposito,
+  // reversivel: o dado continua no cache do periodo.
+  const codigo = (await readFile(new URL("../src/app/(app)/amazon/page.tsx", import.meta.url), "utf8"))
+    .replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+  const temContagemDeVendas = codigo.includes('label="Vendas');
+  if (temContagemDeVendas) {
+    assert.ok(codigo.includes('label="Vendas (com canceladas)"'),
+      "a contagem de vendas voltou a tela e precisa dizer que inclui canceladas");
+  }
 });
 
-test("O PAINEL do conciliado fecha no proprio universo — os dois consumidores", async () => {
-  // A rosquinha E a lista. Corrigir so uma foi o erro que ela reprovou na Shopee.
-  const pagina = await readFile(new URL("../src/app/(app)/amazon/page.tsx", import.meta.url), "utf8");
-  for (const exigido of [
-    "value: conciliadoDoPainel.tarifa",
-    "value: conciliadoDoPainel.custo",
-    "result: conciliadoDoPainel ? conciliadoDoPainel.lucro : lucroComAnuncio,",
+test("O PAINEL do conciliado SAIU da tela da Amazon — e nenhum bloco novo mistura universo", async () => {
+  // O QUE ESTA GUARDA COBRAVA: a rosquinha e a cascata escrita liam a
+  // `composicaoDoConciliado` — receita, tarifa, custo e lucro do MESMO
+  // subconjunto —, para o bloco fechar no universo que declarava (ADR-028).
+  // Corrigir so um dos dois consumidores foi o erro que ela reprovou na Shopee.
+  //
+  // OS DOIS CONSUMIDORES SAIRAM EM 12/09/2026, juntos, quando o PainelV3
+  // substituiu o corpo do dashboard por ordem dela. O que resta na tela e UM
+  // bloco de numeros — a faixa do periodo —, e a base dele nao e a composicao
+  // do conciliado: e `baseDoLucro`/`revenueDoLucro`, com a propria disciplina de
+  // universo cobrada em `baseDaMargemUnica` e `margemNuncaSozinha`.
+  //
+  // ⚠️ ENTAO O QUE ESTA GUARDA FAZ AGORA E PROIBIR A VOLTA PELA
+  // METADE: se alguem reintroduzir um consumidor da composicao, o outro tem de
+  // vir junto. Meio bloco lendo a composicao e meio lendo `profit.finance` e
+  // exatamente a mistura de universos que a ADR-028 proibe.
+  const codigo = (await readFile(new URL("../src/app/(app)/amazon/page.tsx", import.meta.url), "utf8"))
+    .replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+  const daRosquinha = ["value: conciliadoDoPainel.tarifa", "value: conciliadoDoPainel.custo"];
+  const daCascata = [
     "money(conciliadoDoPainel?.tarifa ?? profit?.finance.fees ?? 0, currency)",
     "money(conciliadoDoPainel?.custo ?? profit?.cogs ?? 0, currency)",
-    "conciliadoDoPainel?.margemPct ??",
-  ]) {
-    assert.ok(pagina.includes(exigido), `o painel precisa ler a propria composicao: ${exigido}`);
-  }
+  ];
+  const temRosquinha = daRosquinha.some((t) => codigo.includes(t));
+  const temCascata = daCascata.some((t) => codigo.includes(t));
+  assert.equal(temRosquinha, temCascata,
+    "a composicao do conciliado voltou para um consumidor so — os dois leem a MESMA base ou nenhum le");
 });
 
 test("a ADR-028 e a tabela da auditoria existem e se citam", async () => {

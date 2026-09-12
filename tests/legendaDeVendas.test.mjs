@@ -15,7 +15,16 @@ const fonte = (caminho) => readFileSync(new URL(`../${caminho}`, import.meta.url
 // foi o que ela cobrou em 24/08/2026: "você tá pecando na regra de deixar os
 // marketplaces atualizados".
 const TELAS = [
-  ["src/app/(app)/amazon/page.tsx", "Amazon"],
+  // ⚠️ A AMAZON SAIU EM 12/09/2026 PELO MESMO MOTIVO DO ML: o
+  // bloco saiu. A secao "Evolucao das vendas" — o grafico que a legenda
+  // legendava — foi substituida pelo ritmo dos ultimos 7 dias do PainelV3, por
+  // ordem dela (*"replicar a mesma estrutura do mercado livre na amazon"*).
+  // Legenda sem grafico nao tem sujeito.
+  //
+  // O QUE A AMAZON DIZIA, para devolver junto com o grafico no dia em que ele
+  // voltar: "A Amazon confirma o pagamento antes de informar o valor, e só
+  // libera o repasse depois da entrega." — regra do proprio marketplace, que e
+  // o que o terceiro teste deste arquivo cobra.
   // ⚠️ O ML SAIU DESTA LISTA em 07/09/2026 porque o BLOCO saiu: o
   // canvas do Caminho do Dinheiro cortou o corpo antigo do dashboard. A
   // regra continua valendo para os outros canais, e volta a valer para o ML

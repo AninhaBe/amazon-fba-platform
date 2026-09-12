@@ -77,6 +77,16 @@ export interface DiaDoRitmo {
   /** O lucro do dia já formatado em moeda. `null` = dia sem apuração fechada. */
   rotuloLucro: string | null;
   destaque?: boolean;
+  /**
+   * O que explica ESTE dia, quando ele precisa de explicação.
+   *
+   * ⚠️ NASCEU DA AMAZON (12/09/2026) e vale para qualquer canal:
+   * há dia em que o lucro passa da barra porque um pedido já foi valorizado e
+   * ainda não foi pago, e dia que cai por estorno de venda antiga. Sem a frase,
+   * a pessoa vê o desenho se contradizer e conclui que a conta está errada —
+   * foi o que o backend mediu na conta real antes de eu desenhar.
+   */
+  dica?: string;
 }
 
 export interface PendenciaV3 {
@@ -274,19 +284,34 @@ export function PainelV3({ dados }: { dados: DadosV3 }) {
                 />
                 {ritmo.dias.map((d) => {
                   const semApuracao = ritmo.mostraLucro && d.lucro == null;
+                  /**
+                   * ⚠️ PREJUIZO NAO CABE EM PARTE CHEIA. A parte
+                   * cheia mede quanto da barra sobrou, e uma altura negativa nao
+                   * existe: com `height` negativo o navegador simplesmente nao
+                   * desenha, e o dia no vermelho apareceria como dia sem lucro.
+                   * Ele desce ABAIXO DO EIXO, no mesmo estilo — decisao de
+                   * 12/09/2026, mantendo a forma do ML.
+                   */
+                  const prejuizo = ritmo.mostraLucro && d.lucro != null && d.lucro < 0;
                   return (
-                    <div className="v3-barra-col" key={d.id}>
+                    <div className="v3-barra-col" key={d.id} title={d.dica}>
                       <span
                         className={`v3-barra${semApuracao ? " is-vazia" : ""}`}
                         style={{ height: Math.round((d.total / teto) * ALTURA) }}
                       >
-                        {ritmo.mostraLucro && d.lucro != null ? (
+                        {ritmo.mostraLucro && d.lucro != null && d.lucro > 0 ? (
                           <span
                             className="v3-barra-lucro"
-                            style={{ height: Math.round((d.lucro / teto) * ALTURA) }}
+                            style={{ height: Math.round((Math.min(d.lucro, d.total) / teto) * ALTURA) }}
                           />
                         ) : null}
                       </span>
+                      {prejuizo ? (
+                        <span
+                          className="v3-barra-prejuizo"
+                          style={{ height: Math.round((Math.abs(d.lucro!) / teto) * ALTURA) }}
+                        />
+                      ) : null}
                     </div>
                   );
                 })}

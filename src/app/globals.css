@@ -6938,6 +6938,14 @@ summary:hover { background: var(--paper-soft); }
    ninguem apurou; barra zerada leria como queda. */
 .v3-barra.is-vazia { border: 1px dashed var(--ink-12); background: transparent; }
 .v3-barra-lucro { width: 100%; border-radius: 2px 2px 0 0; background: var(--verde); }
+/* ⚠️ O DIA NO VERMELHO DESCE, e desenhar para baixo e o unico
+   jeito honesto: a parte cheia mede o que SOBROU da barra, e prejuizo nao e uma
+   fatia dela — e o oposto. Altura negativa nao existe em CSS, entao um dia de
+   prejuizo desenhado como parte cheia simplesmente NAO APARECERIA, e a tela
+   mostraria "sem lucro" onde houve perda. Nasceu da Amazon, onde o anuncio
+   entra no lucro e um dia sem venda com gasto fecha negativo (05/09/2026:
+   -17,18), mas vale para qualquer canal. */
+.v3-barra-prejuizo { width: 100%; border-radius: 0 0 2px 2px; background: var(--vermelho); }
 .v3-linha-dias span { display: flex; flex: 1; flex-direction: column; align-items: center; gap: 1px; min-width: 0; }
 .v3-linha-dias b { font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .v3-linha-dias em { font-size: 12px; font-style: normal; }

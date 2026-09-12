@@ -142,8 +142,20 @@ test("a faixa da Amazon veste a linguagem v3 — e a frase da apuracao nao inven
   // linguagem (`--card`, `--linha`, `--verde`) vivem na classe `.v3`; fora dela
   // `border: 1px solid var(--linha)` resolve para nada e cada metrica vira
   // texto solto. Foi o que ela viu em 12/09/2026: numeros certos, sem o vestido.
-  assert.match(codigo, /<div className="v3">\s*<FaixaDoPeriodoV3/,
-    "a faixa da Amazon perdeu o embrulho v3 — volta a aparecer sem cartao nem cor");
+  // ⚠️ O EMBRULHO MUDOU DE CASA EM 12/09/2026, e a propriedade nao:
+  // a pagina deixou de montar a faixa sozinha e passou a montar o `PainelV3`
+  // inteiro (ordem dela: *"replicar a mesma estrutura do mercado livre na
+  // amazon"*), e e a peca que traz a classe `.v3`. A intencao anterior era
+  // `<div className="v3"><FaixaDoPeriodoV3` NA PAGINA; hoje a asercao cobra as
+  // duas pontas, porque uma sozinha nao prova o vestido:
+  //   1. a pagina monta o painel — sem isso nao ha faixa nenhuma;
+  //   2. o painel embrulha a faixa em `.v3` — sem isso os tokens nao resolvem.
+  assert.match(codigo, /<PainelV3 dados=\{dadosV3\} \/>/,
+    "a Amazon parou de montar o PainelV3 — a faixa, o Top 8 e o ritmo saem juntos");
+  const painel = (await ler("src/app/components/PainelV3.tsx"))
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, "").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+  assert.match(painel, /<div className="v3">\s*<FaixaDoPeriodoV3/,
+    "a faixa perdeu o embrulho v3 — volta a aparecer sem cartao nem cor");
 
   // ⚠️ "41 de 11": `processedOrders` e `paidOrders` sao universos
   // diferentes, e fracao exige o mesmo universo em cima e embaixo.

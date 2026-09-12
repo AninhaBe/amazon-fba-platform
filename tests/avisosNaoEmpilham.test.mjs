@@ -26,8 +26,14 @@ test("CORTE 1 — os sinais aparecem UMA vez por tela, nao um por cartao", async
     // regra continua valendo para os outros canais, e volta a valer para o ML
     // no dia em que ele tiver um bloco que precise dela.
     // (Os sinais seguem VIVOS no Monitor do ML, que o corte nao tocou.)
+    // A AMAZON SAIU EM 12/09/2026 PELO MESMO MOTIVO DO ML, e a ordem e dela:
+    // "replicar a mesma estrutura do mercado livre na amazon". O bloco que
+    // hospedava os sinais — a rosquinha de repasses e a cascata escrita — saiu
+    // da tela com a troca pelo PainelV3, e a unica pendencia que a Amazon
+    // produzia (custo nao cadastrado) passou a viver no cartao "O que falta
+    // para o numero fechar", com numero e link. A garantia nao caiu: mudou de
+    // casa, e quem a cobra agora e o ultimo teste deste arquivo.
     "src/app/components/ShopeeWorkspace.tsx",
-    "src/app/(app)/amazon/page.tsx",
     "src/app/components/TikTokWorkspace.tsx",
   ]) {
     const codigo = semComentarios(await fonte(tela));
@@ -53,8 +59,14 @@ test("e NENHUM sinal desapareceu — a lista continua na tela", async () => {
     // canvas do Caminho do Dinheiro cortou o corpo antigo do dashboard. A
     // regra continua valendo para os outros canais, e volta a valer para o ML
     // no dia em que ele tiver um bloco que precise dela.
+    // A AMAZON SAIU EM 12/09/2026 PELO MESMO MOTIVO DO ML, e a ordem e dela:
+    // "replicar a mesma estrutura do mercado livre na amazon". O bloco que
+    // hospedava os sinais — a rosquinha de repasses e a cascata escrita — saiu
+    // da tela com a troca pelo PainelV3, e a unica pendencia que a Amazon
+    // produzia (custo nao cadastrado) passou a viver no cartao "O que falta
+    // para o numero fechar", com numero e link. A garantia nao caiu: mudou de
+    // casa, e quem a cobra agora e o ultimo teste deste arquivo.
     "src/app/components/ShopeeWorkspace.tsx",
-    "src/app/(app)/amazon/page.tsx",
     "src/app/components/TikTokWorkspace.tsx",
     "src/app/components/ShopeeModulePage.tsx",
   ]) {
@@ -81,15 +93,19 @@ test("CORTE 2 — conexao caida cala os sinais, e so onde ela EMPILHA", async ()
   // A REGRA CONTINUA COBRADA na Amazon, e a funcao `sinaisSilenciadosPorAlarme`
   // segue testada acima. Se um dia os sinais voltarem ao dashboard do ML, esta
   // linha volta com eles.
-  for (const [tela, condicao] of [
-    ["src/app/(app)/amazon/page.tsx", "Boolean(brokenConnection)"],
-  ]) {
-    const codigo = semComentarios(await fonte(tela));
-    assert.ok(
-      codigo.includes(`!sinaisSilenciadosPorAlarme(${condicao}) && sinais.length > 0`),
-      `${tela}: o alarme voltou a dividir espaco com os sinais`,
-    );
-  }
+  // NENHUMA TELA TEM MAIS O PAR, e isto esta escrito aqui de proposito: a
+  // Amazon foi a ultima e saiu em 12/09/2026, quando o PainelV3 substituiu o
+  // bloco que hospedava os sinais (o ML saiu em 07/09 pelo mesmo motivo). Laco
+  // vazio nao prova nada — por isso a regra segue cobrada pela FUNCAO, nas duas
+  // asercoes acima, que e onde ela mora.
+  //
+  // O QUE FAZER QUANDO OS SINAIS VOLTAREM A UMA TELA: devolva a linha dela a
+  // esta lista no MESMO commit que os devolve. A forma exata que esta guarda
+  // cobrava, para copiar:
+  //   !sinaisSilenciadosPorAlarme(Boolean(brokenConnection)) && sinais.length > 0
+  const telasComSinaisEAlarmeJuntos = [];
+  assert.equal(telasComSinaisEAlarmeJuntos.length, 0,
+    "se alguma tela voltou a ter os dois, ela precisa da asercao de silenciamento aqui");
 });
 
 test("na Shopee e no TikTok a conexao caida e TAKEOVER — nao ha o que calar", async () => {
@@ -120,4 +136,25 @@ test("a peca da hierarquia escolhe UM progresso, e o que nao se resolve sozinho 
   assert.equal(progressoQueAparece(["em-andamento", "interrompido"]), "interrompido");
   assert.equal(progressoQueAparece(["concluido", "em-andamento"]), "em-andamento");
   assert.equal(progressoQueAparece([null, undefined]), null);
+});
+
+test("a pendencia de custo da Amazon sobreviveu ao corte dos sinais", async () => {
+  // QUAL DEFEITO ESTE TESTE REPROVA: o corte de 12/09/2026 removeu da Amazon o
+  // <SinaisDoResultado>, que era quem dizia "N SKUs sem custo cadastrado". Sem
+  // outra casa, a tela teria perdido a unica frase que aponta o cadastro que
+  // falta — e a regra da casa e que a tela diga O QUE falta, com numero e link.
+  //
+  // A asercao e na DEFINICAO da pendencia, nao no uso: o nome `pendencias`
+  // continuaria no JSX mesmo se a lista passasse a vir de outra fonte, e casar o
+  // nome nao prova de onde o valor nasce.
+  const codigo = semComentarios(await fonte("src/app/(app)/amazon/page.tsx"));
+  assert.ok(
+    codigo.includes('items.push({ label: `Cadastrar custo de ${missingCosts} produto(s)`, href: "/amazon/produtos" });'),
+    "a pendencia de custo precisa continuar nascendo com numero e link",
+  );
+  // E ela precisa CHEGAR ao cartao do v3 — a lista do painel le `pendencias`.
+  assert.ok(
+    codigo.includes("...pendencias.map((p) => ({ id: p.href, titulo: p.label,"),
+    "o cartao do v3 precisa receber as pendencias da tela",
+  );
 });

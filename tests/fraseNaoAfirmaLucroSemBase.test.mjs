@@ -25,15 +25,27 @@ const fonte = (caminho) => readFile(new URL(`../${caminho}`, import.meta.url), "
 
 test("a frase do topo nao afirma lucro quando a base financeira nao existe", async () => {
   const amazon = await fonte("src/app/(app)/amazon/page.tsx");
-  // Casar a RAMIFICACAO: o lucro so passa quando `finance` existe — a MESMA
-  // condicao de que os cards dependem. Sem isso os dois podem discordar de novo.
-  assert.match(
-    amazon,
-    /lucro=\{profit\?\.finance \? profit\?\.estimatedProfit \?\? null : null\}/,
-    "a frase voltou a afirmar lucro sem base financeira",
-  );
-  // E a passagem crua nao pode voltar.
   const codigo = amazon.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+
+  // ⚠️ A FRASE SAIU DA TELA DA AMAZON EM 12/09/2026, com o
+  // <BriefingLead> inteiro: o PainelV3 substituiu a abertura, por ordem dela
+  // (*"replicar a mesma estrutura do mercado livre na amazon"*), e as pendencias
+  // que o lead carregava foram para o cartao "O que falta para o numero fechar".
+  // Sem a frase nao ha afirmacao de lucro para checar — o defeito do print de
+  // 01/09 era a FRASE, nao os cards.
+  //
+  // ⚠️ AS DUAS ASERCOES CONTINUAM, com papeis trocados: a
+  // EXIGENCIA virou condicional (se o lead voltar, volta com o portao de base) e
+  // a PROIBICAO ficou incondicional, porque ela e que impede a volta da forma
+  // errada. A ordem importa: a proibicao sozinha ficaria verde para sempre, e e
+  // assim que guarda morta passa por guarda viva.
+  if (/<BriefingLead/.test(codigo)) {
+    assert.match(
+      amazon,
+      /lucro=\{profit\?\.finance \? profit\?\.estimatedProfit \?\? null : null\}/,
+      "a frase voltou a afirmar lucro sem base financeira",
+    );
+  }
   assert.ok(
     !/lucro=\{profit\?\.estimatedProfit \?\? null\}/.test(codigo),
     "voltou a passar o lucro sem olhar a base",
