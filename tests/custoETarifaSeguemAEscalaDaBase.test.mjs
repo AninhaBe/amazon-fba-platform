@@ -101,5 +101,12 @@ test("os dois recebem o MESMO valor, nao dois flags independentes", async () => 
   // reduzir um lucro calculado sobre a base. Se o numero mudar de novo, que
   // seja com este teste vermelho e a razao escrita aqui — nunca afrouxando
   // para >= 2, que aceitaria um consumidor esquecendo o flag.
-  assert.equal(usosDoFlag.length, 3, "custo, tarifa e estorno precisam receber o mesmo flag");
+  //
+  // ⚠️ PASSARAM A SER QUATRO EM 12/09/2026 (690da5a, lucro por dia): o ESTORNO
+  // POR DIA e a quarta consulta com o flag, e a obrigacao e identica a do
+  // estorno do periodo — o lucro do DIA sai da mesma base coerente do periodo
+  // (o `porPedido`), entao estorno de pedido fora dessa base nao pode derrubar
+  // a barra de um dia calculado sobre ela. Este teste ficou VERMELHO na hora,
+  // como o paragrafo acima pediu, e a razao esta escrita aqui.
+  assert.equal(usosDoFlag.length, 4, "custo, tarifa, estorno do periodo e estorno por dia precisam receber o mesmo flag");
 });
