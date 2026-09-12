@@ -15,12 +15,25 @@ import { readFile } from "node:fs/promises";
 // exatamente o que falhou na Amazon: ela foi a unica das quatro que nao passou
 // a prop, e foi a unica que continuou mentindo. Por isso ela virou teste.
 
+/**
+ * ⚠️ A AMAZON SAIU DESTA LISTA EM 12/09/2026, e a peca que
+ * anima por ela ENTROU no lugar: a regua de cartoes virou a faixa do periodo, e
+ * quem desenha o numero animado da Amazon agora e `FaixaDoPeriodoV3`, que
+ * declara o recorte pela prop `identidadeDoPeriodo`.
+ *
+ * ⚠️ A LISTA CONTINUA COBRANDO USO, e nao so a prop: sem exigir
+ * que a tela USE o componente, uma tela poderia perder a animacao inteira e
+ * passar — foi assim que o v3 do ML a perdeu sem nada ficar vermelho. Para a
+ * Amazon, quem cobra o uso e o teste do mapeador (as colunas levam `bruto`)
+ * mais `tests/efeitoDeTrocaDeNumero.test.mjs`, que exige a chamada de render
+ * dentro da faixa.
+ */
 const TELAS_COM_PERIODO = [
-  "src/app/(app)/amazon/page.tsx",
   "src/app/components/MercadoLivreWorkspace.tsx",
   "src/app/components/ShopeeWorkspace.tsx",
   "src/app/components/TikTokWorkspace.tsx",
   "src/app/(app)/page.tsx",
+  "src/app/components/FaixaDoPeriodoV3.tsx",
 ];
 
 async function ler(caminho) {

@@ -12,9 +12,11 @@ import { EmptyState } from "../../components/EmptyState";
 import { DashboardPeriodFilter, useDashboardPeriod } from "../../components/DashboardPeriodFilter";
 import { periodoNaUrl } from "../../components/periodoNaUrl";
 import type { OperationPendingItem } from "../../components/OperationPending";
-import { Metric as Kpi, CompactMetric, getRevenueTrend } from "../../components/Metric";
+import { CompactMetric } from "../../components/Metric";
 import { amazonFinancialCards, lucroDoPeriodo, diasSemAnuncio, type AmazonAdsInput } from "./amazonFinancialCards";
-import { AnimatedNumber, identidadeDePeriodo } from "../../components/AnimatedNumber";
+import { identidadeDePeriodo } from "../../components/AnimatedNumber";
+import { FaixaDoPeriodoV3 } from "../../components/FaixaDoPeriodoV3";
+import { colunasDoPeriodoAmazon, entradaDaFaixaDosCards, margemDoPeriodoAmazon } from "./amazonPainelV3";
 import { buscaCompartilhada } from "../../components/buscaCompartilhada";
 import { OrderProfitabilityTable } from "../../components/OrderProfitabilityTable";
 import { AnunciosPorProduto, type AnuncioDeProduto } from "../../components/AnunciosPorProduto";
@@ -71,9 +73,6 @@ import { BaseDeData, ProgressoDaImportacao } from "../../components/BaseDeData";
 // Faixa de cima: o que resume o RESULTADO. Anuncio entrou aqui em 25/08/2026
 // porque virou componente do lucro — deixa-lo so na composicao la embaixo
 // esconderia justamente o custo que inverteu o sinal do resultado.
-const PRIMARY_FINANCIAL_CARDS = new Set([
-  "revenue", "fees", "cogs", "ads", "profit", "marginPct", "acos", "tacos",
-]);
 const AMAZON_TAX_RATE_HREF = "/amazon/calculadora#amazon-aliquota";
 
 function money(v: number, currency = "BRL") {
@@ -822,7 +821,13 @@ function Dashboard() {
   const pedidosAguardando = Math.max(0, salesCount - vendasConciliadas);
   const valorAguardando = Math.max(0, revenue - (faturamentoConciliado + promocoes));
   const roiPct = cogs > 0 ? (estProfit / cogs) * 100 : 0;
-  const revenueTrend = getRevenueTrend(sales?.points ?? []);
+  /* ⚠️ A SETA DE TENDENCIA DO FATURAMENTO SAIU DA TELA COM A
+     REGUA DE CARTOES (12/09/2026) e NAO tem casa na faixa do periodo: a
+     coluna tem rotulo, numero e uma linha de contexto, e a linha ja diz
+     quantos pedidos pagos. Registrado como perda para decisao dela — nao
+     foi corte por conveniencia. Devolver e uma linha: `getRevenueTrend`
+     continua exportado em `Metric`, e a coluna aceitaria o chip no share.
+     Ver o relatorio da leva. */
 
   // Período do filtro vs. histórico já importado (frente K): mês ainda não
   // importado nunca vira cards zerados — "não vendeu" e "não importei" são
@@ -859,6 +864,58 @@ function Dashboard() {
       </IntegrationDashboardFrame>
     );
   }
+
+  /**
+   * ⚠️ OS CARTOES SAO CALCULADOS UMA VEZ, no corpo, e nao
+   * dentro do JSX. Dois consumidores leem esta lista — a faixa do periodo e a
+   * eficiencia no bloco de anuncios — e duas chamadas do mesmo produtor sao
+   * duas verdades esperando divergir no primeiro ajuste.
+   */
+  const cards = amazonFinancialCards({
+          finance: profit?.finance ?? null,
+          cogs: profit?.cogs ?? 0,
+          estimatedProfit: profit?.estimatedProfit ?? null,
+          adsNoLucro: profit?.adsNoLucro ?? null,
+          unitsWithoutCost: profit?.unitsWithoutCost ?? 0,
+          taxRate: profit?.taxRate ?? null,
+          taxes: profit?.taxes ?? null,
+          ads: profit?.ads ?? null,
+          adsJanela: profit?.adsJanela ?? null,
+          adsConectado: profit?.adsConectado ?? false,
+          // A base que ela definiu: todos os pedidos do período, pendentes
+          // inclusive. `pedidosFeitos` é a Sales API (orderMetrics) — inclui
+          // pendente, exclui cancelado, a preço de tabela. É o número que bate
+          // com "Vendas hoje até agora" do Seller Central.
+          faturamentoTotal: pedidosFeitos?.revenue ?? null,
+          pedidosAguardando,
+          // A MESMA BASE DO NUMERADOR (31/08/2026). Sem isto a margem volta a
+          // sair sobre o apurado e reaparecem os −90,5% / +120,9%.
+          //
+          // ⚠️ E DESDE 04/09/2026 ELA E A BASE DO RESULTADO, nao o faturamento
+          // inteiro: o lucro que o produtor entrega cobre so os pedidos com
+          // preco, tarifa e custo conhecidos, e dividir esse numerador pelo
+          // faturamento de TODOS deu os 43,7% que a vendedora reprovou contra a
+          // planilha dela (16–20%). O faturamento continua no card de
+          // Faturamento — o que muda e o denominador da MARGEM.
+          baseDoLucro: profit?.baseDoResultado ?? profit?.revenueDoLucro ?? null,
+          pedidosCompletos: profit?.pedidosCompletos,
+          pedidosSemValor: profit?.pedidosSemValor ?? 0,
+          feesDoLucro: profit?.feesDoLucro ?? null,
+          pedidosDoPeriodo: profit?.pedidosDoPeriodo ?? 0,
+          feesEstimadas: profit?.feesEstimadas ?? null,
+          pedidosComTarifaEstimada: profit?.pedidosComTarifaEstimada ?? 0,
+          refunds: profit?.refunds ?? 0,
+          refundCount: profit?.refundCount ?? 0,
+  });
+
+  /**
+   * ACOS, TACOS e ROI: a eficiencia do anuncio, que saiu da regua de cartoes
+   * e foi para o bloco de anuncios, ao lado das linhas que a explicam. So
+   * entra o que TEM numero — card sem valor viraria linha vazia na tela.
+   */
+  const cardsDaEficiencia = cards
+    .filter((c) => ["acos", "tacos", "roiPct"].includes(c.key) && c.raw != null)
+    .map((c) => ({ rotulo: c.label, valor: c.value }));
 
   return (
     <IntegrationDashboardFrame
@@ -941,133 +998,47 @@ function Dashboard() {
       )}
 
 
-      {/* A primeira faixa contém somente os indicadores que resumem o resultado.
-          O detalhamento continua abaixo, na composição financeira, sem perder
-          nenhuma distinção entre zero e dado ainda desconhecido. */}
+      {/* ⚠️ A FAIXA DO PERIODO NO LUGAR DA REGUA DE CARTOES
+          (12/09/2026, aprovada por ela). A Amazon passa a usar A MESMA peca do
+          Mercado Livre — ordem dela: "usar o meli de base" — com as colunas que
+          este canal tem: oito, porque aqui o ANUNCIO ENTRA NO LUCRO (decisao de
+          25/08/2026) e no ML nao.
+
+          ⚠️ E OS NUMEROS SAO OS MESMOS CARTOES, por construcao: a
+          faixa le o `raw` de cada card que esta regua ja exibia, em vez de
+          recalcular do payload. O criterio de aceite e "mudou pixel, nao
+          valor", e ler a mesma fonte e mais forte que conferir depois.
+
+          O que saiu daqui: a regua de cartoes (`Kpi`). O detalhamento fino —
+          comissao, estorno e frete do comprador — nao sumiu: virou a dica da
+          coluna de Taxas, que e onde a pergunta nasce. */}
       {(() => {
-        const cards = amazonFinancialCards({
-          finance: profit?.finance ?? null,
-          cogs: profit?.cogs ?? 0,
-          estimatedProfit: profit?.estimatedProfit ?? null,
-          adsNoLucro: profit?.adsNoLucro ?? null,
-          unitsWithoutCost: profit?.unitsWithoutCost ?? 0,
-          taxRate: profit?.taxRate ?? null,
-          taxes: profit?.taxes ?? null,
-          ads: profit?.ads ?? null,
-          adsJanela: profit?.adsJanela ?? null,
-          adsConectado: profit?.adsConectado ?? false,
-          // A base que ela definiu: todos os pedidos do período, pendentes
-          // inclusive. `pedidosFeitos` é a Sales API (orderMetrics) — inclui
-          // pendente, exclui cancelado, a preço de tabela. É o número que bate
-          // com "Vendas hoje até agora" do Seller Central.
-          faturamentoTotal: pedidosFeitos?.revenue ?? null,
-          pedidosAguardando,
-          // A MESMA BASE DO NUMERADOR (31/08/2026). Sem isto a margem volta a
-          // sair sobre o apurado e reaparecem os −90,5% / +120,9%.
-          //
-          // ⚠️ E DESDE 04/09/2026 ELA E A BASE DO RESULTADO, nao o faturamento
-          // inteiro: o lucro que o produtor entrega cobre so os pedidos com
-          // preco, tarifa e custo conhecidos, e dividir esse numerador pelo
-          // faturamento de TODOS deu os 43,7% que a vendedora reprovou contra a
-          // planilha dela (16–20%). O faturamento continua no card de
-          // Faturamento — o que muda e o denominador da MARGEM.
-          baseDoLucro: profit?.baseDoResultado ?? profit?.revenueDoLucro ?? null,
-          pedidosCompletos: profit?.pedidosCompletos,
-          pedidosSemValor: profit?.pedidosSemValor ?? 0,
-          feesDoLucro: profit?.feesDoLucro ?? null,
-          pedidosDoPeriodo: profit?.pedidosDoPeriodo ?? 0,
-          feesEstimadas: profit?.feesEstimadas ?? null,
-          pedidosComTarifaEstimada: profit?.pedidosComTarifaEstimada ?? 0,
-          refunds: profit?.refunds ?? 0,
-          refundCount: profit?.refundCount ?? 0,
+        const faixa = entradaDaFaixaDosCards(cards, {
+          moeda: currency,
+          pedidosPagos: conciliacao?.paidOrders ?? 0,
+          tarifasEstimadas: profit?.feesEstimadas ?? null,
+          pedidosComTarifaEstimada: profit?.pedidosComTarifaEstimada ?? null,
+          aliquota: profit?.taxRate ?? null,
+          dicaDoFaturamento: legendaFaturamento(faturamento, salesCount),
+          // `baseDeclarada` e o campo que o proprio produtor manda para ser
+          // exibido SEM interacao — a licao de 31/08/2026, quando a frase
+          // existia mas dentro do "i" e ninguem a lia.
+          baseDoResultado: cards.find((c) => c.key === "marginPct")?.baseDeclarada ?? null,
         });
-        const margem = cards.find((c) => c.key === "marginPct");
-        const primaryCards = cards.filter((card) => PRIMARY_FINANCIAL_CARDS.has(card.key));
         return (
-          <div className="metric-grid" aria-label="Resumo financeiro da Amazon">
-            {primaryCards.map((card) =>
-              // O bloco de lucro era markup próprio: rótulo 11px maiúsculo,
-              // valor 27px e um fundo verde, tudo escrito à mão dentro desta
-              // página. Numa faixa contínua ele virava um bloco colorido no
-              // meio de nada, e o `overflow: hidden` sobre 132px de largura
-              // CORTAVA o valor no meio ("R$ 222,9").
-              //
-              // Agora usa o `Metric` como todos os outros. O lucro continua se
-              // distinguindo — pela cor do número (`tone="positive"`), que é
-              // informação, e não pelo fundo, que era decoração.
-              card.key === "profit" ? (
-                <Kpi
-                  key={card.key}
-                  label={card.raw == null ? "Repasse líquido" : "Lucro"}
-                  tone={card.tone}
-                  loading={loading}
-                  value={card.raw != null
-                    ? <AnimatedNumber periodo={cobertura ? identidadeDePeriodo(cobertura.periodo.from, cobertura.periodo.to) : undefined} id="amz-profit" value={card.raw} format={(amount) => money(amount, currency)} />
-                    : card.value}
-                  // O texto explicativo saiu de baixo do número e foi para o
-                  // "i", a pedido dela em 24/08/2026: "todos esses textos que
-                  // estão embaixo... pode colocar no i igual está em pedidos
-                  // feitos". O card fica com rótulo e valor; a explicação
-                  // aparece ao passar o mouse.
-                  // ⚠️ A BASE VAI EM `sub`, QUE RENDERIZA SEM INTERAÇÃO.
-                  //
-                  // Ela morava só no "i", e em 31/08/2026 a vendedora viu lucro
-                  // e margem calculados sobre R$ 748,56 ao lado de um card de
-                  // Faturamento de R$ 1.068,37 e concluiu — com razão — que
-                  // estava errado. A explicação existia, dentro de um tooltip
-                  // que ninguém abre. Declaração que exige hover não declara.
-                  sub={card.baseDeclarada}
-                  info={card.value === "—" || margem?.value === "—"
-                    ? card.context
-                    : `${card.context}. Margem de ${margem?.value} sobre vendas.`}
-                />
-              ) : (
-                <Kpi
-                  key={card.key}
-                  label={card.label}
-                  // UMA LINHA POR CARD NA FACE, e quem decide qual e o
-                  // construtor (`amazonFinancialCards`): o Faturamento recebe o
-                  // cupom ja abatido, os demais recebem a base declarada.
-                  sub={card.baseDeclarada}
-                  // A marca da ADR-027, colada ao numero. So aparece quando o
-                  // construtor disse que ha estimativa embutida — sem pedido
-                  // estimado o campo vem `undefined` e o cartao fica igual ao
-                  // que era.
-                  // ⚠️ O CARD NÃO É MAIS SOBRESCRITO AQUI (30/08/2026).
-                  //
-                  // Esta linha trocava o VALOR do card "Faturamento" mantendo o
-                  // RÓTULO, enquanto a margem seguia sendo calculada sobre a base
-                  // apurada, dentro de `amazonFinancialCards`. Resultado: lucro e
-                  // margem de um universo exibidos ao lado do faturamento de
-                  // outro, e a conta não fechava para quem olhasse — foi assim
-                  // que ela achou uma "margem de 63,1%" que nenhum par de números
-                  // da tela produzia.
-                  //
-                  // Agora a base entra POR PARÂMETRO (`faturamentoTotal`) e o
-                  // módulo dos cards decide o número e declara a base na margem.
-                  // Sobrescrever valor de card na renderização é como a conta
-                  // volta a ter duas definições.
-                  value={loading ? "…" : card.key === "revenue" && card.raw != null
-                    ? <AnimatedNumber periodo={cobertura ? identidadeDePeriodo(cobertura.periodo.from, cobertura.periodo.to) : undefined} id="amz-revenue" value={card.raw} format={(amount) => money(amount, currency)} />
-                    : card.value}
-                  // TUDO que explicava o número embaixo dele agora mora no "i".
-                  // O card mostra rótulo e valor; a explicação aparece ao passar
-                  // o mouse, como já acontecia em "Pedidos feitos".
-                  //
-                  // ⚠️ No faturamento, a explicação tem de acompanhar a base do
-                  // VALOR. O valor soma só quem tem `gross`; a contagem inclui
-                  // pendente sem valor — emparelhar os dois produzia
-                  // "R$ 0,00 · 1 pedido", que se contradiz na própria linha
-                  // (22/08/2026). Quando há pedido sem valor, o texto DIZ isso
-                  // em vez de fingir coerência.
-                  info={card.key === "revenue" ? legendaFaturamento(faturamento, salesCount) : card.context}
-                  trend={card.key === "revenue" ? revenueTrend : undefined}
-                  tone={card.key === "marginPct" ? marginMetricTone(card.raw) : card.tone}
-                  loading={loading}
-                />
-              )
-            )}
-          </div>
+          <FaixaDoPeriodoV3
+            periodoLabel={period.label}
+            resumoApuracao={
+              conciliacao && conciliacao.paidOrders > 0
+                ? `${conciliacao.processedOrders} de ${conciliacao.paidOrders} pedidos apurados`
+                : ""
+            }
+            hrefResultado="/monitor"
+            colunas={colunasDoPeriodoAmazon(faixa)}
+            margem={margemDoPeriodoAmazon(faixa)}
+            notaDoImposto={null}
+            identidadeDoPeriodo={cobertura ? identidadeDePeriodo(cobertura.periodo.from, cobertura.periodo.to) : undefined}
+          />
         );
       })()}
       {/* O dashboard conta pela data do PEDIDO; o monitor, pela data do
@@ -1445,6 +1416,12 @@ function Dashboard() {
         <AnunciosPorProduto
           linhas={profit.adsPorProduto ?? []}
           contabilizadoAte={janelaDoAnuncio(profit.ads, profit.adsJanela)}
+          /* ⚠️ ACOS, TACOS e ROI MUDARAM DE LUGAR, nao sairam da
+             tela: eram cartoes da regua que a faixa do periodo substituiu, e o
+             mapa aprovado os manda para o bloco de anuncios, ao lado das linhas
+             que os explicam. Os valores sao os MESMOS cards — nada recalculado
+             aqui. */
+          eficiencia={cardsDaEficiencia}
         />
       )}
 

@@ -66,6 +66,14 @@ test("a declaracao vai na FACE do card, nunca no tooltip", async () => {
   // O defeito nao era a frase faltar: era ela estar num lugar que exige hover.
   // `sub` renderiza sem interacao; `info` e o "i".
   const pagina = await readFile(new URL("../src/app/(app)/amazon/page.tsx", import.meta.url), "utf8");
-  assert.match(pagina, /sub=\{card\.baseDeclarada\}/);
+  // ⚠️ MUDOU DE MECANISMO EM 12/09/2026, NAO DE EXIGENCIA. A
+  // regua de cartoes da Amazon virou a faixa do periodo (a mesma peca do ML), e
+  // com ela a base declarada deixou de sair num `sub` de card para sair na
+  // LINHA SOB O NUMERO da coluna de Margem — que renderiza sem interacao do
+  // mesmo jeito. O que esta guarda existe para impedir continua igual: a base
+  // nunca pode depender de hover, e foi o que aconteceu em 31/08/2026, quando a
+  // frase existia dentro do "i" e a vendedora concluiu que a tela estava errada.
+  assert.match(pagina, /baseDoResultado: cards\.find\(\(c\) => c\.key === "marginPct"\)\?\.baseDeclarada/);
   assert.ok(!/info=\{card\.baseDeclarada\}/.test(pagina), "declaracao dentro do 'i' nao declara nada");
+  assert.ok(!/dica: entrada\.baseDoResultado/.test(pagina), "a base foi parar na dica da coluna");
 });

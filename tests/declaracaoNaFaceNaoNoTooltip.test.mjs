@@ -48,5 +48,9 @@ test("UMA linha por card na face — a que muda a leitura", async () => {
   // A tela nao escolhe a frase: ela renderiza `card.baseDeclarada` nos dois
   // ramos, e QUEM decide qual linha cada card recebe e o construtor. Uma tela
   // que escolhe frase por card e onde a segunda linha aparece sem ninguem ver.
-  assert.match(amazon, /sub=\{card\.baseDeclarada\}/);
+  // ⚠️ Mesmo caso das outras duas: a base passou a ser entregue
+  // a faixa, que a desenha na linha visivel sob o numero da Margem. Quem decide
+  // qual frase continua sendo o CONSTRUTOR do card, nao a tela — que era o
+  // ponto desta assercao.
+  assert.match(amazon, /baseDoResultado: cards\.find\(\(c\) => c\.key === "marginPct"\)\?\.baseDeclarada/);
 });

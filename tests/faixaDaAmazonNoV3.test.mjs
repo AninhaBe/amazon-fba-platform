@@ -116,3 +116,18 @@ test("a MARGEM nunca aparece sozinha", () => {
   const semNada = margemDoPeriodoAmazon(BASE);
   assert.equal(typeof semNada.nota, "string", "a nota da margem virou undefined e some da tela");
 });
+
+test("as colunas da Amazon levam o valor BRUTO — sem ele o numero nao rola", () => {
+  // ⚠️ ORDEM DELA (12/09/2026): manter o efeito de troca de
+  // numero. A peca so anima o que recebe cru; coluna que manda so texto pronto
+  // perde o efeito em silencio, que foi o que aconteceu no v3 do ML.
+  const colunas = colunasDoPeriodoAmazon(BASE);
+  for (const id of ["vendeu", "taxas", "logistica", "custo", "anuncio", "imposto", "lucro"]) {
+    const c = colunas.find((x) => x.id === id);
+    assert.equal(typeof c.formatar, "function", `a coluna ${id} ficou sem formatador`);
+    assert.equal(typeof c.bruto, "number", `a coluna ${id} parou de mandar o valor bruto`);
+  }
+  // E o desconhecido continua SEM efeito: contar do zero pareceria "caiu a zero".
+  const semAnuncio = colunasDoPeriodoAmazon({ ...BASE, anuncio: null }).find((c) => c.id === "anuncio");
+  assert.equal(semAnuncio.bruto, null, "travessao ganhou contagem: ausencia viraria queda na tela");
+});

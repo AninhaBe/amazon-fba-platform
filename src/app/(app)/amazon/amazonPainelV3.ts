@@ -63,6 +63,16 @@ export interface EntradaDaFaixaAmazon {
   baseDoResultado?: string | null;
   /** O que falta para o número fechar, já com número e destino. */
   faltas?: string[];
+  /**
+   * A legenda do faturamento, quando ela tem o que dizer.
+   *
+   * ⚠️ ELA SOBREVIVEU A TROCA DE PECA DE PROPOSITO. Era o
+   * `info` do cartao de Faturamento e resolvia uma contradicao real medida em
+   * 22/08/2026: "R$ 0,00 · 1 pedido" na mesma linha. Quando ha pedido sem
+   * valor, o texto DIZ isso em vez de fingir coerencia — e uma frase que a
+   * substituicao teria levado junto sem ninguem notar.
+   */
+  dicaDoFaturamento?: string;
 }
 
 const dinheiro = (valor: number, moeda: string) =>
@@ -98,6 +108,8 @@ export function colunaDeTaxas(entrada: EntradaDaFaixaAmazon) {
     id: "taxas",
     rotulo: "Taxas da Amazon",
     valor: tarifas == null ? "—" : dinheiro(tarifas, moeda),
+    bruto: tarifas,
+    formatar: (v: number) => dinheiro(v, moeda),
     // O rastro ganha da porcentagem quando existe: "quanto disso ainda é
     // estimativa" é a pergunta que a pessoa faz olhando este número.
     share: temEstimativa
@@ -125,20 +137,33 @@ export function colunasDoPeriodoAmazon(entrada: EntradaDaFaixaAmazon): DadosV3["
   const valorOuTraco = (valor: number | null | undefined) =>
     valor == null ? "—" : dinheiro(valor, moeda);
   const tomDe = (valor: number | null | undefined) => (valor == null ? "vazio" : "normal") as "vazio" | "normal";
+  /**
+   * ⚠️ O EFEITO DE TROCA DE NUMERO VALE AQUI TAMBEM (ordem dela,
+   * 12/09/2026). A peca so anima quando recebe o valor CRU — travessao nao
+   * rola, e por isso `bruto` e `null` quando o numero e desconhecido: o efeito
+   * nunca pode transformar ausencia em contagem a partir do zero, que pareceria
+   * "caiu para zero".
+   */
+  const formatar = (v: number) => dinheiro(v, moeda);
 
   return [
     {
       id: "vendeu",
       rotulo: "Você vendeu",
       valor: dinheiro(faturamento, moeda),
+      bruto: faturamento,
+      formatar,
       share: `${entrada.pedidosPagos.toLocaleString("pt-BR")} pedidos pagos`,
-      dica: "Faturamento do período pela data do pedido. Cancelados ficam fora.",
+      dica: entrada.dicaDoFaturamento
+        || "Faturamento do período pela data do pedido. Cancelados ficam fora.",
     },
     colunaDeTaxas(entrada),
     {
       id: "logistica",
       rotulo: "Logística FBA",
       valor: valorOuTraco(entrada.logisticaFba),
+      bruto: entrada.logisticaFba,
+      formatar,
       share: entrada.logisticaFba == null
         ? "aguardando o extrato da Amazon"
         : sobreAVenda(entrada.logisticaFba, faturamento, moeda),
@@ -149,6 +174,8 @@ export function colunasDoPeriodoAmazon(entrada: EntradaDaFaixaAmazon): DadosV3["
       id: "custo",
       rotulo: "Custo dos produtos",
       valor: valorOuTraco(entrada.custoDosProdutos),
+      bruto: entrada.custoDosProdutos,
+      formatar,
       share: sobreAVenda(entrada.custoDosProdutos, faturamento, moeda),
       tom: tomDe(entrada.custoDosProdutos),
       dica: "Custo cadastrado por SKU na data do pedido.",
@@ -163,6 +190,8 @@ export function colunasDoPeriodoAmazon(entrada: EntradaDaFaixaAmazon): DadosV3["
       id: "anuncio",
       rotulo: "Anúncios",
       valor: valorOuTraco(entrada.anuncio),
+      bruto: entrada.anuncio,
+      formatar,
       share: entrada.anuncio == null
         ? "gasto ainda não informado"
         : sobreAVenda(entrada.anuncio, faturamento, moeda),
@@ -175,6 +204,8 @@ export function colunasDoPeriodoAmazon(entrada: EntradaDaFaixaAmazon): DadosV3["
       // ADR-038: alíquota não cadastrada vale ZERO na conta, e o rastro fica na
       // linha de baixo. Travessão aqui diria "não sei", e a conta sabe.
       valor: entrada.aliquota == null ? "—" : valorOuTraco(entrada.imposto ?? 0),
+      bruto: entrada.aliquota == null ? null : entrada.imposto ?? 0,
+      formatar,
       share: entrada.aliquota == null
         ? "alíquota não configurada"
         // Vírgula, não ponto: `${8.5}` sai "8.5%" e a tela mistura duas
@@ -187,6 +218,8 @@ export function colunasDoPeriodoAmazon(entrada: EntradaDaFaixaAmazon): DadosV3["
       id: "lucro",
       rotulo: "Lucro",
       valor: valorOuTraco(entrada.lucro),
+      bruto: entrada.lucro,
+      formatar,
       share: "",
       // Verde só quando há lucro E ele é positivo; prejuízo é vermelho. Cor é
       // estado — a mesma regra que o ML corrigiu em 11/09/2026.
@@ -218,5 +251,58 @@ export function margemDoPeriodoAmazon(entrada: EntradaDaFaixaAmazon): DadosV3["m
     nota: faltando.length > 0
       ? `falta ${faltando.join(", ")}`
       : entrada.baseDoResultado ?? "",
+  };
+}
+
+/**
+ * Monta a entrada da faixa A PARTIR DOS CARTOES que a tela já exibia.
+ *
+ * ⚠️ E ESTA E A GARANTIA DO DIFF DE NUMEROS, nao um atalho de
+ * codigo. O criterio de aceite desta leva e "mudou pixel, nao valor": lendo o
+ * `raw` do cartao correspondente, cada coluna mostra LITERALMENTE o numero que
+ * o cartao mostrava — nao um re-calculo a partir do mesmo campo, que poderia
+ * divergir no dia em que alguem mudasse o cartao e esquecesse a faixa.
+ *
+ * Os cartoes que NAO viram coluna (comissao, estorno, frete do comprador)
+ * entram na dica da coluna de taxas. `ROI`, `ACOS` e `TACOS` ficam fora: sao
+ * medida de anuncio, e o lugar deles e o bloco de Anuncios.
+ */
+export function entradaDaFaixaDosCards(
+  cards: Array<{ key: string; raw?: number | null }>,
+  extras: {
+    moeda: string;
+    pedidosPagos: number;
+    tarifasEstimadas?: number | null;
+    pedidosComTarifaEstimada?: number | null;
+    aliquota?: number | null;
+    baseDoResultado?: string | null;
+    faltas?: string[];
+    dicaDoFaturamento?: string;
+  },
+): EntradaDaFaixaAmazon {
+  const bruto = (key: string): number | null => {
+    const card = cards.find((c) => c.key === key);
+    return card?.raw ?? null;
+  };
+  return {
+    moeda: extras.moeda,
+    pedidosPagos: extras.pedidosPagos,
+    faturamento: bruto("revenue") ?? 0,
+    tarifas: bruto("fees"),
+    tarifasEstimadas: extras.tarifasEstimadas ?? null,
+    pedidosComTarifaEstimada: extras.pedidosComTarifaEstimada ?? null,
+    logisticaFba: bruto("fbaShipping"),
+    freteDoComprador: bruto("buyerShipping"),
+    comissao: bruto("commission"),
+    estornos: bruto("refunds"),
+    custoDosProdutos: bruto("cogs"),
+    anuncio: bruto("ads"),
+    aliquota: extras.aliquota ?? null,
+    imposto: bruto("tax"),
+    lucro: bruto("profit"),
+    margemPct: bruto("marginPct"),
+    baseDoResultado: extras.baseDoResultado ?? null,
+    faltas: extras.faltas,
+    dicaDoFaturamento: extras.dicaDoFaturamento,
   };
 }

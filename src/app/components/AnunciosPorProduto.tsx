@@ -50,12 +50,27 @@ const VISIVEIS = 8;
 export function AnunciosPorProduto({
   linhas,
   contabilizadoAte,
+  eficiencia,
   canal = "Amazon",
   baseDeProdutos = "/produtos",
 }: {
   linhas: AnuncioDeProduto[];
   /** "Anúncio contabilizado até DD/MM — faltam N dias", quando a janela não fechou. */
   contabilizadoAte?: string | null;
+  /**
+   * ACOS, TACOS e ROI do período — a eficiência do anúncio, em uma linha.
+   *
+   * ⚠️ ELES VIERAM DA REGUA DE CARTOES, que a faixa do período
+   * substituiu em 12/09/2026. Não são coluna da faixa por decisão do mapa
+   * aprovado: a faixa conta o caminho do dinheiro (venda → custos → lucro), e
+   * medida de eficiência de mídia responde outra pergunta. O lugar delas é
+   * aqui, ao lado das linhas que as explicam — como o TACOS já fica no bloco de
+   * anúncios do Mercado Livre.
+   *
+   * Cada item traz o texto pronto do produtor: `undefined` quando o número não
+   * existe, e aí ele não aparece — ausência continua sendo ausência.
+   */
+  eficiencia?: Array<{ rotulo: string; valor: string }>;
   /** De onde vêm ACOS e ROAS. O painel é o mesmo nos canais; a origem muda. */
   canal?: string;
   /**
@@ -110,6 +125,17 @@ export function AnunciosPorProduto({
         </div>
         <p>{avaliadas.length} produto(s) anunciado(s)</p>
       </header>
+
+      {eficiencia && eficiencia.length > 0 && (
+        <div className="v3-colunas">
+          {eficiencia.map((item) => (
+            <div className="v3-coluna" key={item.rotulo}>
+              <p className="v3-coluna-rotulo">{item.rotulo}</p>
+              <strong className="v3-coluna-valor">{item.valor}</strong>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* A janela do gasto fica VISÍVEL AQUI, não só no card lá em cima: quem lê
           a tabela pode não ter lido o card (ajuste do cérebro, 28/08/2026). */}

@@ -250,11 +250,25 @@ test("a pagina LE os tres campos ao montar ProfitData", () => {
   }
 });
 
-test("os cards de anuncio estao na faixa principal", () => {
+test("a eficiencia do anuncio tem casa: ads na faixa, ACOS e TACOS no bloco de anuncios", () => {
+  // ⚠️ INTENCAO MIGRADA EM 12/09/2026, com o mapa aprovado por
+  // ela. Ate aqui esta guarda exigia `ads`, `acos` e `tacos` na regua de
+  // cartoes do topo. A regua virou a faixa do periodo, e a faixa conta o
+  // CAMINHO DO DINHEIRO (venda menos custos igual lucro): o gasto com anuncio e
+  // parcela dessa conta na Amazon — por isso `ads` VIROU COLUNA —, mas ACOS,
+  // TACOS e ROI medem eficiencia de midia, que e outra pergunta.
+  //
+  // ⚠️ E A GUARDA CONTINUA COBRANDO CASA PARA OS TRES. Foi isso
+  // que ela protegeu desde sempre: o risco nunca foi a regua, foi a metrica
+  // sumir da tela numa troca de layout. Aqui o alvo mudou de endereco, nao de
+  // exigencia — se alguem tirar o `eficiencia` do bloco de anuncios, isto fica
+  // vermelho do mesmo jeito.
   const pagina = arquivo("src/app/(app)/amazon/page.tsx");
-  const i = pagina.indexOf("PRIMARY_FINANCIAL_CARDS = new Set(");
-  const faixa = pagina.slice(i, i + 400);
-  for (const k of ["ads", "acos", "tacos"]) {
-    assert.match(faixa, new RegExp(`"${k}"`), `${k} precisa aparecer na faixa de cima`);
-  }
+  assert.match(pagina, /eficiencia=\{cardsDaEficiencia\}/,
+    "o bloco de anuncios parou de receber ACOS, TACOS e ROI");
+  assert.match(pagina, /\["acos", "tacos", "roiPct"\]\.includes\(c\.key\)/,
+    "a lista da eficiencia mudou: confira se alguma metrica ficou sem tela");
+  // O gasto com anuncio continua na faixa, porque na Amazon ele entra no lucro.
+  const mapeador = arquivo("src/app/(app)/amazon/amazonPainelV3.ts");
+  assert.match(mapeador, /id: "anuncio"/, "a coluna de anuncio sumiu da faixa");
 });
