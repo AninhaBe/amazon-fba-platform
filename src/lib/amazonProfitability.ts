@@ -10,6 +10,37 @@ function amount(value?: { Amount?: string }): number {
   return Number(value?.Amount ?? 0) || 0;
 }
 
+/**
+ * O RATEIO DA TARIFA ENTRE OS ITENS — e a decisao de quando ela e DESCONHECIDA.
+ *
+ * ⚠️ NASCEU DE UM DEFEITO VISTO EM PRODUCAO (12/09/2026): a mesma
+ * linha da tabela exibia "Venda —" e "Tarifa 0,00". Os dois valores faltavam
+ * pelo mesmo motivo (pedido `Pending`, a Amazon ainda nao publicou), mas o zero
+ * AFIRMAVA que a Amazon nao cobrou nada — e inflava a margem daquela venda.
+ *
+ * A causa nao era uma conta errada: era `fees: number` no acumulador por
+ * pedido, que comeca em 0 e soma. Pedido sem nenhum componente de tarifa
+ * chegava aqui identico a pedido com tarifa zero de verdade. Tipo que nao
+ * distingue + falha silenciosa: nada ficou vermelho, o SQL nao errou, e so a
+ * tela mentiu.
+ *
+ * ⚠️ E A FRONTEIRA E `porTipo`, NAO `fees === 0`. A decomposicao e
+ * a prova de que a Amazon falou: com componentes postados, zero e um FATO dela
+ * (uma cobranca e o estorno dela se anulam) e a tela pode exibir R$ 0,00. Sem
+ * componente nenhum, nao ha o que exibir. E quando `fees` e diferente de zero,
+ * o numero vale mesmo sem decomposicao — tarifa que a Amazon cobrou por um
+ * componente que ainda nao sabemos nomear continua sendo dinheiro que saiu.
+ */
+export function rateioDaTarifa(
+  orderFin: { fees: number; porTipo: Record<string, number> } | undefined,
+  itemRevenues: number[],
+): number[] | null {
+  if (!orderFin) return null;
+  const semEvidencia = orderFin.fees === 0 && Object.keys(orderFin.porTipo).length === 0;
+  if (semEvidencia) return null;
+  return allocateByWeight(orderFin.fees, itemRevenues);
+}
+
 export function getAmazonProfitability(period: Period): Promise<ProfitabilityResult> {
   return cached(`order-profitability:${cacheScope()}:${period.key}`, 5 * 60_000, async () => {
     // Taxas por pedido vêm da Transactions API (a Finances v0 devolve zerado);
@@ -27,7 +58,7 @@ export function getAmazonProfitability(period: Period): Promise<ProfitabilityRes
       // Taxa total do pedido (da Amazon) rateada entre os itens por receita.
       const orderFin = orderFinancials[order.amazonOrderId];
       const itemRevenues = items.map((item) => amount(item.ItemPrice));
-      const feeShares = orderFin ? allocateByWeight(orderFin.fees, itemRevenues) : null;
+      const feeShares = rateioDaTarifa(orderFin, itemRevenues);
       items.forEach((item, index) => {
         const quantity = item.QuantityOrdered ?? item.QuantityShipped ?? 0;
         // Pedido `Pending` vem SEM `ItemPrice` e sem `OrderTotal` — a Amazon só
