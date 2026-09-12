@@ -72,7 +72,12 @@ test("a declaracao da base fica VISIVEL SEM INTERACAO na coluna de Margem", asyn
   //
   // O que ela garante nao mudou nas tres versoes: a base e LIDA sem hover.
   const ml = await fonte("src/app/components/MercadoLivreWorkspace.tsx");
-  const painel = await fonte("src/app/components/PainelV3.tsx");
+  // ⚠️ MUDOU DE ARQUIVO EM 12/09/2026, NAO DE EXIGENCIA: a
+  // faixa do periodo saiu do `PainelV3` e virou peca compartilhada
+  // (`FaixaDoPeriodoV3`) quando a Amazon entrou no mesmo padrao. Esta guarda
+  // ficou vermelha na extracao — e era para ficar: ela existe justamente para
+  // reprovar quando a declaracao da base some do lugar visivel.
+  const painel = await fonte("src/app/components/FaixaDoPeriodoV3.tsx");
   // ⚠️ Sem comentario: a nota que explica a mudanca cita
   // `nota: ""` e `sub={margemSub}`, e casar o fonte cru aprovaria o comentario
   // no lugar do codigo.
@@ -93,12 +98,12 @@ test("a declaracao da base fica VISIVEL SEM INTERACAO na coluna de Margem", asyn
   // literal, sem recorte e sem regex montada: guarda esperta que erra a
   // fronteira prova menos que guarda burra que acerta.
   assert.ok(
-    codigoDoPainel.includes('{dados.margem.nota ? <span className="v3-coluna-share">{dados.margem.nota}</span> : null}'),
+    codigoDoPainel.includes('{margem.nota ? <span className="v3-coluna-share">{margem.nota}</span> : null}'),
     "a nota da margem saiu da linha visivel do painel",
   );
   // ⚠️ E nao pode virar tooltip em nenhum dos dois lados.
   assert.ok(!/info=\{margemSub\}|info=\{baseDoResultado\}/.test(codigo), "a base foi parar no 'i'");
-  assert.ok(!/title=\{dados\.margem\.nota\}/.test(codigoDoPainel), "a base foi parar num title=");
+  assert.ok(!/title=\{margem\.nota\}/.test(codigoDoPainel), "a base foi parar num title=");
 });
 
 test("pedido aguardando entra com NUMERO quando o backend nao mandar a contagem", async () => {

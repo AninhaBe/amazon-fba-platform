@@ -31,6 +31,8 @@
 
 import type { ReactNode } from "react";
 
+import { FaixaDoPeriodoV3, type ColunaDoPeriodo, type MargemDoPeriodo } from "./FaixaDoPeriodoV3";
+
 /* ── Cores da v3 ──────────────────────────────────────────────────────────── */
 
 const VERDE = "#167a56";
@@ -42,25 +44,14 @@ const CHIP_ATENCAO = "#fceadb";
 
 /* ── Contrato ─────────────────────────────────────────────────────────────── */
 
-export interface ColunaDoPeriodo {
-  id: string;
-  rotulo: string;
-  /** Já formatado. Travessão quando desconhecido — nunca "R$ 0,00". */
-  valor: string;
-  share: string;
-  /**
-   * `positivo` pinta o valor de verde; `negativo`, de vermelho; `vazio`, de
-   * cinza.
-   *
-   * ⚠️ `negativo` ENTROU EM 11/09/2026 PORQUE FALTAVA, e a falta
-   * pintava prejuizo de VERDE: a coluna de Lucro mandava `"positivo"` para
-   * qualquer lucro nao-nulo, inclusive negativo. A regra da casa e que cor
-   * significa estado — verde e dinheiro, vermelho e prejuizo —, e o CSS ja tinha
-   * `.v3-coluna-valor.is-negativo`; so ninguem podia chegar nele por aqui.
-   */
-  tom?: "normal" | "positivo" | "negativo" | "vazio";
-  dica?: string;
-}
+/**
+ * ⚠️ A DEFINICAO MUDOU DE ARQUIVO EM 12/09/2026 (foi para a
+ * `FaixaDoPeriodoV3`, quando a faixa virou peca compartilhada com a Amazon) e e
+ * RE-EXPORTADA daqui de proposito: quem ja importava `ColunaDoPeriodo` do
+ * `PainelV3` continua importando do mesmo lugar. Extracao nao e hora de mandar
+ * o resto do produto atualizar import.
+ */
+export type { ColunaDoPeriodo, MargemDoPeriodo } from "./FaixaDoPeriodoV3";
 
 export interface ProdutoDaMargem {
   id: string;
@@ -101,7 +92,7 @@ export interface DadosV3 {
   periodoLabel: string;
   resumoApuracao: ReactNode;
   colunas: ColunaDoPeriodo[];
-  margem: { valor: string; tom: "positivo" | "negativo" | "vazio"; nota: string };
+  margem: MargemDoPeriodo;
   notaDoImposto: ReactNode | null;
   produtos: ProdutoDaMargem[];
   ritmo: {
@@ -142,40 +133,14 @@ export function PainelV3({ dados }: { dados: DadosV3 }) {
 
   return (
     <div className="v3">
-      {/* ── A faixa do período: sete colunas ─────────────────────────────── */}
-      <section className="v3-card v3-faixa">
-        <div className="v3-card-cab">
-          <h2>{dados.periodoLabel}</h2>
-          <div className="v3-card-cab-dir">
-            <span className="v3-meta">{dados.resumoApuracao}</span>
-            <a className="v3-btn" href={dados.hrefs.resultado}>Abrir resultado →</a>
-          </div>
-        </div>
-
-        <div className="v3-colunas">
-          {dados.colunas.map((c) => (
-            <div className="v3-coluna" key={c.id}>
-              <p className="v3-coluna-rotulo">
-                {c.rotulo}
-                {c.dica ? (
-                  <span className="metric-info" data-dica={c.dica} tabIndex={0} role="note">i</span>
-                ) : null}
-              </p>
-              <strong className={`v3-coluna-valor${c.tom && c.tom !== "normal" ? ` is-${c.tom}` : ""}`}>
-                {c.valor}
-              </strong>
-              {c.share ? <span className="v3-coluna-share">{c.share}</span> : null}
-            </div>
-          ))}
-          <div className="v3-coluna is-ultima">
-            <p className="v3-coluna-rotulo">Margem</p>
-            <strong className={`v3-coluna-valor is-${dados.margem.tom}`}>{dados.margem.valor}</strong>
-            {dados.margem.nota ? <span className="v3-coluna-share">{dados.margem.nota}</span> : null}
-          </div>
-        </div>
-
-        {dados.notaDoImposto ? <p className="v3-nota">{dados.notaDoImposto}</p> : null}
-      </section>
+      <FaixaDoPeriodoV3
+        periodoLabel={dados.periodoLabel}
+        resumoApuracao={dados.resumoApuracao}
+        hrefResultado={dados.hrefs.resultado}
+        colunas={dados.colunas}
+        margem={dados.margem}
+        notaDoImposto={dados.notaDoImposto}
+      />
 
       {/* ── Top N produtos · Ritmo + pendências ──────────────────────────── */}
       <section className="v3-duas">
