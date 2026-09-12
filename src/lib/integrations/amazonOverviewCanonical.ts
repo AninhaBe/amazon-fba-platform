@@ -8,7 +8,9 @@ import { getCosts, costAt } from "../costStore";
 import { cached } from "../cache";
 import { allocateByWeight, calculateContribution, type ProfitabilityLine } from "../profitability";
 import { descontarAnuncio } from "../financialMath";
-import { anuncioDoCanal } from "../anuncioDoCanal";
+import { anuncioDoCanal, gastoDeAnuncioPorDia } from "../anuncioDoCanal";
+import { tacosDoPeriodo, type TacosDoPeriodo } from "./tacosDoCanal";
+import { lucroPorDiaDaAmazon } from "./lucroPorDiaDaAmazon";
 import type { Period } from "../period";
 import { amazonConnectionId } from "./amazonSync";
 import { brazilDateKey } from "./mercadoLivre";
@@ -74,8 +76,25 @@ export interface AmazonCanonicalOverview {
   };
   /** Unidades vendidas por SKU no período — insumo da velocidade do radar. */
   velocityBySku: Record<string, number>;
-  /** Série diária contínua (dias sem venda zerados) no fuso de São Paulo. */
-  dailySales: Array<{ date: string; revenue: number; orders: number; units: number }>;
+  /**
+   * Série diária contínua (dias sem venda zerados) no fuso de São Paulo.
+   *
+   * `profit` segue a semântica do v3 do ML (contrato fechado com a Vitrine em
+   * 12/09/2026): `0` é fato, `null` é "não apurável" e vira contorno na tela.
+   * O dia só é apurável quando TODOS os pedidos não cancelados dele têm valor
+   * (publicado ou preço de tabela da estimativa), tarifa (real ou estimada,
+   * view efetivas), custo de todas as unidades E o anúncio daquele dia é
+   * conhecido — o lucro da Amazon desconta ads (decisão de 25/08), então dia
+   * depois de `adsAteDia` sai `null`, coerente com o período.
+   * `profitEstimated: true` = a tarifa do dia inclui estimativa ADR-027 — é a
+   * marca "estimado" que a Ana aprovou para a coluna.
+   * `refunds` = estorno POSTADO naquele dia (data do lançamento) — presente
+   * quando > 0 para a dica explicar barra derrubada por venda antiga.
+   */
+  dailySales: Array<{
+    date: string; revenue: number; orders: number; units: number;
+    profit: number | null; profitEstimated?: boolean; refunds?: number;
+  }>;
   topProducts: AmazonCanonicalTopProduct[];
   profit: {
     revenueProcessed: number;
@@ -142,6 +161,14 @@ export interface AmazonCanonicalOverview {
     adsDesconhecido: boolean;
     /** Último dia com métrica. Os dias que faltam não são extrapolados. */
     adsAteDia: string | null;
+    /**
+     * TACOS do período — mesmo shape do ML (`tacosDoCanal`). Denominador é o
+     * faturamento do lucro (`revenueDoLucro`), nunca `paid_revenue`: cancelada
+     * no denominador infla, e denominador inflado mente o TACOS para baixo.
+     */
+    tacos: TacosDoPeriodo;
+    /** Último dia com gasto coletado — o dia corrente ainda soma. */
+    tacosAteDia: string | null;
     unitsWithCost: number;
     unitsWithoutCost: number;
     /** SKUs distintos sem custo — a unidade de ACAO da vendedora. */
@@ -853,7 +880,7 @@ export async function getAmazonOverviewFromCanonical(
     // invente entra aqui sozinho, em vez de somar receita sem custo.
     dbQuery<{ sku: string | null; external_product_id: string; qty: number; occurred_at: string;
               external_order_id: string; valor_do_pedido: string | null; tarifa_do_pedido: string | null;
-              preco_estimado: string | null }>(
+              tarifa_estimada_do_pedido: string | null; preco_estimado: string | null }>(
       // ⚠️ `external_order_id`, o VALOR e a TARIFA do pedido entram aqui por causa
       // do universo coerente (04/09/2026) — ver `UNIVERSO COERENTE` mais abaixo.
       // A tarifa vem por subconsulta escalar, nao por join: join com a tabela de
@@ -864,6 +891,13 @@ export async function getAmazonOverviewFromCanonical(
                 WHERE f.workspace_id = o.workspace_id AND f.provider = o.provider
                   AND f.connection_id = o.connection_id AND f.external_order_id = o.external_order_id
                   AND f.fee_type <> 'refund')::text AS tarifa_do_pedido,
+              -- A parte ESTIMADA da mesma tarifa, para o lucro POR DIA marcar a
+              -- coluna como estimativa (ADR-027). Mesma view, mesmo grao: parte
+              -- do todo por construcao, nunca soma por cima do total.
+              (SELECT SUM(f.amount) FROM workspace_channel_order_fees_efetivas f
+                WHERE f.workspace_id = o.workspace_id AND f.provider = o.provider
+                  AND f.connection_id = o.connection_id AND f.external_order_id = o.external_order_id
+                  AND f.fee_type <> 'refund' AND f.basis = 'estimated')::text AS tarifa_estimada_do_pedido,
               -- O PRECO SOBRE O QUAL A TARIFA FOI CALCULADA. E ele que serve de
               -- receita quando a Amazon ainda nao publicou valor: assim receita
               -- e tarifa saem do MESMO preco, que e o que faz a conta fechar.
@@ -1190,7 +1224,7 @@ export async function getAmazonOverviewFromCanonical(
    * R$ 410,28, tarifa R$ 149,01, custo R$ 186,43, imposto 5% R$ 20,51 ->
    * **lucro R$ 54,33**. Sem aliquota configurada: R$ 74,84.
    */
-  const porPedido = new Map<string, { valor: number | null; tabela: number; tarifa: number | null; custo: number; temCusto: boolean }>();
+  const porPedido = new Map<string, { valor: number | null; tabela: number; tarifa: number | null; custo: number; temCusto: boolean; dia: string; tarifaEstimada: boolean }>();
   for (const linha of pendenteLinhas) {
     const id = linha.external_order_id;
     if (!porPedido.has(id)) {
@@ -1200,6 +1234,10 @@ export async function getAmazonOverviewFromCanonical(
         tarifa: linha.tarifa_do_pedido == null ? null : Number(linha.tarifa_do_pedido),
         custo: 0,
         temCusto: true,
+        // O DIA CIVIL do pedido, no mesmo fuso da serie diaria — e a chave que
+        // liga este universo coerente ao lucro por dia.
+        dia: brazilDateKey(new Date(linha.occurred_at)),
+        tarifaEstimada: linha.tarifa_estimada_do_pedido != null && Number(linha.tarifa_estimada_do_pedido) > 0,
       });
     }
     const alvo = porPedido.get(id)!;
@@ -1272,6 +1310,62 @@ export async function getAmazonOverviewFromCanonical(
   );
   const estimatedProfit = lucro.estimatedProfit;
 
+  // ═══ LUCRO POR DIA (contrato com a Vitrine, 12/09/2026) ═════════════════════
+  //
+  // A garantia e a do v3 do ML — `0` e fato, `null` e desconhecido e vira
+  // contorno — com os mecanismos DESTE canal (regra da dona: replicar a
+  // garantia, nunca o mecanismo):
+  //   - a tarifa do dia sai da view efetivas (real OU estimada ADR-027), e o
+  //     dia com estimativa dentro ganha `profitEstimated: true` — o "lucro
+  //     estimado marcado" que a Ana aprovou;
+  //   - o imposto segue a excecao ADR-038 do periodo (aliquota ausente = 0 com
+  //     rastro em `taxRateKnown`), NAO a regra do ML (null) — e a regra do canal;
+  //   - o lucro da Amazon desconta ANUNCIO (25/08). Dia sem gasto conhecido
+  //     (depois de `adsAteDia`, com o canal dentro da janela viva de coleta)
+  //     e dia NAO apuravel — o mesmo motivo que anula o lucro do periodo;
+  //   - o ESTORNO entra no dia do LANCAMENTO (`posted_at`), nao no do pedido, e
+  //     sai tambem como `refunds` para a dica explicar barra derrubada por
+  //     venda de semanas atras (pedido da Vitrine, item a do contrato).
+  //
+  // O universo e o MESMO `porPedido` do resultado do periodo — uma fonte, duas
+  // agregacoes — para a soma dos dias fechar com a faixa quando tudo apurar.
+  const [estornoPorDiaRows, adsPorDia] = await Promise.all([
+    dbQuery<{ dia: string; estorno: string }>(
+      `SELECT to_char(COALESCE(f.posted_at, o.occurred_at) AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD') AS dia,
+              COALESCE(SUM(f.amount), 0)::text AS estorno
+         FROM workspace_channel_order_fees f
+         JOIN workspace_channel_orders o
+           ON o.workspace_id = f.workspace_id AND o.provider = f.provider
+          AND o.connection_id = f.connection_id AND o.external_order_id = f.external_order_id
+        WHERE f.workspace_id = $1 AND f.provider = $2 AND f.connection_id = $3
+          AND f.fee_type = 'refund'
+          AND o.occurred_at >= $4 AND o.occurred_at <= $5
+          AND COALESCE(f.posted_at, o.occurred_at) >= $4
+          AND COALESCE(f.posted_at, o.occurred_at) <= $5
+          AND o.status <> 'cancelled'
+          AND ($6::boolean OR COALESCE(NULLIF(o.gross, 0), o.ordered_gross) IS NOT NULL)
+        GROUP BY 1`,
+      [...scopeParams(connectionId, period), baseCobreTodosOsPedidos],
+    ),
+    gastoDeAnuncioPorDia(PROVIDER, period.startISO, period.endISO),
+  ]);
+  const estornoPorDia = new Map(estornoPorDiaRows.map((r) => [r.dia, Number(r.estorno)]));
+
+  // A decisao dia a dia mora em `lucroPorDiaDaAmazon.ts`, PURA de proposito:
+  // e la que os testes exercitam as fronteiras com valores fabricados.
+  const dailySalesComLucro = lucroPorDiaDaAmazon({
+    pontos: dailySales,
+    pedidos: porPedido.values(),
+    estornoPorDia,
+    anuncio: {
+      jaNoExtrato: anuncio.jaNoExtrato,
+      primeiroDia: adsPorDia.primeiroDia,
+      ateDia: adsPorDia.ateDia,
+      gastoPorDia: adsPorDia.gastoPorDia,
+    },
+    taxRate,
+  });
+
   const topProducts: AmazonCanonicalTopProduct[] = productTotalsRows
     .map((row) => {
       const revenue = Number(row.revenue);
@@ -1312,7 +1406,7 @@ export async function getAmazonOverviewFromCanonical(
       lastSaleAt: totals.last_sale_at ? new Date(totals.last_sale_at).toISOString() : null,
     },
     velocityBySku,
-    dailySales,
+    dailySales: dailySalesComLucro,
     topProducts,
     profit: {
       revenueProcessed: +processedRevenue.toFixed(2),
@@ -1361,6 +1455,18 @@ export async function getAmazonOverviewFromCanonical(
       ads: lucro.ads,
       adsDesconhecido: lucro.adsDesconhecido,
       adsAteDia: lucro.ateDia,
+      /**
+       * TACOS sobre o faturamento do lucro (`receitaDoLucro`) — nunca
+       * `paid_revenue`. `lucro.ads` ja e o gasto pos-extrato (0 quando o
+       * anuncio ja veio como tarifa; null quando desconhecido), entao a
+       * garantia do tacosDoPeriodo — nunca mentir para baixo — atravessa.
+       */
+      tacos: tacosDoPeriodo({
+        gasto: lucro.ads,
+        faturamento: receitaDoLucro,
+        pedidosSemValor,
+      }),
+      tacosAteDia: lucro.ateDia,
       unitsWithCost,
       unitsWithoutCost,
       skusWithoutCost: skusSemCusto.size,

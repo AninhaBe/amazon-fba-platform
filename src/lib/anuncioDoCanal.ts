@@ -152,6 +152,58 @@ export async function anuncioDoCanal(
   };
 }
 
+export interface AnuncioPorDia {
+  /** Gasto por dia civil de Brasília (YYYY-MM-DD), só dos dias com linha. */
+  gastoPorDia: Record<string, number>;
+  /** Último dia com linha DENTRO do período pedido. `null` = nenhum. */
+  ateDia: string | null;
+  /** Primeiro dia com métrica na CONTA (janela viva) — ver `primeiroDiaComAnuncio`. */
+  primeiroDia: string | null;
+}
+
+/**
+ * O gasto POR DIA, com a mesma autoridade do total do período: a tabela de
+ * campanha quando ela tem linha no recorte, a de produto quando não — nunca as
+ * duas (é o mesmo dinheiro em grãos diferentes; somar dobraria).
+ *
+ * Consumidor: o lucro por dia da Amazon (contrato com a Vitrine, 12/09/2026).
+ * A SEMÂNTICA do dia (antes da janela = fato zero; depois de `ateDia` =
+ * desconhecido) fica no consumidor, que conhece o período — aqui só os fatos.
+ */
+export async function gastoDeAnuncioPorDia(
+  provider: string,
+  deISO: string,
+  ateISO: string,
+): Promise<AnuncioPorDia> {
+  if (!hasDb()) return { gastoPorDia: {}, ateDia: null, primeiroDia: null };
+  const de = diaBR(deISO);
+  const ate = diaBR(ateISO);
+  const porDia = async (tabela: "workspace_ad_metrics" | "workspace_ad_product_metrics") => {
+    // `tabela` nunca vem de fora: literal de união, escolhido neste arquivo.
+    const workspace = tabela === "workspace_ad_metrics" ? "$1::uuid" : "$1";
+    return dbQuery<{ dia: string; gasto: string }>(
+      `SELECT to_char(day, 'YYYY-MM-DD') AS dia, COALESCE(SUM(cost), 0)::text AS gasto
+         FROM ${tabela}
+        WHERE workspace_id = ${workspace} AND provider = $2
+          AND day >= $3::date AND day <= $4::date
+        GROUP BY 1`,
+      [currentWorkspaceId(), provider, de, ate],
+    );
+  };
+  const [campanha, primeiroDia] = await Promise.all([
+    porDia("workspace_ad_metrics"),
+    primeiroDiaComAnuncio(provider),
+  ]);
+  const linhas = campanha.length > 0 ? campanha : await porDia("workspace_ad_product_metrics");
+  const gastoPorDia: Record<string, number> = {};
+  let ateDia: string | null = null;
+  for (const linha of linhas) {
+    gastoPorDia[linha.dia] = Number(linha.gasto);
+    if (ateDia == null || linha.dia > ateDia) ateDia = linha.dia;
+  }
+  return { gastoPorDia, ateDia, primeiroDia };
+}
+
 /**
  * O anúncio já veio como TARIFA no extrato do canal?
  *
