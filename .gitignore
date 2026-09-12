@@ -111,3 +111,7 @@ ds-bundle/
 # tire esta linha no mesmo commit que sobe a pagina — assim o motivo da remocao
 # fica no historico junto com a autorizacao.
 src/app/landing-v4/
+
+# worktrees de conferencia/deploy aninhados no repo
+.nexo-hoje/
+.nexo-conferir/
