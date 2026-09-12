@@ -1,0 +1,112 @@
+-- O índice do frete do ML ganha as duas colunas que faltam para NÃO tocar o heap.
+--
+-- ═══ QUEM LÊ ISTO, E POR QUE AGORA ═══
+--
+-- Leitor único: `enviosFaltandoNaJanela`, em
+-- `src/lib/integrations/freteDoMercadoLivre.ts:50`, chamada só de
+-- `mercadoLivreSync.ts`. Não é tela — é o ciclo de sync, "o caminho quente, o
+-- que roda a cada passo", como o comentário da própria função já dizia.
+--
+-- POR QUE AGORA: a Ana recebeu do Supabase, em 11/09/2026, aviso de Disk IO
+-- Budget esgotando mais rápido que a instância sustenta. A migration 0032
+-- respondeu ao ofensor conhecido (a consulta de pendentes do /metrics, que foi
+-- de 13.386 blocos por chamada para ZERO). Esta responde ao que sobrou.
+--
+-- 📌 MEDIDO EM 12/09/2026, janela de 30 min em horário comercial com o app em
+-- uso, por delta de `pg_stat_statements` (não por total acumulado):
+--
+--   esta consulta ............ 36.691 blocos/h = 287 MB/h = 17,4% do IO de leitura
+--   chamadas ................. 23,9 por hora
+--   blocos por chamada ....... 1.533
+--   tempo por chamada ........ 3,1 s
+--
+-- ⚠️ E o achado que ordenou a fila: de madrugada o banco lê MAIS (2,0 GB/h) do
+-- que de dia (1,6 GB/h). O budget não está sendo queimado por tráfego de
+-- usuário — está sendo queimado pelo SYNC. Por isso a fila começou por aqui e
+-- não pelas consultas de tela.
+--
+-- ═══ O DIAGNÓSTICO: NÃO FALTA ÍNDICE, FALTA COBERTURA ═══
+--
+-- O índice parcial de expressão já existe (nasceu no bootstrap de `db.ts`) e já
+-- é usado — 199.971 scans acumulados, 6.088 kB. O `EXPLAIN` mostra
+-- `Index Scan Backward using workspace_marketplace_orders_shipment_idx`.
+--
+-- O problema é ser Index SCAN e não Index ONLY Scan: ele volta ao heap linha a
+-- linha, e o heap traz a coluna `payload`. Medido na mesma data:
+--
+--   payload médio por pedido ......... 1.972 bytes
+--   id de envio extraído dele ........    11 bytes
+--   TOAST da tabela .................. 98 MB dos 124 MB totais
+--
+-- Ou seja: lemos ~1.972 bytes para obter 11. Essa é a conta inteira do ofensor.
+--
+-- Duas colunas faltam para o planner poder dispensar o heap:
+--
+--   `external_order_id` — a única coluna do heap que o `array_agg` precisa;
+--   `occurred_at`       — hoje aparece no plano como `Filter`, não como
+--                         `Index Cond`: a varredura lê linhas fora da janela de
+--                         30 dias só para descartá-las depois.
+--
+-- ⚠️ AS DUAS ENTRAM COMO `INCLUDE`, E `occurred_at` NÃO PODE VIRAR COLUNA-CHAVE
+-- — este é o detalhe que erra fácil. As chaves atuais terminam na expressão do
+-- id de envio, e é essa ordenação que sustenta o `ORDER BY shipment_id DESC` +
+-- `GroupAggregate` + `LIMIT 40` do leitor: o plano custa 101 porque para cedo.
+-- Pôr `occurred_at` como chave antes da expressão destruiria essa ordenação e
+-- trocaria um problema de IO por um de ordenação. Como `INCLUDE`, ela filtra a
+-- partir do índice sem tocar o heap e sem mexer na ordem.
+--
+-- ═══ ⚠️ A RESSALVA HONESTA: ISTO É "PODE", NÃO "VAI" ═══
+--
+-- `Index Only Scan` só entrega o ganho se o MAPA DE VISIBILIDADE da tabela
+-- estiver bom, e isso depende de vacuum. Medido em 12/09/2026:
+-- `workspace_marketplace_orders` tinha 960 tuplas mortas e autovacuum às 01:14 —
+-- a 0032 acabou de apertar exatamente esse parafuso (scale factor 0.05). É
+-- sinergia real, não coincidência. **Mas não é garantia**: se o planner escolher
+-- Index Scan mesmo assim, o ganho é menor que o projetado ou nulo.
+--
+-- 📌 POR ISSO O GANHO SE MEDE DEPOIS DO APPLY, e o número a bater é o de cima:
+-- 1.533 blocos por chamada. Comparar por DELTA de janela em
+-- `pg_stat_statements`, nunca pelo total acumulado — o acumulado carrega o
+-- período anterior ao remédio e faz um conserto que funcionou parecer que não.
+--
+-- ═══ CUSTO EM DISCO, MEDIDO ═══
+--
+--   linhas no índice parcial ......... 39.706
+--   tamanho hoje ..................... 6.088 kB
+--   external_order_id ................ 16 bytes/linha  -> ~659 kB
+--   occurred_at ......................  8 bytes/linha  -> ~310 kB
+--   acréscimo estimado ............... ~970 kB (+16%)
+--
+-- Contra 554 MB de banco no plano Pro de 8 GB, é ruído. Registro mesmo assim
+-- porque a regra da casa é que proposta de índice declara o custo — foi um
+-- índice maior que a própria tabela que abriu esta frente.
+--
+-- ═══ O QUE ELA CUSTA NO INSTANTE DO APPLY ═══
+--
+-- ⚠️ NÃO É ADITIVA — é `DROP` + `CREATE`. `CREATE INDEX ... IF NOT EXISTS` não
+-- altera índice existente, e não há `ALTER INDEX ... ADD INCLUDE`. Entre o DROP
+-- e o CREATE o leitor do frete fica sem índice; se algum ciclo de sync cair
+-- nessa janela, ele faz Seq Scan em 124 MB — lento, não incorreto.
+-- A reconstrução é de ~7 MB e leva segundos.
+--
+-- 📌 A ALTERNATIVA SEM JANELA, se isto incomodar: rodar
+-- `DROP INDEX CONCURRENTLY` + `CREATE INDEX CONCURRENTLY` à mão, fora de
+-- transação. Não cabe num arquivo de migration (o runner roda em transação), e
+-- por isso fica registrado aqui em vez de escondido numa decisão de plantão.
+--
+-- ⚠️ E O BOOTSTRAP DE `db.ts` CONTINUA CRIANDO A FORMA ANTIGA (linha 466). Não
+-- mexi nele de propósito: em banco novo o bootstrap roda ANTES das migrations,
+-- então esta 0035 corrige logo em seguida e o estado final é o mesmo. Mas quem
+-- for editar aquele bloco precisa saber que existem duas definições do mesmo
+-- índice em lugares diferentes, e que a desta migration é a que vale.
+DROP INDEX IF EXISTS workspace_marketplace_orders_shipment_idx;
+
+CREATE INDEX workspace_marketplace_orders_shipment_idx
+  ON workspace_marketplace_orders (
+       workspace_id, provider, connection_id, ((payload #>> '{shipping,id}'))
+     )
+  INCLUDE (external_order_id, occurred_at)
+  WHERE status = 'paid' AND payload #>> '{shipping,id}' IS NOT NULL;
+
+COMMENT ON INDEX workspace_marketplace_orders_shipment_idx IS
+  'Cobre enviosFaltandoNaJanela (freteDoMercadoLivre.ts) para Index Only Scan: as colunas do INCLUDE existem para que a varredura NAO precise do heap, onde mora o payload de ~1972 bytes usado so para extrair 11. occurred_at e INCLUDE e nao chave de proposito — chave antes da expressao quebraria a ordenacao que sustenta o ORDER BY/LIMIT do leitor. Ganho depende do mapa de visibilidade; medir por delta de pg_stat_statements depois do apply (referencia: 1533 blocos por chamada em 12/09/2026).';
