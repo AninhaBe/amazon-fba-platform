@@ -27,6 +27,7 @@ import { NexoDoDia } from "./NexoDoDia";
 import { fatiaDoSobrou, sobreAVenda } from "./caminhoDoDinheiro";
 import { IntegrationDashboardFrame } from "./IntegrationDashboardFrame";
 import { PainelV3, type DadosV3 } from "./PainelV3";
+import { CANAL_MERCADO_LIVRE } from "@/lib/canalV3";
 import { PainelV3Baixo, type DadosV3Baixo } from "./PainelV3Baixo";
 
 /**
@@ -1111,7 +1112,7 @@ export function Dashboard({ overview, syncStatus, periodoQuery, connectionId, se
         revisar, Anúncios pagos e Radar do FULL — não somados. Procurar pelos
         antigos nesta tela não os encontra, que é a checagem que a frente anterior
         falhou. */}
-    <PainelV3Baixo dados={dadosV3Baixo} />
+    <PainelV3Baixo canal={CANAL_MERCADO_LIVRE} dados={dadosV3Baixo} />
 
     {/* No desktop a sidebar já cobre estes atalhos; no mobile a nav é scroll
         horizontal e os cartões ajudam. */}
@@ -1588,6 +1589,6 @@ function Monitor({ overview, secaoInicial, periodoQuery }: { overview: Overview;
       * conciliacao em andamento ("Conciliando N de M vendas"). A segunda e a
       * que aponta falta com numero — se alguem sentir a ausencia, e ela.
       */}
-    {section === "profitability" && <OrderProfitabilityTableV3 lines={overview.profitabilityLines} scopeNote={fraseDeEscopo(overview.profitabilityScope)} />}
+    {section === "profitability" && <OrderProfitabilityTableV3 canal={CANAL_MERCADO_LIVRE} lines={overview.profitabilityLines} scopeNote={fraseDeEscopo(overview.profitabilityScope)} />}
   </div>;
 }

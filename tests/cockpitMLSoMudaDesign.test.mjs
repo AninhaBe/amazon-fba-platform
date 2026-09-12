@@ -361,7 +361,7 @@ test("A ORDEM DOS BLOCOS E A DO CANVAS — e ela ja foi reprovada TRES vezes", a
   const corpo = codigo.slice(codigo.indexOf("<ProgressoDaImportacao"));
   const sequencia = [
     ["a primeira viewport", "<PainelV3 dados="],
-    ["a metade de baixo", "<PainelV3Baixo dados="],
+    ["a metade de baixo", "<PainelV3Baixo canal="],
   ];
   let anterior = -1;
   for (const [nome, marcador] of sequencia) {

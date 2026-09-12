@@ -30,6 +30,7 @@
 import { Fragment, useMemo, useState } from "react";
 import { SeletorNexo } from "./SeletorNexo";
 import { ChevronDown } from "lucide-react";
+import type { CanalV3 } from "@/lib/canalV3";
 import type { ProfitabilityLine } from "@/lib/profitability";
 import { brDate } from "@/lib/datetime";
 import { marginTone } from "@/lib/marginTone";
@@ -172,12 +173,20 @@ function Breakdown({ line }: { line: ProfitabilityLine }) {
 // consome `/api/order-profitability` recebe `scope` como objeto e precisa
 // formatá-lo antes — renderizar o objeto cru derruba a página (React #31).
 export function OrderProfitabilityTableV3({
+  canal,
   lines,
   loading = false,
   error = null,
   scopeNote,
   pageSize = PAGE_SIZE,
 }: {
+  /**
+   * ⚠️ OBRIGATÓRIO, e é o ponto da peça. Esta tabela nasceu no
+   * Mercado Livre e foi reaproveitada pela Amazon com `Tarifa ML` fixo no
+   * cabeçalho — a Amazon exibiu o rótulo do outro canal até 12/09/2026, sem
+   * nada ficar vermelho. Opcional deixaria o próximo canal repetir em silêncio.
+   */
+  canal: CanalV3;
   lines: ProfitabilityLine[];
   loading?: boolean;
   error?: string | null;
@@ -317,7 +326,7 @@ export function OrderProfitabilityTableV3({
             <span>Qtd</span>
             <span>Logística</span>
             <span>Venda</span>
-            <span>Tarifa ML</span>
+            <span>{canal.rotuloDaTarifa}</span>
             <span>Frete</span>
             <span>Custo</span>
             <span>Imposto</span>

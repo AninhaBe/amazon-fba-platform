@@ -16,6 +16,7 @@ import { identidadeDePeriodo } from "../../components/AnimatedNumber";
 import { PainelV3, type DadosV3 } from "../../components/PainelV3";
 import { colunasDoPeriodoAmazon, diasDoRitmoAmazon, entradaDaFaixaDosCards, margemDoPeriodoAmazon, produtosDoTopAmazon } from "./amazonPainelV3";
 import { buscaCompartilhada } from "../../components/buscaCompartilhada";
+import { CANAL_AMAZON } from "@/lib/canalV3";
 import { OrderProfitabilityTableV3 } from "../../components/OrderProfitabilityTableV3";
 import { AnunciosPorProduto, type AnuncioDeProduto } from "../../components/AnunciosPorProduto";
 import { ConnectionBroken, isBrokenConnection } from "../../components/ConnectionBroken";
@@ -1027,6 +1028,7 @@ function Dashboard() {
 
       {/* Rentabilidade por venda — a mesma visão do monitor, direto no dashboard. */}
       <OrderProfitabilityTableV3
+        canal={CANAL_AMAZON}
         lines={profitability}
         loading={profitabilityLoading}
         scopeNote={scopeSentence(profitabilityScope)}

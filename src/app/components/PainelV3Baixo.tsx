@@ -1,4 +1,5 @@
 "use client";
+import type { CanalV3 } from "@/lib/canalV3";
 
 /**
  * A metade de baixo do dashboard na estrutura **v3** — lida do canvas dela
@@ -136,7 +137,16 @@ export interface DadosV3Baixo {
 
 /* ── A metade de baixo ────────────────────────────────────────────────────── */
 
-export function PainelV3Baixo({ dados }: { dados: DadosV3Baixo }) {
+export function PainelV3Baixo({ canal, dados }: {
+  /**
+   * ⚠️ OBRIGATÓRIO pelo mesmo motivo da tabela de vendas: este
+   * bloco também fixava "Tarifa ML" no cabeçalho. Hoje só o Mercado Livre o
+   * renderiza, e é justamente por isso que o campo precisa ser obrigatório —
+   * o canal que chegar segundo é quem herda o rótulo errado em silêncio.
+   */
+  canal: CanalV3;
+  dados: DadosV3Baixo;
+}) {
   return (
     /*
      * ⚠️ O `.v3` AQUI NAO E DECORACAO — ele carrega os tokens do bloco
@@ -165,7 +175,7 @@ export function PainelV3Baixo({ dados }: { dados: DadosV3Baixo }) {
                 <span>Pedido</span>
                 <span>Logística</span>
                 <span>Venda</span>
-                <span>Tarifa ML</span>
+                <span>{canal.rotuloDaTarifa}</span>
                 <span>Frete</span>
                 <span>Custo</span>
                 <span>Imposto</span>
