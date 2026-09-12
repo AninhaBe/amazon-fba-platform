@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { exchangeAuthCode, getAuthorizedShops, epochToIso, TIKTOK_OAUTH_STATE_COOKIE } from "@/lib/tiktok";
 import { saveTiktokAuthorization } from "@/lib/tiktokStore";
 import { validarConviteTiktok } from "@/lib/tiktokInvite";
-import { APP_PADRAO, type AppDoTikTok } from "@/lib/integrations/tiktokApps";
+import { appDaAutorizacao, type AppDoTikTok } from "@/lib/integrations/tiktokApps";
 import { withAuthenticatedWorkspace } from "@/lib/workspaceContext";
 import { currentWorkspaceId, runWithWorkspace } from "@/lib/workspaceScope";
 import { runTiktokSyncBatch, tiktokConnectionId } from "@/lib/integrations/tiktokSync";
@@ -20,8 +20,13 @@ export const dynamic = "force-dynamic";
 //
 // Dois caminhos legítimos chegam aqui:
 //  1. A própria pessoa conectando pelo painel  → sessão + cookie de state (CSRF).
-//  2. Um vendedor autorizando pelo link privado do custom app → sem sessão e sem
+//  2. Um vendedor autorizando pelo link privado de convite → sem sessão e sem
 //     cookie; a origem é provada pela assinatura do `state` (ver tiktokInvite).
+//
+// ⚠️ O Service Market do TikTok NÃO é porta de entrada, por decisão de produto
+// (11/09/2026): uma autorização iniciada lá chegaria aqui sem o nosso `state`,
+// e sem ele não há como saber para QUAL workspace a loja vai. A entrada é só
+// pelo nosso botão. Isto é decisão, não lacuna.
 export async function GET(req: NextRequest) {
   const { searchParams, origin } = new URL(req.url);
   const state = searchParams.get("state");
@@ -37,7 +42,18 @@ export async function GET(req: NextRequest) {
     return runWithWorkspace(convite.workspaceId, () =>
       concluir(req, baseUrl, { exigirCookie: false, app: convite.app }));
   }
-  return withAuthenticatedWorkspace(() => concluir(req, baseUrl, { exigirCookie: true, app: APP_PADRAO }));
+  // ⚠️ O CAMINHO DO PAINEL PASSOU A SER O PÚBLICO em 11/09/2026. Antes ele
+  // mandava `APP_PADRAO` (= custom): mesmo com a URL de autorização corrigida, a
+  // troca do `auth_code` iria com a chave do app-sonda e o token voltaria
+  // negado. Os dois lados — montar a URL e trocar o código — mudam juntos, ou o
+  // consentimento acontece num app e a troca no outro.
+  const app = appDaAutorizacao();
+  if (!app) {
+    return NextResponse.redirect(
+      `${baseUrl}/integracoes?error=${encodeURIComponent("A conexão com a TikTok Shop está indisponível no momento.")}`
+    );
+  }
+  return withAuthenticatedWorkspace(() => concluir(req, baseUrl, { exigirCookie: true, app }));
 }
 
 async function concluir(

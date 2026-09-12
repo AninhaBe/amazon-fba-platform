@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { NextRequest } from "next/server";
 import { tiktokAuthorizationUrl } from "@/lib/tiktok";
 import { appDaAutorizacao } from "@/lib/integrations/tiktokApps";
 import { criarConviteTiktok } from "@/lib/tiktokInvite";
@@ -12,13 +11,20 @@ export const dynamic = "force-dynamic";
 // Link privado para o vendedor autorizar a loja dele sem ter conta aqui.
 // Só quem está logado gera o link — é a sessão que define o workspace de destino,
 // e a assinatura do state impede que ele seja apontado para outro.
-export async function GET(req: NextRequest) {
+export async function GET() {
   return withAuthenticatedWorkspace(async () => {
     try {
-      // ⚠️ `?app=publico` existe para a REVISAO FUNCIONAL do app publico, e cai
-      // no custom sozinho se as tres variaveis do publico nao estiverem no
-      // ambiente. Ele morre com a convivencia — ver `tiktokApps.ts`.
-      const app = appDaAutorizacao(new URL(req.url).searchParams.get("app"));
+      // ⚠️ O PARAMETRO `?app=` MORREU em 11/09/2026, e nao por limpeza: com o
+      // publico sendo o unico app de autorizacao, deixar o chamador ESCOLHER
+      // seria a mesma porta que o botao acabou de fechar. O convite vai pelo
+      // publico, como tudo que autoriza daqui para frente.
+      const app = appDaAutorizacao();
+      if (!app) {
+        return NextResponse.json(
+          { error: "A conexão com a TikTok Shop está indisponível no momento." },
+          { status: 503 }
+        );
+      }
       const state = criarConviteTiktok(currentWorkspaceId(), undefined, app);
       const convite = validade(state);
       return NextResponse.json({

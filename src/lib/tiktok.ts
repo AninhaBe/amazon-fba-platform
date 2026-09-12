@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { registrarChamada } from "./integrations/contadorDeChamadas";
-import { APP_PADRAO, credenciaisDoApp, type AppDoTikTok } from "./integrations/tiktokApps";
+import { appPublicoConfigurado, credenciaisDoApp, type AppDoTikTok } from "./integrations/tiktokApps";
 
 // Cliente TikTok Shop Partner API v2.
 // - Token endpoints (get/refresh): usam app_key+app_secret direto, SEM assinatura.
@@ -16,16 +16,25 @@ const API_BASE = "https://open-api.tiktokglobalshop.com";
 const AUTH_BASE = "https://services.tiktokshop.com/open/authorize";
 export const TIKTOK_OAUTH_STATE_COOKIE = "sellercore_tiktok_oauth_state";
 
+/**
+ * O canal está disponível para CONECTAR?
+ *
+ * ⚠️ Isto responde pelo app PÚBLICO, e a mudança é de 11/09/2026. Até essa data
+ * a função lia as variáveis do CUSTOM — e é ela que decide se o cartão do
+ * TikTok aparece habilitado em `/integracoes` (`api/integrations/route.ts`).
+ * Com o público sendo o único app de autorização, responder pelo custom fazia o
+ * botão prometer um caminho que depende de OUTRA credencial: o vendedor
+ * clicaria por causa de uma variável e quebraria por falta de outra.
+ *
+ * 📌 Não confunda com "o canal funciona": a conexão já gravada com o custom
+ * continua sincronizando com o par dela. Isto é sobre PODER CONECTAR UMA NOVA.
+ */
 export function tiktokConfigured(): boolean {
-  return !!(
-    process.env.TIKTOK_APP_KEY &&
-    process.env.TIKTOK_APP_SECRET &&
-    (process.env.TIKTOK_SERVICE_ID || process.env.TIKTOK_AUTH_URL)
-  );
+  return appPublicoConfigurado();
 }
 
 /** Monta a autorização ROW (inclui Brasil) e sempre injeta um state novo. */
-export function tiktokAuthorizationUrl(state: string, app: AppDoTikTok = APP_PADRAO): string {
+export function tiktokAuthorizationUrl(state: string, app: AppDoTikTok): string {
   // ⚠️ `TIKTOK_AUTH_URL` so vale para o CUSTOM: e uma URL inteira, colada do
   // console daquele app. Usa-la para o publico mandaria o vendedor autorizar o
   // app errado — e o consentimento pareceria ter funcionado.
@@ -45,7 +54,7 @@ export function tiktokAuthorizationUrl(state: string, app: AppDoTikTok = APP_PAD
   return url.toString();
 }
 
-function creds(app: AppDoTikTok = APP_PADRAO): { key: string; secret: string } {
+function creds(app: AppDoTikTok): { key: string; secret: string } {
   const { key, secret } = credenciaisDoApp(app);
   if (!key || !secret) {
     // A mensagem diz QUAL app falta: com dois pares no ar, "configure as
@@ -88,7 +97,7 @@ interface TokenData {
   seller_base_region?: string;
 }
 
-async function tokenCall(op: "get" | "refresh", extra: Record<string, string>, signal?: AbortSignal, app: AppDoTikTok = APP_PADRAO): Promise<TokenData> {
+async function tokenCall(op: "get" | "refresh", extra: Record<string, string>, signal: AbortSignal | undefined, app: AppDoTikTok): Promise<TokenData> {
   const { key, secret } = creds(app);
   const url = new URL(`${TOKEN_BASE}/${op}`);
   url.searchParams.set("app_key", key);
@@ -113,7 +122,7 @@ async function tokenCall(op: "get" | "refresh", extra: Record<string, string>, s
 }
 
 /** Troca o auth_code (do consentimento) por access_token + refresh_token. */
-export function exchangeAuthCode(authCode: string, app: AppDoTikTok = APP_PADRAO): Promise<TokenData> {
+export function exchangeAuthCode(authCode: string, app: AppDoTikTok): Promise<TokenData> {
   // ⚠️ O `auth_code` e emitido PARA UM APP. Trocar com o par do outro devolve
   // token negado — e e exatamente o que aconteceria com o revisor do TikTok se
   // o app nao viesse ate aqui.
@@ -121,7 +130,7 @@ export function exchangeAuthCode(authCode: string, app: AppDoTikTok = APP_PADRAO
 }
 
 /** Renova o access_token usando o refresh_token. */
-export function refreshAccessToken(refreshToken: string, signal?: AbortSignal, app: AppDoTikTok = APP_PADRAO): Promise<TokenData> {
+export function refreshAccessToken(refreshToken: string, signal: AbortSignal | undefined, app: AppDoTikTok): Promise<TokenData> {
   // O refresh tambem e por app: token do publico so renova com o par do publico.
   return tokenCall("refresh", { refresh_token: refreshToken, grant_type: "refresh_token" }, signal, app);
 }
@@ -132,8 +141,16 @@ export interface TiktokFetchOpts {
   body?: unknown;
   accessToken: string;
   shopCipher?: string;
-  /** Qual app assina a chamada. Ausente = custom, que e a conexao de hoje. */
-  app?: AppDoTikTok;
+  /**
+   * Qual app assina a chamada — OBRIGATÓRIO desde 11/09/2026.
+   *
+   * ⚠️ Era opcional, e "ausente = custom" foi exatamente o mecanismo que deixou
+   * dois sítios esquecerem o campo sem o compilador reclamar (o scheduler
+   * financeiro, que roda a cada ciclo, e a rota de amostra). Campo opcional com
+   * default silencioso é a forma que este defeito assume: o tipo não
+   * distingue, o `tsc` fica feliz e só a conta sai errada.
+   */
+  app: AppDoTikTok;
 }
 
 /** Converte somente falhas inequívocas de credencial em um erro operacional
@@ -219,7 +236,7 @@ export interface TiktokShopInfo {
 /** Lojas autorizadas pelo vendedor (contém o shop_cipher usado nas demais chamadas). */
 export async function getAuthorizedShops(
   accessToken: string,
-  app: AppDoTikTok = APP_PADRAO
+  app: AppDoTikTok
 ): Promise<TiktokShopInfo[]> {
   // ⚠️ ESTA e a primeira chamada assinada depois do consentimento, e era por
   // ela que a migracao para o app publico quebrava: o `auth_code` ia trocado

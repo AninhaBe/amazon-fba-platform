@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { APP_PADRAO, appDaConexao, type AppDoTikTok } from "./integrations/tiktokApps";
+import { APP_DE_LINHA_ANTIGA, appDaConexao, type AppDoTikTok } from "./integrations/tiktokApps";
 
 // Convite de autorização do TikTok Shop.
 //
@@ -49,14 +49,16 @@ function assinar(corpo: string): string {
 export function criarConviteTiktok(
   workspaceId: string,
   validadeDias = VALIDADE_PADRAO_DIAS,
-  app: AppDoTikTok = APP_PADRAO,
+  app: AppDoTikTok,
 ): string {
   if (!workspaceId) throw new Error("Convite do TikTok exige um workspace.");
   const expira = Math.floor(Date.now() / 1000) + validadeDias * 86_400;
-  // `a` so entra quando NAO e o padrao: convite de custom continua byte a byte
-  // o mesmo de antes, e os links ja distribuidos seguem validos.
+  // ⚠️ O FORMATO DO FIO NAO MUDA: `a` ausente continua significando `custom`,
+  // porque e assim que os convites ja distribuidos foram assinados e e assim
+  // que `validarConviteTiktok` os le. Mudar isso invalidaria link em circulacao
+  // — e a constante que manda aqui e a da LINHA ANTIGA, nao a da autorizacao.
   const dados: Record<string, unknown> = { w: workspaceId, exp: expira };
-  if (app !== APP_PADRAO) dados.a = app;
+  if (app !== APP_DE_LINHA_ANTIGA) dados.a = app;
   const corpo = Buffer.from(JSON.stringify(dados), "utf8").toString("base64url");
   return `${PREFIXO}.${corpo}.${assinar(corpo)}`;
 }

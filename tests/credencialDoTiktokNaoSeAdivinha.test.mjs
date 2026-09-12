@@ -75,9 +75,10 @@ test("a primeira chamada assinada do consentimento usa o app que autorizou", () 
       "autorizacao pelo app publico falha logo apos a troca do auth_code."
   );
   assert.ok(
-    TIKTOK.includes("export async function getAuthorizedShops(\n  accessToken: string,\n  app: AppDoTikTok = APP_PADRAO\n)"),
-    "getAuthorizedShops precisa aceitar o app; sem o parametro, o callback nao " +
-      "tem como dizer com qual par assinar."
+    TIKTOK.includes("export async function getAuthorizedShops(\n  accessToken: string,\n  app: AppDoTikTok\n)"),
+    "getAuthorizedShops precisa EXIGIR o app. Ate 11/09/2026 o parametro tinha " +
+      "default `= APP_PADRAO`, e default de assinatura e o mecanismo deste " +
+      "defeito: quem esquece assina com o app errado e o `tsc` nao reclama."
   );
 });
 

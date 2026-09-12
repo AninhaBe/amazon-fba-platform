@@ -143,26 +143,42 @@ conforme for concluindo.
   Entra na fila normal — **não fura** App review do TikTok, relatório do
   cancelamento da Amazon nem a remedição de IO.
 
-- [ ] **TikTok: aposentar o app custom** — a aprovação **já chegou**.
-  ⚠️ **Isto é a segunda etapa de uma migração já decidida** (dona do produto,
-  04/09/2026), não uma melhoria opcional. Os dois apps ainda convivem, mas
-  **não é mais o TikTok que segura**: o app público foi **aprovado e publicado
-  em 11/09/2026** (Go Live Review; já está no Service Market). Até esta data o
-  item dizia *"quando o app público for aprovado"* e *"o público existe para a
-  revisão funcional"* — quem o lesse concluiria que a fila esperava o
-  marketplace. **Quem bloqueia somos nós**, e o bloqueio tem nome: o apply da
-  migration `0033` e o deploy da leva do TikTok.
-  **Na ordem, e ela não inverte:** apply da `0033` (a `0032` vai junto, e ela
-  toma lock — janela calma) → deploy da leva → confirmação da dona do produto
-  de que a loja conectada é dela → janela combinada com ela → a loja
-  reautoriza pelo app público (link de convite com `?app=publico`; o Service
-  Market **não** serve, porque o app viaja dentro do `state` assinado do
-  convite) → **a assinatura pelo público é validada de verdade** (linha com
-  `app='publico'` e chamada de negócio respondendo) → o custom é
-  aposentado → `TIKTOK_APP_KEY`, `TIKTOK_APP_SECRET` e `TIKTOK_SERVICE_ID` saem
-  do Fly, **passo da dona do produto** → e só então
-  `src/lib/integrations/tiktokApps.ts` e o parâmetro `app` que ele
-  espalhou morrem junto.
+- [ ] **TikTok: desligar o app custom** — o público é o único daqui para frente.
+  ⚠️ **NÃO HÁ MIGRAÇÃO.** Decisão da dona do produto em 11/09/2026, verbatim:
+  *"pode desligar o custom do tiktok, vamos usar a aplicacao do tiktok que foi
+  aprovada (public)"*. A loja que está conectada pelo custom era **sonda** —
+  serviu para medir o que a API entrega, nunca foi produção. Qualquer vendedor,
+  inclusive o dono dela, integra a própria loja do zero pelo botão.
+  📌 **Até 11/09 este item descrevia outra coisa** ("a loja reautoriza pelo app
+  público", link de convite com `?app=publico`). Aquilo não vai acontecer, e
+  fica registrado para ninguém achar que a etapa sumiu sem explicação.
+  **Já feito:** toda autorização nova vai pelo público, a ausência das
+  credenciais do público é **recusa** (nunca fallback para o custom), e
+  `tiktokConfigured()` responde pelo público — é ela que habilita o cartão em
+  `/integracoes`.
+  **O que falta, na ordem, e ela não inverte:**
+  1. medir V2 (as três `TIKTOK_PUBLIC_*` **dentro do processo**) e V3 (escopos
+     `finance.info` e `order.info` ativos no público — escopo **não** herda do
+     custom) — **com a sonda ainda viva**, para descobrir problema enquanto
+     ainda há loja conectada para medir;
+  2. um vendedor integra pelo botão, ponta a ponta, e a conexão nasce com
+     `app='publico'` — é a prova que nunca existiu: token do público
+     **assinando**, não só montando URL;
+  3. a sonda sai do banco (`removeTiktokShop` apaga **só** a linha de
+     credencial: pedidos, ledger e checkpoints continuam consultáveis);
+  4. `TIKTOK_APP_KEY`, `TIKTOK_APP_SECRET` e `TIKTOK_SERVICE_ID` saem do Fly,
+     **passo da dona do produto**;
+  5. o custom sai do código: `src/lib/integrations/tiktokApps.ts` colapsa, o
+     parâmetro `app` fica com um valor só e morre junto, e os dois scripts que
+     exigem as variáveis antigas (`scripts/tiktok-qa-evidence.mjs`,
+     `scripts/tiktok-reprocess-real.mjs`) apontam para o público.
+  ⚠️ **3 antes de 4, sempre.** Sem as credenciais do custom a sonda para de
+  assinar **e de renovar** — o token dela expira em 15/09 e ela viraria uma
+  conexão que erra a cada ciclo, para sempre.
+  ✅ **A condição de desligamento é uma CONSULTA, não uma lembrança:** o custom
+  sai quando não houver nenhuma linha com `app = 'custom'` em
+  `workspace_tiktok_shops`. É exatamente para isso que a coluna da migration
+  `0033` existe.
   📌 Duas vias de credencial já custaram um `undefined` em produção na Amazon.
   A convivência aqui tem prazo declarado no próprio módulo, e a guarda
   `tests/convivenciaDoTikTokTemPrazo` cobra que ele continue escrito — mas
