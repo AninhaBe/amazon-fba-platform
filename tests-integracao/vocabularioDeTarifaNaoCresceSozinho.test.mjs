@@ -5,19 +5,16 @@ import { LOCAL_HOSTS } from "../scripts/migration-safety.mjs";
 
 // ═══ TIPO DE TARIFA NOVO NÃO PODE APARECER EM SILÊNCIO ══════════════════════
 //
-// ⚠️ ESTE TESTE AINDA NÃO FOI VISTO VERMELHO. Escrito em 12/09/2026 com o
-// Postgres descartável fora do ar (o WSL desta máquina recusou criar a VM por
-// falta de memória: 0x800705aa). Pela regra da casa, teste que nunca falhou é
-// decoração — então ele nasce com a dívida DECLARADA e com a condição combinada
-// com o cérebro no mesmo dia:
+// ✅ VISTO VERMELHO EM 12/09/2026, e vale registrar como: acrescentei
+// `'reembolso_parcial'` ao CHECK `channel_order_fees_vocabulario_canonico` num
+// Postgres descartável e rodei. Ele reprovou nomeando o valor novo e imprimindo
+// a decisão inteira — o que fazer, onde, e o que acontece se ninguém fizer.
+// Depois desfiz a alteração. (O teste chegou a ser escrito sem essa prova,
+// porque o WSL desta máquina estava sem memória para subir a VM; a prova veio
+// no mesmo dia, assim que ele voltou.)
 //
-//   🔴 VÊ-LO VERMELHO É CONDIÇÃO DE DEPLOY DA LEVA, não de commit.
-//
-// COMO VER VERMELHO, quando o Postgres voltar: acrescente um valor ao CHECK
-// `channel_order_fees_vocabulario_canonico` (p.ex. `'reembolso_parcial'`) num
-// banco descartável e rode. O caso "o CHECK não cresceu sem o código crescer
-// junto" tem de reprovar nomeando o valor novo. Feito isso, apague esta nota e
-// registre a data.
+// COMO REPETIR: mesma alteração no CHECK, num banco DESCARTÁVEL — nunca em
+// produção; a tabela real tem 143 mil linhas e o CHECK é validado no ALTER.
 //
 // ═══ POR QUE ELE EXISTE ═══
 //
