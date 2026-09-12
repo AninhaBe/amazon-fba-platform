@@ -73,14 +73,43 @@ test("a tela DIZ quantos ficou de fora e leva a eles — esconder calado seria r
   assert.match(aviso, /value="inativos"/);
 });
 
+// ⚠️ O ML SAIU DESTA LISTA E GANHOU TESTE PRÓPRIO, e a razão
+// é uma mudança de tela, não um afrouxamento: em 10/09/2026 a página de custo
+// do Mercado Livre foi ABSORVIDA pela de anúncios (decisão dela — quatro das
+// cinco colunas eram as mesmas), e `produtos/page.tsx` virou redirecionamento.
+//
+// ⚠️ E LÁ O SELETOR NÃO É MAIS O COMPARTILHADO. A tela nova
+// funde o recorte de atividade com o filtro de status num controle só, no
+// padrão visual novo — eram dois controles decidindo a mesma coisa, um no
+// cliente e outro no servidor. O `AvisoDeOcultos` continua vindo do módulo
+// compartilhado, porque não tem nada de visual para divergir.
+//
+// O que esta guarda protege continua igual nos dois casos: a tela não pode
+// esconder anúncio em silêncio.
 test("a página de custo de cada canal usa o seletor e o aviso", async () => {
   for (const caminho of [
     "../src/app/components/ShopeeModulePage.tsx",
     "../src/app/components/TikTokModulePage.tsx",
-    "../src/app/(app)/mercado-livre/produtos/page.tsx",
   ]) {
     const fonte = await readFile(new URL(caminho, import.meta.url), "utf8");
     assert.match(fonte, /FiltroDeAtividade/, `${caminho} sem o seletor`);
     assert.match(fonte, /AvisoDeOcultos/, `${caminho} sem o aviso`);
   }
+});
+
+test("o ML fundiu o recorte no filtro da tela, e continua avisando o que ficou de fora", async () => {
+  const tela = await readFile(new URL("../src/app/(app)/mercado-livre/anuncios/page.tsx", import.meta.url), "utf8");
+  // O aviso continua sendo o compartilhado — é ele que impede esconder calado.
+  assert.match(tela, /AvisoDeOcultos/, "o ML parou de avisar quantos anúncios ficaram de fora");
+  // As três opções do recorte não podem sumir: são elas que chegam à API.
+  for (const opcao of ['valor: "todos"', 'valor: "ativos"', 'valor: "inativos"']) {
+    assert.ok(tela.includes(opcao), `o recorte perdeu a opção ${opcao}`);
+  }
+  // E o recorte tem de CHEGAR na busca: sem isto o seletor viraria enfeite,
+  // filtrando no cliente uma lista que já veio recortada pelo servidor.
+  assert.match(
+    tela,
+    /products\?atividade=\$\{atividade\}/,
+    "o recorte parou de ir para a API",
+  );
 });

@@ -95,7 +95,7 @@ test("o ML mostra anuncios com a origem e a pagina de custo do canal", async () 
   // (canal, SKU) — mandar para a pagina do canal errado seria pior que nao
   // linkar), e conta sem anuncio nao ganha secao vazia.
   const ml = await readFile(new URL("../src/app/components/MercadoLivreWorkspace.tsx", import.meta.url), "utf8");
-  assert.match(ml, /href="\/mercado-livre\/produtos"/,
+  assert.match(ml, /href="\/mercado-livre\/anuncios"/,
     "custo é por (canal, SKU): mandar para a página do canal errado seria pior que não linkar");
   assert.match(ml, /anunciosDoPeriodo\.length === 0 \? null :/,
     "conta que não anuncia voltou a ganhar seção vazia no dashboard");

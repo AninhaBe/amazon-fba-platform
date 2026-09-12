@@ -85,12 +85,56 @@ const TELAS = [
   ["src/app/components/TikTokWorkspace.tsx", "TikTok"],
 ];
 
-test("as CINCO telas renderizam o sinal — uma copia esquecida e o defeito de sempre", async () => {
-  for (const [caminho, nome] of TELAS) {
+/**
+ * ⚠️ O MERCADO LIVRE SAIU DA LISTA DE CIMA EM 11/09/2026, e a
+ * regra que ele tem de cumprir NAO mudou — mudou a peca que a cumpre.
+ *
+ * O que aconteceu: o redesign v3 substituiu os cartoes do ML e a faixa
+ * `SinaisDoResultado` saiu do monitor a pedido dela (10/09) — o pedido era
+ * contra o EMPILHAMENTO de avisos em banda larga, nao contra sinalizar a falta.
+ * Na troca, a Margem do monitor ficou SOZINHA: `resultParcial` era calculado e
+ * nao usado por ninguem. Casar `<SinaisDoResultado sinais=` no ML depois disso
+ * so poderia levar de volta a faixa que ela mandou tirar.
+ *
+ * A regra continua sendo a do teste la de cima ("A REGRA INEGOCIAVEL"): havendo
+ * pendencia, o numero exige sinal AO LADO. No v3 o sinal e a linha sob o numero
+ * (`margemSub`), nas duas telas do canal. E o que esta guarda passa a exigir.
+ */
+const TELAS_COM_FAIXA = TELAS.filter(([caminho]) => !caminho.endsWith("MercadoLivreWorkspace.tsx"));
+
+test("as QUATRO telas de faixa renderizam o sinal — uma copia esquecida e o defeito de sempre", async () => {
+  for (const [caminho, nome] of TELAS_COM_FAIXA) {
     const fonte = await readFile(new URL(`../${caminho}`, import.meta.url), "utf8");
     assert.match(fonte, /<SinaisDoResultado sinais=/, `${nome}: o numero pode aparecer sem o sinal ao lado`);
     assert.match(fonte, /sinaisDoResultado\(/, `${nome}: nao monta os sinais`);
   }
+});
+
+test("no ML, a Margem nunca aparece sozinha — nas DUAS telas do canal", async () => {
+  const ml = await readFile(new URL("../src/app/components/MercadoLivreWorkspace.tsx", import.meta.url), "utf8");
+  // Sem comentario: as notas que explicam a troca citam `SinaisDoResultado` e
+  // `resultParcial`, e casar o fonte cru aprovaria o comentario no lugar do codigo.
+  const codigo = ml.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+
+  // A fonte do sinal — os dois ramos: com falta, diz O QUE falta com numero;
+  // sem falta, a declaracao da base.
+  assert.match(codigo, /const margemSub = resultParcial\s*\?\s*`falta \$\{faltas\.join\(", "\)\}`/, "o ML parou de montar o que falta");
+
+  // Dashboard: a coluna de Margem do PainelV3.
+  assert.match(codigo, /margem: \{[\s\S]{0,400}?nota: margemSub,/, "dashboard: a Margem voltou a aparecer sem o sinal");
+
+  // Monitor: o cartao de Margem. ⚠️ Casa a CHAMADA inteira — `nota={margemSub}`
+  // solto continuaria verde se alguem o movesse para outro cartao, e o defeito
+  // de 10/09 foi exatamente a Margem ficar sem ele.
+  assert.ok(
+    codigo.includes(`<ColunaDoMonitor
+          rotulo="Margem"
+          valor={percent(overview.profit.marginPct)}
+          tom={overview.profit.marginPct == null ? "vazio" : overview.profit.marginPct < 0 ? "negativo" : "positivo"}
+          nota={margemSub}
+        />`),
+    "monitor: a Margem voltou a aparecer sem o sinal",
+  );
 });
 
 test("nenhuma tela volta a apagar a margem por causa de custo", async () => {

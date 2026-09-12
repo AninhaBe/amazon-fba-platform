@@ -244,7 +244,7 @@ export default function MercadoLivreCalculatorPage() {
             fosse digitado. Em 25/08/2026 alguém digitou 5%, leu "configurada",
             e o dashboard do canal passou horas com lucro e margem em "—"
             esperando uma alíquota que nunca foi gravada. Quem salva de verdade
-            é o card em /mercado-livre/produtos.
+            é o card em /mercado-livre/anuncios.
           */}
           <RateField label="Imposto sobre a venda" value={taxRate} onChange={setTaxRate} hint={dicaDoImposto(taxRate, aliquotaSalva)} />
           <RateField label="Publicidade" value={adsRate} onChange={setAdsRate} hint="ACOS esperado" />

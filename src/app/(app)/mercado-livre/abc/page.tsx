@@ -9,7 +9,7 @@ export default function MercadoLivreAbcPage() {
       eyebrow="Métricas Mercado Livre"
       subtitle="Classifica seus produtos pela contribuição real (A/B/C) e cruza com o giro para revelar onde está o lucro — e onde ele vaza."
       ordersHref="/mercado-livre/monitor?secao=vendas"
-      costsHref="/mercado-livre/produtos"
+      costsHref="/mercado-livre/anuncios"
     />
   );
 }

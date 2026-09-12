@@ -42,16 +42,32 @@ export interface EtapaDoCaminho {
  * a quarta divergiria das outras na primeira vez que alguem mexesse numa —
  * e ninguem veria, porque elas nascem em arquivos diferentes.
  */
-export function EtapaDoCaminhoView({ rotulo, valor, contexto, destaque, negativo }: {
+export function EtapaDoCaminhoView({ rotulo, valor, contexto, destaque, negativo, acao }: {
   rotulo: string;
   valor: string;
   contexto: ReactNode;
   destaque?: "resultado";
   negativo?: boolean;
+  /**
+   * ⚠️ OPCIONAL DE PROPOSITO. A peca nasceu como um dos quatro
+   * passos de uma faixa, onde botao nenhum fazia sentido — os passos eram
+   * leitura, nao destino. Ela ganhou um uso novo (o saldo do Mercado Pago, na
+   * metade de baixo do dashboard) onde os vizinhos TEM acao no canto, e sem
+   * ela o cartao do saldo era o unico sem saida. Quem nao passar `acao`
+   * continua com a peca exatamente como era.
+   */
+  acao?: ReactNode;
 }) {
   return (
     <div className={`etapa${destaque === "resultado" ? " is-resultado" : ""}${negativo ? " is-negativo" : ""}`}>
-      <p className="etapa-rotulo">{rotulo}</p>
+      {acao ? (
+        <div className="etapa-topo">
+          <p className="etapa-rotulo">{rotulo}</p>
+          {acao}
+        </div>
+      ) : (
+        <p className="etapa-rotulo">{rotulo}</p>
+      )}
       {/* `num-display` = Archivo, que so veste numero de 24px para cima. */}
       <p className="etapa-valor num-display">{valor}</p>
       <p className="etapa-contexto">{contexto}</p>

@@ -8,50 +8,50 @@ import { EmptyState } from "./EmptyState";
 import { DashboardSkeleton } from "./LoadingState";
 import { PageHeader, pageIcons } from "./PageHeader";
 import type { DailyPoint } from "./RevenueChart";
-import { FILTRO_DE_HOJE, JANELA_DE_SETE_DIAS, serieDoBlocoDeLucro } from "./serieDoLucroPorDia";
+import { JANELA_DE_SETE_DIAS, serieDoBlocoDeLucro } from "./serieDoLucroPorDia";
 import { DashboardPeriodFilter, useDashboardPeriod } from "./DashboardPeriodFilter";
 import { periodoNaUrl } from "./periodoNaUrl";
-import { OrderProfitabilityTable } from "./OrderProfitabilityTable";
+import { OrderProfitabilityTableV3 } from "./OrderProfitabilityTableV3";
 import { ConnectionBroken, isBrokenConnection } from "./ConnectionBroken";
-import { CustomizableMetricGrid } from "./CustomizableMetricGrid";
 // O mesmo dicionário do radar da Amazon: equalizar canal é usar a MESMA palavra
 // para o mesmo estado, senão "Saudável" no ML e "Ok" na Amazon parecem coisas
 // diferentes sendo a mesma.
 import { ORDEM_DO_RADAR, ROTULO_DE_COBERTURA, type StockStatus } from "@/lib/coberturaDeEstoque";
-import { Flow, Metric } from "./Metric";
-import { sinaisDoResultado } from "./oQueFaltaNoResultado";
-import { SinaisDoResultado } from "./SinaisDoResultado";
 import { brDate, brTime } from "@/lib/datetime";
 import { coberturaDoPeriodo } from "@/lib/coberturaPeriodo";
 import type { ProfitabilityLine } from "@/lib/profitability";
 import { MercadoLivreSaldo } from "./MercadoLivreSaldo";
-import { ResumoDoCustoNoFull, TabelaDoCustoNoFull, useCustoNoFull } from "./MercadoLivreCustoNoFull";
+import { ResumoDoCustoNoFull, TabelaDoCustoNoFull, ValorDeVendaNoFull, useCustoNoFull } from "./MercadoLivreCustoNoFull";
 import { Pagination } from "./Pagination";
-import { BriefingLead } from "./BriefingLead";
 import { NexoDoDia } from "./NexoDoDia";
-import { AlertasDoCaminho, FaixaDeEtapas } from "./FaixaDeEtapas";
-import { custoDaVenda, fatiaDoSobrou, fraseDoTacos, sobreAVenda, somaDosCustos } from "./caminhoDoDinheiro";
-import { AnunciosPagos, DecomposicaoDoCusto, RankingDaVenda, RitmoDosDias, TabelaDeVendas } from "./CardsDoCaminho";
+import { fatiaDoSobrou, sobreAVenda } from "./caminhoDoDinheiro";
 import { IntegrationDashboardFrame } from "./IntegrationDashboardFrame";
+import { PainelV3, type DadosV3 } from "./PainelV3";
+import { PainelV3Baixo, type DadosV3Baixo } from "./PainelV3Baixo";
 
 /**
  * `YYYY-MM-DD` -> `DD/MM`. A string só é reordenada: passá-la por `new Date`
  * a leria como meia-noite UTC e devolveria o dia anterior em São Paulo.
  */
-const diaBrasileiro = (data: string) => data.slice(5).split("-").reverse().join("/");
 
-import { marginMetricTone } from "@/lib/marginTone";
 import { BASE_SEM_DIFERENCA, declaracaoDeBase } from "./baseDaMargem";
 import { comSemImposto } from "@/lib/semImposto";
-import { BaseDeData, ProgressoDaImportacao } from "./BaseDeData";
+import { ProgressoDaImportacao } from "./BaseDeData";
 import { EstadoDoSync } from "./EstadoDoSync";
 import type { AnuncioDeProduto } from "./AnunciosPorProduto";
 import { usePrefetchDePeriodos } from "./prefetchDePeriodos";
 
-const MERCADO_LIVRE_TAX_RATE_HREF = "/mercado-livre/produtos#mercado-livre-aliquota";
+const MERCADO_LIVRE_TAX_RATE_HREF = "/mercado-livre/anuncios#mercado-livre-aliquota";
 
 /** As três abas do monitor — as mesmas da Amazon. */
-type SecaoDoMonitor = "composition" | "transactions" | "profitability";
+/**
+ * ⚠️ "composition" SAIU DO TIPO, e nao so da barra de abas
+ * (decisao dela, 10/09/2026: *"pode tirar essa aba de composicao e no lugar
+ * coloque a rentabilidade por venda"*). Deixar o valor no tipo mantinha vivo um
+ * estado que nenhuma tela sabe mais desenhar — e um `?secao=composition` antigo
+ * cairia numa aba em branco em vez de cair no padrao.
+ */
+export type SecaoDoMonitor = "transactions" | "profitability";
 
 // Mesma frase do monitor da Amazon: quando o teto de detalhamento corta a
 // lista, diz O QUE está sendo exibido — sem adjetivo que se desculpe.
@@ -162,7 +162,18 @@ async function buscarEGuardarPeriodo(view: string, q: string, signal: AbortSigna
  * Nos outros filtros devolve `null`, e quem chama continua lendo a série do
  * período — os outros filtros não foram pedidos e não mudam.
  */
-function useJanelaDeSeteDias(view: string, periodoAtual: string, connectionId: string | null) {
+/**
+ * A janela de sete dias que o bloco de ritmo usa — buscada em QUALQUER filtro.
+ *
+ * ⚠️ ANTES SÓ BUSCAVA NO FILTRO "HOJE". A decisão da dona de
+ * 09/09/2026 desamarrou o bloco do filtro de data, então a janela precisa
+ * existir sempre, não só quando o período selecionado é um dia.
+ *
+ * Não é busca a mais na maioria dos casos: a chave é a MESMA do filtro "7 dias"
+ * (`JANELA_DE_SETE_DIAS`), então quem já passou por ele — ou pelo aquecimento
+ * de fundo — encontra tudo em memória e não pede nada à rede.
+ */
+function useJanelaDeSeteDias(view: string, connectionId: string | null) {
   const chave = `${view}:${JANELA_DE_SETE_DIAS}`;
   /**
    * ⚠️ O ESTADO AQUI É SÓ O SINAL DE "A BUSCA TERMINOU", não uma cópia da
@@ -174,7 +185,6 @@ function useJanelaDeSeteDias(view: string, periodoAtual: string, connectionId: s
   const [buscasConcluidas, setBuscasConcluidas] = useState(0);
 
   useEffect(() => {
-    if (periodoAtual !== FILTRO_DE_HOJE) return;
     // Já em memória (ela passou pelo filtro de 7 dias, ou o aquecimento rodou):
     // nada a buscar, e o render abaixo já lê do cache.
     if (periodCache.has(chave)) return;
@@ -187,19 +197,31 @@ function useJanelaDeSeteDias(view: string, periodoAtual: string, connectionId: s
       // resto do período selecionado continua de pé.
       .catch(() => {});
     return () => controller.abort();
-  }, [chave, connectionId, periodoAtual, view]);
+  }, [chave, connectionId, view]);
 
   return useMemo(
-    () => (periodoAtual === FILTRO_DE_HOJE ? periodCache.get(chave)?.overview.dailySales ?? null : null),
+    () => periodCache.get(chave)?.overview.dailySales ?? null,
     // ⚠️ `buscasConcluidas` É DEPENDÊNCIA DE PROPÓSITO, e o lint reclama
     // com razão pela regra dele: o contador não aparece no corpo. Ele existe
     // porque `periodCache` é um Map mutável fora do React — ninguém avisa que a
     // chave foi gravada. O contador é esse aviso. Tirá-lo faria a leitura
     // congelar em `null` para quem abre a página já no filtro Hoje.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [chave, periodoAtual, buscasConcluidas],
+    [chave, buscasConcluidas],
   );
 }
+
+/**
+ * O tom do chip de cobertura, a partir do status do radar.
+ *
+ * ⚠️ EM ESCOPO DE MODULO PORQUE DUAS TELAS O USAM: o cartao
+ * "Radar do FULL" no dashboard e a tabela de `/mercado-livre/estoque`. Enquanto
+ * vivia dentro de `Dashboard`, a segunda tela nao o enxergava — e a saida obvia
+ * (copiar a expressao la) daria dois mapas de status que comecam iguais e
+ * divergem no dia em que alguem adicionar um status novo em um so.
+ */
+const tomDaCobertura = (status: string) =>
+  status === "out" || status === "critical" ? "critico" : status === "low" ? "atencao" : "saudavel";
 
 const views = {
   dashboard: { eyebrow: "Operação Mercado Livre", title: "Dashboard Mercado Livre", subtitle: "Faturamento, pedidos e anúncios da sua conta do Mercado Livre Brasil.", icon: pageIcons.dashboard },
@@ -208,20 +230,17 @@ const views = {
 } as const;
 
 /**
- * Linha de imposto do detalhamento. Sem alíquota configurada o valor é
- * DESCONHECIDO, não zero: "Impostos (0%) R$ 0,00" afirmava isenção para quem
- * simplesmente ainda não tinha informado o percentual. Mesma regra da Amazon,
- * da Shopee e do TikTok.
+ * ⚠️ AQUI MORAVA `rotuloImposto`, que so a cascata da aba
+ * de Composicao chamava — ela saiu em 10/09/2026 e a funcao ficou sem
+ * chamador.
+ *
+ * A REGRA QUE ELA CARREGAVA CONTINUA VALENDO e nao depende dela: sem aliquota
+ * configurada o imposto e DESCONHECIDO, nunca zero. "Impostos (0%) R$ 0,00"
+ * afirmava isencao para quem so nao tinha informado o percentual. Quem aplica
+ * isso hoje e o cartao "Impostos" da faixa do dashboard, que ja trata
+ * `taxRate == null` como travessao — mesma regra da Amazon, da Shopee e do
+ * TikTok. Se a cascata voltar, a funcao volta com ela.
  */
-function rotuloImposto(taxRate: number | null, taxes: number | null, currency: string): { label: string; value: string } {
-  if (taxRate == null || taxes == null) {
-    return { label: "Impostos", value: "Alíquota não configurada" };
-  }
-  return {
-    label: `Impostos (${taxRate.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%)`,
-    value: money(taxes, currency),
-  };
-}
 
 function money(value: number, currency = "BRL") {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(value);
@@ -265,7 +284,10 @@ function MercadoLivreWorkspaceInterno({ view }: { view: keyof typeof views }) {
   const searchParams = useSearchParams();
   const bruta = searchParams.get("secao");
   const secaoInicial: SecaoDoMonitor =
-    bruta === "vendas" || bruta === "profitability" ? "profitability" : bruta === "transacoes" || bruta === "transactions" ? "transactions" : "composition";
+    /* O padrao virou "profitability": era "composition", e a aba deixou de
+       existir. Qualquer valor desconhecido — inclusive o `composition` de um
+       link antigo — cai aqui, que e o comportamento certo para URL velha. */
+    bruta === "transacoes" || bruta === "transactions" ? "transactions" : "profitability";
   /**
    * O PERIODO MORA NA URL — mesmo contrato do TikTok, dos modulos e da aba de Ads.
    *
@@ -430,7 +452,7 @@ function MercadoLivreWorkspaceInterno({ view }: { view: keyof typeof views }) {
    * por fora criaria uma segunda janela de sete dias que poderia discordar da
    * primeira — dois consumidores, dois universos, agora no tempo.
    */
-  const serieDeSeteDias = useJanelaDeSeteDias(view, period.query, connectionId);
+  const serieDeSeteDias = useJanelaDeSeteDias(view, connectionId);
   const { aquecerAgora } = usePrefetchDePeriodos({
     ativo: !!overview && !!connectionId,
     atual: period.query,
@@ -464,7 +486,7 @@ function MercadoLivreWorkspaceInterno({ view }: { view: keyof typeof views }) {
         </div>
       ) : !overview ? (
         <EmptyState title="Conecte sua conta do Mercado Livre" description="Autorize o NEXO para começar a importar anúncios e pedidos." action={<Link href="/integracoes" className="meli-primary-action">Gerenciar integração <span aria-hidden="true">→</span></Link>} />
-      ) : view === "dashboard" ? <Dashboard overview={overview} syncStatus={syncStatus} periodoLabel={period.label} periodoQuery={period.query} connectionId={connectionId} serieDeSeteDias={serieDeSeteDias} /> : view === "estoque" ? <Inventory overview={overview} /> : <Monitor overview={overview} secaoInicial={secaoInicial} />}
+      ) : view === "dashboard" ? <Dashboard overview={overview} syncStatus={syncStatus} periodoQuery={period.query} connectionId={connectionId} serieDeSeteDias={serieDeSeteDias} /> : view === "estoque" ? <Inventory overview={overview} /> : <Monitor overview={overview} secaoInicial={secaoInicial} periodoQuery={period.query} />}
     </IntegrationDashboardFrame>
   );
 }
@@ -539,10 +561,39 @@ function avaliarResultado(overview: Overview) {
   return { semAliquota, resultParcial, resultIncomplete, margemSub };
 }
 
-function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectionId, serieDeSeteDias }: { overview: Overview; syncStatus: SyncStatus | null; periodoLabel: string; periodoQuery: string; connectionId: string | null; serieDeSeteDias: DailyPoint[] | null }) {
+/**
+ * Titulo do periodo para CABECALHO, derivado da PROPRIA CONSULTA.
+ *
+ * ⚠️ NAO ACEITA O ROTULO POR PROP, e essa e a correcao. Antes o
+ * titulo vinha de `periodoLabel`, um valor separado de `periodoQuery` — e dois
+ * valores que precisam concordar acabam discordando: em 09/09/2026 a tela
+ * mostrava "7 dias" marcado no filtro e "Ultimos 30 dias" no titulo, porque a
+ * bancada passava o rotulo fixo. Derivar da string que BUSCOU os dados torna a
+ * divergencia impossivel, em vez de improvavel.
+ *
+ * E a mesma familia do `from`/`to` da Shopee que o AGENTS.md registra: botao
+ * marcado exibindo outro periodo. Ali o defeito custou um teste decorativo.
+ */
+function tituloDoPeriodo(periodoQuery: string): string {
+  const p = new URLSearchParams(periodoQuery);
+  const from = p.get("from");
+  const to = p.get("to");
+  if (from && to) {
+    const br = (iso: string) => iso.split("-").reverse().slice(0, 2).join("/");
+    return `De ${br(from)} a ${br(to)}`;
+  }
+  const dias = p.get("days");
+  if (dias === "today") return "Hoje";
+  if (dias === "7" || dias === "15" || dias === "30") return `Últimos ${dias} dias`;
+  return "Período selecionado";
+}
+
+export function Dashboard({ overview, syncStatus, periodoQuery, connectionId, serieDeSeteDias }: { overview: Overview; syncStatus: SyncStatus | null; periodoQuery: string; connectionId: string | null; serieDeSeteDias: DailyPoint[] | null }) {
+  // Alternador de metrica do Ritmo (v3). Estado de tela, nao de dado.
+  const [metricaV3, setMetricaV3] = useState("Faturamento");
   const profitCoverage = overview.profit.coverage;
   const critical = overview.stockRadar.filter((product) => product.status === "critical" || product.status === "out");
-  const { semAliquota, resultParcial, resultIncomplete, margemSub } = avaliarResultado(overview);
+  const { semAliquota, margemSub } = avaliarResultado(overview);
   /**
    * ⚠️ A MESMA LISTA DE SEMPRE, so extraida para ter nome. Nenhuma
    * condicao mudou: aliquota ausente, produtos sem custo, pedidos cancelados e
@@ -575,70 +626,13 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
       .toLocaleDateString("pt-BR", { weekday: "short", timeZone: "UTC" })
       .replace(".", "");
   /**
-   * ⚠️ A FONTE DO BLOCO, e é aqui que a correção de 03/09/2026 mora.
-   *
-   * Com o filtro "Hoje", `overview.dailySales` tem UM ponto — e uma coluna
-   * sozinha ocupa a régua inteira, com o título prometendo sete. Nesse caso a
-   * série vem da janela de sete dias, a MESMA que o filtro "7 dias" exibe.
-   *
-   * Nos outros filtros nada muda: `serieDeSeteDias` é `null` e o bloco segue o
-   * período, como sempre seguiu.
-   *
-   * Enquanto a janela não chegou, a lista fica vazia e o bloco não se desenha —
-   * melhor não existir por um instante do que aparecer com uma coluna e o
-   * título de sete.
+   * ⚠️ A FONTE DO BLOCO NÃO OLHA MAIS O FILTRO. Decisão da dona em
+   * 09/09/2026: o ritmo é sempre dos últimos sete dias, qualquer que seja o
+   * período selecionado acima. O porquê e o que valia antes estão em
+   * `serieDoLucroPorDia.ts`, junto da função.
    */
-  const serieDoBloco = serieDoBlocoDeLucro({
-    filtro: periodoQuery,
-    serieDoPeriodo: overview.dailySales,
-    janelaDeSeteDias: serieDeSeteDias,
-  });
+  const serieDoBloco = serieDoBlocoDeLucro({ janelaDeSeteDias: serieDeSeteDias });
   const contagem = (n: number) => n.toLocaleString("pt-BR");
-  const seteDiasDoRitmo = serieDoBloco.map((ponto) => {
-    const lucro = ponto.profit ?? null;
-    const ehHoje = ponto.date === hojeNoBrasil;
-    const dia = diaBrasileiro(ponto.date);
-    return {
-      id: ponto.date,
-      rotulo: ehHoje ? "hoje" : diaDaSemana(ponto.date),
-      destaque: ponto.date === serieDoBloco[serieDoBloco.length - 1]?.date,
-      /**
-       * ⚠️ UMA ENTRADA POR SERIE, e o `null` e por PAR dia+serie, nao
-       * por dia. Um dia pode ter faturamento conhecido e lucro desconhecido ao
-       * mesmo tempo — e o caso normal, porque o lucro depende de custo e tarifa
-       * que chegam depois. Amarrar a ausencia ao dia inteiro apagaria colunas
-       * de faturamento que existem.
-       *
-       * ⚠️ E O ROTULO CURTO E SO A PARTE INTEIRA, sem simbolo, porque a
-       * coluna e estreita. O valor por extenso vai no nome acessivel, senao
-       * quem le por leitor de tela ouve um numero sem moeda e sem dia.
-       */
-      series: {
-        lucro: {
-          valor: lucro,
-          compacto: lucro == null ? "—" : contagem(Math.round(lucro)),
-          completo: lucro == null
-            ? `${dia}: lucro ainda desconhecido`
-            : `${dia}: ${money(lucro, overview.metrics.currency)} de lucro`,
-        },
-        faturamento: {
-          valor: ponto.revenue,
-          compacto: contagem(Math.round(ponto.revenue)),
-          completo: `${dia}: ${money(ponto.revenue, overview.metrics.currency)} de faturamento`,
-        },
-        pedidos: {
-          valor: ponto.orders,
-          compacto: contagem(ponto.orders),
-          completo: `${dia}: ${contagem(ponto.orders)} pedido(s)`,
-        },
-        unidades: {
-          valor: ponto.units,
-          compacto: contagem(ponto.units),
-          completo: `${dia}: ${contagem(ponto.units)} unidade(s)`,
-        },
-      },
-    };
-  });
 
   /**
    * ⚠️ O "CUSTOU" DA FAIXA NAO EXISTE COMO CAMPO — e a soma das quatro
@@ -667,143 +661,6 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
    */
   const impostoNaConta = overview.profit.taxes ?? 0;
 
-  const custosDoPeriodo = somaDosCustos([
-    { rotulo: "produtos", valor: overview.profit.cogs },
-    { rotulo: "frete", valor: overview.profit.sellerShipping },
-    { rotulo: "taxas", valor: overview.profit.fees },
-    { rotulo: "impostos", valor: impostoNaConta },
-  ]);
-
-  /** O lucro de ontem, para a etapa do resultado comparar. `null` = desconhecido. */
-  const lucroDeOntem = serieDoBloco.length >= 2 ? serieDoBloco[serieDoBloco.length - 2]?.profit ?? null : null;
-
-  const etapasDoCaminho = [
-    {
-      id: "vendeu",
-      rotulo: "Você vendeu",
-      valor: money(overview.metrics.revenue30d, overview.metrics.currency),
-      contexto: (
-        <>
-          {overview.metrics.paidOrders} pedido(s) aprovado(s)
-          {overview.metrics.cancelledOrders === 0
-            ? ", nenhum cancelado"
-            : `, ${overview.metrics.cancelledOrders} cancelado(s)`}
-          . Contados pela data do pedido.
-        </>
-      ),
-    },
-    {
-      id: "custou",
-      rotulo: "Custou",
-      valor: custosDoPeriodo.total == null ? "—" : money(custosDoPeriodo.total, overview.metrics.currency),
-      contexto: custosDoPeriodo.total == null
-        // ⚠️ O total sumiu, entao a tela diz O QUE falta — e nao "custo
-        // parcial", que explicaria a ela algo que ela ja sabe sem dizer o que
-        // fazer. As parcelas conhecidas continuam visiveis logo abaixo.
-        ? <>Falta {custosDoPeriodo.faltando.join(" e ")} para fechar a conta.</>
-        : (
-          <>
-            Produtos {money(overview.profit.cogs, overview.metrics.currency)} · frete {money(overview.profit.sellerShipping, overview.metrics.currency)}
-            {" · "}taxas {money(overview.profit.fees, overview.metrics.currency)} · impostos {money(impostoNaConta, overview.metrics.currency)}
-          </>
-        ),
-    },
-    {
-      id: "sobrou",
-      rotulo: "Sobrou",
-      valor: overview.profit.estimatedProfit == null ? "—" : money(overview.profit.estimatedProfit, overview.metrics.currency),
-      destaque: "resultado" as const,
-      negativo: overview.profit.estimatedProfit != null && overview.profit.estimatedProfit < 0,
-      contexto: overview.profit.estimatedProfit == null ? margemSub : (
-        <>
-          {overview.profit.marginPct == null
-            ? "Margem sem alíquota cadastrada."
-            : `Margem de ${overview.profit.marginPct.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}% sobre a venda.`}
-          {/* ⚠️ "Ontem" so aparece quando ontem TEM numero. Dia sem lucro
-              conhecido nao vira comparacao com zero — seria inventar uma queda. */}
-          {lucroDeOntem == null ? null : <> Ontem foram {money(lucroDeOntem, overview.metrics.currency)}.</>}
-        </>
-      ),
-    },
-  ];
-
-  /**
-   * ⚠️ OS COMPONENTES DO CUSTO, cada um com a sua SITUACAO — que e o
-   * ponto do card: a decomposicao sozinha ja existia; o que ela nao dizia era
-   * quanto de cada linha esta conferido. "5 sem custo" ao lado de "Custo dos
-   * produtos" e o que transforma um numero num pedido de acao.
-   */
-  const componentesDoCusto = [
-    {
-      id: "cogs",
-      rotulo: "Custo dos produtos",
-      valor: money(overview.profit.cogs, overview.metrics.currency),
-      sobreAVendaPct: sobreAVenda(overview.profit.cogs, overview.metrics.revenue30d),
-      situacao: overview.profit.skusWithoutCost > 0 ? `${overview.profit.skusWithoutCost} sem custo` : "completo",
-      tomDaSituacao: overview.profit.skusWithoutCost > 0 ? ("acao" as const) : ("ok" as const),
-      cor: "var(--ml-custo-1)",
-    },
-    {
-      id: "shipping",
-      rotulo: "Frete",
-      valor: money(overview.profit.sellerShipping, overview.metrics.currency),
-      sobreAVendaPct: sobreAVenda(overview.profit.sellerShipping, overview.metrics.revenue30d),
-      situacao: overview.profit.shippingCostsComplete ? "completo" : "em apuração",
-      tomDaSituacao: overview.profit.shippingCostsComplete ? ("ok" as const) : ("atencao" as const),
-      cor: "var(--ml-custo-2)",
-    },
-    {
-      id: "fees",
-      rotulo: "Taxas do Mercado Livre",
-      valor: money(overview.profit.fees, overview.metrics.currency),
-      sobreAVendaPct: sobreAVenda(overview.profit.fees, overview.metrics.revenue30d),
-      situacao: `${profitCoverage.processedOrders} processada(s)`,
-      tomDaSituacao: "neutro" as const,
-      cor: "var(--ml-custo-3)",
-    },
-    {
-      id: "taxes",
-      rotulo: "Impostos",
-      // ⚠️ Sem aliquota cadastrada o imposto e DESCONHECIDO, e a
-      // celula mostra traco. Zero aqui diria "esta operacao nao paga imposto".
-      // ⚠️ O NUMERO FECHA E O AVISO FICA. Depois de 07/09/2026 o
-      // imposto sem aliquota vale zero na conta, entao a celula mostra o valor
-      // em vez do traco — e a coluna Situacao passa a ser o unico rastro na
-      // tabela, ao lado da pendencia na fila de alertas.
-      valor: money(impostoNaConta, overview.metrics.currency),
-      sobreAVendaPct: sobreAVenda(impostoNaConta, overview.metrics.revenue30d),
-      situacao: semAliquota ? "sem alíquota" : "completo",
-      tomDaSituacao: semAliquota ? ("acao" as const) : ("ok" as const),
-      cor: "var(--ml-custo-4)",
-    },
-  ];
-
-  const produtosDoRanking = overview.topProducts.map((produto) => ({
-    id: produto.id,
-    titulo: produto.title,
-    unidades: `${produto.units.toLocaleString("pt-BR")} un`,
-    faturamento: money(produto.revenue, overview.metrics.currency),
-    marginPct: produto.marginPct,
-    ordemFaturamento: produto.revenue,
-    ordemUnidades: produto.units,
-  }));
-
-  const vendasDaTabela = overview.profitabilityLines.slice(0, 6).map((linha) => {
-    const custos = custoDaVenda(linha.revenue, linha.contribution);
-    return {
-      id: linha.id,
-      produto: linha.product,
-      // O final do numero basta para ela achar o pedido, e o numero inteiro
-      // ocupa a coluna toda.
-      pedido: `#…${linha.orderId.slice(-6)}`,
-      venda: linha.revenue == null ? "—" : money(linha.revenue, linha.currency),
-      custos: custos == null ? "—" : money(custos, linha.currency),
-      sobrou: linha.contribution == null ? "—" : money(linha.contribution, linha.currency),
-      marginPct: linha.marginPct,
-      negativa: linha.contribution != null && linha.contribution < 0,
-    };
-  });
-
   /**
    * ⚠️ O CARD DE ANUNCIOS LE `adsPorProduto`, que a frente de Ads de
    * 28/08/2026 ja entrega com ACOS, ROAS e a MARGEM REAL cruzada com custo e
@@ -811,7 +668,6 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
    */
   const anunciosDoPeriodo = overview.adsPorProduto ?? [];
   const gastoEmAnuncios = anunciosDoPeriodo.reduce((total, anuncio) => total + anuncio.cost, 0);
-  const vendasAtribuidas = anunciosDoPeriodo.reduce((total, anuncio) => total + anuncio.sales, 0);
 
   const anunciosDaTabela = anunciosDoPeriodo.slice(0, 5).map((anuncio) => {
     // ⚠️ SEM VENDA ATRIBUIDA nao ha ACOS nem ROAS para mostrar. O
@@ -828,6 +684,9 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
       vendasAtribuidas: semVenda
         ? "sem venda"
         : `${money(anuncio.sales, anuncio.currency)} · ${contagem(anuncio.purchases)}`,
+      // As duas grandezas, separadas: valor vendido e quantidade comprada.
+      vendasValor: semVenda ? "—" : money(anuncio.sales, anuncio.currency),
+      comprasQtd: semVenda ? "—" : contagem(anuncio.purchases),
       semVenda,
       acos: anuncio.acos == null ? "—" : `${anuncio.acos.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`,
       roas: anuncio.roas == null ? "—" : `${anuncio.roas.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}×`,
@@ -835,21 +694,13 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
     };
   });
 
-  /**
-   * ⚠️ O TACOS ENTRA COMO ACRESCIMO, e os dois motivos de ausencia NAO
-   * podem virar a mesma frase. `fraseDoTacos` guarda essa distincao no modulo
-   * testado: "nao sabemos o gasto" nao e "nao anunciou", e nenhum dos dois e
-   * "0%", que seria a unica boa noticia das tres.
-   */
-  const faltaDoTacos = fraseDoTacos(overview.profit.tacos);
-
   const alertasDoCaminho = [
     ...(overview.metrics.productsWithoutCost > 0 ? [{
       id: "sem-custo",
       titulo: `${overview.metrics.productsWithoutCost} produto(s) sem custo cadastrado`,
       detalhe: "a margem deles fica em branco até o custo entrar",
       acao: "Cadastrar custos",
-      href: "/mercado-livre/produtos",
+      href: "/mercado-livre/anuncios",
       tom: "acao" as const,
     }] : []),
     ...(semAliquota ? [{
@@ -878,6 +729,294 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
       tom: "atencao" as const,
     }] : []),
   ];
+
+  /**
+   * ⚠️ ESTRUTURA v3 — a composição veio do canvas dela
+   * ("Dashboard Mercado Livre v3.dc.html", lido via DesignSync em 09/09/2026).
+   *
+   * ⚠️ NENHUM DADO NOVO E NENHUM DADO A MENOS: tudo abaixo sai do
+   * MESMO `overview` que a faixa antiga já usava. O que muda é a APRESENTAÇÃO —
+   * o custo deixa de ser um total ("Custou") e passa a abrir em tarifa, frete,
+   * produto e imposto, que é onde a margem realmente se decide.
+   *
+   * As regras de dado incerto seguem valendo: imposto sem alíquota é travessão,
+   * produto sem custo entra sem margem, dia sem apuração fica só com o contorno.
+   */
+  /**
+   * ⚠️ A DIVISAO VOLTOU PARA O MODULO TESTADO (11/09/2026). Esta
+   * funcao nasceu com a conta escrita aqui — `(v / revenue30d) * 100` —, e a
+   * conta era a MESMA que `sobreAVenda` ja fazia, com os dois casos de borda
+   * cobertos por teste: base zero nao e "0%", e divisor invalido nao vira
+   * "NaN%" nem "Infinity%".
+   *
+   * Duas copias da mesma divisao e como as porcentagens param de fechar com o
+   * numero de cima sem ninguem notar — a base de uma muda e a da outra nao.
+   * Aqui sobrou o que e de apresentacao: formatar e escrever o sufixo.
+   */
+  const pctDaVenda = (v: number | null | undefined) => {
+    const pct = sobreAVenda(v, overview.metrics.revenue30d);
+    return pct == null ? "" : pct.toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + "% da venda";
+  };
+
+  const maiorFaturamento = Math.max(1, ...overview.topProducts.map((p) => p.revenue));
+  const semMoeda = (n: number) => money(n, overview.metrics.currency).replace(/^R\$\s*/, "");
+
+  const dadosV3 = {
+    periodoLabel: tituloDoPeriodo(periodoQuery),
+    resumoApuracao: profitCoverage.processedOrders + " de " + profitCoverage.paidOrders + " pedidos apurados",
+    colunas: [
+      { id: "vendeu", rotulo: "Você vendeu", valor: money(overview.metrics.revenue30d, overview.metrics.currency), share: overview.metrics.paidOrders + " aprovados" + (overview.metrics.cancelledOrders === 0 ? ", nenhum cancelado" : ", " + overview.metrics.cancelledOrders + " cancelados"), dica: "Faturamento aprovado do período, pela data do pedido. Cancelados ficam fora." },
+      { id: "tarifa", rotulo: "Tarifa do ML", valor: money(overview.profit.fees, overview.metrics.currency), share: pctDaVenda(overview.profit.fees), dica: "Comissão efetivamente cobrada em cada pedido." },
+      { id: "frete", rotulo: "Frete que você paga", valor: money(overview.profit.sellerShipping, overview.metrics.currency), share: pctDaVenda(overview.profit.sellerShipping), dica: "A parte do frete que sai de você, separada do que o comprador pagou." },
+      { id: "custo", rotulo: "Custo dos produtos", valor: money(overview.profit.cogs, overview.metrics.currency), share: pctDaVenda(overview.profit.cogs), dica: "Custo cadastrado por SKU na data do pedido." },
+      { id: "imposto", rotulo: "Impostos", valor: overview.profit.taxRate == null ? "—" : money(overview.profit.taxes ?? 0, overview.metrics.currency), share: overview.profit.taxRate == null ? "alíquota não configurada" : "alíquota de " + overview.profit.taxRate + "%", tom: overview.profit.taxRate == null ? "vazio" : "normal" },
+      /**
+       * ⚠️ DOIS DEFEITOS NA MESMA LINHA, achados em 11/09/2026 —
+       * ela mandava `tom: "positivo"` para QUALQUER lucro nao-nulo.
+       *
+       *   1. PREJUIZO SAIA VERDE. Cor significa estado nesta casa: verde e
+       *      dinheiro, vermelho e prejuizo. Um mes negativo era desenhado com a
+       *      cor do mes bom, e cor engana mais rapido que numero — ninguem le o
+       *      sinal antes da cor.
+       *   2. LUCRO COM PARCELA DESCONHECIDA TAMBEM SAIA VERDE. Esta e a regra
+       *      que `fatiaDoSobrou` guarda desde 06/09: com qualquer parcela do
+       *      custo desconhecida, a tela NAO afirma resultado fechado — o numero
+       *      continua aparecendo (parcial nao e apagar), mas sem a cor que diz
+       *      "conta fechada, e fechou bem".
+       *
+       * ⚠️ E POR QUE A PECA VELHA, e nao um `if` novo aqui: ela
+       * ja carrega a decisao inteira e o imposto ja resolvido em zero (07/09 —
+       * aliquota nao cadastrada vale zero, as outras tres continuam bloqueando).
+       * Reescrever a condicao aqui seria uma segunda fonte da verdade, que e
+       * como as duas metades passam a divergir sem ninguem notar.
+       */
+      {
+        id: "sobrou",
+        rotulo: "Lucro",
+        valor: overview.profit.estimatedProfit == null ? "—" : money(overview.profit.estimatedProfit, overview.metrics.currency),
+        share: "",
+        tom: overview.profit.estimatedProfit == null
+          ? "vazio"
+          : overview.profit.estimatedProfit < 0
+          ? "negativo"
+          : fatiaDoSobrou({
+              parcelas: [overview.profit.cogs, overview.profit.sellerShipping, overview.profit.fees, impostoNaConta],
+              lucro: overview.profit.estimatedProfit,
+              base: overview.metrics.revenue30d,
+            }) == null
+          ? "normal"
+          : "positivo",
+      },
+    ],
+    margem: {
+      valor: overview.profit.marginPct == null ? "—" : overview.profit.marginPct.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + "%",
+      tom: overview.profit.marginPct == null ? "vazio" : overview.profit.marginPct < 0 ? "negativo" : "positivo",
+      /* ⚠️ A DECLARACAO DA BASE MORA AQUI NO V3 (11/09/2026), e
+         este slot estava VAZIO — `nota: ""`. O calculo nunca sumiu
+         (`avaliarResultado` segue devolvendo `margemSub`); o que sumiu foi o
+         card `<Metric label="Margem" sub={margemSub}>`, que era quem o exibia.
+         O redesign nao revoga a regra: se a peca nova nao tinha lugar para a
+         declaracao, ela ganha um — e ganhou o mesmo lugar dos vizinhos, a linha
+         sob o numero, VISIVEL SEM INTERACAO.
+
+         ⚠️ O DEFEITO QUE ISSO REPROVA e de 01/09/2026: a tela
+         AFIRMAVA "sobre o faturamento" enquanto lucro e margem saiam do
+         APURADO. Declarar base errada e pior que nao declarar — nao declarar
+         deixa a pessoa desconfiar de dois numeros que nao fecham; declarar
+         errado desliga a desconfianca. Entre 09 e 11/09 a tela nao mentia, mas
+         tinha calado: a margem aparecia sozinha, sem dizer sobre o que e.
+
+         Os dois ramos de `margemSub` importam: com falta, ele diz O QUE falta
+         com numero ("falta 26 unidade(s) sem custo"); sem falta, a frase da
+         base, que some sozinha quando as bases coincidem. */
+      nota: margemSub,
+    },
+    notaDoImposto: semAliquota ? (
+      <>
+        Imposto sem alíquota configurada não é zero: fica desconhecido e o lucro acima é o máximo possível, não o final.{" "}
+        <Link href={MERCADO_LIVRE_TAX_RATE_HREF}>Configurar alíquota</Link>
+      </>
+    ) : null,
+    /**
+     * ⚠️ OITO, E O TITULO CONTA A LISTA em vez de repetir o
+     * numero. Escolha dela em 09/09/2026 para fechar os 185px que sobravam ao
+     * lado do Ritmo — tres linhas a mais deixam as duas colunas em 643 contra
+     * 660, e o espaco vira INFORMACAO em vez de ar.
+     *
+     * ⚠️ POR QUE O TITULO NAO PODE TRAZER O "8" CRAVADO: conta com
+     * menos de oito produtos no periodo mostraria menos linhas, e o rotulo
+     * prometeria oito. E a terceira vez que esta familia aparece hoje — o
+     * "Ritmo dos ultimos 7 dias" seguindo o filtro, o "Onde a margem escapa"
+     * num ranking ordenado por faturamento, e o numero no titulo. Por isso
+     * `PainelV3.tsx` deriva o numero de `produtos.length`.
+     *
+     * O canonico ja entrega 8 (`mercadoLivreOverviewCanonical.ts`), ordenados
+     * por faturamento decrescente — este corte usa a lista inteira que chega.
+     */
+    produtos: overview.topProducts.slice(0, 8).map((p, i) => ({
+      id: p.id,
+      posicao: i + 1,
+      titulo: p.title,
+      sku: p.sku,
+      unidades: p.units.toLocaleString("pt-BR") + " un",
+      faturamento: semMoeda(p.revenue),
+      fracao: p.revenue / maiorFaturamento,
+      contribuicao: p.complete ? semMoeda(p.contribution) : "—",
+      margemPct: p.marginPct,
+    })),
+    ritmo: {
+      metricas: ["Faturamento", "Pedidos", "Unidades"],
+      metricaAtiva: metricaV3,
+      aoTrocarMetrica: setMetricaV3,
+      legendaTotal: metricaV3.toLowerCase(),
+      legendaMedia: metricaV3 === "Faturamento" ? "média de lucro do período" : "média de " + metricaV3.toLowerCase() + " por dia",
+      mostraLucro: metricaV3 === "Faturamento",
+      media: (() => {
+        const base = metricaV3 === "Faturamento"
+          ? serieDoBloco.filter((d): d is typeof d & { profit: number } => d.profit != null).map((d) => d.profit)
+          : serieDoBloco.map((d) => (metricaV3 === "Pedidos" ? d.orders : d.units));
+        return base.length ? base.reduce((acc, v) => acc + v, 0) / base.length : 0;
+      })(),
+      dias: serieDoBloco.map((d) => {
+        const total = metricaV3 === "Faturamento" ? d.revenue : metricaV3 === "Pedidos" ? d.orders : d.units;
+        return {
+          id: d.date,
+          dia: d.date === hojeNoBrasil ? "hoje" : diaDaSemana(d.date),
+          total,
+          lucro: d.profit ?? null,
+          rotuloTotal: metricaV3 === "Faturamento"
+            ? money(d.revenue, overview.metrics.currency)
+            : total.toLocaleString("pt-BR") + (metricaV3 === "Pedidos" ? " ped." : " un."),
+          rotuloLucro: d.profit == null ? null : money(d.profit, overview.metrics.currency),
+          destaque: d.date === serieDoBloco[serieDoBloco.length - 1]?.date,
+        };
+      }),
+      nota: metricaV3 === "Faturamento"
+        ? "A parte cheia é o que sobrou do que foi vendido naquele dia. Dia sem apuração fechada fica só com o contorno e não conta na média."
+        : "Volume por dia, sem valor: serve para ver o ritmo de venda separado do dinheiro.",
+    },
+    pendencias: alertasDoCaminho.map((a) => ({
+      id: a.id,
+      titulo: a.titulo,
+      efeito: a.detalhe,
+      acao: a.acao,
+      href: a.href,
+      tom: a.tom === "acao" ? "atencao" : "neutro",
+    })),
+    hrefs: {
+      resultado: "/mercado-livre/monitor",
+      produtos: "/mercado-livre/anuncios",
+      historico: "/mercado-livre/vendas",
+      pendencias: "/mercado-livre/anuncios",
+    },
+  /* ⚠️ `satisfies`, NAO `as unknown as` (11/09/2026). O molde
+     nasceu com dupla conversao, que desliga a checagem inteira: campo com nome
+     trocado, faltando ou com tipo errado compilava igual, e o painel so
+     denunciaria na tela. Como este objeto e a UNICA ponte entre os produtores
+     do ML e o desenho novo, e ele que tem de ficar vermelho quando um campo
+     muda de forma. Medido: com `satisfies`, `tsc --noEmit` passa limpo — a
+     conversao nao escondia erro nenhum, so a possibilidade de um. */
+  } satisfies DadosV3;
+
+
+  /**
+   * ⚠️ DEIXOU DE SER FILA DE TRABALHO E VIROU EXTRATO. Decisao dela
+   * em 09/09/2026: *"aqui sera so Pedidos mesmo, ai aparece uns 4-5 pedidos com
+   * base no filtro de data"*.
+   *
+   * O que valia antes: so entrava o pedido que pedia uma ACAO — margem
+   * negativa, custo ausente ou repasse pendente —, e havia uma coluna "Motivo"
+   * dizendo qual dos tres. Era a separacao entre fila de trabalho e extrato que
+   * o canvas propunha.
+   *
+   * ⚠️ O QUE ISSO CUSTA, para quem for reverter saber: os pedidos
+   * com pendencia deixam de ter destaque proprio aqui. Eles NAO sumiram da
+   * tela — "O que falta para o numero fechar" continua contando produto sem
+   * custo e aliquota ausente, e a coluna Margem continua vazia (nunca zero)
+   * quando falta custo. O que se perdeu foi o atalho de ver os tres motivos
+   * lado a lado.
+   *
+   * Ordena por data decrescente: "os ultimos pedidos" so quer dizer alguma
+   * coisa se a ordem for essa, e `profitabilityLines` nao promete ordem.
+   */
+  const ultimosPedidos = [...overview.profitabilityLines]
+    .sort((a, b) => String(b.date).localeCompare(String(a.date)))
+    .slice(0, 5)
+    .map((l) => ({
+      id: l.id,
+      produto: l.product,
+      detalhe: [l.sku, `${l.quantity} un`, brDate(l.date)].filter(Boolean).join(" · "),
+      pedido: "#…" + String(l.orderId).slice(-6),
+      logistica: l.fulfillment ?? "—",
+      venda: l.revenue == null ? "—" : semMoeda(l.revenue),
+      tarifa: l.marketplaceFees == null ? "—" : semMoeda(l.marketplaceFees),
+      frete: l.sellerShipping == null || l.sellerShipping === 0 ? "—" : semMoeda(l.sellerShipping),
+      custo: l.productCost == null ? "—" : semMoeda(l.productCost),
+      custoVazio: l.productCost == null,
+      imposto: l.tax == null ? "—" : semMoeda(l.tax),
+      impostoVazio: l.tax == null,
+      margemPct: l.marginPct,
+    }));
+
+
+  const dadosV3Baixo = {
+    revisar: {
+      linhas: ultimosPedidos,
+      href: "/mercado-livre/monitor",
+      vazio: "Nenhum pedido no período.",
+      escopo: fraseDeEscopo(overview.profitabilityScope),
+    },
+    anuncios: anunciosDoPeriodo.length === 0 ? null : {
+      linhas: anunciosDaTabela.map((a) => ({
+        id: a.id,
+        produto: a.produto,
+        trafego: `${a.impressoes} impressões · ${a.cliques} cliques`,
+        gasto: a.gasto,
+        vendas: a.vendasValor,
+        compras: a.comprasQtd,
+        acos: a.acos,
+        roas: a.roas,
+        semVenda: a.semVenda,
+        margemPct: a.marginPct,
+      })),
+      resumo: `gasto ${money(gastoEmAnuncios, overview.metrics.currency)}${overview.profit.tacos?.pct != null ? " · TACOS " + overview.profit.tacos.pct.toLocaleString("pt-BR", { maximumFractionDigits: 2 }) + "%" : ""}`,
+      href: "/mercado-livre/anuncios",
+    },
+    radar: {
+      itens: overview.stockRadar.slice(0, 5).map((e) => ({
+        id: e.id,
+        titulo: e.title || e.sku || e.id,
+        unidades: e.availableQuantity === 0 ? "—" : `${e.availableQuantity} un`,
+        cobertura: e.status === "out" ? "esgotado" : e.daysRemaining == null ? "—" : `${e.daysRemaining} dias`,
+        tom: e.availableQuantity === 0 && e.status !== "out" ? "vazio" : tomDaCobertura(e.status),
+      })),
+      href: "/mercado-livre/estoque",
+      vazio: "Nenhum produto no radar.",
+    },
+    saldo: <MercadoLivreSaldo modo="etapa" connectionId={connectionId ?? undefined} />,
+    /**
+     * ⚠️ `null` ATÉ O PRODUTOR EXISTIR, e não exemplo
+     * (11/09/2026). Estes dois blocos vinham com quatro concorrentes e três
+     * campanhas escritos à mão, marcados só por um "exemplo · sem rota ainda"
+     * no canto — e o comentário que estava aqui já dizia, com todas as letras,
+     * que assim eles não podiam ir para produção. A leva sobe; então eles não
+     * sobem.
+     *
+     * ⚠️ NÚMERO INVENTADO NÃO É PLACEHOLDER NUMA TELA DE
+     * DINHEIRO. "Arranhador e Protetor de Sofá · 12º de 33 · margem −4%" é
+     * indistinguível de leitura real, e quem lê decide preço com ele. Etiqueta
+     * discreta no canto não desfaz isso.
+     *
+     * `PainelV3Baixo` aceita `null` nos dois e não desenha o bloco — ausência
+     * é ausência, como no resto do produto. O layout está descrito no canvas e
+     * não se perde: quando `api/integrations/mercado-livre/` ganhar
+     * concorrentes por catálogo e as campanhas que o ML oferece, trocar o
+     * `null` pelos itens é a única mudança daqui.
+     */
+    catalogo: null,
+    promocoes: null,
+  } satisfies DadosV3Baixo;
+
 
 
   // ⚠️ 30/08/2026 — custo faltando virou SINAL, nao trava (decisao da vendedora).
@@ -917,39 +1056,6 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
     {/* A MESMA leitura do NEXO dos outros canais — uma narracao por dia por
     workspace, nao uma por canal. So aparece se ja estiver escrita. */}
     <NexoDoDia />
-    {/* Mesma abertura dos outros três canais: a frase vem do dado e as
-        pendências ficam com ela. Ver `BriefingLead.tsx` — a peça é
-        compartilhada de propósito, para os quatro painéis não divergirem. */}
-    <BriefingLead
-      periodo={periodoLabel}
-      janela={periodoQuery}
-      faturamento={overview.metrics.revenue30d}
-      pedidos={overview.metrics.paidOrders}
-      // `resultIncomplete` é a resposta honesta: enquanto falta custo, tarifa
-      // ou imposto, o lucro é DESCONHECIDO — passar o parcial como se fosse o
-      // resultado é a confusão que `null ≠ 0` existe para evitar.
-      lucro={resultIncomplete ? null : overview.profit.estimatedProfit}
-      format={(v) => money(v, overview.metrics.currency)}
-      escopo="mercado_livre"
-      canalNome="Mercado Livre"
-      moeda={overview.metrics.currency}
-      briefingHref="/mercado-livre/monitor"
-      briefingLabel="Ver detalhes"
-      // ⚠️ AS PENDENCIAS SAIRAM DAQUI. Viraram chips em 03/09/2026 e,
-      // em 06/09, os cartoes de alerta do Caminho do Dinheiro. A LISTA E A
-      // MESMA em condicao e destino — os textos, os
-      // links e as condicoes vem de `alertasDoCaminho`, logo acima, e sao
-      // exatamente os que estavam aqui. O que mudou foi a FORMA: cartoes
-      // empilhados a direita viraram chips em fila.
-      //
-      // ⚠️ E o `acoes` continua existindo no `BriefingLead`, que e
-      // compartilhado pelos quatro canais: Amazon, Shopee e TikTok seguem
-      // passando o deles e renderizando igual. So o ML deixa de passar.
-      acoes={[]}
-    />
-
-
-
     {/* Duas faixas de largura total viraram UMA linha discreta: as duas diziam
         partes da mesma frase (quanto ja importou / ate onde alcanca) com peso
         de alarme, empilhadas antes do primeiro numero. Toda frase antiga
@@ -960,9 +1066,6 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
       emImportacao={cobertura.emImportacao}
       pedidosImportados={syncStatus?.processedOrders}
     />
-    {/* Faturamento do ML conta aprovadas + canceladas, sem frete (regra do
-        proprio canal) — e sempre pela data do pedido. */}
-    <BaseDeData base="pedido" />
     {/* ⚠️ A FAIXA DE 4 ETAPAS NO LUGAR DO COCKPIT (06/09/2026, canvas
         "Caminho do dinheiro" aprovado pela Ana).
 
@@ -986,96 +1089,38 @@ function Dashboard({ overview, syncStatus, periodoLabel, periodoQuery, connectio
         silencio e a faixa fecha com tres — ausencia e ausencia, como no card da
         Amazon. Nada de "R$ 0,00" nem de "proximo repasse ~dia X" estimado por
         nos. */}
-    <FaixaDeEtapas etapas={etapasDoCaminho}>
-      <MercadoLivreSaldo modo="etapa" connectionId={connectionId ?? undefined} />
-    </FaixaDeEtapas>
+    {/* ⚠️ A PRIMEIRA VIEWPORT É A v3 (09/09/2026). A faixa de quatro
+        etapas, os alertas soltos e o par ranking+decomposição foram SUBSTITUÍDOS
+        — não escondidos. Quem procurar por eles nesta tela não os encontra, que
+        é a checagem que a frente anterior falhou: "o que isto substitui ainda
+        está na página?".
 
-    <AlertasDoCaminho alertas={alertasDoCaminho} />
+        O saldo do Mercado Pago continua vindo de fetch próprio e entra ao lado,
+        porque quem o desenha é quem já o busca. */}
+    <PainelV3 dados={dadosV3} />
 
-    {/* ⚠️ OS DOIS CARDS LADO A LADO — a linha 2 do canvas. O ranking
-        responde "de onde veio a venda" e a decomposicao responde "para onde foi
-        o dinheiro"; sao a mesma pergunta por dois angulos, e empilhados
-        obrigavam a rolar de um para o outro. */}
-    <section className="cards-caminho-2">
-      <RankingDaVenda produtos={produtosDoRanking} vazio="Sem vendas no período para ranquear." />
-      <DecomposicaoDoCusto
-        componentes={componentesDoCusto}
-        sobreQuanto={`sobre ${money(overview.metrics.revenue30d, overview.metrics.currency)} vendidos`}
-        sobrouPct={fatiaDoSobrou({
-          parcelas: [overview.profit.cogs, overview.profit.sellerShipping, overview.profit.fees, impostoNaConta],
-          lucro: overview.profit.estimatedProfit,
-          base: overview.metrics.revenue30d,
-        })}
-        sobrouRotulo="Sobrou"
-        explicacao="Enquanto o custo não entra, a margem desses itens fica em branco e o lucro do dia sai menor do que é."
-      />
-    </section>
-
-    <TabelaDeVendas
-      vendas={vendasDaTabela}
-      escopo={fraseDeEscopo(overview.profitabilityScope) ?? `${overview.profitabilityLines.length} venda(s) no período`}
-      vazio="Nenhuma venda no período."
-      rodape={
-        overview.profitabilityLines.length > vendasDaTabela.length
-          ? <Link className="card-verlink" href="/mercado-livre/monitor">Ver as {overview.profitabilityLines.length} vendas →</Link>
-          : null
-      }
-    />
-
-    <RitmoDosDias dias={seteDiasDoRitmo} />
-
-    {/* ⚠️ ANUNCIOS PAGOS — o ultimo bloco do canvas. Ele so aparece
-        quando ha anuncio no periodo: sem campanha nenhuma, um card vazio falaria
-        de um assunto que nao existe na operacao dela. */}
-    {anunciosDoPeriodo.length === 0 ? null : (
-      <AnunciosPagos
-        titulo="Anúncios pagos"
-        resumo={
-          <>
-            {contagem(anunciosDoPeriodo.length)} SKU(s) · gasto {money(gastoEmAnuncios, overview.metrics.currency)}
-            {" · "}vendas atribuídas {money(vendasAtribuidas, overview.metrics.currency)}
-            {/* O TACOS quando ha numero; a frase do motivo quando nao ha. */}
-            {faltaDoTacos == null && overview.profit.tacos?.pct != null
-              ? <> · TACOS {overview.profit.tacos.pct.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%</>
-              : <> · {faltaDoTacos}</>}
-          </>
-        }
-        anuncios={anunciosDaTabela}
-        explicacao="O ACOS e o ROAS vêm do Mercado Livre. A margem real cruza esse gasto com o seu custo e as tarifas — é a coluna que diz se o anúncio valeu. Este gasto não está descontado do lucro acima: no Mercado Livre ele sai no seu fechamento."
-        vazio="Sem anúncios no período."
-        rodape={
-          anunciosDoPeriodo.length > anunciosDaTabela.length
-            ? <Link className="card-verlink" href="/mercado-livre/produtos">Ver os {contagem(anunciosDoPeriodo.length)} produtos anunciados →</Link>
-            : null
-        }
-      />
-    )}
-
-
-
-    <div className="grid grid-cols-1 items-start gap-6">
-      <Panel title="Estoque crítico" href="/mercado-livre/estoque" linkLabel="Ver radar">
-        {critical.length === 0 ? <Empty>Nenhum produto em ruptura iminente.</Empty> : <ul className="divide-y divide-[var(--line)]">{critical.slice(0, 6).map((product) => <li key={product.id} className="flex items-center justify-between py-2.5 text-sm"><span className="min-w-0 truncate pr-3">{product.title || product.sku || product.id}</span><span className="shrink-0 font-semibold text-red-600">{product.status === "out" ? "esgotado" : `${product.daysRemaining} dias`}</span></li>)}</ul>}
-      </Panel>
-    </div>
-
-
+    {/* ⚠️ A METADE DE BAIXO É A v3. A tabela de vendas, o card de
+        anúncios e o painel de "Estoque crítico" foram SUBSTITUÍDOS por Pedidos a
+        revisar, Anúncios pagos e Radar do FULL — não somados. Procurar pelos
+        antigos nesta tela não os encontra, que é a checagem que a frente anterior
+        falhou. */}
+    <PainelV3Baixo dados={dadosV3Baixo} />
 
     {/* No desktop a sidebar já cobre estes atalhos; no mobile a nav é scroll
         horizontal e os cartões ajudam. */}
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:hidden">
       <QuickLink href="/mercado-livre/monitor" label="Monitor" desc="Pedidos e financeiro" />
       <QuickLink href="/mercado-livre/estoque" label="Radar" desc="Estoque × velocidade" />
-      <QuickLink href="/mercado-livre/anuncios" label="Anúncios" desc="Catálogo publicado" />
-      <QuickLink href="/mercado-livre/produtos" label="Produtos" desc="Custos e impostos" />
+      {/* ⚠️ UM atalho de Anuncios, nao dois (11/09/2026). Quando a
+          tela de Produtos foi absorvida por Anuncios, o atalho dela foi
+          reapontado e ficou ao lado do que ja existia: dois cartoes identicos,
+          lado a lado, com descricoes diferentes para o MESMO destino. A
+          descricao que sobrou e a que cobre o que a tela faz agora. */}
+      <QuickLink href="/mercado-livre/anuncios" label="Anúncios" desc="Catálogo, custos e alíquota" />
     </div>
   </div>;
 }
 
-
-function Panel({ title, href, linkLabel, children }: { title: string; href: string; linkLabel: string; children: React.ReactNode }) {
-  return <div className="work-panel border-t border-[var(--line-strong)] py-5"><div className="mb-3 flex items-center justify-between border-b border-[var(--line)] pb-3"><h2 className="text-[13px] font-semibold text-[var(--ink-soft)]">{title}</h2><Link href={href} className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--acao)] hover:gap-1.5 hover:opacity-80">{linkLabel}<span aria-hidden="true">→</span></Link></div>{children}</div>;
-}
 
 function Empty({ children }: { children: React.ReactNode }) {
   return <EmptyState compact title={String(children)} />;
@@ -1085,6 +1130,13 @@ function QuickLink({ href, label, desc }: { href: string; label: string; desc: s
   return <Link href={href} className="quick-command group flex items-center justify-between border-t border-[var(--line-strong)] py-4"><div><p className="text-sm font-semibold text-[var(--ink)]">{label}</p><p className="text-xs text-[var(--ink-muted)]">{desc}</p></div><span className="text-[var(--ink-faint)] transition-[transform,color] group-hover:translate-x-0.5 group-hover:text-yellow-600">→</span></Link>;
 }
 
+/**
+ * ⚠️ DEIXOU DE SER EXPORTADA EM 11/09/2026. O `export` existia
+ * para as bancadas montarem esta tela com dado de amostra; elas passaram a
+ * montar a tela real (`MercadoLivreWorkspace`), entao nao ha mais quem a
+ * importe de fora. `Dashboard` segue exportada porque `/lab/mercado-livre`
+ * ainda a usa com dado fixo — e aquela rota nao e servida em producao.
+ */
 function Inventory({ overview }: { overview: Overview }) {
   const critical = overview.stockRadar.filter((product) => product.status === "critical" || product.status === "out").length;
   const [query, setQuery] = useState("");
@@ -1103,136 +1155,432 @@ function Inventory({ overview }: { overview: Overview }) {
           ? b.unitsSold - a.unitsSold
           : (urgencyRank[a.status] - urgencyRank[b.status]) || ((a.daysRemaining ?? Number.POSITIVE_INFINITY) - (b.daysRemaining ?? Number.POSITIVE_INFINITY))
     );
-  const pageCount = Math.max(1, Math.ceil(rows.length / 30));
+  /* ⚠️ 15 POR PAGINA, o mesmo da tabela do Full e do contrato
+     visual. Era 30 — herdado da tela antiga, quando a linha tinha 65px. Com a
+     linha enxuta, 15 ja ocupam ~435px; 30 devolveriam a rolagem longa que a
+     compactacao veio resolver. */
+  const pageCount = Math.max(1, Math.ceil(rows.length / 15));
   const current = Math.min(page, pageCount);
-  const pagedRows = rows.slice((current - 1) * 30, current * 30);
+  const pagedRows = rows.slice((current - 1) * 15, current * 15);
   const healthy = overview.stockRadar.filter((product) => product.status === "ok").length;
   const sold = overview.stockRadar.reduce((total, product) => total + product.unitsSold, 0);
   // Capital parado no Full: leitura própria, independente do período do radar —
   // é foto do estoque de hoje, não de um intervalo de vendas.
   const custoNoFull = useCustoNoFull();
-  return <div className="inventory-family-body">
-    <section className="listing-summary-band is-5" aria-label="Resumo de estoque Mercado Livre">
-      <div><span>Produtos ativos</span><strong>{overview.stockRadar.length.toLocaleString("pt-BR")}</strong><small>monitorados no radar</small></div>
-      <div className={critical ? "is-danger" : "is-positive"}><span>Ação imediata</span><strong>{critical.toLocaleString("pt-BR")}</strong><small>{critical ? "repor com urgência" : "tudo sob controle"}</small></div>
-      <div className="is-positive"><span>Saudáveis</span><strong>{healthy.toLocaleString("pt-BR")}</strong><small>com cobertura</small></div>
-      <div><span>Unidades vendidas</span><strong>{sold.toLocaleString("pt-BR")}</strong><small>{overview.period.label}</small></div>
-      <ResumoDoCustoNoFull leitura={custoNoFull} />
+  /**
+   * ⚠️ A TELA MUDOU DE ROUPA, NAO DE FUNCAO (10/09/2026). Busca,
+   * filtro de status, ordenacao, paginacao de 30, miniatura, "como calculamos"
+   * e os dois blocos de custo no FULL continuam exatamente os mesmos — o que
+   * mudou e a linguagem visual, que passou a ser a do dashboard novo.
+   *
+   * ⚠️ A TABELA USA O MECANISMO DO "Top N produtos": um grid so
+   * para cabecalho e linhas (`subgrid`), colunas dimensionadas pelo conteudo
+   * com piso, e `nowrap` nos numeros. Uma tabela `<table>` aqui divergiria do
+   * resto da tela na primeira coluna que crescesse.
+   */
+  const rotuloDoStatus = (status: string) => ROTULO_DE_COBERTURA[status as StockStatus] ?? "Saudável";
+  return <div className="v3 inventory-family-body">
+    <section className="v3-card v3-faixa">
+      <div className="v3-card-cab">
+        <h2>Radar de estoque</h2>
+        <span className="v3-meta">{overview.period.label}</span>
+      </div>
+      {/* ⚠️ O TOM SEGUE O ROTULO, e isso foi decidido contra o meu
+          parecer. Eu tinha amarrado a cor ao VALOR — verde so quando ha
+          saudaveis, vermelho so quando ha urgencia — com medo de "Saudaveis 0"
+          com fundo verde parecer boa noticia. Ela decidiu o contrario em
+          10/09/2026: *"saudaveis sao os saudaveis, cor verde e o que faz
+          sentido"*.
+
+          O argumento dela e melhor que o meu: aqui a cor identifica a NATUREZA
+          da coluna, nao julga o numero — quem julga o numero e o proprio numero,
+          que fica bem no meio do cartao. Fundo trocando de cor conforme o dado
+          faria a faixa piscar de verde para vermelho entre um dia e outro, e
+          ninguem consegue decorar uma tela que muda de mapa.
+
+          Cartao sem natureza propria (contagem, faturamento) fica branco: cor
+          que nao quer dizer nada gasta a atencao que os outros precisam. */}
+      <div className="v3-colunas">
+        <div className="v3-coluna">
+          <p className="v3-coluna-rotulo">Produtos ativos</p>
+          <strong className="v3-coluna-valor">{overview.stockRadar.length.toLocaleString("pt-BR")}</strong>
+          <span className="v3-coluna-share">monitorados no radar</span>
+        </div>
+        <div className="v3-coluna is-tom-vermelho">
+          <p className="v3-coluna-rotulo">Ação imediata</p>
+          <strong className={`v3-coluna-valor${critical ? " is-negativo" : ""}`}>{critical.toLocaleString("pt-BR")}</strong>
+          <span className="v3-coluna-share">{critical ? "repor com urgência" : "tudo sob controle"}</span>
+        </div>
+        <div className="v3-coluna is-tom-verde">
+          <p className="v3-coluna-rotulo">Saudáveis</p>
+          <strong className="v3-coluna-valor is-positivo">{healthy.toLocaleString("pt-BR")}</strong>
+          <span className="v3-coluna-share">com cobertura</span>
+        </div>
+        <div className="v3-coluna">
+          <p className="v3-coluna-rotulo">Unidades vendidas</p>
+          <strong className="v3-coluna-valor">{sold.toLocaleString("pt-BR")}</strong>
+          <span className="v3-coluna-share">{overview.period.label}</span>
+        </div>
+        {/* ⚠️ O VALOR NO FULL E A QUINTA COLUNA DA FAIXA, nao um
+            bloco solto acima da tabela. Ele e um numero de resumo como os
+            outros quatro — o que muda e so a origem (foto do estoque de hoje,
+            nao do periodo selecionado), e isso a propria nota dele diz. */}
+        <ResumoDoCustoNoFull leitura={custoNoFull} />
+        {/* ⚠️ O PAR CUSTO/VENDA FICA LADO A LADO, nunca separado.
+            Sozinho, "Valor de venda no Full" parece dinheiro no bolso; ao lado
+            do custo ele vira a comparacao que interessa — quanto entrou de
+            mercadoria contra quanto ela devolve. */}
+        <ValorDeVendaNoFull leitura={custoNoFull} />
+      </div>
     </section>
+
     <TabelaDoCustoNoFull leitura={custoNoFull} />
-    {overview.stockRadar.length === 0 ? <Empty>Nenhum produto ativo encontrado.</Empty> : <>
-      <aside className="inventory-method-strip" aria-label="Como a cobertura de estoque é calculada"><strong>Como calculamos</strong><span>Cobertura = estoque atual ÷ média diária de vendas no período. Pausas e dias históricos sem estoque ainda não são descontados.</span></aside>
-      <section className="listing-controls cols-3" role="search" aria-label="Filtros de estoque">
-        <label className="listing-search"><span className="sr-only">Buscar no estoque</span><input value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="Buscar SKU ou produto" /></label>
-        <select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as typeof statusFilter); setPage(1); }} aria-label="Filtrar status do estoque"><option value="all">Todos os status</option><option value="out">Esgotado</option><option value="critical">Repor já</option><option value="low">Repor em breve</option><option value="ok">Saudável</option><option value="overstock">Excesso</option><option value="idle">Sem venda</option></select>
-        <select value={sort} onChange={(event) => { setSort(event.target.value as typeof sort); setPage(1); }} aria-label="Ordenar estoque"><option value="urgency">Maior urgência</option><option value="stock">Maior estoque</option><option value="sales">Mais vendidos</option></select>
+
+    {overview.stockRadar.length === 0 ? <Empty>Nenhum produto ativo encontrado.</Empty> : (
+      <section className="v3-card" aria-labelledby="ml-inventory-results">
+        <div className="v3-card-cab">
+          <h2 id="ml-inventory-results">{rows.length} {rows.length === 1 ? "produto encontrado" : "produtos encontrados"}</h2>
+          <span className="v3-meta">{overview.period.label}</span>
+        </div>
+        <p className="v3-nota">
+          Cobertura = estoque atual ÷ média diária de vendas no período. Pausas e dias históricos
+          sem estoque ainda não são descontados.
+        </p>
+
+        <div className="v3-filtros" role="search" aria-label="Filtros de estoque">
+          <label className="v3-busca">
+            <span className="sr-only">Buscar no estoque</span>
+            <input
+              value={query}
+              onChange={(event) => { setQuery(event.target.value); setPage(1); }}
+              placeholder="Buscar SKU ou produto"
+            />
+          </label>
+          <select
+            value={statusFilter}
+            onChange={(event) => { setStatusFilter(event.target.value as typeof statusFilter); setPage(1); }}
+            aria-label="Filtrar status do estoque"
+          >
+            <option value="all">Todos os status</option>
+            <option value="out">Esgotado</option>
+            <option value="critical">Repor já</option>
+            <option value="low">Repor em breve</option>
+            <option value="ok">Saudável</option>
+            <option value="overstock">Excesso</option>
+            <option value="idle">Sem venda</option>
+          </select>
+          <select
+            value={sort}
+            onChange={(event) => { setSort(event.target.value as typeof sort); setPage(1); }}
+            aria-label="Ordenar estoque"
+          >
+            <option value="urgency">Maior urgência</option>
+            <option value="stock">Maior estoque</option>
+            <option value="sales">Mais vendidos</option>
+          </select>
+        </div>
+
+        {rows.length === 0 ? <Empty>Nenhum produto encontrado. Limpe a busca ou troque o status.</Empty> : (
+          <div className="v3-tabela v3-tabela-estoque">
+            <div className="v3-estoque-cab">
+              <span>Produto</span>
+              <span>SKU</span>
+              <span>Estoque</span>
+              <span>Vendidos</span>
+              <span>Cobertura</span>
+              <span>Status</span>
+            </div>
+            {pagedRows.map((product) => (
+              <div className="v3-estoque-linha" key={product.id}>
+                <span className="v3-cel-nome">
+                  <span className="v3-margem-titulo" title={product.title}>{product.title}</span>
+                  <span className="v3-cel-sub">base: {product.calculationDays} dias</span>
+                </span>
+                <span className="v3-cel-pedido">{product.sku || product.id}</span>
+                <span className="v3-cel-num">{product.availableQuantity.toLocaleString("pt-BR")}</span>
+                <span className="v3-cel-num">{product.unitsSold.toLocaleString("pt-BR")}</span>
+                {/* ⚠️ TRES ESTADOS, NAO DOIS, e eu errei este na
+                    primeira versao (10/09/2026): guardei so `null` e o produto
+                    ESGOTADO apareceu com "0 dias" — que le como "acaba hoje"
+                    quando na verdade ja acabou.
+                      • `null`  → nao da para calcular (sem venda no periodo): "—"
+                      • `0`     → esgotado agora: a palavra, nao o numero
+                      • n > 0   → dias de cobertura
+                    E a familia `null ≠ 0` do projeto aparecendo na tela: aqui o
+                    zero E um fato ("nao ha estoque"), e por isso merece palavra
+                    propria em vez de virar contagem. */}
+                <span className={`v3-cel-num${product.daysRemaining == null ? " is-vazio" : ""}`}>
+                  {product.daysRemaining == null
+                    ? "—"
+                    : product.daysRemaining === 0
+                      ? "esgotado"
+                      : `${product.daysRemaining} dias`}
+                </span>
+                <span className="v3-cel-fim">
+                  <em className={`v3-chip v3-cobertura is-${tomDaCobertura(product.status)}`}>
+                    {rotuloDoStatus(product.status)}
+                  </em>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {pageCount > 1 && (
+          <div className="v3-paginacao">
+            <Pagination page={current} pageCount={pageCount} total={rows.length} pageSize={15} onPage={setPage} />
+          </div>
+        )}
       </section>
-      <section className="listing-table-shell inventory-table-shell" aria-labelledby="ml-inventory-results"><header><div><p className="section-kicker">Cobertura de estoque</p><h2 id="ml-inventory-results">{rows.length} {rows.length === 1 ? "produto encontrado" : "produtos encontrados"}</h2></div><p>{overview.period.label}</p></header>
-        {rows.length === 0 ? <Empty>Nenhum produto encontrado. Limpe a busca ou troque o status.</Empty> : <div className="overflow-x-auto"><table className="inventory-table listing-table"><caption className="sr-only">Cobertura de estoque dos produtos do Mercado Livre</caption><thead><tr><th>Produto</th><th>SKU</th><th>Estoque</th><th>Vendidos</th><th>Cobertura</th><th>Status</th></tr></thead><tbody>{pagedRows.map((product) => <tr key={product.id}><td><div className="listing-product">{product.thumbnail ? (
-                        // Miniatura já vem reduzida do catálogo do canal.
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={product.thumbnail} alt="" />
-                      ) : <span className="listing-image-fallback" aria-hidden="true">ML</span>}<div><strong className="block max-w-[320px] truncate" title={product.title}>{product.title}</strong></div></div></td><td className="font-mono text-xs">{product.sku || product.id}</td><td className="tabular-nums">{product.availableQuantity}</td><td className="tabular-nums">{product.unitsSold}</td><td className="stock-coverage-value tabular-nums"><strong>{product.daysRemaining == null ? "—" : `${product.daysRemaining} dias`}</strong><small>base: {product.calculationDays} dias</small></td><td className="inventory-status-cell"><span className={`stock-status is-${product.status}`}>{ROTULO_DE_COBERTURA[product.status] ?? "Saudável"}</span></td></tr>)}</tbody></table></div>}
-        {pageCount > 1 && <div className="listing-pagination"><Pagination page={current} pageCount={pageCount} total={rows.length} pageSize={30} onPage={setPage} /></div>}
-      </section>
-    </>}
+    )}
   </div>;
 }
 
-function Monitor({ overview, secaoInicial }: { overview: Overview; secaoInicial: SecaoDoMonitor }) {
+/**
+ * Uma coluna da faixa de numeros, no contrato visual do dashboard.
+ *
+ * ⚠️ EXISTE PARA O MONITOR USAR A MESMA PECA DA FAIXA sem
+ * perder o `CustomizableMetricGrid`, que deixa a vendedora reordenar e esconder
+ * indicadores. O grid aceita a classe da grade por prop, entao da para adotar o
+ * visual novo mantendo a funcao — trocar o grid inteiro por uma faixa estatica
+ * teria custado essa personalizacao em silencio.
+ */
+/**
+ * Cartao da faixa do monitor — rotulo e valor, so isso.
+ *
+ * ⚠️ A LEGENDA SAIU DOS CINCO CARTOES (pedido dela,
+ * 10/09/2026, com print). A segunda linha de apoio quebrava em duas e
+ * esticava o cartao para 126px; o contrato da faixa e 110px.
+ *
+ * ⚠️ O QUE ISSO CUSTA, para quem for reverter saber: a
+ * legenda da "Margem" era o unico ponto DESTA tela que apontava o cadastro
+ * faltando ("falta 51 unidade(s) sem custo"). O numero nao sumiu do produto —
+ * "O que falta para o numero fechar", no dashboard, continua com ele e com
+ * destino. Se a falta precisar voltar a aparecer aqui, ela volta como LINHA
+ * PROPRIA abaixo da faixa, nunca como segunda linha dentro do cartao: foi a
+ * segunda linha que quebrou a altura.
+ */
+function ColunaDoMonitor({ rotulo, valor, tom, nota }: {
+  rotulo: string;
+  valor: React.ReactNode;
+  tom?: "positivo" | "negativo" | "vazio";
+  /**
+   * ⚠️ OPCIONAL, E EXISTE PARA UMA REGRA, nao para decorar
+   * (11/09/2026). "Havendo pendencia, o numero exige sinal" e regra inegociavel
+   * do AGENTS.md: numero que depende de dado faltando nao pode aparecer sozinho,
+   * porque sozinho ele parece completo.
+   *
+   * A faixa "N SKUs sem custo — cadastrar →" (`SinaisDoResultado`) saiu desta
+   * tela a pedido dela em 10/09, e o pedido foi contra o EMPILHAMENTO: aviso em
+   * banda larga no topo, somado aos outros. O que nao foi pedido — nem podia
+   * ser, porque e doutrina — foi deixar a Margem sem dizer o que falta. Entre 10
+   * e 11/09 ela ficou: `resultParcial` era calculado aqui e nao era usado por
+   * ninguem (o eslint acusava), que e a assinatura exata deste defeito.
+   *
+   * Aqui a falta volta no peso certo: a linha sob o numero, do mesmo tamanho e
+   * na mesma classe que o dashboard usa (`v3-coluna-share`) — nao uma faixa.
+   */
+  nota?: React.ReactNode;
+}) {
+  return (
+    <div className="v3-coluna">
+      <p className="v3-coluna-rotulo">{rotulo}</p>
+      <strong className={`v3-coluna-valor${tom ? ` is-${tom}` : ""}`}>{valor}</strong>
+      {nota ? <span className="v3-coluna-share">{nota}</span> : null}
+    </div>
+  );
+}
+
+/**
+ * ⚠️ TAMBEM DEIXOU DE SER EXPORTADO (11/09/2026) — mesmo motivo
+ * do `Inventory` acima: a bancada que o importava agora monta a tela real.
+ */
+function Monitor({ overview, secaoInicial, periodoQuery }: { overview: Overview; secaoInicial: SecaoDoMonitor; periodoQuery: string }) {
   const profitCoverage = overview.profit.coverage;
   const netReceived = overview.profit.revenueProcessed - overview.profit.fees - overview.profit.sellerShipping;
-  const { semAliquota, resultParcial, resultIncomplete, margemSub } = avaliarResultado(overview);
-  // ⚠️ 30/08/2026 — custo faltando virou SINAL, nao trava (decisao da vendedora).
-  const sinais = sinaisDoResultado({
-    skusWithoutCost: overview.profit.skusWithoutCost,
-    hrefDeCustos: "/mercado-livre/produtos",
-  });
+  const { semAliquota, resultIncomplete, margemSub } = avaliarResultado(overview);
   // ⚠️ Vem por PROP, não de `window.location`: a página é prerenderizada e um
   // `useState` que lê a URL no inicializador roda no servidor, onde `window` não
   // existe — e a hidratação não o re-executa. Quem lê a URL é o
   // `useSearchParams`, dentro da fronteira de Suspense lá em cima.
   const [section, setSection] = useState<SecaoDoMonitor>(secaoInicial);
-  return <div className="ml-monitor-body">
-    {/* Mesmo nome de pagina do monitor da Amazon, base DIFERENTE: la o numero e
-        por data do lancamento do repasse, aqui e por data do pedido. Sem dizer
-        isso, "Monitor da conta" parece a mesma coisa nos dois canais. */}
-    <BaseDeData base="pedido" />
-    <EstadoDoSync provider="mercado_livre" />
-    {/*
-      Os sinais aparecem UMA vez aqui tambem — o Monitor e outra tela, e quem
-      esta nela precisa saber o que falta do mesmo jeito. O que o corte 1 proibe
-      e repetir a MESMA lista em varios cartoes da MESMA tela, nao mostra-la nas
-      telas que a usam.
+  /**
+   * ⚠️ A TELA MUDOU DE ROUPA, NAO DE FUNCAO (10/09/2026). As
+   * tres secoes, a personalizacao da faixa e o estado do sync continuam
+   * identicos — o que mudou e a linguagem visual, que passou a ser a do
+   * dashboard (contrato em `globals.css`). A base de data e os sinais sairam a
+   * pedido dela; o porque esta no comentario logo abaixo.
+   */
+  return <div className="v3 ml-monitor-body">
+    {/* ⚠️ SAIRAM DAQUI DOIS COMPONENTES ANTIGOS (pedido dela,
+        10/09/2026): a linha "Valores por data do pedido…" (`BaseDeData`) e a
+        faixa "N SKUs sem custo cadastrado — cadastrar →" (`SinaisDoResultado`).
 
-      ⚠️ Sem esta linha, `sinais` viraria calculo sem consumidor: a auditoria
-      teria trocado repeticao por codigo morto, e a pessoa que abre o Monitor
-      perderia o aviso de custo nao cadastrado — o oposto de "nada desaparece".
-    */}
-    {sinais.length > 0 && <SinaisDoResultado sinais={sinais} />}
-    <CustomizableMetricGrid
-      viewKey="mercado-livre-monitor"
-      ariaLabel="Resumo do monitor Mercado Livre"
-      gridClassName="metric-grid monitor-metric-grid"
-      widgets={[
-        {
-          id: "vendas-brutas",
-          label: "Vendas brutas",
-          node: <Metric label="Vendas brutas" value={<AnimatedNumber periodo={identidadeDePeriodo(overview.period.from, overview.period.to)} id="ml-monitor-revenue" value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />} sub={`${overview.metrics.paidOrders} aprovadas + ${overview.metrics.cancelledOrders} canceladas`} />,
-        },
-        {
-          id: "canceladas",
-          label: "Canceladas",
-          node: <Metric label="Canceladas" value={money(overview.metrics.cancelledRevenue, overview.metrics.currency)} sub={`${overview.metrics.cancelledOrders} pedido(s) no período`} tone={overview.metrics.cancelledRevenue > 0 ? "danger" : "ok"} className="metric-cancelled" />,
-        },
-        {
-          id: "total-recebido",
-          label: profitCoverage.complete ? "Total recebido" : "Total recebido processado",
-          node: <Metric label={profitCoverage.complete ? "Total recebido" : "Total recebido processado"} value={money(netReceived, overview.metrics.currency)} sub="após tarifa e frete" />,
-        },
-        {
-          id: "margem",
-          label: profitCoverage.complete ? "Margem de contribuição" : "Margem processada",
-          node: <Metric label={resultIncomplete ? "Resultado processado" : "Margem de contribuição"} value={overview.profit.estimatedProfit == null ? "—" : money(overview.profit.estimatedProfit, overview.metrics.currency)} sub={comSemImposto(`${overview.profit.coverage.processedOrders} de ${overview.profit.coverage.paidOrders} vendas`, semAliquota)} tone={resultIncomplete || overview.profit.estimatedProfit == null ? "default" : overview.profit.estimatedProfit > 0 ? "positive" : overview.profit.estimatedProfit < 0 ? "danger" : "default"} />,
-        },
-        {
-          id: "margem-pct",
-          label: "Margem",
-          node: <Metric label="Margem" value={percent(overview.profit.marginPct)} sub={margemSub} tone={marginMetricTone(overview.profit.marginPct)} />,
-        },
-      ]}
-    />
-    {semAliquota && <div className="flex justify-end"><Link href={MERCADO_LIVRE_TAX_RATE_HREF} className="meli-primary-action">Cadastrar alíquota <span aria-hidden="true">→</span></Link></div>}
+        ⚠️ O QUE ISSO CUSTA, para quem for reverter saber: a base
+        de data era a unica coisa que distinguia este monitor do da Amazon, onde
+        o numero e por data do REPASSE, nao do pedido. Os dois canais mostram
+        "Monitor da conta" e somam por criterios diferentes; sem a frase, quem
+        compara os dois nao tem como saber. E o link "cadastrar →" era o unico
+        atalho desta tela para o cadastro de custo.
+
+        A falta em si nao sumiu: o cartao "Margem" da faixa continua dizendo
+        "falta N unidade(s) sem custo", e "O que falta para o numero fechar" no
+        dashboard mantem o numero com destino. O que se perdeu foi o atalho
+        daqui e a distincao entre os dois monitores. */}
+    <EstadoDoSync provider="mercado_livre" />
+    {/* ⚠️ SEM CARTAO EM VOLTA, SEM META E SEM "Personalizar"
+        (pedido dela, 10/09/2026). A moldura branca envolvia seis caixinhas que
+        JA tem moldura propria — caixa dentro de caixa, e o vao entre as duas
+        virava um blocao branco no topo da tela.
+
+        ⚠️ E ISSO CUSTOU A PERSONALIZACAO DA FAIXA. O
+        `CustomizableMetricGrid` era quem deixava reordenar e esconder
+        indicadores, e o botao "Personalizar" era a porta dele; sem o botao o
+        componente vira peso morto. Os cinco cartoes agora sao fixos, nesta
+        ordem. Se a personalizacao voltar a ser desejada, o caminho e outro —
+        um controle na barra da tela, nao um botao flutuando sobre a faixa.
+
+        O "N de N pedidos apurados" tambem saiu: a cobertura ja aparece na nota
+        do cartao "Margem" ("276 de 276 vendas"), e dizer duas vezes na mesma
+        tela e repetir a mesma lista, que a regra da casa proibe. */}
+    {/* ⚠️ O TITULO SAI DA CONSULTA, nao de `overview.period.label`.
+        E o mesmo defeito que ja corrigimos no dashboard e que ela pegou de novo
+        aqui (10/09/2026): com "15 dias" marcado no filtro, o titulo continuava
+        "Ultimos 30 dias", porque o rotulo vinha de um valor separado da query.
+        Derivar da string que BUSCOU os dados torna a divergencia impossivel. */}
+    {/**
+      * ⚠️ TITULO E FAIXA SO EXISTEM ONDE O PERIODO GOVERNA — e
+      * na aba "Transacoes" ele nao governa nada. Ela pegou pela tela em
+      * 10/09/2026: *"mas estao aqui ainda em transacoes"*.
+      *
+      * O saldo do Mercado Pago e o estado de AGORA, por decisao registrada na
+      * propria rota: *"Sem `period`: saldo e o estado de AGORA. Filtrar por
+      * periodo esconderia uma liberacao fora da janela e diria que nao ha nada
+      * a receber."* Com o titulo "Ultimos 30 dias" e cinco cartoes do periodo
+      * por cima, a tela prometia um recorte que o conteudo abaixo ignora.
+      *
+      * ⚠️ E NAO E SO ENFEITE FORA DE LUGAR: "Total recebido" do
+      * periodo ao lado de "Ainda retido pelo Mercado Pago" convida a subtrair
+      * um do outro, e os dois nao falam do mesmo conjunto de vendas. Numero
+      * que nao se compara nao pode ficar lado a lado.
+      *
+      * O filtro de data continua na barra de cima porque ele governa as OUTRAS
+      * duas abas — some-lo faria a volta para "Composicao" perder o recorte.
+      */}
+    {section !== "transactions" && (
+      <>
+      <h2 className="v3-titulo-solto">{tituloDoPeriodo(periodoQuery)}</h2>
+      <div className="v3-colunas">
+        <ColunaDoMonitor
+          rotulo="Vendas brutas"
+          valor={<AnimatedNumber periodo={identidadeDePeriodo(overview.period.from, overview.period.to)} id="ml-monitor-revenue" value={overview.metrics.revenue30d} format={(amount) => money(amount, overview.metrics.currency)} />}
+        />
+        <ColunaDoMonitor
+          rotulo="Canceladas"
+          valor={money(overview.metrics.cancelledRevenue, overview.metrics.currency)}
+          tom={overview.metrics.cancelledRevenue > 0 ? "negativo" : undefined}
+          /* ⚠️ A CONTAGEM VOLTOU (11/09/2026). O valor cancelado
+             ficou na tela e o "em quantos pedidos" nao: R$ 1.017,58 em 28
+             pedidos le diferente de R$ 1.017,58 em um. Ninguem cortou de
+             proposito — `overview.metrics.cancelledOrders` sumiu das duas telas
+             do canal na troca de layout, e so apareceu quando o diff de numeros
+             comparou campo a campo o que cada tela lia antes e depois. */
+          nota={`${overview.metrics.cancelledOrders.toLocaleString("pt-BR")} pedido(s) no período`}
+        />
+        <ColunaDoMonitor
+          rotulo={profitCoverage.complete ? "Total recebido" : "Total recebido processado"}
+          valor={money(netReceived, overview.metrics.currency)}
+        />
+        <ColunaDoMonitor
+          rotulo={resultIncomplete ? "Resultado processado" : "Margem de contribuição"}
+          valor={overview.profit.estimatedProfit == null ? "—" : money(overview.profit.estimatedProfit, overview.metrics.currency)}
+          tom={overview.profit.estimatedProfit == null ? "vazio" : overview.profit.estimatedProfit > 0 ? "positivo" : overview.profit.estimatedProfit < 0 ? "negativo" : undefined}
+        />
+        <ColunaDoMonitor
+          rotulo="Margem"
+          valor={percent(overview.profit.marginPct)}
+          tom={overview.profit.marginPct == null ? "vazio" : overview.profit.marginPct < 0 ? "negativo" : "positivo"}
+          nota={margemSub}
+        />
+      </div>
+      {/* ⚠️ ESTA NOTA VOLTOU (11/09/2026), e foi a UNICA das seis
+          perdas que o diff de numeros achou cuja informacao sumia POR COMPLETO
+          da tela. As outras cinco sobrevivem em outra forma; esta nao tinha
+          outra casa.
+          
+          O que ela guarda e a regra de faturamento do Mercado Livre: o frete
+          que o COMPRADOR paga nao entra no faturamento, e o resultado conta so
+          o frete que sai do bolso dela. Sem a frase, quem bate o numero do NEXO
+          contra outra ferramenta ve uma diferenca do tamanho do frete e nao tem
+          como saber de onde vem — e conferir com outra ferramenta e exatamente
+          o que a dona do produto faz.
+          
+          Entra como nota do monitor, que e onde ela morava, no peso de nota. */}
+      {overview.profit.buyerShipping > 0 && (
+        <p className="v3-nota">
+          O comprador pagou {money(overview.profit.buyerShipping, overview.metrics.currency)} de frete no período.
+          Esse valor não compõe o faturamento; o resultado considera apenas o frete efetivamente pago pelo vendedor.
+        </p>
+      )}
+      {semAliquota && <div className="flex justify-end"><Link href={MERCADO_LIVRE_TAX_RATE_HREF} className="meli-primary-action">Cadastrar alíquota <span aria-hidden="true">→</span></Link></div>}
+      </>
+    )}
 
     {/* Mesmas três abas da Amazon, na mesma ordem. "Transações" faltava aqui: o
         extrato do Mercado Pago existia só no card do dashboard, e quem abria o
         monitor não achava onde ver quando o dinheiro cai. */}
-    <nav className="monitor-section-tabs" aria-label="Visões do monitor Mercado Livre"><button type="button" aria-current={section === "composition" ? "page" : undefined} onClick={() => setSection("composition")}>Composição</button><button type="button" aria-current={section === "transactions" ? "page" : undefined} onClick={() => setSection("transactions")}>Transações</button><button type="button" aria-current={section === "profitability" ? "page" : undefined} onClick={() => setSection("profitability")}>Rentabilidade por venda</button></nav>
+    {/* ⚠️ MESMA PECA DAS ABAS DO "Ritmo dos ultimos 7 dias"
+        (`v3-abas`), e nao um estilo proprio do monitor. Duas familias de aba no
+        mesmo produto e o que faz uma tela parecer de outro app — foi por isso
+        que a tela de estoque teve de ser refeita. */}
+    <nav className="v3-abas" aria-label="Visões do monitor Mercado Livre">
+      {/* Rentabilidade primeiro: e ela que ocupa o lugar da Composicao, e e
+          onde cai quem clica em "Abrir vendas" no dashboard. */}
+      {([
+        ["profitability", "Rentabilidade por venda"],
+        ["transactions", "Transações"],
+      ] as const).map(([id, rotulo]) => (
+        <button
+          key={id}
+          type="button"
+          className={`v3-aba${section === id ? " is-ativa" : ""}`}
+          aria-current={section === id ? "page" : undefined}
+          onClick={() => setSection(id)}
+        >
+          {rotulo}
+        </button>
+      ))}
+    </nav>
 
     {section === "transactions" && <MercadoLivreSaldo modo="transacoes" />}
 
-    {section === "composition" && <section className="monitor-composition" aria-labelledby="meli-financial-title">
-      <header className="monitor-section-heading"><div><p>Financeiro realizado</p><h2 id="meli-financial-title">Do faturamento ao resultado</h2></div><span>Valores conciliados do Mercado Livre</span></header>
-      <div className="financial-lines">
-        <Flow label={profitCoverage.complete ? "Faturamento dos produtos" : "Faturamento processado"} value={money(overview.profit.revenueProcessed, overview.metrics.currency)} />
-        <Flow label="Tarifa de venda" value={money(overview.profit.fees, overview.metrics.currency)} sign="−" />
-        <Flow label="Frete pago pelo vendedor" value={money(overview.profit.sellerShipping, overview.metrics.currency)} sign="−" />
-        <Flow label="Total recebido" value={money(netReceived, overview.metrics.currency)} sign="=" />
-        <Flow label="Custo dos produtos" value={money(overview.profit.cogs, overview.metrics.currency)} sign="−" />
-        <Flow label={rotuloImposto(overview.profit.taxRate, overview.profit.taxes, overview.metrics.currency).label} value={rotuloImposto(overview.profit.taxRate, overview.profit.taxes, overview.metrics.currency).value} sign="−" />
-        <Flow label={comSemImposto("Margem de contribuição", semAliquota)} value={overview.profit.estimatedProfit == null ? "—" : money(overview.profit.estimatedProfit, overview.metrics.currency)} sign="=" accent />
-      </div>
-      {overview.profit.buyerShipping > 0 && <p className="monitor-coverage-note">O comprador pagou {money(overview.profit.buyerShipping, overview.metrics.currency)} de frete no período. Esse valor não compõe o faturamento; o resultado considera apenas o frete efetivamente pago pelo vendedor.</p>}
-    {(!profitCoverage.complete || !overview.profit.shippingCostsComplete) && (
-      // Nota discreta: o cálculo já cobre o período inteiro; isto só sinaliza o
-      // que ainda está sendo conciliado em segundo plano, sem poluir a tela.
-      <p className="monitor-coverage-note">
-        {!profitCoverage.complete
-          ? `Conciliando ${(profitCoverage.paidOrders - profitCoverage.processedOrders).toLocaleString("pt-BR")} de ${profitCoverage.paidOrders.toLocaleString("pt-BR")} vendas — os valores acima consideram só o que já foi apurado.`
-          : "Alguns fretes ainda estão sendo conciliados; essas vendas ficam de fora da margem para não superestimá-la."}
-      </p>
-    )}
-    </section>}
-    {section === "profitability" && <OrderProfitabilityTable lines={overview.profitabilityLines} scopeNote={fraseDeEscopo(overview.profitabilityScope)} />}
+    {/**
+      * ⚠️ AQUI MORAVA "Do faturamento ao resultado" — a
+      * cascata com os sinais: faturamento, menos tarifa, menos frete, igual
+      * total recebido, menos custo, menos imposto, igual margem.
+      *
+      * ⚠️ O QUE ISSO CUSTA, para quem for reverter saber:
+      * era o UNICO lugar do produto que dizia que aqueles numeros sao
+      * SUBTRAIDOS uns dos outros. O dashboard mostra os mesmos valores como
+      * sete cartoes lado a lado e nunca escreve a conta. Quem estiver
+      * aprendendo para onde o dinheiro vai perdeu a explicacao; quem ja sabe
+      * nao perdeu numero nenhum.
+      *
+      * Saiu porque REPETIA: de sete linhas, duas apareciam na faixa a 20px
+      * daqui (Total recebido e Margem, como "Resultado processado") e quatro
+      * na faixa do dashboard (tarifa, frete, custo, imposto). So
+      * "Faturamento processado" era exclusivo. Medido linha a linha antes de
+      * propor, e a decisao foi dela em 10/09/2026.
+      *
+      * Se a conta com sinais voltar a fazer falta, o lugar dela e o DASHBOARD,
+      * junto dos cartoes que ja tem os mesmos numeros — nao uma terceira copia
+      * numa aba.
+      *
+      * ⚠️ DUAS NOTAS SAIRAM JUNTO e nao tem outro dono:
+      * a do frete pago pelo comprador ("nao compoe o faturamento") e a da
+      * conciliacao em andamento ("Conciliando N de M vendas"). A segunda e a
+      * que aponta falta com numero — se alguem sentir a ausencia, e ela.
+      */}
+    {section === "profitability" && <OrderProfitabilityTableV3 lines={overview.profitabilityLines} scopeNote={fraseDeEscopo(overview.profitabilityScope)} />}
   </div>;
 }

@@ -126,20 +126,42 @@ test("parcela ausente NAO vira zero na procedencia da linha", async () => {
   assert.ok(!/FBA R\$ 0/.test(procedenciaDaFonte({ fonte: "api", comissao: 3.47, fba: null }).texto));
 });
 
-test("a marca fica COLADA ao numero, na face e no detalhe", async () => {
-  const tabela = await fonte("src/app/components/OrderProfitabilityTable.tsx");
-  // Face: dentro do <strong> do valor, nao numa terceira linha do cartao.
+test("a marca fica COLADA ao numero nas DUAS formas da tabela", async () => {
+  // ⚠️ A TABELA BIFURCOU EM 11/09/2026, e a marca tem de estar nas
+  // duas pontas. `OrderProfitabilityTable` e a forma que Amazon, Shopee e a
+  // central renderizam; `OrderProfitabilityTableV3` e a do Mercado Livre. A
+  // duplicacao e declarada e temporaria (ver o cabecalho do arquivo V3), e
+  // existe porque a identidade nova sobe SO no ML.
+  //
+  // ⚠️ E E EXATAMENTE AQUI QUE DUPLICACAO COSTUMA MATAR REGRA:
+  // alguem conserta numa copia e esquece a outra, e a ADR-027 passa a valer em
+  // tres telas e nao em quatro. Por isso a guarda cobre as duas no mesmo teste —
+  // quem apagar a marca de qualquer uma ve vermelho.
+  const original = await fonte("src/app/components/OrderProfitabilityTable.tsx");
+  const v3 = await fonte("src/app/components/OrderProfitabilityTableV3.tsx");
+
+  // Forma original: dentro do <strong> do valor, nao numa terceira linha.
   assert.match(
-    tabela,
+    original,
     /<strong>\{money\(line\.contribution, line\.currency\)\}\{marcaDaLinha\(line\)\}<\/strong>/,
-    "a marca saiu de perto do numero na face da linha",
+    "a marca saiu de perto do numero na face da linha (forma original)",
   );
-  // Detalhe: colada a TARIFA, que e a parcela que a estimativa substitui.
-  assert.match(
-    tabela,
-    /− \{money\(line\.marketplaceFees, line\.currency\)\}\{marcaDaLinha\(line\)\}/,
-    "a tarifa estimada deixou de ser marcada onde ela mora",
+  // Forma v3: dentro do chip de margem, que e a face da linha no ML.
+  assert.ok(
+    v3.includes([
+      "      {percent(line.marginPct)}",
+      "      {marcaDaLinha(line)}",
+    ].join(String.fromCharCode(10))),
+    "a marca saiu de perto do numero na face da linha (forma v3 do ML)",
   );
+  // Detalhe: colada a TARIFA, que e a parcela que a estimativa substitui — nas duas.
+  for (const [nome, fonteDaVez] of [["original", original], ["v3", v3]]) {
+    assert.match(
+      fonteDaVez,
+      /− \{money\(line\.marketplaceFees, line\.currency\)\}\{marcaDaLinha\(line\)\}/,
+      `a tarifa estimada deixou de ser marcada onde ela mora (${nome})`,
+    );
+  }
 });
 
 test("linha sem tarifa nenhuma continua dizendo o que falta — nao marca ausencia", async () => {

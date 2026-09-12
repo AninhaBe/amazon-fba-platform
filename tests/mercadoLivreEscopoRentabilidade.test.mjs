@@ -27,8 +27,23 @@ test("dashboard e monitor do ML passam a frase de escopo, e ela diz o que exibe 
   // lugares, com nomes diferentes.
   const chamadas = fonte.match(/scopeNote=\{fraseDeEscopo\(overview\.profitabilityScope\)\}/g) ?? [];
   assert.equal(chamadas.length, 1, "o monitor — o dashboard passa a mesma frase por `escopo`");
-  assert.match(fonte, /escopo=\{fraseDeEscopo\(overview\.profitabilityScope\)/,
-    "o card do dashboard parou de receber a frase de escopo");
+  // ⚠️ A PROP MUDOU DE NOME E DE DONO EM 11/09/2026, e a exigencia
+  // nao: era `escopo={...}` no card `TabelaDeVendas`, que o v3 substituiu. Hoje
+  // a lista recortada e o card "Pedidos" do `PainelV3Baixo`, e a frase entra
+  // pelo campo `escopo` do contrato.
+  //
+  // ⚠️ E ELA TINHA SE PERDIDO NA TROCA: entre 09 e 11/09 o card
+  // mostrava cinco linhas debaixo de totais de centenas de pedidos, sem nada
+  // dizendo que era um recorte. Nada ficou vermelho — a guarda apontava para o
+  // card que nao existia mais, entao reprovava por endereco, nao por conteudo.
+  assert.match(fonte, /escopo: fraseDeEscopo\(overview\.profitabilityScope\),/,
+    "o card de Pedidos do dashboard parou de receber a frase de escopo");
+  // E o painel EXIBE a frase — passar sem desenhar seria o mesmo que nao passar.
+  const painel = await readFile(new URL("../src/app/components/PainelV3Baixo.tsx", import.meta.url), "utf8");
+  assert.ok(
+    painel.includes('{dados.revisar.escopo ? <p className="v3-nota">{dados.revisar.escopo}</p> : null}'),
+    "a frase de escopo deixou de ser desenhada no card de Pedidos",
+  );
   // Período completo = sem frase (o texto padrão da tabela serve).
   assert.match(fonte, /if \(!scope \|\| scope\.completePeriod\) return undefined/);
   assert.match(fonte, /Exibindo os \$\{scope\.detailedOrders\} pedidos mais recentes\. Os totais financeiros acima consideram o período completo\./);

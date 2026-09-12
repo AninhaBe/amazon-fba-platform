@@ -29,6 +29,10 @@ interface LinhaFull {
   available_qty: number | null;
   user_product_id: string | null;
   currency: string | null;
+  /** ⚠️ `NUMERIC` do Postgres chega como STRING no `pg` — ver o
+   *  `Number(...)` no mapeamento abaixo. Tratar como number aqui daria
+   *  concatenacao em vez de multiplicacao, e o valor de venda sairia absurdo. */
+  price: string | number | null;
 }
 
 export async function GET(req: NextRequest) {
@@ -54,7 +58,7 @@ export async function GET(req: NextRequest) {
       const workspaceId = currentWorkspaceId();
       const [linhas, sincronizacao] = await Promise.all([
         dbQuery<LinhaFull>(
-          `SELECT external_product_id, sku, title, available_qty, currency,
+          `SELECT external_product_id, sku, title, available_qty, currency, price,
                   raw ->> 'userProductId' AS user_product_id
              FROM workspace_channel_products
             WHERE workspace_id = $1 AND provider = 'mercado_livre' AND connection_id = $2
@@ -86,6 +90,10 @@ export async function GET(req: NextRequest) {
         title: linha.title,
         availableQty: linha.available_qty,
         userProductId: linha.user_product_id,
+        /* ⚠️ `null` QUANDO NAO HA PRECO, nunca zero. `Number(null)`
+           daria 0 e o anuncio entraria no total de venda como se fosse de
+           graca — a familia `null ≠ 0` do projeto. */
+        price: linha.price == null ? null : Number(linha.price),
       }));
 
       // Foto do estoque de HOJE: a vigência do custo é a de hoje (ADR-004),

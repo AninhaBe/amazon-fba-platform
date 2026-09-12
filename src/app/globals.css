@@ -68,7 +68,20 @@
   --amazon: oklch(0.548 0.142 249);
   --amazon-dark: oklch(0.438 0.127 249);
   --amazon-soft: oklch(0.948 0 0);
-  --meli: oklch(0.895 0.166 96);
+  /* ⚠️ #FFDE21 — o amarelo escolhido por ela em 10/09/2026,
+     olhando o botao de pagina selecionada.
+
+     ⚠️ MEXI NO TOKEN DO CANAL, NAO NO BOTAO. O botao usa
+     `--channel-accent`, que e amarelo no Mercado Livre, laranja na Amazon e
+     vermelho na Shopee — cravar #FFDE21 nele deixaria a pagina selecionada
+     AMARELA dentro da Amazon, brigando com o resto daquela tela. Trocando o
+     token, o amarelo dela vale em tudo que e do Mercado Livre e cada canal
+     segue com a propria cor.
+
+     O que isso alcanca: todo acento do ML — pagina selecionada, barra do item
+     ativo no menu, botoes primarios do canal. Era `oklch(0.895 0.166 96)`,
+     praticamente o mesmo tom com outro croma. */
+  --meli: #ffde21;
   --meli-dark: oklch(0.365 0.067 92);
   --meli-soft: oklch(0.974 0 0);
   --shopee: oklch(0.596 0.198 30);
@@ -4407,8 +4420,37 @@ summary:hover { background: var(--paper-soft); }
 .full-stock-shell tfoot :is(th, td) { border-block-start: 1px solid var(--line-strong); background: var(--paper-soft); color: var(--ink); font-size: 13px; font-weight: var(--weight-semibold); }
 .full-stock-shell tbody tr.is-sem-custo td:nth-child(n+3) { color: var(--ink-muted); }
 .full-stock-note { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 12px 18px; border-block-start: 1px solid var(--line); color: var(--ink-muted); font-size: 12px; line-height: 16px; }
-.full-pendencia-link { display: inline-flex; align-items: center; gap: 4px; color: var(--meli-dark); font-weight: var(--weight-semibold); }
-.full-pendencia-link:hover { text-decoration: underline; }
+/* ── Link de pendencia: uma PASTILHA, nao um link sublinhado ────────────────
+   ⚠️ SEM SUBLINHADO E SEM SETA. As duas coisas foram reprovadas
+   por ela em 10/09/2026, e a primeira tentativa (tirar o sublinhado so do
+   repouso e clarear a seta) nao era o pedido.
+
+   O problema do sublinhado nao e gosto: numa tela onde tudo esta alinhado em
+   colunas e linhas, ele e a unica linha torta. E a seta `→` em texto herda o
+   peso da fonte e fica desproporcional ao lado de um numero pequeno.
+
+   A pastilha resolve os dois: a FORMA diz que e clicavel, sem adorno nenhum.
+   Usa o azul de acao dos botoes, entao a tela inteira fala a mesma lingua sobre
+   o que se pode clicar. */
+.full-pendencia-link {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--acao-traco, #bcd3fa);
+  border-radius: var(--radius-badge, 999px);
+  background: var(--acao-fundo, #eaf1fe);
+  padding: 2px 9px;
+  color: var(--acao-tinta, #1b3a8f);
+  font-size: 11.5px;
+  font-weight: 650;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color 140ms var(--ease), border-color 140ms var(--ease);
+}
+.full-pendencia-link:hover {
+  border-color: var(--acao, #1d4ed8);
+  background: color-mix(in oklch, var(--acao, #1d4ed8) 14%, #ffffff);
+  text-decoration: none;
+}
 .listing-filter-context { display: flex; min-height: 36px; align-items: center; justify-content: flex-end; padding-inline: 10px; color: var(--ink-muted); font-size: 12px; white-space: nowrap; }
 .listing-page .product-tax-panel { grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; padding: 12px 14px; border-inline-start-width: 3px; border-radius: var(--radius-sm); background: var(--paper-soft); box-shadow: none; }
 .listing-page .product-tax-panel h2 { margin-block-start: 2px; font-size: 14px; font-weight: var(--weight-semibold); line-height: 20px; }
@@ -6342,6 +6384,10 @@ summary:hover { background: var(--paper-soft); }
 .etapa:last-child { border-inline-end: 0; }
 /* A alternancia de fundo separa os passos sem precisar de mais um traco. */
 .etapa:nth-child(even) { background: var(--paper-soft); }
+/* Rotulo e acao na mesma linha, como no cabecalho dos cartoes vizinhos. So
+   existe quando ha acao — sem ela o rotulo segue sozinho, como sempre foi. */
+.etapa-topo { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.etapa-topo .etapa-rotulo { margin-block-end: 0; }
 .etapa-rotulo { margin: 0 0 4px; color: var(--ink-muted); font-size: 11.5px; }
 .etapa-valor { margin: 0 0 4px; font-size: 24px; line-height: 1.1; }
 /* ⚠️ UM SO NUMERO EM VERDE, e e o "Sobrou". Se o faturamento tambem fosse
@@ -6451,3 +6497,2391 @@ summary:hover { background: var(--paper-soft); }
 @media (max-width: 1100px) {
   .ml-cockpit-duas-colunas { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ESTRUTURA v3 DO DASHBOARD — lida do canvas dela em 09/09/2026
+   (`Dashboard Mercado Livre v3.dc.html`, projeto 977f6a09, via DesignSync).
+
+   ⚠️ O FUNDO NAO ENTRA. Ordem dela: *"so nao aplique o fundo, o fundo
+   deixe como esta"*. O canvas pinta #fdfdfd com malha de 60px; o `body` do
+   produto continua exatamente como estava. Daqui sai so a COMPOSICAO.
+
+   As medidas sao as do canvas, nao aproximacoes: 19px no numero da faixa,
+   12.5px no rotulo, 13.5px na linha de tabela, 1px de traco em #e3e3df.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.v3 {
+  --verde: #167a56;
+  --vermelho: #c83a31;
+  --ambar: #e08b18;
+  --ambar-tinta: #b45309;
+  --verde-soft: #e5f5ec;
+  --vermelho-soft: #fbeae7;
+  --ambar-soft: #fceadb;
+  --card: #ffffff;
+  --linha: #e3e3df;
+  --suave: #f6f6f4;
+
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+/* ── O card, a peca de tudo ─────────────────────────────────────────────── */
+.v3-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  border: 1px solid var(--linha);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  padding: 18px 20px 20px;
+}
+.v3-card-cab {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.v3-card-cab h2 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+.v3-card-cab-dir { display: flex; align-items: center; gap: 14px; }
+.v3-meta { color: var(--ink-64); font-size: 12px; }
+.v3-meta a { color: inherit; }
+.v3-btn {
+  flex: none;
+  border: 1px solid var(--ink-12);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  padding: 6px 11px;
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.v3-btn:hover { background: var(--ink-05); }
+.v3-nota { margin: 0; color: var(--ink-64); font-size: 12px; line-height: 1.5; text-wrap: pretty; }
+.v3-nota a { font-weight: 600; }
+
+/* ── A faixa: sete colunas separadas por fio ─────────────────────────────── */
+.v3-faixa { gap: 12px; }
+.v3-colunas {
+  /* ⚠️ ESPACO RESERVADO PARA O SELO FICAR INTEIRO ACIMA DO
+     CARTAO. Comecou em 9px e o selo montava NA BORDA — ela apontou de novo
+     (10/09/2026) mostrando que queria o aviso completamente fora da caixa, nao
+     atravessando a linha dela.
+
+     O espaco vive aqui, no contentor, e nao como margem do cartao: assim os
+     seis cartoes continuam com o topo alinhado, e quem tem selo apenas ocupa
+     uma faixa que ja existia vazia. */
+  padding-block-start: 26px;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  align-items: stretch;
+}
+.v3-coluna {
+  /* ⚠️ `relative` PARA O SELO DE PENDENCIA se ancorar na borda
+     de cima. Sem isto ele se posicionaria em relacao a pagina e sairia voando
+     para o canto — e o sintoma seria "sumiu", nao "esta no lugar errado". */
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  border-inline-end: 1px solid var(--linha);
+  padding: 2px 18px;
+}
+.v3-coluna:first-child { padding-inline-start: 0; }
+.v3-coluna.is-ultima { border-inline-end: 0; }
+/* `min-height` no rotulo alinha os SETE numeros na mesma linha de base mesmo
+   quando um rotulo quebra em duas linhas ("Frete que voce paga"). */
+.v3-coluna-rotulo {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  min-height: 32px;
+  margin: 0;
+  color: var(--ink-64);
+  font-size: 12.5px;
+  line-height: 1.3;
+}
+.v3-coluna-valor {
+  color: var(--ink);
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -.015em;
+  font-variant-numeric: tabular-nums;
+}
+.v3-coluna-valor.is-positivo { color: var(--verde); }
+.v3-coluna-valor.is-negativo { color: var(--vermelho); }
+/* Desconhecido nao e zero: o travessao fica cinza para nao competir com numero. */
+.v3-coluna-valor.is-vazio { color: var(--ink-32); }
+.v3-coluna-share { color: var(--ink-64); font-size: 12px; line-height: 1.4; font-variant-numeric: tabular-nums; }
+
+/* ── Fundo levissimo por valencia ───────────────────────────────────────────
+   ⚠️ 8% DE TINTA — comecou em 4% e subiu um tom a pedido dela
+   no mesmo dia (10/09/2026), porque o primeiro valor quase nao aparecia. O
+   teto continua sendo o mesmo criterio: o fundo sussurra a natureza da coluna,
+   o numero e que da a noticia. Passar disto faz o cartao competir com o chip e
+   com o proprio numero colorido.
+
+   ⚠️ QUEM RECEBE TOM E O ROTULO, NAO O VALOR — decisao dela em
+   10/09/2026, contra o meu parecer. A cor identifica a NATUREZA da coluna;
+   quem julga o numero e o proprio numero. Fundo que troca de cor conforme o
+   dado faria a faixa piscar de verde para vermelho entre um dia e outro, e
+   ninguem decora uma tela que muda de mapa. O raciocinio inteiro esta em
+   `MercadoLivreWorkspace.tsx`, na faixa do radar. */
+/* ⚠️ A BORDA VEM DO MATIZ, EM TOM ESCURO (pedido dela,
+   10/09/2026). Aqui a proporcao se INVERTE em relacao ao fundo: o fundo mistura
+   pouco matiz em muito branco (8%), a borda mistura pouco PRETO no matiz (72%
+   de matiz sobre a tinta). O contraste entre os dois e o que faz o cartao ter
+   contorno em vez de mancha.
+
+   ⚠️ E A BORDA NAO PODE SER O MATIZ PURO: `--verde` e
+   `--vermelho` sao as cores do TEXTO (o "3" vermelho, o "219,30" verde). Borda
+   e numero na mesma cor fariam a moldura competir com o dado — por isso a
+   mistura com a tinta, que escurece sem trocar de familia. */
+/* ⚠️ O SELETOR PRECISA DE TRES CLASSES, e nao e preciosismo:
+   `.v3-coluna.is-ultima { border-color }` existe mais abaixo com as MESMAS duas
+   classes e vence pela ordem. Foi o que fez o cartao do Full continuar com
+   borda preta enquanto verde e vermelho ja tinham mudado (10/09/2026) — e e a
+   segunda vez que `is-ultima` cria esse empate nesta folha.
+
+   ⚠️ A BORDA E O MATIZ PURO. Comecei misturando com a tinta
+   para nao competir com o numero colorido, e o resultado foi invisivel: *"nao
+   da pra ver tanto"*. As cores puras ja sao escuras (#167a56, #c83a31) e o que
+   as separa do numero e a ESPESSURA — 1px de contorno nao disputa atencao com
+   um numero de 19px em negrito. */
+.v3-colunas .v3-coluna.is-tom-verde {
+  background: color-mix(in oklch, var(--verde) 8%, #ffffff);
+  border-color: var(--verde);
+}
+.v3-colunas .v3-coluna.is-tom-vermelho {
+  background: color-mix(in oklch, var(--vermelho) 8%, #ffffff);
+  border-color: var(--vermelho);
+}
+/* ⚠️ O AMBAR ANDA JUNTO MAS EM PROPORCAO MENOR (10% contra os
+   8% dos outros). Nao e capricho: amarelo tem luminancia muito mais alta que
+   verde e vermelho, entao a mesma porcentagem de mistura rende um fundo que
+   parece mais forte. Igualar os numeros desiguala o que se ve. */
+.v3-colunas .v3-coluna.is-tom-ambar {
+  background: color-mix(in oklch, var(--ambar) 10%, #ffffff);
+  /* `--ambar-tinta` (#b45309) e nao `--ambar` (#e08b18): o amarelo puro some
+     contra o branco, o laranja escuro nao. */
+  border-color: var(--ambar-tinta);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CONTRATO VISUAL DAS TELAS DO NEXO — o dashboard do Mercado Livre e o padrao
+
+   ⚠️ REGRA PERMANENTE DA DONA DO PRODUTO, 10/09/2026, verbatim:
+   *"tenha isso como padrao, todas as novas telas precisam seguir o padrao do
+   dash principal"*.
+
+   Nao e recomendacao de estilo: tela que inventa a propria medida faz o app
+   parecer varios produtos colados, e foi por isso que o bloco do custo no Full
+   e a tela de estoque tiveram de ser refeitos — cada um tinha nascido com
+   cabecalho, tabela e espacamento proprios.
+
+   Os numeros abaixo foram MEDIDOS no dashboard renderizado (10/09/2026), nao
+   estimados. Quem duvidar, abra `/mercado-livre/bancada` e confira no elemento.
+
+   ── Cartao ─────────────────────────────────────────────────────────────────
+   `.v3-card` · borda 1px na TINTA CHEIA (#171717), raio 12px, fundo branco.
+   Nunca cinza claro na borda: o cartao deve ser recortado, nao flutuar.
+
+   ── Faixa de numeros ───────────────────────────────────────────────────────
+   `.v3-colunas` > `.v3-coluna` · SETE trilhas fixas, cada cartao 198x110px.
+   Tela com menos numeros deixa trilha vazia — NAO estica. Rotulo 12.5px/600 em
+   `--ink-80`; valor 19px; nota de apoio em UMA linha (frase que quebra em duas
+   estica os cartoes todos, porque a faixa e `align-items: stretch`).
+
+   ── Cabecalho de cartao ────────────────────────────────────────────────────
+   `.v3-card-cab` · `<h2>` 15px/700 a esquerda, `v3-meta` ou `v3-btn` a direita.
+   Sem versalete, sem linha de apoio acima do titulo.
+
+   ── Tabela ─────────────────────────────────────────────────────────────────
+   Embrulho `.v3-tabela` com `grid-template-columns` proprio; cabecalho e linhas
+   com `grid-template-columns: subgrid`. Colunas `minmax(<piso>, auto)`, nunca
+   px cravado. `gap` e `min-width` no EMBRULHO — no subgrid eles saem de dentro
+   das trilhas. `white-space: nowrap` em tudo que e numero. Cabecalho e valores
+   CENTRADOS; primeira coluna flexivel e truncavel.
+
+   ── Linha de tabela ────────────────────────────────────────────────────────
+   ~29px: nome e SKU na MESMA linha (13px / 11px), padding-block 4px. Nao descer
+   de ~28px — linha e alvo de ponteiro.
+
+   ── Paginacao ──────────────────────────────────────────────────────────────
+   15 por pagina, componente `Pagination`, frase "Pagina X de Y · N itens".
+   Fica FORA do cartao, numa `.v3-rodape-solto`: pendencia a esquerda,
+   paginacao a direita, colada no cartao de cima (margem negativa vence o gap).
+
+   ── Acao ───────────────────────────────────────────────────────────────────
+   `.v3-btn` · fundo #eaf1fe, tinta #1b3a8f, traco #bcd3fa, raio 8px.
+   Cartao sem tela de destino NAO ganha botao.
+
+   ── Campo de filtro ────────────────────────────────────────────────────────
+   `.v3-filtros` · altura 34px, traco em `--ink-50` (redefinindo `--line-strong`
+   no escopo: existe regra global com `!important`). Busca cresce, select tem
+   largura de conteudo.
+
+   ── Chip ───────────────────────────────────────────────────────────────────
+   `.v3-chip` com fundo + traco no proprio matiz. Verde = lucro, vermelho =
+   prejuizo, laranja = atencao, cinza = DESCONHECIDO (nunca zero).
+
+   ── Espacamento ────────────────────────────────────────────────────────────
+   `gap: 20px` entre cartoes irmaos. Colunas nao esticam para preencher altura
+   (`align-items: start`): vazio dentro de cartao le como "faltou carregar".
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Duas colunas: margem escapa | ritmo + pendencias ────────────────────── */
+/* ⚠️ `align-items: start` — sem ele o grid ESTICA a coluna mais
+   curta ate a altura da mais alta, e o cartao ganha um vazio proporcional a
+   diferenca. Medido em 09/09/2026: as duas colunas com 660px, o conteudo da
+   esquerda terminando aos 455, e 205px de nada dentro da moldura.
+
+   Vazio DENTRO de um cartao le como "faltou carregar alguma coisa"; o mesmo
+   espaco FORA dele, no fundo da pagina, le como respiro de layout. Por isso a
+   correcao e nao esticar, e nao inventar conteudo para preencher. */
+.v3-duas { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); align-items: start; gap: 20px; }
+.v3-pilha { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+/* ── Quanto sobra de cada produto ────────────────────────────────────── */
+/* ── A grade: um conjunto de colunas para o cabecalho e todas as linhas ─────
+
+   ⚠️ AS LARGURAS SAEM DO CONTEUDO (`auto`), NAO DE PIXELS CRAVADOS.
+   Pedido dela em 09/09/2026: *"os numeros so nao podem invadir as outras
+   colunas conforme eles crescem e tambem nao pode ter quebra de linhas"*. Com
+   largura fixa as duas coisas sao inevitaveis — um valor maior que a caixa ou
+   vaza para o vizinho ou quebra em duas linhas, e centralizado ele vaza para os
+   DOIS lados.
+
+   `auto` resolve as duas de uma vez: a coluna mede o maior conteudo dela
+   (cabecalho incluido) e cresce junto. Quem cede espaco e a coluna do NOME,
+   que e `minmax(0, 1fr)` e ja trunca com reticencias — a unica da tabela onde
+   cortar nao apaga informacao numerica.
+
+   ⚠️ `subgrid` NAO E ENFEITE AQUI. Sem ele, cabecalho e cada linha
+   seriam grids independentes e cada um mediria as proprias colunas: bastaria
+   uma linha com numero mais largo para ela sair do prumo das outras. Com
+   subgrid existe UM conjunto de trilhas, e alinhamento deixa de depender de
+   todos calcularem o mesmo por acaso. */
+.v3-margem-grade {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto auto auto auto;
+  gap: 10px;
+}
+.v3-margem-cab,
+.v3-margem-lista,
+.v3-margem-linha {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+}
+.v3-margem-cab { color: var(--ink-64); font-size: 12px; white-space: nowrap; }
+/* ⚠️ CENTRADO, NAO A DIREITA — pedido dela em 09/09/2026. As
+   colunas SEMPRE estiveram alinhadas ao pixel (cabecalho e valor dividem a
+   mesma celula do grid, e as bordas direitas batiam exatamente). O que se via
+   era outra coisa: com tudo a direita, a PALAVRA do cabecalho, mais larga que
+   o numero, sobrava para a esquerda e parecia deslocada.
+
+   ⚠️ O QUE ISSO CUSTA, para quem for reverter saber: alinhamento a
+   direita e a convencao de coluna de dinheiro porque encosta as casas decimais
+   umas nas outras e deixa comparar grandeza de relance. Centrado, `1.204,50` e
+   `902,10` deixam de compartilhar o eixo da virgula. `font-variant-numeric:
+   tabular-nums` continua ligado, entao os digitos tem largura fixa e a coluna
+   nao "treme" — mas a comparacao vertical fica um pouco pior. Foi decisao dela,
+   com o efeito visual valendo mais que a convencao. */
+.v3-margem-cab span:nth-child(n+3) { text-align: center; }
+.v3-margem-lista { row-gap: 2px; margin: 0; padding: 0; list-style: none; }
+/* ⚠️ O RECUO LATERAL SAIU DAQUI e foi para a grade. Padding num
+   item `subgrid` desloca as trilhas dele em relacao as do pai — o cabecalho e
+   as linhas sairiam do prumo por 6px cada um, que e exatamente o defeito que
+   esta mudanca veio corrigir. O recuo vertical fica, porque nao mexe em coluna. */
+.v3-margem-linha {
+  position: relative;
+  align-items: center;
+  border-radius: var(--radius-sm);
+  padding-block: 9px;
+}
+/* A barra e FUNDO, nao coluna: ela mostra a grandeza do faturamento sem tirar
+   largura de nenhum numero.
+
+   ⚠️ A PRIMEIRA LINHA JA NAO E AMBAR, e isso e correcao de uma cor
+   que MENTIA: `is-topo` quer dizer "maior faturamento", nao "atencao". No print
+   de 09/09/2026 o item n1 tinha margem 18,2% — chip VERDE — deitado sobre uma
+   faixa cor de alerta. Enfase de POSICAO se faz com tom, nao com matiz: a barra
+   dele ja e a mais larga, e agora o cinza e um passo mais escuro. Matiz neste
+   cartao fica reservado ao chip de margem, o unico lugar onde cor quer dizer
+   alguma coisa. */
+.v3-margem-barra {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  border-radius: var(--radius-sm);
+  background: var(--suave);
+}
+/* Azul, e nao um vizinho do verde/laranja/vermelho, porque neste cartao MATIZ
+   TEM SIGNIFICADO: verde e lucro, vermelho e prejuizo, laranja e margem baixa.
+   Faixa de destaque com matiz da familia do dinheiro voltaria a afirmar algo
+   sobre o resultado do item. Azul e o unico ja presente na tela sem carga
+   financeira — e o do botao de acao —, entao a faixa le como POSICAO. */
+.v3-margem-barra.is-topo { background: #e8effc; }
+.v3-margem-linha > :not(.v3-margem-barra) { position: relative; }
+.v3-margem-pos { color: var(--ink-50); font-size: 12px; text-align: center; }
+.v3-margem-nome { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+/* ⚠️ `display: block` NAO E ENFEITE — E O QUE FAZ A ELIPSE
+   EXISTIR (defeito fotografado por ela em 11/09/2026: *"nome do produto aparece
+   em cima de pedido e data"*).
+
+   A regra ja tinha `overflow: hidden` e `text-overflow: ellipsis` desde sempre,
+   e mesmo assim o titulo atravessava a linha inteira. O motivo: este seletor
+   veste um `<span>`, e **caixa inline ignora `overflow`** — nao ha o que cortar,
+   entao o texto simplesmente transborda e PINTA POR CIMA das colunas vizinhas.
+   Onde o span era filho direto de um flex (Radar, Full) ele funcionava, porque
+   item de flex e blocado pelo proprio flex; na tabela de vendas ele esta dentro
+   do `<button>` que abre a linha, e ali continuava inline.
+
+   Por isso a correcao e uma propriedade e nao um `max-width` a mais: sem virar
+   bloco, nenhuma largura resolve. */
+.v3-margem-titulo { display: block; max-width: 100%; overflow: hidden; font-size: 13.5px; text-overflow: ellipsis; white-space: nowrap; }
+.v3-margem-sku { color: var(--ink-50); font-size: 11.5px; font-family: ui-monospace, Menlo, monospace; }
+.v3-margem-un { color: var(--ink-64); font-size: 12.5px; text-align: center; white-space: nowrap; }
+/* `nowrap` e o par do `auto` acima: sem ele a coluna encolheria ate a maior
+   PALAVRA e o numero quebraria em duas linhas em vez de alargar a coluna. */
+.v3-margem-fat, .v3-margem-contrib { font-size: 13.5px; font-variant-numeric: tabular-nums; text-align: center; white-space: nowrap; }
+.v3-margem-chip { display: flex; justify-content: center; }
+
+/* ── Chip de margem ──────────────────────────────────────────────────────── */
+.v3-chip {
+  display: inline-block;
+  border-radius: var(--radius-badge);
+  padding: 2px 7px;
+  font-size: 11.5px;
+  font-style: normal;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* ⚠️ O CHIP NAO PODE DEPENDER DO FUNDO DA LINHA. Com fundo de
+   14% de saturacao e sem traco, o chip verde (#e5f5ec) tinha praticamente a
+   mesma claridade da faixa azul do n1 (#e8effc) e SUMIA — reportado com print
+   em 09/09/2026: "verde se apagou total". O contorno no proprio matiz resolve a
+   familia inteira: o chip passa a ter forma propria sobre QUALQUER faixa, atual
+   ou futura, em vez de depender de eu escolher fundos que nao briguem.
+
+   Os fundos tambem subiram de saturacao para os tres ficarem com o mesmo peso —
+   o laranja de atencao estava sozinho la em cima e por isso parecia o unico com
+   cor de verdade.
+
+   ⚠️ AS TINTAS NAO MUDARAM, de proposito. Elas sao as mesmas dos
+   numeros da coluna ao lado (--verde no 219,30, --vermelho no -R$ 15,00). Se eu
+   escurecesse a tinta do chip para "combinar com o fundo novo", voltava o
+   defeito de 09/09: dois verdes diferentes na mesma linha. */
+.v3-chip-pos { background: #d4f2e3; border: 1px solid #a8dfc6; color: var(--verde); }
+.v3-chip-aten { background: var(--ambar-soft); border: 1px solid #f3c894; color: var(--ambar-tinta); }
+.v3-chip-neg { background: #f9dcd8; border: 1px solid #f0b3ab; color: var(--vermelho); }
+/* Margem desconhecida nao ganha cor nenhuma: verde diria "bom", vermelho diria
+   "ruim", e o que ha e ausencia de custo cadastrado. */
+.v3-chip-vazio { background: var(--ink-08); border: 1px solid var(--ink-12); color: var(--ink-32); }
+
+/* ── Ritmo ───────────────────────────────────────────────────────────────── */
+.v3-abas { display: flex; flex-wrap: wrap; gap: 4px; }
+.v3-aba {
+  border: 1px solid var(--ink-08);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  padding: 5px 10px;
+  color: var(--ink-50);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.v3-aba.is-ativa { border-color: var(--ink-32); background: var(--ink-05); color: var(--ink); font-weight: 600; }
+.v3-grafico { display: flex; flex-direction: column; gap: 10px; }
+.v3-legenda { display: flex; align-items: center; gap: 16px; color: var(--ink-50); font-size: 11.5px; }
+.v3-legenda span { display: inline-flex; align-items: center; gap: 6px; }
+.v3-legenda i { width: 9px; height: 9px; border-radius: 2px; }
+.v3-legenda-total { background: var(--ink-12); }
+.v3-legenda-lucro { background: var(--verde); }
+.v3-legenda-media { width: 14px !important; height: 0 !important; border-block-start: 1px dashed var(--ink-32); border-radius: 0 !important; }
+.v3-linha-valores, .v3-linha-dias { display: flex; gap: 10px; }
+.v3-linha-valores span {
+  flex: 1;
+  min-width: 0;
+  color: var(--ink-50);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  white-space: nowrap;
+}
+.v3-barras { position: relative; display: flex; align-items: flex-end; gap: 10px; }
+.v3-media { position: absolute; inset-inline: 0; border-block-start: 1px dashed var(--ink-32); }
+.v3-barra-col { display: flex; flex: 1; flex-direction: column; justify-content: flex-end; align-items: center; min-width: 0; height: 100%; }
+.v3-barra {
+  display: flex;
+  width: 100%;
+  align-items: flex-end;
+  border-radius: 3px 3px 0 0;
+  background: var(--ink-12);
+}
+/* Dia sem apuracao fechada: so contorno. Barra cheia ali afirmaria um lucro que
+   ninguem apurou; barra zerada leria como queda. */
+.v3-barra.is-vazia { border: 1px dashed var(--ink-12); background: transparent; }
+.v3-barra-lucro { width: 100%; border-radius: 2px 2px 0 0; background: var(--verde); }
+.v3-linha-dias span { display: flex; flex: 1; flex-direction: column; align-items: center; gap: 1px; min-width: 0; }
+.v3-linha-dias b { font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.v3-linha-dias em { font-size: 12px; font-style: normal; }
+
+/* ── Pendencias ──────────────────────────────────────────────────────────── */
+.v3-pend {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+}
+.v3-pend.is-atencao { background: var(--ambar-soft); }
+.v3-pend.is-neutro { background: var(--ink-03); }
+.v3-pend-txt { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
+.v3-pend-txt > i { margin-block-start: 5px; width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--ink-32); }
+.v3-pend.is-atencao .v3-pend-txt > i { background: var(--ambar); }
+.v3-pend-txt strong { display: block; font-size: 13px; font-weight: 650; }
+.v3-pend-txt span { display: block; color: var(--ink-64); font-size: 12.5px; }
+
+@media (max-width: 1180px) {
+  .v3-duas { grid-template-columns: minmax(0, 1fr); }
+  .v3-colunas { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .v3-coluna { border-block-end: 1px solid var(--linha); padding-block: 10px; }
+}
+
+/* Moldura da bancada — em producao quem da largura e respiro e o AppShell. */
+.lab-canvas { min-height: 100vh; background: var(--canvas); padding: 24px 24px 96px; }
+.lab-canvas > .integration-dashboard { max-width: 1440px; margin-inline: auto; }
+
+/* ── v3 · a metade de baixo ─────────────────────────────────────────────────
+   Pedidos a revisar, Anuncios pagos e Radar do FULL. Mesmas medidas do canvas:
+   13.5px na celula, 12px no cabecalho, fio de 1px, chip de 11.5px.
+
+   Raio X do catalogo e Promocoes oferecidas NAO estao aqui: falta dado no
+   backend (concorrentes por catalogo e campanhas do ML). Layout descrito no
+   canvas; entram quando a rota existir. Numero inventado nao entra nesta tela. */
+
+.v3-duas-baixo {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+/* ── As tabelas de baixo: mesma mecanica do "Top N produtos" ────────────────
+
+   ⚠️ CABECALHO E LINHAS DIVIDEM UM GRID SO (`subgrid`), E AS
+   COLUNAS SAEM DO CONTEUDO (`auto`). Pedido dela em 09/09/2026, apontando o
+   "Raio X do catalogo": *"aqui precisa ajustar igual fizemos com top 8
+   produtos, ta desalinhado"*.
+
+   Enquanto eram grids irmaos com larguras cravadas em px, o alinhamento so
+   acontecia porque os dois arquivos repetiam os mesmos numeros — e bastava um
+   valor mais largo para o texto vazar a celula ou quebrar em duas linhas. Foi
+   o que aconteceu em "Preco p/ ganhar", que quebrava o cabecalho no meio.
+
+   A primeira coluna e a unica flexivel (`minmax(0, Nfr)`): e ela que cede
+   espaco quando um numero cresce, e a unica onde truncar nao apaga numero. */
+/* ⚠️ `gap` E `min-width` MORAM AQUI, NUNCA NO SUBGRID. Um subgrid
+   pode declarar as proprias goteiras, e quando declara elas saem DE DENTRO das
+   trilhas herdadas — a coluna pedida com 76px media 64, exatamente 76 menos os
+   12 do gap. Medido em 09/09/2026, e o sintoma foi "ta tudo muito junto" com o
+   CSS aparentemente correto. No embrulho, as trilhas valem o que dizem. */
+.v3-tabela { display: grid; overflow-x: auto; }
+.v3-tabela-pedidos, .v3-tabela-ads { gap: 12px; }
+/* Era 8px — a mais apertada das quatro, e a que ela apontou. Vai para 12,
+   igual as demais, e os pisos abaixo crescem junto para o texto respirar. */
+.v3-tabela-raiox { gap: 12px; }
+.v3-tabela-radar { gap: 10px; }
+/* Piso de rolagem: abaixo disto a tabela rola na horizontal em vez de espremer. */
+.v3-tabela-pedidos { min-width: 900px; }
+.v3-tabela-raiox { min-width: 560px; }
+/* ⚠️ `minmax(<piso>, auto)`, NAO `auto` PELADO. Com `auto` puro a
+   coluna encolhe ate a largura exata do conteudo e as colunas numericas se
+   amontoam — foi o que ela viu em 09/09/2026: *"ta tudo muito junto, o tamanho
+   que tava antes estava bom, mais espacado"*.
+
+   Os pisos abaixo sao EXATAMENTE as larguras que a tabela tinha antes desta
+   mudanca. Elas voltam a ser o repouso; o `auto` so entra quando um valor
+   precisa de mais que isso. Assim o espacamento e o de antes E o numero grande
+   continua sem invadir a coluna vizinha — que eram os dois pedidos, e antes se
+   excluiam. */
+.v3-tabela-pedidos {
+  grid-template-columns:
+    minmax(0, 1.2fr) minmax(76px, auto) minmax(78px, auto) minmax(70px, auto)
+    minmax(90px, auto) minmax(66px, auto) minmax(66px, auto) minmax(66px, auto)
+    minmax(74px, auto);
+}
+.v3-tabela-raiox {
+  grid-template-columns:
+    minmax(0, 2fr) minmax(84px, auto) minmax(74px, auto) minmax(66px, auto)
+    minmax(98px, auto) minmax(88px, auto);
+}
+.v3-tabela-ads {
+  grid-template-columns:
+    minmax(0, 1.5fr) minmax(74px, auto) minmax(88px, auto) minmax(66px, auto)
+    minmax(62px, auto) minmax(62px, auto) minmax(80px, auto);
+}
+.v3-tabela-radar { grid-template-columns: minmax(0, 1fr) minmax(62px, auto) minmax(88px, auto); }
+.v3-tabela > * { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; }
+
+/* ⚠️ `nowrap` E O PAR OBRIGATORIO DO `auto`. Sem ele a coluna
+   encolhe ate a maior PALAVRA e o conteudo quebra em duas linhas em vez de
+   alargar a coluna — e linha que quebra muda de altura e desalinha a vizinha.
+   Vale para o cabecalho tambem: "Preco p/ ganhar" quebrava no meio. */
+.v3-tabela > * > span { white-space: nowrap; }
+/* A primeira coluna e a excecao: e o nome do produto, e ele TEM de truncar —
+   e a unica celula da tabela onde cortar nao apaga numero. */
+.v3-tabela > * > span:first-child { white-space: normal; min-width: 0; }
+
+/* ⚠️ DENTRO DE TABELA A DICA ABRE PARA BAIXO. O padrao dela e
+   abrir para cima (`bottom: 100%`), e no cabecalho isso a joga para FORA da
+   caixa — que aqui recorta: `overflow-x: auto` obriga o eixo vertical a
+   recortar junto, por especificacao, mesmo sem ninguem pedir `overflow-y`.
+   Medido em 10/09/2026: com `overflow: visible` a dica aparecia inteira; era
+   so isso.
+
+   ⚠️ E POR ISSO O TEXTO PRECISA SER CURTO. O espaco util e o
+   corpo da tabela; uma dica de sete linhas volta a ser cortada numa tabela de
+   duas linhas. Se um dia precisar de texto longo aqui, o caminho e outro —
+   dica ancorada em `position: fixed`, com JS —, nao esticar esta. */
+.v3-tabela .metric-info::after { bottom: auto; top: calc(100% + 7px); }
+
+/* Pedidos — nove colunas depois que "Motivo" saiu (decisao dela, 09/09/2026). */
+.v3-revisar-cab,
+.v3-revisar-linha {
+  align-items: center;
+}
+.v3-revisar-cab {
+  border-block-end: 1px solid var(--linha);
+  padding: 0 0 8px;
+  color: var(--ink-64);
+  font-size: 12px;
+}
+.v3-revisar-cab span:not(:first-child) { text-align: center; }
+.v3-revisar-linha { border-block-end: 1px solid var(--ink-05); padding: 11px 0; }
+
+/* Anuncios pagos — seis colunas, numeros a direita. */
+.v3-ads-cab,
+.v3-ads-linha {
+  align-items: center;
+}
+.v3-ads-cab {
+  border-block-end: 1px solid var(--linha);
+  padding: 0 0 8px;
+  color: var(--ink-64);
+  font-size: 12px;
+}
+.v3-ads-cab span:not(:first-child) { text-align: center; }
+.v3-ads-linha { border-block-end: 1px solid var(--ink-05); padding: 11px 0; }
+
+/* Celulas compartilhadas */
+.v3-cel-nome { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.v3-cel-sub { color: var(--ink-50); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.v3-cel-pedido {
+  color: var(--ink-50);
+  font-size: 12.5px;
+  font-family: ui-monospace, Menlo, monospace;
+  text-align: center;
+}
+.v3-cel-meio { color: var(--ink-64); font-size: 12.5px; text-align: center; white-space: nowrap; }
+.v3-cel-num { font-size: 13.5px; font-variant-numeric: tabular-nums; text-align: center; }
+.v3-cel-num.is-dir { text-align: center; }
+/* Desconhecido cinza: o travessao nao pode ter o peso de um numero. */
+.v3-cel-num.is-vazio { color: var(--ink-32); }
+/* Zero que e FATO da fonte ("acabou o estoque") em vermelho, e nao em cinza:
+   cinza e a cor do DESCONHECIDO nesta familia, e confundir os dois e a raiz do
+   `null != 0` que atravessa o projeto. */
+.v3-cel-num.is-negativo { color: var(--vermelho); font-weight: var(--weight-semibold); }
+.v3-cel-centro { display: flex; justify-content: center; }
+/* O chip acompanha o resto: centrado na coluna, nao encostado no fim. */
+.v3-cel-fim { display: flex; justify-content: center; }
+
+/* O motivo e o que faz a linha estar na fila — chip, nao texto solto. */
+.v3-motivo {
+  border-radius: var(--radius-badge);
+  padding: 3px 8px;
+  font-size: 11.5px;
+  font-style: normal;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.v3-motivo.is-negativo { background: #fbeae7; color: #c83a31; }
+.v3-motivo.is-atencao { background: var(--ambar-soft); color: var(--ambar-tinta); }
+.v3-motivo.is-neutro { background: var(--ink-08); color: var(--ink-64); }
+
+/* Radar do FULL */
+.v3-radar-cab,
+.v3-radar-linha {
+  align-items: center;
+}
+.v3-radar-cab { color: var(--ink-64); font-size: 12px; }
+.v3-radar-cab span:nth-child(2) { text-align: center; }
+.v3-radar-cab span:nth-child(3) { text-align: center; }
+.v3-radar-linha { border-block-start: 1px solid var(--ink-05); padding-block-start: 10px; }
+.v3-radar-un { color: var(--ink-64); font-size: 12.5px; font-variant-numeric: tabular-nums; text-align: center; }
+.v3-cobertura.is-critico { background: #fbeae7; color: #c83a31; }
+.v3-cobertura.is-atencao { background: var(--ambar-soft); color: var(--ambar-tinta); }
+.v3-cobertura.is-saudavel { background: #e5f5ec; color: #167a56; }
+.v3-cobertura.is-vazio { background: var(--ink-08); color: var(--ink-32); }
+
+@media (max-width: 1180px) {
+  .v3-duas-baixo { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Raio X do catalogo — seis colunas, numeros a direita. */
+.v3-raiox-cab,
+.v3-raiox-linha {
+  align-items: center;
+}
+.v3-raiox-cab {
+  border-block-end: 1px solid var(--linha);
+  padding: 0 0 8px;
+  color: var(--ink-64);
+  font-size: 12px;
+}
+/* ⚠️ CENTRADO, como as demais tabelas. A direita, o valor
+   encostava na borda da celula seguinte e a tabela lia como "tudo grudado" —
+   print dela em 09/09/2026. O motivo e o mesmo do "Top N produtos": quando o
+   rotulo e mais largo que o valor, alinhamento a direita joga os dois para o
+   canto e o olho perde a coluna. */
+.v3-raiox-cab span:not(:first-child) { text-align: center; }
+.v3-raiox-linha { border-block-end: 1px solid var(--ink-05); padding: 11px 0; }
+.v3-raiox-num { font-size: 13px; font-variant-numeric: tabular-nums; text-align: center; }
+.v3-raiox-num.is-suave { color: var(--ink-64); }
+
+/* Promocoes — a barra e o argumento: ela mostra QUEM banca o desconto, que e a
+   unica pergunta que decide entrar ou nao numa campanha. */
+.v3-promo { display: flex; flex-direction: column; gap: 7px; border-block-start: 1px solid var(--ink-05); padding-block-start: 11px; }
+.v3-promo-topo { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.v3-promo-topo strong { overflow: hidden; font-size: 13px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.v3-promo-preco { flex: none; color: var(--ink-64); font-size: 12px; font-variant-numeric: tabular-nums; }
+.v3-promo-barra { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--ink-08); }
+.v3-promo-ml { background: #167a56; }
+.v3-promo-voce { background: #c83a31; }
+.v3-promo-pe { display: flex; justify-content: space-between; gap: 10px; color: var(--ink-50); font-size: 11.5px; }
+
+/* ── Pictograma do menu ─────────────────────────────────────────────────────
+   Caixa fixa de 18px: a mesma que o glifo de traco ocupava, para nenhuma linha
+   do menu mudar de altura. A arte e colorida por natureza — nao herda
+   `currentColor` e nao muda com o estado do item. */
+
+/* Item em repouso levemente contido; ativo e hover soltam a cor cheia. */
+
+
+
+/* ── Cabecalho de grupo do menu — ajuste de 09/09/2026 ──────────────────────
+   O que estava errado, na ordem em que doia:
+
+     1. altura de 44px num rotulo de secao — muito espaco morto entre grupos,
+        com o menu inteiro parecendo mais frouxo do que a lista de itens;
+     2. a seta vinha ANTES do rotulo, entao o texto do grupo comecava ~20px a
+        direita dos pictogramas dos itens. Nada alinhava com nada;
+     3. rotulo em 12px `--ink-muted` competia com o proprio item de menu, que e
+        13px — cabecalho de secao nao pode ter quase o peso do conteudo.
+
+   A separacao entre grupos passa a vir do RESPIRO ACIMA, nao da altura da
+   caixa; e a seta so aparece no hover/foco. A afordancia continua (o cabecalho
+   segue sendo botao, com aria-expanded), mas em repouso o menu le como lista de
+   produto, nao como sanfona. */
+
+
+
+
+/* ⚠️ A SETA E VISIVEL SEMPRE, nao so no hover. Ela era
+   `opacity: 0` em repouso e aparecia ao passar o mouse — pedido dela em
+   10/09/2026 para torna-la visivel.
+
+   O motivo de mudar de ideia: seta que so aparece no hover nao e affordance,
+   e adivinhacao. Quem nao passa o mouse por cima nao descobre que o bloco
+   RECOLHE, e a funcao existe sem ninguem saber. O custo de mostra-la e um
+   glifo de 14px em tinta media; o custo de escondê-la e a funcao inteira.
+
+   Tres coisas juntas para ela sair do cinza claro: tinta mais escura
+   (--ink-64 no lugar de --ink-faint, que e o tom de texto secundario), corpo
+   de 14px, e traco de 2 (o glifo padrao e fino demais nesse tamanho). */
+
+
+/* Grupo fechado destaca mais: ali a seta deixa de ser affordance e passa a ser
+   a unica pista de que ha conteudo escondido. */
+
+
+
+/* ── A faixa vira SETE CARDS, nao um card com fios ──────────────────────────
+   Pedido dela em 09/09/2026: *"ao inves de manter parecendo que e a mesma
+   coisa, deixe em quadrados separados"*.
+
+   E a leitura certa: fio compartilhado dentro de uma caixa unica diz "isto e um
+   numero so, repartido". Mas as sete metricas nao sao fatias de um todo — sao
+   grandezas independentes que a pessoa compara. Card proprio para cada uma diz
+   isso na forma.
+
+   O cabecalho ("Ultimos 30 dias" + apurados + Abrir resultado) sai da caixa e
+   vira uma linha solta acima da grade: ele descreve o PERIODO, nao um card. */
+.v3-faixa {
+  border: 0;
+  background: none;
+  padding: 0;
+  gap: 12px;
+}
+.v3-colunas { gap: 12px; }
+.v3-coluna {
+  gap: 6px;
+  border: 1px solid var(--linha);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  padding: 13px 15px 14px;
+}
+/* Os tres reajustes que a caixa unica exigia deixam de fazer sentido: nao ha
+   mais fio entre colunas, nem primeira coluna coladas na borda do card. */
+.v3-coluna:first-child { padding-inline-start: 15px; }
+.v3-coluna, .v3-coluna.is-ultima { border-inline-end: 1px solid var(--linha); }
+/* A nota do imposto ganha respiro proprio, ja que nao esta mais dentro do card. */
+.v3-faixa > .v3-nota { padding-inline: 2px; }
+
+@media (max-width: 1400px) {
+  /* Sete cards nao cabem legiveis abaixo disto: quebram em duas fileiras de
+     quatro e tres, que continua comparavel. */
+  .v3-colunas { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (max-width: 1180px) {
+  .v3-colunas { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .v3-coluna { border-block-end: 1px solid var(--linha); padding-block: 13px 14px; }
+}
+@media (max-width: 720px) {
+  .v3-colunas { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* ── Ritmo: o valor da metrica sai do cinza ─────────────────────────────────
+   Ele estava em `--ink-50`, o mesmo tom de rotulo de coluna — e e DADO, nao
+   rotulo: e o faturamento (ou pedidos, ou unidades) daquele dia. Cinza claro ali
+   fazia a linha de cima parecer legenda da de baixo, quando as duas sao numeros
+   de series diferentes. */
+.v3-linha-valores span { color: var(--ink); font-weight: var(--weight-body); }
+
+/* ── Anuncios pagos: colunas centradas ──────────────────────────────────────
+   Estavam alinhadas a direita, e o resultado era uma escada: cada valor tem
+   largura diferente ("18,4%" contra "R$ 402,10 · 31"), entao a borda direita
+   ficava reta e o miolo da tabela, irregular. Centrado, cada coluna le como
+   bloco proprio — que e o que ela pediu.
+
+   As larguras tambem cresceram: "R$ 402,10 · 31" quebrava em duas linhas com
+   92px, e a linha que quebra muda de altura e desalinha a vizinha. */
+.v3-ads-cab span:not(:first-child) { text-align: center; }
+.v3-ads-linha .v3-cel-num.is-dir { text-align: center; }
+.v3-ads-linha .v3-cel-fim { justify-content: center; }
+
+/* Anuncios pagos: SETE colunas — "Vendas atrib." virou Vendas (dinheiro) e
+   Compras (contagem). Dinheiro e contagem na mesma celula nao se comparam na
+   vertical, entao a coluna nao podia ser varrida por nenhum dos dois. */
+
+/* ── Borda do card em preto ─────────────────────────────────────────────────
+   Pedido dela em 09/09/2026. O contorno passa a ser a TINTA do produto
+   (#171717), nao um cinza — e o card deixa de flutuar por diferenca de tom e
+   passa a ser recortado.
+
+   ⚠️ SO O CONTORNO DO QUADRADO, nao todo fio da tela. `--linha`
+   tambem desenha a regua do cabecalho de tabela e o separador entre colunas;
+   em preto, cada tabela ganharia uma barra pesada no meio do card e a leitura
+   iria embora. Por isso a mudanca e um token proprio, aplicado a `.v3-card` e
+   `.v3-coluna` — as duas pecas que sao "quadrado". */
+.v3 { --borda-card: var(--ink); }
+.v3-card { border-color: var(--borda-card); }
+.v3-coluna { border-color: var(--borda-card); }
+
+/* ⚠️ O ULTIMO CARD PRECISA DA MESMA ESPECIFICIDADE. A regra que
+   devolveu a borda direita ao card final (`.v3-coluna.is-ultima`, herdada de
+   quando a faixa era UMA caixa com fios) tem peso 0-2-0 e vencia o
+   `.v3-coluna { border-color }` de peso 0-1-0 — resultado: seis cards com
+   contorno preto e o setimo com a direita cinza. Nada fica vermelho num caso
+   destes; so olhando a borda. */
+.v3-coluna,
+.v3-coluna.is-ultima { border-color: var(--borda-card); }
+
+/* ── Rotulo cinza ganha peso ────────────────────────────────────────────────
+   Pedido dela em 09/09/2026: manter o cinza, mas em negrito. Vale para a
+   FAMILIA INTEIRA de rotulo — o do card de metrica e o cabecalho de coluna de
+   toda tabela —, nao so os dois que ela apontou: rotulo em pesos diferentes de
+   uma tabela para a outra e o tipo de divergencia que ninguem ve num print e
+   incomoda em uso.
+
+   600 e nao 700: o titulo do card e 700 preto. Rotulo no mesmo peso, mesmo em
+   cinza, empataria com ele — e a hierarquia vem do par cor+peso, nao de um so. */
+.v3-coluna-rotulo,
+.v3-margem-cab,
+.v3-revisar-cab,
+.v3-ads-cab,
+.v3-raiox-cab,
+.v3-radar-cab { font-weight: 600; }
+
+/* ── Rotulo mais escuro ─────────────────────────────────────────────────────
+   O negrito sozinho nao apareceu: em `--ink-64` o peso extra se perde, porque
+   cinza claro come o ganho de espessura — os dois efeitos brigam. Subindo o
+   degrau para 80% de tinta, o par cor+peso passa a ler junto.
+
+   Degrau novo na escada de opacidade da tinta, seguindo a mesma nomenclatura
+   dos que ja existem (03/05/08/12/32/50/64). Nao e cor nova: e a MESMA tinta,
+   um passo mais forte. */
+.v3 { --ink-80: #171717cc; }
+.v3-coluna-rotulo,
+.v3-margem-cab,
+.v3-revisar-cab,
+.v3-ads-cab,
+.v3-raiox-cab,
+.v3-radar-cab { color: var(--ink-80); }
+
+/* ── Cor de acao ────────────────────────────────────────────────────────────
+   Os botoes de navegacao ("Abrir produtos", "Abrir historico", "Cadastrar
+   custos") eram brancos com traco cinza — indistinguiveis de moldura.
+
+   ⚠️ O MATIZ FOI ESCOLHIDO PELO QUE ESTAVA LIVRE. Nesta tela
+   verde significa dinheiro/positivo, vermelho significa prejuizo e ambar
+   significa atencao: usar qualquer um deles em botao roubaria o significado que
+   ja carregam — o Lucro em verde deixaria de ser especial se todo botao fosse
+   verde. Amarelo do Mercado Livre tambem sai: cor de canal e identificacao, nao
+   cor de interface (regra da propria spec dela).
+
+   Indigo e o que sobra, e nao por eliminacao apenas: e a direcao de marca que
+   ela apontou. Uso CONTROLADO — texto, traco e preenchimento no hover. Nada de
+   botao chapado em toda tela. */
+.v3 {
+  --acao: #4f46c7;
+  --acao-traco: color-mix(in srgb, var(--acao) 32%, white);
+  --acao-suave: color-mix(in srgb, var(--acao) 7%, white);
+}
+.v3-btn {
+  border-color: var(--acao-traco);
+  color: var(--acao);
+}
+.v3-btn:hover {
+  border-color: var(--acao);
+  background: var(--acao-suave);
+  color: var(--acao);
+}
+/* O link "Configurar aliquota" da nota acompanha: e a mesma acao, em texto. */
+.v3-nota a { color: var(--acao); }
+
+/* ⚠️ CORRECAO: a cor vai no PREENCHIMENTO, nao na letra (pedido dela,
+   09/09/2026 — a versao de texto violeta foi reprovada na hora). Botao colorido
+   por dentro le como objeto clicavel; letra colorida le como link no meio do
+   texto, e o botao continuava parecendo moldura.
+
+   Azul bem claro: preenchimento suave, traco um degrau mais forte, tinta escura
+   por cima. Continua fora dos matizes com significado (verde/vermelho/ambar) e
+   nao usa o amarelo do canal. */
+.v3 {
+  --acao: #1d4ed8;
+  --acao-fundo: #eaf1fe;
+  --acao-fundo-forte: #dbe7fd;
+  --acao-traco: #bcd3fa;
+  --acao-tinta: #1b3a8f;
+}
+.v3-btn {
+  border-color: var(--acao-traco);
+  background: var(--acao-fundo);
+  color: var(--acao-tinta);
+}
+.v3-btn:hover {
+  border-color: var(--acao);
+  background: var(--acao-fundo-forte);
+  color: var(--acao-tinta);
+}
+.v3-nota a { color: var(--acao); }
+
+/* ── O grafico sai do cinza ─────────────────────────────────────────────────
+   Pedido dela em 09/09/2026: *"deixe um verde mais claro no lucro e no
+   faturamento, nao quero usar cinza, tem muito cinza em tudo"*.
+
+   As duas series viram DOIS TONS DO MESMO VERDE, e isso e mais do que estetica:
+   o lucro esta DENTRO do faturamento — e a parte cheia da mesma barra. Duas
+   cores da mesma familia dizem "um e pedaco do outro"; cinza e verde diziam
+   "duas coisas sem relacao".
+
+   O lucro clareia junto (#167a56 -> #219b6f) porque, contra um verde palido em
+   vez de cinza, o tom escuro anterior ficava pesado demais. */
+.v3 {
+  --verde-pista: #d7eee3;
+  --verde-barra: #219b6f;
+  --verde-tracejado: #b3dcc8;
+}
+.v3-barra { background: var(--verde-pista); }
+.v3-barra-lucro { background: var(--verde-barra); }
+.v3-barra.is-vazia { border-color: var(--verde-tracejado); background: transparent; }
+/* A legenda acompanha, senao ela passa a nomear cores que a tela nao usa. */
+.v3-legenda-total { background: var(--verde-pista); }
+.v3-legenda-lucro { background: var(--verde-barra); }
+.v3-legenda-media { border-block-start-color: var(--verde-barra); }
+.v3-media { border-block-start-color: var(--verde-barra); }
+
+/* ── Abas de metrica: mais forte ────────────────────────────────────────────
+   Estavam apagadas: inativa em `--ink-50` e ativa so com um cinza 5% de fundo —
+   a diferenca entre escolhido e nao escolhido era quase nada.
+
+   A ativa passa a ser PREENCHIDA na tinta, que e a mesma linguagem do filtro de
+   periodo no topo ("30 dias"). Dois seletores na mesma tela dizendo "estou
+   ligado" de formas diferentes e o tipo de divergencia que faz a pessoa parar
+   para interpretar o controle em vez de usar. */
+.v3-aba {
+  border-color: var(--ink-12);
+  color: var(--ink-80);
+  font-weight: 600;
+}
+.v3-aba:hover { border-color: var(--ink-32); background: var(--ink-05); color: var(--ink); }
+.v3-aba.is-ativa {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+.v3-aba.is-ativa:hover { background: var(--ink); color: var(--paper); }
+
+/* ⚠️ A ABA ATIVA SUMIA NO HOVER, e a causa nao estava aqui: existe uma
+   regra GLOBAL `button:not(:disabled):not([class*="bg-blue-"]):not([class*="bg-gradient"]):hover`
+   que troca o `background-color` de QUALQUER botao por `--brand-soft`. Ela tem
+   especificidade 0-4-1 e vencia `.v3-aba.is-ativa:hover` (0-3-0): o fundo preto
+   virava cinza claro e o texto continuava branco. Branco sobre claro = nada.
+
+   Por isso as regras abaixo qualificam com `.v3 button…` — 0-4-1 e 0-5-1, que
+   empata ou vence, e por virem depois no arquivo ganham o desempate.
+
+   ⚠️ Testar o hover na aba INATIVA nao pega este defeito: so a ativa
+   tem texto branco. Guarda de estado se testa em TODOS os estados. */
+.v3 button.v3-aba:hover {
+  border-color: var(--ink-32);
+  background-color: var(--ink-05);
+  color: var(--ink);
+}
+.v3 button.v3-aba.is-ativa:hover {
+  border-color: var(--ink);
+  background-color: var(--ink);
+  color: var(--paper);
+}
+
+/* ── Menu escuro ────────────────────────────────────────────────────────────
+   A barra lateral era `--paper-soft`, quase branca: ela competia com os cards,
+   que tambem sao brancos, e a navegacao disputava o mesmo plano do conteudo.
+
+   Escura, ela RECUA e o conteudo avanca — e os pictogramas coloridos, que sobre
+   branco eram discretos, passam a ser a unica cor daquela calha.
+
+   ⚠️ TUDO QUE E TINTA ALI PRECISA INVERTER JUNTO. Cor de texto,
+   traco e estados vem de tokens pensados para fundo claro (`--ink`, `--ink-64`);
+   trocar so o `background` deixaria texto escuro sobre escuro. Por isso o bloco
+   redefine a escada INTEIRA dentro da barra, em vez de pintar item por item. */
+
+/* O item ativo deixa de ser "cinza um pouco mais escuro" e passa a ser um
+   realce claro — no escuro, a hierarquia se inverte. */
+
+
+
+
+
+
+/* ── Interruptor sol/lua ────────────────────────────────────────────────────
+   O símbolo do estado ATUAL vai DENTRO da bola, em alto contraste; o outro fica
+   apagado do lado oposto — ele é o destino do clique.
+
+   ⚠️ A versão anterior fazia o contrário (o ativo sumia dentro da
+   bola, no truque do interruptor físico) e ela clicou achando que nada tinha
+   acontecido. Truque que precisa de explicação não é design.
+
+   Sol = claro, lua = escuro. A bola também MUDA DE COR: âmbar no sol, tinta no
+   luar — assim o estado se lê pela cor mesmo antes de reconhecer o desenho. */
+/* ── Recuo dos itens sob cada bloco do menu ─────────────────────────────────
+   Pedido dela em 10/09/2026: "bora colocar uma identação em cada bloco".
+
+   Antes o rotulo do grupo ("Painéis") e o icone do primeiro item comecavam no
+   MESMO x (20px, medido) — o cabecalho nao lia como cabecalho, so como um item
+   menor e mais claro. Com 10px de recuo, o grupo passa a ter forma.
+
+   ⚠️ SO NA BARRA NOVA. O mesmo `.rail-group` serve a
+   `OperationsRail`, que continua no repositorio e e o que a bancada `/lab/rail`
+   exercita — recuar la mudaria uma tela que ninguem pediu para mudar.
+
+   ⚠️ E NADA DE RECUO COM A BARRA RECOLHIDA: ali sobra so o
+   icone, e empurra-lo 10px o tira do centro da calha de 48px. */
+
+/* ⚠️ O TITULO TAMBEM ANDA — PARA TRAS. So recuar os itens deu
+   10px de diferenca, e ela leu como "os titulos foram pra frente junto": 10px
+   com o texto do rotulo menor e mais claro nao chega a desenhar hierarquia.
+   Tirando o recuo proprio do cabecalho, o rotulo volta para a borda da calha
+   (x=12) e a distancia para os itens vira 18px — visivel sem empurrar o menu
+   inteiro para a direita, que era o outro caminho e custava largura util. */
+
+
+
+
+
+
+
+
+
+/* Escuro: a bola está à direita, então o apagado (o sol) vai para a esquerda. */
+
+
+
+
+/* ── Radar de estoque (/mercado-livre/estoque) na linguagem nova ────────────
+   Mesma mecanica do "Top N produtos": um grid so para cabecalho e linhas, com
+   colunas dimensionadas pelo conteudo a partir de um piso. */
+.v3-tabela-estoque {
+  gap: 12px;
+  min-width: 720px;
+  grid-template-columns:
+    minmax(0, 1.4fr) minmax(120px, auto) minmax(76px, auto)
+    minmax(84px, auto) minmax(104px, auto) minmax(116px, auto);
+}
+.v3-estoque-cab,
+.v3-estoque-linha { align-items: center; }
+.v3-estoque-cab {
+  border-block-end: 1px solid var(--linha);
+  padding-block-end: 8px;
+  color: var(--ink-80);
+  font-size: 12px;
+  font-weight: var(--weight-semibold);
+}
+.v3-estoque-cab span:not(:first-child) { text-align: center; }
+/* ⚠️ LINHA ENXUTA, IGUAL A DO FULL (pedido dela, 10/09/2026):
+   *"se tiver muito, a tela fica muito grande"*. Nome e sub na MESMA linha
+   cortam a altura pela metade — ~65px viram ~29px —, e com 50 produtos isso e
+   a diferenca entre uma tela e tres.
+
+   O piso continua sendo o mesmo: nao descer de ~28px, porque linha de tabela e
+   alvo de ponteiro. */
+.v3-estoque-linha { border-block-end: 1px solid var(--ink-05); padding-block: 4px; }
+/* ⚠️ AQUI O SUB FICA NA SEGUNDA LINHA, ao contrario da tabela do
+   Full — escolha dela em 10/09/2026: *"pode deixar o base: 30 dias na quebra de
+   linha mesmo, como tava antes"*.
+
+   As duas tabelas divergem de proposito, e a razao esta no conteudo: no Full o
+   sub e o SKU, um codigo curto que cabe ao lado do nome; aqui e "base: N dias",
+   que qualifica o CALCULO da coluna Cobertura e le melhor como legenda embaixo.
+
+   A altura continua controlada, so que por outro caminho: entrelinha apertada
+   (1.25) e folga de 4px, em vez de juntar as duas linhas. Fica em ~46px contra
+   os ~65px originais — nao e o mesmo ganho da tabela do Full, e e o preco de
+   manter a leitura que ela prefere. */
+.v3-tabela-estoque .v3-cel-nome { gap: 0; }
+.v3-tabela-estoque .v3-margem-titulo { font-size: 13px; line-height: 1.3; }
+.v3-tabela-estoque .v3-cel-sub { font-size: 11px; line-height: 1.25; }
+.v3-tabela-estoque .v3-cel-num { font-size: 13px; }
+.v3-estoque-linha:last-child { border-block-end: 0; }
+
+/* ── Custo do estoque no Full, dentro da tela de estoque ────────────────────
+   Mesmo mecanismo das outras: um grid so, colunas com piso, sem quebra. */
+.v3-tabela-full {
+  gap: 12px;
+  min-width: 640px;
+  grid-template-columns: minmax(0, 1.6fr) minmax(132px, auto) minmax(112px, auto) minmax(104px, auto);
+}
+.v3-full-cab,
+.v3-full-linha { align-items: center; }
+.v3-full-cab {
+  border-block-end: 1px solid var(--linha);
+  padding-block-end: 8px;
+  color: var(--ink-80);
+  font-size: 12px;
+  font-weight: var(--weight-semibold);
+}
+.v3-full-cab span:not(:first-child) { text-align: center; }
+/* ── Linha enxuta ───────────────────────────────────────────────────────────
+   ⚠️ NOME E SKU NA MESMA LINHA, e e isso que corta a altura pela
+   metade — nao o padding. Empilhados (nome em cima, SKU embaixo) cada item
+   custava ~65px; lado a lado, ~34px. Decisao dela em 10/09/2026: *"o esquema
+   vai ser ter linhas mais enxutas pra conseguir ter mais linha"*, olhando a
+   conta real com dezenas de itens no Full.
+
+   ⚠️ E POR ISSO `ITENS_VISIVEIS` SUBIU JUNTO. Se a altura cai e
+   o corte fica onde estava, a mudanca vira so espaco vazio — o ganho era
+   caber mais item, nao economizar pixel. Os dois numeros andam juntos. */
+.v3-full-linha { border-block-end: 1px solid var(--ink-05); padding-block: 4px; }
+/* ⚠️ SEGUNDA RODADA DE COMPACTACAO (10/09/2026), a pedido dela:
+   *"diminui um pouco mais a linha pra caber mais produtos"*. Aqui o padding ja
+   nao dava mais — quem manda na altura agora e a ALTURA DE LINHA do texto.
+   13px com `line-height: 1.35` da ~18px de tipo; com 4px de folga em cima e
+   embaixo, a linha fecha em ~27px.
+
+   ⚠️ ABAIXO DISTO O CLIQUE COMECA A DOER. Nao e regra de gosto:
+   linha de tabela e alvo de ponteiro, e apertar mais transformaria uma lista de
+   consulta num campo minado de cliques errados. Se precisar caber mais, o
+   caminho e paginar, nao encolher. */
+.v3-tabela-full .v3-margem-titulo { font-size: 13px; line-height: 1.35; }
+.v3-tabela-full .v3-cel-sub { font-size: 11px; }
+.v3-tabela-full .v3-cel-num { font-size: 13px; }
+.v3-tabela-full .v3-cel-nome {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 8px;
+}
+.v3-tabela-full .v3-cel-nome .v3-margem-titulo { flex: none; max-width: 60%; }
+.v3-tabela-full .v3-cel-sub { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ⚠️ A LINHA DO TOTAL E SEPARADA POR TRACO, NAO POR FUNDO
+   CINZA. Fundo cinza numa linha de tabela le como "linha selecionada" ou
+   "desabilitada"; o traco mais forte diz "acabou a lista, isto e a soma". */
+.v3-full-linha.is-total {
+  border-block-end: 0;
+  border-block-start: 1px solid var(--borda-card, var(--ink));
+  /* ⚠️ FOLGA NOS DOIS LADOS. Era so `padding-block-start`, e a
+     linha herdava os 4px de baixo das linhas normais — o texto encostava no
+     traco de cima e sobrava ar embaixo, entao o total parecia deslocado para
+     cima dentro da propria faixa (apontado por ela em 10/09/2026). */
+  padding-block: 13px;
+}
+.v3-full-linha.is-total strong { font-size: 14px; }
+/* ⚠️ O CARTAO FECHA NA TABELA, sem recuo proprio embaixo.
+   A linha do total ja tem 13px de folga em cima e embaixo; somado ao recuo do
+   cartao (21px), sobravam 34px por baixo contra 13 por cima e o total parecia
+   deslocado para cima — foi o que ela viu duas vezes seguidas, e da primeira
+   eu corrigi o lugar errado (o padding da LINHA, que ja estava certo).
+   Zerando o recuo do cartao, a linha fica com 13 de cada lado do traco. */
+.v3-card.is-fecha-com-tabela { padding-block-end: 0; }
+/* ⚠️ O VALOR EM VERDE, NEGRITO — pedido dela. Verde neste
+   projeto significa dinheiro; aqui ele e o patrimonio parado no Full, nao
+   lucro. Se um dia a tela mostrar lucro E capital lado a lado, os dois em verde
+   ficariam ambiguos e este e o que cede a cor. */
+.v3-full-linha.is-total .v3-cel-num strong { color: var(--verde); font-weight: 700; }
+
+/* A linha do resto e uma LINHA DA TABELA, nao um rodape: os numeros dela ficam
+   nas mesmas colunas dos itens, para a soma ser conferivel de cima a baixo. */
+.v3-full-linha.is-resto { color: var(--ink-64); }
+.v3-full-linha.is-resto .v3-btn { padding-block: 4px; }
+
+/* A linha sem custo nao ganha cor de alarme: falta de cadastro nao e erro do
+   dado, e a pendencia ja esta escrita embaixo da tabela com numero e link. */
+.v3-full-linha.is-sem-custo .v3-margem-titulo { color: var(--ink-64); }
+
+.v3-nota-pendencia { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
+
+/* ── Filtros de tabela: busca + selects ─────────────────────────────────────
+   ⚠️ MESMO DESENHO DOS BOTOES DE ACAO (traco fino, cantos de
+   8px, altura de 34px). Campo de formulario com aparencia propria e o jeito
+   mais rapido de uma tela redesenhada continuar parecendo duas telas. */
+.v3-filtros {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+  margin-block: 14px 4px;
+}
+.v3-filtros {
+  /* ⚠️ `--ink-12` SUMIA contra o branco do cartao e o campo
+     parecia area vazia, nao lugar de digitar (pedido dela, 10/09/2026). Nao fui
+     ate a tinta cheia: borda preta competiria com o texto dentro do campo e com
+     a borda do proprio cartao.
+
+     ⚠️ 32% NAO BASTOU, e o motivo e a ESPESSURA. Medido em
+     10/09/2026: a borda tem 0,909px reais (a tela renderiza 1px assim nesta
+     escala), e traco fino com 32% de tinta praticamente desaparece — ela pediu
+     de novo *"cade a borda mais escura?"* depois de eu confirmar que a regra
+     tinha pegado. Confirmar o valor computado nao e confirmar que se ve.
+
+     50% e onde o campo se le como campo. Se um dia a borda engrossar para 1px
+     cheio, da para voltar a 32%. */
+  --line-strong: var(--ink-50);
+}
+.v3-filtros input,
+.v3-filtros select {
+  width: 100%;
+  height: 34px;
+  /* ⚠️ A COR DA BORDA VEM DA VARIAVEL ACIMA, NAO DAQUI. Existe
+     uma regra global `input, select, textarea { border-color: var(--line-strong)
+     !important }`, e `!important` nao se vence com especificidade — escrever a
+     cor aqui nao teria efeito nenhum (medido em 10/09/2026: continuava 12%
+     depois de reiniciar o servidor limpo, o que descartou cache).
+
+     Redefinir `--line-strong` no escopo faz a propria regra global calcular o
+     valor novo. Vale so para estes campos; o resto do app segue com o traco
+     antigo ate alguem decidir o contrario. */
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--card, #ffffff);
+  padding-inline: 10px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+.v3-filtros input::placeholder { color: var(--ink-32); }
+
+/* ── Hover do campo ────────────────────────────────────────────────────────
+   ⚠️ `!important` DE NOVO, e pelo mesmo motivo do foco: existe
+   `input:hover, select:hover { border-color: oklch(0.69 0 0) !important }` no
+   global. Sem o `!important` aqui, o hover pintaria aquele cinza generico e o
+   campo se comportaria diferente do resto da tela.
+
+   O efeito e discreto de proposito — traco mais escuro e um fundo levemente
+   quente. Campo nao e botao: ele responde ao ponteiro para dizer "da para
+   digitar aqui", nao para chamar atencao. Cor de acao (azul) aqui competiria
+   com os botoes de verdade. */
+.v3-filtros input,
+.v3-filtros select {
+  transition: border-color 140ms var(--ease), background-color 140ms var(--ease);
+}
+.v3-filtros input:hover,
+.v3-filtros select:hover {
+  border-color: var(--ink) !important;
+  background: var(--paper-soft, #f7f6f3);
+}
+/* ── Foco do campo ─────────────────────────────────────────────────────────
+   ⚠️ A COR DA BORDA DE FOCO VEM DE `--brand`, redefinido aqui.
+   Existe uma regra global `input:focus, select:focus { border-color:
+   var(--brand) !important }` — o mesmo caso da borda em repouso: `!important`
+   nao se vence com especificidade, so trocando a variavel no escopo.
+
+   ⚠️ E O FOCO PRECISA COBRIR `:focus`, NAO SO
+   `:focus-visible`. Clicar num `<select>` abre a lista e dispara `:focus`; se a
+   regra so tratasse `:focus-visible` (teclado), o campo aberto ficaria com a
+   borda azul de marca enquanto o resto da tela e preto — foi exatamente o que
+   ela fotografou em 10/09/2026.
+
+   Preto com halo cinza, e nao azul: nesta tela as molduras sao pretas, e o
+   azul e reservado para AcAO (botoes). Campo em foco nao e uma acao, e um
+   lugar onde se esta. */
+/* ⚠️ A BORDA NAO MUDA NO FOCO — decisao dela, 10/09/2026:
+   *"a borda preta continua, remove isso logo"*.
+
+   `--brand` e a cor que a regra global `input:focus { border-color:
+   var(--brand) !important }` usa. Igualando-o ao traco de repouso
+   (`--ink-50`), o campo em foco fica visualmente identico ao campo parado.
+
+   ⚠️ ISSO SO E ACEITAVEL PORQUE O ANEL DE TECLADO FICOU. Campo
+   que nao muda NADA ao receber foco e uma armadilha de acessibilidade — quem
+   navega por Tab perde o rastro. Aqui o `:focus-visible` (logo abaixo) ainda
+   desenha o halo, entao quem usa teclado continua vendo onde esta; quem usa
+   mouse ve a lista abrir, que ja e a resposta. */
+.v3-filtros { --brand: var(--ink-50); }
+/* ⚠️ CLIQUE NAO GANHA HALO; TECLADO GANHA. Com o anel em
+   `:focus`, abrir o select com o mouse desenhava a borda preta MAIS um anel de
+   3px por fora — duas molduras concentricas, que foi o que ela apontou duas
+   vezes (10/09/2026).
+
+   O anel nao e enfeite: quem navega por teclado precisa ver onde esta. Mas
+   `:focus-visible` ja distingue os dois casos — o navegador so o aplica quando
+   a interacao veio do teclado. Com o mouse, a lista aberta ja diz onde voce
+   esta. */
+.v3-filtros input:focus,
+.v3-filtros select:focus {
+  outline: none;
+  box-shadow: 0 1px 2px oklch(0.25 0 0 / .035);
+}
+/* ⚠️ O ANEL SAIU TAMBEM — pedido dela pela terceira vez
+   (10/09/2026): *"continua com essa borda quando seleciono, mas agora esta
+   branca, e pra remover"*.
+
+   Por que ele ainda aparecia depois de eu ter separado mouse de teclado: o
+   Chrome aplica `:focus-visible` a `<select>` MESMO no clique, porque select e
+   um controle que aceita teclado depois de aberto. A separacao que funciona em
+   `<input>` nao funciona aqui.
+
+   ⚠️ O QUE ISSO CUSTA, e nao e pequeno: quem navega por Tab
+   perde o rastro do foco nestes campos. O `<select>` nativo do sistema ainda
+   desenha algo proprio ao abrir, mas o campo FECHADO em foco fica indistinguivel
+   do parado. Se um dia alguem for corrigir acessibilidade aqui, o caminho e um
+   indicador que nao pareca borda — mudar o fundo do campo, por exemplo — e nao
+   repor o anel, que ja foi reprovado tres vezes. */
+.v3-filtros input:focus-visible,
+.v3-filtros select:focus-visible {
+  /* ⚠️ `!important` AQUI E OBRIGATORIO, e essa foi a peca que me
+     escapou por quatro rodadas. O retangulo que ela via nao vinha de nenhuma
+     regra minha: existe um `:focus-visible` GLOBAL com
+     `outline: 2px solid var(--brand) !important; outline-offset: 3px`.
+
+     Todas as minhas tentativas mexeram em `border` e `box-shadow` — e o que
+     desenhava era `outline`. Pior: quando redefini `--brand` no escopo para
+     matar a borda preta, o outline global herdou o valor novo e ficou BRANCO,
+     que foi exatamente o que ela relatou ("agora esta branca"). Eu estava
+     alimentando o defeito enquanto achava que o corrigia.
+
+     Lição: quando a correcao muda o SINTOMA sem remover a coisa, o alvo esta
+     errado. Trocar de propriedade (border → shadow → outline) antes de trocar
+     de valor teria achado isso na primeira rodada. */
+  outline: none !important;
+  box-shadow: 0 1px 2px oklch(0.25 0 0 / .035);
+}
+.v3-busca { display: block; min-width: 0; }
+/* ⚠️ O SELECT TEM LARGURA DE CONTEUDO, NAO FRACAO DA GRADE.
+   Com `minmax(0, 1fr)` ele esticava por um quarto do cartao para caber "Maior
+   capital" — 17 caracteres num campo de 300px. Ela apontou em 10/09/2026:
+   *"filtro muito largo, nao precisa"*.
+
+   Campo de formulario nao precisa de mais largura do que a maior opcao dele;
+   quem deve crescer e a BUSCA, onde a pessoa digita texto de tamanho
+   imprevisivel. */
+.v3-filtros-full { grid-template-columns: minmax(0, 1fr) max-content; }
+.v3-filtros-full select { width: auto; min-width: 168px; padding-inline-end: 30px; }
+@media (max-width: 900px) {
+  .v3-filtros-full { grid-template-columns: minmax(0, 1fr); }
+  .v3-filtros-full select { width: 100%; }
+}
+.v3-paginacao { display: flex; justify-content: flex-end; margin-block-start: 14px; }
+/* Faixa solta abaixo de um cartao: sem moldura, sem fundo, so o recuo lateral
+   do proprio cartao para os itens ficarem no mesmo prumo do conteudo dele. */
+.v3-rodape-solto {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  align-items: center;
+  justify-content: space-between;
+  padding-inline: 2px;
+  /* ⚠️ COLADO NO CARTAO, de proposito (pedido dela, 10/09/2026).
+     Esta faixa PERTENCE ao cartao de cima — a paginacao pagina a tabela dele, a
+     pendencia fala dos itens dele. Com folga generosa ela flutuava entre dois
+     cartoes e ficava ambigua: parecia poder ser o cabecalho do proximo.
+
+     ⚠️ A MARGEM E NEGATIVA PORQUE O PAI TEM `gap: 20px`. Medido
+     em 10/09/2026: o vao era 30px = 10 de margem + 20 do gap do `.v3`. Baixar a
+     margem para 2px so tirava 8px — o gap continuava mandando. `-14px` deixa o
+     vao em ~6px sem mexer no gap, que e o espacamento CERTO entre os cartoes
+     irmaos e nao pode encolher junto. */
+  margin-block-start: -14px;
+}
+/* O `<nav>` da paginacao traz margem propria de 4px; aqui ela ja e a faixa. */
+.v3-rodape-solto .pagination { margin-block-start: 0; }
+.v3-rodape-solto .v3-paginacao { margin-block-start: 0; }
+.v3-rodape-solto .v3-nota { margin: 0; }
+
+@media (max-width: 900px) {
+  .v3-filtros { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ── O saldo do Mercado Pago dentro da metade de baixo ──────────────────────
+
+   ⚠️ A FORMA DE CARTAO VEM DAQUI, NAO DE UM EMBRULHO NO JSX. O
+   componente do saldo se apaga em silencio quando nao ha dado
+   (`if (erro || !saldo) return null`) — regra certa: saldo desconhecido nao
+   vira "R$ 0,00". Se eu o envolvesse num `<div className="v3-card">`, o
+   embrulho sobreviveria ao filho nulo e a tela ganharia uma MOLDURA VAZIA
+   justamente no caso em que nao ha o que mostrar. Estilizando o proprio
+   elemento dele, "sem dado" continua sendo "sem elemento".
+
+   Ele nasceu como ETAPA da faixa antiga (borda de separacao entre passos,
+   fundo alternado), e por isso precisa das tres neutralizacoes abaixo: sem
+   elas ele aparece com um traco vertical a direita e um fundo cinza que so
+   faziam sentido dentro daquela faixa. */
+.v3-duas-baixo .v3-pilha > .etapa {
+  border: 1px solid var(--borda-card, var(--linha, #e3e3df));
+  border-radius: var(--radius-card, 12px);
+  background: var(--card, #ffffff);
+  padding: 16px 18px;
+}
+.v3-duas-baixo .v3-pilha > .etapa:nth-child(even) { background: var(--card, #ffffff); }
+
+/* ══ Bancada das variantes do menu — /lab/menu ══════════════════════════════
+   ⚠️ TUDO AQUI E ESCOPADO A `.menu-variante-*`. Enquanto ela nao
+   escolher, nada disto pode alcancar a barra de producao — e o jeito de
+   garantir nao e disciplina, e o seletor. */
+.menu-variantes { padding: 28px 32px 60px; }
+.menu-variantes-cab h1 { font-size: 22px; font-weight: 650; }
+.menu-variantes-cab p { max-width: 720px; margin-block-start: 8px; color: var(--ink-64); font-size: 13.5px; line-height: 1.55; }
+.menu-variantes-grade { display: flex; flex-wrap: wrap; gap: 22px; margin-block-start: 26px; align-items: start; }
+.menu-variante-col { display: flex; flex-direction: column; gap: 10px; width: 232px; }
+.menu-variante-rotulo { display: flex; flex-direction: column; gap: 3px; min-height: 58px; }
+.menu-variante-rotulo strong { font-size: 13px; }
+.menu-variante-rotulo span { color: var(--ink-64); font-size: 12px; line-height: 1.45; }
+.menu-variante {
+  width: 232px; height: auto; flex: none;
+  border: 1px solid var(--linha, #e3e3df); border-radius: 12px;
+  padding-block: 10px;
+}
+
+/* ── O item, na forma que as cinco colunas compartilham ──────────────────── */
+.menu-variante .rail-nav-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 9px; margin-inline: 4px; border-radius: 8px;
+  color: var(--ink-muted); font-size: 13.5px;
+  /* O movimento entra em TODAS as variantes: e o unico que nao da para
+     julgar num print parado, entao esconde-lo atras de uma variante so
+     tornaria a comparacao injusta. */
+  transition: background-color 140ms, color 140ms, translate 140ms;
+}
+.menu-variante .rail-nav-item:hover { background: var(--ink-05); translate: 1px 0; }
+.menu-variante .rail-nav-item .picto { transition: scale 140ms; }
+.menu-variante .rail-nav-item:hover .picto { scale: 1.04; }
+/* ⚠️ `nowrap` E OBRIGATORIO ONDE HA CONTADOR. Sem ele
+   "Pedidos a revisar" quebrou em duas linhas ao ganhar o numero ao lado, e a
+   variante com contador passou a parecer pior por um motivo que nao e o
+   contador — comparacao injusta. O rotulo trunca com reticencias se faltar
+   espaco; o numero nunca cede, porque numero cortado nao e numero. */
+.menu-variante .rail-nav-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── A · hoje: ativo e uma pilha cinza clara ─────────────────────────────── */
+.menu-variante .rail-nav-item.is-ativo { background: var(--ink-05); color: var(--ink); }
+
+/* ── B · contadores ──────────────────────────────────────────────────────── */
+
+
+/* ── C · ativo com presenca ──────────────────────────────────────────────── */
+.menu-variante-ativo .rail-nav-item.is-ativo,
+.menu-variante-tudo .rail-nav-item.is-ativo {
+  position: relative;
+  background: #ffffff;
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: 0 1px 2px oklch(0 0 0 / .06);
+}
+.menu-variante-ativo .rail-nav-item.is-ativo::before,
+.menu-variante-tudo .rail-nav-item.is-ativo::before {
+  content: ""; position: absolute; inset-block: 7px; inset-inline-start: -4px;
+  width: 2px; border-radius: 2px;
+  /* Amarelo do Mercado Livre: a barra amarra o menu ao canal em que se esta. */
+  background: #f0a91c;
+}
+
+/* ── D · rotulos mais escuros ────────────────────────────────────────────── */
+.menu-variante-contraste .rail-nav-item,
+.menu-variante-tudo .rail-nav-item { color: var(--ink-80); }
+
+
+/* ── Variantes da pendencia, so na bancada /lab/pendencia ───────────────────
+   Escopadas por classe: nada aqui alcanca a tela de estoque enquanto ela nao
+   escolher. A variante que estiver no ar continua sendo a regra base. */
+.full-pendencia-link.is-ambar {
+  border-color: var(--ambar-tinta);
+  background: color-mix(in oklch, var(--ambar) 20%, #ffffff);
+  color: var(--ambar-tinta);
+}
+.full-pendencia-link.is-ambar:hover {
+  border-color: var(--ambar-tinta);
+  background: color-mix(in oklch, var(--ambar) 32%, #ffffff);
+}
+.full-pendencia-link.is-texto {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--ambar-tinta);
+  font-size: 12px;
+  font-weight: 650;
+}
+.full-pendencia-link.is-texto:hover { background: transparent; text-decoration: underline; }
+
+
+/* ── Selo de pendencia, FORA do cartao ──────────────────────────────────────
+   ⚠️ FICA INTEIRO ACIMA DO CARTAO, sem tocar a borda — a base
+   dele para 4px antes. A primeira versao montava na linha e ela reprovou: aviso
+   atravessado pela borda parece defeito de renderizacao, nao etiqueta.
+
+   O fundo e o ambar suave (nao branco): fora da caixa, o branco se perdia
+   contra o fundo da pagina, que tambem e claro. */
+.full-pendencia-selo {
+  position: absolute;
+  /* Encostado por fora: a base do selo fica 4px acima da borda do cartao. */
+  inset-block-end: calc(100% + 4px);
+  /* ⚠️ ALINHA PELA CAIXA, NAO PELO TEXTO — e a segunda tentativa.
+     Na primeira eu alinhei as duas primeiras LETRAS (texto do selo com o rotulo
+     do cartao, ambos em x=1115, medido). Estava tecnicamente alinhado e mesmo
+     assim ela viu torto, porque o olho compara as BORDAS: o contorno do selo
+     comecava 7px dentro do cartao e a diferenca entre dois contornos proximos
+     salta mais que a diferenca entre dois textos.
+
+     `-1px` porque `inset-inline-start` conta a partir da caixa de PADDING do
+     cartao, que ja esta 1px dentro da borda dele. Com `0` sobraria exatamente
+     esse 1px de desencontro. */
+  inset-inline-start: -1px;
+  z-index: 1;
+  /* ⚠️ PREENCHIMENTO SOLIDO, e a razao e funcional: *"o problema
+     e que isso nao parece ser um botao"* (10/09/2026). Contorno vazio le como
+     ETIQUETA — coisa que classifica, nao que se clica. Fundo cheio le como
+     alvo. E a mesma diferenca entre o chip de margem (que so informa) e o
+     `.v3-btn` (que leva a algum lugar).
+
+     Raio de 8px, o mesmo dos outros botoes da tela, e nao a pilula de 999px:
+     forma de botao e uma so no produto inteiro. */
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border: 1px solid var(--ambar-tinta);
+  border-radius: 8px;
+  background: var(--ambar-tinta);
+  padding: 2px 7px 2px 9px;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.55;
+  text-decoration: none;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px oklch(0 0 0 / .12);
+  transition: background-color 140ms var(--ease), box-shadow 140ms var(--ease);
+}
+.full-pendencia-selo svg { width: 12px; height: 12px; flex: none; }
+.full-pendencia-selo:hover {
+  background: color-mix(in oklch, var(--ambar-tinta) 84%, #000000);
+  box-shadow: 0 2px 5px oklch(0 0 0 / .18);
+}
+
+
+/* ── Monitor da conta: fluxo do faturamento ao resultado ────────────────────
+   ⚠️ O FLUXO E UMA TABELA DE UMA COLUNA DE VALOR, e por isso
+   herda as regras de numero das outras: `tabular-nums` e alinhamento a direita
+   no valor, rotulo a esquerda. A peca `Flow` ja existia e continua a mesma; o
+   que muda e a moldura em volta e o espacamento entre linhas. */
+.v3-fluxo { display: flex; flex-direction: column; margin-block-start: 12px; }
+.v3-fluxo > * { border-block-end: 1px solid var(--ink-05); padding-block: 9px; }
+.v3-fluxo > *:last-child { border-block-end: 0; }
+/* A linha de resultado fecha o bloco: traco forte em cima, como o "Total em
+   capital" do Full — a mesma gramatica para a mesma funcao. */
+.v3-fluxo > .is-accent {
+  border-block-end: 0;
+  border-block-start: 1px solid var(--borda-card, var(--ink));
+  padding-block-start: 13px;
+}
+
+
+/* ── Tabela de pedidos do monitor: linha que abre ───────────────────────────
+   Mesma tabela do cartao "Pedidos" do dashboard; o que existe so aqui e o
+   detalhe que abre embaixo da linha. */
+/* ── Tabela de vendas do monitor: onze colunas ──────────────────────────────
+   Data e quantidade tem coluna propria aqui (pedido dela, 10/09/2026) — no
+   cartao do dashboard elas ficam na linha de apoio do produto, porque la sao
+   nove colunas num cartao mais estreito. */
+.v3-tabela-vendas {
+  gap: 12px;
+  min-width: 1040px;
+  grid-template-columns:
+    minmax(0, 1.2fr) minmax(76px, auto) minmax(86px, auto) minmax(46px, auto)
+    minmax(70px, auto) minmax(72px, auto) minmax(76px, auto) minmax(62px, auto)
+    minmax(66px, auto) minmax(66px, auto) minmax(74px, auto);
+}
+/* Busca cresce; os selects tem largura de conteudo. `auto-fit` para a linha
+   nao quebrar quando o botao "Recolher N abertos" aparece. */
+.v3-filtros-vendas { grid-template-columns: minmax(0, 1fr) repeat(3, max-content); }
+
+/* ⚠️ LINHA ENXUTA AQUI TAMBEM (pedido dela, 10/09/2026). Esta
+   tabela e a que mais cresce: e a lista completa de vendas do periodo, e o
+   filtro de data pode trazer centenas. ~29px por linha contra ~73px e a
+   diferenca entre uma tela e tres.
+
+   ⚠️ E SO DA PARA JUNTAR PORQUE O SUB ENCOLHEU. Ele era
+   "SKU · N un · data"; com data e quantidade em colunas proprias sobrou o SKU,
+   um codigo curto que cabe ao lado do nome. No Radar o sub e "base: N dias",
+   que qualifica o calculo da coluna vizinha e continua embaixo — a mesma
+   decisao tomada duas vezes com respostas diferentes, e o que decide e o
+   CONTEUDO do sub, nao o gosto. */
+.v3-tabela-vendas .v3-revisar-linha { padding-block: 4px; }
+.v3-tabela-vendas .v3-cel-nome {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 8px;
+}
+.v3-tabela-vendas .v3-linha-abrir { flex: none; max-width: 66%; }
+.v3-tabela-vendas .v3-margem-titulo { font-size: 13px; line-height: 1.35; }
+.v3-tabela-vendas .v3-cel-sub { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.v3-tabela-vendas .v3-cel-num,
+.v3-tabela-vendas .v3-cel-meio { font-size: 13px; }
+.v3-filtros-vendas select { width: auto; min-width: 190px; padding-inline-end: 30px; }
+@media (max-width: 900px) { .v3-filtros-vendas { grid-template-columns: minmax(0, 1fr); } }
+
+/* O nome vira botao, mas nao pode PARECER botao: e o alvo de abrir, e a tabela
+   ja tem nove colunas disputando atencao. */
+.v3-linha-abrir {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.v3-linha-abrir:hover .v3-margem-titulo { text-decoration: underline; }
+/* ⚠️ `text-align: start` NO BOTAO E OBRIGATORIO. `<button>` vem
+   centralizado do navegador, e como o nome do produto virou botao ele apareceu
+   CENTRADO no meio da coluna enquanto o SKU embaixo ficava a esquerda — o
+   desencontro que ela fotografou em 10/09/2026. */
+.v3-tabela-pedidos .v3-linha-abrir,
+.v3-tabela-vendas .v3-linha-abrir { text-align: start; }
+.v3-revisar-linha.is-aberta { background: var(--ink-03); }
+
+/* ⚠️ O DETALHE OCUPA A LARGURA INTEIRA (`1 / -1`). Sem isso ele
+   cairia dentro da primeira coluna do subgrid e ficaria espremido em ~200px —
+   o mesmo erro de quem esquece que a linha e um grid, nao um bloco. */
+.v3-revisar-detalhe {
+  grid-column: 1 / -1;
+  border-block-end: 1px solid var(--ink-05);
+  padding: 4px 0 14px;
+}
+
+
+/* Titulo de secao sem cartao em volta — mesmo corpo do titulo de cartao, para
+   a tela nao ganhar um terceiro tamanho de titulo. */
+.v3-titulo-solto { font-size: 15px; font-weight: 700; margin-block-end: 2px; }
+
+
+/* ── Faixa do monitor: a altura vem do CONTRATO, nao do conteudo ────────────
+   Sem legenda (ela pediu que saissem em 10/09/2026) o cartao encolheu para
+   87px, enquanto o mesmo cartao no dashboard mede 110px — duas telas do mesmo
+   canal, lado a lado, com faixas de alturas diferentes.
+
+   ⚠️ A ALTURA E FIXADA, E NAO DEIXADA AO CONTEUDO, exatamente
+   porque foi o conteudo que a moveu duas vezes: para 126px quando a legenda
+   quebrava em duas linhas, para 87px quando ela saiu. Cartao da faixa mede
+   198x110 — esta escrito no "CONTRATO VISUAL DAS TELAS DO NEXO" — e conteudo
+   que varia nao pode redefinir isso.
+
+   Com a altura fixa e so rotulo + valor dentro, o par vai ao centro: encostado
+   no topo, sobraria um vao morto embaixo que se leria como falta de algo. */
+.ml-monitor-body .v3-colunas .v3-coluna {
+  min-height: 110px;
+  justify-content: center;
+}
+
+
+
+/* ── Extrato de liberações do Mercado Pago (aba Transações do monitor) ──────
+   Três colunas: quando cai, quantos pagamentos, quanto. Mesmo mecanismo das
+   outras tabelas — um grid só, subgrid nas linhas, colunas com piso — para a
+   aba não virar uma quarta família de tabela.
+
+   ⚠️ `gap` e `min-width` no EMBRULHO, nunca no subgrid: um
+   subgrid que declara a própria goteira a tira de dentro das trilhas herdadas,
+   e a coluna mede menos do que pede. Já custou uma medição em 09/09/2026.
+
+   Piso baixo (520px) porque são só três colunas: acima disso a tabela cabe sem
+   rolagem em qualquer largura de conteúdo que o app tenha. */
+.v3-tabela-liberacoes {
+  gap: 12px;
+  /* Cinco colunas agora (pedido dela, 10/09/2026: "destrinchar melhor essa
+     tela"). Piso maior que o das tres porque "Data de liberação" e "% do
+     retido" não podem quebrar em duas linhas — quebra muda a altura da linha e
+     desalinha a vizinha. */
+  min-width: 720px;
+  grid-template-columns:
+    minmax(0, 1fr) minmax(72px, auto) minmax(96px, auto)
+    minmax(120px, auto) minmax(92px, auto);
+}
+.v3-liberacoes-cab,
+.v3-liberacoes-linha { align-items: center; }
+.v3-liberacoes-cab {
+  border-block-end: 1px solid var(--linha);
+  padding-block-end: 8px;
+  color: var(--ink-80);
+  font-size: 12px;
+  font-weight: var(--weight-semibold);
+}
+.v3-liberacoes-cab span:not(:first-child) { text-align: center; }
+/* Linha enxuta como a do estoque e a do Full — o piso continua ~28px, porque
+   linha de tabela é alvo de ponteiro. */
+.v3-liberacoes-linha { border-block-end: 1px solid var(--ink-05); padding-block: 7px; font-size: 13px; }
+.v3-liberacoes-linha:last-child { border-block-end: 0; }
+/* Linha de total no mesmo padrão da tabela do Full: traço em tinta cheia por
+   cima, folga igual dos dois lados. O valor NÃO vai em verde aqui — verde neste
+   projeto é lucro, e retido é dinheiro que ainda não é seu. */
+.v3-liberacoes-linha.is-total {
+  border-block-end: 0;
+  border-block-start: 1px solid var(--borda-card, var(--ink));
+  padding-block: 13px;
+}
+.v3-liberacoes-linha.is-total strong { font-size: 14px; }
+/* AVISO: OS DOIS NUMEROS FECHADOS GANHAM CAIXA — pedido dela
+   em 10/09/2026, desenhado por cima do print. A linha de total ja tinha traco e
+   negrito, e ainda assim se lia como "mais uma linha": o traco separa, mas nao
+   AGRUPA. A caixa agrupa, e diz que aqueles dois numeros sao de outra natureza
+   — sao o fechamento, nao mais uma data.
+
+   Fundo em tinta a 5%, nao em cor: verde ali venderia o retido como lucro, e
+   ele ainda nao e seu. Ver o comentario da faixa de horizontes. */
+.v3-liberacoes-linha.is-total .v3-cel-num {
+  /* AVISO: LINHAS, NAO CAIXA COM FUNDO. A primeira versao
+     pintava o fundo a 5% e ela corrigiu na hora — *"nao nao, e pra colocar
+     linhas"* (10/09/2026). O desenho dela era traco; fundo cinza vira mais um
+     tom na tela, e o produto inteiro e chapado. */
+  border-inline: 1px solid var(--ink-12);
+  padding-block: 5px;
+}
+/* A celula vazia entre os dois (a coluna "Em") nao ganha caixa: caixa em volta
+   de nada e ruido. */
+.v3-liberacoes-linha.is-total .v3-cel-num:empty { border: 0; }
+/* AVISO: REGRA ESTREITA DE PROPOSITO. A primeira versao era
+   `.v3-card .v3-colunas .v3-coluna` e alcancava as faixas do dashboard e do
+   estoque — duas telas que ela ja aprovou, e que tem legenda embaixo do valor.
+   Fixar altura e centralizar ali mudaria o que ninguem pediu. A faixa de
+   horizontes ganhou classe propria, e a regra vive dentro dela. */
+.v3-horizontes .v3-coluna { min-height: 110px; justify-content: center; }
+/* Rotulo em verde — pedido dela, 10/09/2026. Aqui o verde nao esta dizendo
+   "lucro": esta dizendo DINHEIRO QUE ENTRA, que e o assunto dos tres cartoes.
+   O valor fica em tinta cheia de proposito: retido ainda nao e seu, e pintar o
+   numero de verde o venderia como resultado. */
+.v3-horizontes .v3-coluna-rotulo { color: var(--verde); }
+
+
+
+
+
+
+/* ── Barra de participação na tabela de liberações ──────────────────────────
+   Pedido dela em 10/09/2026: "acho que tá muito preto e branco". A cor entrou
+   onde ela CARREGA informação — a fatia de cada data no retido —, não como
+   fundo decorativo: a largura sai da mesma divisão que imprime o número ao
+   lado, então as duas leituras não podem discordar.
+
+   AVISO: a barra é o único elemento da tabela que pode encolher.
+   Por isso ela mora DENTRO da célula, e a célula continua com o piso da coluna
+   (`minmax(92px, auto)`) — sem isso a coluna passaria a medir o texto e a
+   barra ficaria de larguras diferentes por linha, que é o oposto do que uma
+   comparação visual precisa. */
+.v3-cel-share {
+  display: flex;
+  flex-direction: column;
+  /* Centrado, como toda celula numerica desta tabela (`.v3-cel-num`): o flex
+     desta celula sobrescrevia o `text-align` e so ela ficava encostada no fim
+     da coluna, fora do eixo do cabecalho. Apontado por ela em 10/09/2026.
+
+     A PISTA CONTINUA COM A LARGURA INTEIRA de proposito: as barras
+     precisam nascer todas do mesmo ponto para poderem ser comparadas de
+     relance. Centrar a barra junto com o numero destruiria justamente a
+     leitura que ela existe para dar. */
+  align-items: center;
+  gap: 5px;
+}
+.v3-share-pista {
+  display: block;
+  inline-size: 100%;
+  block-size: 4px;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--verde) 14%, #ffffff);
+  overflow: hidden;
+}
+.v3-share-barra {
+  display: block;
+  block-size: 100%;
+  border-radius: 999px;
+  background: var(--verde);
+}
+/* A linha de total não tem fatia — 100% de si mesma não compara com nada. */
+.v3-liberacoes-linha.is-total .v3-share-pista { display: none; }
+
+
+
+
+/* ── Seletor do NEXO ────────────────────────────────────────────────────────
+   Botão + lista nossa, no lugar do <select> nativo. O porquê está em
+   `SeletorNexo.tsx`: a lista que o Chrome abre é do sistema operacional e não
+   responde a CSS.
+
+   AVISO: O AZUL É O DO `.v3-btn`, não um azul novo. Ela pediu
+   "azul clarinho" nestes dois botões (10/09/2026) e este produto já tem um —
+   #eaf1fe de fundo, #1b3a8f de texto, #bcd3fa de borda, escrito no contrato
+   visual. Inventar um segundo azul claro é como uma paleta vira duas. */
+.v3-seletor { position: relative; min-inline-size: 0; }
+.v3-seletor-botao {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  inline-size: 100%;
+  /* 34px é a altura dos campos desta faixa — o botão fica na mesma linha de
+     base da busca ao lado. */
+  block-size: 34px;
+  padding-inline: 12px 10px;
+  border: 1px solid #bcd3fa;
+  border-radius: var(--radius-sm, 8px);
+  background: #eaf1fe;
+  color: #1b3a8f;
+  font-size: 13px;
+  font-weight: var(--weight-semibold, 600);
+  cursor: pointer;
+  transition: background 140ms var(--ease, ease), border-color 140ms var(--ease, ease);
+}
+.v3-seletor-botao:hover { background: #dfeaFD; border-color: #9dbff7; }
+.v3-seletor-botao.is-aberto { background: #dfeafd; border-color: #7ba8f2; }
+/* A regra global de foco pinta um contorno em todo elemento focado; aqui ela
+   some pelo mesmo motivo dos campos desta faixa — ela pediu que sumisse
+   (10/09/2026) — e a borda mais escura do estado aberto é quem marca. */
+.v3-seletor-botao:focus-visible { outline: none; border-color: #7ba8f2; }
+.v3-seletor-rotulo { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.v3-seletor-seta { flex: none; inline-size: 14px; block-size: 14px; opacity: 0.75; }
+
+.v3-seletor-lista {
+  position: absolute;
+  z-index: 30;
+  inset-block-start: calc(100% + 5px);
+  /* AVISO: A LISTA CRESCE, o botao nao. Presa na largura do
+     botao, "Todos os resultados" quebrava em duas linhas dentro da lista
+     (visto em 10/09/2026) — e opcao que quebra muda de altura e desalinha a
+     leitura vertical que a lista existe para dar.
+
+     Ancorada no FIM, nao no inicio: o seletor da direita fica perto da borda
+     do cartao, e uma lista que cresce para a direita sairia dele. Crescendo
+     para a esquerda, os dois seletores se comportam igual. */
+  inset-inline-end: 0;
+  inset-inline-start: auto;
+  inline-size: max-content;
+  min-inline-size: 100%;
+  max-inline-size: 280px;
+  margin: 0;
+  padding: 5px;
+  border: 1px solid var(--borda-card, rgba(23, 23, 23, 0.22));
+  border-radius: 10px;
+  background: #ffffff;
+  /* Sombra baixa: a lista precisa parecer acima do cartão sem virar um cartão
+     próprio — o produto inteiro é chapado. */
+  box-shadow: 0 10px 24px rgba(23, 23, 23, 0.12);
+  list-style: none;
+  max-block-size: 280px;
+  overflow-y: auto;
+}
+.v3-seletor-opcao {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 9px;
+  border-radius: 7px;
+  color: var(--ink, #171717);
+  font-size: 13px;
+  cursor: pointer;
+}
+/* Uma cor só marca a linha sob o cursor/teclado — o azul do próprio botão, bem
+   mais discreto que a faixa azul cheia que o Windows desenha. */
+.v3-seletor-opcao.is-focada { background: #eaf1fe; }
+.v3-seletor-opcao.is-escolhida { font-weight: var(--weight-semibold, 600); }
+.v3-seletor-opcao > span { white-space: nowrap; }
+.v3-seletor-opcao svg { flex: none; inline-size: 13px; block-size: 13px; color: #1b3a8f; }
+.v3-seletor-lista:focus-visible { outline: none; }
+
+
+
+
+
+
+
+
+/* — Anuncios do Mercado Livre — oito colunas —————————————————————————
+   Mesmo mecanismo das outras: um grid so, subgrid nas linhas, colunas com
+   piso e nowrap. A primeira e a unica flexivel — e a unica onde truncar nao
+   apaga numero. */
+.v3-tabela-anuncios {
+  gap: 12px;
+  /* Nove colunas depois que a tela absorveu a de Produtos (10/09/2026): a de
+     CUSTO entrou entre a logistica e o link. O piso subiu junto — abaixo disto a
+     tabela rola na horizontal em vez de espremer o campo de digitar, que e a
+     unica celula onde espremer atrapalha de verdade. */
+  min-width: 1240px;
+  grid-template-columns:
+    minmax(0, 1.5fr) minmax(88px, auto) minmax(96px, auto) minmax(88px, auto)
+    minmax(72px, auto) minmax(78px, auto) minmax(104px, auto) minmax(232px, auto)
+    minmax(34px, auto);
+}
+.v3-anuncios-cab,
+.v3-anuncios-linha { align-items: center; }
+.v3-anuncios-cab {
+  border-block-end: 1px solid var(--linha);
+  padding-block-end: 8px;
+  color: var(--ink-80);
+  font-size: 12px;
+  font-weight: var(--weight-semibold);
+}
+.v3-anuncios-cab span:not(:first-child) { text-align: center; }
+/* Linha enxuta como a do estoque: nome e sub em duas linhas apertadas, folga de
+   4px. O piso segue sendo ~28px, porque linha de tabela e alvo de ponteiro. */
+.v3-anuncios-linha { border-block-end: 1px solid var(--ink-05); padding-block: 4px; }
+.v3-anuncios-linha:last-child { border-block-end: 0; }
+.v3-tabela-anuncios .v3-cel-nome { gap: 0; }
+.v3-tabela-anuncios .v3-margem-titulo { font-size: 13px; line-height: 1.3; }
+.v3-tabela-anuncios .v3-cel-sub { font-size: 11px; line-height: 1.25; }
+.v3-tabela-anuncios .v3-cel-num { font-size: 13px; }
+/* Quatro campos: busca (com o dobro da largura) e os tres filtros. A ordenacao
+   saiu a pedido dela em 10/09/2026 — a lista abre por mais vendidos, fixo. */
+/* Cinco campos: busca (com o dobro da largura) e os quatro filtros — recorte,
+   custo, modalidade e logistica. */
+.v3-filtros-anuncios { grid-template-columns: minmax(0, 1.6fr) repeat(4, minmax(0, 1fr)); }
+/* Seta de abrir no marketplace: alvo de clique com area, sem virar botao. */
+.v3-abrir {
+  display: grid;
+  place-items: center;
+  inline-size: 26px;
+  block-size: 26px;
+  border-radius: 7px;
+  color: var(--ink-64);
+  font-size: 13px;
+}
+.v3-abrir:hover { background: var(--ink-05); color: var(--ink); }
+
+
+
+
+/* Foto do anúncio, dentro da célula do produto (pedido dela, 10/09/2026).
+   36px fixos: grande o bastante para reconhecer o item, pequeno o bastante para
+   não crescer a linha — a linha continua nos ~40px que ela aprovou. */
+.v3-cel-anuncio {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-inline-size: 0;
+  white-space: normal;
+}
+.v3-anuncio-foto {
+  flex: none;
+  inline-size: 36px;
+  block-size: 36px;
+  border: 1px solid var(--linha);
+  border-radius: 7px;
+  object-fit: cover;
+  background: var(--ink-03);
+}
+.v3-anuncio-foto.is-vazia {
+  display: grid;
+  place-items: center;
+  color: var(--ink-32);
+  font-size: 10px;
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.04em;
+}
+.v3-cel-anuncio .v3-cel-nome { min-inline-size: 0; }
+
+
+
+
+/* Célula de duas linhas: o fato em cima, a condição embaixo (pedido dela em
+   10/09/2026, no lugar do ` · ` que juntava as duas na mesma linha).
+
+   Entrelinha apertada de propósito: com 1.25 as duas linhas somam menos que a
+   altura que a linha da tabela já tinha, então a tabela NÃO cresce — foi o que
+   permitiu trocar sem devolver a rolagem longa que a compactação veio resolver. */
+.v3-cel-duplo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  line-height: 1.25;
+}
+.v3-cel-duplo .v3-cel-sub { font-size: 11px; line-height: 1.25; }
+
+
+
+/* ── Produtos do Mercado Livre (cadastro de custo) ──────────────────────────
+   Cinco colunas. A última é a mais larga porque não é um número: é um campo,
+   um botão e o estado do salvamento — a única célula EDITÁVEL do canal. */
+.v3-tabela-produtos {
+  gap: 12px;
+  min-width: 880px;
+  grid-template-columns:
+    minmax(0, 1.7fr) minmax(78px, auto) minmax(84px, auto)
+    minmax(96px, auto) minmax(250px, auto);
+}
+.v3-produtos-cab,
+.v3-produtos-linha { align-items: center; }
+.v3-produtos-cab {
+  border-block-end: 1px solid var(--linha);
+  padding-block-end: 8px;
+  color: var(--ink-80);
+  font-size: 12px;
+  font-weight: var(--weight-semibold);
+}
+.v3-produtos-cab span:not(:first-child) { text-align: center; }
+.v3-produtos-linha { border-block-end: 1px solid var(--ink-05); padding-block: 4px; }
+.v3-produtos-linha:last-child { border-block-end: 0; }
+.v3-tabela-produtos .v3-cel-nome { gap: 0; }
+.v3-tabela-produtos .v3-margem-titulo { font-size: 13px; line-height: 1.3; }
+.v3-tabela-produtos .v3-cel-sub { font-size: 11px; line-height: 1.25; }
+.v3-tabela-produtos .v3-cel-num { font-size: 13px; }
+.v3-filtros-produtos { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); }
+
+/* ── A célula do custo ──────────────────────────────────────────────────────
+   ⚠️ É A ÚNICA CÉLULA EDITÁVEL DO CANAL, e por isso ela se
+   parece com um campo e não com um número: quem abre esta tela vem para
+   DIGITAR. O campo, o botão e o estado ficam na mesma linha para o olho não
+   precisar descer. */
+.v3-cel-custo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* AVISO: CENTRADO, como todas as outras colunas desta tabela.
+     Estava encostado no fim (`flex-end`) e o cabecalho "Custo unitario" — que e
+     centrado, como os demais — ficava fora do eixo do que ele nomeia. Ela viu
+     em 10/09/2026: *"nao ta abaixo aqui as informacoes"*.
+
+     A vaga do estado ("Pendente"/"Salvo") tem largura fixa e existe mesmo
+     vazia — e ela que mantem o grupo simetrico. Sem a vaga reservada, a linha
+     com "Pendente" empurraria o campo para a esquerda e as linhas dancariam
+     conforme o estado de cada uma. */
+  justify-content: center;
+}
+.v3-custo-campo {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  block-size: 32px;
+  padding-inline: 9px;
+  border: 1px solid var(--ink-50);
+  border-radius: var(--radius-sm, 8px);
+  background: var(--card);
+  color: var(--ink-64);
+  font-size: 12px;
+}
+/* ⚠️ O CAMPO DE DENTRO NÃO PODE TER CORPO PRÓPRIO. Ela viu na
+   tela (10/09/2026): *"pq tem esse bloco branco? o quadrado nem fecha"* — havia
+   um retângulo branco com sombra em volta do número, dentro da moldura, e as
+   setinhas de incremento do `type="number"` ao lado.
+
+   ⚠️ NÃO É CULPA DESTA REGRA, E POR ISSO ELA PARECIA CERTA. A
+   página tem uma regra global —
+   `input, select, textarea { background: var(--paper) !important; ... }` — e
+   `!important` NÃO SE VENCE COM SELETOR MAIS LONGO. Meu `background: none` aqui
+   nunca teve efeito nenhum.
+
+   O que vence é redefinir a VARIÁVEL no escopo: `--paper: transparent` faz a
+   própria regra global pintar transparente. A sombra não tem `!important`, então
+   sai por declaração normal; as setinhas saem por `appearance`.
+
+   É a mesma lição da borda dos filtros, de hoje mais cedo: quando a correção
+   muda o sintoma sem remover a coisa, o alvo está errado. */
+.v3-custo-campo {
+  --paper: transparent;
+}
+/* Falta custo: a MOLDURA inteira fica ambar, com um fundo levissimo. Ambar e
+   nao vermelho porque cadastro que falta nao e erro — vermelho nesta tela e
+   "falhou ao salvar", e usar a mesma cor faria procurar defeito onde so falta
+   digitar. */
+.v3-custo-campo.is-pendente {
+  border-color: var(--ambar-tinta);
+  background: color-mix(in oklch, var(--ambar) 7%, #ffffff);
+}
+.v3-custo-campo input {
+  inline-size: 74px;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  /* Sem as setinhas: elas roubam 16px do número, aparecem só no hover e não
+     servem para digitar dinheiro. O teclado continua incrementando com as
+     setas, que é o caminho de quem usa teclado. */
+  appearance: textfield;
+  -webkit-appearance: textfield;
+  color: var(--ink);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.v3-custo-campo input::-webkit-outer-spin-button,
+.v3-custo-campo input::-webkit-inner-spin-button {
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+}
+/* AVISO: `!important` NOS DOIS, e nao e exagero. Ha uma regra
+   global `:focus-visible { outline: 2px solid var(--brand) !important }` e outra
+   `input:focus { box-shadow: 0 0 0 3px ... }`. Juntas elas desenhavam um retangulo
+   ESCURO colado no numero, dentro da moldura — ela viu ao clicar no campo
+   (10/09/2026: *"quando eu clicar, nao deve aparecer esse quadrado
+   selecionado"*). `outline: none` sem `!important` nao encosta na primeira, pela
+   mesma razao do fundo branco de antes.
+
+   AVISO: E O FOCO NAO SUMIU DA TELA — quem o mostra passa a ser
+   a MOLDURA, que escurece no `:focus-within` logo abaixo. Tirar o contorno sem
+   por nada no lugar deixaria quem navega por teclado sem saber onde esta, e isso
+   nao e acabamento, e acessibilidade. */
+.v3-custo-campo input:focus-visible,
+.v3-custo-campo input:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+.v3-custo-campo:focus-within { border-color: var(--ink); }
+/* ⚠️ SEM CUSTO NÃO É ERRO, é cadastro que falta — âmbar, nunca
+   vermelho. Vermelho nesta tela é "falhou ao salvar", e usar a mesma cor para
+   as duas coisas faria a vendedora procurar defeito onde só falta digitar. */
+.v3-custo-campo input.sem-custo::placeholder { color: var(--ambar-tinta); }
+.v3-custo-estado {
+  inline-size: 74px;
+  color: var(--ink-64);
+  font-size: 11px;
+  text-align: start;
+}
+.v3-custo-estado.is-erro { color: var(--vermelho); font-weight: var(--weight-semibold); }
+
+/* ── Alíquota ───────────────────────────────────────────────────────────────
+   Destino do "Cadastrar alíquota" do monitor. Uma linha só: rótulo, campo,
+   botão e o estado do salvamento. */
+.v3-aliquota {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.v3-aliquota-campo { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--ink-64); }
+.v3-aliquota-entrada {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  block-size: 34px;
+  padding-inline: 10px;
+  border: 1px solid var(--ink-50);
+  border-radius: var(--radius-sm, 8px);
+  background: var(--card);
+  color: var(--ink-64);
+}
+/* Mesmo tratamento do campo de custo, pela mesma razão: a regra global de
+   `input` pinta fundo com `!important`, e quem a vence é a variável no escopo. */
+.v3-aliquota-entrada {
+  --paper: transparent;
+}
+.v3-aliquota-entrada input {
+  inline-size: 78px;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  appearance: textfield;
+  -webkit-appearance: textfield;
+  color: var(--ink);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.v3-aliquota-entrada input::-webkit-outer-spin-button,
+.v3-aliquota-entrada input::-webkit-inner-spin-button {
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+}
+/* Mesmo tratamento do campo de custo, pela mesma razao. */
+.v3-aliquota-entrada input:focus-visible,
+.v3-aliquota-entrada input:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+.v3-aliquota-entrada:focus-within { border-color: var(--ink); }
+.v3-aliquota .v3-btn { block-size: 34px; }
+.v3-nota.is-erro { color: var(--vermelho); }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* Botao de acao principal: tinta cheia, texto branco. Pedido dela em
+   10/09/2026 para o "Salvar aliquota" — e a unica acao daquele cartao, e o azul
+   claro do `.v3-btn` a deixava com o mesmo peso de um filtro.
+
+   O "Salvar" de cada linha da tabela NAO usa esta variante de proposito: sao 15
+   por pagina, e quinze botoes pretos numa coluna gritariam mais que o dado. */
+.v3-btn.is-primaria {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: #ffffff;
+}
+/* AVISO: MESMO DEFEITO DA ABA ATIVA, e eu o reintroduzi. A
+   regra global `button:not(:disabled):not([class*="bg-blue-"]):not([class*="bg-gradient"]):hover`
+   troca o `background-color` de QUALQUER botao por `--brand-soft`, e tem
+   especificidade 0-4-1: ela vencia `.v3-btn.is-primaria:hover` (0-3-0). Fundo
+   claro com texto branco = botao invisivel — ela viu e disse *"o botao
+   praticamente some"*.
+
+   A cura ja estava escrita algumas linhas acima, para as abas, e mesmo assim eu
+   repeti: qualificar com `.v3 button…` para chegar a 0-5-1. Fica aqui a segunda
+   ocorrencia, porque a terceira vai acontecer no proximo componente escuro que
+   alguem criar — e o sintoma nunca aparece no estado padrao, so no hover. */
+.v3 button.v3-btn.is-primaria:hover {
+  border-color: #000000;
+  background-color: #000000;
+  color: #ffffff;
+}
+.v3-btn.is-primaria:disabled { opacity: 0.45; }
+
+
+
+
+
+/* AVISO: O CABECALHO DO CUSTO SE ALINHA AO QUE SE VE, nao ao
+   centro geometrico da coluna. Centrar a celula inteira deixava o titulo fora do
+   eixo do campo — ela riscou a tela para mostrar (10/09/2026).
+
+   A causa e a VAGA DO ESTADO ("Pendente"/"Salvo"): ela ocupa 74px mesmo vazia,
+   entao o par campo+botao, que e tudo que se ve na maioria das linhas, fica
+   deslocado para a esquerda dentro de uma celula centrada.
+
+   Duas saidas existiam. Tirar a vaga da conta faria as linhas DANCAREM conforme
+   o estado de cada uma — pior, porque o olho compara a coluna inteira. A outra e
+   esta: o cabecalho recua os mesmos 82px (74 da vaga + 8 do vao) e passa a
+   centrar sobre o par visivel. Se a vaga mudar de largura, este numero muda
+   junto. */
+/* AVISO: DESLOCAMENTO, NAO RECUO. A primeira versao usava
+   `padding-inline-end: 82px`, e o recuo COMEU a largura util da celula: o titulo
+   "Custo unitario" passou a ser cortado (ela viu na hora). `translate` move sem
+   mudar tamanho — a celula continua com a largura inteira e so o desenho anda.
+   ALVO: O TITULO CENTRA SOBRE O CAMPO, so o campo. Eu
+   tinha centrado sobre o par campo+botao e ela marcou as duas bordas do CAMPO na
+   tela: *"custo unitario tem que estar aqui!!!!!"*. Faz sentido — o titulo nomeia
+   o VALOR, e o botao e uma acao que por acaso mora na mesma celula.
+
+   Os 76px sao metade do que sobra a direita do campo: botao (61) + vao (8) +
+   vaga do estado (74) + vao (8) = 151, dividido por 2. Se qualquer uma dessas
+   larguras mudar, este numero muda junto. */
+.v3-anuncios-cab span:nth-child(8) { translate: -76px 0; }
+
+
+
+
+
+
+/* — Cabecalho que ordena (Preco, Estoque, Vendidos) ————————————————————
+   Pedido dela em 10/09/2026: *"ao lado de preco, estoque e vendidos, coloque
+   meio que um up e down"*, com o motivo junto — *"pra nao ter milhares de
+   filtros"*. A peca e o `SortButton`, que ja servia a tela antiga; aqui ela so
+   ganha a roupa do cabecalho v3.
+
+   O botao herda tamanho e peso do cabecalho para nao virar um corpo estranho no
+   meio dos titulos que NAO ordenam. Quem diz que da para clicar e a setinha. */
+.v3-anuncios-cab .th-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 0;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+/* A regra global de hover pinta o fundo de QUALQUER botao — a mesma que apagou o
+   botao preto. Aqui ela deixaria um retangulo cinza no meio do cabecalho, entao
+   e neutralizada com peso suficiente (0-5-1). */
+.v3 button.v3-anuncios-cab-nada, .v3 .v3-anuncios-cab button.th-sort:hover {
+  background-color: transparent;
+  color: var(--ink);
+}
+.v3-anuncios-cab .sort-arrows {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 1px;
+  line-height: 1;
+}
+.v3-anuncios-cab .sort-arrows i {
+  font-size: 7px;
+  font-style: normal;
+  /* Cinza claro = direcao disponivel; tinta cheia = direcao em uso. As duas
+     ficam sempre visiveis para a coluna dizer que E ordenavel mesmo quando nao
+     esta ordenando por ela. */
+  color: var(--ink-32);
+}
+.v3-anuncios-cab .sort-arrows i.is-on { color: var(--ink); }
+.v3-anuncios-cab .th-sort.is-active { color: var(--ink); font-weight: 700; }
+
+
+
+/* AVISO: A LINHA DE APOIO DO PRODUTO EM TINTA CHEIA (pedido
+   dela, 10/09/2026: *"o atualizado em... deixa um pouco mais forte, pode ser
+   preto"*). Era `--ink-50` e sumia — e ali nao e enfeite: SKU, codigo MLB e data
+   da ultima alteracao sao o que se COPIA e o que se CONFERE.
+
+   A hierarquia nao se perde porque ela nunca dependeu da cor: o titulo continua
+   maior (13px contra 11,5). Escopo estreito de proposito — as outras linhas de
+   apoio da tabela ("catalogo", "frete gratis") sao qualificacao, nao dado, e
+   continuam claras. */
+.v3-cel-atualizado { color: var(--ink); }
+
+
+
+
+/* ── Pedidos a revisar — seis colunas ───────────────────────────────────────
+   Mesmo mecanismo das outras: um grid só, subgrid nas linhas, colunas com piso
+   e nowrap nos números. A primeira é a única flexível. */
+.v3-tabela-auditoria {
+  gap: 12px;
+  min-width: 900px;
+  /* A primeira coluna e curta de proposito: numero de pedido tem largura fixa,
+     ao contrario de nome de produto. O espaco vai para "Previsto", que carrega a
+     conta aberta (voce + comprador). */
+  grid-template-columns:
+    minmax(190px, 0.7fr) minmax(180px, 1fr) minmax(96px, auto)
+    minmax(104px, auto) minmax(96px, auto) minmax(92px, auto);
+}
+.v3-auditoria-cab,
+.v3-auditoria-linha { align-items: center; }
+.v3-auditoria-cab {
+  border-block-end: 1px solid var(--linha);
+  padding-block-end: 8px;
+  color: var(--ink-80);
+  font-size: 12px;
+  font-weight: var(--weight-semibold);
+}
+.v3-auditoria-cab span:not(:first-child) { text-align: center; }
+.v3-auditoria-linha { border-block-end: 1px solid var(--ink-05); padding-block: 4px; }
+.v3-auditoria-linha:last-child { border-block-end: 0; }
+.v3-tabela-auditoria .v3-cel-nome { gap: 0; }
+.v3-tabela-auditoria .v3-margem-titulo { font-size: 13px; line-height: 1.3; }
+.v3-tabela-auditoria .v3-cel-sub { font-size: 11px; line-height: 1.25; }
+.v3-tabela-auditoria .v3-cel-num { font-size: 13px; }
+/* AVISO: CLASSE PROPRIA, E NAO `.v3-cel-pedido`. Aquela ja
+   existe para a tabela do dashboard, onde o pedido e uma celula inteira: ela
+   CENTRA o texto e o deixa cinza. Reusada aqui, dentro de uma celula de duas
+   linhas, o codigo saia centrado e a sublinha alinhada a esquerda — pareciam
+   duas colunas em vez de uma. Nome proprio evita herdar a intencao da outra. */
+.v3-cel-codigo {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 12px;
+  text-align: start;
+}
+
+/* ── Previsto × cobrado ─────────────────────────────────────────────────────
+   Duas barras na MESMA escala. A pergunta que elas respondem é "quanto maior",
+   não "quanto exatamente" — o valor exato fica ao lado e na tabela. */
+.v3-comparacao { display: flex; flex-direction: column; gap: 10px; }
+.v3-comparacao-linha {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr) 118px;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+.v3-comparacao-linha > span { color: var(--ink-64); }
+.v3-comparacao-linha > i {
+  display: block;
+  block-size: 10px;
+  border-radius: 999px;
+  background: var(--ink-05);
+  overflow: hidden;
+}
+.v3-comparacao-linha > i > b {
+  display: block;
+  block-size: 100%;
+  border-radius: 999px;
+  background: var(--ink-32);
+}
+.v3-comparacao-linha > strong { text-align: end; font-variant-numeric: tabular-nums; }
+/* Só a barra que ESTOURA o previsto ganha cor — cor aqui é o alarme, não a
+   decoração das duas. */
+.v3-comparacao-linha.is-negativo > i > b { background: var(--vermelho); }
+.v3-comparacao-linha.is-negativo > strong { color: var(--vermelho); }
+
+/* Diferença a favor da vendedora (cobrança a menor) em verde. */
+.v3-cel-num.is-positivo { color: var(--verde); font-weight: var(--weight-semibold); }
+
+/* ── A identidade do v3, escopada ao Mercado Livre ──────────────────────────
+   ESTE SELETOR E A FRONTEIRA DA LEVA: o cinza quente do redesign vinha de
+   `--canvas` trocado no `:root` e vazava para os quatro canais; aqui ele alcanca
+   so quem esta sob `/mercado-livre/*`, pelo `data-channel` que a propria casca
+   ja carrega.
+
+   ⚠️ A PRIMEIRA VERSAO PINTAVA UM WRAPPER INTERNO E DEIXAVA
+   BRANCO EM VOLTA — ela fotografou em 11/09/2026: *"ainda aparece branco no
+   fundo junto com cinza, precisa padronizar tudo"*. Medido no navegador, o
+   porque: o wrapper media 1160x1279 dentro de um `main` de 1200x1375. Sobrava
+   uma tira de 40px de cada lado e ~96px embaixo, alem da barra de periodo, que
+   fica ACIMA do wrapper. Tudo isso mostrava o `body`, que e quase branco.
+
+   ⚠️ E A LICAO E DE ONDE PINTAR, NAO DE QUE COR: fundo de
+   pagina se pinta na AREA DE CONTEUDO da casca, nunca num filho dela — um filho
+   nunca sabe do padding do pai. `.operations-canvas` e essa area, e o
+   `[data-channel]` mantem o alcance no canal certo. */
+.app-shell[data-channel="mercado_livre"] .operations-canvas { background: #f6f5f2; }
