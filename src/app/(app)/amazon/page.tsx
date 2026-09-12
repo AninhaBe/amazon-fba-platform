@@ -15,6 +15,7 @@ import { amazonFinancialCards, diasSemAnuncio, type AmazonAdsInput } from "./ama
 import { identidadeDePeriodo } from "../../components/AnimatedNumber";
 import { PainelV3, type DadosV3 } from "../../components/PainelV3";
 import { colunasDoPeriodoAmazon, diasDoRitmoAmazon, entradaDaFaixaDosCards, margemDoPeriodoAmazon, produtosDoTopAmazon } from "./amazonPainelV3";
+import { valorDoPedidoRecente } from "./pedidoRecente";
 import { buscaCompartilhada } from "../../components/buscaCompartilhada";
 import { CANAL_AMAZON } from "@/lib/canalV3";
 import { OrderProfitabilityTableV3 } from "../../components/OrderProfitabilityTableV3";
@@ -999,9 +1000,12 @@ function Dashboard() {
                     </span>
                   </span>
                   <span className="shrink-0 font-medium tabular-nums">
-                    {o.orderTotal
-                      ? money(parseFloat(o.orderTotal.Amount), o.orderTotal.CurrencyCode)
-                      : "—"}
+                    {(() => {
+                      // Zero em pedido `Pending` e ausencia, nao venda de R$ 0,00.
+                      // A regra e de `pedidoRecente.ts`, com o porque escrito la.
+                      const v = valorDoPedidoRecente(o);
+                      return v ? money(v.valor, v.moeda) : "—";
+                    })()}
                   </span>
                 </li>
               ))}
