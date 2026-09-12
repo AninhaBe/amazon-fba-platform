@@ -90,6 +90,8 @@ export interface PendenciaV3 {
 
 export interface DadosV3 {
   periodoLabel: string;
+  /** Identidade do recorte, para o efeito de troca de numero contar certo. */
+  identidadeDoPeriodo?: string;
   resumoApuracao: ReactNode;
   colunas: ColunaDoPeriodo[];
   margem: MargemDoPeriodo;
@@ -140,6 +142,7 @@ export function PainelV3({ dados }: { dados: DadosV3 }) {
         colunas={dados.colunas}
         margem={dados.margem}
         notaDoImposto={dados.notaDoImposto}
+        identidadeDoPeriodo={dados.identidadeDoPeriodo}
       />
 
       {/* ── Top N produtos · Ritmo + pendências ──────────────────────────── */}

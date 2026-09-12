@@ -2,6 +2,8 @@
 
 import type { ReactNode } from "react";
 
+import { AnimatedNumber } from "./AnimatedNumber";
+
 /**
  * A faixa do período — as colunas que abrem o caminho do dinheiro, mais a
  * margem no fim.
@@ -31,6 +33,22 @@ export interface ColunaDoPeriodo {
   /** `positivo` pinta o valor de verde; `negativo`, de vermelho; `vazio`, de cinza. */
   tom?: "normal" | "positivo" | "negativo" | "vazio";
   dica?: string;
+  /**
+   * O valor CRU, quando conhecido — é ele que faz o número rolar até o novo em
+   * vez de trocar de uma vez.
+   *
+   * ⚠️ ORDEM DELA EM 12/09/2026: *"importante, manter o efeito de
+   * troca de numero que tinha na versao anterior"*. O v3 tinha deixado o efeito
+   * cair na faixa: as colunas recebiam texto pronto, e texto não conta.
+   * Devolver é correção, não redesenho — e vale para todo canal que usar a
+   * peça, porque a peça é uma só.
+   *
+   * Sem `bruto` (ou sem `formatar`) o texto fica estático, que é o certo para
+   * coluna que não é número: travessão, "alíquota não configurada", etc.
+   */
+  bruto?: number | null;
+  /** Como o bruto vira texto. Sem isto o efeito não liga — não há o que rolar. */
+  formatar?: (valor: number) => string;
 }
 
 /**
@@ -51,6 +69,7 @@ export function FaixaDoPeriodoV3({
   colunas,
   margem,
   notaDoImposto,
+  identidadeDoPeriodo,
 }: {
   periodoLabel: string;
   resumoApuracao: ReactNode;
@@ -58,6 +77,13 @@ export function FaixaDoPeriodoV3({
   colunas: ColunaDoPeriodo[];
   margem: MargemDoPeriodo;
   notaDoImposto: ReactNode | null;
+  /**
+   * Qual recorte este número é — `identidadeDePeriodo(from, to)`. Sem ela o
+   * efeito não conta a partir do número anterior: contar a partir do total de
+   * OUTRO período afirma um valor que não é daquele rótulo, e foi o defeito
+   * medido em 28/08/2026.
+   */
+  identidadeDoPeriodo?: string;
 }) {
   // A faixa do período: as colunas do canal, mais a margem no fim.
   return (
@@ -80,7 +106,11 @@ export function FaixaDoPeriodoV3({
               ) : null}
             </p>
             <strong className={`v3-coluna-valor${c.tom && c.tom !== "normal" ? ` is-${c.tom}` : ""}`}>
-              {c.valor}
+              {c.bruto != null && c.formatar ? (
+                <AnimatedNumber id={`faixa-${c.id}`} periodo={identidadeDoPeriodo} value={c.bruto} format={c.formatar} />
+              ) : (
+                c.valor
+              )}
             </strong>
             {c.share ? <span className="v3-coluna-share">{c.share}</span> : null}
           </div>

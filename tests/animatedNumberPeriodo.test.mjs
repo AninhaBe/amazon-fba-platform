@@ -37,9 +37,16 @@ test("a contagem nunca parte do valor de OUTRO periodo", async () => {
   // Sem `periodo` declarado nao da para saber de que recorte o valor e: pinta
   // direto. Esse e o default seguro, e ele nao pode sumir.
   assert.match(fonte, /if \(reduceMotion \|\| \(!mesmoPeriodo && !trocou\) \|\| from === value\)/);
-  // A memoria entre montagens (caminho com esqueleto) segue a mesma regra.
-  assert.match(fonte, /periodo !== undefined && lembrado\?\.periodo === periodo/);
-  assert.match(fonte, /const seed = trocaDeRecorte \? 0 :/);
+  // ⚠️ ESTAS DUAS MUDARAM DE ARQUIVO EM 12/09/2026, nao de
+  // exigencia: a decisao da semente saiu do componente para `efeitoDeNumero.ts`
+  // porque o runner de teste nao carrega `.tsx` (JSX nao passa pelo type
+  // stripper) e a ordem da dona do produto pedia guarda de COMPORTAMENTO para o
+  // efeito. Hoje a regra e exercitada chamando a funcao com os quatro casos, em
+  // `tests/efeitoDeTrocaDeNumero.test.mjs`; estas duas ficam para o dia em que
+  // alguem mover a decisao de volta para dentro do componente.
+  const decisao = await ler("src/app/components/efeitoDeNumero.ts");
+  assert.match(decisao, /periodo !== undefined && lembrado\?\.periodo === periodo/);
+  assert.match(decisao, /const trocaDeRecorte = lembrado !== undefined/);
 });
 
 test("o primeiro quadro da troca e zero, nao o valor que estava na tela", async () => {

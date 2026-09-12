@@ -2,6 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { identidadeDePeriodo, sementeDaContagem } from "./efeitoDeNumero";
+
+// Re-exportado: dezenas de telas importam `identidadeDePeriodo` daqui, e mover
+// logica para poder testa-la nao e hora de mandar o produto trocar import.
+export { identidadeDePeriodo, sementeDaContagem };
+
 // Rola o número até o valor novo em ~550ms (ease-out). Na primeira aparição
 // mostra o valor real de imediato — contar do zero na estreia, em valor alto,
 // parecia bug. Depois disso todo valor novo é contado: do número anterior
@@ -32,22 +38,6 @@ import { useEffect, useRef, useState } from "react";
 // ser outro período" erraria nos dois sentidos — dois períodos com o mesmo
 // total não animariam, e uma venda grande no mesmo período pareceria troca.
 
-/**
- * Identidade estável de um recorte, a partir do período que a API devolve.
- *
- * ⚠️ Não use `to` cru. Medido em 28/08/2026: as rotas de overview devolvem
- * `to` = agora, com milissegundos (`2026-08-28T22:24:40.014Z`). Duas respostas
- * do MESMO recorte — a do cache e a da revalidação que chega logo atrás —
- * carregam `to` diferente, e para o componente isso parecia troca de período:
- * a contagem reiniciava do zero no meio, e sob `prefers-reduced-motion` dava
- * um piscar de R$ 0,00 sem movimento nenhum para explicá-lo.
- *
- * O dia basta para separar os recortes que existem (os presets são janelas de
- * dias inteiros) e é igual entre as duas respostas.
- */
-export function identidadeDePeriodo(from: string, to: string): string {
-  return `${from}|${to.slice(0, 10)}`;
-}
 
 const DURATION_MS = 550;
 const lastValueById = new Map<string, { valor: number; periodo: string | undefined }>();
@@ -55,6 +45,7 @@ const lastValueById = new Map<string, { valor: number; periodo: string | undefin
 function easeOutCubic(progress: number): number {
   return 1 - Math.pow(1 - progress, 3);
 }
+
 
 export function AnimatedNumber({ id, value, format, periodo }: {
   id?: string;
@@ -71,13 +62,13 @@ export function AnimatedNumber({ id, value, format, periodo }: {
   // conta ate o valor novo. Primeira aparicao (sem memoria) continua entrando
   // direto: contar do zero na estreia parecia bug em valor alto, e isso ja
   // estava decidido antes.
-  const trocaDeRecorte = lembrado !== undefined && periodo !== undefined && lembrado.periodo !== periodo;
+
   // Semente só vale se for comprovadamente do MESMO período. Sem `periodo`, o
   // componente NÃO herda valor entre montagens — o padrão é o seguro: quem não
   // declara o período nunca anima a partir do número de outro. Dentro de uma
   // mesma montagem a animação segue normal (é o caso honesto: mesmo período,
   // valor novo chegando).
-  const seed = trocaDeRecorte ? 0 : periodo !== undefined && lembrado?.periodo === periodo ? lembrado.valor : value;
+  const seed = sementeDaContagem(lembrado, periodo, value);
   const [displayed, setDisplayed] = useState(seed);
   const displayedRef = useRef(seed);
   const periodoRef = useRef(periodo);

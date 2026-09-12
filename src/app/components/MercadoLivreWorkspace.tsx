@@ -763,13 +763,16 @@ export function Dashboard({ overview, syncStatus, periodoQuery, connectionId, se
 
   const dadosV3 = {
     periodoLabel: tituloDoPeriodo(periodoQuery),
+    // A identidade do recorte, para o efeito de troca de numero contar a partir
+    // do numero DESTE periodo — e do zero quando o periodo muda.
+    identidadeDoPeriodo: identidadeDePeriodo(overview.period.from, overview.period.to),
     resumoApuracao: profitCoverage.processedOrders + " de " + profitCoverage.paidOrders + " pedidos apurados",
     colunas: [
-      { id: "vendeu", rotulo: "Você vendeu", valor: money(overview.metrics.revenue30d, overview.metrics.currency), share: overview.metrics.paidOrders + " aprovados" + (overview.metrics.cancelledOrders === 0 ? ", nenhum cancelado" : ", " + overview.metrics.cancelledOrders + " cancelados"), dica: "Faturamento aprovado do período, pela data do pedido. Cancelados ficam fora." },
-      { id: "tarifa", rotulo: "Tarifa do ML", valor: money(overview.profit.fees, overview.metrics.currency), share: pctDaVenda(overview.profit.fees), dica: "Comissão efetivamente cobrada em cada pedido." },
-      { id: "frete", rotulo: "Frete que você paga", valor: money(overview.profit.sellerShipping, overview.metrics.currency), share: pctDaVenda(overview.profit.sellerShipping), dica: "A parte do frete que sai de você, separada do que o comprador pagou." },
-      { id: "custo", rotulo: "Custo dos produtos", valor: money(overview.profit.cogs, overview.metrics.currency), share: pctDaVenda(overview.profit.cogs), dica: "Custo cadastrado por SKU na data do pedido." },
-      { id: "imposto", rotulo: "Impostos", valor: overview.profit.taxRate == null ? "—" : money(overview.profit.taxes ?? 0, overview.metrics.currency), share: overview.profit.taxRate == null ? "alíquota não configurada" : "alíquota de " + overview.profit.taxRate + "%", tom: overview.profit.taxRate == null ? "vazio" : "normal" },
+      { id: "vendeu", rotulo: "Você vendeu", valor: money(overview.metrics.revenue30d, overview.metrics.currency), bruto: overview.metrics.revenue30d, formatar: (v: number) => money(v, overview.metrics.currency), share: overview.metrics.paidOrders + " aprovados" + (overview.metrics.cancelledOrders === 0 ? ", nenhum cancelado" : ", " + overview.metrics.cancelledOrders + " cancelados"), dica: "Faturamento aprovado do período, pela data do pedido. Cancelados ficam fora." },
+      { id: "tarifa", rotulo: "Tarifa do ML", valor: money(overview.profit.fees, overview.metrics.currency), bruto: overview.profit.fees, formatar: (v: number) => money(v, overview.metrics.currency), share: pctDaVenda(overview.profit.fees), dica: "Comissão efetivamente cobrada em cada pedido." },
+      { id: "frete", rotulo: "Frete que você paga", valor: money(overview.profit.sellerShipping, overview.metrics.currency), bruto: overview.profit.sellerShipping, formatar: (v: number) => money(v, overview.metrics.currency), share: pctDaVenda(overview.profit.sellerShipping), dica: "A parte do frete que sai de você, separada do que o comprador pagou." },
+      { id: "custo", rotulo: "Custo dos produtos", valor: money(overview.profit.cogs, overview.metrics.currency), bruto: overview.profit.cogs, formatar: (v: number) => money(v, overview.metrics.currency), share: pctDaVenda(overview.profit.cogs), dica: "Custo cadastrado por SKU na data do pedido." },
+      { id: "imposto", rotulo: "Impostos", valor: overview.profit.taxRate == null ? "—" : money(overview.profit.taxes ?? 0, overview.metrics.currency), share: overview.profit.taxRate == null ? "alíquota não configurada" : "alíquota de " + overview.profit.taxRate + "%", tom: overview.profit.taxRate == null ? "vazio" : "normal", bruto: overview.profit.taxRate == null ? null : overview.profit.taxes ?? 0, formatar: (v: number) => money(v, overview.metrics.currency) },
       /**
        * ⚠️ DOIS DEFEITOS NA MESMA LINHA, achados em 11/09/2026 —
        * ela mandava `tom: "positivo"` para QUALQUER lucro nao-nulo.
@@ -794,6 +797,8 @@ export function Dashboard({ overview, syncStatus, periodoQuery, connectionId, se
         id: "sobrou",
         rotulo: "Lucro",
         valor: overview.profit.estimatedProfit == null ? "—" : money(overview.profit.estimatedProfit, overview.metrics.currency),
+        bruto: overview.profit.estimatedProfit,
+        formatar: (v: number) => money(v, overview.metrics.currency),
         share: "",
         tom: overview.profit.estimatedProfit == null
           ? "vazio"
