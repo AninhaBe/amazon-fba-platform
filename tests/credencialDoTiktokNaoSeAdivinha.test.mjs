@@ -69,10 +69,16 @@ test("todo endpoint de negocio assina com o app DA LOJA, nao com o padrao", () =
 test("a primeira chamada assinada do consentimento usa o app que autorizou", () => {
   // Era aqui que a etapa 2 quebrava: `auth_code` trocado com o par do publico e
   // a chamada seguinte assinada com o custom.
-  assert.ok(
-    CALLBACK.includes("const shops = await getAuthorizedShops(tok.access_token, opcoes.app);"),
-    "o callback deve passar `opcoes.app` a getAuthorizedShops — sem isso a " +
-      "autorizacao pelo app publico falha logo apos a troca do auth_code."
+  // ⚠️ SAO DUAS CHAMADAS DESDE 12/09/2026: a primeira e a RETENTATIVA de lista
+  // vazia. As duas assinam, entao as duas tem de levar o app — e a contagem e o
+  // que prova "as duas", porque casar uma linha passaria com a outra esquecida.
+  const chamadas = CALLBACK.split("await getAuthorizedShops(tok.access_token, opcoes.app);").length - 1;
+  assert.equal(
+    chamadas, 2,
+    "o callback chama getAuthorizedShops DUAS vezes (a original e a retentativa " +
+      "de lista vazia) e as duas passam `opcoes.app`. Se voce ADICIONOU uma " +
+      "chamada, suba este numero no mesmo commit; se ele CAIU, alguma chamada " +
+      "voltou a assinar sem dizer o app."
   );
   assert.ok(
     TIKTOK.includes("export async function getAuthorizedShops(\n  accessToken: string,\n  app: AppDoTikTok\n)"),
