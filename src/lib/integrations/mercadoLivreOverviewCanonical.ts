@@ -151,6 +151,15 @@ interface DetailedLineRow {
   seller_shipping: string | null;
 }
 
+interface PorProdutoRow {
+  external_product_id: string;
+  sku: string | null;
+  receita_apurada: string | null;
+  tarifa: string | null;
+  frete: string | null;
+  completo: boolean;
+}
+
 function scopeParams(connectionId: string, period: MercadoLivrePeriod): unknown[] {
   return [currentWorkspaceId(), PROVIDER, connectionId, period.from, period.to];
 }
@@ -205,7 +214,7 @@ export async function getMercadoLivreOverviewFromCanonical(
   const totals = totalsRows[0];
   if (!syncRow || (!syncRow.products_synced_at && totals.total_orders === 0)) return null;
 
-  const [dailyRows, diasDoLucroRows, unidadesDoDiaRows, recentRows, productTotalsRows, lineRows, productRows, costs, aggRows, cogsRows] = await Promise.all([
+  const [dailyRows, diasDoLucroRows, unidadesDoDiaRows, recentRows, productTotalsRows, lineRows, productRows, costs, aggRows, cogsRows, porProdutoRows] = await Promise.all([
     dbQuery<DailyRow>(
       `SELECT to_char(o.occurred_at AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD') AS date,
               SUM(o.gross) AS revenue,
@@ -373,6 +382,74 @@ export async function getMercadoLivreOverviewFromCanonical(
                  to_char(o.occurred_at AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD')`,
       [...scopeParams(connection.id, period), REVENUE_STATUSES]
     ),
+    // ═══ TARIFA E FRETE POR PRODUTO, sobre TODOS os pedidos do periodo ════════
+    //
+    // ⚠️ A APURACAO POR PRODUTO NAO PASSA MAIS PELO TETO DE 1000 (13/09/2026).
+    // Ela rodava em memoria sobre as linhas DETALHADAS (DETAILED_ORDER_LIMIT), e
+    // quando a conta passou de 1000 pedidos por janela (medido: 1240 em 7d,
+    // 5388 em 30d na conta real), processedRevenue por produto nunca mais
+    // alcancava revenue e o portao `complete` nunca abria — Top 8 inteiro sem
+    // margem, inclusive produto com custo cadastrado. O teto continua valendo
+    // para a LISTA de pedidos (UI); a conta por produto agrega aqui, no SQL,
+    // como o nivel de periodo ja fazia.
+    //
+    // O RECORTE E POR PEDIDO (licao do ABC da Delta, 12/09/2026): os pedidos do
+    // periodo entram primeiro, e as linhas vem TODAS de cada pedido — por isso
+    // o denominador do rateio (a janela por pedido) ve o pedido INTEIRO por
+    // construcao, nunca so a fatia que casa com um filtro de item.
+    //
+    // Rateio identico ao allocateByWeight das linhas: por peso de receita; com
+    // receita zerada no pedido, divide igual pelas linhas (o allocateByWeight
+    // devolve zero nesse caso — aqui a divisao igual e mais honesta e o caso e
+    // teorico; a diferenca maxima e o proprio valor da tarifa de um pedido de
+    // R$ 0,00). SUM ignora pedido sem tarifa/frete: `completo` e quem decide se
+    // o numero pode ser exibido — parcial nunca vaza como total.
+    dbQuery<PorProdutoRow>(
+      `WITH alvo AS (
+         SELECT o.external_order_id
+           FROM workspace_channel_orders o
+          WHERE o.workspace_id = $1 AND o.provider = $2 AND o.connection_id = $3
+            AND o.occurred_at >= $4 AND o.occurred_at <= $5 AND o.status = ANY($6::text[])
+       ),
+       -- LATERAL por pedido DE PROPOSITO (medido em 13/09/2026, EXPLAIN ANALYZE
+       -- na conexao de 5.631 pedidos/30d): o join-agregado sobre a tabela de
+       -- tarifas fazia o planner varrer a CONEXAO INTEIRA (81.697 linhas,
+       -- 76k buffers so nesse ramo). A sonda por id derrubou o total de
+       -- 100k para 53k buffers e de 224ms para 187ms no pior periodo.
+       pedidos AS (
+         SELECT a.external_order_id, t.commission, t.seller_shipping
+           FROM alvo a
+           CROSS JOIN LATERAL (
+             SELECT SUM(f.amount) FILTER (WHERE f.fee_type = 'commission') AS commission,
+                    SUM(f.amount) FILTER (WHERE f.fee_type = 'shipping_seller') AS seller_shipping
+               FROM workspace_channel_order_fees f
+              WHERE f.workspace_id = $1 AND f.provider = $2 AND f.connection_id = $3
+                AND f.external_order_id = a.external_order_id
+           ) t
+       ),
+       linhas AS (
+         SELECT i.external_product_id, i.sku,
+                i.qty * i.unit_price AS receita_linha,
+                p.commission, p.seller_shipping,
+                SUM(i.qty * i.unit_price) OVER (PARTITION BY i.external_order_id) AS receita_pedido,
+                COUNT(*) OVER (PARTITION BY i.external_order_id) AS linhas_pedido
+           FROM workspace_channel_order_items i
+           JOIN pedidos p ON p.external_order_id = i.external_order_id
+          WHERE i.workspace_id = $1 AND i.provider = $2 AND i.connection_id = $3
+       )
+       SELECT external_product_id, sku,
+              SUM(receita_linha) AS receita_apurada,
+              SUM(CASE WHEN commission IS NULL THEN NULL
+                       WHEN receita_pedido > 0 THEN commission * receita_linha / receita_pedido
+                       ELSE commission / linhas_pedido END) AS tarifa,
+              SUM(CASE WHEN seller_shipping IS NULL THEN NULL
+                       WHEN receita_pedido > 0 THEN seller_shipping * receita_linha / receita_pedido
+                       ELSE seller_shipping / linhas_pedido END) AS frete,
+              BOOL_AND(commission IS NOT NULL AND seller_shipping IS NOT NULL) AS completo
+         FROM linhas
+        GROUP BY external_product_id, sku`,
+      [...scopeParams(connection.id, period), REVENUE_STATUSES]
+    ),
   ]);
 
   const taxRate = mercadoLivreTaxRate(connection);
@@ -418,16 +495,55 @@ export async function getMercadoLivreOverviewFromCanonical(
   const ordersProcessed = agg?.orders_processed ?? 0;
   const ordersWithShippingKnown = agg?.orders_with_shipping ?? 0;
 
-  // Custo das mercadorias por vigência, sobre TODAS as vendas do período.
+  // Custo das mercadorias por vigência, sobre TODAS as vendas do período —
+  // e, no MESMO laço, o custo POR PRODUTO que a apuração do Top usa (13/09/2026:
+  // a apuração por produto saiu do teto de 1000 e passou a cobrir o período
+  // inteiro, então o custo dela vem daqui, não das linhas detalhadas).
   let cogs = 0;
   let unitsWithoutCost = 0;
   // SKU e a unidade de ACAO (ver oQueFaltaNoResultado.ts).
   const skusSemCusto = new Set<string>();
+  const custoPorProduto = new Map<string, { custo: number; temUnidadeSemCusto: boolean }>();
   for (const row of cogsRows) {
     const entry = mercadoLivreCostEntry(costs, connection.id, row.external_product_id, row.sku);
     const unitCost = entry ? costAt(entry, new Date(row.occurred_at).toISOString()) : 0;
-    if (unitCost > 0) cogs += unitCost * row.qty;
-    else { unitsWithoutCost += row.qty; skusSemCusto.add(row.sku ?? row.external_product_id ?? ""); }
+    const chave = row.sku || row.external_product_id;
+    const doProduto = custoPorProduto.get(chave) ?? { custo: 0, temUnidadeSemCusto: false };
+    if (unitCost > 0) { cogs += unitCost * row.qty; doProduto.custo += unitCost * row.qty; }
+    else {
+      unitsWithoutCost += row.qty;
+      skusSemCusto.add(row.sku ?? row.external_product_id ?? "");
+      doProduto.temUnidadeSemCusto = true;
+    }
+    custoPorProduto.set(chave, doProduto);
+  }
+
+  // ═══ A APURAÇÃO POR PRODUTO VEM DO SQL DO PERÍODO INTEIRO (13/09/2026) ══════
+  //
+  // Antes ela acumulava dentro do laço das linhas DETALHADAS (teto de 1000
+  // pedidos): acima do teto, processedRevenue por produto ficava menor que
+  // revenue e o portão `complete` do Top nunca abria — margem em travessão para
+  // todos, inclusive produto com custo cadastrado. Agora o mesmo portão compara
+  // dois números do MESMO universo (todas as vendas do período) e volta a poder
+  // fechar. Imposto pela regra do canal (ADR-038): sem alíquota, zero — o rastro
+  // fica na pendência, não no número.
+  for (const row of porProdutoRows) {
+    const chave = row.sku || row.external_product_id;
+    const alvo = productTotals.get(chave);
+    if (!alvo) continue; // produto sem linha em productTotalsRows não existe no Top
+    const custoDoProduto = custoPorProduto.get(chave) ?? { custo: 0, temUnidadeSemCusto: true };
+    const receitaApurada = Number(row.receita_apurada ?? 0);
+    alvo.processedRevenue = receitaApurada;
+    alvo.cost = +custoDoProduto.custo.toFixed(2);
+    // Completo = tarifa E frete de todos os pedidos que tocam o produto, E
+    // custo de todas as unidades — o mesmo E lógico que as linhas aplicavam.
+    const completo = row.completo && !custoDoProduto.temUnidadeSemCusto;
+    alvo.calculationsComplete = completo;
+    const imposto = taxRate == null ? 0 : receitaApurada * taxRate / 100;
+    alvo.contribution = completo
+      ? +(receitaApurada - Number(row.tarifa ?? 0) - Number(row.frete ?? 0) - custoDoProduto.custo - imposto).toFixed(2)
+      : 0;
+    productTotals.set(chave, alvo);
   }
 
   const profitabilityLines: ProfitabilityLine[] = [];
@@ -461,14 +577,10 @@ export async function getMercadoLivreOverviewFromCanonical(
       const lineResult = complete
         ? calculateContribution({ revenue: lineRevenue, productCost: lineProductCost, marketplaceFees: lineFees, sellerShipping: lineSellerShipping, tax: lineTax })
         : { contribution: null, marginPct: null, complete: false };
-      const key = line.sku || line.external_product_id;
-      const current = productTotals.get(key) ?? { id: line.external_product_id, sku: line.sku, title: line.title, units: 0, revenue: 0, processedRevenue: 0, cost: 0, contribution: 0, calculationsComplete: true };
-      current.processedRevenue += lineRevenue;
-      current.cost += unitCost * line.qty;
-      current.contribution += lineResult.contribution ?? 0;
-      current.calculationsComplete = current.calculationsComplete && lineResult.complete;
-      productTotals.set(key, current);
-
+      // ⚠️ A apuração POR PRODUTO não acumula mais aqui (13/09/2026): este laço
+      // enxerga só os 1000 pedidos detalhados, e foi por acumular nele que o
+      // Top 8 perdeu a margem quando a conta cresceu. Ela vem do SQL do
+      // período inteiro (porProdutoRows), acima. Este laço produz só as LINHAS.
       profitabilityLines.push({
         id: `${orderId}:${line.external_product_id}:${line.line_no}`,
         orderId,
