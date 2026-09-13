@@ -160,7 +160,14 @@ export default function BancadaDoMercadoLivre() {
             syncStatus={syncStatus}
             periodoQuery="days=30"
             connectionId="mercado-livre-lab"
-            serieDeSeteDias={null}
+            /* A BANCADA PASSAVA `null` E O RITMO NAO DESENHAVA (13/09/2026).
+               A janela de sete dias so existe em producao (o hook a busca por
+               fora); aqui ela e fixa, como todo o resto do dado desta tela. Com
+               `null`, o cartao "Ritmo dos ultimos 7 dias" aparecia SEM colunas —
+               ou seja, a bancada nao mostrava o bloco que ela existe para
+               julgar, e um desenho quebrado ali passaria despercebido. E a
+               mesma amostra do `dailySales`: uma fonte, nao duas. */
+            serieDeSeteDias={RITMO}
           />
         </div>
       </div>

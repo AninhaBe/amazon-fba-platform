@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatedNumber, identidadeDePeriodo } from "./AnimatedNumber";
 import { EmptyState } from "./EmptyState";
 import { DashboardSkeleton } from "./LoadingState";
 import { PageHeader, pageIcons } from "./PageHeader";
 import type { DailyPoint } from "./RevenueChart";
-import { JANELA_DE_SETE_DIAS, serieDoBlocoDeLucro } from "./serieDoLucroPorDia";
+import { JANELA_DE_SETE_DIAS, precisaBuscarAJanela, serieDaJanelaDeSeteDias, serieDoBlocoDeLucro } from "./serieDoLucroPorDia";
 import { DashboardPeriodFilter, useDashboardPeriod } from "./DashboardPeriodFilter";
 import { periodoNaUrl } from "./periodoNaUrl";
 import { OrderProfitabilityTableV3 } from "./OrderProfitabilityTableV3";
@@ -182,14 +182,17 @@ function useJanelaDeSeteDias(view: string, connectionId: string | null) {
    * de sete dias de uma sincronização anterior sem nada ficar vermelho. É a
    * mesma disciplina do `overview`, que também é derivado do cache no render.
    */
-  const [buscasConcluidas, setBuscasConcluidas] = useState(0);
+  // ⚠️ SÓ O SETTER É USADO, e isso é o desenho: o valor não decide
+  // nada: ele existe para PEDIR UM RENDER quando a busca do próprio hook
+  // preenche a chave do `Map`, que vive fora do React e não avisa ninguém. Quem
+  // decide o que a tela recebe é a leitura do cache no render, logo abaixo.
+  const [, setBuscasConcluidas] = useState(0);
 
   useEffect(() => {
     // Já em memória (ela passou pelo filtro de 7 dias, ou o aquecimento rodou):
-    // nada a buscar, e o render abaixo já lê do cache.
-    if (periodCache.has(chave)) return;
-    // Sem conexão ainda não há o que buscar — a página inteira está em branco.
-    if (!connectionId) return;
+    // nada a buscar, e o render abaixo já lê do cache. Sem conexão também não há
+    // o que buscar — a página inteira está em branco.
+    if (!precisaBuscarAJanela({ temNoCache: periodCache.has(chave), connectionId })) return;
     const controller = new AbortController();
     void buscarEGuardarPeriodo(view, JANELA_DE_SETE_DIAS, controller.signal)
       .then(() => { if (!controller.signal.aborted) setBuscasConcluidas((n) => n + 1); })
@@ -199,16 +202,15 @@ function useJanelaDeSeteDias(view: string, connectionId: string | null) {
     return () => controller.abort();
   }, [chave, connectionId, view]);
 
-  return useMemo(
-    () => periodCache.get(chave)?.overview.dailySales ?? null,
-    // ⚠️ `buscasConcluidas` É DEPENDÊNCIA DE PROPÓSITO, e o lint reclama
-    // com razão pela regra dele: o contador não aparece no corpo. Ele existe
-    // porque `periodCache` é um Map mutável fora do React — ninguém avisa que a
-    // chave foi gravada. O contador é esse aviso. Tirá-lo faria a leitura
-    // congelar em `null` para quem abre a página já no filtro Hoje.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [chave, buscasConcluidas],
-  );
+  // ⚠️ LEITURA NO RENDER, SEM `useMemo` — 13/09/2026. A versão
+  // memorizada devolvia o `null` do primeiro render para sempre quando a página
+  // abria já no filtro de 7 dias: quem preenchia a chave era a busca da própria
+  // página, o efeito acima voltava cedo, `buscasConcluidas` nunca subia e as
+  // dependências do memo nunca mudavam. Resultado medido em produção: o cartão
+  // "Ritmo dos últimos 7 dias" vazio, com os dados no payload. O porquê inteiro
+  // está em `serieDaJanelaDeSeteDias`.
+  //
+  return serieDaJanelaDeSeteDias<DailyPoint>(periodCache, chave);
 }
 
 /**
