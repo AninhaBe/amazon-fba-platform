@@ -10,6 +10,25 @@ conforme for concluindo.
 > exato de retomada, veja `docs/estado-atual.md`. Este arquivo é a lista de
 > tarefas; aquele é a foto da situação.
 
+## Feature aprovada — Solicitar avaliação (Amazon)
+
+Aprovada pela Ana em 13/09/2026; gatilho: **assim que o front da Amazon v3
+fechar**. Validada em produção real no mesmo dia: acesso ok no app-dash,
+teste unitário + em massa (10 solicitações no clips, zero recusas; rate
+limit de 1/s não morde na escala atual; a janela de elegibilidade é
+pós-**entrega**, não pós-pedido). Envios do teste registrados em
+`G:/sc-temp/solicitacoes-de-avaliacao.md` até a 0034 ser aplicada.
+
+- [ ] Janela da migration 0034 (`workspace_review_solicitations`, já
+      commitada) + migrar o registro manual.
+- [ ] Backend fase 3: rota de envio + elegibilidade no payload dos pedidos
+      (3 estados validados por comportamento real: pode solicitar / cedo
+      demais / já enviada).
+- [ ] Front: botão na tabela de Pedidos da Amazon v3, após a Margem
+      (pedido da Ana com print, 12/09), com os 3 estados.
+- [ ] Fase automática (proposta; sem martelo da Ana ainda): venda entregue
+      dispara sozinha no dia certo; o botão vira controle manual.
+
 ## Ação manual (precisa de você)
 
 - [ ] **Cadastrar a Push URL da Shopee no console** — uma sentada só, com o
