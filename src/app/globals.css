@@ -8419,7 +8419,7 @@ summary:hover { background: var(--paper-soft); }
 .v3-tabela-anuncios .v3-margem-titulo { font-size: 13px; line-height: 1.3; }
 .v3-tabela-anuncios .v3-cel-sub { font-size: 11px; line-height: 1.25; }
 .v3-tabela-anuncios .v3-cel-num { font-size: 13px; }
-.amazon-monitor-faixa { --colunas: 5; }
+.amazon-monitor-faixa { --colunas: 7; }
 .amazon-transaction-summary { --colunas: 4; }
 .amazon-inventory-faixa { --colunas: 4; }
 .amazon-listing-faixa { --colunas: 5; }
