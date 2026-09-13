@@ -26,13 +26,23 @@ import { readFileSync } from "node:fs";
  * alguem lembrou de listar (a licao de 04/09/2026, quando o produtor de tarifa
  * sem chamador passou dois dias invisivel por nao estar na lista).
  *
- * ⚠️ `PainelV3Baixo` FICOU DE FORA DE PROPOSITO, e a exclusao e
- * o achado: ele parece peca do esqueleto e NAO e. Os blocos dele — Radar do
- * FULL, Promocoes oferecidas, Anuncios pagos — so existem no Mercado Livre, e
- * as frases que explicam cada um citam o canal com razao ("no Mercado Livre ele
- * sai no seu fechamento"). Ele recebe `canal` pelo rotulo da tarifa, mas o
- * fundo da Amazon vai ser OUTRO componente, com os blocos da Amazon — nao este
- * com as palavras trocadas.
+ * ⚠️ `PainelV3Baixo` FICA DE FORA DA VARREDURA DE TEXTO, mas
+ * NAO da guarda — e a distincao custou uma quebra que passou verde.
+ *
+ * A versao de 12/09/2026 o excluia com esta justificativa: *"o fundo da Amazon
+ * vai ser OUTRO componente, com os blocos da Amazon"*. **Falso em menos de um
+ * dia:** em 13/09 a Amazon passou a renderizar exatamente esta peca, e o titulo
+ * "Radar do FULL" — logistica do Mercado Livre — apareceu na tela dela. Trocar
+ * o titulo de volta por texto fixo nao derrubava teste nenhum.
+ *
+ * Ele continua fora da varredura porque tem blocos que SO o Mercado Livre
+ * renderiza (Raio X, Promocoes, Anuncios pagos) e cujas frases citam o canal
+ * com razao — a Amazon passa `null` neles e eles nao desenham. Mas os blocos
+ * COMPARTILHADOS ganham asercao propria, logo abaixo, uma por titulo.
+ *
+ * ⚠️ QUANDO ESTA LISTA PRECISA CRESCER: sempre que um bloco
+ * hoje exclusivo de um canal passar a ser renderizado pelo outro. O sinal e o
+ * `null` virando dado no `DadosV3Baixo` do segundo canal.
  */
 const pecas = [
   "src/app/components/OrderProfitabilityTableV3.tsx",
@@ -65,4 +75,18 @@ test("cada canal declara o próprio nome para o que cobra da venda", async () =>
   // Plural e com o nome do canal: a MESMA frase do cartão da faixa logo acima.
   assert.equal(CANAL_AMAZON.rotuloDaTarifa, "Taxas da Amazon");
   assert.notEqual(CANAL_AMAZON.rotuloDaTarifa, CANAL_MERCADO_LIVRE.rotuloDaTarifa);
+});
+
+test("os blocos que OS DOIS canais renderizam tiram o titulo do contrato", () => {
+  const codigo = semComentario(readFileSync("src/app/components/PainelV3Baixo.tsx", "utf8"));
+  // Um por bloco compartilhado. Lista fechada: cresce quando a Amazon deixar de
+  // passar `null` em mais algum bloco do `DadosV3Baixo`.
+  const compartilhados = [
+    { bloco: "radar de estoque do marketplace", esperado: "<h2>{canal.rotuloDoRadar}</h2>", fixo: /<h2>Radar do (FULL|FBA)<\/h2>/ },
+    { bloco: "coluna de tarifa da previa de pedidos", esperado: "<span>{canal.rotuloDaTarifa}</span>", fixo: /<span>(Tarifa ML|Taxas da Amazon)<\/span>/ },
+  ];
+  for (const { bloco, esperado, fixo } of compartilhados) {
+    assert.ok(codigo.includes(esperado), `${bloco}: o titulo precisa vir de \`canal\`, e nao do texto da peca`);
+    assert.ok(!fixo.test(codigo), `${bloco}: voltou o nome de um canal fixo na peca que os dois renderizam`);
+  }
 });

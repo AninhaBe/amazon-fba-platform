@@ -1,58 +1,38 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-
-const { valorDoPedidoRecente } = await import("../src/app/(app)/amazon/pedidoRecente.ts");
-
-/**
- * REPROVA O DEFEITO DE 12/09/2026: "Pedidos recentes" da Amazon mostrou
- * `R$ 0,00` em seis pedidos `Pending` seguidos.
- *
- * O guard da tela era `pedido.orderTotal ? money(...) : "—"` — ele protegia
- * contra o campo AUSENTE, e a Amazon nao omite o campo: manda `"0.00"` ate o
- * envio. Guard contra ausencia nao protege contra zero vindo da fonte.
- */
-test("pedido Pending com total zero e DESCONHECIDO — a Amazon ainda nao publicou", () => {
-  assert.equal(valorDoPedidoRecente({ orderTotal: { Amount: "0.00", CurrencyCode: "BRL" }, orderStatus: "Pending" }), null);
-});
-
-test("pedido ja enviado com zero continua sendo zero — e fato da Amazon", () => {
-  assert.deepEqual(
-    valorDoPedidoRecente({ orderTotal: { Amount: "0.00", CurrencyCode: "BRL" }, orderStatus: "Shipped" }),
-    { valor: 0, moeda: "BRL" },
-  );
-});
-
-test("pedido Pending JA valorizado mostra o valor — nao e o status que esconde", () => {
-  assert.deepEqual(
-    valorDoPedidoRecente({ orderTotal: { Amount: "19.90", CurrencyCode: "BRL" }, orderStatus: "Pending" }),
-    { valor: 19.9, moeda: "BRL" },
-  );
-});
-
-test("campo ausente continua desconhecido", () => {
-  assert.equal(valorDoPedidoRecente({ orderStatus: "Shipped" }), null);
-});
+import { readFileSync } from "node:fs";
 
 /**
- * ⚠️ "TEM FUNCAO CERTA" NAO E "A TELA USA". As quatro asserções
- * acima ficariam TODAS verdes com o dashboard continuando a chamar
- * `money(parseFloat(o.orderTotal.Amount))` direto — foi exatamente assim que
- * este arquivo passou no primeiro commit, com `R$ 0,00` ainda na tela.
+ * REPROVA O DEFEITO DE 12/09/2026: o dashboard da Amazon exibia `R$ 0,00` em
+ * seis pedidos `Pending` seguidos — a tela afirmando que seis vendas nao
+ * renderam nada.
  *
- * Por isso a asserção ancora na CHAMADA inteira, e nao no identificador: um
- * `assert.match(fonte, /valorDoPedidoRecente/)` continua verde depois de alguem
- * apagar a chamada e deixar o import.
+ * ⚠️ ESTE TESTE JA MUDOU DE ALVO UMA VEZ, e o registro importa.
+ * A primeira versao guardava `valorDoPedidoRecente`, uma regra criada para o
+ * bloco "Pedidos recentes" (numero do pedido, data, status, total). Em
+ * 13/09/2026 esse bloco foi substituido pelo `PainelV3Baixo` — a mesma peca do
+ * Mercado Livre —, a regra ficou sem chamador e o arquivo foi apagado.
+ *
+ * O DEFEITO NAO MUDOU, so o sitio: a previa de pedidos agora sai das linhas de
+ * rentabilidade, e ali a bandeira da Amazon para "venda ainda nao publicada" e
+ * `revenueKnown === false` — a venda chega como ZERO, nao como `null`. Copiar
+ * o mapeamento do Mercado Livre (`l.revenue == null`) traria o "0,00" de volta.
  */
-test("o dashboard da Amazon usa a regra — a chamada, nao o nome importado", async () => {
-  const { readFileSync } = await import("node:fs");
-  const fonte = readFileSync("src/app/(app)/amazon/page.tsx", "utf8");
+const fonte = () => readFileSync("src/app/(app)/amazon/page.tsx", "utf8");
+
+test("a previa de pedidos da Amazon usa a bandeira da Amazon, nao a do Mercado Livre", () => {
   assert.ok(
-    fonte.includes("const v = valorDoPedidoRecente(o);"),
-    "o bloco Pedidos recentes precisa passar pela regra; sem ela o zero da Amazon volta para a tela",
+    fonte().includes('venda: l.revenueKnown === false || l.revenue == null ? "—" : semMoeda(l.revenue),'),
+    "sem `revenueKnown === false` o pedido Pending volta a exibir 0,00: na Amazon a venda ausente chega como zero, nao como null",
   );
-  const codigo = fonte.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+});
+
+test("o mapeamento copiado do Mercado Livre nao volta sozinho", () => {
+  // Proibicao: le o fonte SEM comentarios, senao a nota que explica a regra
+  // (que cita `l.revenue == null`) reprova o proprio arquivo que a documenta.
+  const codigo = fonte().replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
   assert.ok(
-    !codigo.includes("money(parseFloat(o.orderTotal.Amount)"),
-    "a formatacao crua do OrderTotal voltou — era ela que exibia R$ 0,00 em pedido Pending",
+    !codigo.includes('venda: l.revenue == null ? "—"'),
+    "o mapeamento do Mercado Livre voltou — na Amazon ele exibe 0,00 no pedido pendente",
   );
 });

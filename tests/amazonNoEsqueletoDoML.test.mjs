@@ -77,7 +77,24 @@ test("O QUE ISTO SUBSTITUI SAIU DA TELA — os quatro blocos antigos", async () 
 
 test("os pedidos aparecem na forma v3 — a mesma tabela do ML", async () => {
   const codigo = semComentarios(await fonte(CAMINHO));
-  assert.match(codigo, /<OrderProfitabilityTableV3/, "a lista de pedidos nao esta na forma v3");
+  /**
+   * ⚠️ ESTA ASERCAO MUDOU DE ALVO EM 13/09/2026, e a intencao
+   * anterior fica registrada: ela exigia `<OrderProfitabilityTableV3` NESTA
+   * tela, porque a tabela cheia era a unica lista de pedidos em forma v3 que a
+   * Amazon tinha.
+   *
+   * O que mudou: o dashboard passou a renderizar `PainelV3Baixo` — a MESMA peca
+   * do Mercado Livre —, cujo bloco "Pedidos" ja e a previa v3, com as mesmas
+   * onze colunas. A tabela cheia ficava logo abaixo mostrando as mesmas vendas:
+   * dois blocos com o mesmo nome na mesma tela. Ela foi para
+   * `/amazon/monitor`, que e onde o Mercado Livre sempre a teve.
+   *
+   * A intencao — "os pedidos aparecem na forma v3" — nao mudou. Mudou a peca
+   * que a cumpre.
+   */
+  assert.match(codigo, /<PainelV3Baixo/, "a lista de pedidos nao esta na forma v3");
+  assert.ok(!/<OrderProfitabilityTableV3/.test(codigo),
+    "a tabela cheia voltou ao dashboard ao lado da previa do PainelV3Baixo — dois blocos 'Pedidos' na mesma tela");
   assert.ok(!codigo.includes("<OrderProfitabilityTable\n") && !/<OrderProfitabilityTable\s/.test(codigo),
     "a tabela antiga voltou ao lado da v3 — duas listas do mesmo dado");
 

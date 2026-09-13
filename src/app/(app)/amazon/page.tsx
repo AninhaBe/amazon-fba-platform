@@ -14,11 +14,10 @@ import type { OperationPendingItem } from "../../components/OperationPending";
 import { amazonFinancialCards, diasSemAnuncio, type AmazonAdsInput } from "./amazonFinancialCards";
 import { identidadeDePeriodo } from "../../components/AnimatedNumber";
 import { PainelV3, type DadosV3 } from "../../components/PainelV3";
+import { PainelV3Baixo, type DadosV3Baixo } from "../../components/PainelV3Baixo";
 import { colunasDoPeriodoAmazon, diasDoRitmoAmazon, entradaDaFaixaDosCards, margemDoPeriodoAmazon, produtosDoTopAmazon } from "./amazonPainelV3";
-import { valorDoPedidoRecente } from "./pedidoRecente";
 import { buscaCompartilhada } from "../../components/buscaCompartilhada";
 import { CANAL_AMAZON } from "@/lib/canalV3";
-import { OrderProfitabilityTableV3 } from "../../components/OrderProfitabilityTableV3";
 import { AnunciosPorProduto, type AnuncioDeProduto } from "../../components/AnunciosPorProduto";
 import { ConnectionBroken, isBrokenConnection } from "../../components/ConnectionBroken";
 import { IntegrationDashboardFrame } from "../../components/IntegrationDashboardFrame";
@@ -167,6 +166,12 @@ interface SaldoData {
   extratoDesde: string | null;
   seraCobrado: boolean;
 }
+/** A MESMA escala do Mercado Livre — `tomDaCobertura` em
+ *  `MercadoLivreWorkspace`. Duas escalas para "critico" no mesmo produto fariam
+ *  o mesmo estoque mudar de cor conforme o canal. */
+const tomDaCoberturaAmazon = (status: string): "critico" | "atencao" | "saudavel" =>
+  status === "out" || status === "critical" ? "critico" : status === "low" ? "atencao" : "saudavel";
+
 interface RadarRow {
   sellerSku: string;
   productName?: string;
@@ -708,8 +713,78 @@ function Dashboard() {
   }, [contaAtual]);
 
   const currency = profit?.finance.currency || orders?.metrics.currency || "BRL";
+
   const critical = radar.filter((r) => r.status === "critical" || r.status === "out");
   const noCost = products.filter((p) => p.cost == null || p.cost === 0).length;
+
+  /**
+   * O FUNDO DA TELA, NA MESMA PECA DO MERCADO LIVRE (13/09/2026).
+   *
+   * ⚠️ ATE AQUI A AMAZON TINHA BLOCOS PROPRIOS — dois `<Panel>`
+   * brancos ("Estoque critico" e "Pedidos recentes") e o saldo solto — enquanto
+   * o Mercado Livre ja renderizava `PainelV3Baixo`. As duas telas mostravam as
+   * MESMAS coisas com molduras diferentes, e foi isso que ela viu: *"NAO ESTA
+   * IGUAL"*.
+   *
+   * A peca aceita `null` em cada bloco e simplesmente nao o desenha — por isso
+   * `catalogo` e `promocoes` saem vazios: sao do Mercado Livre (Raio X e
+   * promocoes bancadas pelo canal) e a Amazon nao tem equivalente. Ausencia
+   * aqui e ausencia de verdade, nao bloco vazio na tela.
+   *
+   * ⚠️ `anuncios` FICA `null` DE PROPOSITO, e nao por falta: a
+   * Amazon mantem `AnunciosPorProduto`, que e MAIS rico — leva os cartoes de
+   * eficiencia (ACOS, TACOS, ROI) que a versao do Mercado Livre nao tem.
+   * Trocar por igualdade visual apagaria numero da tela.
+   */
+  const semMoeda = (n: number) => money(n, currency).replace(/^R\$\s*/, "");
+  const ultimosPedidos = [...profitability]
+    .sort((a, b) => String(b.date).localeCompare(String(a.date)))
+    .slice(0, 5)
+    .map((l) => ({
+      id: l.id,
+      produto: l.product,
+      detalhe: [l.sku, `${l.quantity} un`, brDate(l.date)].filter(Boolean).join(" · "),
+      pedido: "#…" + String(l.orderId).slice(-6),
+      logistica: l.fulfillment ?? "—",
+      // ⚠️ `revenueKnown === false`, E NAO `revenue == null` — a
+      // diferenca entre copiar e replicar. No Mercado Livre a venda ausente
+      // chega como `null`; na Amazon ela chega como ZERO com a bandeira
+      // `revenueKnown: false`, porque o pedido `Pending` vem sem `ItemPrice`.
+      // Copiar a linha do ML ao pe da letra faria o pendente exibir "0,00" de
+      // novo — o mesmo defeito que ela viu em producao em 12/09/2026.
+      venda: l.revenueKnown === false || l.revenue == null ? "—" : semMoeda(l.revenue),
+      tarifa: l.marketplaceFees == null ? "—" : semMoeda(l.marketplaceFees),
+      frete: l.sellerShipping == null || l.sellerShipping === 0 ? "—" : semMoeda(l.sellerShipping),
+      custo: l.productCost == null ? "—" : semMoeda(l.productCost),
+      custoVazio: l.productCost == null,
+      imposto: l.tax == null ? "—" : semMoeda(l.tax),
+      impostoVazio: l.tax == null,
+      margemPct: l.marginPct,
+    }));
+
+  const dadosV3Baixo: DadosV3Baixo = {
+    catalogo: null,
+    promocoes: null,
+    revisar: {
+      linhas: ultimosPedidos,
+      href: "/amazon/monitor",
+      vazio: "Nenhum pedido no período.",
+      escopo: scopeSentence(profitabilityScope),
+    },
+    anuncios: null,
+    radar: {
+      itens: critical.slice(0, 5).map((r) => ({
+        id: r.sellerSku,
+        titulo: r.productName || r.sellerSku,
+        unidades: r.fulfillable === 0 ? "—" : `${r.fulfillable} un`,
+        cobertura: r.status === "out" ? "esgotado" : r.daysRemaining == null ? "—" : `${r.daysRemaining} dias`,
+        tom: r.fulfillable === 0 && r.status !== "out" ? "vazio" : tomDaCoberturaAmazon(r.status),
+      })),
+      href: "/amazon/estoque",
+      vazio: "Nenhum SKU em ruptura iminente.",
+    },
+    saldo: saldo ? <SaldoNaAmazon saldo={saldo} /> : null,
+  };
   const pendencias = useAmazonPendencias({ products: products.length, productsLoading, missingCosts: noCost });
   const salesCount = sales?.totalOrders ?? orders?.metrics.totalOrders ?? 0;
   // Ticket e faturamento têm de sair da MESMA base. `revenue`/`salesCount` vêm do
@@ -957,62 +1032,18 @@ function Dashboard() {
 
 
 
-      {/* Logo abaixo da cascata: é a mesma conversa sobre dinheiro, e responde a
-          pergunta que o lucro sozinho deixa no ar — "então cadê?". */}
-      {saldo && <SaldoNaAmazon saldo={saldo} />}
+      {/* ⚠️ AQUI MORAVAM TRES BLOCOS PROPRIOS DA AMAZON: o saldo
+          solto, e dois `<Panel>` brancos lado a lado — "Estoque critico" e
+          "Pedidos recentes". Eles mostravam o MESMO que o Mercado Livre mostra
+          em `PainelV3Baixo`, com outra moldura, e era essa a divergencia que
+          ela via entre as duas telas (13/09/2026).
 
-      {/* Duas colunas: alertas de estoque + pedidos recentes */}
-      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
-        <Panel title="Estoque crítico" href="/amazon/estoque" linkLabel="Ver radar">
-          {loading ? (
-            <InlineLoading label="Carregando estoque crítico" />
-          ) : critical.length === 0 ? (
-            <Empty>Nenhum SKU em ruptura iminente.</Empty>
-          ) : (
-            <ul className="divide-y divide-[var(--line)]">
-              {critical.slice(0, 6).map((r) => (
-                <li key={r.sellerSku} className="flex items-center justify-between py-2.5 text-sm">
-                  <span className="min-w-0 truncate pr-3">{r.productName || r.sellerSku}</span>
-                  <span className="shrink-0 font-semibold text-red-600">
-                    {r.status === "out" ? "esgotado" : `${r.daysRemaining} dias`}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Panel>
-
-        <Panel title="Pedidos recentes" href="/amazon/monitor?secao=vendas" linkLabel="Ver todos os pedidos">
-          {loading ? (
-            <InlineLoading label="Carregando pedidos recentes" />
-          ) : !orders || orders.orders.length === 0 ? (
-            <Empty>Nenhum pedido no período.</Empty>
-          ) : (
-            <ul className="divide-y divide-[var(--line)]">
-              {orders.orders.slice(0, 6).map((o) => (
-                <li key={o.amazonOrderId} className="flex items-center justify-between py-2.5 text-sm">
-                  <span className="min-w-0">
-                    <span className="block truncate font-mono text-xs text-[var(--ink-muted)]">
-                      {o.amazonOrderId}
-                    </span>
-                    <span className="text-xs text-[var(--ink-muted)]">
-                      {brDate(o.purchaseDate)} · {o.orderStatus}
-                    </span>
-                  </span>
-                  <span className="shrink-0 font-medium tabular-nums">
-                    {(() => {
-                      // Zero em pedido `Pending` e ausencia, nao venda de R$ 0,00.
-                      // A regra e de `pedidoRecente.ts`, com o porque escrito la.
-                      const v = valorDoPedidoRecente(o);
-                      return v ? money(v.valor, v.moeda) : "—";
-                    })()}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Panel>
-      </div>
+          ⚠️ O QUE MUDA DE CONTEUDO, para quem for reverter saber:
+          "Pedidos recentes" listava numero do pedido, data, status e o total —
+          quatro campos. A linha do `revisar` leva onze: produto, SKU,
+          quantidade, logistica, venda, tarifa, frete, custo, imposto e margem.
+          Nao se perdeu coluna nenhuma; o numero do pedido continua, abreviado. */}
+      <PainelV3Baixo canal={CANAL_AMAZON} dados={dadosV3Baixo} />
 
       {/* Anúncio contra margem real — o cruzamento que nenhum painel de canal
           faz, porque só nós temos o custo do produto e as tarifas. Só aparece
@@ -1030,14 +1061,16 @@ function Dashboard() {
         />
       )}
 
-      {/* Rentabilidade por venda — a mesma visão do monitor, direto no dashboard. */}
-      <OrderProfitabilityTableV3
-        canal={CANAL_AMAZON}
-        lines={profitability}
-        loading={profitabilityLoading}
-        scopeNote={scopeSentence(profitabilityScope)}
-        pageSize={6}
-      />
+      {/* ⚠️ A TABELA CHEIA DE VENDAS SAIU DAQUI (13/09/2026) e
+          mora em `/amazon/monitor`, aba "Rentabilidade por venda" — que e onde
+          o Mercado Livre sempre a teve. Ela ficava logo abaixo do bloco
+          "Pedidos" do `PainelV3Baixo`, e as duas exibiam as MESMAS vendas: dois
+          blocos com o mesmo nome na mesma tela.
+
+          ⚠️ NENHUMA COLUNA SE PERDEU: a previa leva as mesmas
+          onze, com as cinco vendas mais recentes, e o link do cabecalho
+          ("Ver todos os pedidos") vai para a tabela paginada no monitor. O que
+          saiu foi a repeticao, nao o dado. */}
 
       {/* Atalhos: no desktop a sidebar já cobre; no mobile os cartões ajudam. */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:hidden">

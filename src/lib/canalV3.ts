@@ -32,12 +32,25 @@ export interface CanalV3 {
    * ("Taxas da Amazon") é o que casa com o cartão da faixa logo acima.
    */
   readonly rotuloDaTarifa: string;
+  /**
+   * O nome que ESTE canal da ao estoque que ele mesmo guarda.
+   *
+   * ⚠️ NASCEU DO MESMO DEFEITO, uma hora depois (13/09/2026):
+   * assim que a Amazon passou a renderizar `PainelV3Baixo`, a tela dela exibiu
+   * **"Radar do FULL"** — FULL e a logistica do Mercado Livre. A peca era
+   * "do Mercado Livre" enquanto so um canal a renderizava; virou compartilhada
+   * no instante em que o segundo entrou, e a palavra do primeiro veio junto.
+   * E a prova de que o contrato nao e burocracia: e o unico lugar onde essa
+   * troca acontece uma vez so.
+   */
+  readonly rotuloDoRadar: string;
 }
 
 export const CANAL_MERCADO_LIVRE: CanalV3 = {
   id: "mercado_livre",
   nome: "Mercado Livre",
   rotuloDaTarifa: "Tarifa ML",
+  rotuloDoRadar: "Radar do FULL",
 };
 
 export const CANAL_AMAZON: CanalV3 = {
@@ -47,4 +60,6 @@ export const CANAL_AMAZON: CanalV3 = {
   // na faixa do dashboard. Duas palavras para a mesma coisa, na mesma tela,
   // fazem a vendedora procurar a diferença que não existe.
   rotuloDaTarifa: "Taxas da Amazon",
+  // FBA e o nome que a Amazon usa, e o mesmo que aparece na coluna Logistica.
+  rotuloDoRadar: "Radar do FBA",
 };

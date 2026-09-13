@@ -339,7 +339,7 @@ export function PainelV3Baixo({ canal, dados }: {
 
           <div className="v3-card">
             <div className="v3-card-cab">
-              <h2>Radar do FULL</h2>
+              <h2>{canal.rotuloDoRadar}</h2>
               <a className="v3-btn" href={dados.radar.href}>Abrir radar →</a>
             </div>
             {dados.radar.itens.length === 0 ? (

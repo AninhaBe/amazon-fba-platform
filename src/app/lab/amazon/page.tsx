@@ -29,7 +29,7 @@
  */
 import { useState } from "react";
 import { PainelV3, type DadosV3 } from "../../components/PainelV3";
-import { OrderProfitabilityTableV3 } from "../../components/OrderProfitabilityTableV3";
+import { PainelV3Baixo, type DadosV3Baixo } from "../../components/PainelV3Baixo";
 import { CANAL_AMAZON } from "@/lib/canalV3";
 import type { ProfitabilityLine } from "@/lib/profitability";
 import {
@@ -94,6 +94,41 @@ const VENDAS: ProfitabilityLine[] = [
   },
 ];
 
+const BAIXO: DadosV3Baixo = {
+  catalogo: null,
+  promocoes: null,
+  revisar: {
+    linhas: VENDAS.slice(0, 5).map((l) => ({
+      id: l.id,
+      produto: l.product,
+      detalhe: [l.sku, `${l.quantity} un`].filter(Boolean).join(" · "),
+      pedido: "#…" + String(l.orderId).slice(-6),
+      logistica: l.fulfillment ?? "—",
+      venda: l.revenue == null ? "—" : l.revenue.toFixed(2).replace(".", ","),
+      tarifa: l.marketplaceFees == null ? "—" : l.marketplaceFees.toFixed(2).replace(".", ","),
+      frete: "—",
+      custo: l.productCost == null ? "—" : l.productCost.toFixed(2).replace(".", ","),
+      custoVazio: l.productCost == null,
+      imposto: l.tax == null ? "—" : l.tax.toFixed(2).replace(".", ","),
+      impostoVazio: l.tax == null,
+      margemPct: l.marginPct,
+    })),
+    href: "/amazon/monitor",
+    vazio: "Nenhum pedido no período.",
+    escopo: "1 de 47 vendas com cálculo completo",
+  },
+  anuncios: null,
+  radar: {
+    itens: [
+      { id: "1", titulo: "Conjunto Esguicho para Mangueira 3 Bicos de Jato", unidades: "—", cobertura: "esgotado", tom: "critico" },
+      { id: "2", titulo: "Caneca de Cerâmica 330ml com Textura Canelada", unidades: "3 un", cobertura: "4 dias", tom: "atencao" },
+    ],
+    href: "/amazon/estoque",
+    vazio: "Nenhum SKU em ruptura iminente.",
+  },
+  saldo: null,
+};
+
 export default function BancadaDaAmazon() {
   const [metrica, setMetrica] = useState("Faturamento");
   const dados: DadosV3 = {
@@ -127,7 +162,10 @@ export default function BancadaDaAmazon() {
     <main style={{ padding: 24, background: "var(--suave, #f6f6f4)", minHeight: "100vh" }}>
       <PainelV3 dados={dados} />
       <div style={{ height: 20 }} />
-      <OrderProfitabilityTableV3 canal={CANAL_AMAZON} lines={VENDAS} scopeNote="1 de 47 vendas com cálculo completo" />
+      {/* O MESMO componente que o Mercado Livre renderiza no fundo da tela — e
+          e comparando estes dois que se responde "esta igual?". */}
+      <PainelV3Baixo canal={CANAL_AMAZON} dados={BAIXO} />
+
     </main>
   );
 }
