@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { brDate } from "@/lib/datetime";
-import { EtapaDoCaminhoView } from "./FaixaDeEtapas";
+import { EtapaDoCaminhoView } from "./EtapaDoCaminhoView";
 import { readJson } from "../../lib/readJson";
 import { BaseDeData } from "./BaseDeData";
 import { Pagination } from "./Pagination";

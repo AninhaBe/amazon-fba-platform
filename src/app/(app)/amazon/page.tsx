@@ -13,8 +13,10 @@ import { periodoNaUrl } from "../../components/periodoNaUrl";
 import type { OperationPendingItem } from "../../components/OperationPending";
 import { amazonFinancialCards, diasSemAnuncio, type AmazonAdsInput } from "./amazonFinancialCards";
 import { identidadeDePeriodo } from "../../components/AnimatedNumber";
+import { JANELA_DE_SETE_DIAS, precisaBuscarAJanela, serieDoBlocoDeLucro } from "../../components/serieDoLucroPorDia";
 import { PainelV3, type DadosV3 } from "../../components/PainelV3";
 import { PainelV3Baixo, type DadosV3Baixo } from "../../components/PainelV3Baixo";
+import { EtapaDoCaminhoView } from "../../components/EtapaDoCaminhoView";
 import { colunasDoPeriodoAmazon, diasDoRitmoAmazon, entradaDaFaixaDosCards, margemDoPeriodoAmazon, produtosDoTopAmazon } from "./amazonPainelV3";
 import { buscaCompartilhada } from "../../components/buscaCompartilhada";
 import { CANAL_AMAZON } from "@/lib/canalV3";
@@ -317,6 +319,57 @@ type CoberturaData = {
 // Escopo de módulo: sobrevive à navegação entre canais. Ao voltar, o período
 // já visto renderiza no primeiro paint e a revalidação roda em segundo plano.
 const dashCache = new Map<string, DashSnapshot>();
+
+/**
+ * A JANELA DE SETE DIAS DO BLOCO "Ritmo" — buscada em QUALQUER filtro.
+ *
+ * ⚠️ ELA VIU O DEFEITO EM PRODUCAO EM 13/09/2026: com o filtro
+ * "Hoje", o cartao "Ritmo dos ultimos 7 dias" da Amazon mostrava UMA coluna
+ * gigante ocupando o cartao inteiro, sem dia da semana e sem valor por dia —
+ * enquanto o Mercado Livre, ao lado, mostrava as sete.
+ *
+ * A causa era `sales.points.slice(-7)`: `points` e a serie do PERIODO
+ * selecionado, e no filtro "Hoje" ela tem um ponto so. Cortar os ultimos sete
+ * de uma lista de um devolve um.
+ *
+ * ⚠️ A REGRA JA EXISTIA E E DELA (09/09/2026): *"o ritmo dos
+ * ultimos 7 dias vai ser a unica coisa que nao vai mudar com base no filtro de
+ * data"*. O Mercado Livre a cumpria desde entao, com as funcoes puras de
+ * `serieDoLucroPorDia.ts`; a Amazon nunca foi ligada nelas. Replicar aqui e
+ * usar as MESMAS funcoes, nao escrever uma segunda versao da regra.
+ *
+ * Nao e busca a mais na maioria dos casos: a chave e a mesma do filtro
+ * "7 dias", entao quem ja passou por ele encontra tudo em memoria.
+ */
+function useJanelaDeSeteDiasAmazon(contaAtual: string | null) {
+  // ⚠️ SO O SETTER IMPORTA: os Maps vivem fora do React e nao
+  // avisam ninguem quando a chave e preenchida. Quem decide o que a tela recebe
+  // e a leitura no render, logo abaixo — a mesma disciplina do Mercado Livre,
+  // onde memorizar a leitura deixou o cartao vazio com o dado no payload.
+  const [, setBuscasConcluidas] = useState(0);
+
+  useEffect(() => {
+    const temNoCache = payloadDoPeriodo.has(JANELA_DE_SETE_DIAS) || dashCache.has(JANELA_DE_SETE_DIAS);
+    if (!precisaBuscarAJanela({ temNoCache, connectionId: contaAtual })) return;
+    const controller = new AbortController();
+    void fetch(`/api/amazon/dashboard?${JANELA_DE_SETE_DIAS}`, { signal: controller.signal })
+      .then((r) => (r.ok ? r.json() as Promise<DashboardPayload> : null))
+      .then((payload) => {
+        if (!payload || controller.signal.aborted) return;
+        payloadDoPeriodo.set(JANELA_DE_SETE_DIAS, payload);
+        setBuscasConcluidas((n) => n + 1);
+      })
+      // Falha aqui nao e erro de tela: o bloco nao aparece e o resto do periodo
+      // selecionado continua de pe.
+      .catch(() => {});
+    return () => controller.abort();
+  }, [contaAtual]);
+
+  // Leitura no render, sem `useMemo` — ver o porque em `serieDaJanelaDeSeteDias`.
+  return payloadDoPeriodo.get(JANELA_DE_SETE_DIAS)?.dailySales
+    ?? dashCache.get(JANELA_DE_SETE_DIAS)?.sales?.points
+    ?? null;
+}
 
 // Payload CRU por periodo, so para o aquecimento. De proposito nao guarda o
 // snapshot montado: o mapeamento payload -> tela e campo a campo (ver a nota
@@ -716,6 +769,7 @@ function Dashboard() {
 
   const critical = radar.filter((r) => r.status === "critical" || r.status === "out");
   const noCost = products.filter((p) => p.cost == null || p.cost === 0).length;
+  const janelaDeSeteDias = useJanelaDeSeteDiasAmazon(contaAtual ?? null);
 
   /**
    * O FUNDO DA TELA, NA MESMA PECA DO MERCADO LIVRE (13/09/2026).
@@ -814,7 +868,39 @@ function Dashboard() {
       href: "/amazon/estoque",
       vazio: "Nenhum SKU em ruptura iminente.",
     },
-    saldo: saldo ? <SaldoNaAmazon saldo={saldo} /> : null,
+    /**
+     * REPASSES — a MESMA peca compacta do Mercado Livre (13/09/2026).
+     *
+     * ⚠️ ELA POS AS DUAS TELAS LADO A LADO: no Mercado Livre,
+     * uma linha — "Cai na conta ate 13/09", o valor, uma frase de contexto e
+     * "Abrir extrato →". Na Amazon, um cartao do tamanho da tela, com duas
+     * caixas cinza dentro, a lista das 26 liberacoes e um paragrafo de nota.
+     * Mesmo assunto, duas linguagens; a da Amazon era a antiga.
+     *
+     * ⚠️ A LISTA DE LIBERACOES NAO SE PERDEU — ela mudou de
+     * lugar. O detalhe ("quais pagamentos, em que datas") e a pergunta SEGUINTE
+     * a este resumo, e mora no extrato: `/amazon/monitor?secao=repasses`, a aba
+     * Transacoes. E o mesmo desenho do Mercado Livre, onde o resumo leva ao
+     * extrato em vez de o trazer inteiro para o dashboard.
+     */
+    saldo: saldo ? (
+      <EtapaDoCaminhoView
+        rotulo={saldo.liberacoes[0] ? `Cai na conta até ${brDate(saldo.liberacoes[0].date)}` : "Cai na conta"}
+        valor={money(saldo.retido, saldo.currency)}
+        acao={<a className="v3-btn" href="/amazon/monitor?secao=repasses">Abrir extrato →</a>}
+        contexto={
+          <>
+            {/* ⚠️ A REGRA DA AMAZON, NAO A DO MERCADO LIVRE: la o
+                dinheiro fica retido no Mercado Pago ate a data de liberacao;
+                aqui a Amazon retem ate DEPOIS DA ENTREGA. A frase e a que ja
+                estava no cartao antigo — o desenho mudou, o fato nao. */}
+            {saldo.liberacoes.length.toLocaleString("pt-BR")} liberação(ões) previstas. A Amazon retém o
+            valor de cada venda até depois da entrega.
+            {saldo.disponivel != null ? ` Disponível agora: ${money(saldo.disponivel, saldo.currency)}.` : ""}
+          </>
+        }
+      />
+    ) : null,
   };
   const pendencias = useAmazonPendencias({ products: products.length, productsLoading, missingCosts: noCost });
   const salesCount = sales?.totalOrders ?? orders?.metrics.totalOrders ?? 0;
@@ -941,7 +1027,9 @@ function Dashboard() {
     dicaDoFaturamento: legendaFaturamento(faturamento, salesCount),
     baseDoResultado: cards.find((c) => c.key === "marginPct")?.baseDeclarada ?? null,
   });
-  const serieDoRitmo = (sales?.points ?? []).slice(-7);
+  // ⚠️ A JANELA, NAO O PERIODO. `sales.points` segue o filtro de
+  // data; o titulo do cartao promete sete dias sempre. Ver o hook acima.
+  const serieDoRitmo = serieDoBlocoDeLucro({ janelaDeSeteDias: janelaDeSeteDias });
   const diasDoRitmo = diasDoRitmoAmazon(
     serieDoRitmo.map((d) => ({ ...d, profit: d.profit ?? null })),
     {

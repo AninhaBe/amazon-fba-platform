@@ -420,7 +420,14 @@ test("o saldo do Mercado Pago continua desenhado pela peca compartilhada, DENTRO
 
   // E a peca e a compartilhada — a mesma que desenhava as etapas da faixa.
   const saldo = await fonte("src/app/components/MercadoLivreSaldo.tsx");
-  assert.match(saldo, /import \{ EtapaDoCaminhoView \} from "\.\/FaixaDeEtapas"/,
+  // ⚠️ A PECA MUDOU DE ARQUIVO EM 13/09/2026, e nao de
+  // identidade: `EtapaDoCaminhoView` saiu de `FaixaDeEtapas.tsx` para modulo
+  // proprio. O motivo foi a guarda logo abaixo, que proibe cada canal de
+  // importar de `FaixaDeEtapas` — quando os Repasses da Amazon passaram a usar
+  // o MESMO cartao, a proibicao (que casa o nome do modulo) nao distinguia
+  // "usou o cartao" de "remontou a faixa". A faixa continua proibida; o cartao
+  // e compartilhado, e agora os dois canais o importam do mesmo lugar.
+  assert.match(saldo, /import \{ EtapaDoCaminhoView \} from "\.\/EtapaDoCaminhoView"/,
     "o saldo parou de usar a peca compartilhada e passou a desenhar a sua propria");
 });
 

@@ -68,7 +68,11 @@ test("os blocos que a Amazon tem de verdade continuam ligados", () => {
   const montagem = readFileSync(AMAZON, "utf8");
   // Um por bloco que ela cobrou pelo nome, com o dado que o alimenta.
   assert.match(montagem, /anuncios: !profit\?\.adsConectado/, "Anúncios pagos saiu da Amazon");
-  assert.match(montagem, /saldo: saldo \? <SaldoNaAmazon/, "Repasses (saldo) saiu da Amazon");
+  // ⚠️ A ANCORA MUDOU EM 13/09/2026 e a intencao anterior fica
+  // registrada: ela exigia `<SaldoNaAmazon`, o cartao grande e antigo. Ele foi
+  // trocado pela MESMA peca compacta do Mercado Livre (`EtapaDoCaminhoView`),
+  // porque ela pos as duas telas lado a lado e a da Amazon era a antiga.
+  assert.match(montagem, /saldo: saldo \? \(\s*<EtapaDoCaminhoView/, "Repasses (saldo) saiu da Amazon");
   assert.match(montagem, /radar: \{/, "Radar do FBA saiu da Amazon");
   assert.match(montagem, /revisar: \{/, "a prévia de Pedidos saiu da Amazon");
 });
