@@ -77,5 +77,24 @@ test("UMA linha por card na face — a que muda a leitura", async () => {
   // a faixa, que a desenha na linha visivel sob o numero da Margem. Quem decide
   // qual frase continua sendo o CONSTRUTOR do card, nao a tela — que era o
   // ponto desta assercao.
-  assert.match(amazon, /baseDoResultado: cards\.find\(\(c\) => c\.key === "marginPct"\)\?\.baseDeclarada/);
+  /**
+   * ⚠️ ANCORA REAPONTADA EM 13/09/2026, e a intencao anterior
+   * fica registrada: ela exigia `baseDeclarada` — a frase INTEIRA, com a base,
+   * o que falta e a devolucao juntas por " · " — no sub da faixa.
+   *
+   * O que mudou: no cartao antigo aquilo cabia; na faixa do v3 o sub tem uma
+   * linha, e as tres viravam um paragrafo de cinco. Medido nas duas telas lado
+   * a lado: 194px na Amazon contra 126px no Mercado Livre.
+   *
+   * A INTENCAO NAO MUDOU — a declaracao continua na FACE, sem hover. Mudou o
+   * que vai junto dela: `faltaValor` virou pendencia no bloco "O que falta para
+   * o numero fechar", com numero e link, que e onde a doutrina dela manda
+   * apontar falta. A exigencia de 04/09 ("campo proprio, sem hover") segue
+   * cumprida — e melhor que antes, quando a frase morava dentro de outra.
+   */
+  assert.match(amazon, /baseDoResultado: cards\.find\(\(c\) => c\.key === "marginPct"\)\?\.baseDaFaixa/);
+  // E o que saiu do sub tem de estar VISIVEL em outro lugar da face — senao
+  // isto aqui teria trocado "declaracao no tooltip" por "declaracao sumida".
+  assert.match(amazon, /faltaOValorDaAmazon/,
+    "o que falta saiu do sub da margem e nao virou pendencia: a face parou de dizer o que falta");
 });

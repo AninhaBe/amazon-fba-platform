@@ -184,6 +184,12 @@ export interface AmazonCard {
    * treina a pessoa a ignorar a frase no dia em que ela importa.
    */
   baseDeclarada?: string;
+  /** So a base, para a faixa do v3, onde o sub tem uma linha. Ver o porque no
+   *  cartao de margem. */
+  baseDaFaixa?: string;
+  /** O que falta, em campo proprio, para virar pendencia — nunca colado numa
+   *  frase. */
+  faltaOValorDaAmazon?: string;
   /**
    * Procedencia da estimativa (ADR-027), para o selo colado ao numero.
    *
@@ -841,6 +847,25 @@ export function amazonFinancialCards(input: AmazonCardsInput): AmazonCard[] {
       // AFIRMAR que ele descreve o periodo.
       raw: baseCobreAMinoria ? null : margem,
       baseDeclarada: notaDoLucro,
+      /**
+       * ⚠️ SO A BASE, SEM O "O QUE FALTA" COLADO — e este campo
+       * existe por causa da FAIXA, nao do cartao (13/09/2026).
+       *
+       * `baseDeclarada` junta tres frases com " · ". No cartao antigo isso
+       * cabia; na faixa do v3 o sub tem uma linha, e as tres viravam um
+       * paragrafo de cinco: os cartoes da Amazon ficaram com 194px contra 126
+       * do Mercado Livre — medido nas duas telas, lado a lado. A ordem dela foi
+       * direta: *"que parte de PEGA A ESTRUTURA DO MERCADO LIVRE voce nao
+       * entendeu?"*.
+       *
+       * ⚠️ E O QUE SAIU DAQUI NAO SUMIU DA TELA. `faltaValor`
+       * virou pendencia no bloco "O que falta para o numero fechar", com numero
+       * e link — que e onde a doutrina dela sempre mandou apontar falta. A
+       * exigencia de 04/09 ("o que falta em CAMPO PROPRIO, sem hover")
+       * continua cumprida, e melhor: antes a frase estava DENTRO de outra.
+       */
+      baseDaFaixa: baseDeclarada,
+      faltaOValorDaAmazon: faltaValor ?? undefined,
     },
     {
       key: "roiPct", label: "ROI",

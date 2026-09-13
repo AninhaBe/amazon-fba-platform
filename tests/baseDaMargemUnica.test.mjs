@@ -73,7 +73,22 @@ test("a declaracao vai na FACE do card, nunca no tooltip", async () => {
   // mesmo jeito. O que esta guarda existe para impedir continua igual: a base
   // nunca pode depender de hover, e foi o que aconteceu em 31/08/2026, quando a
   // frase existia dentro do "i" e a vendedora concluiu que a tela estava errada.
-  assert.match(pagina, /baseDoResultado: cards\.find\(\(c\) => c\.key === "marginPct"\)\?\.baseDeclarada/);
+  /**
+   * ⚠️ ANCORA REAPONTADA EM 13/09/2026, e a intencao anterior
+   * fica registrada: ela exigia `baseDeclarada` — a frase INTEIRA, com a base,
+   * o que falta e a devolucao juntas por " · " — no sub da faixa.
+   *
+   * O que mudou: no cartao antigo aquilo cabia; na faixa do v3 o sub tem uma
+   * linha, e as tres viravam um paragrafo de cinco. Medido nas duas telas lado
+   * a lado: 194px na Amazon contra 126px no Mercado Livre.
+   *
+   * A INTENCAO NAO MUDOU — a declaracao continua na FACE, sem hover. Mudou o
+   * que vai junto dela: `faltaValor` virou pendencia no bloco "O que falta para
+   * o numero fechar", com numero e link, que e onde a doutrina dela manda
+   * apontar falta. A exigencia de 04/09 ("campo proprio, sem hover") segue
+   * cumprida — e melhor que antes, quando a frase morava dentro de outra.
+   */
+  assert.match(pagina, /baseDoResultado: cards\.find\(\(c\) => c\.key === "marginPct"\)\?\.baseDaFaixa/);
   assert.ok(!/info=\{card\.baseDeclarada\}/.test(pagina), "declaracao dentro do 'i' nao declara nada");
   assert.ok(!/dica: entrada\.baseDoResultado/.test(pagina), "a base foi parar na dica da coluna");
 });

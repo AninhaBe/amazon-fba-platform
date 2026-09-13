@@ -118,7 +118,7 @@ test("a tela RENDERIZA a base, e nao so no tooltip", async () => {
   const page = await fonte("src/app/(app)/amazon/page.tsx");
   assert.match(
     page,
-    /baseDoResultado: cards\.find\(\(c\) => c\.key === "marginPct"\)\?\.baseDeclarada/,
+    /baseDoResultado: cards\.find\(\(c\) => c\.key === "marginPct"\)\?\.baseDaFaixa/,
     "a Amazon parou de mandar a base declarada para a faixa",
   );
   // E ela nunca pode sair pelo "i": foi ali que a frase ficou invisivel o dia

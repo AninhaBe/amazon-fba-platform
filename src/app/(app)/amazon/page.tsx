@@ -1025,7 +1025,11 @@ function Dashboard() {
     pedidosComTarifaEstimada: profit?.pedidosComTarifaEstimada ?? null,
     aliquota: profit?.taxRate ?? null,
     dicaDoFaturamento: legendaFaturamento(faturamento, salesCount),
-    baseDoResultado: cards.find((c) => c.key === "marginPct")?.baseDeclarada ?? null,
+    // ⚠️ `baseDaFaixa`, NAO `baseDeclarada` — a faixa tem uma
+    // linha de sub, e `baseDeclarada` junta tres frases. Ver o porque em
+    // `amazonFinancialCards.ts`, no cartao de margem. O que saiu daqui virou
+    // pendencia logo abaixo; nada sumiu da tela.
+    baseDoResultado: cards.find((c) => c.key === "marginPct")?.baseDaFaixa ?? null,
   });
   // ⚠️ A JANELA, NAO O PERIODO. `sales.points` segue o filtro de
   // data; o titulo do cartao promete sete dias sempre. Ver o hook acima.
@@ -1087,6 +1091,16 @@ function Dashboard() {
       ...(!loading && profit?.taxRate === null
         ? [{ id: "aliquota", titulo: "Cadastrar alíquota", efeito: "Sem ela o lucro sai sem imposto.", acao: "Cadastrar", href: AMAZON_TAX_RATE_HREF, tom: "atencao" as const }]
         : []),
+      ...((() => {
+        // ⚠️ SAIU DO SUB DA MARGEM E VEIO PARA CA (13/09/2026).
+        // E uma falta, e a doutrina dela para falta e esta: dizer O QUE falta,
+        // com numero e link, no lugar reservado a isso — nao colada dentro da
+        // frase que explica como o numero foi feito.
+        const falta = cards.find((c) => c.key === "marginPct")?.faltaOValorDaAmazon;
+        return falta
+          ? [{ id: "sem-valor", titulo: falta, efeito: "O lucro muda quando a Amazon publicar o valor.", acao: "Ver pedidos", href: "/amazon/monitor", tom: "atencao" as const }]
+          : [];
+      })()),
       ...(critical.length > 0
         ? [{ id: "estoque", titulo: `${critical.length} produto(s) com estoque crítico`, efeito: "Acaba antes da próxima reposição.", acao: "Ver radar", href: "/amazon/estoque", tom: "neutro" as const }]
         : []),
