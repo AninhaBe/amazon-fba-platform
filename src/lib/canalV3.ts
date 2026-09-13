@@ -44,6 +44,35 @@ export interface CanalV3 {
    * troca acontece uma vez so.
    */
   readonly rotuloDoRadar: string;
+  /**
+   * Como o canal chama o ESTOQUE que ele guarda — a logistica dele, nomeada.
+   *
+   * ⚠️ TERCEIRA VEZ A MESMA FAMILIA, no mesmo dia (13/09/2026).
+   * O titulo do bloco ja vinha do contrato ("Radar do FBA") e a coluna LOGO
+   * ABAIXO ainda dizia "Produto no FULL" — cabecalho certo, conteudo do outro
+   * canal, na mesma caixa. A guarda que eu tinha escrito olhava so o `<h2>`:
+   * lista fechada pega o que alguem lembrou de listar.
+   *
+   * Quem achou foi a varredura do DOM RENDERIZADO da bancada, nao o grep. E a
+   * razao de a bancada existir.
+   */
+  readonly nomeDaLogistica: string;
+  /**
+   * O gasto com anuncio JA esta descontado do lucro que a faixa mostra?
+   *
+   * ⚠️ ESTE NAO E UM ROTULO — E UM FATO, e o unico campo deste
+   * contrato que muda uma AFIRMACAO na tela, nao uma palavra. A nota do bloco
+   * "Anuncios pagos" dizia, fixa: *"Este gasto nao esta descontado do lucro
+   * acima: no Mercado Livre ele sai no seu fechamento"*. Verdade no Mercado
+   * Livre, MENTIRA na Amazon — onde o anuncio e a oitava coluna da faixa e ja
+   * entra no lucro (commit `0172fd1`).
+   *
+   * ⚠️ Copiar a frase junto com o bloco teria posto na tela dela
+   * uma afirmacao falsa sobre o proprio dinheiro. E a diferenca entre replicar
+   * o desenho e copiar o texto: divergencia sem mentira e divida; divergencia
+   * com mentira e defeito.
+   */
+  readonly anuncioNoLucro: boolean;
 }
 
 export const CANAL_MERCADO_LIVRE: CanalV3 = {
@@ -51,6 +80,9 @@ export const CANAL_MERCADO_LIVRE: CanalV3 = {
   nome: "Mercado Livre",
   rotuloDaTarifa: "Tarifa ML",
   rotuloDoRadar: "Radar do FULL",
+  nomeDaLogistica: "FULL",
+  // No Mercado Livre o gasto com anuncio sai no fechamento da conta, depois.
+  anuncioNoLucro: false,
 };
 
 export const CANAL_AMAZON: CanalV3 = {
@@ -62,4 +94,7 @@ export const CANAL_AMAZON: CanalV3 = {
   rotuloDaTarifa: "Taxas da Amazon",
   // FBA e o nome que a Amazon usa, e o mesmo que aparece na coluna Logistica.
   rotuloDoRadar: "Radar do FBA",
+  nomeDaLogistica: "FBA",
+  // Na Amazon o anuncio e a oitava coluna da faixa: ja esta dentro do lucro.
+  anuncioNoLucro: true,
 };

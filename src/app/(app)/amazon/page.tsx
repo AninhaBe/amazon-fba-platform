@@ -771,7 +771,38 @@ function Dashboard() {
       vazio: "Nenhum pedido no período.",
       escopo: scopeSentence(profitabilityScope),
     },
-    anuncios: null,
+    /**
+     * ANUNCIOS PAGOS — o mesmo bloco do Mercado Livre (13/09/2026).
+     *
+     * ⚠️ NASCEU `null` E ESTAVA ERRADO. Eu justifiquei a ausencia
+     * dizendo que `AnunciosPorProduto` (que a Amazon tambem renderiza) e mais
+     * rico, por levar os cartoes de ACOS/TACOS/ROI. A justificativa era
+     * verdadeira e a conclusao, nao: ela abriu a tela e perguntou *"cade
+     * Anuncios pagos?"*. As duas pecas respondem perguntas diferentes — esta
+     * lista ANUNCIO POR ANUNCIO com a margem real ao lado; aquela resume a
+     * eficiencia do periodo. O Mercado Livre tem as duas conversas.
+     *
+     * `null` continua valendo para quem NAO tem conta de Ads conectada: bloco
+     * vazio prometendo dado que nao existe e pior que bloco ausente.
+     */
+    anuncios: !profit?.adsConectado || (profit.adsPorProduto ?? []).length === 0 ? null : {
+      linhas: (profit.adsPorProduto ?? []).map((a) => ({
+        id: a.productId,
+        produto: a.title || a.sku || a.productId,
+        trafego: `${a.impressions.toLocaleString("pt-BR")} impressões · ${a.clicks.toLocaleString("pt-BR")} cliques`,
+        gasto: semMoeda(a.cost),
+        vendas: semMoeda(a.sales),
+        compras: String(a.purchases),
+        // ⚠️ ACOS e ROAS sao `null` quando nao houve venda — divisao
+        // por zero nao vira 0%, que afirmaria eficiencia perfeita.
+        acos: a.acos == null ? "—" : a.acos.toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + "%",
+        roas: a.roas == null ? "—" : a.roas.toLocaleString("pt-BR", { maximumFractionDigits: 2 }),
+        semVenda: a.purchases === 0 && a.cost > 0,
+        margemPct: a.margemRealPct,
+      })),
+      resumo: `gasto ${money(profit.ads?.cost ?? 0, currency)}`,
+      href: "/amazon/anuncios",
+    },
     radar: {
       itens: critical.slice(0, 5).map((r) => ({
         id: r.sellerSku,

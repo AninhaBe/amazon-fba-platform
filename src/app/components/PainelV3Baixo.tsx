@@ -221,7 +221,7 @@ export function PainelV3Baixo({ canal, dados }: {
                 <div className="v3-raiox-cab">
                   <span>Catálogo</span>
                   <span>Sua posição</span>
-                  <span>Em FULL</span>
+                  <span>Em {canal.nomeDaLogistica}</span>
                   {/* ⚠️ O "i" USA O MESMO COMPONENTE DA FAIXA DO TOPO
                       (`metric-info`), nao um tooltip novo: dica que aparece de
                       um jeito num cartao e de outro no vizinho vira dois
@@ -271,9 +271,11 @@ export function PainelV3Baixo({ canal, dados }: {
                 </div>
               </div>
               <p className="v3-nota">
-                ACOS e ROAS vêm do Mercado Livre. A margem real cruza o gasto do anúncio com o seu
-                custo e a tarifa — é a coluna que diz se o anúncio valeu. Este gasto não está
-                descontado do lucro acima: no Mercado Livre ele sai no seu fechamento.
+                ACOS e ROAS vêm do {canal.nome}. A margem real cruza o gasto do anúncio com o seu
+                custo e a tarifa — é a coluna que diz se o anúncio valeu.{" "}
+                {canal.anuncioNoLucro
+                  ? "Este gasto já está descontado do lucro acima."
+                  : `Este gasto não está descontado do lucro acima: no ${canal.nome} ele sai no seu fechamento.`}
               </p>
               <div className="v3-tabela v3-tabela-ads">
                 <div className="v3-ads-cab">
@@ -347,7 +349,7 @@ export function PainelV3Baixo({ canal, dados }: {
             ) : (
               <div className="v3-tabela v3-tabela-radar">
                 <div className="v3-radar-cab">
-                  <span>Produto no FULL</span>
+                  <span>Produto no {canal.nomeDaLogistica}</span>
                   <span>Estoque</span>
                   <span>Cobertura</span>
                 </div>

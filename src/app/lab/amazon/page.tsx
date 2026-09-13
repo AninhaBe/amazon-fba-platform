@@ -67,6 +67,40 @@ const ENTRADA: EntradaDaFaixaAmazon = {
 
 const HOJE = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
 
+const diaRelativo = (recuo: number) => {
+  const d = new Date(`${HOJE}T12:00:00`);
+  d.setDate(d.getDate() - recuo);
+  return d.toLocaleDateString("en-CA");
+};
+
+/**
+ * SETE DIAS, porque o bloco se chama "Ritmo dos ultimos 7 dias".
+ *
+ * ⚠️ A PRIMEIRA VERSAO DESTA BANCADA TINHA UM DIA SO (13/09/2026),
+ * e ela viu na tela uma barra unica ocupando o cartao inteiro. Amostra que nao
+ * exercita a regra nao testa a regra: com um ponto, nenhuma das decisoes deste
+ * bloco aparece — nao ha media para a linha tracejada cruzar, nao ha dia no
+ * vermelho para descer abaixo dela, e nao ha como ver se o dia corrente fica
+ * com o contorno em vez de preenchido.
+ *
+ * Por isso a serie abaixo tem, de proposito: dias normais, um dia SEM lucro
+ * apurado (`profit: null` — a Amazon ainda nao fechou), um dia no PREJUIZO, um
+ * dia sem venda nenhuma, e o dia corrente. Os cinco casos que o desenho precisa
+ * aguentar.
+ */
+const SERIE = [
+  { date: diaRelativo(6), revenue: 1430.5, orders: 22, units: 27, profit: 181.4 },
+  { date: diaRelativo(5), revenue: 1105.2, orders: 18, units: 20, profit: 96.3 },
+  // Dia sem apuracao fechada: `null`, nunca zero. Fica so com o contorno e NAO
+  // entra na media — e a regra que a nota do rodape promete.
+  { date: diaRelativo(4), revenue: 1288.9, orders: 20, units: 24, profit: null },
+  { date: diaRelativo(3), revenue: 640.1, orders: 11, units: 12, profit: -58.7 },
+  // Dia sem venda: zero aqui e FATO (a loja nao vendeu), diferente do `null`.
+  { date: diaRelativo(2), revenue: 0, orders: 0, units: 0, profit: 0 },
+  { date: diaRelativo(1), revenue: 902.4, orders: 14, units: 16, profit: 74.8 },
+  { date: HOJE, revenue: 976.74, orders: 15, units: 18, profit: 100.22 },
+];
+
 const TOP = [
   { sku: "MPAD-27x22-AZUL", title: "Mouse Pad Gamer 27x22cm - Base Antiderrapante, Bordas Costuradas", units: 1, revenue: 14.9, marginPct: 71.5 },
   // Faturamento zero com margem desconhecida: o produto vendeu e a Amazon ainda
@@ -117,7 +151,17 @@ const BAIXO: DadosV3Baixo = {
     vazio: "Nenhum pedido no período.",
     escopo: "1 de 47 vendas com cálculo completo",
   },
-  anuncios: null,
+  /** ANUNCIOS PAGOS — faltava na bancada, e foi assim que ela viu a ausencia. */
+  anuncios: {
+    linhas: [
+      { id: "a1", produto: "Mouse Pad Gamer 27x22cm - Base Antiderrapante", trafego: "1.204 impressões · 38 cliques", gasto: "24,60", vendas: "89,40", compras: "6", acos: "27,5%", roas: "3,63", margemPct: 31.2 },
+      // Gasto sem venda: ACOS e ROAS ficam "—", nunca 0% — zero afirmaria
+      // eficiencia perfeita onde nao houve venda nenhuma.
+      { id: "a2", produto: "Kit 2 Telas Mosquiteiro 150x130cm", trafego: "842 impressões · 11 cliques", gasto: "9,80", vendas: "0,00", compras: "0", acos: "—", roas: "—", semVenda: true, margemPct: null },
+    ],
+    resumo: "gasto R$ 34,40",
+    href: "/amazon/anuncios",
+  },
   radar: {
     itens: [
       { id: "1", titulo: "Conjunto Esguicho para Mangueira 3 Bicos de Jato", unidades: "—", cobertura: "esgotado", tom: "critico" },
@@ -126,7 +170,25 @@ const BAIXO: DadosV3Baixo = {
     href: "/amazon/estoque",
     vazio: "Nenhum SKU em ruptura iminente.",
   },
-  saldo: null,
+  /** REPASSES — o que a Amazon ja liberou e o que ela ainda retem. Na tela real
+   *  e o `SaldoNaAmazon`; aqui entra a mesma forma com numeros do print. */
+  saldo: (
+    <section className="v3-card">
+      <div className="v3-card-cab"><h2>Repasses</h2></div>
+      <div className="v3-colunas" style={{ "--colunas": 2 } as React.CSSProperties}>
+        <div className="v3-coluna">
+          <p className="v3-coluna-rotulo">Disponível agora</p>
+          <strong className="v3-coluna-valor">R$ 1.242,21</strong>
+          <p className="v3-coluna-share">liberado para transferência</p>
+        </div>
+        <div className="v3-coluna">
+          <p className="v3-coluna-rotulo">Retido pela Amazon</p>
+          <strong className="v3-coluna-valor">R$ 7.637,31</strong>
+          <p className="v3-coluna-share">primeira liberação em 11/09/2026</p>
+        </div>
+      </div>
+    </section>
+  ),
 };
 
 export default function BancadaDaAmazon() {
@@ -145,9 +207,9 @@ export default function BancadaDaAmazon() {
       legendaTotal: "faturamento",
       legendaMedia: "média de lucro do período",
       mostraLucro: true,
-      media: 100.22,
+      media: SERIE.filter((d) => d.profit != null).reduce((a, d) => a + (d.profit ?? 0), 0) / SERIE.filter((d) => d.profit != null).length,
       dias: diasDoRitmoAmazon(
-        [{ date: HOJE, revenue: 976.74, orders: 15, units: 18, profit: 100.22 }],
+        SERIE,
         { metrica, moeda: MOEDA, hoje: HOJE, diaDaSemana: (data) => new Date(`${data}T12:00:00`).toLocaleDateString("pt-BR", { weekday: "short" }) },
       ),
       nota: "A parte cheia é o que sobrou do que foi vendido naquele dia.",

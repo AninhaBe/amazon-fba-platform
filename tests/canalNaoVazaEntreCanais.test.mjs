@@ -77,6 +77,52 @@ test("cada canal declara o próprio nome para o que cobra da venda", async () =>
   assert.notEqual(CANAL_AMAZON.rotuloDaTarifa, CANAL_MERCADO_LIVRE.rotuloDaTarifa);
 });
 
+/**
+ * ⚠️ TERCEIRA FORMA DESTA GUARDA EM DOIS DIAS, e as duas
+ * anteriores passaram VERDE com o defeito na tela dela. O registro importa
+ * porque o erro nao foi de atencao — foi de FORMA:
+ *
+ *   1. a primeira varria uma lista de ARQUIVOS e excluia `PainelV3Baixo`,
+ *      apostando que "o fundo da Amazon vai ser outro componente". Falsificada
+ *      em um dia: a Amazon passou a renderizar a peca, e a tela exibiu
+ *      "Radar do FULL";
+ *   2. a segunda conferia o `<h2>` de cada bloco compartilhado — uma asercao
+ *      por LUGAR. O titulo ficou certo ("Radar do FBA") e a coluna logo abaixo
+ *      seguiu dizendo "Produto no FULL", depois "Em FULL", depois a nota dos
+ *      anuncios. Lista de lugares cobre os lugares que alguem lembrou.
+ *
+ * Esta nao lista lugares: PROIBE a palavra no arquivo inteiro e CONTA as
+ * excecoes. Ocorrencia nova reprova sozinha, esteja onde estiver.
+ */
+test("a peca compartilhada nao escreve nome de logistica nem de tarifa de canal nenhum", () => {
+  const codigo = semComentario(readFileSync("src/app/components/PainelV3Baixo.tsx", "utf8"));
+  // Todas estas saem de `CanalV3`. Nenhuma tem por que aparecer no corpo.
+  for (const proibido of ["FULL", "FBA", "Tarifa ML", "Taxas da Amazon"]) {
+    assert.ok(
+      !codigo.includes(proibido),
+      `"${proibido}" voltou para o corpo da peça que os dois canais renderizam — o texto que muda de canal sai de \`canal\`.`,
+    );
+  }
+});
+
+/**
+ * ⚠️ AS DUAS EXCECOES SAO LEGITIMAS E CONTADAS. Sobram duas
+ * frases citando o Mercado Livre, nos blocos "Raio X do catalogo" e "Promocoes
+ * oferecidas" — que SO o Mercado Livre renderiza (a Amazon passa `null` e eles
+ * nao desenham). Contar em vez de listar e o que faz a TERCEIRA ocorrencia
+ * reprovar: quem escrever uma frase nova sobre um canal tem de provar aqui que
+ * o bloco e exclusivo dele.
+ */
+test("citar um canal na peca compartilhada so vale em bloco exclusivo dele — e o numero e fixo", () => {
+  const codigo = semComentario(readFileSync("src/app/components/PainelV3Baixo.tsx", "utf8"));
+  const quantas = (codigo.match(/Mercado Livre/g) ?? []).length;
+  assert.equal(
+    quantas, 2,
+    `esperava 2 frases citando o Mercado Livre (Raio X do catálogo e Promoções oferecidas, blocos que só ele renderiza) e achei ${quantas}. `
+    + "Se o bloco novo também é só dele, atualize este número e diga qual é. Se os dois canais renderizam, o texto vai para `CanalV3`.",
+  );
+});
+
 test("os blocos que OS DOIS canais renderizam tiram o titulo do contrato", () => {
   const codigo = semComentario(readFileSync("src/app/components/PainelV3Baixo.tsx", "utf8"));
   // Um por bloco compartilhado. Lista fechada: cresce quando a Amazon deixar de
