@@ -4,7 +4,7 @@ import { currentWorkspaceId } from "../workspaceScope";
 import { currentAccount, currentAccountId } from "../accountContext";
 import { amazonTaxAmount, getAmazonTaxRateSetting } from "./amazonSettings";
 import { getIntegrations } from "./integrationStore";
-import { getCosts, costAt } from "../costStore";
+import { custoNaDataOuNull, getCosts } from "../costStore";
 import { cached } from "../cache";
 import { allocateByWeight, calculateContribution, type ProfitabilityLine } from "../profitability";
 import { descontarAnuncio } from "../financialMath";
@@ -513,7 +513,7 @@ export async function getAmazonOverviewFromCanonical(
 
   const costOf = (sku: string | null, asin: string) => {
     const entry = (sku ? costs[sku] : undefined) ?? costs[asin];
-    return entry && entry.cost > 0 ? entry : null;
+    return entry ?? null;
   };
 
   // Detalhe por linha: rateia as fees do pedido entre as linhas por peso de
@@ -699,8 +699,8 @@ export async function getAmazonOverviewFromCanonical(
       processedRevenue += lineRevenue ?? 0;
       const occurredAt = new Date(line.occurred_at).toISOString();
       const entry = costOf(line.sku, line.external_product_id);
-      const unitCost = entry ? costAt(entry, occurredAt) : 0;
-      const lineProductCost = unitCost > 0 ? unitCost * line.qty : null;
+      const unitCost = custoNaDataOuNull(entry, occurredAt);
+      const lineProductCost = unitCost == null ? null : unitCost * line.qty;
       const lineFees = feesKnown ? feeShares[index] : null;
       const lineBuyerShipping = head.buyer_shipping == null ? null : buyerShares[index];
       const result = calculateContribution({
@@ -1143,8 +1143,8 @@ export async function getAmazonOverviewFromCanonical(
   let cogsDoPeriodo = 0;
   for (const linha of pendenteLinhas) {
     const entrada = costOf(linha.sku, linha.external_product_id);
-    const custoUnitario = entrada ? costAt(entrada, new Date(linha.occurred_at).toISOString()) : 0;
-    if (custoUnitario > 0) {
+    const custoUnitario = custoNaDataOuNull(entrada, new Date(linha.occurred_at).toISOString());
+    if (custoUnitario != null) {
       cogsDoPeriodo += custoUnitario * linha.qty;
       unitsWithCost += linha.qty;
     } else {
@@ -1246,12 +1246,12 @@ export async function getAmazonOverviewFromCanonical(
     const precoEstimado = linha.preco_estimado == null ? null : Number(linha.preco_estimado);
     if (precoEstimado != null && precoEstimado > 0) alvo.tabela += precoEstimado * linha.qty;
     const entrada = costOf(linha.sku, linha.external_product_id);
-    const custoUnitario = entrada ? costAt(entrada, new Date(linha.occurred_at).toISOString()) : 0;
+    const custoUnitario = custoNaDataOuNull(entrada, new Date(linha.occurred_at).toISOString());
     // ⚠️ Uma unica linha sem custo cadastrado tira o PEDIDO do resultado: metade
     // do custo com a receita inteira e o mesmo vies que este bloco existe para
     // matar. O pedido engrossa o apontamento de cadastrar custo, que ja existe —
     // e cadastro e dela, nao dado do canal (doutrina de 23/08).
-    if (custoUnitario > 0) alvo.custo += custoUnitario * linha.qty;
+    if (custoUnitario != null) alvo.custo += custoUnitario * linha.qty;
     else alvo.temCusto = false;
   }
   let baseCoerente = 0, tarifaCoerente = 0, custoCoerente = 0, pedidosCompletos = 0;

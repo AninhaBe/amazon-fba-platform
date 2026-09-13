@@ -105,26 +105,14 @@ test("bases iguais NAO produzem campo — ruido tambem e defeito", () => {
   }
 });
 
-test("a tela RENDERIZA a base, e nao so no tooltip", async () => {
-  // A trava no lugar onde o defeito estava: `sub` aparece sem interacao, `info`
-  // exige hover. Se `baseDeclarada` voltar a sair so pelo `info`, isto quebra.
-  // ⚠️ MUDOU DE MECANISMO EM 12/09/2026, NAO DE EXIGENCIA. A
-  // regua de cartoes da Amazon virou a faixa do periodo (a mesma peca do ML), e
-  // com ela a base declarada deixou de sair num `sub` de card para sair na
-  // LINHA SOB O NUMERO da coluna de Margem — que renderiza sem interacao do
-  // mesmo jeito. O que esta guarda existe para impedir continua igual: a base
-  // nunca pode depender de hover, e foi o que aconteceu em 31/08/2026, quando a
-  // frase existia dentro do "i" e a vendedora concluiu que a tela estava errada.
+test("a faixa Amazon não volta a renderizar a base como legenda", async () => {
+  // INTENÇÃO ALTERADA EM 13/09/2026: a declaração na face cumpria a regra de
+  // leitura, mas alongava só a Amazon. A dona pediu a retirada das legendas e
+  // as faltas continuam no bloco próprio de pendências.
   const page = await fonte("src/app/(app)/amazon/page.tsx");
-  assert.match(
-    page,
-    /baseDoResultado: cards\.find\(\(c\) => c\.key === "marginPct"\)\?\.baseDaFaixa/,
-    "a Amazon parou de mandar a base declarada para a faixa",
-  );
-  // E ela nunca pode sair pelo "i": foi ali que a frase ficou invisivel o dia
-  // inteiro em 31/08/2026.
   const codigo = page.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
-  assert.ok(!/info=\{card\.baseDeclarada/.test(codigo), "a base nunca pode sair pelo 'i'");
+  assert.ok(!/baseDaFaixa|baseDoResultado: cards\.find/.test(codigo), "a legenda longa voltou à faixa");
+  assert.match(codigo, /faltaOValorDaAmazon[\s\S]{0,300}href: "\/amazon\/monitor"/);
 });
 
 test("bases IGUAIS nao ganham declaracao — ruido tambem e defeito", () => {

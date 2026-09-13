@@ -55,46 +55,12 @@ test("nenhuma das tres sobrou no tooltip", async () => {
   assert.ok(!/pode haver mais/.test(infos), "a ressalva de cobertura voltou para o 'i'");
 });
 
-test("UMA linha por card na face — a que muda a leitura", async () => {
-  // A trava contra a poluicao: dois avisos empilhados no mesmo card viram ruido,
-  // e ruido tem o mesmo efeito de estarem escondidos, so que ocupando espaco.
+test("a faixa Amazon fica sem legenda e mantém as faltas em Pendências", async () => {
+  // INTENÇÃO ALTERADA EM 13/09/2026: mesmo uma linha alongava os cartões Amazon
+  // em relação ao ML. A dona pediu para retirar todas as legendas da faixa.
   const amazon = await fonte("src/app/(app)/amazon/page.tsx");
-
-  // O card de Cupom mostrava a ressalva OU a explicacao — nunca as duas. Ele
-  // saiu da tela em 12/09/2026 com a tira de indicadores; a asercao virou
-  // condicional pelo mesmo motivo do teste acima: o que ela impede e a volta
-  // pela metade, com os dois avisos empilhados no mesmo card.
   const codigo = amazon.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
-  if (/label="Cupom resgatado"/.test(codigo)) {
-    assert.match(codigo, /hint=\{faturamento\?\.couponPartial[\s\S]{0,200}info=\{faturamento\?\.couponPartial \? undefined :/,
-      "o card de Cupom voltou empilhando ressalva e explicacao");
-  }
-
-  // A tela nao escolhe a frase: ela renderiza `card.baseDeclarada` nos dois
-  // ramos, e QUEM decide qual linha cada card recebe e o construtor. Uma tela
-  // que escolhe frase por card e onde a segunda linha aparece sem ninguem ver.
-  // ⚠️ Mesmo caso das outras duas: a base passou a ser entregue
-  // a faixa, que a desenha na linha visivel sob o numero da Margem. Quem decide
-  // qual frase continua sendo o CONSTRUTOR do card, nao a tela — que era o
-  // ponto desta assercao.
-  /**
-   * ⚠️ ANCORA REAPONTADA EM 13/09/2026, e a intencao anterior
-   * fica registrada: ela exigia `baseDeclarada` — a frase INTEIRA, com a base,
-   * o que falta e a devolucao juntas por " · " — no sub da faixa.
-   *
-   * O que mudou: no cartao antigo aquilo cabia; na faixa do v3 o sub tem uma
-   * linha, e as tres viravam um paragrafo de cinco. Medido nas duas telas lado
-   * a lado: 194px na Amazon contra 126px no Mercado Livre.
-   *
-   * A INTENCAO NAO MUDOU — a declaracao continua na FACE, sem hover. Mudou o
-   * que vai junto dela: `faltaValor` virou pendencia no bloco "O que falta para
-   * o numero fechar", com numero e link, que e onde a doutrina dela manda
-   * apontar falta. A exigencia de 04/09 ("campo proprio, sem hover") segue
-   * cumprida — e melhor que antes, quando a frase morava dentro de outra.
-   */
-  assert.match(amazon, /baseDoResultado: cards\.find\(\(c\) => c\.key === "marginPct"\)\?\.baseDaFaixa/);
-  // E o que saiu do sub tem de estar VISIVEL em outro lugar da face — senao
-  // isto aqui teria trocado "declaracao no tooltip" por "declaracao sumida".
-  assert.match(amazon, /faltaOValorDaAmazon/,
-    "o que falta saiu do sub da margem e nao virou pendencia: a face parou de dizer o que falta");
+  assert.ok(!/baseDaFaixa|baseDoResultado: cards\.find/.test(codigo), "a legenda longa voltou à faixa");
+  assert.match(codigo, /faltaOValorDaAmazon[\s\S]{0,300}href: "\/amazon\/monitor"/,
+    "o que falta saiu da legenda e não permaneceu no bloco de pendências");
 });

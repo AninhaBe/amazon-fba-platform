@@ -24,7 +24,6 @@ const texto = (s) => String(s).replace(/ /g, " ");
 const BASE = {
   moeda: "BRL",
   faturamento: 1000,
-  pedidosPagos: 20,
   tarifas: 150,
   logisticaFba: 80,
   custoDosProdutos: 400,
@@ -44,24 +43,31 @@ test("a faixa tem OITO colunas, na ordem aprovada", () => {
   assert.ok(margemDoPeriodoAmazon(BASE).valor.endsWith("%"));
 });
 
+test("a faixa Amazon não estica com legendas sob os oito valores", () => {
+  // Defeito visual reprovado em 13/09/2026: as linhas auxiliares deixavam os
+  // cartões Amazon muito mais altos que os cartões de referência do ML.
+  const colunas = colunasDoPeriodoAmazon({ ...BASE, tarifasEstimadas: 30 });
+  assert.deepEqual(colunas.map((coluna) => coluna.share), Array(colunas.length).fill(""));
+  assert.equal(margemDoPeriodoAmazon({ ...BASE, baseDoResultado: "sobre R$ 1.000,00" }).nota, "");
+});
+
 test("TARIFA ESTIMADA E PARTE DO TOTAL — somar contaria duas vezes", () => {
   // ⚠️ A ARMADILHA MAIS CARA DESTA LEVA. O produtor calcula as
   // duas no MESMO `WHERE`: o total soma todas as linhas de tarifa e a estimada
   // e o subconjunto com `basis = 'estimated'`. Se a tela somasse, o custo
   // apareceria inflado e a margem espremida, sem nada ficar vermelho.
-  const comEstimativa = colunaDeTaxas({ ...BASE, tarifas: 100, tarifasEstimadas: 30, pedidosComTarifaEstimada: 4 });
+  const comEstimativa = colunaDeTaxas({ ...BASE, tarifas: 100, tarifasEstimadas: 30 });
   assert.equal(texto(comEstimativa.valor), "R$ 100,00", "a estimativa foi SOMADA ao total das taxas");
-  assert.match(texto(comEstimativa.share), /inclui R\$ 30,00 estimados em 4 pedido\(s\)/,
-    "o rastro da estimativa sumiu da linha visivel");
+  assert.equal(comEstimativa.share, "", "a estimativa voltou a esticar o cartão com uma legenda");
   assert.match(texto(comEstimativa.dica), /substituida na liquidacao|substituída na liquidação/,
     "a dica parou de dizer que a estimativa e trocada na liquidacao");
 });
 
-test("sem estimativa, a linha volta a ser a porcentagem — e a dica nao fala de estimativa", () => {
+test("sem estimativa, a dica nao fala de estimativa", () => {
   const semEstimativa = colunaDeTaxas({ ...BASE, tarifas: 150, tarifasEstimadas: 0 });
   assert.equal(texto(semEstimativa.valor), "R$ 150,00");
-  assert.equal(texto(semEstimativa.share), "15% da venda");
-  assert.ok(!/estimad/i.test(semEstimativa.share), "falou de estimativa onde nao ha nenhuma");
+  assert.equal(semEstimativa.share, "");
+  assert.ok(!/estimad/i.test(semEstimativa.dica), "falou de estimativa onde nao ha nenhuma");
 });
 
 test("o FRETE DO COMPRADOR nao vira coluna nem custo — so dica", () => {
@@ -88,15 +94,15 @@ test("anuncio DESCONHECIDO e travessao, nunca zero", () => {
 });
 
 test("IMPOSTO segue a ADR-038 do canal, nao a regra do ML", () => {
-  // Com aliquota: valor e rastro do percentual.
+  // Com aliquota: o valor continua correto sem legenda sob o cartão.
   const com = colunasDoPeriodoAmazon(BASE).find((c) => c.id === "imposto");
   assert.equal(texto(com.valor), "R$ 85,00");
-  assert.equal(texto(com.share), "alíquota de 8,5%");
-  // Sem aliquota: a CONTA usa zero (ADR-038) e a TELA diz que ninguem cadastrou.
+  assert.equal(com.share, "");
+  // Sem aliquota: a CONTA usa zero (ADR-038), a faixa mostra ausência e a
+  // pendência própria da tela conduz ao cadastro.
   const sem = colunasDoPeriodoAmazon({ ...BASE, aliquota: null, imposto: null }).find((c) => c.id === "imposto");
   assert.equal(sem.valor, "—");
-  assert.equal(sem.share, "alíquota não configurada",
-    "o rastro da aliquota ausente sumiu — a tela afirma imposto sem dizer que ninguem o configurou");
+  assert.equal(sem.share, "");
 });
 
 test("a COR do lucro e estado: verde so no positivo, vermelho no prejuizo", () => {
@@ -108,13 +114,13 @@ test("a COR do lucro e estado: verde so no positivo, vermelho no prejuizo", () =
   assert.equal(lucro(null), "vazio");
 });
 
-test("a MARGEM nunca aparece sozinha", () => {
+test("a MARGEM mantém o valor sem criar uma legenda mais alta", () => {
   const comFalta = margemDoPeriodoAmazon({ ...BASE, faltas: ["26 unidade(s) sem custo", "tarifa de 3 pedidos"] });
-  assert.equal(comFalta.nota, "falta 26 unidade(s) sem custo, tarifa de 3 pedidos");
+  assert.equal(comFalta.nota, "");
   const comBase = margemDoPeriodoAmazon({ ...BASE, baseDoResultado: "sobre R$ 748,56 apurados" });
-  assert.equal(texto(comBase.nota), "sobre R$ 748,56 apurados");
+  assert.equal(comBase.nota, "");
   const semNada = margemDoPeriodoAmazon(BASE);
-  assert.equal(typeof semNada.nota, "string", "a nota da margem virou undefined e some da tela");
+  assert.equal(semNada.nota, "");
 });
 
 test("as colunas da Amazon levam o valor BRUTO — sem ele o numero nao rola", () => {

@@ -3,21 +3,20 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { nomeDaTarifa } from "@/lib/nomeDaTarifa";
+import { CANAL_AMAZON } from "@/lib/canalV3";
 import { PageHeader, pageIcons } from "../../components/PageHeader";
 import { PanelLoading } from "../../components/LoadingState";
-import { OrderProfitabilityTable } from "../../components/OrderProfitabilityTable";
-import { nomeDaBase } from "../../components/baseDaMargem";
-import { Flow, FlowExpandable, Metric } from "../../components/Metric";
-import { CustomizableMetricGrid } from "../../components/CustomizableMetricGrid";
+import { OrderProfitabilityTableV3 } from "../../components/OrderProfitabilityTableV3";
+import { Flow, FlowExpandable } from "../../components/Metric";
 import { DashboardPeriodFilter, useDashboardPeriod } from "../../components/DashboardPeriodFilter";
 import { usePrefetchDePeriodos } from "../../components/prefetchDePeriodos";
 import { chaveDeVoo, controleDoEscopo } from "../../components/controleDeVoo";
 import type { ProfitabilityLine } from "@/lib/profitability";
 import { readJson } from "@/lib/readJson";
 import { brDate } from "@/lib/datetime";
-import { marginMetricTone } from "@/lib/marginTone";
 import { BaseDeData } from "../../components/BaseDeData";
 import { EstadoDoSync } from "../../components/EstadoDoSync";
+import { AccountSwitcher } from "../../components/AccountSwitcher";
 
 interface FinanceSummary {
   currency: string;
@@ -88,14 +87,14 @@ interface MonitorSnapshot {
   profitabilityScope?: string;
 }
 
-type MonitorSection = "composition" | "transactions" | "profitability";
+type MonitorSection = "transactions" | "profitability";
 
 /**
  * Aba inicial do monitor, vinda da URL (`?secao=vendas`).
  *
  * O card "Pedidos recentes" do dashboard linka para cá, e a aba padrão é a
- * Composição — uma cascata financeira. O link prometia pedidos e entregava um
- * resumo que o dashboard já mostrava ("tela super crua", 23/08/2026).
+ * rentabilidade por venda. A URL antiga `?secao=vendas` continua chegando ao
+ * mesmo destino para não quebrar atalhos salvos.
  *
  * ⚠️ A 1ª tentativa lia `window.location.search` dentro de `useState`, e NÃO
  * funcionava: `/monitor` é rota PRERENDERIZADA (`○ Static` no build), o
@@ -109,7 +108,7 @@ function useSecaoInicial(): MonitorSection {
   const bruta = useSearchParams().get("secao");
   // A URL fala português; os ids internos são os do estado.
   const pedida = bruta === "vendas" ? "profitability" : bruta === "repasses" ? "transactions" : bruta;
-  return pedida === "profitability" || pedida === "transactions" ? pedida : "composition";
+  return pedida === "transactions" ? "transactions" : "profitability";
 }
 
 
@@ -267,14 +266,14 @@ function MonitorPage({ secaoInicial }: { secaoInicial: MonitorSection }) {
   // otimista — sem anúncio — com o rótulo "Lucro estimado". É a versão MONITOR
   // do defeito que custou quatro consertos na tela da Amazon.
   const adsDesconhecido = profit?.adsDesconhecido === true || (profit != null && profit.estimatedProfit == null);
-  const estimatedProfit = adsDesconhecido ? null : profit?.estimatedProfit ?? finance?.netProceeds ?? 0;
+  const estimatedProfit = profit == null || adsDesconhecido ? null : profit.estimatedProfit;
   const otherAdjustments = finance
     ? Math.round((finance.netProceeds - (finance.revenue - finance.fees - finance.refunds)) * 100) / 100
     : 0;
   const marginPct = estimatedProfit != null && finance && finance.revenue > 0 ? (estimatedProfit / finance.revenue) * 100 : null;
 
   return (
-    <div className="monitor-page">
+    <div className="v3 ml-monitor-body monitor-page">
       <DashboardPeriodFilter {...period.filterProps} onIntent={aquecerAgora} intencaoPor="foco" />
 
       <PageHeader
@@ -282,83 +281,42 @@ function MonitorPage({ secaoInicial }: { secaoInicial: MonitorSection }) {
         title="Monitor da conta"
         subtitle="Conciliação, movimentações e rentabilidade por venda no período selecionado."
         icon={pageIcons.chart}
+        action={<AccountSwitcher appearance="chip" />}
       />
 
+      <EstadoDoSync provider="amazon" />
       {financeError ? (
         <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
           {financeError}
         </div>
       ) : finance ? (
-        <div className="monitor-summary">
-          {finance.orderCount === 0 && (
-            <div className="monitor-empty-finance">
-              Nenhum evento financeiro no período. Os valores serão preenchidos quando houver vendas conciliadas.
-            </div>
-          )}
-          {/* O dashboard da Amazon conta por data do pedido; aqui e por data do
-              lancamento do repasse. Mesma frase nos quatro canais. */}
+        <>
           <BaseDeData base="lancamento" />
-          <EstadoDoSync provider="amazon" />
-          <CustomizableMetricGrid
-            viewKey="amazon-monitor"
-            ariaLabel="Resumo financeiro Amazon"
-            gridClassName="metric-grid monitor-metric-grid"
-            widgets={[
-              {
-                id: "receita-conciliada",
-                label: "Receita conciliada",
-                // A contagem TEM que ser a do repasse (finance.orderCount), não a de
-                // pedidos criados (metrics.totalOrders): a receita aqui é por data de
-                // LANÇAMENTO, e colar as duas fazia "R$ 50,01 · 1 pedido" quando o valor
-                // vinha de 2 pedidos repassados hoje, vendidos em dias diferentes.
-                node: <Metric label="Receita conciliada" value={money(finance.revenue, finance.currency)} sub={`${finance.orderCount} pedido(s) com repasse no período`} />,
-              },
-              {
-                id: "reembolsos",
-                label: "Reembolsos",
-                node: <Metric label="Reembolsos" value={money(finance.refunds, finance.currency)} sub="estornos ao comprador" tone={finance.refunds > 0 ? "danger" : "ok"} className="metric-cancelled" />,
-              },
-              {
-                id: "repasse-liquido",
-                label: "Repasse líquido",
-                node: <Metric label="Repasse líquido" value={money(finance.netProceeds, finance.currency)} sub="após taxas e reembolsos" />,
-              },
-              {
-                id: "lucro",
-                label: costsIncomplete ? "Repasse antes do custo" : "Lucro estimado",
-                node: <Metric label={estimatedProfit != null && costsIncomplete ? "Repasse antes do custo" : "Lucro estimado"} value={estimatedProfit == null ? "—" : money(estimatedProfit, finance.currency)} sub={estimatedProfit == null ? "aguardando o gasto com anúncio do período" : costsIncomplete ? "faltam custos cadastrados" : "repasse − custo dos produtos − anúncio"} tone={estimatedProfit == null || costsIncomplete ? "default" : estimatedProfit > 0 ? "positive" : estimatedProfit < 0 ? "danger" : "default"} />,
-              },
-              {
-                id: "margem-pct",
-                label: "Margem",
-                node: <Metric label="Margem" value={costsIncomplete || marginPct == null ? "—" : percent(marginPct)} sub={costsIncomplete ? "aguardando todos os custos" : nomeDaBase({
-                  // A margem do monitor sai de `finance.revenue`, que e o valor do
-                  // cartao "Receita conciliada" logo ao lado: nao ha divergencia a
-                  // declarar, so o denominador a nomear — por isso nenhum numero
-                  // e passado. Texto na tela inalterado: "sobre a receita".
-                  rotuloDaBase: "a receita",
-                })} tone={costsIncomplete ? "default" : marginMetricTone(marginPct)} />,
-              },
-            ]}
-          />
-        </div>
+          <h2 className="v3-titulo-solto">{period.label.charAt(0).toUpperCase() + period.label.slice(1)}</h2>
+          <div className="v3-colunas amazon-monitor-faixa" aria-label="Resumo financeiro Amazon">
+            <ColunaDoMonitor rotulo="Receita conciliada" valor={money(finance.revenue, finance.currency)} nota={`${finance.orderCount} pedido(s) com repasse`} />
+            <ColunaDoMonitor rotulo="Reembolsos" valor={money(finance.refunds, finance.currency)} tom={finance.refunds > 0 ? "negativo" : undefined} nota="estornos ao comprador" />
+            <ColunaDoMonitor rotulo="Repasse líquido" valor={money(finance.netProceeds, finance.currency)} nota="após taxas e reembolsos" />
+            <ColunaDoMonitor rotulo={costsIncomplete ? "Repasse antes do custo" : "Lucro estimado"} valor={estimatedProfit == null ? "—" : money(estimatedProfit, finance.currency)} tom={estimatedProfit == null ? "vazio" : estimatedProfit < 0 ? "negativo" : "positivo"} nota={estimatedProfit == null ? "aguardando gasto com anúncio" : costsIncomplete ? "faltam custos cadastrados" : "após custos e anúncio"} />
+            <ColunaDoMonitor rotulo="Margem" valor={costsIncomplete || marginPct == null ? "—" : percent(marginPct)} tom={costsIncomplete || marginPct == null ? "vazio" : marginPct < 0 ? "negativo" : "positivo"} nota={costsIncomplete ? "aguardando todos os custos" : "sobre a receita conciliada"} />
+          </div>
+        </>
       ) : (
         <PanelLoading label="Carregando resumo financeiro" />
       )}
 
-      <nav className="monitor-section-tabs" aria-label="Visões do monitor">
+      <nav className="v3-abas" aria-label="Visões do monitor Amazon">
         {([
-          ["composition", "Composição"],
-          ["transactions", "Transações"],
           ["profitability", "Rentabilidade por venda"],
+          ["transactions", "Transações"],
         ] as Array<[MonitorSection, string]>).map(([key, label]) => (
-          <button key={key} type="button" aria-current={section === key ? "page" : undefined} onClick={() => setSection(key)}>{label}</button>
+          <button key={key} type="button" className={`v3-aba${section === key ? " is-ativa" : ""}`} aria-current={section === key ? "page" : undefined} onClick={() => setSection(key)}>{label}</button>
         ))}
       </nav>
 
-      {section === "composition" && (
-        finance ? (
-          <section className="monitor-composition" aria-labelledby="amz-financial-title">
+      {section === "transactions" && <>
+        {finance ? (
+          <section className="monitor-composition v3-card" aria-labelledby="amz-financial-title">
             <header className="monitor-section-heading">
               <div><p>Financeiro realizado</p><h2 id="amz-financial-title">Do faturamento ao resultado</h2></div>
               <span>Repasses conciliados da Amazon</span>
@@ -383,14 +341,14 @@ function MonitorPage({ secaoInicial }: { secaoInicial: MonitorSection }) {
               )}
               {finance.feeBreakdown.length > 0 ? (
                 <FlowExpandable
-                  label="Taxas Amazon"
+                  label={CANAL_AMAZON.rotuloDaTarifa}
                   value={money(finance.fees, finance.currency)}
                   open={feesOpen}
                   onToggle={() => setFeesOpen((open) => !open)}
                   items={finance.feeBreakdown.map((fee) => ({ label: nomeDaTarifa(fee.type), value: money(fee.amount, finance.currency) }))}
                 />
               ) : (
-                <Flow label="Taxas Amazon" value={money(finance.fees, finance.currency)} sign="−" />
+                <Flow label={CANAL_AMAZON.rotuloDaTarifa} value={money(finance.fees, finance.currency)} sign="−" />
               )}
               <Flow label="Reembolsos" value={money(finance.refunds, finance.currency)} sign="−" />
               {Math.abs(otherAdjustments) >= 0.005 && <Flow label="Outros ajustes (promoções, frete, estoque)" value={money(otherAdjustments, finance.currency)} />}
@@ -400,14 +358,13 @@ function MonitorPage({ secaoInicial }: { secaoInicial: MonitorSection }) {
             </div>
             {costsIncomplete && (
               <p className="monitor-coverage-note">
-                <strong>{profit?.unitsWithoutCost} unidade(s)</strong> vendida(s) ainda sem custo cadastrado. <a href="/amazon/produtos">Cadastrar custos em Produtos</a>
+                <strong>{profit?.unitsWithoutCost} unidade(s)</strong> vendida(s) ainda sem custo cadastrado. <a href="/amazon/anuncios?custo=missing">Cadastrar custos em Anúncios</a>
               </p>
             )}
           </section>
-        ) : <PanelLoading label="Carregando composição financeira" />
-      )}
+        ) : <PanelLoading label="Carregando composição financeira" />}
 
-      {section === "transactions" && <section className="monitor-transactions">
+      <section className="monitor-transactions v3-card">
         <header className="monitor-section-heading">
           <div>
             <p>Financeiro conciliado</p>
@@ -430,97 +387,45 @@ function MonitorPage({ secaoInicial }: { secaoInicial: MonitorSection }) {
                 saldo de conta na Amazon. Os rótulos anteriores diziam "Saldo liberado" e
                 "Saldo diferido", e um pagamento de anúncio caindo antes de uma venda
                 liberar fazia a tela mostrar um negativo que parecia dívida. */}
-            <div className="transaction-summary-band">
-              <Stat
-                label="Já liberado no período"
-                value={money(transactions.releasedAmount, transactions.currency)}
-                hint="O que a Amazon já movimentou. Fica negativo quando só taxas e anúncios liquidaram."
-              />
-              <Stat
-                label="Ainda retido"
-                value={money(transactions.deferredAmount, transactions.currency)}
-                hint="Vendas que a Amazon segura até a entrega e o prazo de devolução."
-              />
-              <Stat
-                label="Líquido se tudo liquidar"
-                value={money(
-                  +(transactions.releasedAmount + transactions.deferredAmount).toFixed(2),
-                  transactions.currency
-                )}
-                hint="Soma dos dois. O retido ainda pode mudar por devolução ou ajuste."
-              />
-              <Stat label="Transações" value={String(transactions.transactionCount)} />
+            <div className="v3-colunas amazon-transaction-summary">
+              <ColunaDoMonitor rotulo="Já liberado" valor={money(transactions.releasedAmount, transactions.currency)} nota="movimentado no período" />
+              <ColunaDoMonitor rotulo="Ainda retido" valor={money(transactions.deferredAmount, transactions.currency)} nota="até entrega e devolução" />
+              <ColunaDoMonitor rotulo="Se tudo liquidar" valor={money(+(transactions.releasedAmount + transactions.deferredAmount).toFixed(2), transactions.currency)} nota="liberado + retido" />
+              <ColunaDoMonitor rotulo="Transações" valor={transactions.transactionCount.toLocaleString("pt-BR")} nota="lançamentos no período" />
             </div>
 
-            {transactions.recent.length > 0 && (
-              <div className="table-scroll monitor-transaction-table">
-                <table className="data-table min-w-[720px]">
-                  <caption className="sr-only">Transações financeiras recentes</caption>
-                  <thead className="bg-[var(--ink-03)] text-left text-xs uppercase tracking-wide text-[var(--ink-muted)]">
-                    <tr>
-                      <th scope="col" className="px-4 py-3">Data</th>
-                      <th scope="col" className="px-4 py-3">Transação</th>
-                      <th scope="col" className="px-4 py-3">Pedido / SKU</th>
-                      <th scope="col" className="px-4 py-3">Status</th>
-                      <th scope="col" className="px-4 py-3 text-right">Valor</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--line)]">
-                    {transactions.recent.map((transaction) => (
-                      <tr key={transaction.id} className="hover:bg-[var(--ink-03)]">
-                        <td className="whitespace-nowrap px-4 py-3 text-[var(--ink-soft)]">
-                          {brDate(transaction.postedDate)}
-                        </td>
-                        <td className="px-4 py-3">
-                          <p className="font-medium text-[var(--ink)]">{transaction.description}</p>
-                          <p className="text-xs text-[var(--ink-muted)]">{transaction.type}</p>
-                        </td>
-                        <td className="px-4 py-3 font-mono text-xs text-[var(--ink-soft)]">
-                          {transaction.orderId || transaction.sku || "—"}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                            transaction.status === "RELEASED"
-                              ? "bg-[var(--positive-soft)] text-[var(--positive)]"
-                              : transaction.status === "DEFERRED"
-                                ? "bg-[var(--warning-soft)] text-[var(--warning)]"
-                                : "bg-[var(--ink-05)] text-[var(--ink-soft)]"
-                          }`}>
-                            {transaction.status === "RELEASED"
-                              ? "Liberada"
-                              : transaction.status === "DEFERRED"
-                                ? "Diferida"
-                                : transaction.status}
-                          </span>
-                        </td>
-                        <td className={`px-4 py-3 text-right font-semibold tabular-nums ${
-                          transaction.amount < 0 ? "text-red-600" : "text-emerald-700"
-                        }`}>
-                          {money(transaction.amount, transaction.currency)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            {transactions.recent.length > 0 ? (
+              <div className="v3-tabela v3-tabela-transacoes-amazon">
+                <div className="v3-transacao-cab"><span>Data</span><span>Transação</span><span>Pedido / SKU</span><span>Status</span><span>Valor</span></div>
+                {transactions.recent.map((transaction) => (
+                  <div className="v3-transacao-linha" key={transaction.id}>
+                    <span className="v3-cel-num">{brDate(transaction.postedDate)}</span>
+                    <span className="v3-cel-nome"><span className="v3-margem-titulo">{transaction.description}</span><span className="v3-cel-sub">{transaction.type}</span></span>
+                    <span className="v3-cel-pedido">{transaction.orderId || transaction.sku || "—"}</span>
+                    <span className="v3-cel-centro"><em className={`v3-chip v3-cobertura ${transaction.status === "RELEASED" ? "is-saudavel" : transaction.status === "DEFERRED" ? "is-atencao" : "is-vazio"}`}>{transaction.status === "RELEASED" ? "Liberada" : transaction.status === "DEFERRED" ? "Diferida" : transaction.status}</em></span>
+                    <span className={`v3-cel-num${transaction.amount < 0 ? " is-negativo" : ""}`}>{money(transaction.amount, transaction.currency)}</span>
+                  </div>
+                ))}
               </div>
-            )}
+            ) : <p className="v3-nota">Nenhuma transação financeira no período.</p>}
           </div>
         ) : (
           <PanelLoading label="Carregando transações" />
         )}
-      </section>}
+      </section>
+      </>}
 
-      {section === "profitability" && <OrderProfitabilityTable lines={profitabilityLines} loading={profitabilityLoading} error={profitabilityError} scopeNote={profitabilityScope} />}
+      {section === "profitability" && <OrderProfitabilityTableV3 canal={CANAL_AMAZON} lines={profitabilityLines} loading={profitabilityLoading} error={profitabilityError} scopeNote={profitabilityScope} />}
     </div>
   );
 }
 
-function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
+function ColunaDoMonitor({ rotulo, valor, tom, nota }: { rotulo: string; valor: React.ReactNode; tom?: "positivo" | "negativo" | "vazio"; nota?: React.ReactNode }) {
   return (
-    <div className="transaction-stat">
-      <p>{label}</p>
-      <strong>{value}</strong>
-      {hint && <small>{hint}</small>}
+    <div className="v3-coluna">
+      <p className="v3-coluna-rotulo">{rotulo}</p>
+      <strong className={`v3-coluna-valor${tom ? ` is-${tom}` : ""}`}>{valor}</strong>
+      {nota ? <span className="v3-coluna-share">{nota}</span> : null}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { cached } from "./cache";
 import { cacheScope } from "./accountContext";
-import { costAt, getCosts } from "./costStore";
+import { custoNaDataOuNull, getCosts } from "./costStore";
 import { getOrderItems, getOrders } from "./orders";
 import { getOrderFinancialsFromTransactions } from "./transactions";
 import { allocateByWeight, calculateContribution, type ProfitabilityLine, type ProfitabilityResult } from "./profitability";
@@ -75,7 +75,8 @@ export function getAmazonProfitability(period: Period): Promise<ProfitabilityRes
         const revenue = Math.max(0, listPrice - promotions);
         const sku = item.SellerSKU ?? null;
         const costEntry = (sku ? costs[sku] : undefined) ?? (item.ASIN ? costs[item.ASIN] : undefined);
-        const productCost = costEntry && costEntry.cost > 0 ? costAt(costEntry, order.purchaseDate) * quantity : null;
+        const unitCost = custoNaDataOuNull(costEntry, order.purchaseDate);
+        const productCost = unitCost == null ? null : unitCost * quantity;
         const fees = feeShares ? feeShares[index] : null;
         // Frete do comprador LÍQUIDO do que a vendedora bancou. Em frete grátis a
         // Amazon cobra `ShippingPrice` e devolve o mesmo valor em `ShippingDiscount`;

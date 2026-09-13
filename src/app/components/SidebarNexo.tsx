@@ -10,7 +10,6 @@ import type { WorkspaceId } from "@/lib/integrations/workspaces";
 import { MarketplaceIcon } from "./MarketplaceIcon";
 import { NavLinks } from "./Nav";
 import { LogoutButton } from "./LogoutButton";
-import { AccountSwitcher } from "./AccountSwitcher";
 import { NexoSymbol } from "./NexoSymbol";
 import accountStyles from "./ShellAccountLinks.module.css";
 import { NEXO_ONBOARDING_CHANNELS_EVENT } from "@/lib/productTour";
@@ -161,18 +160,14 @@ export function SidebarNexo({ workspace, collapsed = false }: { workspace: Works
       </nav>
 
       <div className="nexo-sidebar-rodape">
-        {workspace === "amazon" ? (
-          <AccountSwitcher compact />
-        ) : (
-          <Link href="/integracoes" className="nexo-sidebar-conta">
-            <MarketplaceIcon
-              provider={workspace === "mercado_livre" ? "mercado_livre" : "sellercore"}
-              size={20}
-              app
-            />
-            <span>{workspace === "mercado_livre" ? "Gerenciar integração" : "Ver integrações"}</span>
-          </Link>
-        )}
+        <Link href="/integracoes" className="nexo-sidebar-conta">
+          <MarketplaceIcon
+            provider={workspace === "mercado_livre" ? "mercado_livre" : workspace === "amazon" ? "amazon" : "sellercore"}
+            size={20}
+            app
+          />
+          <span>{workspace === "mercado_livre" || workspace === "amazon" ? "Gerenciar integração" : "Ver integrações"}</span>
+        </Link>
         <div className={accountStyles.utilityLinks} aria-label="Conta e configurações">
           <Link href="/configuracoes" className={`${accountStyles.utility}${collapsed ? ` ${accountStyles.utilityCollapsed}` : ""}`} aria-current={pathname === "/configuracoes" ? "page" : undefined}>
             <Settings aria-hidden />

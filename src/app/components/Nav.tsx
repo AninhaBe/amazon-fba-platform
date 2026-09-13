@@ -130,8 +130,7 @@ const navigation: Record<WorkspaceId, NavGroup[]> = {
       title: "Catálogo",
       tone: "emerald",
       items: [
-        { href: "/amazon/catalogo", label: "Anúncios", desc: "Catálogo publicado", icon: icons.ads },
-        { href: "/amazon/produtos", label: "Produtos", desc: "Custos por SKU", icon: icons.products },
+        { href: "/amazon/anuncios", label: "Anúncios", desc: "Catálogo e custos por SKU", icon: icons.ads },
         { href: "/amazon/estoque", label: "Radar de estoque", desc: "Cobertura FBA", icon: icons.stock },
         {
           href: "/amazon/pesquisa",

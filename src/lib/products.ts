@@ -10,6 +10,9 @@ export interface Product {
   imageUrl?: string;
   salePrice: number | null; // preço de venda anunciado
   fulfillable?: number | null; // estoque FBA disponível
+  status?: string;
+  fulfillment?: "fba" | "fbm";
+  openDate?: string;
   cost: number | null; // custo (null = não cadastrado)
   source: "listing" | "fba" | "manual";
 }
@@ -28,7 +31,7 @@ export async function getProducts(): Promise<Product[]> {
   // Até 15/08/2026 ela também consultava `workspace_channel_products` com
   // `provider='tiktok_shop'` e juntava tudo na mesma lista (entrou no commit
   // fb48a81, de 186 arquivos). O efeito na conta real: 70 produtos da loja TikTok
-  // do sócio apareciam em `/amazon/produtos`, e o card "produtos sem custo" do
+  // do sócio apareciam na antiga rota `/amazon/produtos`, e o card "produtos sem custo" do
   // dashboard da Amazon mandava cadastrar custo de 70 itens que não eram nem
   // dela nem da Amazon.
   //
@@ -53,7 +56,10 @@ export async function getProducts(): Promise<Product[]> {
       title: l.title || inv?.productName,
       imageUrl: l.imageUrl, // getListings já resolve a capa por ASIN no catálogo
       salePrice: l.price,
-      fulfillable: inv?.fulfillable ?? null,
+      fulfillable: inv?.fulfillable ?? (l.fulfillment === "fbm" ? l.quantity : null),
+      status: l.status,
+      fulfillment: l.fulfillment,
+      openDate: l.openDate,
       cost: costs[l.sku]?.cost ?? null,
       source: "listing",
     });

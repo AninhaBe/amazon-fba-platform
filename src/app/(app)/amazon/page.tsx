@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { DailyPoint } from "../../components/RevenueChart";
 import { PageHeader, pageIcons } from "../../components/PageHeader";
+import { AccountSwitcher } from "../../components/AccountSwitcher";
 import { DashboardSkeleton, InlineLoading } from "../../components/LoadingState";
 import { NexoDoDia } from "../../components/NexoDoDia";
 import { EmptyState } from "../../components/EmptyState";
@@ -948,6 +949,7 @@ function Dashboard() {
           title="Dashboard Amazon"
           subtitle="Faturamento, pedidos e resultado da sua conta da Amazon."
           icon={pageIcons.dashboard}
+          action={<AccountSwitcher appearance="chip" />}
         />}
       >
         <div className="dashboard-sections integration-dashboard-sections">
@@ -1026,16 +1028,9 @@ function Dashboard() {
    */
   const faixaDaAmazon = entradaDaFaixaDosCards(cards, {
     moeda: currency,
-    pedidosPagos: conciliacao?.paidOrders ?? 0,
     tarifasEstimadas: profit?.feesEstimadas ?? null,
-    pedidosComTarifaEstimada: profit?.pedidosComTarifaEstimada ?? null,
     aliquota: profit?.taxRate ?? null,
     dicaDoFaturamento: legendaFaturamento(faturamento, salesCount),
-    // ⚠️ `baseDaFaixa`, NAO `baseDeclarada` — a faixa tem uma
-    // linha de sub, e `baseDeclarada` junta tres frases. Ver o porque em
-    // `amazonFinancialCards.ts`, no cartao de margem. O que saiu daqui virou
-    // pendencia logo abaixo; nada sumiu da tela.
-    baseDoResultado: cards.find((c) => c.key === "marginPct")?.baseDaFaixa ?? null,
   });
   // ⚠️ A JANELA, NAO O PERIODO. `sales.points` segue o filtro de
   // data; o titulo do cartao promete sete dias sempre. Ver o hook acima.
@@ -1111,7 +1106,7 @@ function Dashboard() {
         ? [{ id: "estoque", titulo: `${critical.length} produto(s) com estoque crítico`, efeito: "Acaba antes da próxima reposição.", acao: "Ver radar", href: "/amazon/estoque", tom: "neutro" as const }]
         : []),
     ],
-    hrefs: { resultado: "/monitor", produtos: "/amazon/produtos", historico: "/amazon/desempenho", pendencias: "/amazon/produtos" },
+    hrefs: { resultado: "/monitor", produtos: "/amazon/anuncios", historico: "/amazon/desempenho", pendencias: "/amazon/anuncios" },
   };
 
   return (
@@ -1123,9 +1118,10 @@ function Dashboard() {
       />}
       header={<PageHeader
         eyebrow="Operação Amazon"
-        title="Resumo financeiro"
+        title="Dashboard Amazon"
         subtitle="Faturamento, pedidos e resultado do período selecionado."
         icon={pageIcons.dashboard}
+        action={<AccountSwitcher appearance="chip" />}
       />}
     >
       <div className="dashboard-sections integration-dashboard-sections">
@@ -1190,6 +1186,7 @@ function Dashboard() {
       {profit?.adsConectado && (
         <AnunciosPorProduto
           linhas={profit.adsPorProduto ?? []}
+          baseDeProdutos="/amazon/anuncios"
           contabilizadoAte={janelaDoAnuncio(profit.ads, profit.adsJanela)}
           /* ⚠️ ACOS, TACOS e ROI MUDARAM DE LUGAR, nao sairam da
              tela: eram cartoes da regua que a faixa do periodo substituiu, e o
@@ -1216,7 +1213,7 @@ function Dashboard() {
         <QuickLink href="/amazon/calculadora" label="Calculadora" desc="Lucro por ASIN" />
         <QuickLink href="/amazon/monitor" label="Monitor" desc="Vendas e financeiro" />
         <QuickLink href="/amazon/estoque" label="Radar" desc="Estoque × velocidade" />
-        <QuickLink href="/amazon/produtos" label="Produtos" desc="Custos por SKU" />
+        <QuickLink href="/amazon/anuncios" label="Anúncios" desc="Catálogo e custos por SKU" />
       </div>
       </div>
     </IntegrationDashboardFrame>
@@ -1379,8 +1376,8 @@ function useAmazonPendencias({ products, productsLoading, missingCosts }: { prod
 
   const items: OperationPendingItem[] = [];
   if (connection === "missing") items.push({ label: "Conectar a conta Amazon", href: "/integracoes" });
-  if (connection === "connected" && !productsLoading && products === 0) items.push({ label: "Sincronizar os produtos da Amazon", href: "/amazon/produtos" });
-  if (products > 0 && missingCosts > 0) items.push({ label: `Cadastrar custo de ${missingCosts} produto(s)`, href: "/amazon/produtos" });
+  if (connection === "connected" && !productsLoading && products === 0) items.push({ label: "Sincronizar os anúncios da Amazon", href: "/amazon/anuncios" });
+  if (products > 0 && missingCosts > 0) items.push({ label: `Cadastrar custo de ${missingCosts} produto(s)`, href: "/amazon/anuncios?custo=missing" });
 
   return items;
 }

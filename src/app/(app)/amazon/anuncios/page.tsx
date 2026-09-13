@@ -1,8 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
+import { useSearchParams } from "next/navigation";
 import { PageHeader, pageIcons } from "../../../components/PageHeader";
+import { EmptyState } from "../../../components/EmptyState";
+import { PanelLoading } from "../../../components/LoadingState";
+import { Pagination } from "../../../components/Pagination";
+import { SeletorNexo } from "../../../components/SeletorNexo";
+import { SortButton, type SortDir } from "../../../components/SortButton";
+import { AccountSwitcher } from "../../../components/AccountSwitcher";
+import { readJson } from "@/lib/readJson";
 
 type Mode = "existing" | "new";
 type Relationship = "standalone" | "parent" | "child";
@@ -30,6 +38,23 @@ interface SubmissionResult {
   canPublish: boolean;
   issues: Array<{ code: string; message: string; severity: "ERROR" | "WARNING" | "INFO"; attributeNames: string[] }>;
 }
+
+interface CatalogProduct {
+  id: string;
+  sku?: string;
+  asin?: string;
+  title?: string;
+  imageUrl?: string;
+  salePrice: number | null;
+  fulfillable?: number | null;
+  status?: string;
+  fulfillment?: "fba" | "fbm";
+  openDate?: string;
+  cost: number | null;
+  source: "listing" | "fba" | "manual";
+}
+
+type CatalogSort = "price" | "stock" | "cost";
 
 interface ExistingDraft {
   kind: "existing";
@@ -96,6 +121,10 @@ const modeCopy = {
   },
 };
 
+function money(value: number) {
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
+}
+
 function Icon({ name }: { name: "catalog" | "spark" | "check" | "warning" | "arrow" }) {
   const paths = {
     catalog: <><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 1 4 16.5v-11Z"/><path d="M4 16.5A2.5 2.5 0 0 1 6.5 14H20M8 7h8M8 10h5"/></>,
@@ -108,6 +137,24 @@ function Icon({ name }: { name: "catalog" | "spark" | "check" | "warning" | "arr
 }
 
 export default function AmazonListingsPage() {
+  return <Suspense fallback={<PanelLoading label="Carregando anúncios" />}><AmazonListingsContent /></Suspense>;
+}
+
+function AmazonListingsContent() {
+  const params = useSearchParams();
+  const [section, setSection] = useState<"catalog" | "create">(params.get("secao") === "criar" ? "create" : "catalog");
+  return (
+    <div className="v3 meli-listings-page amazon-listings-page">
+      <PageHeader eyebrow="Operação Amazon" title="Anúncios" subtitle="Catálogo, custos por SKU e criação de ofertas da sua conta Amazon." icon={pageIcons.search} action={<AccountSwitcher appearance="chip" />} />
+      <nav className="v3-abas" aria-label="Visões dos anúncios Amazon">
+        {([["catalog", "Catálogo e custos"], ["create", "Criar anúncio"]] as const).map(([id, label]) => <button key={id} type="button" className={`v3-aba${section === id ? " is-ativa" : ""}`} aria-current={section === id ? "page" : undefined} onClick={() => setSection(id)}>{label}</button>)}
+      </nav>
+      {section === "catalog" ? <AmazonCatalog initialQuery={params.get("q") ?? ""} initialCostFilter={params.get("custo") === "missing" ? "missing" : "all"} /> : <AmazonListingBuilder />}
+    </div>
+  );
+}
+
+function AmazonListingBuilder() {
   const [mode, setMode] = useState<Mode>("existing");
   const [step, setStep] = useState(0);
   const [existing, setExisting] = useState(existingInitial);
@@ -243,8 +290,6 @@ export default function AmazonListingsPage() {
 
   return (
     <div className="listing-builder-page analysis-page">
-      <PageHeader eyebrow="Amazon · Central de anúncios" title="Criar anúncio" subtitle="Um assistente para montar, validar e publicar ofertas sem lidar com os formulários fragmentados da Amazon." icon={pageIcons.search} />
-
       <section className="listing-mode-grid listing-mode-switch" aria-label="Tipo de anúncio">
         {(["existing", "new"] as Mode[]).map((option) => (
           <button key={option} type="button" className={`listing-mode-card${mode === option ? " is-selected" : ""}`} onClick={() => changeMode(option)} aria-pressed={mode === option}>
@@ -285,6 +330,183 @@ export default function AmazonListingsPage() {
       </div>
     </div>
   );
+}
+
+function AmazonCatalog({ initialQuery, initialCostFilter }: { initialQuery: string; initialCostFilter: "all" | "missing" }) {
+  const [products, setProducts] = useState<CatalogProduct[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState(initialQuery);
+  const [costFilter, setCostFilter] = useState<"all" | "missing" | "complete">(initialCostFilter);
+  const [sourceFilter, setSourceFilter] = useState<"all" | CatalogProduct["source"]>("all");
+  const [sortCol, setSortCol] = useState<CatalogSort>("stock");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [draftCosts, setDraftCosts] = useState<Record<string, string>>({});
+  const [saveState, setSaveState] = useState<Record<string, "saving" | "saved" | "error">>({});
+  const [taxRate, setTaxRate] = useState("");
+  const [taxState, setTaxState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [page, setPage] = useState(1);
+  const [addOpen, setAddOpen] = useState(false);
+  const [newAsin, setNewAsin] = useState("");
+  const [newCost, setNewCost] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+
+  async function load() {
+    setLoading(true);
+    setError(null);
+    try {
+      const [productsRes, settingsRes] = await Promise.all([
+        fetch("/api/products", { cache: "no-store" }),
+        fetch("/api/integrations/amazon/settings", { cache: "no-store" }),
+      ]);
+      const [productsData, settingsData] = await Promise.all([readJson(productsRes), readJson(settingsRes)]);
+      if (!productsRes.ok) throw new Error(productsData.error || "Erro ao carregar anúncios.");
+      setProducts(productsData.products);
+      setDraftCosts(Object.fromEntries(productsData.products.map((product: CatalogProduct) => [product.id, product.cost == null ? "" : String(product.cost)])));
+      if (settingsRes.ok) setTaxRate(settingsData.taxRate == null ? "" : String(settingsData.taxRate));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Erro desconhecido.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  async function saveCost(product: CatalogProduct, cost: number) {
+    const previous = product.cost;
+    setProducts((current) => current.map((item) => item.id === product.id ? { ...item, cost } : item));
+    setSaveState((current) => ({ ...current, [product.id]: "saving" }));
+    try {
+      const response = await fetch("/api/costs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: product.id, sku: product.sku, asin: product.asin, title: product.title, imageUrl: product.imageUrl, cost }) });
+      const data = await readJson(response);
+      if (!response.ok) throw new Error(data.error || "Erro ao salvar custo.");
+      setSaveState((current) => ({ ...current, [product.id]: "saved" }));
+    } catch {
+      setProducts((current) => current.map((item) => item.id === product.id ? { ...item, cost: previous } : item));
+      setDraftCosts((current) => ({ ...current, [product.id]: previous == null ? "" : String(previous) }));
+      setSaveState((current) => ({ ...current, [product.id]: "error" }));
+    }
+  }
+
+  function parsedCost(product: CatalogProduct) {
+    const raw = draftCosts[product.id] ?? "";
+    const value = Number(raw);
+    return raw.trim() !== "" && Number.isFinite(value) && value >= 0 && value !== product.cost ? value : null;
+  }
+
+  function commitCost(product: CatalogProduct, raw: string) {
+    const value = Number(raw);
+    if (raw.trim() === "" || !Number.isFinite(value) || value < 0 || value === product.cost) return;
+    void saveCost(product, value);
+  }
+
+  async function saveTaxRate(event: React.FormEvent) {
+    event.preventDefault();
+    const rate = taxRate.trim() === "" ? null : Number(taxRate);
+    if (rate != null && (!Number.isFinite(rate) || rate < 0 || rate > 100)) { setTaxState("error"); return; }
+    setTaxState("saving");
+    try {
+      const response = await fetch("/api/integrations/amazon/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ taxRate: rate }) });
+      const data = await readJson(response);
+      if (!response.ok) throw new Error(data.error || "Erro ao salvar alíquota.");
+      setTaxState("saved");
+    } catch { setTaxState("error"); }
+  }
+
+  async function addByAsin(event: React.FormEvent) {
+    event.preventDefault();
+    const asin = newAsin.trim().toUpperCase();
+    const cost = Number(newCost);
+    if (!asin || newCost.trim() === "" || !Number.isFinite(cost) || cost < 0) return;
+    setAdding(true); setAddError(null);
+    try {
+      const infoRes = await fetch(`/api/price?asin=${encodeURIComponent(asin)}`);
+      const info = await readJson(infoRes);
+      if (!infoRes.ok) throw new Error(info.error || "ASIN não encontrado.");
+      const saveRes = await fetch("/api/costs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: asin, asin, title: info?.info?.title, imageUrl: info?.info?.imageUrl, cost }) });
+      const saved = await readJson(saveRes);
+      if (!saveRes.ok) throw new Error(saved.error || "Erro ao adicionar produto.");
+      setNewAsin(""); setNewCost(""); setAddOpen(false); await load();
+    } catch (reason) { setAddError(reason instanceof Error ? reason.message : "Não foi possível adicionar esse ASIN."); }
+    finally { setAdding(false); }
+  }
+
+  async function remove(product: CatalogProduct) {
+    if (!window.confirm(`Remover ${product.title || product.asin || product.id} da lista manual?`)) return;
+    const response = await fetch(`/api/costs?id=${encodeURIComponent(product.id)}`, { method: "DELETE" });
+    if (response.ok) setProducts((current) => current.filter((item) => item.id !== product.id));
+    else setError("Não foi possível remover o produto manual.");
+  }
+
+  function sortBy(column: CatalogSort) {
+    if (sortCol === column) setSortDir((current) => current === "asc" ? "desc" : "asc");
+    else { setSortCol(column); setSortDir("desc"); }
+    setPage(1);
+  }
+
+  const withCost = products.filter((product) => product.cost != null).length;
+  const withoutCost = products.length - withCost;
+  const withoutStock = products.filter((product) => product.fulfillable === 0).length;
+  const visible = products.filter((product) => {
+    const matchesQuery = `${product.title || ""} ${product.sku || ""} ${product.asin || ""}`.toLowerCase().includes(query.toLowerCase());
+    const hasCost = product.cost != null;
+    return matchesQuery && (costFilter === "all" || (costFilter === "complete" ? hasCost : !hasCost)) && (sourceFilter === "all" || product.source === sourceFilter);
+  }).sort((a, b) => {
+    const left = sortCol === "price" ? a.salePrice : sortCol === "stock" ? a.fulfillable : a.cost;
+    const right = sortCol === "price" ? b.salePrice : sortCol === "stock" ? b.fulfillable : b.cost;
+    if (left == null) return right == null ? 0 : 1;
+    if (right == null) return -1;
+    return sortDir === "asc" ? left - right : right - left;
+  });
+  const pageSize = 15;
+  const pageCount = Math.max(1, Math.ceil(visible.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const paged = visible.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  if (loading) return <PanelLoading label="Carregando anúncios da Amazon" />;
+  if (error && products.length === 0) return <EmptyState title="Não foi possível carregar os anúncios" description={error} />;
+
+  return <div className="amazon-catalog-v3">
+    <section className="v3-card" aria-labelledby="amazon-tax-title">
+      <div className="v3-card-cab"><h2 id="amazon-tax-title">Alíquota da sua empresa</h2><span className="v3-meta">Aplicada ao faturamento dos pedidos pagos no período</span></div>
+      <form className="v3-aliquota" onSubmit={saveTaxRate}><label className="v3-aliquota-campo"><span>Alíquota média</span><span className="v3-aliquota-entrada"><input type="number" min="0" max="100" step="0.01" value={taxRate} onChange={(event) => { setTaxRate(event.target.value); setTaxState("idle"); }} aria-label="Alíquota média de imposto Amazon" /><b>%</b></span></label><button type="submit" className="v3-btn is-primaria" disabled={taxState === "saving"}>{taxState === "saving" ? "Salvando…" : "Salvar alíquota"}</button><small className={`v3-nota${taxState === "error" ? " is-erro" : ""}`} aria-live="polite">{taxState === "saved" ? "Alíquota salva" : taxState === "error" ? "Informe uma alíquota entre 0% e 100%." : ""}</small></form>
+    </section>
+
+    <section className="v3-card v3-faixa">
+      <div className="v3-card-cab"><h2>Anúncios</h2><button type="button" className="v3-btn" onClick={() => setAddOpen((open) => !open)}>{addOpen ? "Fechar cadastro" : "Adicionar por ASIN"}</button></div>
+      <div className="v3-colunas amazon-listing-faixa">
+        <div className="v3-coluna"><p className="v3-coluna-rotulo">Anúncios</p><strong className="v3-coluna-valor">{products.length.toLocaleString("pt-BR")}</strong><span className="v3-coluna-share">sincronizados e manuais</span></div>
+        <div className="v3-coluna"><p className="v3-coluna-rotulo">Com estoque</p><strong className="v3-coluna-valor">{products.filter((product) => product.fulfillable != null && product.fulfillable > 0).length.toLocaleString("pt-BR")}</strong><span className="v3-coluna-share">unidades disponíveis</span></div>
+        <div className="v3-coluna is-tom-vermelho"><p className="v3-coluna-rotulo">Sem estoque</p><strong className={`v3-coluna-valor${withoutStock ? " is-negativo" : ""}`}>{withoutStock.toLocaleString("pt-BR")}</strong><span className="v3-coluna-share">zero confirmado pela fonte</span></div>
+        <div className="v3-coluna is-tom-verde"><p className="v3-coluna-rotulo">Com custo</p><strong className="v3-coluna-valor is-positivo">{withCost.toLocaleString("pt-BR")}</strong><span className="v3-coluna-share">{products.length ? `${Math.round(withCost / products.length * 100)}% da base` : "—"}</span></div>
+        <div className="v3-coluna is-tom-ambar"><p className="v3-coluna-rotulo">Sem custo</p><strong className="v3-coluna-valor">{withoutCost.toLocaleString("pt-BR")}</strong><span className="v3-coluna-share">{withoutCost ? "sem lucro real ainda" : "base completa"}</span></div>
+      </div>
+      {addOpen && <form className="product-add-panel" onSubmit={addByAsin}><div><strong>Adicionar produto manual</strong><span>Informe o ASIN e um custo conhecido. Zero é aceito como valor confirmado.</span></div><input value={newAsin} onChange={(event) => setNewAsin(event.target.value)} placeholder="B0XXXXXXXX" aria-label="ASIN do produto" /><input type="number" min="0" step="0.01" value={newCost} onChange={(event) => setNewCost(event.target.value)} placeholder="Custo unitário" aria-label="Custo unitário do produto" /><button type="submit" disabled={adding || !newAsin.trim() || !newCost.trim()}>{adding ? "Adicionando…" : "Adicionar"}</button>{addError && <span role="alert" className="product-add-error">{addError}</span>}</form>}
+    </section>
+
+    <section className="v3-card" aria-labelledby="amazon-listing-results">
+      <div className="v3-card-cab"><h2 id="amazon-listing-results">{visible.length.toLocaleString("pt-BR")} {visible.length === 1 ? "anúncio encontrado" : "anúncios encontrados"}</h2><span className="v3-meta">Catálogo publicado</span></div>
+      <div className="v3-filtros v3-filtros-anuncios" role="search" aria-label="Filtros dos anúncios"><label className="v3-busca"><span className="sr-only">Buscar anúncio</span><input value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="Buscar título, SKU ou ASIN" /></label><SeletorNexo valor={costFilter} rotuloAcessivel="Filtrar cobertura de custo" aoEscolher={(value) => { setCostFilter(value as typeof costFilter); setPage(1); }} opcoes={[{ valor: "all", rotulo: "Todos os custos" }, { valor: "missing", rotulo: "Sem custo" }, { valor: "complete", rotulo: "Com custo" }]} /><SeletorNexo valor={sourceFilter} rotuloAcessivel="Filtrar origem" aoEscolher={(value) => { setSourceFilter(value as typeof sourceFilter); setPage(1); }} opcoes={[{ valor: "all", rotulo: "Todas as origens" }, { valor: "listing", rotulo: "Anúncios" }, { valor: "fba", rotulo: "Estoque FBA" }, { valor: "manual", rotulo: "Manuais" }]} /></div>
+      {visible.length === 0 ? <EmptyState kind="search" title="Nenhum anúncio encontrado" description="Ajuste a busca ou remova algum filtro." /> : <div className="v3-tabela v3-tabela-anuncios v3-tabela-anuncios-amazon">
+        <div className="v3-anuncios-cab"><span>Produto</span><span>Status</span><span><SortButton label="Preço" col="price" sortCol={sortCol} sortDir={sortDir} onSort={sortBy} /></span><span><SortButton label="Estoque" col="stock" sortCol={sortCol} sortDir={sortDir} onSort={sortBy} /></span><span>Logística</span><span><SortButton label="Custo unitário" col="cost" sortCol={sortCol} sortDir={sortDir} onSort={sortBy} /></span><span><span className="sr-only">Ações</span></span></div>
+        {paged.map((product) => <div className="v3-anuncios-linha" key={product.id}>
+          <span className="v3-cel-anuncio">{product.imageUrl ? <img className="v3-anuncio-foto" src={product.imageUrl} alt="" loading="lazy" /> : <span className="v3-anuncio-foto is-vazia" aria-hidden="true">AMZ</span>}<span className="v3-cel-nome"><span className="v3-margem-titulo" title={product.title}>{product.title || product.id}</span><span className="v3-cel-sub">{product.sku ? `SKU ${product.sku}` : ""}{product.sku && product.asin ? " · " : ""}{product.asin ? `ASIN ${product.asin}` : ""}</span></span></span>
+          <span className="v3-cel-centro"><em className={`v3-chip v3-cobertura ${product.status?.toLowerCase().includes("active") && !product.status.toLowerCase().includes("inactive") ? "is-saudavel" : product.status?.toLowerCase().includes("incomplete") ? "is-atencao" : "is-vazio"}`}>{product.source === "manual" ? "Manual" : product.status || "—"}</em></span>
+          <span className={`v3-cel-num${product.salePrice == null ? " is-vazio" : ""}`}>{product.salePrice == null ? "—" : money(product.salePrice)}</span>
+          <span className={`v3-cel-num${product.fulfillable == null ? " is-vazio" : product.fulfillable === 0 ? " is-negativo" : ""}`}>{product.fulfillable == null ? "—" : product.fulfillable.toLocaleString("pt-BR")}</span>
+          <span className="v3-cel-num v3-cel-duplo"><span>{product.fulfillment === "fba" ? "FBA" : product.fulfillment === "fbm" ? "Envio próprio" : "—"}</span><span className="v3-cel-sub">{product.source === "fba" ? "estoque na Amazon" : product.source === "listing" ? "oferta publicada" : "produto manual"}</span></span>
+          <span className="v3-cel-custo"><label className={`v3-custo-campo${product.cost != null ? "" : " is-pendente"}`}><span aria-hidden="true">R$</span><input type="number" min="0" step="0.01" value={draftCosts[product.id] ?? ""} onChange={(event) => setDraftCosts((current) => ({ ...current, [product.id]: event.target.value }))} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); commitCost(product, event.currentTarget.value); event.currentTarget.blur(); } }} onBlur={(event) => commitCost(product, event.target.value)} placeholder="—" aria-label={`Custo de ${product.title || product.id}`} /></label><button type="button" className="v3-custo-salvar" disabled={parsedCost(product) == null} onMouseDown={(event) => event.preventDefault()} onClick={() => commitCost(product, draftCosts[product.id] ?? "")}>Salvar</button><small aria-live="polite" className={saveState[product.id] === "error" ? "is-erro" : ""}>{saveState[product.id] === "saving" ? "Salvando…" : saveState[product.id] === "saved" ? "Salvo" : saveState[product.id] === "error" ? "Falha" : product.cost == null ? "Pendente" : ""}</small></span>
+          <span className="v3-cel-fim">{product.source === "manual" ? <button type="button" className="listing-row-danger" onClick={() => void remove(product)}>Remover</button> : <span aria-hidden="true">—</span>}</span>
+        </div>)}
+      </div>}
+      {pageCount > 1 && <div className="v3-paginacao"><Pagination page={currentPage} pageCount={pageCount} total={visible.length} pageSize={pageSize} onPage={setPage} /></div>}
+    </section>
+  </div>;
 }
 
 function ExistingFlow({ step, draft, setDraft, product, findAsin, busy }: { step: number; draft: ExistingDraft; setDraft: React.Dispatch<React.SetStateAction<ExistingDraft>>; product: ProductPreview | null; findAsin: () => void; busy: string | null }) {

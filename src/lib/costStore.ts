@@ -44,6 +44,14 @@ export function costAt(entry: CostEntry, dateISO: string): number {
   return result;
 }
 
+/**
+ * Custo vigente preservando a fronteira do cadastro: entrada ausente é `null`;
+ * custo cadastrado como zero é um fato e continua sendo `0`.
+ */
+export function custoNaDataOuNull(entry: CostEntry | null | undefined, dateISO: string): number | null {
+  return entry == null ? null : costAt(entry, dateISO);
+}
+
 // ---------- Postgres ----------
 
 interface CostRow {

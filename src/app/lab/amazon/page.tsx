@@ -52,10 +52,8 @@ const MOEDA = "BRL";
 const ENTRADA: EntradaDaFaixaAmazon = {
   moeda: MOEDA,
   faturamento: 976.74,
-  pedidosPagos: 15,
   tarifas: 365.21,
   tarifasEstimadas: 365.21,
-  pedidosComTarifaEstimada: 44,
   logisticaFba: null,
   custoDosProdutos: 345.86,
   anuncio: null,
@@ -63,15 +61,6 @@ const ENTRADA: EntradaDaFaixaAmazon = {
   imposto: 41.27,
   lucro: 100.22,
   margemPct: 12.14,
-  // ⚠️ A FRASE REAL DE PRODUCAO, nao uma encurtada. A versao
-  // anterior desta bancada usava "R$ 825,34 em 44 pedidos" e por isso os oito
-  // cartoes fechavam em 126px aqui enquanto na tela dela a faixa tinha o dobro
-  // da altura. Amostra mais curta que a realidade esconde exatamente o que a
-  // bancada existe para mostrar.
-  // A frase que a faixa passa a receber: SO a base. O "o que falta" foi para o
-  // bloco de pendencias, e a bancada precisa refletir isso para medir a altura
-  // certa do cartao.
-  baseDoResultado: "Sobre R$ 178,98 em 10 pedidos (preço de anúncio nos 7 ainda não publicados)",
 };
 
 const HOJE = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
@@ -225,7 +214,7 @@ export default function BancadaDaAmazon() {
       { id: "tarifa", titulo: "44 pedidos com tarifa estimada", efeito: "o lucro muda quando a Amazon publicar o extrato", acao: "Ver pedidos", href: "/amazon/monitor", tom: "atencao" },
       { id: "sem-valor", titulo: "7 de 12 pedidos do período ainda sem valor publicado pela Amazon", efeito: "O lucro muda quando a Amazon publicar o valor.", acao: "Ver pedidos", href: "/amazon/monitor", tom: "atencao" },
     ],
-    hrefs: { resultado: "/amazon/monitor", produtos: "/amazon/produtos", historico: "/amazon/desempenho", pendencias: "/amazon/monitor" },
+    hrefs: { resultado: "/amazon/monitor", produtos: "/amazon/anuncios", historico: "/amazon/desempenho", pendencias: "/amazon/monitor" },
   };
 
   return (

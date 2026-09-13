@@ -163,25 +163,21 @@ test("nenhuma tela volta a apagar a margem por causa de custo", async () => {
   }
 });
 
-test("na Amazon, a Margem nunca aparece sozinha — a nota sai da FUNCAO", async () => {
-  // QUAL DEFEITO ESTE TESTE REPROVA: o do ML em 10/09/2026, que custou dois dias
-  // de Margem sozinha na tela — `resultParcial` era calculado e ninguem o
-  // renderizava. A Amazon entrou na mesma forma em 12/09, e aqui a asercao e de
-  // comportamento: chama a funcao e confere a saida, em vez de casar texto.
+test("na Amazon, a Margem preserva o número e leva as faltas para Pendências", async () => {
+  // INTENÇÃO ALTERADA EM 13/09/2026: a nota sob o valor deixava os oito cartões
+  // bem mais altos que a referência. A dona pediu a retirada das legendas; o
+  // número continua e a falta segue no bloco próprio, com ação.
   const { margemDoPeriodoAmazon } = await import("../src/app/(app)/amazon/amazonPainelV3.ts");
 
-  // 1. HAVENDO PENDENCIA, a nota diz O QUE falta — com a palavra "falta", que e
-  //    o que transforma um numero otimista num numero com ressalva.
   const comFalta = margemDoPeriodoAmazon({ margemPct: 18.4, faltas: ["o custo de 2 SKUs"] });
-  assert.match(comFalta.nota, /^falta o custo de 2 SKUs$/);
+  assert.equal(comFalta.nota, "");
   assert.equal(comFalta.valor, "18,40%");
 
-  // 2. SEM PENDENCIA, a nota e a declaracao da base — a margem nunca fica muda.
   const semFalta = margemDoPeriodoAmazon({ margemPct: 18.4, baseDoResultado: "sobre o faturamento do período" });
-  assert.equal(semFalta.nota, "sobre o faturamento do período");
+  assert.equal(semFalta.nota, "");
 
-  // 3. E O NUMERO APARECE MESMO COM PENDENCIA — decisao dela em 30/08/2026, que
-  //    e a razao de o sinal ter deixado de ser cortesia: apagar a margem foi o
-  //    comportamento que ela mandou remover.
   assert.notEqual(comFalta.valor, "—", "a margem voltou a ser apagada por pendencia");
+  const pagina = await readFile(new URL("../src/app/(app)/amazon/page.tsx", import.meta.url), "utf8");
+  assert.match(pagina, /faltaOValorDaAmazon[\s\S]{0,300}href: "\/amazon\/monitor"/,
+    "a falta saiu da legenda e não permaneceu no bloco de pendências");
 });

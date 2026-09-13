@@ -36,11 +36,9 @@ import type { DadosV3 } from "../../components/PainelV3";
 export interface EntradaDaFaixaAmazon {
   moeda: string;
   faturamento: number;
-  pedidosPagos: number;
   /** Tarifas do período. ⚠️ `estimadas` é PARTE deste número — ver `colunaDeTaxas`. */
   tarifas: number | null;
   tarifasEstimadas?: number | null;
-  pedidosComTarifaEstimada?: number | null;
   /** Logística FBA, quando a Amazon já postou. `null` = ainda não postou. */
   logisticaFba: number | null;
   /** Frete pago pelo COMPRADOR — não é custo dela; vai para a dica. */
@@ -55,14 +53,6 @@ export interface EntradaDaFaixaAmazon {
   imposto?: number | null;
   lucro: number | null;
   margemPct: number | null;
-  /**
-   * A base do lucro quando ela difere do faturamento exibido ao lado.
-   * ⚠️ Vem pronta do produtor e vai para a linha VISÍVEL da margem, nunca para
-   * a dica: declaração que exige hover não declara (lição de 31/08/2026).
-   */
-  baseDoResultado?: string | null;
-  /** O que falta para o número fechar, já com número e destino. */
-  faltas?: string[];
   /**
    * A legenda do faturamento, quando ela tem o que dizer.
    *
@@ -79,13 +69,6 @@ const dinheiro = (valor: number, moeda: string) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: moeda }).format(valor);
 
 /** Percentual sobre a venda, com a MESMA base da coluna "Você vendeu". */
-function sobreAVenda(parte: number | null | undefined, base: number, moeda: string): string {
-  void moeda;
-  if (parte == null || !Number.isFinite(parte)) return "";
-  if (!base || !Number.isFinite(base)) return "";
-  return ((parte / base) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + "% da venda";
-}
-
 /**
  * A coluna de Taxas — onde mora a armadilha mais cara desta leva.
  *
@@ -96,12 +79,12 @@ function sobreAVenda(parte: number | null | undefined, base: number, moeda: stri
  * número ficaria maior que a tarifa real sem nada ficar vermelho — a tela
  * apenas mostraria um custo inflado e a margem espremida.
  *
- * O lugar da estimativa é o RASTRO: a linha sob o número diz quanto do total
- * ainda é estimativa, e ela some sozinha quando a Amazon posta a tarifa real
- * (ADR-027).
+ * O lugar da estimativa é o RASTRO na dica e no bloco de pendências. Ele some
+ * sozinho quando a Amazon posta a tarifa real (ADR-027), sem aumentar a altura
+ * da faixa principal.
  */
 export function colunaDeTaxas(entrada: EntradaDaFaixaAmazon) {
-  const { tarifas, tarifasEstimadas, pedidosComTarifaEstimada, moeda, faturamento } = entrada;
+  const { tarifas, tarifasEstimadas, moeda } = entrada;
   const estimada = tarifasEstimadas ?? 0;
   const temEstimativa = estimada > 0;
   return {
@@ -110,11 +93,7 @@ export function colunaDeTaxas(entrada: EntradaDaFaixaAmazon) {
     valor: tarifas == null ? "—" : dinheiro(tarifas, moeda),
     bruto: tarifas,
     formatar: (v: number) => dinheiro(v, moeda),
-    // O rastro ganha da porcentagem quando existe: "quanto disso ainda é
-    // estimativa" é a pergunta que a pessoa faz olhando este número.
-    share: temEstimativa
-      ? `inclui ${dinheiro(estimada, moeda)} estimados${pedidosComTarifaEstimada ? ` em ${pedidosComTarifaEstimada} pedido(s)` : ""}`
-      : sobreAVenda(tarifas, faturamento, moeda),
+    share: "",
     tom: (tarifas == null ? "vazio" : "normal") as "vazio" | "normal",
     dica: [
       "Comissão, logística e estornos somados.",
@@ -153,7 +132,7 @@ export function colunasDoPeriodoAmazon(entrada: EntradaDaFaixaAmazon): DadosV3["
       valor: dinheiro(faturamento, moeda),
       bruto: faturamento,
       formatar,
-      share: `${entrada.pedidosPagos.toLocaleString("pt-BR")} pedidos pagos`,
+      share: "",
       dica: entrada.dicaDoFaturamento
         || "Faturamento do período pela data do pedido. Cancelados ficam fora.",
     },
@@ -164,9 +143,7 @@ export function colunasDoPeriodoAmazon(entrada: EntradaDaFaixaAmazon): DadosV3["
       valor: valorOuTraco(entrada.logisticaFba),
       bruto: entrada.logisticaFba,
       formatar,
-      share: entrada.logisticaFba == null
-        ? "aguardando o extrato da Amazon"
-        : sobreAVenda(entrada.logisticaFba, faturamento, moeda),
+      share: "",
       tom: tomDe(entrada.logisticaFba),
       dica: "O que a Amazon cobra para armazenar e enviar. É tarifa dela, não frete que você paga.",
     },
@@ -176,7 +153,7 @@ export function colunasDoPeriodoAmazon(entrada: EntradaDaFaixaAmazon): DadosV3["
       valor: valorOuTraco(entrada.custoDosProdutos),
       bruto: entrada.custoDosProdutos,
       formatar,
-      share: sobreAVenda(entrada.custoDosProdutos, faturamento, moeda),
+      share: "",
       tom: tomDe(entrada.custoDosProdutos),
       dica: "Custo cadastrado por SKU na data do pedido.",
     },
@@ -192,9 +169,7 @@ export function colunasDoPeriodoAmazon(entrada: EntradaDaFaixaAmazon): DadosV3["
       valor: valorOuTraco(entrada.anuncio),
       bruto: entrada.anuncio,
       formatar,
-      share: entrada.anuncio == null
-        ? "gasto ainda não informado"
-        : sobreAVenda(entrada.anuncio, faturamento, moeda),
+      share: "",
       tom: tomDe(entrada.anuncio),
       dica: "Entra no lucro: na Amazon o anúncio é cobrado no mesmo extrato da venda.",
     },
@@ -206,11 +181,7 @@ export function colunasDoPeriodoAmazon(entrada: EntradaDaFaixaAmazon): DadosV3["
       valor: entrada.aliquota == null ? "—" : valorOuTraco(entrada.imposto ?? 0),
       bruto: entrada.aliquota == null ? null : entrada.imposto ?? 0,
       formatar,
-      share: entrada.aliquota == null
-        ? "alíquota não configurada"
-        // Vírgula, não ponto: `${8.5}` sai "8.5%" e a tela mistura duas
-        // convenções de número na mesma linha. Pego pelo teste, não no olho.
-        : `alíquota de ${entrada.aliquota.toLocaleString("pt-BR")}%`,
+      share: "",
       tom: (entrada.aliquota == null ? "vazio" : "normal") as "vazio" | "normal",
       dica: "Percentual que você cadastrou, aplicado sobre o faturamento do período.",
     },
@@ -233,24 +204,15 @@ export function colunasDoPeriodoAmazon(entrada: EntradaDaFaixaAmazon): DadosV3["
   ];
 }
 
-/** A oitava coluna: a margem, com a base declarada na linha visível. */
+/** A oitava coluna: a margem, com a mesma densidade visual das outras sete. */
 export function margemDoPeriodoAmazon(entrada: EntradaDaFaixaAmazon): DadosV3["margem"] {
-  const faltando = entrada.faltas ?? [];
   return {
     valor: entrada.margemPct == null
       ? "—"
       : entrada.margemPct.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + "%",
     tom: (entrada.margemPct == null ? "vazio" : entrada.margemPct < 0 ? "negativo" : "positivo") as
       "vazio" | "negativo" | "positivo",
-    /**
-     * ⚠️ NUNCA VAZIA QUANDO HÁ PENDÊNCIA, e nunca escondida
-     * atrás de hover. É a regra que o ML quebrou na troca de layout e que
-     * custou a Margem aparecer sozinha por dois dias: número que depende de
-     * dado faltando não pode parecer completo.
-     */
-    nota: faltando.length > 0
-      ? `falta ${faltando.join(", ")}`
-      : entrada.baseDoResultado ?? "",
+    nota: "",
   };
 }
 
@@ -271,12 +233,8 @@ export function entradaDaFaixaDosCards(
   cards: Array<{ key: string; raw?: number | null }>,
   extras: {
     moeda: string;
-    pedidosPagos: number;
     tarifasEstimadas?: number | null;
-    pedidosComTarifaEstimada?: number | null;
     aliquota?: number | null;
-    baseDoResultado?: string | null;
-    faltas?: string[];
     dicaDoFaturamento?: string;
   },
 ): EntradaDaFaixaAmazon {
@@ -286,11 +244,9 @@ export function entradaDaFaixaDosCards(
   };
   return {
     moeda: extras.moeda,
-    pedidosPagos: extras.pedidosPagos,
     faturamento: bruto("revenue") ?? 0,
     tarifas: bruto("fees"),
     tarifasEstimadas: extras.tarifasEstimadas ?? null,
-    pedidosComTarifaEstimada: extras.pedidosComTarifaEstimada ?? null,
     logisticaFba: bruto("fbaShipping"),
     freteDoComprador: bruto("buyerShipping"),
     comissao: bruto("commission"),
@@ -301,8 +257,6 @@ export function entradaDaFaixaDosCards(
     imposto: bruto("tax"),
     lucro: bruto("profit"),
     margemPct: bruto("marginPct"),
-    baseDoResultado: extras.baseDoResultado ?? null,
-    faltas: extras.faltas,
     dicaDoFaturamento: extras.dicaDoFaturamento,
   };
 }

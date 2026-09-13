@@ -54,7 +54,7 @@ export const margemDetector: Detector = {
         recommendation: negative
           ? `${agg.name} deu prejuízo de R$ ${(-agg.contribution).toFixed(2)} em 30 dias. Revise preço e custo — ou considere pausar.`
           : `Margem de ${agg.name} está em ${marginPct.toFixed(1)}% (abaixo de ${MARGIN_FLOOR_PCT}%). Revise preço, custo ou tarifa.`,
-        actionHref: "/amazon/produtos",
+        actionHref: "/amazon/anuncios?custo=missing",
       });
     }
     return candidates;

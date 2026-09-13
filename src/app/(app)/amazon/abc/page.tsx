@@ -9,7 +9,7 @@ export default function AmazonAbcPage() {
       eyebrow="Métricas Amazon"
       subtitle="Classifica seus produtos pela contribuição real (A/B/C) e cruza com o giro para revelar onde está o lucro — e onde ele vaza."
       ordersHref="/amazon/monitor?secao=vendas"
-      costsHref="/amazon/produtos"
+      costsHref="/amazon/anuncios"
     />
   );
 }

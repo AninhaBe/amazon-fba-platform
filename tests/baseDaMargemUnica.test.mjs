@@ -62,33 +62,12 @@ test("a frase e composta em UM lugar — nenhum canal escreve a propria", async 
   assert.ok(!/declaracaoDeBase\(/.test(amazon), "a Amazon nao declara mais base — ver AGENTS.md, uma base so");
 });
 
-test("a declaracao vai na FACE do card, nunca no tooltip", async () => {
-  // O defeito nao era a frase faltar: era ela estar num lugar que exige hover.
-  // `sub` renderiza sem interacao; `info` e o "i".
+test("a faixa Amazon não recebe mais a declaração longa sob a Margem", async () => {
+  // INTENÇÃO ALTERADA EM 13/09/2026: a dona pediu a retirada das legendas que
+  // deixavam os cartões maiores que os do ML. O que falta permanece em
+  // Pendências, com número e destino.
   const pagina = await readFile(new URL("../src/app/(app)/amazon/page.tsx", import.meta.url), "utf8");
-  // ⚠️ MUDOU DE MECANISMO EM 12/09/2026, NAO DE EXIGENCIA. A
-  // regua de cartoes da Amazon virou a faixa do periodo (a mesma peca do ML), e
-  // com ela a base declarada deixou de sair num `sub` de card para sair na
-  // LINHA SOB O NUMERO da coluna de Margem — que renderiza sem interacao do
-  // mesmo jeito. O que esta guarda existe para impedir continua igual: a base
-  // nunca pode depender de hover, e foi o que aconteceu em 31/08/2026, quando a
-  // frase existia dentro do "i" e a vendedora concluiu que a tela estava errada.
-  /**
-   * ⚠️ ANCORA REAPONTADA EM 13/09/2026, e a intencao anterior
-   * fica registrada: ela exigia `baseDeclarada` — a frase INTEIRA, com a base,
-   * o que falta e a devolucao juntas por " · " — no sub da faixa.
-   *
-   * O que mudou: no cartao antigo aquilo cabia; na faixa do v3 o sub tem uma
-   * linha, e as tres viravam um paragrafo de cinco. Medido nas duas telas lado
-   * a lado: 194px na Amazon contra 126px no Mercado Livre.
-   *
-   * A INTENCAO NAO MUDOU — a declaracao continua na FACE, sem hover. Mudou o
-   * que vai junto dela: `faltaValor` virou pendencia no bloco "O que falta para
-   * o numero fechar", com numero e link, que e onde a doutrina dela manda
-   * apontar falta. A exigencia de 04/09 ("campo proprio, sem hover") segue
-   * cumprida — e melhor que antes, quando a frase morava dentro de outra.
-   */
-  assert.match(pagina, /baseDoResultado: cards\.find\(\(c\) => c\.key === "marginPct"\)\?\.baseDaFaixa/);
-  assert.ok(!/info=\{card\.baseDeclarada\}/.test(pagina), "declaracao dentro do 'i' nao declara nada");
-  assert.ok(!/dica: entrada\.baseDoResultado/.test(pagina), "a base foi parar na dica da coluna");
+  const codigo = pagina.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+  assert.ok(!/baseDaFaixa|baseDoResultado: cards\.find/.test(codigo), "a declaração voltou a esticar a faixa");
+  assert.match(codigo, /faltaOValorDaAmazon[\s\S]{0,300}href: "\/amazon\/monitor"/);
 });

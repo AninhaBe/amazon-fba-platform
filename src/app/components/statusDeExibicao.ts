@@ -13,7 +13,7 @@
  *
  * A nomenclatura é a que a casa já usa; nada foi inventado aqui:
  *   - pedido:  `TikTokWorkspaceModel.tiktokOrderStatusLabel`
- *   - produto: `mercado-livre/anuncios` e `amazon/catalogo`
+ *   - produto: `mercado-livre/anuncios` e `amazon/anuncios`
  *   - Shopee:  o mapa que vivia dentro de `ShopeeWorkspace`
  *   - conciliação: a frase de `TikTokWorkspace` na lista de pedidos
  */

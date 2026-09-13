@@ -36,7 +36,7 @@ const channelSettings: Array<{
   label: string;
   href: string;
 }> = [
-  { provider: "amazon", label: "Amazon", href: "/amazon/produtos" },
+  { provider: "amazon", label: "Amazon", href: "/amazon/anuncios" },
   { provider: "mercado_livre", label: "Mercado Livre", href: "/mercado-livre/anuncios" },
   { provider: "shopee", label: "Shopee", href: "/shopee/produtos" },
   { provider: "tiktok_shop", label: "TikTok Shop", href: "/tiktok/produtos" },

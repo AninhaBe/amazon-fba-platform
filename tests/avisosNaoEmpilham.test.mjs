@@ -149,7 +149,7 @@ test("a pendencia de custo da Amazon sobreviveu ao corte dos sinais", async () =
   // nome nao prova de onde o valor nasce.
   const codigo = semComentarios(await fonte("src/app/(app)/amazon/page.tsx"));
   assert.ok(
-    codigo.includes('items.push({ label: `Cadastrar custo de ${missingCosts} produto(s)`, href: "/amazon/produtos" });'),
+    codigo.includes('items.push({ label: `Cadastrar custo de ${missingCosts} produto(s)`, href: "/amazon/anuncios?custo=missing" });'),
     "a pendencia de custo precisa continuar nascendo com numero e link",
   );
   // E ela precisa CHEGAR ao cartao do v3 — a lista do painel le `pendencias`.

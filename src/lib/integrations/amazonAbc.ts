@@ -1,7 +1,7 @@
 import { dbQuery, hasDb } from "../db";
 import { currentWorkspaceId } from "../workspaceScope";
 import { currentAccountId } from "../accountContext";
-import { getCosts, costAt } from "../costStore";
+import { custoNaDataOuNull, getCosts } from "../costStore";
 import { cached } from "../cache";
 import { amazonConnectionId } from "./amazonSync";
 
@@ -141,7 +141,7 @@ async function computeAbc(period: Period): Promise<AmazonAbc | null> {
 
   const costOf = (sku: string | null, asin: string) => {
     const entry = (sku ? costs[sku] : undefined) ?? costs[asin];
-    return entry && entry.cost > 0 ? entry : null;
+    return entry ?? null;
   };
 
   interface Acc { productId: string; sku: string | null; title: string; units: number; revenue: number; fees: number; cost: number; feesKnown: boolean; costKnown: boolean; revenueApurada: number; custoApurado: number; pedidosSemRepasse: number }
@@ -150,7 +150,7 @@ async function computeAbc(period: Period): Promise<AmazonAbc | null> {
     const key = row.sku || row.external_product_id;
     const acc = bySku.get(key) ?? { productId: row.external_product_id, sku: row.sku, title: row.title, units: 0, revenue: 0, fees: 0, cost: 0, feesKnown: true, costKnown: true, revenueApurada: 0, custoApurado: 0, pedidosSemRepasse: 0 };
     const entry = costOf(row.sku, row.external_product_id);
-    const unitCost = entry ? costAt(entry, new Date(`${row.day}T12:00:00-03:00`).toISOString()) : 0;
+    const unitCost = custoNaDataOuNull(entry, new Date(`${row.day}T12:00:00-03:00`).toISOString());
     acc.units += row.qty;
     acc.revenue += Number(row.revenue);
     acc.fees += Number(row.fees);
@@ -158,9 +158,9 @@ async function computeAbc(period: Period): Promise<AmazonAbc | null> {
     // entraria contra uma receita parcial e a margem sairia para baixo, que é
     // trocar a superestimativa de hoje por uma subestimativa.
     acc.revenueApurada += Number(row.revenue_apurada ?? 0);
-    if (unitCost > 0) acc.custoApurado += unitCost * Number(row.qty_apurada ?? 0);
+    if (unitCost != null) acc.custoApurado += unitCost * Number(row.qty_apurada ?? 0);
     acc.pedidosSemRepasse += Number(row.pedidos_sem_repasse ?? 0);
-    if (unitCost > 0) acc.cost += unitCost * row.qty;
+    if (unitCost != null) acc.cost += unitCost * row.qty;
     else acc.costKnown = false;
     if (!row.fees_known) acc.feesKnown = false;
     bySku.set(key, acc);
