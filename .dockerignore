@@ -34,6 +34,7 @@ G:/sc-temp
 # no momento do upload — exatamente o que o portão de árvore limpa não alcança.
 .nexo-hoje
 .nexo-conferir
+.nexo-deploy
 .ds-sync
 .design-sync
 artifacts
