@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 import {
+  CHAVE_DA_JANELA,
   JANELA_DE_SETE_DIAS,
+  VIEW_DA_JANELA,
   precisaBuscarAJanela,
   serieDaJanelaDeSeteDias,
   serieDoBlocoDeLucro,
@@ -136,4 +138,44 @@ test("SEGUNDA LINHA: o hook não volta a memorizar a leitura", async () => {
   );
   assert.ok(!/useMemo/.test(corpoDoHook),
     "a leitura da janela voltou a ser memorizada: é exatamente o defeito de 13/09/2026");
+});
+
+test("a janela de sete dias e buscada e guardada SEMPRE na view do dashboard", async () => {
+  // ⚠️ QUAL DEFEITO ESTE TESTE REPROVA — o custo medido em
+  // 13/09/2026: o hook rodava no nivel do workspace e seguia a view ATUAL,
+  // entao abrir /mercado-livre/monitor disparava um segundo `days=7` com
+  // `view=monitor` (595 KB na conta real) para desenhar um ritmo que so existe
+  // no dashboard. Com a view fixa, o mesmo pedido custa ~28 KB desde o corte do
+  // servidor — e some quando a pessoa ja passou pelo dashboard, porque a chave
+  // passa a ser a MESMA.
+  assert.equal(VIEW_DA_JANELA, "dashboard");
+  assert.equal(CHAVE_DA_JANELA, `${VIEW_DA_JANELA}:${JANELA_DE_SETE_DIAS}`,
+    "a chave da janela deixou de nascer da view da janela");
+
+  // ⚠️ E ESTA E A PARTE PERIGOSA, por isso ela e asercao e nao
+  // comentario: quem busca grava em `${view}:${query}`. Buscar como dashboard e
+  // gravar sob `monitor:days=7` escreveria a PREVIA DE 5 LINHAS na chave que o
+  // monitor le para montar a tabela cheia — a tabela apareceria com 5 linhas e
+  // nada ficaria vermelho. A chave da janela nao pode ser a de nenhuma outra
+  // view.
+  for (const outraView of ["monitor", "estoque"]) {
+    assert.notEqual(CHAVE_DA_JANELA, `${outraView}:${JANELA_DE_SETE_DIAS}`,
+      `a janela passou a escrever na chave de ${outraView} — o payload enxuto vazaria para a tabela cheia`);
+  }
+});
+
+test("SEGUNDA LINHA: o hook nao volta a seguir a view da tela", async () => {
+  // Asercao sobre o fonte pelo mesmo motivo do teste acima dela: a composicao
+  // mora no .tsx e nao ha jsdom aqui. Sem comentarios — as notas do conserto
+  // citam `view` e `monitor` pelo nome.
+  const fonte = await readFile(new URL("../src/app/components/MercadoLivreWorkspace.tsx", import.meta.url), "utf8");
+  const codigo = fonte.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+  const hook = codigo.slice(codigo.indexOf("function useJanelaDeSeteDias"));
+  const corpoDoHook = hook.slice(0, hook.indexOf(String.fromCharCode(10) + "}"));
+  assert.ok(corpoDoHook.includes("const chave = CHAVE_DA_JANELA;"),
+    "a chave da janela voltou a ser montada com a view da tela");
+  assert.ok(corpoDoHook.includes("buscarEGuardarPeriodo(VIEW_DA_JANELA, JANELA_DE_SETE_DIAS"),
+    "a busca da janela voltou a usar a view da tela");
+  assert.ok(!/view/.test(corpoDoHook),
+    "a view da tela voltou para dentro do hook — ela e justamente o que fazia o monitor pagar 595 KB");
 });

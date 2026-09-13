@@ -107,9 +107,21 @@ test("o componente nao volta a condicionar a janela ao filtro", async () => {
   // O hook não recebe mais o período: se receber, é porque alguém religou a
   // condição. Comparação de string literal, sem regex montada — o AGENTS.md
   // registra três guardas de tela que ficaram verdes por recorte "esperto".
+  //
+  // ⚠️ O LITERAL MUDOU EM 13/09/2026 e a intenção anterior fica
+  // registrada: era `useJanelaDeSeteDias(view, connectionId)`. O `view` NUNCA
+  // foi o período (ele é dashboard/monitor/estoque), mas saiu da assinatura
+  // junto, e por um motivo medido: o hook roda antes do switch de view, então
+  // em `/mercado-livre/monitor` ele buscava um segundo `days=7` com
+  // `view=monitor` — 595 KB na conta real — para desenhar um ritmo que só existe
+  // no dashboard. Agora a janela é a mesma em qualquer tela (`VIEW_DA_JANELA`).
+  //
+  // A REGRA DESTA GUARDA NÃO MUDOU: a janela não pode depender do
+  // que a pessoa escolheu na tela. Ela ficou mais forte — hoje o hook não recebe
+  // nem o período nem a view.
   assert.ok(
-    codigo.includes("const serieDeSeteDias = useJanelaDeSeteDias(view, connectionId);"),
-    "o hook da janela voltou a receber o período selecionado",
+    codigo.includes("const serieDeSeteDias = useJanelaDeSeteDias(connectionId);"),
+    "o hook da janela voltou a receber algo da tela — o período ou a view",
   );
 
   // O destaque verde acompanha a série EXIBIDA, não a do período.
@@ -124,9 +136,17 @@ test("o componente nao volta a condicionar a janela ao filtro", async () => {
   );
 
   // A busca da janela usa o MESMO escritor do cache que o aquecimento.
+  //
+  // ⚠️ O PRIMEIRO ARGUMENTO ERA `view` ATÉ 13/09/2026, e a troca
+  // por `VIEW_DA_JANELA` é o conserto do custo medido: o escritor grava em
+  // `${view}:${query}`, então buscar seguindo a tela gravava a janela em três
+  // chaves diferentes (dashboard, monitor, estoque) e cobrava um payload por
+  // tela. Com a constante, é uma chave só — e a view da busca e a da chave saem
+  // da MESMA constante, senão o payload enxuto do dashboard iria parar na chave
+  // que o monitor lê para montar a tabela cheia.
   assert.match(
     codigo,
-    /void buscarEGuardarPeriodo\(view, JANELA_DE_SETE_DIAS, controller\.signal\)/,
+    /void buscarEGuardarPeriodo\(VIEW_DA_JANELA, JANELA_DE_SETE_DIAS, controller\.signal\)/,
     "a janela passou a ser buscada por fora do escritor único do cache",
   );
 });

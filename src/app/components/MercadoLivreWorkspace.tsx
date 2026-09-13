@@ -8,7 +8,7 @@ import { EmptyState } from "./EmptyState";
 import { DashboardSkeleton } from "./LoadingState";
 import { PageHeader, pageIcons } from "./PageHeader";
 import type { DailyPoint } from "./RevenueChart";
-import { JANELA_DE_SETE_DIAS, precisaBuscarAJanela, serieDaJanelaDeSeteDias, serieDoBlocoDeLucro } from "./serieDoLucroPorDia";
+import { CHAVE_DA_JANELA, JANELA_DE_SETE_DIAS, VIEW_DA_JANELA, precisaBuscarAJanela, serieDaJanelaDeSeteDias, serieDoBlocoDeLucro } from "./serieDoLucroPorDia";
 import { DashboardPeriodFilter, useDashboardPeriod } from "./DashboardPeriodFilter";
 import { periodoNaUrl } from "./periodoNaUrl";
 import { OrderProfitabilityTableV3 } from "./OrderProfitabilityTableV3";
@@ -173,8 +173,12 @@ async function buscarEGuardarPeriodo(view: string, q: string, signal: AbortSigna
  * (`JANELA_DE_SETE_DIAS`), então quem já passou por ele — ou pelo aquecimento
  * de fundo — encontra tudo em memória e não pede nada à rede.
  */
-function useJanelaDeSeteDias(view: string, connectionId: string | null) {
-  const chave = `${view}:${JANELA_DE_SETE_DIAS}`;
+function useJanelaDeSeteDias(connectionId: string | null) {
+  // ⚠️ SEM `view`: a janela é a MESMA em qualquer tela do canal, e
+  // é sempre a do dashboard. Ver `VIEW_DA_JANELA` — a view e a chave saem da
+  // mesma constante de propósito, senão um payload enxuto acaba gravado na
+  // chave que o monitor lê.
+  const chave = CHAVE_DA_JANELA;
   /**
    * ⚠️ O ESTADO AQUI É SÓ O SINAL DE "A BUSCA TERMINOU", não uma cópia da
    * série. Guardar a série em estado a deixaria para trás do `periodCache` no
@@ -194,13 +198,13 @@ function useJanelaDeSeteDias(view: string, connectionId: string | null) {
     // o que buscar — a página inteira está em branco.
     if (!precisaBuscarAJanela({ temNoCache: periodCache.has(chave), connectionId })) return;
     const controller = new AbortController();
-    void buscarEGuardarPeriodo(view, JANELA_DE_SETE_DIAS, controller.signal)
+    void buscarEGuardarPeriodo(VIEW_DA_JANELA, JANELA_DE_SETE_DIAS, controller.signal)
       .then(() => { if (!controller.signal.aborted) setBuscasConcluidas((n) => n + 1); })
       // Falha aqui não é erro de tela: o bloco simplesmente não aparece, e o
       // resto do período selecionado continua de pé.
       .catch(() => {});
     return () => controller.abort();
-  }, [chave, connectionId, view]);
+  }, [chave, connectionId]);
 
   // ⚠️ LEITURA NO RENDER, SEM `useMemo` — 13/09/2026. A versão
   // memorizada devolvia o `null` do primeiro render para sempre quando a página
@@ -454,7 +458,7 @@ function MercadoLivreWorkspaceInterno({ view }: { view: keyof typeof views }) {
    * por fora criaria uma segunda janela de sete dias que poderia discordar da
    * primeira — dois consumidores, dois universos, agora no tempo.
    */
-  const serieDeSeteDias = useJanelaDeSeteDias(view, connectionId);
+  const serieDeSeteDias = useJanelaDeSeteDias(connectionId);
   const { aquecerAgora } = usePrefetchDePeriodos({
     ativo: !!overview && !!connectionId,
     atual: period.query,

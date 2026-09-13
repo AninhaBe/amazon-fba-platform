@@ -9,6 +9,30 @@
 export const JANELA_DE_SETE_DIAS = "days=7";
 
 /**
+ * A VIEW em que a janela de sete dias é buscada — sempre `dashboard`, seja qual
+ * for a tela aberta.
+ *
+ * ⚠️ ANTES ELA SEGUIA A VIEW ATUAL, e isso custava um payload
+ * inteiro à toa. O ritmo só existe no dashboard, mas o hook roda no nível do
+ * workspace, antes do switch de view: quem abrisse `/mercado-livre/monitor`
+ * disparava um segundo `days=7` com `view=monitor` — medido em 13/09/2026 na
+ * conta de volume real, **595 KB** — para desenhar um bloco que aquela tela nem
+ * mostra. Com `view=dashboard` o mesmo pedido custa ~28 KB desde o corte do
+ * servidor (17f97dd), e some de vez quando a pessoa já passou pelo dashboard.
+ *
+ * ⚠️ E A CHAVE VAI JUNTO, OBRIGATORIAMENTE. O cache é gravado em
+ * `${view}:${query}` por quem busca. Buscar com `view=dashboard` e guardar sob
+ * `monitor:days=7` escreveria um payload ENXUTO na chave que o monitor lê
+ * depois para montar a tabela cheia — e a tabela apareceria com 5 linhas sem
+ * nada ficar vermelho. Por isso a view da janela e a chave da janela nascem da
+ * mesma constante, aqui.
+ */
+export const VIEW_DA_JANELA = "dashboard";
+
+/** A chave do `periodCache` onde a janela de sete dias mora, em qualquer tela. */
+export const CHAVE_DA_JANELA = `${VIEW_DA_JANELA}:${JANELA_DE_SETE_DIAS}`;
+
+/**
  * De onde o bloco "Ritmo dos últimos 7 dias" tira as colunas: SEMPRE da janela
  * de sete dias que termina hoje, qualquer que seja o filtro de data.
  *
