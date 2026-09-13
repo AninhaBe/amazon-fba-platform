@@ -250,7 +250,6 @@ export function PainelV3({ dados }: { dados: DadosV3 }) {
           <div className="v3-card">
             <div className="v3-card-cab">
               <h2>Ritmo dos últimos 7 dias</h2>
-              <a className="v3-btn" href={dados.hrefs.historico}>Abrir histórico →</a>
             </div>
 
             <div className="v3-abas">
