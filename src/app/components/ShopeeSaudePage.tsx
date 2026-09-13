@@ -138,7 +138,13 @@ function Conteudo({ saude, agoraMs }: { saude: ShopeeSaudeDaConta; agoraMs: numb
   return (
     <section className="channel-module-content" aria-label="Saúde da conta Shopee">
       {agoraMs != null && (
-        <p className="estado-do-sync" role="note">
+        /* ⚠️ CLASSE PROPRIA DESDE 13/09/2026, e a troca e de NOME,
+           nao de desenho: esta linha reusava `.estado-do-sync`, do componente
+           de estado da varredura, que saiu do produto por ordem da dona. Ela
+           NAO e aquela faixa — nao fala do nosso sync, fala de quando a SHOPEE
+           publicou a saude da conta, que atualiza a cada 30 min do lado deles.
+           Continuar com o nome emprestado deixaria um nome mentindo no CSS. */
+        <p className="leitura-da-fonte" role="note">
           Lido da Shopee há <strong>{minutosDesde(saude.lidoEm, agoraMs)} min</strong> — atualiza a cada 30 min.
         </p>
       )}

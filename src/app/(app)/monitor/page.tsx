@@ -15,7 +15,6 @@ import type { ProfitabilityLine } from "@/lib/profitability";
 import { readJson } from "@/lib/readJson";
 import { brDate } from "@/lib/datetime";
 import { BaseDeData } from "../../components/BaseDeData";
-import { EstadoDoSync } from "../../components/EstadoDoSync";
 import { AccountSwitcher } from "../../components/AccountSwitcher";
 
 interface FinanceSummary {
@@ -284,7 +283,6 @@ function MonitorPage({ secaoInicial }: { secaoInicial: MonitorSection }) {
         action={<AccountSwitcher appearance="chip" />}
       />
 
-      <EstadoDoSync provider="amazon" />
       {financeError ? (
         <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
           {financeError}

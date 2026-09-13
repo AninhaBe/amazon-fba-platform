@@ -38,7 +38,6 @@ import { PainelV3Baixo, type DadosV3Baixo } from "./PainelV3Baixo";
 import { BASE_SEM_DIFERENCA, declaracaoDeBase } from "./baseDaMargem";
 import { comSemImposto } from "@/lib/semImposto";
 import { ProgressoDaImportacao } from "./BaseDeData";
-import { EstadoDoSync } from "./EstadoDoSync";
 import type { AnuncioDeProduto } from "./AnunciosPorProduto";
 import { usePrefetchDePeriodos } from "./prefetchDePeriodos";
 
@@ -1435,7 +1434,6 @@ function Monitor({ overview, secaoInicial, periodoQuery }: { overview: Overview;
         "falta N unidade(s) sem custo", e "O que falta para o numero fechar" no
         dashboard mantem o numero com destino. O que se perdeu foi o atalho
         daqui e a distincao entre os dois monitores. */}
-    <EstadoDoSync provider="mercado_livre" />
     {/* ⚠️ SEM CARTAO EM VOLTA, SEM META E SEM "Personalizar"
         (pedido dela, 10/09/2026). A moldura branca envolvia seis caixinhas que
         JA tem moldura propria — caixa dentro de caixa, e o vao entre as duas

@@ -92,30 +92,68 @@ test("defasagem legível: minutos até 2 h, horas depois — sem falsa precisão
   assert.equal(formatarDefasagem(750), "12 h");
 });
 
-test("o componente é silencioso em silêncio e o alerta diz o ciclo esperado", async () => {
-  const fonte = await readFile(new URL("../src/app/components/EstadoDoSync.tsx", import.meta.url), "utf8");
-  assert.match(fonte, /estado\.estado === "silencio"\) return null/, "silêncio tem que render nada");
-  assert.match(fonte, /ciclo esperado/, "o texto do alerta carrega o ciclo esperado do canal");
-  assert.match(fonte, /Sincronizado há/);
-  // Falha da rota nunca derruba o monitor: o fetch tem catch.
-  assert.match(fonte, /\.catch\(/);
+/**
+ * ⚠️ ESTES DOIS TESTES MUDARAM DE INTENÇÃO EM 13/09/2026, E A
+ * DIREÇÃO SE INVERTEU: eles EXIGIAM a faixa de estado do sync nos quatro
+ * monitores; agora eles PROÍBEM que ela volte.
+ *
+ * Ordem da dona do produto, confirmada explicitamente, e o fundamento é a
+ * doutrina dela de 02/09/2026: *"sobre os dados sincronizados, isso precisa
+ * estar de pé sempre"*. Sincronização é chão, não notícia — falha de sync
+ * alarma para NÓS (o vigia por canal no /api/health e o Grafana), se autocura
+ * quando dá, e só chega à tela da vendedora se atravessar tudo isso, o que é
+ * incidente, não aviso. "Sincronizado há 4 min" é estado normal virando
+ * manchete; "Sincronização atrasada" é problema nosso pedindo atenção dela sem
+ * dizer o que ela pode fazer.
+ *
+ * O QUE SAIU, para quem precisar reverter: o componente
+ * `src/app/components/EstadoDoSync.tsx` (apagado — ficou sem nenhum consumidor),
+ * as quatro chamadas nos monitores dos quatro canais, e as três regras de CSS
+ * `.estado-do-sync*` do `globals.css`.
+ *
+ * ⚠️ O QUE **NÃO** SAIU, de propósito: a régua (`saturacaoDoSync`)
+ * e a rota `/api/sync-estado` continuam de pé, com os testes acima e abaixo.
+ * Elas são o instrumento de MEDIR a defasagem, e medir continua valendo — o que
+ * a decisão mudou foi quem lê o resultado. Hoje a rota ficou sem consumidor de
+ * tela; se ela deve morrer também é decisão do backend, dono de `src/app/api`.
+ */
+test("a faixa de estado do sync NÃO volta para as telas — nos quatro canais", async () => {
+  // A asserção olha o fonte SEM COMENTÁRIOS porque as notas que explicam a
+  // remoção CITAM `EstadoDoSync` pelo nome — casar o texto cru reprovaria a
+  // própria documentação do que foi removido.
+  const semComentarios = (codigo) =>
+    codigo
+      .replace(/\{\/\*[\s\S]*?\*\/\}/g, "")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/\/\/.*$/gm, "");
+  const telas = [
+    "../src/app/(app)/monitor/page.tsx",
+    "../src/app/components/MercadoLivreWorkspace.tsx",
+    "../src/app/components/ShopeeModulePage.tsx",
+    "../src/app/components/TikTokModulePage.tsx",
+  ];
+  for (const arquivo of telas) {
+    const codigo = semComentarios(await readFile(new URL(arquivo, import.meta.url), "utf8"));
+    assert.ok(!codigo.includes("EstadoDoSync"),
+      `${arquivo}: a faixa de sincronização voltou para a tela da vendedora`);
+  }
+  // E nenhuma tela reescreve o texto por conta própria — remover o componente e
+  // recriar a frase à mão seria a mesma faixa com outro nome.
+  for (const arquivo of telas) {
+    const codigo = semComentarios(await readFile(new URL(arquivo, import.meta.url), "utf8"));
+    assert.ok(!/Sincroniza(ç|c)(ã|a)o atrasada|Sincronizado h(á|a)/.test(codigo),
+      `${arquivo}: a frase de estado do sync voltou escrita à mão`);
+  }
 });
 
-test("os quatro monitores renderizam o estado do sync (Shopee/TikTok só na aba monitor)", async () => {
-  const monitores = [
-    ["../src/app/(app)/monitor/page.tsx", /<EstadoDoSync provider="amazon" \/>/],
-    ["../src/app/components/MercadoLivreWorkspace.tsx", /<EstadoDoSync provider="mercado_livre" \/>/],
-    // E3 (28/08/2026): o monitor virou componente próprio (ShopeeMonitorContent),
-    // que só renderiza para kind=monitor — o gate mudou de forma, não de fato.
-    ["../src/app/components/ShopeeModulePage.tsx", /<EstadoDoSync provider="shopee" connectionId=\{connectionId\}\/>/],
-    // E2 (28/08/2026): o monitor virou componente próprio (MonitorContent),
-    // que só renderiza para kind=monitor — o gate mudou de forma, não de fato.
-    ["../src/app/components/TikTokModulePage.tsx", /<EstadoDoSync provider="tiktok_shop"/],
-  ];
-  for (const [arquivo, padrao] of monitores) {
-    const fonte = await readFile(new URL(arquivo, import.meta.url), "utf8");
-    assert.match(fonte, padrao, `${arquivo} precisa da linha de estado do sync`);
-  }
+test("o componente da faixa não existe mais — remoção inteira, sem código morto", async () => {
+  await assert.rejects(
+    () => readFile(new URL("../src/app/components/EstadoDoSync.tsx", import.meta.url), "utf8"),
+    /ENOENT/,
+    "o componente voltou ao disco — sem consumidor, ele é código morto esperando um novo uso",
+  );
+  const css = await readFile(new URL("../src/app/globals.css", import.meta.url), "utf8");
+  assert.ok(!css.includes(".estado-do-sync"), "o CSS da faixa voltou");
 });
 
 test("a rota de estado é escopada por workspace e só aceita canal conhecido", async () => {

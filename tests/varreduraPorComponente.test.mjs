@@ -82,6 +82,17 @@ test("progresso nao divide espaco com progresso NA MESMA view", async () => {
   // do sync ja chegou. Hoje nunca coexistem numa view: EstadoDoSync mora nas
   // views de monitor e nos modulos, SincronizacaoCompleta nos dashboards.
   //
+  // ⚠️ ESTE LACO ESTA VAZIO DESDE 13/09/2026, E DIZER ISSO E PARTE
+  // DA GUARDA: o `EstadoDoSync` saiu do produto inteiro por ordem da dona (a
+  // tela da vendedora nao anuncia estado de sincronizacao), entao nenhuma tela
+  // tem as duas e o `continue` abaixo pula todas. Guarda que passa por nao ter
+  // sujeito e teste decorativo se ninguem escrever que ela esta assim — quem ler
+  // o verde precisa saber que ele nao prova nada hoje.
+  //
+  // A regra segue valendo para o dia em que qualquer faixa de progresso voltar
+  // a conviver com a `SincronizacaoCompleta` numa mesma view. Quem a devolver,
+  // devolve a linha da tela a este laco no mesmo commit.
+  //
   // ⚠️ A COMPARACAO E POR FUNCAO, NAO POR ARQUIVO. A primeira versao desta
   // guarda era por arquivo e reprovou o MercadoLivreWorkspace, que tem as duas
   // em views DIFERENTES (Dashboard e Monitor). Teste vermelho por motivo que

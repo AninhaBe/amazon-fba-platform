@@ -11,7 +11,6 @@ import { useCacheDaTela } from "./cacheDaTela";
 import { ChannelModuleSummary } from "./ChannelModuleSummary";
 import { comCustoSalvo, custoExibido, custoValido, proximoEstado, ROTULO_DO_CUSTO, salvarCusto, type CustoSalvo, type EstadoDoCusto } from "./custoPorLinha";
 import { ChannelConnectionEmpty } from "./ChannelConnectionEmpty";
-import { EstadoDoSync } from "./EstadoDoSync";
 import { SHOPEE_MODULES, shopeeModuleError, shopeeModuleHref, shopeeModuleQuery, type ShopeeModuleKind } from "./ShopeeModulesModel";
 import { parseShopeeTaxRateDraft, SHOPEE_TAX_RATE_ANCHOR, shopeeSettingsPath } from "./ShopeeSettingsModel";
 import { shopeeProviderIssueContent, type ShopeeProviderIssue } from "./ShopeeWorkspaceModel";
@@ -305,7 +304,6 @@ function ShopeeMonitorContent({body,params,update,connectionId}:{body:Payload;pa
     {/* Mesmo nome de página do monitor da Amazon, base DIFERENTE: lá o número é
         por data do lançamento do repasse; aqui é por data do pedido. */}
     <BaseDeData base="pedido" />
-    <EstadoDoSync provider="shopee" connectionId={connectionId}/>
     {/*
       ⚠️ OS SINAIS APARECEM UMA VEZ POR TELA — o corte 1 da auditoria de
       empilhamento chegando aqui em 01/09/2026.

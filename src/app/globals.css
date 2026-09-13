@@ -753,11 +753,11 @@ button[class*="bg-blue-"]:hover, a[class*="bg-blue-"]:hover { background: var(--
 .progresso-da-importacao { display: flex; align-items: center; gap: 10px; }
 .base-de-data strong { color: var(--ink-soft); font-weight: var(--weight-semibold); }
 
-/* Estado do sync (Monitor Unificado E0): linha discreta irmã da .base-de-data;
-   o alerta de atraso reaproveita .channel-module-notice.is-warning. */
-.estado-do-sync { margin-block: -6px 10px; color: var(--ink-muted); font-size: 12px; line-height: 16px; }
-.estado-do-sync strong { color: var(--ink-soft); font-weight: var(--weight-semibold); }
-.estado-do-sync-alerta { margin-block: 2px 10px; }
+/* Quando a FONTE publicou o dado — hoje só a saúde da conta Shopee, que o
+   marketplace atualiza a cada 30 min. Não confundir com estado da nossa
+   varredura: aquilo saiu da tela em 13/09/2026 e alarma para nós, não para ela. */
+.leitura-da-fonte { margin-block: -6px 10px; color: var(--ink-muted); font-size: 12px; line-height: 16px; }
+.leitura-da-fonte strong { color: var(--ink-soft); font-weight: var(--weight-semibold); }
 
 /* Saúde da conta Shopee: definição curta sob o nome da métrica e o bloco
    colapsado "Como a Shopee avalia sua loja" (explicações da doc oficial). */

@@ -12,7 +12,6 @@ import { moduleApiQuery, moduleConnectionHref, moduleError, moduleHref, moduleMo
 import { TIKTOK_CATALOG_STATUSES } from "@/lib/integrations/tiktokModuleContract";
 import { rotuloConciliacao, rotuloStatusPedido, rotuloStatusProduto } from "./statusDeExibicao";
 import { BaseDeData } from "./BaseDeData";
-import { EstadoDoSync } from "./EstadoDoSync";
 import { CustomizableMetricGrid } from "./CustomizableMetricGrid";
 import { Metric } from "./Metric";
 import { AvisoDeEstoqueNaoInformado, AvisoDeOcultos, FiltroDeAtividade } from "./FiltroDeAtividade";
@@ -151,7 +150,6 @@ function MonitorContent({body,sp,update,connectionId}:{body:Payload;sp:URLSearch
     {/* Mesmo nome de página do monitor da Amazon, base DIFERENTE: lá o número é
         por data do lançamento do repasse; aqui é por data do pedido. */}
     <BaseDeData base="pedido" />
-    <EstadoDoSync provider="tiktok_shop" connectionId={connectionId}/>
     {s&&<CustomizableMetricGrid
       viewKey="tiktok-monitor"
       ariaLabel="Resumo do monitor TikTok Shop"
