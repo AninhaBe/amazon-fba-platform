@@ -8160,7 +8160,7 @@ summary:hover { background: var(--paper-soft); }
    Com a altura fixa e so rotulo + valor dentro, o par vai ao centro: encostado
    no topo, sobraria um vao morto embaixo que se leria como falta de algo. */
 .ml-monitor-body .v3-colunas .v3-coluna {
-  min-height: 110px;
+  min-height: 126px;
   justify-content: center;
 }
 
