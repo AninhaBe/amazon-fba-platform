@@ -51,6 +51,17 @@ test("as pecas dos cards NAO calculam — elas so apresentam", async () => {
   assert.ok(!/fetch\(|useEffect/.test(codigo), "a peca ganhou vida propria — ela e de apresentacao");
 });
 
+test("a média do Ritmo cabe na escala do gráfico e não atravessa a faixa", async () => {
+  // Defeito visual medido em 13/09/2026: a média de lucro da Amazon chegou a
+  // 325px de `bottom` porque o teto só considerava faturamento. A linha verde
+  // então escapava do gráfico e atravessava os cartões da faixa.
+  const painel = semComentarios(await fonte("src/app/components/PainelV3.tsx"));
+  assert.ok(
+    painel.includes("const teto = Math.max(1, Math.abs(ritmo.media), ...ritmo.dias.flatMap((d) => [d.total, Math.abs(d.lucro ?? 0)]));"),
+    "a escala do Ritmo não inclui a média e o lucro: a linha pode pintar fora do gráfico",
+  );
+});
+
 test("a barra do custo OMITE parcela desconhecida em vez de desenhar zero", async () => {
   // ⚠️ INTENCAO MIGRADA: a assercao era sobre a cascata da faixa do
   // cockpit, que saiu. A MESMA regra vale para a barra do card "O que o custo
@@ -546,7 +557,7 @@ test("dia DESCONHECIDO nao vira coluna no chao — nem no caminho ate a tela", a
     "a parte cheia da coluna deixou de exigir lucro conhecido e positivo");
   assert.ok(painel.includes("const prejuizo = ritmo.mostraLucro && d.lucro != null && d.lucro < 0;"),
     "o dia no vermelho deixou de exigir lucro conhecido para descer abaixo da linha");
-  assert.ok(painel.includes("const teto = Math.max(1, ...ritmo.dias.map((d) => d.total));"),
+  assert.ok(painel.includes("const teto = Math.max(1, Math.abs(ritmo.media), ...ritmo.dias.flatMap((d) => [d.total, Math.abs(d.lucro ?? 0)]));"),
     "a escala das colunas voltou a depender do lucro — dia desconhecido encolhe os vizinhos");
   assert.ok(painel.includes("{d.rotuloLucro ?? \"—\"}"),
     "o dia desconhecido deixou de aparecer como traco no rotulo");

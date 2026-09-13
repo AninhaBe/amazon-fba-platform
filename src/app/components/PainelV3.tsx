@@ -140,7 +140,10 @@ export function ChipDeMargem({ pct }: { pct: number | null }) {
 
 export function PainelV3({ dados }: { dados: DadosV3 }) {
   const { ritmo } = dados;
-  const teto = Math.max(1, ...ritmo.dias.map((d) => d.total));
+  // A média e o lucro também ocupam o eixo quando o Ritmo mostra as duas
+  // séries. Sem eles, a linha média pode receber um `bottom` maior que a
+  // altura do gráfico e pintar por cima da faixa de cartões.
+  const teto = Math.max(1, Math.abs(ritmo.media), ...ritmo.dias.flatMap((d) => [d.total, Math.abs(d.lucro ?? 0)]));
   const ALTURA = 120;
 
   return (
