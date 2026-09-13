@@ -939,8 +939,14 @@ function Dashboard() {
         period={<DashboardPeriodFilter {...period.filterProps} onIntent={aquecerAgora} />}
         header={<PageHeader
           eyebrow="Operação Amazon"
-          title="Resumo financeiro"
-          subtitle="Faturamento, pedidos e resultado do período selecionado."
+          /* ⚠️ "Dashboard Amazon", NAO "Resumo financeiro"
+             (13/09/2026). O Mercado Livre diz "Dashboard Mercado Livre" e a
+             barra do topo da Amazon ja dizia "Dashboard Amazon" — so o titulo
+             da pagina destoava, e as duas telas abriam com nomes diferentes
+             para a mesma coisa. Nome diferente para a mesma tela e o que faz o
+             produto parecer dois. */
+          title="Dashboard Amazon"
+          subtitle="Faturamento, pedidos e resultado da sua conta da Amazon."
           icon={pageIcons.dashboard}
         />}
       >
