@@ -30,6 +30,7 @@
 import { useState } from "react";
 import { PainelV3, type DadosV3 } from "../../components/PainelV3";
 import { PainelV3Baixo, type DadosV3Baixo } from "../../components/PainelV3Baixo";
+import { EtapaDoCaminhoView } from "../../components/EtapaDoCaminhoView";
 import { CANAL_AMAZON } from "@/lib/canalV3";
 import type { ProfitabilityLine } from "@/lib/profitability";
 import {
@@ -62,7 +63,12 @@ const ENTRADA: EntradaDaFaixaAmazon = {
   imposto: 41.27,
   lucro: 100.22,
   margemPct: 12.14,
-  baseDoResultado: "R$ 825,34 em 44 pedidos",
+  // ⚠️ A FRASE REAL DE PRODUCAO, nao uma encurtada. A versao
+  // anterior desta bancada usava "R$ 825,34 em 44 pedidos" e por isso os oito
+  // cartoes fechavam em 126px aqui enquanto na tela dela a faixa tinha o dobro
+  // da altura. Amostra mais curta que a realidade esconde exatamente o que a
+  // bancada existe para mostrar.
+  baseDoResultado: "Sobre R$ 178,98 em 10 pedidos (preço de anúncio nos 7 ainda não publicados) · 7 de 12 pedidos do período ainda sem valor publicado pela Amazon",
 };
 
 const HOJE = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
@@ -170,24 +176,22 @@ const BAIXO: DadosV3Baixo = {
     href: "/amazon/estoque",
     vazio: "Nenhum SKU em ruptura iminente.",
   },
-  /** REPASSES — o que a Amazon ja liberou e o que ela ainda retem. Na tela real
-   *  e o `SaldoNaAmazon`; aqui entra a mesma forma com numeros do print. */
+  /**
+   * REPASSES — a MESMA peca da tela real (`EtapaDoCaminhoView`).
+   *
+   * ⚠️ ESTAVA ERRADO ATE 13/09/2026: eu tinha escrito aqui um
+   * cartao proprio com duas caixas ("Disponivel agora" / "Retido"), e a tela
+   * real passou a usar a peca compacta do Mercado Livre. Bancada que desenha
+   * diferente da tela aprova um desenho que o produto nao tem — e o unico
+   * motivo de ela existir e ser fiel.
+   */
   saldo: (
-    <section className="v3-card">
-      <div className="v3-card-cab"><h2>Repasses</h2></div>
-      <div className="v3-colunas" style={{ "--colunas": 2 } as React.CSSProperties}>
-        <div className="v3-coluna">
-          <p className="v3-coluna-rotulo">Disponível agora</p>
-          <strong className="v3-coluna-valor">R$ 1.242,21</strong>
-          <p className="v3-coluna-share">liberado para transferência</p>
-        </div>
-        <div className="v3-coluna">
-          <p className="v3-coluna-rotulo">Retido pela Amazon</p>
-          <strong className="v3-coluna-valor">R$ 7.637,31</strong>
-          <p className="v3-coluna-share">primeira liberação em 11/09/2026</p>
-        </div>
-      </div>
-    </section>
+    <EtapaDoCaminhoView
+      rotulo="Cai na conta até 11/09/2026"
+      valor="R$ 8.120,11"
+      acao={<a className="v3-btn" href="/amazon/monitor?secao=repasses">Abrir extrato →</a>}
+      contexto={<>26 liberação(ões) previstas. A Amazon retém o valor de cada venda até depois da entrega. Disponível agora: R$ 1.436,84.</>}
+    />
   ),
 };
 
