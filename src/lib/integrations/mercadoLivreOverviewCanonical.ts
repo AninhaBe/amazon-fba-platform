@@ -25,6 +25,15 @@ import { SQL_TARIFAS_QUE_CUSTAM } from "./canonical";
 
 const PROVIDER = "mercado_livre";
 const DETAILED_ORDER_LIMIT = 1_000;
+
+/**
+ * A PRÉVIA do dashboard (contrato com a Vitrine, 13/09/2026): o dashboard
+ * renderiza 5 linhas (`ultimosPedidos`) e recebia as 1000 — 567 KB de 595 KB
+ * do payload eram lista que ninguém lia (medição dela). O corte é POR LINHA,
+ * na ordenação atual (occurred_at DESC, external_order_id, line_no): pedido de
+ * 3 itens ocupa 3 vagas. O monitor segue com a lista inteira.
+ */
+export const LINHAS_DA_PREVIA = 5;
 // Conciliado / receita real: SÓ vendas aprovadas (ADR-020).
 const REVENUE_STATUSES = ["paid", "shipped", "delivered"];
 // BRUTO: "Vendas brutas" do painel do ML = aprovadas + canceladas, só produto
@@ -166,9 +175,21 @@ function scopeParams(connectionId: string, period: MercadoLivrePeriod): unknown[
 
 export async function getMercadoLivreOverviewFromCanonical(
   connection: IntegrationConnection,
-  period: MercadoLivrePeriod
+  period: MercadoLivrePeriod,
+  opcoes: {
+    /**
+     * "previa" busca só os pedidos das LINHAS_DA_PREVIA linhas (o ganho de
+     * SERVIDOR: a LATERAL de tarifas deixa de rodar 1000 vezes no caminho do
+     * dashboard) e corta por linha; o ESCOPO continua sobre o conjunto
+     * inteiro, por um COUNT com a mesma forma da consulta completa — a frase
+     * "Exibindo os N mais recentes" é o único aviso do recorte e não pode
+     * mentir. "completo" é o caminho do monitor, intocado.
+     */
+    detalhe?: "completo" | "previa";
+  } = {}
 ): Promise<MercadoLivreOverview | null> {
   if (!hasDb()) return null;
+  const detalhe = opcoes.detalhe ?? "completo";
   const workspaceId = currentWorkspaceId();
 
   const [syncRows, totalsRows] = await Promise.all([
@@ -214,7 +235,7 @@ export async function getMercadoLivreOverviewFromCanonical(
   const totals = totalsRows[0];
   if (!syncRow || (!syncRow.products_synced_at && totals.total_orders === 0)) return null;
 
-  const [dailyRows, diasDoLucroRows, unidadesDoDiaRows, recentRows, productTotalsRows, lineRows, productRows, costs, aggRows, cogsRows, porProdutoRows] = await Promise.all([
+  const [dailyRows, diasDoLucroRows, unidadesDoDiaRows, recentRows, productTotalsRows, lineRows, productRows, costs, aggRows, cogsRows, porProdutoRows, escopoRows] = await Promise.all([
     dbQuery<DailyRow>(
       `SELECT to_char(o.occurred_at AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD') AS date,
               SUM(o.gross) AS revenue,
@@ -300,12 +321,17 @@ export async function getMercadoLivreOverviewFromCanonical(
       [...scopeParams(connection.id, period), REVENUE_STATUSES]
     ),
     dbQuery<DetailedLineRow>(
+      // Na PREVIA o teto cai para LINHAS_DA_PREVIA pedidos (5 pedidos rendem
+      // >= 5 linhas; o corte final e por linha) e o desempate por
+      // external_order_id entra no CTE para o limite pequeno escolher os
+      // MESMOS pedidos que a ordenacao final das linhas escolheria num empate
+      // de occurred_at. O caminho completo fica byte a byte como era.
       `WITH detailed AS (
          SELECT external_order_id, occurred_at, provider_status, currency, gross, buyer_shipping, fulfillment
            FROM workspace_channel_orders
           WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
             AND occurred_at >= $4 AND occurred_at <= $5 AND status = ANY($6::text[])
-          ORDER BY occurred_at DESC
+          ORDER BY occurred_at DESC${detalhe === "previa" ? ", external_order_id" : ""}
           LIMIT $7
        )
        SELECT d.external_order_id, d.occurred_at, d.provider_status, d.currency, d.gross,
@@ -327,7 +353,8 @@ export async function getMercadoLivreOverviewFromCanonical(
               AND f.external_order_id = d.external_order_id AND f.fee_type = 'shipping_seller'
          ) fs ON true
         ORDER BY d.occurred_at DESC, d.external_order_id, i.line_no`,
-      [...scopeParams(connection.id, period), REVENUE_STATUSES, DETAILED_ORDER_LIMIT]
+      [...scopeParams(connection.id, period), REVENUE_STATUSES,
+       detalhe === "previa" ? LINHAS_DA_PREVIA : DETAILED_ORDER_LIMIT]
     ),
     dbQuery<{ payload: MercadoLivreProduct }>(
       `SELECT payload FROM workspace_marketplace_products
@@ -450,6 +477,33 @@ export async function getMercadoLivreOverviewFromCanonical(
         GROUP BY external_product_id, sku`,
       [...scopeParams(connection.id, period), REVENUE_STATUSES]
     ),
+    // ═══ O ESCOPO DA PRÉVIA SAI DO CONJUNTO INTEIRO (contrato de 13/09) ════════
+    //
+    // Na prévia a lista detalhada só tem os pedidos das 5 linhas, mas a frase
+    // "Exibindo os N mais recentes…" descreve o RECORTE COMPLETO — se ela
+    // refletisse 5, mentiria. Este COUNT tem a MESMA forma da consulta
+    // detalhada completa (top-N por data, só pedidos com item), então devolve
+    // exatamente o `linesByOrder.size` que o caminho completo devolveria — uma
+    // verdade, duas granularidades. Sem a LATERAL de tarifas, que é onde o
+    // caminho completo gasta.
+    detalhe === "previa"
+      ? dbQuery<{ pedidos_detalhados: number }>(
+          `WITH detailed AS (
+             SELECT external_order_id
+               FROM workspace_channel_orders
+              WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
+                AND occurred_at >= $4 AND occurred_at <= $5 AND status = ANY($6::text[])
+              ORDER BY occurred_at DESC
+              LIMIT $7
+           )
+           SELECT COUNT(DISTINCT d.external_order_id)::int AS pedidos_detalhados
+             FROM detailed d
+             JOIN workspace_channel_order_items i
+               ON i.workspace_id = $1 AND i.provider = $2 AND i.connection_id = $3
+              AND i.external_order_id = d.external_order_id`,
+          [...scopeParams(connection.id, period), REVENUE_STATUSES, DETAILED_ORDER_LIMIT]
+        )
+      : Promise.resolve(null),
   ]);
 
   const taxRate = mercadoLivreTaxRate(connection);
@@ -921,13 +975,25 @@ export async function getMercadoLivreOverviewFromCanonical(
           marginPct: complete && product.revenue > 0 ? product.contribution / product.revenue * 100 : null,
         };
       }),
-    profitabilityLines,
+    // O corte da prévia é POR LINHA, na ordenação que a consulta já entrega
+    // (occurred_at DESC, external_order_id, line_no) — pedido de 3 itens ocupa
+    // 3 vagas, contrato de 13/09/2026.
+    profitabilityLines: detalhe === "previa" ? profitabilityLines.slice(0, LINHAS_DA_PREVIA) : profitabilityLines,
     // Lista cheia no teto = houve corte (os N mais recentes); abaixo do teto,
     // tudo que existia entrou e não há o que avisar.
-    profitabilityScope: {
-      detailedOrders: linesByOrder.size,
-      completePeriod: linesByOrder.size < DETAILED_ORDER_LIMIT,
-    },
+    //
+    // ⚠️ NA PRÉVIA o escopo NUNCA sai da lista cortada: sai do COUNT sobre o
+    // conjunto inteiro (escopoRows) — a frase de escopo é o único aviso do
+    // recorte e não pode refletir 5.
+    profitabilityScope: (() => {
+      const pedidosDetalhados = detalhe === "previa"
+        ? (escopoRows?.[0]?.pedidos_detalhados ?? 0)
+        : linesByOrder.size;
+      return {
+        detailedOrders: pedidosDetalhados,
+        completePeriod: pedidosDetalhados < DETAILED_ORDER_LIMIT,
+      };
+    })(),
     recentOrders: recentRows.map((row) => ({
       id: row.external_order_id,
       packId: row.pack_id,

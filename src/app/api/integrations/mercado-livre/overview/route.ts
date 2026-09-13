@@ -78,9 +78,19 @@ export async function GET(req: NextRequest) {
       // bastante para dispensar snapshots e materializer, inclusive em
       // períodos personalizados. O sync avança o histórico em segundo plano,
       // fora do caminho da resposta.
+      // ═══ PRÉVIA vs COMPLETO (contrato com a Vitrine, 13/09/2026) ═══════════
+      //
+      // O dashboard renderiza 5 linhas e recebia 1000 — 567 KB de 595 KB do
+      // payload eram lista morta (medição dela). Só o MONITOR precisa da lista
+      // inteira; dashboard e estoque pedem a prévia, que também PULA a busca
+      // detalhada dos 1000 no servidor (a LATERAL de tarifas roda 5×, não
+      // 1000×). Faixa, Top 8 e ritmo já vêm de agregado SQL do período inteiro
+      // — nenhum número da tela muda (diff ao centavo na sonda antes/depois).
       const [sync, overview] = await Promise.all([
         requestMercadoLivreSync(connection.id),
-        getMercadoLivreOverviewFromCanonical(connection, period),
+        getMercadoLivreOverviewFromCanonical(connection, period, {
+          detalhe: view === "monitor" ? "completo" : "previa",
+        }),
       ]);
       const syncNeedsWork = sync.status !== "complete" && sync.status !== "error" && sync.status !== "unavailable";
       if (syncNeedsWork) {

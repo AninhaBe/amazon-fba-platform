@@ -8,7 +8,15 @@ import test from "node:test";
 
 test("o canonico expoe o escopo do detalhamento amarrado ao teto real", async () => {
   const fonte = await readFile(new URL("../src/lib/integrations/mercadoLivreOverviewCanonical.ts", import.meta.url), "utf8");
-  assert.match(fonte, /profitabilityScope: \{\s*detailedOrders: linesByOrder\.size,\s*completePeriod: linesByOrder\.size < DETAILED_ORDER_LIMIT,\s*\}/);
+  // ⚠️ A FORMA MUDOU EM 13/09/2026 (previa do dashboard) e este teste ficou
+  // VERMELHO na hora, como devia — a razao escrita aqui: o escopo passou a ter
+  // DUAS fontes com a MESMA verdade — o caminho completo segue contando
+  // linesByOrder.size; a previa (que so busca os pedidos das 5 linhas) conta
+  // pelo COUNT do conjunto inteiro (escopoRows), porque a frase "Exibindo os N
+  // mais recentes" e o unico aviso do recorte e refletir 5 seria mentir.
+  // A intencao original — escopo amarrado ao teto REAL — continua exigida:
+  assert.match(fonte, /const pedidosDetalhados = detalhe === "previa"\s*\? \(escopoRows\?\.\[0\]\?\.pedidos_detalhados \?\? 0\)\s*: linesByOrder\.size;/);
+  assert.match(fonte, /detailedOrders: pedidosDetalhados,\s*completePeriod: pedidosDetalhados < DETAILED_ORDER_LIMIT,/);
   // O teto continua o da referência; mudou o teto, muda a comunicação junto.
   assert.match(fonte, /const DETAILED_ORDER_LIMIT = 1_000/);
 });
