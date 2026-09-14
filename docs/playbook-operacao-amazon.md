@@ -43,23 +43,27 @@ a campanha volta para as réguas de cruzeiro.
 
 ### Posição não é objetivo — o lance vem da margem
 
-Entendimento fixado pela Ana em 14/09/2026: **não precisamos do melhor lance
-para aparecer primeiro; posições além da primeira também vendem.** A pergunta
-operacional não é "quanto custa ficar em primeiro?" e sim "quanto a margem me
-deixa pagar por clique?" — e aceita-se a posição que esse lance comprar.
+Observação da Ana em 14/09/2026 (observação, não regra definitiva): **não
+precisamos do melhor lance para aparecer primeiro; posições além da primeira
+também vendem.** A pergunta operacional não é "quanto custa ficar em
+primeiro?" e sim "quanto a margem me deixa pagar por clique?" — e aceita-se a
+posição que esse lance comprar.
 
-O porquê, em três mecânicas (detalhe em `amazon-ads-especialista.pdf`):
+Contexto de estudo que apoia a observação (do `amazon-ads-especialista.pdf`,
+não decidido por ninguém — se a prática mostrar outra coisa, atualize aqui):
 
-1. o leilão é de **segundo preço ajustado** — lance alto demais não custa nada
-   até entrar um concorrente agressivo, e aí o CPC sobe até o seu teto sozinho;
-   por isso o teto tem de ser a margem, não a ambição de posição;
-2. o **topo da busca é o clique mais caro e não o mais eficiente** — meio de
-   página, restante da busca e páginas de produto convertem com CPC menor;
+1. o leilão funciona como **segundo preço ajustado** — lance alto demais não
+   custa nada até entrar um concorrente agressivo, e aí o CPC sobe até o seu
+   teto sozinho; mais um motivo para o teto vir da margem;
+2. o **topo da busca tende a ser o clique mais caro**, não o mais eficiente —
+   meio de página, restante da busca e páginas de produto costumam converter
+   com CPC menor;
 3. **posição paga não é ranqueamento** — o orgânico é construído por venda e
    conversão, e a venda vinda da posição 4 vale o mesmo que a da posição 1.
 
-Corolário: começar com lance conservador, e **subir lance só quando a campanha
-prova que converte** — clique mais caro deve comprar venda, não vitrine.
+Corolário prático: começar com lance conservador, e **subir lance só quando a
+campanha prova que converte** — clique mais caro deve comprar venda, não
+vitrine.
 
 ⚠️ Nada aqui autoriza mexer em lance diariamente. Continuam valendo as regras
 já combinadas: deixar o dado acumular (volume mínimo de cliques antes de agir,
