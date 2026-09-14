@@ -301,6 +301,23 @@ Não é `application/json`; com o genérico a API recusa.
 
 ## Changelog observado — Ads API
 
+- **2026-09-14** — **A janela do crédito de novos vendedores FECHOU em 12/09 com
+  R$ 626 gastos → degrau de R$ 265 conquistado, não os R$ 5.300.** Medido na aba
+  Administração → Faturamento → **Promoções** do console: "Andamento da oferta"
+  mostra gastos de R$ 626 contra os degraus 265/1.060/5.300, com expiração
+  **12/09/2026 03:00 UTC**. A recompensa de R$ 265 ainda **não** apareceu em
+  "Recompensas" ("Nenhuma promoção") — a premiação leva até 14 dias e o próprio
+  console diz que recompensas podem ser resgatadas após a expiração; conferir de
+  novo até ~26/09. "Resumo até o momento" = **"Sem promoções ativas"**: todo o
+  gasto de Ads até aqui foi cobrado de verdade (bate com as faturas pagas pelo
+  saldo do vendedor). Regras do guia oficial de créditos (PDF "holiday book",
+  set/2026): a Amazon **não notifica** quando o crédito esgota; cobra quando o
+  gasto excede o crédito, quando ele ainda não foi aplicado ou quando expirou.
+  **Oferta nova disponível na mesma tela:** "Sponsored Products New ASIN
+  Adoption" — campanha para o ASIN recomendado **B0H9SF2WB3** (ou adicioná-lo a
+  campanha existente) rende **R$ 265**, expira **21/09/2026**. Verificar se o
+  ASIN é nosso antes de agir.
+
 - **2026-08-31** — **As DUAS tabelas de anúncio dão números diferentes de
   propósito, e a fonte de verdade do GASTO é `workspace_ad_metrics`.** Medido na
   conta dela, mesma janela: `workspace_ad_metrics` = **R$ 447,97** e
