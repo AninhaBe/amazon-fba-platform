@@ -29,6 +29,32 @@ pós-**entrega**, não pós-pedido). Envios do teste registrados em
 - [ ] Fase automática (proposta; sem martelo da Ana ainda): venda entregue
       dispara sozinha no dia certo; o botão vira controle manual.
 
+## Feature aprovada — Alerta de recompra por curva ABC
+
+Aprovada pela Ana em 14/09/2026; gatilho: **depois do front da Amazon v3**
+(entra na fila atrás de Solicitar avaliação). As regras de negócio — fórmula,
+alvos de cobertura por curva, gatilhos — estão fixadas em
+`docs/playbook-operacao-amazon.md` §2; a feature implementa aquilo, não
+reinventa.
+
+Resumo da conta: classificar produtos por faturamento acumulado (A = 80%,
+B = +15%, C = +5%); média de vendas dos últimos 7 dias × 60 dias de cobertura
+(curva A) ou × 30 (B/C) − estoque atual = quantidade a recomprar. Alerta quando
+o item vende metade do estoque inicial ou a cobertura cai abaixo do alvo.
+
+- [ ] Classificação ABC por produto (janela de faturamento a definir — 30 dias
+      é o candidato; decidir medindo, não assumindo).
+- [ ] Cálculo de cobertura e sugestão de recompra por SKU (vendas do sync +
+      estoque FBA; contar estoque em trânsito quando o dado existir).
+- [ ] Alerta na tela seguindo a hierarquia de avisos (informação com número e
+      link, sem empilhar faixa; `null` ≠ `0`: produto sem venda nos 7 dias não
+      é "recomprar zero", é sem dado suficiente).
+- [ ] Multi-inquilino desde o nascimento: a conta roda por workspace, demo
+      fora por nome.
+- [ ] Amazon primeiro (estoque FBA é o dado que já temos confiável); levar aos
+      outros canais é reimplementar com o dado de estoque de cada API, não
+      copiar — medir o que cada canal entrega antes.
+
 ## Ação manual (precisa de você)
 
 - [ ] **Cadastrar a Push URL da Shopee no console** — uma sentada só, com o
