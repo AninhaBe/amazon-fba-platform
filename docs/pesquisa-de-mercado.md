@@ -18,10 +18,19 @@ encapsulado nas skills `pesquisa-produto-amazon` e
 2. **Medir a concorrência DENTRO do FBA** — quem vende por FBA no nicho, e o
    **menor preço FBA** (via `competitiveSummary` da SP-API). Concorrente de
    envio próprio não disputa a mesma buy box de fato.
-3. **Projetar a margem no menor preço FBA** — comissão + tarifa de logística +
+3. **Estimar a demanda pelo "avaliações × 20"** — usado pelo Lucas nesta
+   safra (confirmado pela Ana, 18/09/2026): total de avaliações do anúncio
+   concorrente × 20 ≈ vendas acumuladas, pela premissa de que ~1 em 20
+   compradores avalia (~5%). **É ordem de grandeza, não medida**: a taxa varia
+   por categoria, anúncios antigos acumulam avaliação sem vender mais, e
+   avaliação comprada/Vine infla a base. Regras de uso: comparar concorrentes
+   **entre si** (quem tem 400 avaliações vende mais que quem tem 20), não
+   converter em número absoluto de vendas/mês; e quando a Amazon mostrar a tag
+   "X compras no mês passado", **ela ganha** — é dado direto, não proxy.
+4. **Projetar a margem no menor preço FBA** — comissão + tarifa de logística +
    imposto + custo contra o pior cenário de preço. Se sobra margem no pior
    cenário, o produto entra na lista.
-4. **Entrar com lateralidade** — muitos candidatos com pouca profundidade
+5. **Entrar com lateralidade** — muitos candidatos com pouca profundidade
    (regra do playbook: `playbook-operacao-amazon.md` §2), porque o passo
    seguinte é o mercado dizer quem fica.
 
