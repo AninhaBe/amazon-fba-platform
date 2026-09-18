@@ -68,6 +68,17 @@ primeira venda ≥ 25/08/2026 = safra "nova (NEXO)".
 - Contraexemplo saudável: `TOP0911` e `CK7895` venderam 2–4 unidades e
   pararam — o funil descartando candidato barato.
 
+**📌 O detalhe que muda o peso de tudo acima: a safra nova cresceu SEM Ads.**
+Confirmado pela Ana em 18/09/2026: o Lucas não rodou publicidade nesses
+produtos — os ~31% de participação são **100% orgânicos**, fruto só da escolha
+de produto (nicho com demanda medida e concorrência FBA fraca). Isso isola a
+variável: não há como atribuir o resultado a tráfego pago, lançamento
+promovido ou cupom — é a pesquisa acertando o produto. Corolário para o
+método: produto bem escolhido vende sem empurrão; Ads em cima de acerto desses
+é acelerador, não muleta — o inverso da conta que precisa de Ads para validar
+(caso da conta da Ana, que entrou em nichos mais disputados e usa Ads para
+ranquear, conforme `amazon-ads.md`).
+
 ### Pendência datada — % de crescimento do faturamento em R$
 
 **Ainda não medível com honestidade (18/09):** a Amazon publica o valor dos
