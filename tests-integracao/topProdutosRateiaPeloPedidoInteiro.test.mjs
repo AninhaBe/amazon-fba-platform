@@ -35,9 +35,15 @@ if (!process.env.TEST_DATABASE_URL) {
       for (const t of ["workspace_channel_order_fees", "workspace_channel_order_items", "workspace_channel_orders", "workspace_marketplace_syncs"]) {
         await dbQuery(`DELETE FROM ${t} WHERE workspace_id = $1 AND connection_id = $2`, [WS, CONN]);
       }
+      // target_from/target_to sao NOT NULL no schema real — a ESTREIA deste
+      // teste foi no CI (20/09/2026) e ele caiu exatamente aqui: dado fabricado
+      // que nao sobe no Postgres nao testa nada (a divida do WSL adiou o
+      // vermelho que teria pego isso no dia).
       await dbQuery(
-        `INSERT INTO workspace_marketplace_syncs (workspace_id, provider, connection_id, covered_from, covered_to, products_synced_at)
-         VALUES ($1, 'mercado_livre', $2, $3, $4, now())`,
+        `INSERT INTO workspace_marketplace_syncs
+           (workspace_id, provider, connection_id, target_from, target_to, cursor_from, cursor_to,
+            covered_from, covered_to, products_synced_at)
+         VALUES ($1, 'mercado_livre', $2, $3, $4, $3, $4, $3, $4, now())`,
         [WS, CONN, new Date(AGORA.getTime() - 40 * 86400000), AGORA],
       );
       // 1001 pedidos do produto A (um ALEM do teto), R$ 10 cada, tarifa 2 + frete 1

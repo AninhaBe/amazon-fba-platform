@@ -45,17 +45,34 @@ test("o SQL do scheduler decide igual a tranca, em todos os casos da fronteira",
   assert.deepEqual(divergencias, [], "SQL e TypeScript discordaram sobre quem tem acesso");
 });
 
+// ⚠️ NOMES REAPONTADOS EM 20/09/2026, com a intencao anterior registrada: o
+// refactor do v3 (8d15357) renomeou os casos no MESMO commit que editava este
+// teste e os dois lados sairam dessincronizados — "cortada, sem trial" virou
+// "assinatura cortada", "sem assinatura, trial vencido" virou "trial vencido,
+// sem assinatura", "sem registro nenhum" virou "sem assinatura nenhuma", e o
+// caso de endsAt malformado SUMIU da lista (voltou hoje). Nada disso apareceu
+// por 13 dias porque estes testes exigem Postgres e o descartavel estava caido:
+// a ESTREIA deles foi no CI de 20/09, vermelha. A garantia nao mudou — mudou o
+// vocabulario; e o `buscar` abaixo falha COM NOME quando um caso sumir, em vez
+// do "reading 'linhas'" mudo que o CI mostrou.
+function buscar(nome) {
+  const caso = casosDaFronteira().find((c) => c.nome === nome);
+  assert.ok(caso, `o caso "${nome}" sumiu da fronteira — foi exatamente assim que o v3 perdeu o dado torto`);
+  return caso;
+}
+
 test("os quatro casos da ordem da Ana estao entre os conferidos", async () => {
-  // Guarda contra a lista encolher sem ninguem notar: os quatro casos que a
-  // decisao de 07/09/2026 nomeia tem de continuar sendo exercidos.
+  // Guarda contra a lista encolher sem ninguem notar: os casos que a decisao
+  // de 07/09/2026 nomeia tem de continuar sendo exercidos.
   const nomes = casosDaFronteira().map((c) => c.nome);
   for (const obrigatorio of [
     "admin sem registro nenhum",
     "admin com assinatura cortada",
-    "cortada, sem trial",
-    "sem assinatura, trial vencido",
-    "sem assinatura, trial ativo",
-    "sem registro nenhum",
+    "assinatura cortada",
+    "trial vencido, sem assinatura",
+    "trial ativo, sem assinatura",
+    "sem assinatura nenhuma",
+    "trial com endsAt malformado",
   ]) {
     assert.ok(nomes.includes(obrigatorio), `o caso "${obrigatorio}" sumiu da fronteira`);
   }
@@ -64,8 +81,7 @@ test("os quatro casos da ordem da Ana estao entre os conferidos", async () => {
 test("trial vencido sem assinatura PAUSA — o caso novo de 07/09/2026", async () => {
   // Antes desta decisao este caso continuava sincronizando. Vale asserção
   // propria porque foi a unica mudanca de comportamento do dia.
-  const caso = casosDaFronteira().find((c) => c.nome === "sem assinatura, trial vencido");
-  assert.equal(await decidirNoSql(consultar, caso), false);
+  assert.equal(await decidirNoSql(consultar, buscar("trial vencido, sem assinatura")), false);
 });
 
 test("dado torto BLOQUEIA e nao derruba a consulta do canal inteiro", async () => {
@@ -73,19 +89,16 @@ test("dado torto BLOQUEIA e nao derruba a consulta do canal inteiro", async () =
   // os inquilinos. E a comparacao ingenua CONCEDERIA acesso, porque "sei la" e
   // maior que qualquer data ISO — desde que ausencia bloqueia (07/09/2026),
   // dado torto virando chave seria brecha, nao inconveniencia.
-  const caso = casosDaFronteira().find((c) => c.nome === "trial com endsAt malformado");
-  assert.equal(await decidirNoSql(consultar, caso), false);
+  assert.equal(await decidirNoSql(consultar, buscar("trial com endsAt malformado")), false);
 });
 
 test("conta de ADMIN entra mesmo cortada — chave-mestra por definicao", async () => {
   // Um corte acidental trancaria justamente quem precisa entrar para consertar.
-  const caso = casosDaFronteira().find((c) => c.nome === "admin com assinatura cortada");
-  assert.equal(await decidirNoSql(consultar, caso), true);
+  assert.equal(await decidirNoSql(consultar, buscar("admin com assinatura cortada")), true);
 });
 
 test("sem registro nenhum PAUSA — a classe que morreu em 07/09/2026", async () => {
   // Ate a manha deste dia esta era a classe que PASSAVA, e era o mundo inteiro.
   // Quem segura as contas reais agora e a excecao de admin, nao a omissao.
-  const caso = casosDaFronteira().find((c) => c.nome === "sem registro nenhum");
-  assert.equal(await decidirNoSql(consultar, caso), false);
+  assert.equal(await decidirNoSql(consultar, buscar("sem assinatura nenhuma")), false);
 });

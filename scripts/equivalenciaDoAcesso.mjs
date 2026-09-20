@@ -19,8 +19,6 @@ import { decidirAcesso } from "../src/lib/billing/acesso.ts";
 // FABRICADOS — inclusive os do trial dormente, que existem para reprovar quem
 // religar aquela leitura por engano.
 
-const dia = 86_400_000;
-
 export function casosDaFronteira() {
   return [
     // Admin e chave-mestra: entra inclusive cortado, porque um corte acidental
@@ -35,6 +33,14 @@ export function casosDaFronteira() {
     // antigas voltam a entrar sem pagar — por isso os dois casos ficam aqui.
     { nome: "trial ativo, sem assinatura", admin: false, linhas: [["trial", { endsAt: "2099-01-01T00:00:00.000Z" }]], ts: { admin: false, assinatura: null }, esperado: false },
     { nome: "trial vencido, sem assinatura", admin: false, linhas: [["trial", { endsAt: "2020-01-01T00:00:00.000Z" }]], ts: { admin: false, assinatura: null }, esperado: false },
+    // ⚠️ ESTE CASO SUMIU NO REFACTOR DO V3 (8d15357) e o teste que o exigia so
+    // avermelhou na ESTREIA do CI, 13 dias depois (20/09/2026) — a divida do
+    // WSL adiou o vermelho. Ele guarda DOIS perigos do dia em que alguem
+    // religar a leitura do trial: o cast de endsAt malformado estourando a
+    // consulta do canal INTEIRO, e a comparacao ingenua concedendo acesso
+    // ("sei la" > qualquer ISO). Enquanto o trial esta dormente, ele prova que
+    // linha torta no banco nao muda nada.
+    { nome: "trial com endsAt malformado", admin: false, linhas: [["trial", { endsAt: "sei la" }]], ts: { admin: false, assinatura: null }, esperado: false },
     // Status que o tipo nao admite, mas o JSON permite: desconhecido para tudo.
     { nome: "status desconhecido", admin: false, linhas: [["assinatura", { status: "pausada" }]], ts: { admin: false, assinatura: { status: "pausada" } }, esperado: false },
   ];
