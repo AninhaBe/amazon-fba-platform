@@ -1,15 +1,24 @@
-# Estado atual — onde cada frente parou
+﻿# Estado atual — onde cada frente parou
 
-**Última atualização: 07/09/2026** (produção em **v282/e217e1b**; nova seção "Front —
-Caminho do Dinheiro" com a frente em andamento e a leva SEGURADA; design system
-`@nexo/ds` extraído e sincronizado no claude.ai/design. Fechados desde 05/09, com os
-porquês nos changelogs de cada doc: faixa "Histórico N% importado" removida (v279),
-`covered_from` curado nos 3 canais (v280), cancelamento Amazon + carimbo de estimativas
-ligado no sync (v281), TACOS do ML no overview (v282). ⚠️ Regra operacional nova, paga
-três vezes em dois dias: **conferência e ação nunca no mesmo comando encadeado** — o
-gate se LÊ antes do próximo passo; ver `docs/fly-io.md` §"quarta mordida"). Leia isto
-antes de continuar qualquer frente em andamento; o "porquê" das decisões está nos docs
-de cada área e nos ADRs.
+**Última atualização: 20/09/2026** (produção em **v306/a2dca98**, conferida no
+`/api/health` na data desta atualização). A quinzena 08–13/09 foi a mais densa do
+projeto e o que fechou está detalhado nas seções: **redesign v3 no ar no ML E na
+Amazon** (página inteira, identidade, ritmo com lucro por dia); **TikTok
+reautorizado pelo app PÚBLICO na conta do Lucas** (12/09 — primeiro vendedor real
+pelo caminho definitivo); **migrations 0032+0033 aplicadas** (índices/autovacuum +
+app da conexão TikTok) e **0034+0035 escritas e NÃO aplicadas** (aguardam janela);
+**margem por produto do ML virou agregado SQL** (o teto de 1000 não mata mais o
+Top 8); **payload do dashboard do ML caiu de 595 KB para ~28 KB** (prévia de 5
+linhas); **faixa de sincronização REMOVIDA das telas** (doutrina: sync alarma para
+nós, não para a vendedora); **feature "Solicitar avaliação" validada em produção**
+(10 envios reais, aguardando front + janela da 0034); **deploy migrou para
+worktree dedicado `G:/nexo-deploy` + flyctl do WINDOWS** (o WSL da máquina caiu
+por RAM e o caminho novo está provado em 6 janelas). A semana 14–20/09 foi de
+operação e documentação (playbook de Ads, pesquisa de mercado — docs próprios).
+⚠️ Regra operacional que segue valendo: **conferência e ação nunca no mesmo
+comando encadeado** — o gate se LÊ antes do próximo passo (`docs/fly-io.md`
+§"quarta mordida"). Leia isto antes de continuar qualquer frente; o "porquê" das
+decisões está nos docs de cada área e nos ADRs.
 
 Este doc responde três perguntas: **o que está pronto**, **o que está no meio do
 caminho** (com o passo exato para retomar) e **o que está bloqueado por
@@ -54,29 +63,47 @@ Estado dos cadastros de OAuth/webhook por portal (todos feitos em 19–20/08):
 
 | Canal | Situação | Verificado |
 |---|---|---|
-| **Amazon** | Em produção, vendendo, com Ads no ar. Tokens das duas contas **OK** (medido 01/09 — a "revogação" era medição velha; ver seção 2). Tarifa estimada com origem nomeada na tela; pendentes com comissão+FBA. | 01/09 |
-| **Mercado Livre** | Em produção e sincronizando. Faturamento validado ao centavo contra o painel do ML. Saldo/liberação e auditoria de frete no ar. | 16/08 |
+| **Amazon** | Em produção, vendendo, com Ads no ar. Tokens das duas contas **OK** (medido 01/09 — a "revogação" era medição velha; ver seção 2). Tarifa estimada com origem nomeada na tela; pendentes com comissão+FBA. 🟢 **Dashboard no v3 desde 13/09** (ver seção Front). 🟢 **Solicitação de avaliação VALIDADA EM PRODUÇÃO em 13/09**: 10 envios reais (1 unitário + 9 em lote no clips), zero recusas, zero 429 — janela é pós-ENTREGA e a prova de aceite é a ação sumir da releitura (changelog do `api-amazon-sp-api.md`). Feature aprovada pela Ana, no backlog aguardando o front + a janela da **0034** (registro durável; até lá os envios feitos estão em `G:/sc-temp/solicitacoes-de-avaliacao.md`). **Saldo ganhou as cobranças**: `cobrancasFechadas` no `/api/amazon/balance` (extrato que fecha devendo; ~R$ 148 na conta real), e cobrança deixou de se passar por transferência em `ultimaTransferencia`. **Repasses na 991**: cadeias antigas resolvidas em 08/09; padrão novo em observação (20/09) — transferência disparada em fim de semana falha e o redisparo em dia útil anda; a cadeia absorve. | 20/09 |
+| **Mercado Livre** | Em produção e sincronizando. Faturamento validado ao centavo contra o painel do ML. Saldo/liberação e auditoria de frete no ar. 🟢 **Dashboard no v3** (Caminho do Dinheiro) com o pente-fino de 13/09 fechado: margem do Top 8 por agregado SQL do período inteiro (o teto de 1000 pedidos não a mata mais — a conta real passou de 1000/janela e o defeito era esse), payload da troca de período em ~28 KB, ritmo estável. Detalhes e medições no changelog do `api-mercado-livre.md`. | 20/09 |
 | **Shopee** | Implementação local completa (OAuth, dashboard multi-loja, ingestão fail-closed/retomável, settings por loja, remoção local). **Go Live: APROVADO — os dois apps estão ONLINE no console, conferido em 02/09/2026** com a dona do produto na tela. O "under review de 07/08" ficou 26 dias desatualizado aqui porque a checagem dependia de alguém abrir o console (a extensão do navegador não tem permissão para `open.shopee.com`) e ninguém abriu. ⚠️ Estado de terceiro que só se mede abrindo painel envelhece calado — este ficou quase um mês afirmando bloqueio que não existia mais. IP de saída do Fly já medido (ver seção 5). 🟢 **PONTO SEGURO ATUAL: `f50e3b9` (v270)** — validado pela dona do produto em **04/09/2026**, verbatim: *"valores batendo"*. A conciliação foi feita na **janela FECHADA de 03/09** contra o Mercado Turbo, e bate ao centavo: faturamento **R$ 9.541,89**, tarifas **R$ 3.140,30**, canceladas **R$ 1.017,58 em 28 pedidos**, **308 unidades** — idênticos. Única diferença: **3 SKUs sem custo cadastrado (R$ 28,72)**, que é cadastro dela e já aparece apontado na tela. E Hoje/7/15/30 dias sem travessão, com a conta fechando em todas. ⚠️ **NOTA DE CRITÉRIO, para não virar falso alarme depois:** a contagem de "vendas" do Mercado Turbo difere da nossa porque ele conta **pacote** e nós contamos **pedido** — com unidades e centavos idênticos. **Isso não é divergência**, é vocabulário diferente para o mesmo fato; quem comparar contagem de vendas sem saber disso vai abrir defeito que não existe. ⚠️ **E janela fechada por DATA não é número congelado:** às 15h de 04/09 esta mesma janela dava R$ 9.516,99 em 275 pedidos, e às 16h dava R$ 9.541,89 em 276 — um pendente virou pago no meio. A data do pedido não muda, o **status** ainda anda. Comparar duas leituras da mesma janela em horários diferentes e chamar a diferença de defeito é o erro que esta nota evita. **Ponto seguro ANTERIOR, mantido no histórico: `95ad8e9` (v253, 02/09/2026)** — cadeia validada contra o Mercado Turbo (faturamento ao centavo, unidades exatas, widget e lista coerentes, push em tempo real, aba persistente). Qualquer regressão futura da Shopee se compara contra o **v270**; os commits-chave dos dois estados estão no changelog de `docs/api-shopee.md`. **Push LIGADO em 02/09/2026:** endpoint `/api/webhooks/shopee` no ar com assinatura verificada (`url|corpo` com a Live Push Partner Key), Push ON e status *Normal* no console, 29 tipos ligados. Primeiro push real confirmado às 19:12Z — dois pedidos entraram pelo caminho canônico, latência mediana pedido → push de **10,8 s** contra 3–15 min da varredura. A varredura **continua** como rede de segurança, e o push carimba `last_push_at` (0031) para não mascarar varredura parada. Detalhe da assinatura e as duas armadilhas em `docs/api-shopee.md` → Changelog. **Em medição:** cobertura do push por 7 dias (`scripts/medir-cobertura-do-push-shopee.mjs`) — o gate de ≥99% que a dona do produto pediu antes de relaxar a cadência da varredura. | 07/08 |
-| **TikTok Shop** | OAuth, sync paginado, cron, modelo canônico, overview, Dashboard, Financeiro e ledger de extratos **implementados**. **App público SUBMETIDO em 27/08** para App review + Listing review — ver seção 4. Lucro, margem e ROI aparecem quando o extrato liquidado cobre o período. 🟢 **TRANSIÇÃO PARA O APP PÚBLICO — ETAPA 1 COMPLETA E VALIDADA (04/09/2026, v271).** O NEXO conhece os dois apps: credenciais separadas, `auth_code` trocado com o par certo, e o app viaja dentro do `state` assinado do convite (adulterá-lo quebra a assinatura). **Validado ponta a ponta:** as três `TIKTOK_PUBLIC_*` conferidas DENTRO do processo (presença e tamanho, nunca valor) e `GET /api/tiktok/invite?app=publico` respondendo `app: "publico"` com o `service_id` do app público. O custom segue atendendo a loja conectada, sem uma linha de mudança. ⚠️ **A convivência tem prazo de morte declarado** (`src/lib/integrations/tiktokApps.ts`, guarda `tests/convivenciaDoTikTokTemPrazo`): aprovado o App review → janela com a dona → a loja reautoriza pelo público → custom aposentado → par extra sai do Fly. **Aguardando só o App review do TikTok** (em andamento para Brazil Local); quando ele sair, dispara a etapa 2. 📌 A armadilha que essa validação revelou está em `docs/fly-io.md` → 7.1: *salvei o segredo* não é *o processo tem o segredo*. 🟢 **AS 4 QUALIFICAÇÕES DO PARTNER CENTER ESTÃO VERDES desde 04/09/2026** — Finance/Accounting (18:28), Marketing/Analytics & Reporting (18:31) e Shipping/OMS (18:35) aprovadas em sete minutos, somando-se à Catalog. ⚠️ **A causa das reprovações de julho/agosto era o CNPJ digitado divergindo do documento**; reenviado com o número atual, a aprovação foi automática — ou seja, duas qualificações ficaram ~2 meses marcadas como "aguardando o marketplace" quando o que reprovava era dado nosso. Mesma família do Go Live da Shopee, que ficou 26 dias desatualizado aqui: **estado de terceiro que só se mede abrindo painel envelhece calado.** ⚠️ A conciliação financeira real segue parcial: 330 pedidos no backlog e o recurso `payments` com erro (seção 4) — ela deixa de estar bloqueada por QUALIFICAÇÃO, mas **"destravado" não é "medido"**: falta medir o que `finance` (`settlements`, `statements`, `payments`) entrega de verdade na loja conectada e com que atraso, antes de desenhar a conciliação. Se o `payments` parar de falhar agora, a causa era permissão; se continuar, era forma do dado. | 04/09 |
+| **TikTok Shop** | OAuth, sync paginado, cron, modelo canônico, overview, Dashboard, Financeiro e ledger de extratos **implementados**. 🟢 **APP PÚBLICO É O ÚNICO CAMINHO, E HÁ CLIENTE REAL CONECTADO POR ELE** (12/09/2026): loja no workspace do vendedor com `app='publico'`, estreia puxou o mês vigente e o sync de pedidos está saudável — **1.863 pedidos, cobertura 01–20/09, último ciclo há minutos** (medido 20/09). É a prova que a frente perseguia desde agosto: a etapa 1 só validava montagem de URL; pedido sincronizado exige chamada assinada, então **o par do público assina**. 🔴 **MAS A CONCILIAÇÃO FINANCEIRA DESSE CLIENTE NUNCA RODOU** — o ledger está travado na primeira janela (11→12/09) desde a estreia, 176 erros, `TIKTOK_FINANCIAL_ORDER_ASSOCIATION_UNRESOLVED`; de extrato liquidado, **zero linhas**. ⚠️ **Não é caso isolado: atinge todo vendedor novo** — ver seção 4. 🟢 **Não há mais migração custom→público**: a loja que usava o custom era SONDA e saiu do banco em 12/09; resta custom só na conexão de demonstração, e o desligamento espera decisão sobre ela. ⚠️ Reembolso da plataforma DECIDIDO (entra como ajuste, valor de `settlement_amount`); **a tabela dos ~23 tipos do extrato aguarda o OK da dona do produto**. | 20/09 |
 
-## 🎨 Front — Caminho do Dinheiro + design system — atualizado em 12/09/2026
+## 🎨 Front — Caminho do Dinheiro + design system — atualizado em 20/09/2026
 
-**A AMAZON ENTROU NO ESQUELETO DO ML EM 12/09** (ordem dela, verbatim: *"cara, e
-replicar a mesma estrutura do mercado livre na amazon"*). A tela inteira, na mesma
-ordem e com a MESMA peça (`PainelV3`): faixa do período, Top 8 + Ritmo lado a lado, o
-que falta para o número fechar, Pedidos na forma v3. O que a Amazon tem de próprio
-entra como DADO — 8ª coluna (Margem), Ads dentro do lucro (25/08; no ML **não** vale),
-tarifa estimada marcada (ADR-027) e dia que fecha no vermelho descendo abaixo da linha.
+**ML E AMAZON ESTÃO NO V3, NO AR E VALIDADOS PELA ANA.** A Amazon entrou no
+esqueleto do ML em 12–13/09 (ordem dela, verbatim: *"cara, e replicar a mesma
+estrutura do mercado livre na amazon"*), em três deploys: página inteira (v296,
+`98b59f0`), identidade/"vestido" (v295, `b38a53d` — cartões com tokens, Margem na
+fileira via grade por conteúdo, fundo por `data-channel` escopado) e a faixa de 8
+colunas (v294, `0172fd1`). O que a Amazon tem de próprio entra como DADO — 8ª
+coluna (Anúncio dentro do lucro, 25/08; no ML **não** vale), tarifa estimada
+marcada (ADR-027) e dia que fecha no vermelho descendo abaixo da linha. Os quatro
+blocos antigos saíram (substituição, não acréscimo — o buraco da v288); o
+artefato da leva, com o que é reversível e as 24 guardas reapontadas, está em
+**`docs/amazon-v3-leva-12-09.md`**. Depois da página, o canal fechou INTEIRO no
+esqueleto (monitor, estoque e anúncios); catálogo e custo por SKU mudaram de
+casa para `/amazon/anuncios` (rotas antigas redirecionam), e o dashboard ganhou
+Anúncios pagos, Radar do FBA e a etapa "Cai na conta" com a regra DA AMAZON
+(retém até depois da entrega), não a do Mercado Pago.
 
-⚠️ **Os quatro blocos antigos SAÍRAM** (abertura com a frase solta, tira de
-indicadores, "Evolução das vendas", rosquinha de repasses) — substituição, não
-acréscimo, que foi o buraco da v288. O artefato da leva está em
-**`docs/amazon-v3-leva-12-09.md`**: o que saiu, o que saiu *de propósito e é
-reversível* (ticket médio, canceladas, cupom, seta de tendência, painel de repasses),
-o diff de números e as 24 guardas que mudaram de intenção. Gates verdes: tsc limpo,
-1923 testes passando, build 0, eslint limpo nos arquivos tocados. **Falta subir.**
-Próximas levas: Shopee e depois TikTok — e o bloco de repasse do período
-(`cobrancasFechadas`) segue pendente na Amazon.
+**O pente-fino do ML de 13/09 fechou quatro consertos no ar** (v297–v306):
+margem do Top 8 de volta em todas as janelas (agregado SQL — ver changelog do
+`api-mercado-livre.md`), ritmo pintando ao abrir direto no filtro de 7 dias
+(`ffc58a8`), **payload do dashboard de 595 KB → ~28 KB** (prévia de 5 linhas
+`17f97dd` + hook de janela única `a2dca98`), e a **faixa "Sincronização
+atrasada" REMOVIDA das telas dos 4 canais** (`e1a3dd6`) — decisão da Ana,
+alinhada à doutrina de 02/09: sincronização alarma para nós (vigia do
+`/api/health`), nunca para a vendedora. Com isso a rota `/api/sync-estado` ficou
+sem consumidor de tela: **decisão registrada — ela morre na próxima leva de
+superfície**, junto com `saturacaoDoSync.ts` e o teste.
+
+**Segue ABERTO no front:** bloco de repasses da Amazon no v3 (o produtor já
+entrega `cobrancasFechadas` + `aguardandoTransferencia` + `ultimaTransferencia`
+desde 12/09 — falta a tela, que espera CANVAS aprovado pela Ana, regra de
+06/09), medição da lentidão de renderização do ML
+(diagnóstico fechado por eliminação: nem servidor ~1s nem rede em brotli — é o
+cliente), e as levas Shopee e TikTok na mesma estrutura, canal a canal com
+aprovação dela.
 
 ---
 
@@ -283,85 +310,74 @@ código está pronto, mas `GET_SALES_AND_TRAFFIC_REPORT` responde **403**: exige
 **Brand Analytics**, que o app não tem e que **não aparece como caixa de seleção** —
 precisa ser pedido nominalmente em caso de suporte (candidatura travada; ver "Bloqueado").
 
-### 4. TikTok Shop: **app submetido**, conciliação real a concluir
+### 4. TikTok Shop: **cliente real conectado**, conciliação financeira travada
 
-*Verificado em 27/08.*
-
-| | |
-|---|---|
-| App público | `service_id` **7662688850348934932** · Public · Product Listing · Brasil / Local sellers |
-| App custom (o que sincroniza hoje) | `service_id` `7671696361289074452` · key `6kt9seens0iip` · **On** |
-| Loja | Crystal Fancy · `7494291387899806731` · BR · autorização **Unlimited (Extended)**, só cai se o vendedor desautorizar |
-| Escopos | `order.info`, `finance.info`, `product.basic`, `authorization.info` — Active |
-
-#### Submissão de 27/08 — o que foi enviado e o que esperar
-
-Launch request enviado com: URL do produto, conta de teste, instruções passo a passo e
-lista de features (as duas em inglês), 10 capturas, vídeo de walkthrough e o PDF de PRD.
-
-O console respondeu: *"Once the app review and listing review have been completed, the app
-will automatically go live... The process usually takes **10–12 business days**. We will
-notify you of the result by email (partner@email.tiktok.com)."*
-
-Estado do checklist logo após enviar:
-
-- ✅ Partner registration review · ✅ Data security and privacy review
-- 🟡 **App review** — em revisão
-- ⚪ **Listing review** — o ícone **não** virou "em revisão", apesar de a confirmação
-  dizer que os dois serão avaliados. Reconferir no console antes de afirmar que está na
-  fila.
-- App saiu de **Draft** para **Off**; sobe sozinho quando os dois passarem.
-
-⚠️ **Dois campos exigidos pelo formulário que não estavam previstos** e vão reaparecer em
-qualquer ressubmissão: o **PDF de PRD** ("Required Product Design") e a **senha da conta
-de teste**. E o uploader de capturas aceita **um arquivo por vez** — mandar dez de uma vez
-anexa só uma, em silêncio. Conferir a grade antes de submeter.
-
-#### Ledger de extratos — estado real do banco (27/08)
-
-O ledger destravou depois de duas causas raiz:
-
-1. **A cobertura era medida por janela nossa**, não pelo extrato: `checkpointsCoverPeriod`
-   devolve `false` para toda janela que termina hoje, então o dia corrente nunca fechava.
-2. **A fase do dashboard mandava no lucro.** `financial_backlog` conta pedidos sem extrato
-   da **conexão inteira, de qualquer data** — um pedido antigo derrubava um período já
-   conciliado. Lucro, margem e ROI passaram a ler a cobertura **do período**.
-
-Medido no banco da loja real em 27/08:
+*Medido em 20/09/2026. (Bloco da Batida; detalhe completo em
+`docs/tiktok-shop-integracao.md`, commit `81b5432`.)*
 
 | | |
 |---|---|
-| Transações liquidadas (não estimadas) | **54**, de 26/07 a 25/08 |
-| Transações estimadas (`unsettled`) | **69**, de 26/08 |
-| Pedidos de receita | **10.075**, dos quais **9.745 já marcados** com extrato |
-| Backlog a conciliar | **330** pedidos — convergindo, o cron marca a cada ciclo |
-| Checkpoints | `statements`, `statement_transactions` e `unsettled` com **0 erros** |
+| App público | `service_id` 7662688850348934932 · publicado no Service Market · **único caminho de autorização** |
+| Cliente real | loja conectada em 12/09 pelo botão, `app='publico'`, token renova até 26/09 |
+| Pedidos | 1.863, cobertura 01–20/09, sync `complete` |
+| Extrato liquidado | **0 linhas** — ledger travado desde a estreia |
+| App custom | sem conexão real; resta só a demo |
 
-🔴 **`payments` é a exceção: 1 janela com 18 erros e `completed_at` nulo.** É o recurso que
-alimenta "a liberar com data" no painel de saldo. Enquanto não fechar, a data de liberação
-vem só de onde a API já provou. **Investigar antes de dar a conciliação por concluída.**
+#### 🔴 O ledger não anda, e a causa é a colisão de duas regras certas
 
-#### Outros consertos da rodada
+```
+statements                  1 janela · 1 incompleta · 176 erros
+                            TIKTOK_FINANCIAL_ORDER_ASSOCIATION_UNRESOLVED
+statement_transactions:…    1 janela · 1 incompleta · 6 erros · UNKNOWN_ERROR
+unsettled                   completa — 59 linhas (estimadas)
+payments                    completa
+```
 
-- **Monitor voltou a responder** (500 → 200).
-- **Lucro/Margem/ROI** aparecem quando o extrato liquidado cobre o período; janela aberta,
-  valor estimado ou componente ausente mantêm o travessão.
-- **Conexão de demonstração saiu do cron** nos quatro canais — a loja sintética não vai
-  mais para a API real.
+A janela presa é **11/09 → 12/09**, o dia fechado anterior à conexão. Como a
+seleção de janela retoma sempre a incompleta mais antiga, o pipeline **não saiu
+dela** e não cobriu nenhum dia de 12 a 20/09.
 
-**PRÓXIMO PASSO:** rodar o procedimento autenticado e sem mutação de
-[`tiktok-qa-evidence.md`](./tiktok-qa-evidence.md), comparando origem, ledger e overview —
-distinguindo extrato liquidado de estimativa. Ponto a conferir: **`linhasOriginais` vs
-`itensAgrupados`** — o TikTok emite uma linha por unidade e `agruparItens` junta por
-`product_id::sku_id`; se a contagem não bater, "unidades vendidas por SKU" nasce errada.
+**A causa** (`tiktokFinancialLedger.ts:159`): `upsertLedger` recusa gravar
+transação cujo `order_id` não exista em `workspace_channel_orders` daquela
+conexão. A recusa está certa — dinheiro sem o pedido correspondente não entra.
+**Mas a regra de estreia só traz o mês vigente**, e o extrato de 11/09 liquida
+pedidos criados antes de 01/09, que a conexão não tem e nunca vai ter.
 
-**Pendência separada:** as categorias **Accounting** e **Order Management** foram
-**rejeitadas** por divergência de razão social. Ao reenviar, o campo de empresa precisa
-dizer exatamente `66.106.202 ANA BEATRIZ DE OLIVEIRA` — é empresário individual, a razão
-social é "CNPJ + nome da titular" e **não existe nome fantasia registrado** ("NEXAHUB" é
-nome de loja, não aparece em registro oficial).
+⚠️ **ATINGE TODO VENDEDOR NOVO**, e piora quanto mais tarde no mês ele conectar.
+Não é defeito de um cliente: é o encontro de duas decisões corretas que nunca
+tinham se cruzado, porque até 12/09 não existia conexão nascida pela regra de
+estreia.
 
-📌 Mesma lição para qualquer cadastro que peça razão social.
+**Decisão de produto pendente**, com três saídas de consequências diferentes:
+pular a linha órfã com diagnóstico (perde dinheiro de pedido antigo), gravar a
+transação com `order_id` nulo (mantém o valor, quebra a associação), ou alargar
+a janela do financeiro além da estreia (traz o pedido, custa chamada).
+
+#### Conexão: a porta é uma só
+
+Botão "Integrar" no NEXO → `/api/tiktok/login` → consentimento no app público
+→ callback. O **Service Market não é porta de entrada** (decisão de 11/09): a
+autorização iniciada lá chega sem o nosso `state` e não há como saber para qual
+workspace a loja vai — desde 12/09 esse caminho explica e manda voltar pelo
+botão, em vez do JSON cru que devolvia.
+
+Desde `2994e0d`, todo desfecho do callback tem **mensagem própria e registro**
+(marca `[tiktok-conexao]` no log, sem token nem PII). A de posse diz *"Loja já
+conectada ao NEXO. Desconecte-a na conta onde ela está antes de conectar aqui."*
+— sem revelar qual conta.
+
+#### Desligar o custom — o que falta
+
+A condição é uma **consulta**: nenhuma linha com `app='custom'`. Hoje resta uma,
+a demo. Ordem: (1) decidir o destino da demo — **pendente com a dona**;
+(2) as três `TIKTOK_APP_*` saem do Fly, passo dela; (3) o custom sai do código.
+⚠️ 2 nunca antes de 1: sem as credenciais, conexão ainda marcada `custom` para de
+assinar **e de renovar**.
+
+📌 A pendência de razão social dos cadastros (empresário individual: o campo diz
+exatamente `66.106.202 ANA BEATRIZ DE OLIVEIRA`, sem nome fantasia) migrou para
+`docs/tiktok-shop-integracao.md` — vale para qualquer cadastro que peça razão
+social.
 
 ### 5. Shopee: implementação local pronta; Live **BLOCKED**
 
