@@ -59,9 +59,12 @@ if (!process.env.TEST_DATABASE_URL) {
            FROM generate_series(1, 1001) g`,
         [WS, CONN],
       );
+      // ⚠️ TODAS as NOT NULL do schema real preenchidas de uma vez (a estreia
+      // no CI reprovou coluna a coluna: target_from, depois currency). O
+      // fee_type respeita o vocabulario canonico do CHECK da 0028.
       await dbQuery(
-        `INSERT INTO workspace_channel_order_fees (workspace_id, provider, connection_id, external_order_id, fee_type, amount)
-         SELECT $1, 'mercado_livre', $2, 'A-' || g, t.tipo, t.valor
+        `INSERT INTO workspace_channel_order_fees (workspace_id, provider, connection_id, external_order_id, fee_type, amount, currency)
+         SELECT $1, 'mercado_livre', $2, 'A-' || g, t.tipo, t.valor, 'BRL'
            FROM generate_series(1, 1001) g, (VALUES ('commission', 2::numeric), ('shipping_seller', 1::numeric)) AS t(tipo, valor)`,
         [WS, CONN],
       );
@@ -79,8 +82,8 @@ if (!process.env.TEST_DATABASE_URL) {
         [WS, CONN],
       );
       await dbQuery(
-        `INSERT INTO workspace_channel_order_fees (workspace_id, provider, connection_id, external_order_id, fee_type, amount)
-         VALUES ($1, 'mercado_livre', $2, 'MULTI', 'commission', 30), ($1, 'mercado_livre', $2, 'MULTI', 'shipping_seller', 0)`,
+        `INSERT INTO workspace_channel_order_fees (workspace_id, provider, connection_id, external_order_id, fee_type, amount, currency)
+         VALUES ($1, 'mercado_livre', $2, 'MULTI', 'commission', 30, 'BRL'), ($1, 'mercado_livre', $2, 'MULTI', 'shipping_seller', 0, 'BRL')`,
         [WS, CONN],
       );
       // 1 pedido do produto C SEM tarifa: so o C fica incompleto.
