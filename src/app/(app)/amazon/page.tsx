@@ -285,7 +285,7 @@ interface DashboardPayload {
 // recorte novo.
 //
 // A causa nao foi o cache: foi o que ficou FORA dele. Cinco fatias
-// (conciliacao, faturamento, pedidos feitos, canceladas e cobertura) eram
+// (faturamento, pedidos feitos, canceladas e cobertura) eram
 // estado solto, escrito so quando a resposta chegava. O que estava no snapshot
 // repintava do cache no primeiro quadro; o que estava fora esperava a rede — e
 // esperar mostrando o numero do periodo anterior e a mesma mentira que a gente
@@ -301,7 +301,6 @@ interface DashSnapshot {
   top: TopProduct[];
   profitability: ProfitabilityLine[];
   profitabilityScope?: ProfitabilityScope;
-  conciliacao: ConciliacaoData | null;
   faturamento: DashboardPayload["receitaValorizadaPeloBanco"] | null;
   pedidosFeitos: PedidosFeitosData | null;
   canceladas: CanceladasData | null;
@@ -309,7 +308,6 @@ interface DashSnapshot {
   updatedAt: Date;
 }
 
-type ConciliacaoData = { processedOrders: number; paidOrders: number; complete: boolean };
 type PedidosFeitosData = { revenue: number; orders: number; units: number; points: DailyPoint[] };
 type CanceladasData = { revenue: number | null; orders: number; ordersWithValue?: number; ordersEstimated?: number };
 type CoberturaData = {
@@ -454,10 +452,6 @@ function Dashboard() {
   const [salesBruto, setSales] = useState<SalesSeries | null>(initialDash?.sales ?? null);
   const [topBruto, setTop] = useState<TopProduct[]>(initialDash?.top ?? []);
   const [profitabilityBruto, setProfitability] = useState<ProfitabilityLine[]>(initialDash?.profitability ?? []);
-  // Cobertura da conciliação: quantos pedidos pagos já viraram linhas conciliadas.
-  // É o que permite à seção "Financeiro conciliado" DIZER que está parcial em vez
-  // de exibir um número menor que o faturamento sem explicação (20/08/2026).
-  const [conciliacaoBruta, setConciliacao] = useState<ConciliacaoData | null>(initialDash?.conciliacao ?? null);
   const [metricaV3, setMetricaV3] = useState("Faturamento");
   // Faturamento do período — o MESMO número que a central mostra. Antes o card
   // exibia a receita conciliada (subconjunto), e por isso três telas do produto
@@ -511,7 +505,6 @@ function Dashboard() {
   // quando e DESTE periodo; senao vem do cache; senao e null — que a tela sabe
   // exibir como "—" ou carregando. O que nao pode e sobrar o valor do recorte
   // anterior, e era exatamente isso que acontecia aqui.
-  const conciliacao = naMao ? conciliacaoBruta : cacheDoPeriodo?.conciliacao ?? null;
   const faturamento = naMao ? faturamentoBruto : cacheDoPeriodo?.faturamento ?? null;
   const pedidosFeitos = naMao ? pedidosFeitosBruto : cacheDoPeriodo?.pedidosFeitos ?? null;
   const cobertura = naMao ? coberturaBruta : cacheDoPeriodo?.cobertura ?? null;
@@ -542,7 +535,6 @@ function Dashboard() {
       top: cached?.top ?? [],
       profitability: cached?.profitability ?? [],
       profitabilityScope: cached?.profitabilityScope,
-      conciliacao: cached?.conciliacao ?? null,
       faturamento: cached?.faturamento ?? null,
       pedidosFeitos: cached?.pedidosFeitos ?? null,
       canceladas: cached?.canceladas ?? null,
@@ -657,7 +649,6 @@ function Dashboard() {
       // Escrever nas DUAS pontas — estado e `next` — e o que faltava: sem o
       // `next`, estas cinco nunca chegavam ao cache e a volta ao periodo ja
       // visto pagava a ida inteira mostrando o recorte anterior.
-      next.conciliacao = payload.profit.coverage ?? null; setConciliacao(next.conciliacao);
       next.faturamento = payload.receitaValorizadaPeloBanco ?? null; setFaturamento(next.faturamento);
       next.pedidosFeitos = payload.ordered ?? null; setPedidosFeitos(next.pedidosFeitos);
       next.canceladas = payload.cancelled ?? null;
@@ -1055,12 +1046,15 @@ function Dashboard() {
   const dadosV3: DadosV3 = {
     periodoLabel: period.label,
     identidadeDoPeriodo: cobertura ? identidadeDePeriodo(cobertura.periodo.from, cobertura.periodo.to) : undefined,
-    resumoApuracao:
-      !conciliacao || conciliacao.paidOrders === 0
-        ? ""
-        : conciliacao.complete
-          ? `${conciliacao.paidOrders} pedidos apurados`
-          : `faltam apurar ${Math.max(0, conciliacao.paidOrders - conciliacao.processedOrders)} de ${conciliacao.paidOrders} pedidos`,
+    // ⚠️ SEM LEGENDA DE APURAÇÃO NA AMAZON (20/09/2026, ordem dela: "não vai
+    // existir X conciliados, tem que mostrar todos, pode apagar essa legenda").
+    // O card de Lucro/Margem JÁ é sobre o faturamento inteiro desde 31/08 (ver
+    // baseDoLucro em amazonFinancialCards.ts) — o "apurado/conciliado" só
+    // sobrevivia neste texto, contando um subconjunto que a conta não usa.
+    // Mantida vazia SÓ para a Amazon; ML/Shopee/TikTok seguem com a peça
+    // compartilhada porque lá as bases ainda diferem de verdade (AGENTS.md:
+    // não assumir regra de um canal como global).
+    resumoApuracao: "",
     colunas: colunasDoPeriodoAmazon(faixaDaAmazon),
     margem: margemDoPeriodoAmazon(faixaDaAmazon),
     notaDoImposto: null,

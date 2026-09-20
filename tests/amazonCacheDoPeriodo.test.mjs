@@ -55,7 +55,14 @@ test("as fatias que escaparam sao derivadas no render, nao lidas cruas", () => {
   // ela volta A ESTA LISTA no mesmo commit. Fatia sem leitor na tela nao tem o
   // defeito de 28/08 — ninguem ve valor do recorte anterior de um numero que
   // nao aparece.
-  const brutoDe = { conciliacao: "conciliacaoBruta", faturamento: "faturamentoBruto",
+  // ⚠️ `conciliacao` SAIU DESTA LISTA em 20/09/2026 — e nao so da leitura, como
+  // `canceladas`: a FATIA INTEIRA foi removida (estado, snapshot e derivada). A
+  // unica leitora dela era a legenda "N pedidos apurados" da faixa, abolida por
+  // ordem dela ("nao vai existir X conciliados, tem que mostrar todos"). Sem
+  // leitor nenhum, manter a fatia era so plumbing morta. Se a legenda voltar, a
+  // fatia volta A ESTA LISTA no mesmo commit — e `tests/amazonSemLegendaApurado`
+  // reprova o retorno da legenda.
+  const brutoDe = { faturamento: "faturamentoBruto",
     pedidosFeitos: "pedidosFeitosBruto", cobertura: "coberturaBruta" };
   for (const [fatia, bruto] of Object.entries(brutoDe)) {
     const esperado = `const ${fatia} = naMao ? ${bruto} : cacheDoPeriodo?.${fatia} ?? null;`;
