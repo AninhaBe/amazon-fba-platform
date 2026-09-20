@@ -1,12 +1,22 @@
 # Plano: Integração TikTok Shop
 
-> **Status (07/08/2026):** app **existe** no Partner Center (app "sellercore",
-> key `6kl9m4ajdcvpm`) e a **revisão de Data Security & Privacy (DSPR) foi
-> APROVADA** em 07/08 — era o que travava desde 04/08. O código da integração
-> ainda **não foi escrito**; o que existe é o esqueleto de OAuth (ver "Estado do
-> código" abaixo).
+> **Status (20/09/2026):** o app **público** está publicado no Service Market e é
+> o **único** caminho de autorização. **Existe cliente real conectado por ele**
+> — a primeira loja entrou em 12/09/2026 e sincroniza pedidos normalmente
+> (1.863 pedidos, cobertura 01–20/09, último ciclo há minutos).
 >
-> Registrado em 2026-07-15, atualizado em 07/08/2026.
+> ⚠️ **A conciliação financeira desse cliente NUNCA rodou.** Medido em
+> 20/09/2026: o ledger está travado na primeira janela desde a estreia, oito
+> dias, por `TIKTOK_FINANCIAL_ORDER_ASSOCIATION_UNRESOLVED` — a colisão entre a
+> regra de estreia (só o mês vigente) e a recusa de gravar transação de pedido
+> que não temos. **Atinge todo vendedor novo, não é caso isolado.** Ver o
+> changelog de 20/09.
+>
+> ⚠️ **Não há mais migração custom→público.** A loja que usava o app custom era
+> **sonda** (serviu para medir o que a API entrega) e saiu do banco em 12/09.
+> Resta o custom apenas na conexão de demonstração — ver "Desligar o custom".
+>
+> Registrado em 2026-07-15, atualizado em 20/09/2026.
 > Relacionado: [`estado-atual.md`](./estado-atual.md), [`arquitetura-plano.md`](./arquitetura-plano.md).
 
 ## Por que priorizar (vs. Shopee)
@@ -103,7 +113,67 @@ Mesma arquitetura já existente:
 **Falta para o primeiro dado real:** o vendedor autorizar a loja (gera o
 `auth_code`). Depois disso: mapear **pedidos + financeiro** para os shapes comuns.
 
-## Próximo passo
+## O caminho de entrada de um vendedor (20/09/2026)
+
+**Só existe uma porta: o botão "Integrar" dentro do NEXO.**
+
+```
+/integracoes  →  GET /api/tiktok/login   (exige sessão; gera state; grava cookie)
+              →  consentimento na TikTok (app PÚBLICO)
+              →  GET /api/tiktok/callback?code=…&state=…
+              →  troca o auth_code  →  lista as lojas  →  grava app='publico'
+              →  sync imediato (estreia = mês vigente)
+```
+
+| ponto | regra | onde |
+|---|---|---|
+| qual app autoriza | **sempre o público**; não existe mais "padrão" | `APP_DA_AUTORIZACAO` |
+| público não configurado | **recusa** (503), nunca cai no custom | `appDaAutorizacao()` |
+| como ler linha antiga | `custom` — é a verdade de quem nasceu antes da 0033 | `APP_DE_LINHA_ANTIGA` |
+| cartão habilitado na tela | depende das três `TIKTOK_PUBLIC_*` | `tiktokConfigured()` |
+
+⚠️ **O Service Market NÃO é porta de entrada** (decisão de produto, 11/09/2026).
+Uma instalação iniciada lá chega ao callback **sem o nosso `state`**, e sem ele
+não há como saber para qual workspace a loja vai. Desde 12/09 esse caminho é
+reconhecido e responde *"comece pelo botão Integrar aqui no NEXO"* em vez do
+JSON cru que devolvia antes; o `auth_code` é **descartado sem uso** (trocá-lo
+seria vetor de CSRF).
+
+### Os desfechos do callback, e o que cada um diz
+
+Todos são registrados no log com a marca `[tiktok-conexao]`
+(`tiktokConexaoTentativa.ts`) — sem token, sem PII, workspace abreviado.
+
+| desfecho | o que o vendedor vê |
+|---|---|
+| `conectada` | volta para `/integracoes?connected=tiktok_shop` |
+| `loja_de_outra_conta` | *"Loja já conectada ao NEXO. Desconecte-a na conta onde ela está antes de conectar aqui."* — **sem dizer qual conta** |
+| `sem_lojas` | *"A TikTok confirmou a autorização, mas ainda não liberou a loja…"* (após 3 tentativas com 1,5s) |
+| `sem_state` | manda voltar pelo botão |
+| `state_invalido`, `codigo_ausente`, `recusado_na_tiktok`, `erro` | mensagem específica de cada caso |
+
+## Desligar o custom — o que falta
+
+A condição é uma **consulta**, não uma lembrança: o custom sai quando não houver
+nenhuma linha com `app = 'custom'` em `workspace_tiktok_shops`.
+
+Estado em 20/09/2026: **resta uma linha — a conexão de demonstração**
+(`Loja Demo TikTok`). A loja-sonda saiu do banco em 12/09.
+
+1. decidir o que fazer com a demo — migrar para `publico`, marcá-la como interna
+   e excluí-la da condição, ou aposentá-la. **Pendente com a dona do produto**;
+2. `TIKTOK_APP_KEY`, `TIKTOK_APP_SECRET` e `TIKTOK_SERVICE_ID` saem do Fly —
+   **passo dela**. Sem trava técnica: nenhuma conexão real depende mais deles;
+3. o custom sai do código: `tiktokApps.ts` colapsa, o parâmetro `app` fica com um
+   valor só e morre junto, e os dois scripts que exigem as variáveis antigas
+   (`scripts/tiktok-qa-evidence.mjs`, `scripts/tiktok-reprocess-real.mjs`)
+   passam a apontar para o público.
+
+⚠️ **2 nunca antes de 1.** Sem as credenciais do custom, qualquer conexão ainda
+marcada `custom` para de assinar **e de renovar** — vira uma linha que erra a
+cada ciclo, para sempre.
+
+## Próximo passo (histórico — 07/08/2026)
 
 **DSPR aprovada em 07/08/2026.** Checklist **lido no console em 07/08**
 (`partner.tiktokshop.com/service/gather?service_id=7662688850348934932`), não
@@ -455,9 +525,205 @@ arbitrariamente. A migration `0005_workspace_financial_ledger.sql` também não
 foi aplicada neste ambiente. O runtime falha fechado apenas nas superfícies que
 dependem do ledger e mantém vendas/catálogo disponíveis, sem inventar zeros.
 
+## Tipos de transação do extrato — o que entra em cada conta
+
+**Estado: reembolso da plataforma DECIDIDO; a tabela dos demais tipos aguarda o
+OK da dona do produto (levada em 11/09/2026).**
+
+### O que está decidido
+
+`PLATFORM_REIMBURSEMENT` entra como **reembolso/ajuste — dinheiro que ENTRA,
+nunca como receita de venda**. Mesma doutrina do vizinho
+`LOGISTICS_REIMBURSEMENT`.
+
+⚠️ **Com uma diferença que só o payload real revelou:** o vizinho lê o crédito de
+`revenue_amount`; aqui `revenue_amount` veio **0** e o dinheiro estava em
+`settlement_amount`. Espelhar o vizinho ao pé da letra gravaria `adjustment = 0`
+e **perderia o valor** — sem erro, sem vermelho, só faltando. É `null ≠ 0` com o
+sinal trocado: zero gravado como se fosse fato, quando o fato estava noutro
+campo.
+
+**O caso medido (29/08/2026):** coqueteleira de R$ 22,90, pedido de 23/08, item
+marcado *"Item com defeito"*; a TikTok creditou **+R$ 7,90** em 29/08.
+Documentação oficial do campo `type`:
+
+> *"PLATFORM_REIMBURSEMENT: Reimbursement paid by TikTok Shop for an order
+> refunded under TikTok's refund without return policy (the seller is not
+> responsible)."*
+
+📌 Três coisas medidas que **não** sabemos explicar, registradas em vez de
+preenchidas: por que R$ 7,90 e não R$ 22,90 (a doc não diz como o valor é
+calculado); que o pedido continua `COMPLETED` **sem sinal de reembolso** — quem
+olha só a lista de pedidos **superestima o que entrou**; e que é **uma** amostra.
+
+### O princípio que a tabela aplica
+
+**A documentação decide o BALDE; o dado decide o SINAL.** O valor e o sinal saem
+de `settlement_amount` medido, nunca da nossa expectativa — assim, errar a coluna
+"direção esperada" não corrompe número, só aparece numa conferência.
+
+### Por que o fail-closed é permanente, e não um remendo
+
+O campo `type` **não tem `enum` na especificação**: é `"type": "string"` com uma
+descrição em prosa. Dos 28 códigos citados, **23 parecem enum e 5 não são** —
+vêm como frase, com parênteses de largura dupla (`Violation fee （settlement
+fee）`), e são justamente os ligados a **saldo negativo e multa**.
+
+Ou seja: a lista não é contrato de máquina e **nada garante que seja exaustiva**.
+Tipo novo vai aparecer de novo. O que muda com a correção proposta é que a recusa
+passa a **dizer o que era**, em vez de parar em silêncio — como parou por 11 dias
+em 30/08 (ver o changelog de 11/09).
+
+⚠️ Os 5 não-enum ficam **fora** da lista fechada até um aparecer de verdade:
+adivinhar a forma de um lançamento de multa é errar dinheiro que o vendedor deve.
+
 ## Fontes
 
 ## Changelog observado
+
+- **20/09/2026 — 🔴 A CONCILIAÇÃO DO PRIMEIRO CLIENTE REAL NUNCA RODOU, E A CAUSA
+  É A COLISÃO DE DUAS REGRAS CERTAS.** Medido no banco enquanto eu punha este doc
+  em dia — ou seja, ninguém tinha percebido em oito dias.
+
+  | recurso | janelas | incompletas | erros | código |
+  |---|---|---|---|---|
+  | `statements` | 1 | **1** | **176** | `TIKTOK_FINANCIAL_ORDER_ASSOCIATION_UNRESOLVED` |
+  | `statement_transactions:7683…` | 1 | 1 | 6 | `UNKNOWN_ERROR` |
+  | `unsettled` | 1 | 0 | 0 | — 59 linhas gravadas |
+  | `payments` | 1 | 0 | 0 | — |
+
+  A janela travada é **11/09 → 12/09**: o dia fechado anterior à conexão. Ela
+  nunca completou, e pelo desenho da seleção de janela (a mais antiga incompleta
+  primeiro) **o pipeline está preso nela desde a estreia** — não cobriu nenhum
+  dia de 12 a 20/09. As 59 transações que existem vieram todas de `unsettled`
+  (estimadas); de extrato liquidado, **zero**.
+
+  **A causa, lida no código (`tiktokFinancialLedger.ts:159`):** `upsertLedger`
+  recusa gravar transação cujo `order_id` não exista em
+  `workspace_channel_orders` daquela conexão. A recusa está certa — dinheiro sem
+  o pedido correspondente não entra.
+
+  📌 **Mas a regra de estreia só traz o MÊS VIGENTE.** O extrato de 11/09 liquida
+  pedidos criados dias ou semanas antes — muitos anteriores a 01/09, que esta
+  conexão **não tem e nunca vai ter**. Toda transação assim derruba a janela
+  inteira.
+
+  ⚠️ **ISSO ATINGE TODO VENDEDOR NOVO, e piora quanto mais tarde no mês ele
+  conectar.** Não é o caso de um cliente: é o encontro de duas decisões corretas
+  que nunca tinham se cruzado, porque até 12/09 não existia conexão nascida pela
+  regra de estreia. É a família de *"replicar a garantia, não o mecanismo"* vista
+  por dentro: cada regra protege o que promete, e o par produz um terceiro
+  comportamento que ninguém escolheu.
+
+  **Não consertei** — o desenho é decisão de produto e tem pelo menos três
+  saídas com consequências diferentes: pular a linha órfã com diagnóstico (perde
+  dinheiro de pedido antigo, em silêncio se não for registrado), gravar a
+  transação com `order_id` nulo (mantém o valor e quebra a associação), ou
+  alargar a janela do financeiro para além da estreia (traz o pedido e custa
+  chamada). Levado à dona do produto.
+
+  📌 E a lição de método: isto apareceu porque **documentar exigiu medir**. O
+  texto teria ficado "cliente conectado, tudo certo" — que era verdade para
+  pedidos e falso para dinheiro.
+
+- **12/09/2026 — ✅ O PRIMEIRO VENDEDOR REAL CONECTOU PELO APP PÚBLICO, e a prova
+  que a frente perseguia desde agosto finalmente existe.** Loja `Crystal Fancy`
+  no workspace do vendedor, `app='publico'`, conectada 02:51 UTC. A estreia puxou
+  o mês vigente exato: **1.395 pedidos de 01 a 12/09** (hoje, 1.863, cobertura
+  01–20/09).
+
+  📌 **O que isso prova e o que as etapas anteriores não provavam:** que o par do
+  público **assina**. A etapa 1 validou as três variáveis dentro do processo e o
+  convite respondendo `app: "publico"` — montagem de URL. Mil e trezentos pedidos
+  sincronizados exigem chamadas de negócio assinadas. *Validação de credencial
+  que não assina nada não prova que a credencial assina* — agora ela assinou.
+
+  **⚠️ E ele só conseguiu na quinta tentativa.** As quatro primeiras falharam, e
+  o diagnóstico está registrado abaixo porque a forma da falha vale mais que a
+  falha.
+
+  **O que acontecia:** a loja já pertencia a OUTRO workspace do NEXO (a conexão
+  da sonda, de 10/08). `assertGlobalTiktokShopOwnership` é fail-closed — uma loja
+  pertence a um workspace — e recusou as quatro vezes, **deterministicamente**.
+  O sistema agiu certo. A tela é que dizia apenas *"Não foi possível operar esta
+  loja TikTok."*, sem causa e sem próximo passo.
+
+  **Como o diagnóstico foi feito, e o que ele custou:** os logs do Fly **não têm
+  linha por requisição**, então "o callback chegou a ser chamado?" não tinha
+  resposta direta. A única pista durável veio do contador de chamadas criado
+  para o alerta da Shopee de 29/08: `/authorization/202309/shops`, 4 chamadas,
+  **0 erros** — e esse endpoint tem **um único chamador no repo**, o callback.
+  Logo ele rodou, trocou o `auth_code` e assinou, quatro vezes. O que faltava era
+  a gravação.
+
+  ⚠️ **Duas hipóteses foram derrubadas por medição antes de virarem trabalho:**
+  *propagação* (a 4ª tentativa foi posterior ao e-mail de subscription do
+  Partner Center e falhou igual — o que repete idêntico é determinístico) e
+  *"copiaram o service_id do custom na variável do público"* (os digests das seis
+  secrets no Fly são distintos, e digest compara sem revelar valor).
+
+  📌 E um **quase-falso-alarme** que vale registrar: uma sonda local devolveu
+  HTTP 401 `36009005` *"access_token header is invalid"*, que o nosso
+  classificador traduz para **"a autorização expirou ou foi revogada. Reconecte
+  a loja."** — na véspera de uma reautorização. Não era a loja: era o token
+  lido **cifrado** do banco (`enc:v1:`) e passado cru, sem `revealSecret`.
+  Produção sincronizava normalmente 8 minutos antes. Fica a dívida: esse
+  classificador manda a vendedora reconectar por defeito nosso.
+
+  **A correção sistemática (`2994e0d`), por ordem da dona do produto — causa raiz,
+  não contorno, porque *"ficaria inviável passar instrução manual para 50–70
+  pessoas"*:**
+
+  1. **registro de tentativa** (`tiktokConexaoTentativa.ts`): oito desfechos
+     nomeados, todos registrados, sem token nem PII, workspace abreviado;
+  2. **mensagem por desfecho**, incluindo a de posse — *"Loja já conectada ao
+     NEXO. Desconecte-a na conta onde ela está antes de conectar aqui."* —
+     **sem revelar qual conta** (ler entre inquilinos pode, devolver
+     identificador não);
+  3. **porta da App Store** reconhecida antes de exigir sessão. Era pior do que
+     parecia: quem chegava de lá recebia **JSON cru** (`{"error":"Faça login
+     para continuar."}`) depois de concluir o consentimento;
+  4. **retry curto** (3 tentativas, 1,5s) só para lista vazia — erro não é
+     retentado, e nenhum token órfão é guardado.
+
+  ⚠️ **Uma guarda nova passou VERDE na primeira quebra**, e o achado vale mais
+  que a correção: `assert.ok(linha.startsWith(MARCA_DA_TENTATIVA))` lê certo em
+  voz alta e não prova nada — esvaziando a constante, toda string começa com
+  `""`. **A guarda usava a própria constante como gabarito de si mesma.** É
+  *"casar o nome não prova a origem"* na forma de **circularidade**, e só
+  apareceu ao rodar a quebra. Ancorada no literal.
+
+  **A sonda saiu do banco no mesmo dia**, por ordem da dona: a linha da loja, a
+  linha de sync (o vigia lê `workspace_marketplace_syncs` **sem join** com a
+  tabela de lojas — apagar só a loja deixaria uma linha órfã envelhecendo para
+  sempre) e, em seguida, os 52.629 registros do canal naquele workspace, para
+  que a estreia fosse testada sem resto de dado antigo. Tudo com contagem exata
+  medida antes e guarda de rollback; os outros canais dela e os custos
+  cadastrados ficaram intactos.
+
+- **11/09/2026 — 🔁 O MODELO MUDOU: NÃO HÁ MIGRAÇÃO, HÁ UM APP SÓ.** Decisão da
+  dona do produto, verbatim: *"pode desligar o custom do tiktok, vamos usar a
+  aplicacao do tiktok que foi aprovada (public)"*. A loja que estava no custom
+  era **sonda** — serviu para medir o que a API entrega, nunca foi produção.
+
+  Consequência em código (`fc59f97`): a autorização passou a ser sempre pelo
+  público, a ausência das credenciais virou **recusa** (nunca fallback), e
+  `tiktokConfigured()` passou a responder pelo público — é ela que habilita o
+  cartão na tela.
+
+  ⚠️ **E a armadilha que isso revelou:** `APP_PADRAO = "custom"` guardava **dois
+  significados** que coincidiam até a véspera — *qual app autoriza* e *como ler
+  linha gravada sem app*. Com o modelo novo eles ficaram **opostos**. Trocar a
+  constante para `"publico"` — a leitura ingênua de "o público é o único app" —
+  quebraria a conexão já gravada em silêncio, no refresh seguinte. Viraram duas:
+  `APP_DA_AUTORIZACAO` e `APP_DE_LINHA_ANTIGA`. É a família da **coluna que dois
+  escritores tocam**, na forma de constante.
+
+  📌 No mesmo dia, o campo `app` deixou de ser opcional em `TiktokShopRef`
+  (`1eafda6`): ser opcional foi exatamente o que deixou dois sítios esquecerem-no
+  sem o `tsc` reclamar — um deles o **scheduler financeiro, que roda a cada
+  ciclo**. Custo medido: 5 erros de compilação, zero colateral. Guarda por grep
+  virou segunda linha; a primeira é o compilador.
 
 - **11/09/2026 — 🚦 O APP PÚBLICO FOI PUBLICADO, E A ETAPA 2 ACHOU UM BLOQUEIO QUE
   A ETAPA 1 NÃO PODIA TER VISTO.** O e-mail do Go Live Review chegou (serviço NEXO
