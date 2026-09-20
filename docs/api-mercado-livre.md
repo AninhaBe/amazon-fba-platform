@@ -237,6 +237,31 @@ também cobre o pendente.
 
 ## Changelog observado (mais recente primeiro)
 
+- **13/09/2026 — O overview do dashboard virou PRÉVIA, e a apuração por produto
+  saiu do teto de 1000 — três mudanças nossas (não da API do ML), registradas
+  aqui porque mudam o que a rota devolve:**
+
+  1. **`view=dashboard` (e `estoque`) recebem `profitabilityLines` com 5
+     linhas** — as 5 primeiras da ordenação (`occurred_at DESC,
+     external_order_id, line_no`); `view=monitor` segue com a lista inteira
+     (teto de 1000). Medição da tela: 567 KB dos 595 KB do payload eram lista
+     que o dashboard não renderizava. `profitabilityScope` continua descrevendo
+     o CONJUNTO INTEIRO (COUNT com a mesma forma da consulta completa) — a
+     frase "Exibindo os N mais recentes" não mente. Diff ao centavo provado em
+     todas as conexões antes de subir (`scripts/_diff-previa-overview-ml.mjs`).
+  2. **Contribuição e margem do Top 8 agregam em SQL sobre TODOS os pedidos do
+     período** (`4171d34`) — a conta que rodava em memória sobre as 1000 linhas
+     detalhadas quebrava acima do teto (medido: 1240 pedidos/7d, 5388/30d → Top
+     inteiro sem margem). O rateio de tarifa/frete usa janela POR PEDIDO
+     (denominador vê o pedido inteiro) e a forma da consulta foi escolhida por
+     EXPLAIN ANALYZE: LATERAL por pedido = 53k buffers/187 ms no 30d, contra
+     100k da forma join-agregado (o planner varria as 81.697 linhas de tarifa
+     da conexão inteira).
+  3. **`Server-Timing: total;dur=` medido em produção** (13/09): 345 ms no 30d,
+     254 ms no 7d, payload em brotli (31,6 KB na rede no 30d). Serviu para
+     fechar o diagnóstico de lentidão: nem servidor nem rede — era o cliente
+     renderizando 1240 linhas.
+
 - **2026-09-07 (noite) — A JANELA DE CONVIVÊNCIA DO WEBHOOK MORREU, com prova.**
   Medido nos logs do Fly: 33 pushes `aceito COM token`, zero `SEM token`. A
   partir daqui, requisição sem token válido é 404 — e env ausente também.

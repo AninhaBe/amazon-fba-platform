@@ -177,6 +177,17 @@ Mesma convenção dos docs da Amazon e do ML: mudanças de comportamento da API 
 na prática entram aqui, com data. Enquanto o canal não for implementado, a lista fica
 vazia — ao implementar, re-validar tudo marcado com ⚠️ e registrar o que divergir.
 
+- **07/09/2026 — O push tinha um ORÁCULO DE ENUMERAÇÃO, corrigido em `b1c592a`.**
+  A resposta do `/api/webhooks/shopee` devolvia `queued: novos.length` — zero
+  para `shop_id` desconhecido, maior que zero para conhecido: bastava variar o
+  id até a resposta mudar para descobrir quais lojas usam o NEXO. A assinatura
+  HMAC não fechava isso (prova que o remetente tem a chave da plataforma, não
+  que pode saber quem é nosso cliente). A resposta virou `{ received: true }`
+  idêntica para os dois casos, com guarda em `tests/pushDaShopee.test.mjs`.
+  📌 Mesmo defeito e mesma correção do webhook do ML na auditoria de superfície
+  de 07/09 — um foi corrigido de manhã e o irmão seguia igual à tarde, porque
+  ninguém tinha ido procurá-lo.
+
 - **2026-09-04 — 🟢 PONTO SEGURO NOVO: `f50e3b9` (v270).** Validado pela dona do
   produto, verbatim: *"valores batendo"*. Substitui o `95ad8e9`, que continua no
   histórico logo abaixo.

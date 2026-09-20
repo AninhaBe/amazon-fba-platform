@@ -244,6 +244,32 @@ Amazon*. Se o papel for concedido, o caminho é `transportationOptions` da 2024-
 
 ## Changelog observado (mais recente primeiro)
 
+- **13/09/2026 — Solicitations API validada em PRODUÇÃO, unitário e em massa.**
+  A frente "Solicitar avaliação" rodou de ponta a ponta na conta real
+  (`AO62LVXJMX3AA`), com 10 envios reais (1 no teste unitário + 9 no lote do
+  kit de clips). O que a API faz DE VERDADE, medido:
+
+  - **A janela de elegibilidade é pós-ENTREGA, não pós-pedido.** Pedidos de
+    15/08 (29 dias após o pedido) ainda aceitavam a solicitação. Quem decide é
+    `GET /solicitations/v1/orders/{id}?marketplaceIds=` — a data de entrega não
+    existe no nosso canônico, e não precisa: a lista de `_links.actions` da
+    própria API é a autoridade.
+  - **O aceite do envio é um corpo VAZIO (`{}`)** no
+    `POST .../solicitations/productReviewAndSellerFeedback`. Não vem id, não
+    vem recibo — a prova de aceite é a RELEITURA: depois do envio a ação
+    **some** da lista de actions do pedido.
+  - **"Já solicitada" e "fora da janela" são o MESMO silêncio.** A API não
+    lista histórico nem diz o motivo da ausência da ação (pode ser cedo demais,
+    tarde demais, opt-out do comprador, devolução ou envio prévio). Só o NOSSO
+    registro distingue — é a razão de existir da `migrations/0034`
+    (`workspace_review_solicitations`, escrita e ainda não aplicada).
+  - **A única "recusa" observada é o silêncio** — em 12 conferências + 10
+    envios, zero erros HTTP de negócio.
+  - **Rate limit declarado de ~1/s NÃO mordeu**: 22 chamadas espaçadas em 1,3 s
+    passaram limpas (zero 429). Lote de 11 pedidos = 35,8 s. Na escala da conta
+    (5–10 vendas/dia), automação diária é um lote de segundos.
+  - Não há endpoint de lote — é um POST por pedido.
+
 - **07/09/2026 — Dois endpoints dão a mesma resposta com 100× de diferença de
   velocidade. Medir o errado custou meio dia de trabalho.** Para separar oferta
   FBA de oferta do vendedor (a pergunta "é Prime?"), existem dois caminhos:
