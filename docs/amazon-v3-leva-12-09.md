@@ -99,10 +99,38 @@ guarda **não** casar: ela ficou verde com o defeito dentro. Consertada
 normalizando o fonte antes de procurar (tira string, template, espaço, parênteses e
 `?? 0`) e re-quebrada até ficar vermelha.
 
+## O que aconteceu depois — fechado em 13/09/2026
+
+Esta leva entregou o **esqueleto**; o canal fechou no dia seguinte, e o que veio
+depois está aqui para o doc não parar num estado que já não existe:
+
+- **A tela ganhou o que faltava do desenho do ML**: "Anúncios pagos", o radar de
+  estoque (**Radar do FBA**) e a etapa "Cai na conta" na forma compacta do ML
+  (`4b434ed`, `e616f66`, `63daf3a`). O fundo do dashboard passou a ser a MESMA
+  peça do ML, e dois `Panel` brancos e o saldo solto saíram.
+- **O canal inteiro entrou no esqueleto** (`8ea1992`): monitor, radar de estoque
+  e anúncios. `/amazon/produtos` e `/amazon/catalogo` passaram a **redirecionar**
+  para `/amazon/anuncios`, que virou a casa do catálogo e do custo por SKU —
+  mesma arrumação do Mercado Livre.
+- **A palavra do canal virou contrato** (`src/lib/canalV3.ts`, `eabd5a6`): a peça
+  compartilhada dizia "Tarifa ML" na tela da Amazon, depois "Radar do FULL", e
+  depois "Produto no FULL" dentro do "Radar do FBA" — três vezes a mesma família
+  em dois dias. Campos **obrigatórios**, para o compilador apontar o segundo
+  sítio em vez de alguém lembrar. Um dos campos não é palavra: `anuncioNoLucro`
+  decide uma *afirmação* sobre o dinheiro dela.
+- **A prévia de Pedidos virou 5 linhas cortadas no servidor** (`17f97dd`), e a
+  janela do ritmo passou a ser buscada uma vez só (`a2dca98`): o payload do
+  dashboard caiu de **595 KB para ~28 KB** na conta de volume real.
+
 ## O que fica aberto
 
-- **Bloco de repasse do período** ("A Amazon vai descontar R$ X no próximo
-  fechamento", `cobrancasFechadas`) — adição pedida por ela, ainda não construída.
-  `null` continua não sendo zero.
+- **A cobrança que fecha devendo** ("A Amazon vai descontar R$ X no próximo
+  fechamento"). O dado **existe** desde `69fb42f` — `cobrancasFechadas`, em
+  `src/lib/amazonBalance.ts`, com casa própria para não se passar por
+  transferência —, mas **nenhuma tela o lê**. É front, é meu, e espera o canvas
+  dela: o lugar natural é dentro da etapa "Cai na conta", que hoje só fala do
+  que ENTRA. `null` continua não sendo zero.
+- **A seta de tendência do faturamento** e os cinco removidos da tabela acima
+  seguem fora, aguardando o veto barato dela.
 - **Shopee e TikTok** — as próximas levas. Replicar é reimplementar com a API de
   cada canal: o que aquele canal entrega, e quando, decide a forma.
