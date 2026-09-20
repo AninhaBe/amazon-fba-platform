@@ -68,9 +68,14 @@ export function normalizeAmazonOrderHeader(order: OrderSummary): CanonicalOrder 
 
 export interface NormalizedAmazonItems {
   items: CanonicalOrderItem[];
-  /** Receita dos produtos (ItemPrice − promoções), sem frete do comprador. */
-  gross: number;
-  buyerShipping: number;
+  /**
+   * Receita dos produtos (ItemPrice − promoções), sem frete do comprador.
+   *
+   * `null` = NENHUMA linha veio com `ItemPrice` — o pedido ainda está `Pending`
+   * e a Amazon não expôs dinheiro nenhum. Não é zero: ver o retorno da função.
+   */
+  gross: number | null;
+  buyerShipping: number | null;
   currency: string | null;
 }
 
@@ -136,9 +141,11 @@ export function normalizeAmazonOrderItems(orderItems: AmazonOrderItem[]): Normal
   let gross = 0;
   let buyerShipping = 0;
   let currency: string | null = null;
+  let algumaLinhaComPreco = false;
   for (const item of orderItems) {
     const qty = item.QuantityOrdered ?? 0;
     if (qty <= 0) continue;
+    if (item.ItemPrice?.Amount !== undefined) algumaLinhaComPreco = true;
     const revenue = Math.max(0, moneyOf(item.ItemPrice) - moneyOf(item.PromotionDiscount));
     currency = currency ?? item.ItemPrice?.CurrencyCode ?? null;
     gross += revenue;
@@ -174,5 +181,15 @@ export function normalizeAmazonOrderItems(orderItems: AmazonOrderItem[]): Normal
       promotionIds: item.PromotionIds?.length ? item.PromotionIds.join(",") : null,
     });
   }
+  // ⚠️ SEM PREÇO EM LINHA NENHUMA, O TOTAL É DESCONHECIDO — NÃO ZERO.
+  //
+  // É a mesma regra do `unitPrice` acima, que já estava certa; o total do pedido
+  // tinha ficado para trás. Medido em 20/09/2026, conta A15NQMF7A6J1Y0: os itens
+  // são conciliados com o pedido ainda `Pending`, a soma caía em 0 e o 0,00 era
+  // gravado em `gross`. Como o pedido já tinha linhas, o header do envio não
+  // sobrescrevia e ninguém re-buscava os itens: 46 de 49 pedidos ENVIADOS de
+  // 19/09 valiam R$ 0,00 no banco, com `OrderTotal` de R$ 10,00 a R$ 24,90 na
+  // Amazon — ~97% dos enviados desde 31/08.
+  if (!algumaLinhaComPreco) return { items, gross: null, buyerShipping: null, currency };
   return { items, gross: round2(gross), buyerShipping: round2(buyerShipping), currency };
 }

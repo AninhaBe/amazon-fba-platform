@@ -65,6 +65,8 @@ const PAGE_SIZE = 100;
 // getOrderItems (0,5 req/s, burst 30) — 40 por passo continua com folga porque
 // os passos se espaçam pelo cron.
 const ITEM_BATCH_SIZE = 40;
+/** Até quantos dias atrás o ciclo re-busca itens que ficaram sem preço (ver syncMissingOrderItems). */
+const REPRECIFICAR_DIAS = 60;
 // Uma única chamada à Transactions API cobre a janela inteira, então dá para
 // reconciliar muitos pedidos por passada.
 const FEES_BATCH_SIZE = 500;
@@ -245,22 +247,54 @@ export function registrarDesistencia(etapa: string, erro: unknown, contexto: Rec
  * não tem custo, não tem tarifa e não entra na conta — e a tela mostrava lucro
  * sobre R$ 76,49 de um faturamento de R$ 514,43.
  *
- * ⚠️ Não gera chamada repetida quando o pedido vira `paid`: o `NOT EXISTS`
- * abaixo só busca quem ainda não tem item, e o pendente já terá os seus.
+ * ⚠️ O PEDIDO QUE SAIU DE `Pending` É BUSCADO DE NOVO — UMA VEZ, PELO PREÇO.
+ *
+ * A versão anterior dizia aqui: "não gera chamada repetida quando o pedido vira
+ * `paid`: o `NOT EXISTS` só busca quem ainda não tem item, e o pendente já terá
+ * os seus". Era exatamente o defeito. O pendente tem os itens e NÃO tem o preço;
+ * sem segunda busca, a linha fica com `unit_price` nulo para sempre. Medido em
+ * 20/09/2026 (A15NQMF7A6J1Y0): 628 linhas de pedidos ENVIADOS nos últimos 15
+ * dias, todas sem preço, e a Amazon devolvendo `ItemPrice` em todas.
+ *
+ * A segunda perna abaixo só alcança pedido que JÁ SAIU de `pending` (é quando a
+ * Amazon passa a devolver dinheiro) e ainda tem linha sem preço. Preenchido o
+ * preço, a linha deixa de casar — uma busca a mais por pedido, não uma por ciclo.
+ *
+ * Quem não tem item nenhum vem PRIMEIRO no lote: a recuperação do passivo não
+ * pode atrasar a venda nova. E a janela de `REPRECIFICAR_DIAS` impede que um
+ * pedido que a Amazon nunca precifique ocupe vaga no lote para sempre; o que
+ * ficou para trás dela é trabalho do script de cura, não do ciclo.
  */
 async function syncMissingOrderItems(connectionId: string): Promise<void> {
   const rows = await dbQuery<{ external_order_id: string }>(
     `SELECT o.external_order_id FROM workspace_channel_orders o
       WHERE o.workspace_id = $1 AND o.provider = $2 AND o.connection_id = $3
         AND o.status IN ('pending', 'paid', 'shipped', 'delivered')
-        AND NOT EXISTS (
-          SELECT 1 FROM workspace_channel_order_items i
-           WHERE i.workspace_id = o.workspace_id AND i.provider = o.provider
-             AND i.connection_id = o.connection_id AND i.external_order_id = o.external_order_id
+        AND (
+          NOT EXISTS (
+            SELECT 1 FROM workspace_channel_order_items i
+             WHERE i.workspace_id = o.workspace_id AND i.provider = o.provider
+               AND i.connection_id = o.connection_id AND i.external_order_id = o.external_order_id
+          )
+          OR (
+            o.status <> 'pending'
+            AND o.occurred_at > now() - ($5 || ' days')::interval
+            AND EXISTS (
+              SELECT 1 FROM workspace_channel_order_items i
+               WHERE i.workspace_id = o.workspace_id AND i.provider = o.provider
+                 AND i.connection_id = o.connection_id AND i.external_order_id = o.external_order_id
+                 AND i.unit_price IS NULL
+            )
+          )
         )
-      ORDER BY o.occurred_at DESC
+      ORDER BY (NOT EXISTS (
+                 SELECT 1 FROM workspace_channel_order_items i
+                  WHERE i.workspace_id = o.workspace_id AND i.provider = o.provider
+                    AND i.connection_id = o.connection_id AND i.external_order_id = o.external_order_id
+               )) DESC,
+               o.occurred_at DESC
       LIMIT $4`,
-    [currentWorkspaceId(), PROVIDER, connectionId, ITEM_BATCH_SIZE]
+    [currentWorkspaceId(), PROVIDER, connectionId, ITEM_BATCH_SIZE, String(REPRECIFICAR_DIAS)]
   );
   const applications: OrderItemsApplication[] = [];
   for (const row of rows) {

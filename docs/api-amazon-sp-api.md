@@ -244,6 +244,39 @@ Amazon*. Se o papel for concedido, o caminho é `transportationOptions` da 2024-
 
 ## Changelog observado (mais recente primeiro)
 
+- **20/09/2026 — `getOrderItems` de pedido `Pending` vem sem preço, e o preço só
+  aparece numa SEGUNDA busca depois do envio. Nós nunca fazíamos a segunda.**
+  Medido na conta `A15NQMF7A6J1Y0`, comparando o NEXO lado a lado com o Gestor
+  Seller:
+
+  - **O defeito era nosso, não da Amazon.** 46 de 49 pedidos ENVIADOS de 19/09
+    estavam com `gross = 0,00` no banco; `getOrder` devolvia `OrderTotal` de
+    R$ 10,00 a R$ 24,90 nos 8 conferidos. ~97% dos enviados desde 31/08, 628
+    linhas com `unit_price` nulo. A tela dizia "85 de 88 pedidos ainda sem
+    valor publicado pela Amazon" — ela já tinha publicado.
+  - **Três passos que só falham juntos:** itens conciliados ainda `Pending`
+    gravavam a soma das linhas (0) em `gross`; `GROSS_KEEP_WHEN_ITEMS` barrava o
+    `OrderTotal` do envio "porque o pedido tem linhas"; e
+    `syncMissingOrderItems` só buscava pedido SEM linha. Nasceu em 31/08, quando
+    `pending` entrou na consulta de itens — antes disso, zero pedidos afetados.
+  - **Correção:** sem `ItemPrice` em linha nenhuma o total é `null`; o header só
+    é barrado por `gross > 0`; e pedido que saiu de `pending` com linha sem
+    preço é buscado de novo (janela de 60 dias, quem não tem item vem primeiro
+    no lote). O passivo se cura pelo próprio ciclo, 40 pedidos por passada.
+  - **O relatório `GET_FLAT_FILE_ALL_ORDERS_DATA_BY_ORDER_DATE_GENERAL` precifica
+    quase tudo**: pedido à mão no mesmo dia, ficou `DONE` em 27 s e trouxe preço
+    em 125 de 126 `Pending` e 1056 de 1056 `Shipped` (14 dias). ⚠️ EM ABERTO: em
+    produção `orders_report_at` dessa conexão está parado em 13/09 17:12, com as
+    etapas vizinhas da conciliação rodando normalmente — a causa está no log de
+    produção, que não foi lido nesta sessão.
+  - **`orderMetrics` não é "o faturamento que bate"**: no dia fechado 19/09 deu
+    R$ 1.881,85 / 98 pedidos contra R$ 1.269,05 / 65 vendas do Gestor Seller na
+    mesma loja — é demanda bruta (inclui pendente e o que cancela depois).
+  - **Peso real das tarifas nessa conta (Transactions, 20 dias):** comissão 12,2%
+    e FBA 28,8% da receita. Em produto de R$ 13,90 o FBA (R$ 5,65) é mais que o
+    triplo da comissão (R$ 1,67). O NEXO já captura os dois: estimado x
+    realizado nos pedidos liquidados diverge 2,5% (FBA) e 2,8% (comissão).
+
 - **13/09/2026 — Solicitations API validada em PRODUÇÃO, unitário e em massa.**
   A frente "Solicitar avaliação" rodou de ponta a ponta na conta real
   (`AO62LVXJMX3AA`), com 10 envios reais (1 no teste unitário + 9 no lote do
