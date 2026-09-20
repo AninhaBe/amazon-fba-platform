@@ -16,11 +16,13 @@ isto substitui ainda está na página?", medido.*
 | 1 | Faixa do período (7 colunas + Margem) | `FaixaDoPeriodoV3`, dentro de `PainelV3` |
 | 2 | Top 8 produtos · Ritmo dos últimos 7 dias (lado a lado) | `PainelV3` |
 | 3 | O que falta para o número fechar | `PainelV3` |
-| 4 | Pedidos a revisar | `OrderProfitabilityTableV3` |
+| 4 | Pedidos a revisar | `OrderProfitabilityTableV3` — e desde 13/09 é a prévia de 5 linhas do `PainelV3Baixo`; a tabela cheia foi para `/amazon/monitor`, como no ML (ver "O que aconteceu depois") |
 
 Depois deles seguem os blocos que são **da Amazon** e não têm equivalente no ML —
 eles não entraram nem saíram nesta leva: saldo na Amazon, estoque crítico, pedidos
 recentes, anúncios por produto (agora com ACOS/TACOS/ROI) e os atalhos do mobile.
+No dia seguinte esses blocos também entraram na forma do ML; a seção final deste
+doc conta o que mudou, para a tabela acima não ser lida como a foto de hoje.
 
 É a **mesma peça** que o ML monta, não uma cópia: `PainelV3` + `FaixaDoPeriodoV3`.
 O que a Amazon tem de próprio entra como **dado** — a 8ª coluna (Margem), a marca
