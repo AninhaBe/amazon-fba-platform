@@ -56,20 +56,38 @@ export function MercadoLivreSaldo({
      `useState` la dentro mudaria a ordem dos hooks entre um render e o
      seguinte. */
   const [pagina, setPagina] = useState(1);
+  /**
+   * ⚠️ O RELOGIO ANCORA NA RESPOSTA, NAO NO RENDER — mesmo padrao
+   * de `TikTokWorkspace` e do antigo `EstadoDoSync`. O corpo de `transacoes`
+   * chamava `Date.now()` durante o render para contar quantos dias faltam ate
+   * cada liberacao, e render que le relogio nao e puro: dois renders do mesmo
+   * estado podem produzir telas diferentes, e no servidor e no cliente eles
+   * produzem HORAS diferentes — que e hidratacao divergente.
+   *
+   * Aqui isso e conserto de verdade e nao contorno de regra: "faltam 7 dias" e
+   * uma leitura DO MOMENTO EM QUE O DADO CHEGOU, nao do instante em que o React
+   * decidiu repintar. Ancorado, o numero para de mudar sozinho no meio de um
+   * re-render disparado por outra coisa da tela.
+   */
+  const [agoraMs, setAgoraMs] = useState<number | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
     const query = connectionId ? `?connectionId=${encodeURIComponent(connectionId)}` : "";
     fetch(`/api/integrations/mercado-livre/balance${query}`, { cache: "no-store", signal: controller.signal })
       .then((r) => readJson(r).then((d) => ({ ok: r.ok, d })))
-      .then(({ ok, d }) => { if (ok && d) setSaldo(d as Saldo); else setErro(true); })
+      .then(({ ok, d }) => {
+        // O par (dado, relogio) nasce junto: contagem de dias feita com um
+        // relogio de outro momento e a mesma familia de "duas bases".
+        if (ok && d) { setSaldo(d as Saldo); setAgoraMs(Date.now()); } else setErro(true);
+      })
       .catch((motivo) => { if (!(motivo instanceof DOMException && motivo.name === "AbortError")) setErro(true); });
     return () => controller.abort();
   }, [connectionId]);
 
   // Some em silêncio: é um bloco complementar, e um erro aqui não pode roubar a
   // atenção do resto do painel.
-  if (erro || !saldo) return null;
+  if (erro || !saldo || agoraMs == null) return null;
 
   const proxima = saldo.liberacoes[0];
 
@@ -141,7 +159,7 @@ export function MercadoLivreSaldo({
     /* Meio-dia, nao meia-noite: com "YYYY-MM-DD" puro o fuso empurra a data um
        dia para tras e "cai amanha" vira "cai hoje". */
     const MEIO_DIA = "T12:00:00";
-    const agora = Date.now();
+    const agora = agoraMs;
     const diasAte = (data: string) =>
       Math.max(0, Math.ceil((new Date(data + MEIO_DIA).getTime() - agora) / 86_400_000));
     const cent = (v: number) => Math.round(v * 100) / 100;

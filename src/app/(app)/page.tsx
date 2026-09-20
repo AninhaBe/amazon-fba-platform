@@ -109,10 +109,9 @@ export default function OverviewDashboard() {
   const [chartChannel, setChartChannel] = useState<"todos" | ChannelSnapshot["id"]>("todos");
   const [loading, setLoading] = useState(!emCache);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(emCache?.updatedAt ?? null);
-  // Narração do dia gerada por modelo (Gemini). Fica null sem chave ou enquanto
-  // não responde, e aí a tela usa o alerta por regra.
   /**
-   * ⚠️ ESTE ESTADO NÃO É LIDO POR NADA NESTA TELA, E NÃO É SOBRA — NÃO APAGUE.
+   * ⚠️ NÃO EXISTE MAIS ESTADO DE NARRAÇÃO AQUI — E A CHAMADA
+   * ABAIXO CONTINUA OBRIGATÓRIA. Leia antes de mexer:
    *
    * A faixa do NEXO saiu da Visão geral em 24/08/2026 **a pedido dela** (ver a
    * nota no JSX abaixo): a central é tela de passagem, e a leitura do dia mora
@@ -120,21 +119,28 @@ export default function OverviewDashboard() {
    *
    * O que ficou aqui é a **GERAÇÃO**: o POST logo abaixo é quem manda o snapshot
    * multicanal para o modelo e faz o texto existir. `NexoDoDia`, nos quatro
-   * canais, só LÊ o ponteiro que esta chamada escreveu
+   * canais, só LÊ o ponteiro que essa chamada escreveu
    * (`ultimaNarracao`, em `api/central/briefing/route.ts`).
    *
-   * **Quem limpar isto achando que é código morto quebra a leitura do dia dos
-   * QUATRO canais de uma vez** — e o sintoma vai aparecer longe daqui, numa tela
-   * que não foi tocada, como "a mensagem do NEXO sumiu". O `setNarracao` e o
-   * `narracaoCarregando` existem para o dia em que a faixa voltar; a chamada
-   * existe para hoje.
+   * **Quem apagar a CHAMADA achando que é código morto quebra a leitura do dia
+   * dos QUATRO canais de uma vez** — e o sintoma aparece longe daqui, numa tela
+   * que ninguém tocou, como "a mensagem do NEXO sumiu".
+   *
+   * ⚠️ O QUE SAIU EM 20/09/2026, E POR QUÊ: havia um par de
+   * estados (`narracao` e `narracaoCarregando`) guardados para o dia em que a
+   * faixa voltasse. Ninguém os lia, e o `setNarracaoCarregando(true)` era um
+   * `setState` SÍNCRONO dentro do efeito — a cascata de render que o portão de
+   * CI passou a reprovar, paga em todo recálculo de `totals`/`channels` para
+   * alimentar uma tela que não existe.
+   *
+   * Guardar estado para um futuro hipotético é o oposto de guardar a
+   * capacidade: quando a faixa voltar, ela nasce com o estado dela — o que não
+   * pode voltar é o POST, e é por isso que o aviso acima é sobre a chamada.
+   * A forma que existia, para quem devolver: `useState<string | null>(null)`
+   * alimentado no `.then` do POST, com um booleano de carregando ligado antes
+   * do `fetch` e desligado no `.finally` — e aí, sem `setState` síncrono no
+   * efeito: derive o "carregando" de o texto ainda não ter chegado.
    */
-  const [narracao, setNarracao] = useState<string | null>(null);
-  // Sem este estado a faixa do NEXO simplesmente não existia até o texto chegar,
-  // e a central ficava com um buraco silencioso onde depois aparece um bloco —
-  // ainda mais visível desde que os cards passaram a pintar rápido. O briefing
-  // já fazia certo; era a central que não replicava.
-  const [narracaoCarregando, setNarracaoCarregando] = useState(false);
   /**
    * ANTECIPAÇÃO SÓ PELO TECLADO nesta tela, e a razão é medida.
    *
@@ -265,14 +271,17 @@ export default function OverviewDashboard() {
         motivoSemLucro: c.profit == null ? c.motivoSemLucro ?? null : null,
       })),
     };
-    let cancelado = false;
-    setNarracaoCarregando(true);
-    fetch("/api/central/briefing", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(snapshot) })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (!cancelado && d?.texto) setNarracao(d.texto as string); })
-      .catch(() => {})
-      .finally(() => { if (!cancelado) setNarracaoCarregando(false); });
-    return () => { cancelado = true; };
+    const controller = new AbortController();
+    // Sem `.then` de estado: o resultado não alimenta nada NESTA tela — o valor
+    // desta chamada é o ponteiro que ela escreve no servidor, lido pelo
+    // `NexoDoDia` dos quatro canais. Falha é silêncio, como já era.
+    void fetch("/api/central/briefing", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(snapshot),
+      signal: controller.signal,
+    }).catch(() => {});
+    return () => controller.abort();
   }, [loading, channels, totals, margemTotal, tendenciaTotal]);
 
   return (

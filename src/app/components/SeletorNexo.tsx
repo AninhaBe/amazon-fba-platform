@@ -63,14 +63,37 @@ export function SeletorNexo({
   const indiceAtual = Math.max(0, opcoes.findIndex((o) => o.valor === valor));
   const escolhida = opcoes[indiceAtual] ?? opcoes[0];
 
+  /**
+   * ⚠️ QUEM ABRE A LISTA E QUEM ESCOLHE A LINHA FOCADA — 20/09/2026.
+   * Isto morava no efeito abaixo (`setFocada(indiceAtual)` logo na primeira
+   * linha), e era a forma que o React chama de cascata: o efeito rodava DEPOIS
+   * da pintura e pedia outro render so para mover o foco, em toda abertura.
+   *
+   * A regra nova (`react-hooks/set-state-in-effect`) aponta isto, e ela esta
+   * certa aqui: o momento em que a linha focada nasce e o EVENTO de abrir, que
+   * e sincrono e ja tem o indice em maos. O efeito ficou so com o que e efeito
+   * de verdade — mandar o foco do DOM para a lista.
+   *
+   * ⚠️ O QUE MUDOU DE COMPORTAMENTO, para nao ficar escondido: o
+   * efeito antigo tambem re-sincronizava a linha focada quando `valor` mudava
+   * COM A LISTA ABERTA. Na pratica isso nao acontece — escolher fecha a lista
+   * (`fecharEVoltarOFoco`), e enquanto ela esta aberta e ela que tem o foco do
+   * teclado. Se um dia o valor passar a mudar de fora com a lista aberta, a
+   * linha focada fica onde a pessoa deixou, que e o comportamento do `<select>`
+   * nativo.
+   */
+  const abrir = () => {
+    setFocada(indiceAtual);
+    setAberto(true);
+  };
+
   useEffect(() => {
     if (!aberto) return;
-    setFocada(indiceAtual);
     // O foco vai para a lista para que as setas cheguem no `onKeyDown` dela, e
     // não continuem rolando a página.
     const t = window.setTimeout(() => listaRef.current?.focus(), 0);
     return () => window.clearTimeout(t);
-  }, [aberto, indiceAtual]);
+  }, [aberto]);
 
   useEffect(() => {
     if (!aberto) return;
@@ -122,7 +145,7 @@ export function SeletorNexo({
   const teclasDoBotao = (evento: React.KeyboardEvent) => {
     if (evento.key === "ArrowDown" || evento.key === "Enter" || evento.key === " ") {
       evento.preventDefault();
-      setAberto(true);
+      abrir();
     }
   };
 
@@ -137,7 +160,7 @@ export function SeletorNexo({
         aria-haspopup="listbox"
         aria-controls={`${id}-lista`}
         aria-label={rotuloAcessivel}
-        onClick={() => setAberto((v) => !v)}
+        onClick={() => (aberto ? setAberto(false) : abrir())}
         onKeyDown={teclasDoBotao}
       >
         <span className="v3-seletor-rotulo">{escolhida?.rotulo ?? ""}</span>
