@@ -228,8 +228,6 @@ interface TotalsRow {
   last_sale_at: Date | string | null;
 }
 
-interface VelocityRow { sku: string | null; external_product_id: string; units: number }
-
 interface DailyRow { date: string | null; revenue: string | null; orders: number; units: number }
 
 interface ProductTotalsRow {
@@ -631,7 +629,13 @@ export async function getAmazonOverviewFromCanonical(
   };
 
   let fees = 0;
-  let cogs = 0;
+  // ⚠️ NAO existe acumulador de custo aqui (13-20/09): o custo do periodo tem
+  // FONTE UNICA em `cogsDoPeriodo` (529adf3), e o custo POR LINHA da tabela de
+  // rentabilidade sai do `unitCost` local do laco detalhado. Um `let cogs = 0`
+  // sobreviveu aquele refactor sem nunca receber soma, com um `void cogs` cujo
+  // comentario afirmava que ele alimentava o rateio — variavel morta com
+  // comentario mentiroso NO PRODUTOR FINANCEIRO. Removida; quem precisar de
+  // custo agregado usa `cogsDoPeriodo`.
   let unitsWithCost = 0;
   let unitsWithoutCost = 0;
   // SKU e a unidade de ACAO da vendedora (ver oQueFaltaNoResultado.ts).
@@ -1268,7 +1272,6 @@ export async function getAmazonOverviewFromCanonical(
   const baseDoResultado = pedidosCompletos > 0 ? +baseCoerente.toFixed(2) : null;
 
   const cogsDoLucro = +cogsDoPeriodo.toFixed(2);
-  void cogs; // segue alimentando o rateio POR LINHA, nunca o total do periodo
   // O imposto acompanha a base, e não a receita apurada — ver a nota na leitura
   // da alíquota, acima.
   // Sem base nao ha imposto calculavel: `null`, nunca zero — zero afirmaria

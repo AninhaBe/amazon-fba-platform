@@ -35,7 +35,15 @@ test("documentação, registry e navegação refletem as capacidades TikTok e Sh
   // ("Conciliação financeira real segue parcial") e o regex minúsculo passou a
   // falhar por causa de uma letra. A trava é sobre o doc AFIRMAR que a
   // conciliação está parcial, não sobre onde a frase cai no parágrafo.
-  assert.match(state, /conciliação financeira real segue parcial/i);
+  //
+  // ⚠️ REAPONTADO EM 20/09/2026, com a intenção anterior registrada: o regex
+  // exigia a FRASE ("segue parcial") e a reescrita do estado-atual disse a
+  // verdade melhor — "a conciliação financeira desse cliente NUNCA RODOU"
+  // (ledger travado na estreia do app público). A trava sempre foi sobre a
+  // AFIRMAÇÃO: o doc não pode dar a conciliação por concluída enquanto ela não
+  // estiver. Casar a letra impediria o doc de melhorar — a regra escrita logo
+  // acima, aplicada a esta mesma linha.
+  assert.match(state, /conciliaç[aã]o financeira[^.]*(nunca rodou|segue parcial|travada)/i);
   assert.doesNotMatch(docsReadme, /TikTok Shop[^\n]*(?:backlog|aguardando credenciais)/i);
   assert.match(docsReadme, /OAuth, sync, cron e leitura canônica implementados/);
   for (const file of [overview, syncEngine]) {
