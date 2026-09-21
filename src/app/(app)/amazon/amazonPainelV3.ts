@@ -275,8 +275,9 @@ export interface ProdutoDoTopAmazon {
   title?: string;
   units: number;
   revenue: number;
-  /** Contribuição real do produto (fat − tarifa − custo − imposto); `null` = conta não fecha. */
-  contribution: number | null;
+  /** Contribuição real (fat − tarifa − custo − imposto). Opcional: o produtor
+   *  canônico sempre manda; o fallback legado não calcula e cai em "—". */
+  contribution?: number | null;
   marginPct: number | null;
 }
 
