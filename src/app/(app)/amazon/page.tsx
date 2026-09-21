@@ -261,7 +261,7 @@ interface DashboardPayload {
    *  `profitEstimated` = a tarifa do dia inclui estimativa ADR-027;
    *  `refunds` = estorno postado no dia, que explica barra derrubada por venda antiga. */
   dailySales: Array<{ date: string; revenue: number; orders: number; units: number; profit?: number | null; profitEstimated?: boolean; refunds?: number }>;
-  topProducts: Array<{ sku: string; title: string; units: number; revenue: number; marginPct: number | null }>;
+  topProducts: Array<{ sku: string; title: string; units: number; revenue: number; contribution: number | null; marginPct: number | null }>;
   profit: { revenueProcessed: number; revenueDoLucro?: number | null; baseDoResultado?: number | null; pedidosCompletos?: number; pedidosDoPeriodo?: number; pedidosComValor?: number; pedidosSemValor?: number; feesEstimadas?: number; pedidosComTarifaEstimada?: number; composicaoDoConciliado?: { receita: number; custo: number; tarifa: number; pedidos: number; lucro: number; margemPct: number | null }; fees: number; cogs: number; estimatedProfit: number | null; taxRate?: number | null; taxes?: number | null; refunds?: number; refundCount?: number; ads?: number | null; unitsWithCost: number; unitsWithoutCost: number; skusWithoutCost: number; coverage?: { processedOrders: number; paidOrders: number; complete: boolean } };
   ads?: AmazonAdsInput | null;
   adsJanela?: { inicioDia: string; esperadoAte: string; incluiHoje?: boolean } | null;

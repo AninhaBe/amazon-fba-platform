@@ -47,6 +47,8 @@ export interface AmazonCanonicalTopProduct {
   salePrice: number | null;
   cost: number | null;
   revenue: number;
+  /** Contribuição real do produto no período (fat − tarifa − custo − imposto); `null` se a conta não fecha. */
+  contribution: number | null;
   marginPct: number | null;
 }
 
@@ -247,6 +249,25 @@ interface RecentRow {
   currency: string;
 }
 
+// APURAÇÃO POR PRODUTO NO PERÍODO INTEIRO — a margem real do Top produtos.
+//
+// ⚠️ Espelha a garantia do ML (`topProdutosSemTeto`, 13/09/2026): sai do SQL do
+// PERÍODO, não do laço detalhado limitado a DETAILED_ORDER_LIMIT. Acumular no
+// laço fazia `receita_apurada` nunca alcançar `revenue` acima do teto e o Top
+// INTEIRO ficava sem margem. O mecanismo é o do ML; a diferença do canal é a
+// FONTE da tarifa: a Amazon soma comissão + FBA da view `..._efetivas` (que já
+// inclui a estimativa da ADR-027), e o imposto entra no agregado pela alíquota.
+interface PorProdutoRow {
+  external_product_id: string;
+  sku: string | null;
+  /** Receita das linhas com preço real (mesma base do faturamento do Top). */
+  receita_apurada: string | null;
+  /** Comissão + FBA rateadas por peso de receita; `null` se algum pedido não tem tarifa. */
+  tarifa: string | null;
+  /** Tarifa conhecida em TODOS os pedidos que tocam o produto. `false` ⇒ sem margem. */
+  completo: boolean;
+}
+
 interface DetailedLineRow {
   /** O status CANONICO, para separar quem CONTA custo de quem so APARECE. */
   status_canonico: string;
@@ -395,7 +416,7 @@ export async function getAmazonOverviewFromCanonical(
   // Sem sync algum e sem pedidos no período → nada canônico para servir.
   if (!syncRow && (!totals || totals.total_orders === 0)) return null;
 
-  const [productTotalsRows, recentRows, lineRows, costs] = await Promise.all([
+  const [productTotalsRows, porProdutoRows, recentRows, lineRows, costs] = await Promise.all([
     dbQuery<ProductTotalsRow>(
       `SELECT i.external_product_id, i.sku, MIN(i.title) AS title,
               SUM(i.qty)::int AS units, SUM(i.qty * i.unit_price) AS revenue
@@ -406,6 +427,50 @@ export async function getAmazonOverviewFromCanonical(
         WHERE i.workspace_id = $1 AND i.provider = $2 AND i.connection_id = $3
           AND o.occurred_at >= $4 AND o.occurred_at <= $5 AND o.status = ANY($6::text[])
         GROUP BY i.external_product_id, i.sku`,
+      [...scopeParams(connectionId, period), REVENUE_STATUSES]
+    ),
+    // A MARGEM REAL POR PRODUTO — período inteiro, fora do teto de 1000 (ver
+    // `PorProdutoRow` e `topProdutosSemTeto`). Tarifa = comissão + FBA da view
+    // `..._efetivas`, sondada POR PEDIDO (LATERAL) para o planner não varrer a
+    // conexão inteira. `completo` = tarifa conhecida em todo pedido do produto;
+    // parcial nunca vaza como total. Imposto entra no agregado (JS), pela regra
+    // do canal — a Amazon carimba a alíquota, não usa `null` como o ML.
+    dbQuery<PorProdutoRow>(
+      `WITH alvo AS (
+         SELECT o.external_order_id
+           FROM workspace_channel_orders o
+          WHERE o.workspace_id = $1 AND o.provider = $2 AND o.connection_id = $3
+            AND o.occurred_at >= $4 AND o.occurred_at <= $5 AND o.status = ANY($6::text[])
+       ),
+       pedidos AS (
+         SELECT a.external_order_id, t.tarifa, t.tem_tarifa
+           FROM alvo a
+           CROSS JOIN LATERAL (
+             SELECT SUM(v.amount) AS tarifa, COUNT(*) > 0 AS tem_tarifa
+               FROM workspace_channel_order_fees_efetivas v
+              WHERE v.workspace_id = $1 AND v.provider = $2 AND v.connection_id = $3
+                AND v.external_order_id = a.external_order_id
+                AND v.fee_type IN (${SQL_TARIFAS_QUE_CUSTAM})
+           ) t
+       ),
+       linhas AS (
+         SELECT i.external_product_id, i.sku,
+                i.qty * i.unit_price AS receita_linha,
+                p.tarifa, p.tem_tarifa,
+                SUM(i.qty * i.unit_price) OVER (PARTITION BY i.external_order_id) AS receita_pedido,
+                COUNT(*) OVER (PARTITION BY i.external_order_id) AS linhas_pedido
+           FROM workspace_channel_order_items i
+           JOIN pedidos p ON p.external_order_id = i.external_order_id
+          WHERE i.workspace_id = $1 AND i.provider = $2 AND i.connection_id = $3
+       )
+       SELECT external_product_id, sku,
+              SUM(receita_linha) AS receita_apurada,
+              SUM(CASE WHEN NOT tem_tarifa THEN NULL
+                       WHEN receita_pedido > 0 THEN tarifa * receita_linha / receita_pedido
+                       ELSE tarifa / linhas_pedido END) AS tarifa,
+              BOOL_AND(tem_tarifa) AS completo
+         FROM linhas
+        GROUP BY external_product_id, sku`,
       [...scopeParams(connectionId, period), REVENUE_STATUSES]
     ),
     dbQuery<RecentRow>(
@@ -1388,13 +1453,38 @@ export async function getAmazonOverviewFromCanonical(
     taxRate,
   });
 
+  // Apuração real por produto (período inteiro): tarifa e `completo` saem do SQL
+  // acima; custo e imposto entram aqui.
+  const apuracaoPorProduto = new Map<string, PorProdutoRow>();
+  for (const row of porProdutoRows) apuracaoPorProduto.set(row.sku || row.external_product_id, row);
+
   const topProducts: AmazonCanonicalTopProduct[] = productTotalsRows
     .map((row) => {
       const revenue = Number(row.revenue);
       const salePrice = row.units > 0 ? +(revenue / row.units).toFixed(2) : null;
       const entry = costOf(row.sku, row.external_product_id);
       const cost = entry ? entry.cost : null;
-      const marginPct = cost != null && salePrice != null && salePrice > 0 ? +((salePrice - cost) / salePrice * 100).toFixed(2) : null;
+      // ⚠️ A MARGEM É A CONTRIBUIÇÃO REAL, NÃO O MARKUP (21/09/2026).
+      // Era `(salePrice - cost) / salePrice` — ignorava a tarifa da Amazon
+      // (~40% do preço em FBA) e o imposto, exibindo 60-75% onde a margem real
+      // é 10-20%. Agora: faturamento − tarifa (comissão+FBA) − custo − imposto,
+      // dividido pelo faturamento. Mesma garantia do ML (`topProdutosSemTeto`).
+      const apur = apuracaoPorProduto.get(row.sku || row.external_product_id);
+      const tarifa = apur?.tarifa == null ? null : Number(apur.tarifa);
+      const receitaApurada = apur?.receita_apurada == null ? 0 : Number(apur.receita_apurada);
+      // Só fecha com tarifa de TODOS os pedidos do produto, custo de TODAS as
+      // unidades, e a receita apurada batendo com o faturamento exibido — o
+      // mesmo portão do ML: parcial acima do teto nunca vira "cheio". Produto
+      // sem custo, ou pedido sem tarifa, entra sem margem (nunca com markup).
+      const completo = apur?.completo === true && cost != null && tarifa != null
+        && Math.abs(receitaApurada - revenue) < 0.01;
+      const imposto = taxRate == null ? 0 : receitaApurada * taxRate / 100;
+      const contribution = completo
+        ? +(receitaApurada - (tarifa ?? 0) - (cost as number) * row.units - imposto).toFixed(2)
+        : null;
+      const marginPct = contribution != null && revenue > 0
+        ? +(contribution / revenue * 100).toFixed(2)
+        : null;
       return {
         sku: row.sku ?? row.external_product_id,
         asin: row.external_product_id,
@@ -1403,6 +1493,7 @@ export async function getAmazonOverviewFromCanonical(
         salePrice,
         cost,
         revenue,
+        contribution,
         marginPct,
       };
     })
