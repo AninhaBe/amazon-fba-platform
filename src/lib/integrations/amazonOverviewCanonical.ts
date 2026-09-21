@@ -263,6 +263,8 @@ interface DetailedLineRow {
   qty: number;
   /** `null` = preço ainda não exposto pela Amazon (pedido `Pending`, migration 0021). */
   unit_price: string | null;
+  /** Preço calculado pelo NEXO (ADR-030): usado como valor da linha quando a Amazon esconde o `unit_price`. */
+  preco_calculado: string | null;
   fees: string | null;
 }
 
@@ -446,6 +448,14 @@ export async function getAmazonOverviewFromCanonical(
        SELECT d.external_order_id, d.occurred_at, d.provider_status, d.currency,
               d.buyer_shipping, d.fulfillment, d.status AS status_canonico,
               i.line_no, i.external_product_id, i.sku, i.title, i.qty, i.unit_price,
+              -- O PREÇO CALCULADO PELO NEXO (ADR-030): quando a Amazon esconde o
+              -- unit_price do pendente, o preço sobre o qual a tarifa foi
+              -- calculada (do próprio catálogo, não média) serve de valor da
+              -- linha — assim a rentabilidade aparece por pedido, não "—".
+              (SELECT MAX(e.unit_price) FROM workspace_channel_order_fee_estimates e
+                WHERE e.workspace_id = i.workspace_id AND e.provider = i.provider
+                  AND e.connection_id = i.connection_id AND e.external_order_id = i.external_order_id
+                  AND e.line_no = i.line_no AND e.superseded_at IS NULL) AS preco_calculado,
               ff.amount AS fees
          FROM detailed d
          JOIN workspace_channel_order_items i
@@ -684,8 +694,16 @@ export async function getAmazonOverviewFromCanonical(
     // Como PESO, zero é inócuo e é o certo: `allocateByWeight` não aloca nada
     // para a linha, e não dá para ratear tarifa proporcional a receita que ainda
     // não se conhece.
-    const precoDaLinha = (linha: DetailedLineRow) =>
-      linha.unit_price == null ? null : Number(linha.unit_price);
+    // ADR-030: o preço da linha é o real da Amazon quando existe; senão, o preço
+    // CALCULADO pelo NEXO (do próprio catálogo do SKU, não média). Só fica `null`
+    // quando não há nenhum dos dois — aí a linha segue fora da conta (null ≠ 0).
+    // Antes usava só `unit_price`, e o pendente valia "—" na rentabilidade; com o
+    // valor calculado, o lucro aparece por pedido para todos (decisão da dona,
+    // 21/09/2026: "se estamos fazendo o cálculo certo, é o certo").
+    const precoDaLinha = (linha: DetailedLineRow) => {
+      const p = linha.unit_price ?? linha.preco_calculado;
+      return p == null ? null : Number(p);
+    };
     // ⚠️ `?? 0` AQUI É CORRETO E NÃO É DESCUIDO — não troque por 1 nem por média.
     // Peso zero faz `allocateByWeight` não alocar tarifa nenhuma para a linha, e
     // é exatamente o que se quer: não dá para ratear tarifa proporcional a uma

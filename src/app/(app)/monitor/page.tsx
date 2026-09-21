@@ -262,8 +262,13 @@ function MonitorPage({ secaoInicial }: { secaoInicial: MonitorSection }) {
   const costsIncomplete = (profit?.unitsWithoutCost ?? 0) > 0;
   // ⚠️ 30/08/2026: o lucro chega COM anúncio dentro, e chega `null` quando o
   // gasto é desconhecido. Cair no repasse líquido nesse caso exibiria o número
-  // otimista — sem anúncio — com o rótulo "Lucro estimado". É a versão MONITOR
-  // do defeito que custou quatro consertos na tela da Amazon.
+  // otimista — sem anúncio — sob o rótulo de lucro. É a versão MONITOR do
+  // defeito que custou quatro consertos na tela da Amazon.
+  // ⚠️ O rótulo é "Lucro", sem "estimado" (ADR-030): quando ele aparece, é
+  // após custo e anúncio — o número é o número. A ressalva de que a tarifa
+  // ainda não liquidou mora POR LINHA (a marca de procedência na tabela de
+  // rentabilidade), nunca no nome do card. A palavra "estimado" só continua no
+  // caminho da Shopee, que é outro canal com outro calendário (AGENTS.md).
   const adsDesconhecido = profit?.adsDesconhecido === true || (profit != null && profit.estimatedProfit == null);
   const estimatedProfit = profit == null || adsDesconhecido ? null : profit.estimatedProfit;
   const otherAdjustments = finance
@@ -295,7 +300,7 @@ function MonitorPage({ secaoInicial }: { secaoInicial: MonitorSection }) {
             <ColunaDoMonitor rotulo="Receita conciliada" valor={money(finance.revenue, finance.currency)} nota={`${finance.orderCount} pedido(s) com repasse`} />
             <ColunaDoMonitor rotulo="Reembolsos" valor={money(finance.refunds, finance.currency)} tom={finance.refunds > 0 ? "negativo" : undefined} nota="estornos ao comprador" />
             <ColunaDoMonitor rotulo="Repasse líquido" valor={money(finance.netProceeds, finance.currency)} nota="após taxas e reembolsos" />
-            <ColunaDoMonitor rotulo={costsIncomplete ? "Repasse antes do custo" : "Lucro estimado"} valor={estimatedProfit == null ? "—" : money(estimatedProfit, finance.currency)} tom={estimatedProfit == null ? "vazio" : estimatedProfit < 0 ? "negativo" : "positivo"} nota={estimatedProfit == null ? "aguardando gasto com anúncio" : costsIncomplete ? "faltam custos cadastrados" : "após custos e anúncio"} />
+            <ColunaDoMonitor rotulo={costsIncomplete ? "Repasse antes do custo" : "Lucro"} valor={estimatedProfit == null ? "—" : money(estimatedProfit, finance.currency)} tom={estimatedProfit == null ? "vazio" : estimatedProfit < 0 ? "negativo" : "positivo"} nota={estimatedProfit == null ? "aguardando gasto com anúncio" : costsIncomplete ? "faltam custos cadastrados" : "após custos e anúncio"} />
             <ColunaDoMonitor rotulo="Margem" valor={costsIncomplete || marginPct == null ? "—" : percent(marginPct)} tom={costsIncomplete || marginPct == null ? "vazio" : marginPct < 0 ? "negativo" : "positivo"} nota={costsIncomplete ? "aguardando todos os custos" : "sobre a receita conciliada"} />
           </div>
         </>
@@ -352,7 +357,7 @@ function MonitorPage({ secaoInicial }: { secaoInicial: MonitorSection }) {
               {Math.abs(otherAdjustments) >= 0.005 && <Flow label="Outros ajustes (promoções, frete, estoque)" value={money(otherAdjustments, finance.currency)} />}
               <Flow label="Repasse líquido" value={money(finance.netProceeds, finance.currency)} sign="=" />
               <Flow label="Custo dos produtos" value={money(profit?.cogs ?? 0, finance.currency)} sign="−" />
-              <Flow label={estimatedProfit == null ? "Lucro indisponível" : costsIncomplete ? "Repasse antes do custo" : "Lucro estimado"} value={estimatedProfit == null ? "—" : money(estimatedProfit, finance.currency)} sign="=" accent={estimatedProfit != null && !costsIncomplete} />
+              <Flow label={estimatedProfit == null ? "Lucro indisponível" : costsIncomplete ? "Repasse antes do custo" : "Lucro"} value={estimatedProfit == null ? "—" : money(estimatedProfit, finance.currency)} sign="=" accent={estimatedProfit != null && !costsIncomplete} />
             </div>
             {costsIncomplete && (
               <p className="monitor-coverage-note">
