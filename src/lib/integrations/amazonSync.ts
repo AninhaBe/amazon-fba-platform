@@ -322,6 +322,68 @@ async function syncMissingOrderItems(connectionId: string): Promise<void> {
   await applyCanonicalOrderItems({ provider: PROVIDER, connectionId }, applications);
 }
 
+/**
+ * Valoriza o pedido PENDENTE pela NOSSA base, sem depender da Amazon nem do
+ * relatório (decisão da dona, 21/09/2026: "o NEXO é real time, não podemos
+ * depender da Amazon pra nos disponibilizar os valores; já temos toda a nossa
+ * base de cálculo, sabemos qual valor vai aparecer quando deixar de ser pending").
+ *
+ * O valor de cada pedido sem valor = preço que o MESMO SKU já teve nos nossos
+ * pedidos (o mais próximo da data, não uma média — mesma regra do antigo
+ * `estimarPorPrecoDoSku`), vezes a quantidade. Grava em `ordered_gross`
+ * (source `estimado`, ADR-027) — assim o pedido entra na conta de faturamento E
+ * lucro na hora, e é SUBSTITUÍDO pelo `gross` real quando a Amazon envia.
+ *
+ * ⚠️ SÓ preenche quem NÃO tem valor nenhum (`gross IS NULL AND ordered_gross IS
+ * NULL`): nunca rebaixa valor real nem valor do relatório. Em dia fechado, onde
+ * todo pedido já tem `gross`, isto não casa ninguém — é inócuo. É o que fecha o
+ * furo do dia vivo (imposto que parecia 2,7% porque o pendente ficava fora da
+ * base) sem tocar na matemática do lucro: a base do resultado passa a cobrir
+ * todos os pedidos porque todos passam a ter receita.
+ */
+export async function valorizarPendentesPeloCatalogo(connectionId: string): Promise<void> {
+  await dbQuery(
+    `WITH pend AS (
+       SELECT o.external_order_id, i.sku, i.qty, o.occurred_at
+         FROM workspace_channel_orders o
+         JOIN workspace_channel_order_items i
+           ON i.workspace_id = o.workspace_id AND i.provider = o.provider
+          AND i.connection_id = o.connection_id AND i.external_order_id = o.external_order_id
+        WHERE o.workspace_id = $1 AND o.provider = $2 AND o.connection_id = $3
+          AND o.status <> 'cancelled'
+          AND o.gross IS NULL AND o.ordered_gross IS NULL
+     ),
+     preco AS (
+       SELECT p.external_order_id, SUM(p.qty * pr.valor) AS valor
+         FROM pend p
+         CROSS JOIN LATERAL (
+           SELECT COALESCE(i2.list_price, i2.unit_price) AS valor
+             FROM workspace_channel_order_items i2
+             JOIN workspace_channel_orders o2
+               ON o2.workspace_id = i2.workspace_id AND o2.provider = i2.provider
+              AND o2.connection_id = i2.connection_id AND o2.external_order_id = i2.external_order_id
+            WHERE i2.workspace_id = $1 AND i2.provider = $2 AND i2.sku = p.sku
+              AND COALESCE(i2.list_price, i2.unit_price) > 0
+            ORDER BY abs(EXTRACT(EPOCH FROM (o2.occurred_at - p.occurred_at)))
+            LIMIT 1
+         ) pr
+        GROUP BY 1
+     )
+     UPDATE workspace_channel_orders o
+        SET ordered_gross = round(preco.valor::numeric, 2),
+            ordered_gross_source = 'estimado',
+            synced_at = now()
+       FROM preco
+      WHERE o.workspace_id = $1 AND o.provider = $2 AND o.connection_id = $3
+        AND o.external_order_id = preco.external_order_id
+        AND preco.valor > 0
+        -- Reconfere a guarda no UPDATE: entre o SELECT e o write o gross real
+        -- pode ter chegado; nunca sobrescreve valor conhecido.
+        AND o.gross IS NULL AND o.ordered_gross IS NULL`,
+    [currentWorkspaceId(), PROVIDER, connectionId],
+  );
+}
+
 // Conciliação de fees pela Transactions API. A Finances v0 retorna valores
 // zerados nesta conta (por isso o dashboard já usa a Transactions API), então a
 // ingestão canônica também precisa dela. Como a Transactions é por período, uma
@@ -603,6 +665,15 @@ export async function runAmazonSyncStep(account: AccountCtx, forcarJanela = fals
           ["reverifyUpdatedOrders", () => reverifyUpdatedOrders(connectionId).catch(() => {})],
           ["syncMissingOrderItems", () => syncMissingOrderItems(connectionId)],
           ["syncMissingOrderFees", () => syncMissingOrderFees(connectionId)],
+          // Valoriza o pendente pela NOSSA base ANTES de estimar tarifa — a
+          // estimativa da tabela usa esse valor como preço. Assim todo pedido
+          // entra completo (valor+tarifa+custo) e a base do lucro cobre o
+          // faturamento inteiro (21/09/2026). Falha não derruba o ciclo.
+          ["valorizarPendentes", () => valorizarPendentesPeloCatalogo(connectionId).catch((erro) => {
+            console.error("[amazon] valorizar pendentes falhou", {
+              motivo: erro instanceof Error ? erro.message.slice(0, 200) : "erro desconhecido",
+            });
+          })],
           // ⚠️ DEPOIS das tarifas reais, nunca antes: a estimativa só vale para
           // pedido que ainda NÃO tem tarifa postada, e quem descobre isso é o
           // passo acima. Falha não derruba o ciclo — tarifa estimada é melhoria
