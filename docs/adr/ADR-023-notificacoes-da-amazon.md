@@ -136,13 +136,19 @@ estão de pé; falta só o consumidor (abaixo).
   `{"orderChangeTypes":["OrderStatusChange"],"eventFilterType":"ORDER_CHANGE"}`.
 - ⚠️ `ORDER_STATUS_CHANGE` está **morta** (sunset 31/12/2023) — usar `ORDER_CHANGE`.
 
-### O que falta
-1. **Consumidor** (esta branch): passo no agendador interno que faz long poll da
-   fila (SigV4, `ReceiveMessage` WaitTimeSeconds=20), grava em
-   `workspace_marketplace_events` (dedup `event_key`, provider `amazon`,
-   `connection_id = amazon:<sellerId>`), e só então `DeleteMessage`. O processador
-   marca o pedido para re-sync — a busca continua sendo SP-API autenticada
-   (evento perdido só atrasa, não corrompe; o polling de 2 min é a rede).
-2. **Auto-assinatura das outras contas** no fluxo de conectar conta
-   (`createDestination` é uma vez; `createSubscription` é por vendedor). Hoje só a
-   do Lucas está assinada, à mão.
+### Feito também (21/09/2026) — CONSUMIDOR + PROCESSADOR + AUTO-ASSINATURA
+- **Consumidor** (`amazonSqs.ts` + `amazonNotificacoes.ts`, v310): long poll da
+  fila (SigV4 SEM SDK, provado contra o vetor oficial da AWS), grava em
+  `workspace_marketplace_events` (dedup `NotificationId`, `connection_id =
+  amazon:<sellerId>`) e só então `DeleteMessage`. Rota
+  `/api/cron/amazon-notifications`, long poll contínuo ~45s, no agendador.
+  **Validado em produção:** 6 ORDER_CHANGE reais consumidos ponta a ponta.
+- **Processador** (`processarEventosAmazon`, v311): claim atômico (SKIP LOCKED),
+  busca o pedido na SP-API (`getOrder`/`getOrderItems`) e regrava o canônico.
+  É o frescor: pedido que envia ganha valor/status em segundos.
+- **Auto-assinatura** (`amazonNotificacaoSetup.ts`, v312): `garantirDestinoSqs`
+  (find-or-create, uma vez pro app) + `garantirAssinaturaAmazon` (por conta,
+  idempotente), ligadas no callback do OAuth. **Cada vendedor assina sozinho ao
+  conectar** — escala pra N. As 3 contas atuais já foram backfilladas.
+  ⚠️ Depende de a conta conceder a role de notificações; sem ela, falha em
+  silêncio e o polling cobre.
