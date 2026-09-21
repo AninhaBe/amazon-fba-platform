@@ -42,3 +42,11 @@ test("notificação sem SellerId (confirmação de assinatura) vira null", () =>
   const semSeller = JSON.stringify({ NotificationType: "ORDER_CHANGE", Payload: { OrderChangeNotification: {} }, NotificationMetadata: { NotificationId: "x" } });
   assert.equal(interpretarNotificacao(semSeller), null);
 });
+
+import { sellerIdDaConexao } from "../src/lib/integrations/amazonNotificacoes.ts";
+
+test("sellerIdDaConexao tira o prefixo amazon: (é o que liga o evento à conta)", () => {
+  assert.equal(sellerIdDaConexao("amazon:A15NQMF7A6J1Y0"), "A15NQMF7A6J1Y0");
+  // sem prefixo, devolve como veio — nunca corta o começo do id por engano
+  assert.equal(sellerIdDaConexao("A15NQMF7A6J1Y0"), "A15NQMF7A6J1Y0");
+});

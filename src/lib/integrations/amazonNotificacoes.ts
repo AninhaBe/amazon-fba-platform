@@ -1,10 +1,23 @@
 import { dbQuery, hasDb } from "../db";
+import { runWithWorkspace } from "../workspaceScope";
+import { runWithAccount } from "../accountContext";
+import { getAccount } from "../accountStore";
+import { getOrder, getOrderItems } from "../orders";
+import { normalizeAmazonOrderHeader, normalizeAmazonOrderItems } from "./amazonCanonical";
+import { saveCanonicalOrderHeaders, applyCanonicalOrderItems } from "./canonicalStore";
 import {
   apagarMensagem,
   credenciaisAwsDoAmbiente,
   receberMensagens,
   type MensagemSqs,
 } from "./amazonSqs";
+
+const CONNECTION_PREFIX = "amazon:";
+
+/** `amazon:A15NQMF7A6J1Y0` → `A15NQMF7A6J1Y0`. Puro, testável. */
+export function sellerIdDaConexao(connectionId: string): string {
+  return connectionId.startsWith(CONNECTION_PREFIX) ? connectionId.slice(CONNECTION_PREFIX.length) : connectionId;
+}
 
 // Consumidor das notificações da Amazon (ADR-023). Long poll da fila SQS, grava
 // o aviso na MESMA caixa do Mercado Livre (`workspace_marketplace_events`), e só
@@ -144,4 +157,99 @@ export async function consumirNotificacoesAmazon(
     }
   }
   return { executou: true, recebidas: mensagens.length, gravadas, ignoradas };
+}
+
+interface EventoParaProcessar {
+  workspace_id: string;
+  connection_id: string;
+  event_key: string;
+  resource: string; // AmazonOrderId
+}
+
+/**
+ * Processa os eventos da caixa: para cada pedido avisado, busca o estado ATUAL
+ * na SP-API e regrava o canônico. É o ganho de frescor — quando o pedido envia,
+ * a Amazon publica valor e status, e o `getOrder` os traz em segundos, sem
+ * esperar o polling de 2 min.
+ *
+ * ⚠️ A notificação é só o AVISO; o dado vem da SP-API autenticada (ADR-023).
+ * Evento que falha volta a `error` e é retentado — perder um só atrasa, o
+ * polling é a rede.
+ *
+ * `claim` atômico (pending → processing, SKIP LOCKED) para dois consumidores
+ * nunca pegarem o mesmo evento.
+ */
+export async function processarEventosAmazon({ max = 40 }: { max?: number } = {}): Promise<{ processados: number; pedidos: number; erros: number }> {
+  if (!hasDb()) return { processados: 0, pedidos: 0, erros: 0 };
+  const claimados = await dbQuery<EventoParaProcessar>(
+    `UPDATE workspace_marketplace_events e
+        SET status = 'processing', processing_at = now(), attempts = attempts + 1
+      WHERE (e.workspace_id, e.provider, e.event_key) IN (
+        SELECT c.workspace_id, c.provider, c.event_key
+          FROM workspace_marketplace_events c
+         WHERE c.provider = 'amazon'
+           AND (c.status = 'pending'
+                OR (c.status = 'error' AND c.processing_at < now() - interval '2 minutes'))
+         ORDER BY c.received_at
+         LIMIT $1
+         FOR UPDATE SKIP LOCKED
+      )
+      RETURNING e.workspace_id, e.connection_id, e.event_key, e.resource`,
+    [max],
+  );
+  if (!claimados.length) return { processados: 0, pedidos: 0, erros: 0 };
+
+  // Agrupa por conexão: uma sessão de conta por grupo, não por evento.
+  const porConexao = new Map<string, { workspaceId: string; connectionId: string; eventos: EventoParaProcessar[] }>();
+  for (const ev of claimados) {
+    const chave = `${ev.workspace_id}|${ev.connection_id}`;
+    if (!porConexao.has(chave)) porConexao.set(chave, { workspaceId: ev.workspace_id, connectionId: ev.connection_id, eventos: [] });
+    porConexao.get(chave)!.eventos.push(ev);
+  }
+
+  let pedidos = 0, erros = 0;
+  const concluir = async (evs: EventoParaProcessar[], status: "complete" | "error", erro?: string) => {
+    await dbQuery(
+      `UPDATE workspace_marketplace_events SET status = $4, processed_at = now(), last_error = $5
+        WHERE workspace_id = $1 AND provider = 'amazon' AND event_key = ANY($2::text[]) AND connection_id = $3`,
+      [evs[0].workspace_id, evs.map((e) => e.event_key), evs[0].connection_id, status, erro ?? null],
+    );
+  };
+
+  for (const grupo of porConexao.values()) {
+    try {
+      await runWithWorkspace(grupo.workspaceId, async () => {
+        const sellerId = sellerIdDaConexao(grupo.connectionId);
+        const account = await getAccount(sellerId);
+        if (!account?.refreshToken) {
+          erros += grupo.eventos.length;
+          await concluir(grupo.eventos, "error", "conta sem token");
+          return;
+        }
+        await runWithAccount({ sellerId: account.sellerId, refreshToken: account.refreshToken }, async () => {
+          const escopo = { provider: "amazon" as const, connectionId: grupo.connectionId, storeRaw: true };
+          // Pedidos distintos avisados neste lote (vários eventos podem ser do mesmo).
+          const orderIds = [...new Set(grupo.eventos.map((e) => e.resource).filter(Boolean))];
+          const cabecalhos = [];
+          const aplicacoes = [];
+          for (const orderId of orderIds) {
+            const pedido = await getOrder(orderId);
+            if (pedido) cabecalhos.push(normalizeAmazonOrderHeader(pedido));
+            const itens = normalizeAmazonOrderItems(await getOrderItems(orderId));
+            if (itens.items.length) aplicacoes.push({ externalOrderId: orderId, items: itens.items, gross: itens.gross, buyerShipping: itens.buyerShipping });
+          }
+          if (cabecalhos.length) await saveCanonicalOrderHeaders(escopo, cabecalhos);
+          if (aplicacoes.length) await applyCanonicalOrderItems(escopo, aplicacoes);
+          pedidos += orderIds.length;
+          await concluir(grupo.eventos, "complete");
+        });
+      });
+    } catch (erro) {
+      erros += grupo.eventos.length;
+      const msg = erro instanceof Error ? erro.message.slice(0, 200) : "erro desconhecido";
+      console.error("[amazon-notif] processar grupo falhou", grupo.connectionId, msg);
+      try { await concluir(grupo.eventos, "error", msg); } catch { /* deixa em processing; retenta em 2 min */ }
+    }
+  }
+  return { processados: claimados.length, pedidos, erros };
 }
