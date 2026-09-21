@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { saveAccount } from "@/lib/accountStore";
+import { garantirAssinaturaAmazon } from "@/lib/integrations/amazonNotificacaoSetup";
 import { ACTIVE_COOKIE } from "@/lib/withAccount";
 import { oauthClientCreds } from "@/lib/spapi";
 import { runWithAccount } from "@/lib/accountContext";
@@ -83,6 +84,11 @@ export async function GET(req: NextRequest) {
     const workspaceId = currentWorkspaceId();
     const account = { sellerId, refreshToken: data.refresh_token };
     depoisDaResposta("auth-callback:amazon-kick", () => runWithWorkspace(workspaceId, async () => {
+      // Assina o webhook desta conta (ADR-023). Idempotente e best-effort: se a
+      // role de notificações não foi concedida ou a AWS não está configurada,
+      // falha em silêncio e o polling de 2 min cobre. É o que faz o webhook
+      // escalar — cada vendedor assina sozinho ao conectar, nunca à mão.
+      await garantirAssinaturaAmazon(sellerId, data.refresh_token);
       try {
         await runAmazonSyncBatch(account, KICK_MAX_STEPS);
       } catch (error) {
