@@ -121,6 +121,18 @@ export async function register() {
     setInterval(() => void dispara("retencao"), RETENTION_INTERVAL_MS);
   }, 120_000);
 
+  // Notificações da Amazon por SQS (ADR-023): long poll CONTÍNUO da fila. A rota
+  // escuta ~45s por invocação; o intervalo curto redispara logo depois e o
+  // `emVoo` impede sobreposição — na prática, escuta quase ininterrupta, que é o
+  // "webhook igual ao do Mercado Livre" que ela pediu. Sem infra AWS a rota
+  // volta em executou:false na hora, e o polling de 2 min cobre (ADR: degradação
+  // limpa). Fora do freio por canal de propósito: não é um sync, é a caixa.
+  const NOTIF_INTERVAL_MS = Number(process.env.SCHEDULER_NOTIF_INTERVAL_MS || 20_000);
+  setTimeout(() => {
+    void dispara("amazon-notifications");
+    setInterval(() => void dispara("amazon-notifications"), NOTIF_INTERVAL_MS);
+  }, 20_000);
+
   // ⚠️ NAO repetir o intervalo aqui. Esta linha dizia "syncs a cada 2 min" logo
   // depois de o log ter listado os intervalos REAIS por canal (10, 5 e 10) —
   // duas afirmacoes contraditorias, e a errada vinha por ultimo. Enquanto era
