@@ -22,7 +22,7 @@ export default function PrivacidadePage() {
         <div>
           <p>Segurança e privacidade</p>
           <h1>Política de Privacidade</h1>
-          <span>Versão 1.1 · vigente desde 24/08/2026 · revisão anual</span>
+          <span>Versão 1.2 · vigente desde 22/09/2026 · revisão anual</span>
         </div>
         <Link href="/login" className="privacy-login">Entrar</Link>
       </header>
@@ -92,7 +92,15 @@ export default function PrivacidadePage() {
             <strong>Google</strong> (geração do texto explicativo do NEXO — ver a seção 5),{" "}
             <strong>Crisp</strong> (chat de suporte dentro do painel — recebe apenas seu nome e
             e-mail para identificar a conversa, com servidores na União Europeia e acordo de
-            processamento de dados) e os{" "}
+            processamento de dados),{" "}
+            {/* ⚠️ O GATEWAY FALTAVA NESTA LISTA ate 22/09/2026, e a
+                ausencia aparece justamente para quem audita pagamento: a
+                cobranca da assinatura e tratamento de dado como qualquer outro,
+                e processador que nao esta escrito e processador que o titular
+                nao sabe que existe. Decisao dela no mesmo dia: o texto cita a
+                AbacatePay, e so ela. */}
+            <strong>AbacatePay</strong> (processador de pagamento — recebe os dados necessários à
+            cobrança da assinatura) e os{" "}
             <strong>marketplaces autorizados por você</strong> (Amazon, Mercado Livre, Shopee e
             TikTok Shop). Não vendemos nem alugamos dados pessoais.
           </p>
