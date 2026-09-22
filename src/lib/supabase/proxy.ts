@@ -1,4 +1,4 @@
-import { createServerClient } from "@supabase/ssr";
+﻿import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 const publicPaths = [
@@ -6,6 +6,10 @@ const publicPaths = [
   // Landing: é a porta de entrada; exigir sessão para vê-la não faria sentido.
   "/landing",
   "/privacidade",
+  // Termos de uso: documento legal que auditor SEM CONTA precisa alcançar —
+  // GET /termos devolvendo 307 para o login foi a causa exata da reprovação
+  // da AbacatePay em 22/09/2026.
+  "/termos",
   // Quem esqueceu a senha não tem sessão para provar quem é — pedir login para
   // recuperar o login seria o laço fechado que tranca a pessoa do lado de fora.
   // `/nova-senha` NÃO entra aqui de propósito: lá a sessão já existe, criada por
