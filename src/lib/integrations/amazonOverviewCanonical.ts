@@ -430,11 +430,19 @@ export async function getAmazonOverviewFromCanonical(
       [...scopeParams(connectionId, period), REVENUE_STATUSES]
     ),
     // A MARGEM REAL POR PRODUTO — período inteiro, fora do teto de 1000 (ver
-    // `PorProdutoRow` e `topProdutosSemTeto`). Tarifa = comissão + FBA da view
-    // `..._efetivas`, sondada POR PEDIDO (LATERAL) para o planner não varrer a
-    // conexão inteira. `completo` = tarifa conhecida em todo pedido do produto;
-    // parcial nunca vaza como total. Imposto entra no agregado (JS), pela regra
-    // do canal — a Amazon carimba a alíquota, não usa `null` como o ML.
+    // `PorProdutoRow` e `topProdutosSemTeto`). `completo` = tarifa conhecida em
+    // todo pedido do produto; parcial nunca vaza como total. Imposto entra no
+    // agregado (JS), pela regra do canal — a Amazon carimba a alíquota, não usa
+    // `null` como o ML.
+    //
+    // ⚠️ A SONDA DE TARIFA BATE NAS TABELAS CRUAS, NÃO NA VIEW `..._efetivas`
+    // (medido em 21/09/2026). A view é um UNION com GROUP BY sobre a tabela
+    // INTEIRA de tarifas; dentro de um LATERAL por pedido, o planner NÃO empurra
+    // o `external_order_id` para dentro dela e re-agrega tudo a cada pedido —
+    // 4,9s e ~234 MB de buffers medidos na conta real. Inlinando a MESMA regra
+    // da view (real; e a estimativa da ADR-027 só onde não há tarifa real do
+    // mesmo tipo), cada ramo usa o índice de `external_order_id`: caiu para
+    // ~70 ms. É o mesmo motivo do LATERAL-por-pedido do ML (13/09).
     dbQuery<PorProdutoRow>(
       `WITH alvo AS (
          SELECT o.external_order_id
@@ -446,11 +454,26 @@ export async function getAmazonOverviewFromCanonical(
          SELECT a.external_order_id, t.tarifa, t.tem_tarifa
            FROM alvo a
            CROSS JOIN LATERAL (
-             SELECT SUM(v.amount) AS tarifa, COUNT(*) > 0 AS tem_tarifa
-               FROM workspace_channel_order_fees_efetivas v
-              WHERE v.workspace_id = $1 AND v.provider = $2 AND v.connection_id = $3
-                AND v.external_order_id = a.external_order_id
-                AND v.fee_type IN (${SQL_TARIFAS_QUE_CUSTAM})
+             SELECT SUM(amount) AS tarifa, COUNT(*) > 0 AS tem_tarifa
+               FROM (
+                 SELECT f.amount
+                   FROM workspace_channel_order_fees f
+                  WHERE f.workspace_id = $1 AND f.provider = $2 AND f.connection_id = $3
+                    AND f.external_order_id = a.external_order_id
+                    AND f.fee_type IN (${SQL_TARIFAS_QUE_CUSTAM})
+                 UNION ALL
+                 SELECT e.amount
+                   FROM workspace_channel_order_fee_estimates e
+                  WHERE e.workspace_id = $1 AND e.provider = $2 AND e.connection_id = $3
+                    AND e.external_order_id = a.external_order_id
+                    AND e.superseded_at IS NULL
+                    AND e.fee_type IN (${SQL_TARIFAS_QUE_CUSTAM})
+                    AND NOT EXISTS (
+                      SELECT 1 FROM workspace_channel_order_fees r
+                       WHERE r.workspace_id = e.workspace_id AND r.provider = e.provider
+                         AND r.connection_id = e.connection_id AND r.external_order_id = e.external_order_id
+                         AND r.fee_type = e.fee_type)
+               ) u
            ) t
        ),
        linhas AS (
