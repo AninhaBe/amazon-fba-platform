@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { RodapePublico } from "../components/RodapePublico";
 import { NexoWordmark } from "../components/NexoWordmark";
 import { createClient, supabaseConfigured } from "@/lib/supabase/server";
 import { lerAcesso } from "@/lib/billing/acessoDoServidor";
@@ -97,6 +98,9 @@ export default async function ReativarPage({
           <BotaoDeAssinar rotulo={acesso.motivo === "assinatura-cortada" ? "Reativar assinatura" : "Assinar o NEXO"} />
         )}
       </section>
+      {/* Quem esta prestes a PAGAR precisa ver quem cobra, e onde estao os
+          Termos e a Politica — sem sair da tela do pagamento. */}
+      <RodapePublico variante="compacto" />
     </main>
   );
 }

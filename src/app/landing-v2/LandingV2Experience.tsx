@@ -16,6 +16,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { MarketplaceIcon } from "../components/MarketplaceIcon";
+import { IDENTIFICACAO_LEGAL } from "../components/identidadeLegal";
 import { NexoWordmark } from "../components/NexoWordmark";
 import { RevenueChart, type ChartMetric } from "../components/RevenueChart";
 import { marginTone } from "@/lib/marginTone";
@@ -667,9 +668,24 @@ export function LandingV2Experience() {
         <NexoWordmark as="span" className={styles.footerBrand} />
         <span>Operação multicanal com dados explícitos.</span>
         <nav aria-label="Links institucionais">
+          <Link href="/termos">Termos de Uso</Link>
           <Link href="/privacidade">Privacidade</Link>
           <Link href="/login">Entrar<ExternalLink aria-hidden="true" /></Link>
         </nav>
+        {/* ⚠️ A IDENTIFICACAO DE QUEM OPERA O NEXO, NA HOME —
+            22/09/2026. O cadastro na AbacatePay foi reprovado porque o site
+            publico nao exibia razao social, CNPJ e contato; o dado existia na
+            Politica de Privacidade desde 24/08, mas quem audita entra pela home
+            e nao cria conta para procurar. A causa foi VISIBILIDADE, e e por
+            isso que ela aparece aqui embaixo, em toda visita, sem login.
+
+            Linha nova, nao redesenho: a marca, a frase e os links de cima
+            continuam onde estavam — ela entra como segunda fileira do rodape. */}
+        <p className={styles.footerLegal}>
+          <strong>{IDENTIFICACAO_LEGAL.razaoSocial}</strong>
+          <span>CNPJ {IDENTIFICACAO_LEGAL.cnpj}</span>
+          <a href={`mailto:${IDENTIFICACAO_LEGAL.email}`}>{IDENTIFICACAO_LEGAL.email}</a>
+        </p>
       </footer>
     </>
   );

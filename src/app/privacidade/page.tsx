@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { NexoWordmark } from "../components/NexoWordmark";
+import { RodapePublico } from "../components/RodapePublico";
 
 export const metadata: Metadata = {
   title: "Política de Privacidade — NEXO",
@@ -180,9 +181,13 @@ export default function PrivacidadePage() {
         </article>
       </div>
 
-      <footer className="privacy-footer">
-        NEXO · 66.106.202 ANA BEATRIZ DE OLIVEIRA · CNPJ 66.106.202/0001-20
-      </footer>
+      {/* ⚠️ ERA UMA LINHA DE CREDITO ESCRITA A MAO AQUI, com a
+          razao social e o CNPJ repetidos em texto solto. Virou a peca
+          compartilhada (22/09/2026): a identificacao e a MESMA das outras
+          paginas publicas e agora sai de um lugar so, com o e-mail de contato e
+          o link para os Termos, que faltavam. Duas copias do mesmo CNPJ
+          divergem no dia em que um numero mudar. */}
+      <RodapePublico />
     </main>
   );
 }

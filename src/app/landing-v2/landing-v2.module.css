@@ -1221,6 +1221,32 @@
   font-size: 12px;
 }
 
+/* Segunda fileira do rodape: a identificacao legal, atravessando as tres
+   colunas. O `min-height` de 108px ja acomoda as duas linhas. */
+.footerLegal {
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: 4px 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.footerLegal strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.footerLegal a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .footerBrand {
   gap: 6px;
 }

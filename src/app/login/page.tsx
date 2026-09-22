@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { NexoSymbol } from "../components/NexoSymbol";
 import { NexoWordmark } from "../components/NexoWordmark";
+import { RodapePublico } from "../components/RodapePublico";
 import { LoginForm } from "./LoginForm";
 
 export const dynamic = "force-dynamic";
@@ -79,6 +80,9 @@ export default function LoginPage() {
       <Suspense fallback={<div className="auth-card min-h-[390px]" aria-label="Carregando acesso" />}>
         <LoginForm />
       </Suspense>
+      {/* Identificacao de quem opera o NEXO, visivel sem login — a tira e
+          posicionada e nao entra na grade de duas colunas acima. */}
+      <RodapePublico variante="compacto" />
     </main>
   );
 }

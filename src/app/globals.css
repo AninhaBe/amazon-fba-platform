@@ -5120,6 +5120,29 @@ summary:hover { background: var(--paper-soft); }
 
 /* Política pública: navegação lateral reutiliza a clareza das áreas de
    configurações; o texto legal mantém medida curta e cada assunto é escaneável. */
+/* ── Rodapé de identificação das páginas públicas (22/09/2026) ─────────────
+   Quem opera o NEXO, em toda página que existe sem login. Nasceu da reprovação
+   do cadastro na AbacatePay, que não achou a identificação a partir da home.
+   Duas variantes: bloco (documentos) e tira (telas de acesso). */
+.rodape-publico { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 22px; border-block-start: 1px solid var(--ink-08); padding-block: 16px; color: var(--ink-muted); font-size: 12px; line-height: 18px; }
+.rodape-publico-identidade { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-width: 0; }
+.rodape-publico-identidade strong { color: var(--ink-soft); font-weight: var(--weight-semibold); }
+.rodape-publico-identidade a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.rodape-publico-identidade a:hover { color: var(--ink); }
+.rodape-publico-links { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.rodape-publico-links a { color: var(--ink-soft); text-decoration: none; }
+.rodape-publico-links a:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
+/* ⚠️ A TIRA DAS TELAS DE ACESSO É POSICIONADA, e não empilhada:
+   `.auth-page` tem altura de viewport e duas colunas de grade — um terceiro
+   filho no fluxo entraria como célula e quebraria o par intro/cartão. Fora do
+   fluxo, ela aparece sem tocar no desenho que já estava lá; o respiro embaixo
+   vem do `padding-block-end` da própria `.auth-page`. */
+.rodape-publico.is-compacto { position: absolute; inset-inline: clamp(24px, 5vw, 72px); inset-block-end: clamp(10px, 2vh, 18px); z-index: 1; border-block-start: 0; padding-block: 0; font-size: 11px; }
+@media (max-width: 720px) {
+  .rodape-publico { flex-direction: column; align-items: flex-start; }
+  .rodape-publico.is-compacto { position: static; inset: auto; margin-block-start: 18px; }
+}
+
 .privacy-page { width: min(1120px, 100%); margin-inline: auto; padding: 24px clamp(18px, 4vw, 44px) 40px; color: var(--ink); }
 .privacy-header { display: grid; grid-template-columns: 180px minmax(0, 1fr) auto; min-height: 122px; align-items: center; gap: 28px; border-block-end: 1px solid var(--ink-08); }
 .privacy-header > a:first-child { justify-self: start; color: inherit; text-decoration: none; }
@@ -5146,7 +5169,6 @@ summary:hover { background: var(--paper-soft); }
 .privacy-content strong { color: var(--ink); font-weight: var(--weight-semibold); }
 .privacy-content a { color: var(--ink); text-decoration-color: var(--ink-32); text-underline-offset: 3px; }
 .privacy-content a:hover { text-decoration-color: var(--ink); }
-.privacy-footer { padding-block-start: 18px; border-block-start: 1px solid var(--ink-08); color: var(--ink-muted); font-size: 12px; }
 
 @media (max-width: 760px) {
   .privacy-header { grid-template-columns: 1fr auto; min-height: auto; padding-block: 12px 20px; }
@@ -5169,7 +5191,9 @@ summary:hover { background: var(--paper-soft); }
   overflow: hidden;
   grid-template-columns: minmax(0, 1fr) minmax(340px, 430px);
   gap: clamp(40px, 7vw, 96px);
-  padding: clamp(18px, 3vh, 30px) clamp(24px, 5vw, 72px);
+  /* O `padding-block-end` maior abre o respiro da tira de identificação
+     (`.rodape-publico.is-compacto`), que é posicionada sobre esta caixa. */
+  padding: clamp(18px, 3vh, 30px) clamp(24px, 5vw, 72px) clamp(42px, 6vh, 54px);
   background-color: var(--canvas);
   background-image:
     linear-gradient(to right, oklch(0 0 0 / .055) 1px, transparent 1px),
