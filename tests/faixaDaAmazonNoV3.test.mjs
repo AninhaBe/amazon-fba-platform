@@ -163,14 +163,20 @@ test("a faixa da Amazon veste a linguagem v3 — e a frase da apuracao nao inven
   assert.match(painel, /<div className="v3">\s*<FaixaDoPeriodoV3/,
     "a faixa perdeu o embrulho v3 — volta a aparecer sem cartao nem cor");
 
-  // ⚠️ "41 de 11": `processedOrders` e `paidOrders` sao universos
-  // diferentes, e fracao exige o mesmo universo em cima e embaixo.
-  assert.ok(
-    !/\$\{conciliacao\.processedOrders\} de \$\{conciliacao\.paidOrders\}/.test(codigo),
-    "a fracao invertida voltou: processados sobre pagos nao e uma fracao",
-  );
-  assert.match(codigo, /conciliacao\.complete/,
-    "a frase da apuracao parou de olhar se o periodo fechou");
+  // ⚠️ INTENCAO MUDADA EM 20/09/2026: NAO EXISTE MAIS FRASE DE APURACAO NA AMAZON.
+  //
+  // A asercao anterior aqui exigia que a frase olhasse `conciliacao.complete` e
+  // NAO invertesse a fracao ("41 de 11": processedOrders sobre paidOrders sao
+  // universos diferentes). Ordem dela: "nao vai existir X conciliados, tem que
+  // mostrar todos, pode apagar essa legenda" — o card de Lucro/Margem ja e sobre
+  // o faturamento inteiro (31/08), o "apurado/conciliado" so sobrevivia nesse
+  // texto. Agora a Amazon manda `resumoApuracao` vazio, e a guarda vira o
+  // contrario: a legenda (e a fracao invertida junto) NAO pode voltar.
+  // Cobertura dedicada em tests/amazonSemLegendaApurado.
+  assert.match(codigo, /resumoApuracao: ""/,
+    "a Amazon voltou a montar uma frase de apuracao — ela foi abolida em 20/09/2026");
+  assert.ok(!/pedidos apurados/.test(codigo), "a legenda 'N pedidos apurados' voltou a Amazon");
+  assert.ok(!/conciliacao\.complete/.test(codigo), "o escopo 'conciliado' voltou a alimentar a faixa da Amazon");
 
   // E o fundo do canal, pelo mesmo mecanismo do ML e com o mesmo escopo.
   const css = await ler("src/app/globals.css");

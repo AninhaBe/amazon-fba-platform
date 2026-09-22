@@ -105,3 +105,50 @@ nesta ADR.
 **O que fazer com o Mercado Livre.** O `FRESH_FOR_MS` dele segue em 6 horas: se o
 webhook falhar, o painel envelhece sem aviso, exatamente como a Amazon envelhecia.
 Não foi tocado hoje e merece decisão própria.
+
+## Estado da implementação (21/09/2026) — infra e assinatura LIGADAS
+
+⚠️ **Atualiza o Status:** o desenho saiu do papel. A AWS e o lado da Amazon já
+estão de pé; falta só o consumidor (abaixo).
+
+### AWS (feito com a dona, no console)
+- **Conta AWS:** `073856425324` · **Região:** `us-east-1`.
+- **Fila:** `nexo-amazon-notifications`
+  ARN `arn:aws:sqs:us-east-1:073856425324:nexo-amazon-notifications`.
+- **DLQ + alerta de faturamento US$ 1** criados (mitigação obrigatória do ADR).
+- **Usuário IAM dedicado:** `nexo-sqs-consumer`, só `ReceiveMessage`/`DeleteMessage`
+  na fila (não administrativo).
+- **Política da fila** concede `SendMessage` ao principal da SP-API
+  (`437568002678`) — validada pela Amazon no `createDestination` (aceito).
+- **Secrets no Fly** (nunca no repo): `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
+  `AWS_REGION`, `SQS_QUEUE_URL`.
+
+### Amazon (feito pela SP-API, Notifications API)
+- **Destino:** `createDestination` → `destinationId d291e8e3-d80c-4d58-840c-8e072cd94d9c`
+  (nome `nexo-amazon-sqs`), apontando para a fila acima. App-level (token grantless,
+  scope `sellingpartnerapi::notifications`).
+- **Assinatura:** `createSubscription` `ORDER_CHANGE` →
+  `subscriptionId 95023e60-e75b-4a7e-8096-e98ba5ba269c`, na conta do Lucas
+  (`A15NQMF7A6J1Y0`, SILVEIRAS). Confirmada por `GET` (200).
+- ⚠️ **PEGADINHA MEDIDA:** o `eventFilter` do `ORDER_CHANGE` **NÃO aceita
+  `marketplaceIds`** — incluir devolve `InvalidInput ... failed to validate`
+  (há issue oficial: amzn/selling-partner-api-models#4135). O corpo certo é só
+  `{"orderChangeTypes":["OrderStatusChange"],"eventFilterType":"ORDER_CHANGE"}`.
+- ⚠️ `ORDER_STATUS_CHANGE` está **morta** (sunset 31/12/2023) — usar `ORDER_CHANGE`.
+
+### Feito também (21/09/2026) — CONSUMIDOR + PROCESSADOR + AUTO-ASSINATURA
+- **Consumidor** (`amazonSqs.ts` + `amazonNotificacoes.ts`, v310): long poll da
+  fila (SigV4 SEM SDK, provado contra o vetor oficial da AWS), grava em
+  `workspace_marketplace_events` (dedup `NotificationId`, `connection_id =
+  amazon:<sellerId>`) e só então `DeleteMessage`. Rota
+  `/api/cron/amazon-notifications`, long poll contínuo ~45s, no agendador.
+  **Validado em produção:** 6 ORDER_CHANGE reais consumidos ponta a ponta.
+- **Processador** (`processarEventosAmazon`, v311): claim atômico (SKIP LOCKED),
+  busca o pedido na SP-API (`getOrder`/`getOrderItems`) e regrava o canônico.
+  É o frescor: pedido que envia ganha valor/status em segundos.
+- **Auto-assinatura** (`amazonNotificacaoSetup.ts`, v312): `garantirDestinoSqs`
+  (find-or-create, uma vez pro app) + `garantirAssinaturaAmazon` (por conta,
+  idempotente), ligadas no callback do OAuth. **Cada vendedor assina sozinho ao
+  conectar** — escala pra N. As 3 contas atuais já foram backfilladas.
+  ⚠️ Depende de a conta conceder a role de notificações; sem ela, falha em
+  silêncio e o polling cobre.

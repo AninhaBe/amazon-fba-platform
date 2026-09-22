@@ -191,7 +191,7 @@ export default function BancadaDaAmazon() {
   const [metrica, setMetrica] = useState("Faturamento");
   const dados: DadosV3 = {
     periodoLabel: "hoje",
-    resumoApuracao: <>15 pedidos apurados</>,
+    resumoApuracao: "",
     colunas: colunasDoPeriodoAmazon(ENTRADA),
     margem: margemDoPeriodoAmazon(ENTRADA),
     notaDoImposto: null,

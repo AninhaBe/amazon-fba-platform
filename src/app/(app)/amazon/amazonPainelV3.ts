@@ -275,6 +275,9 @@ export interface ProdutoDoTopAmazon {
   title?: string;
   units: number;
   revenue: number;
+  /** Contribuição real (fat − tarifa − custo − imposto). Opcional: o produtor
+   *  canônico sempre manda; o fallback legado não calcula e cai em "—". */
+  contribution?: number | null;
   marginPct: number | null;
 }
 
@@ -294,11 +297,13 @@ export interface DiaDaSerieAmazon {
 /**
  * O Top N produtos.
  *
- * ⚠️ A CONTRIBUIÇÃO SAI COMO TRAVESSÃO, e isso é fidelidade ao
- * que a Amazon entrega: o produtor do ML manda contribuição por produto e o da
- * Amazon não. Preencher com o faturamento, ou com zero, seria inventar — e a
- * coluna existe justamente para dizer quanto sobrou. Travessão diz "não sei",
- * que é a verdade.
+ * ⚠️ A CONTRIBUIÇÃO AGORA VEM PREENCHIDA (21/09/2026). Antes saía travessão
+ * porque a Amazon "não mandava contribuição por produto" — mas isso era falta
+ * de CÁLCULO, não do dado: a tarifa (comissão + FBA, com estimativa da ADR-027)
+ * e o custo existem no banco. O produtor canônico passou a apurar a contribuição
+ * por produto no período inteiro (mesma garantia do ML, `topProdutosSemTeto`), e
+ * ela é `null` só quando a conta não fecha — aí, e só aí, volta o travessão.
+ * `null` ≠ 0: contribuição desconhecida não vira R$ 0,00.
  */
 export function produtosDoTopAmazon(
   produtos: ProdutoDoTopAmazon[],
@@ -313,7 +318,7 @@ export function produtosDoTopAmazon(
     unidades: `${p.units.toLocaleString("pt-BR")} un`,
     faturamento: dinheiro(p.revenue, moeda),
     fracao: maior > 0 ? p.revenue / maior : 0,
-    contribuicao: "—",
+    contribuicao: p.contribution == null ? "—" : dinheiro(p.contribution, moeda),
     margemPct: p.marginPct,
   }));
 }

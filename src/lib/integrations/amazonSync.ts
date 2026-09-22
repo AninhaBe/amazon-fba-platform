@@ -65,6 +65,8 @@ const PAGE_SIZE = 100;
 // getOrderItems (0,5 req/s, burst 30) — 40 por passo continua com folga porque
 // os passos se espaçam pelo cron.
 const ITEM_BATCH_SIZE = 40;
+/** Até quantos dias atrás o ciclo re-busca itens que ficaram sem preço (ver syncMissingOrderItems). */
+const REPRECIFICAR_DIAS = 60;
 // Uma única chamada à Transactions API cobre a janela inteira, então dá para
 // reconciliar muitos pedidos por passada.
 const FEES_BATCH_SIZE = 500;
@@ -245,22 +247,54 @@ export function registrarDesistencia(etapa: string, erro: unknown, contexto: Rec
  * não tem custo, não tem tarifa e não entra na conta — e a tela mostrava lucro
  * sobre R$ 76,49 de um faturamento de R$ 514,43.
  *
- * ⚠️ Não gera chamada repetida quando o pedido vira `paid`: o `NOT EXISTS`
- * abaixo só busca quem ainda não tem item, e o pendente já terá os seus.
+ * ⚠️ O PEDIDO QUE SAIU DE `Pending` É BUSCADO DE NOVO — UMA VEZ, PELO PREÇO.
+ *
+ * A versão anterior dizia aqui: "não gera chamada repetida quando o pedido vira
+ * `paid`: o `NOT EXISTS` só busca quem ainda não tem item, e o pendente já terá
+ * os seus". Era exatamente o defeito. O pendente tem os itens e NÃO tem o preço;
+ * sem segunda busca, a linha fica com `unit_price` nulo para sempre. Medido em
+ * 20/09/2026 (A15NQMF7A6J1Y0): 628 linhas de pedidos ENVIADOS nos últimos 15
+ * dias, todas sem preço, e a Amazon devolvendo `ItemPrice` em todas.
+ *
+ * A segunda perna abaixo só alcança pedido que JÁ SAIU de `pending` (é quando a
+ * Amazon passa a devolver dinheiro) e ainda tem linha sem preço. Preenchido o
+ * preço, a linha deixa de casar — uma busca a mais por pedido, não uma por ciclo.
+ *
+ * Quem não tem item nenhum vem PRIMEIRO no lote: a recuperação do passivo não
+ * pode atrasar a venda nova. E a janela de `REPRECIFICAR_DIAS` impede que um
+ * pedido que a Amazon nunca precifique ocupe vaga no lote para sempre; o que
+ * ficou para trás dela é trabalho do script de cura, não do ciclo.
  */
 async function syncMissingOrderItems(connectionId: string): Promise<void> {
   const rows = await dbQuery<{ external_order_id: string }>(
     `SELECT o.external_order_id FROM workspace_channel_orders o
       WHERE o.workspace_id = $1 AND o.provider = $2 AND o.connection_id = $3
         AND o.status IN ('pending', 'paid', 'shipped', 'delivered')
-        AND NOT EXISTS (
-          SELECT 1 FROM workspace_channel_order_items i
-           WHERE i.workspace_id = o.workspace_id AND i.provider = o.provider
-             AND i.connection_id = o.connection_id AND i.external_order_id = o.external_order_id
+        AND (
+          NOT EXISTS (
+            SELECT 1 FROM workspace_channel_order_items i
+             WHERE i.workspace_id = o.workspace_id AND i.provider = o.provider
+               AND i.connection_id = o.connection_id AND i.external_order_id = o.external_order_id
+          )
+          OR (
+            o.status <> 'pending'
+            AND o.occurred_at > now() - ($5 || ' days')::interval
+            AND EXISTS (
+              SELECT 1 FROM workspace_channel_order_items i
+               WHERE i.workspace_id = o.workspace_id AND i.provider = o.provider
+                 AND i.connection_id = o.connection_id AND i.external_order_id = o.external_order_id
+                 AND i.unit_price IS NULL
+            )
+          )
         )
-      ORDER BY o.occurred_at DESC
+      ORDER BY (NOT EXISTS (
+                 SELECT 1 FROM workspace_channel_order_items i
+                  WHERE i.workspace_id = o.workspace_id AND i.provider = o.provider
+                    AND i.connection_id = o.connection_id AND i.external_order_id = o.external_order_id
+               )) DESC,
+               o.occurred_at DESC
       LIMIT $4`,
-    [currentWorkspaceId(), PROVIDER, connectionId, ITEM_BATCH_SIZE]
+    [currentWorkspaceId(), PROVIDER, connectionId, ITEM_BATCH_SIZE, String(REPRECIFICAR_DIAS)]
   );
   const applications: OrderItemsApplication[] = [];
   for (const row of rows) {
@@ -286,6 +320,68 @@ async function syncMissingOrderItems(connectionId: string): Promise<void> {
     }
   }
   await applyCanonicalOrderItems({ provider: PROVIDER, connectionId }, applications);
+}
+
+/**
+ * Valoriza o pedido PENDENTE pela NOSSA base, sem depender da Amazon nem do
+ * relatório (decisão da dona, 21/09/2026: "o NEXO é real time, não podemos
+ * depender da Amazon pra nos disponibilizar os valores; já temos toda a nossa
+ * base de cálculo, sabemos qual valor vai aparecer quando deixar de ser pending").
+ *
+ * O valor de cada pedido sem valor = preço que o MESMO SKU já teve nos nossos
+ * pedidos (o mais próximo da data, não uma média — mesma regra do antigo
+ * `estimarPorPrecoDoSku`), vezes a quantidade. Grava em `ordered_gross`
+ * (source `estimado`, ADR-027) — assim o pedido entra na conta de faturamento E
+ * lucro na hora, e é SUBSTITUÍDO pelo `gross` real quando a Amazon envia.
+ *
+ * ⚠️ SÓ preenche quem NÃO tem valor nenhum (`gross IS NULL AND ordered_gross IS
+ * NULL`): nunca rebaixa valor real nem valor do relatório. Em dia fechado, onde
+ * todo pedido já tem `gross`, isto não casa ninguém — é inócuo. É o que fecha o
+ * furo do dia vivo (imposto que parecia 2,7% porque o pendente ficava fora da
+ * base) sem tocar na matemática do lucro: a base do resultado passa a cobrir
+ * todos os pedidos porque todos passam a ter receita.
+ */
+export async function valorizarPendentesPeloCatalogo(connectionId: string): Promise<void> {
+  await dbQuery(
+    `WITH pend AS (
+       SELECT o.external_order_id, i.sku, i.qty, o.occurred_at
+         FROM workspace_channel_orders o
+         JOIN workspace_channel_order_items i
+           ON i.workspace_id = o.workspace_id AND i.provider = o.provider
+          AND i.connection_id = o.connection_id AND i.external_order_id = o.external_order_id
+        WHERE o.workspace_id = $1 AND o.provider = $2 AND o.connection_id = $3
+          AND o.status <> 'cancelled'
+          AND o.gross IS NULL AND o.ordered_gross IS NULL
+     ),
+     preco AS (
+       SELECT p.external_order_id, SUM(p.qty * pr.valor) AS valor
+         FROM pend p
+         CROSS JOIN LATERAL (
+           SELECT COALESCE(i2.list_price, i2.unit_price) AS valor
+             FROM workspace_channel_order_items i2
+             JOIN workspace_channel_orders o2
+               ON o2.workspace_id = i2.workspace_id AND o2.provider = i2.provider
+              AND o2.connection_id = i2.connection_id AND o2.external_order_id = i2.external_order_id
+            WHERE i2.workspace_id = $1 AND i2.provider = $2 AND i2.sku = p.sku
+              AND COALESCE(i2.list_price, i2.unit_price) > 0
+            ORDER BY abs(EXTRACT(EPOCH FROM (o2.occurred_at - p.occurred_at)))
+            LIMIT 1
+         ) pr
+        GROUP BY 1
+     )
+     UPDATE workspace_channel_orders o
+        SET ordered_gross = round(preco.valor::numeric, 2),
+            ordered_gross_source = 'estimado',
+            synced_at = now()
+       FROM preco
+      WHERE o.workspace_id = $1 AND o.provider = $2 AND o.connection_id = $3
+        AND o.external_order_id = preco.external_order_id
+        AND preco.valor > 0
+        -- Reconfere a guarda no UPDATE: entre o SELECT e o write o gross real
+        -- pode ter chegado; nunca sobrescreve valor conhecido.
+        AND o.gross IS NULL AND o.ordered_gross IS NULL`,
+    [currentWorkspaceId(), PROVIDER, connectionId],
+  );
 }
 
 // Conciliação de fees pela Transactions API. A Finances v0 retorna valores
@@ -569,6 +665,15 @@ export async function runAmazonSyncStep(account: AccountCtx, forcarJanela = fals
           ["reverifyUpdatedOrders", () => reverifyUpdatedOrders(connectionId).catch(() => {})],
           ["syncMissingOrderItems", () => syncMissingOrderItems(connectionId)],
           ["syncMissingOrderFees", () => syncMissingOrderFees(connectionId)],
+          // Valoriza o pendente pela NOSSA base ANTES de estimar tarifa — a
+          // estimativa da tabela usa esse valor como preço. Assim todo pedido
+          // entra completo (valor+tarifa+custo) e a base do lucro cobre o
+          // faturamento inteiro (21/09/2026). Falha não derruba o ciclo.
+          ["valorizarPendentes", () => valorizarPendentesPeloCatalogo(connectionId).catch((erro) => {
+            console.error("[amazon] valorizar pendentes falhou", {
+              motivo: erro instanceof Error ? erro.message.slice(0, 200) : "erro desconhecido",
+            });
+          })],
           // ⚠️ DEPOIS das tarifas reais, nunca antes: a estimativa só vale para
           // pedido que ainda NÃO tem tarifa postada, e quem descobre isso é o
           // passo acima. Falha não derruba o ciclo — tarifa estimada é melhoria

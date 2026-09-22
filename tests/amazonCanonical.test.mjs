@@ -217,3 +217,54 @@ test("frete sem desconto continua contando inteiro", () => {
   ]);
   assert.equal(buyerShipping, 12.34);
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DEFEITO QUE ESTES TESTES REPROVAM (medido em 20/09/2026, conta A15NQMF7A6J1Y0):
+// os itens são conciliados com o pedido ainda `Pending`, quando a Amazon devolve
+// ASIN/SKU/quantidade e NENHUM dinheiro. A soma caía em 0 e `gross = 0,00` era
+// gravado no pedido; como o pedido já tinha linhas, o `OrderTotal` do envio não
+// sobrescrevia. Resultado: 46 de 49 pedidos ENVIADOS de 19/09 valendo R$ 0,00 no
+// banco (na Amazon: R$ 10,00 a R$ 24,90), ~97% dos enviados desde 31/08, e a tela
+// dizendo "85 de 88 pedidos ainda sem valor publicado pela Amazon".
+// ─────────────────────────────────────────────────────────────────────────────
+test("itens de pedido Pending (sem ItemPrice) deixam o total DESCONHECIDO, nunca zero", () => {
+  const normalized = normalizeAmazonOrderItems([
+    { ASIN: "B0HG852JHD", SellerSKU: "SILV-GEL-10000", Title: "Bolinhas de gel", QuantityOrdered: 2 },
+    { ASIN: "B0HG8F2VJ5", SellerSKU: "SILV-ESC-CANUDO-3", Title: "Escovas", QuantityOrdered: 1 },
+  ]);
+  assert.equal(normalized.items.length, 2, "o item do pendente continua sendo gravado");
+  assert.equal(normalized.gross, null);
+  assert.equal(normalized.buyerShipping, null);
+  assert.equal(normalized.items[0].unitPrice, null);
+});
+
+test("o mesmo pedido, depois de enviado, passa a ter total — é o que a segunda busca grava", () => {
+  const normalized = normalizeAmazonOrderItems([
+    {
+      ASIN: "B0HG852JHD", SellerSKU: "SILV-GEL-10000", Title: "Bolinhas de gel", QuantityOrdered: 2,
+      ItemPrice: { CurrencyCode: "BRL", Amount: "29.80" },
+      PromotionDiscount: { CurrencyCode: "BRL", Amount: "0.00" },
+    },
+  ]);
+  assert.equal(normalized.gross, 29.8);
+  assert.equal(normalized.buyerShipping, 0);
+  assert.equal(normalized.items[0].unitPrice, 14.9);
+});
+
+test("ItemPrice 0,00 que a Amazon MANDOU é fato (zero), não ausência", () => {
+  // Fronteira do outro lado: reposição gratuita vem com ItemPrice presente e zerado.
+  const normalized = normalizeAmazonOrderItems([
+    { ASIN: "B0X", SellerSKU: "REPOSICAO", QuantityOrdered: 1, ItemPrice: { CurrencyCode: "BRL", Amount: "0.00" } },
+  ]);
+  assert.equal(normalized.gross, 0);
+  assert.equal(normalized.items[0].unitPrice, 0);
+});
+
+test("pedido com uma linha precificada e outra não soma o que tem preço", () => {
+  const normalized = normalizeAmazonOrderItems([
+    { ASIN: "B0A", SellerSKU: "A", QuantityOrdered: 1, ItemPrice: { CurrencyCode: "BRL", Amount: "16.90" } },
+    { ASIN: "B0B", SellerSKU: "B", QuantityOrdered: 1 },
+  ]);
+  assert.equal(normalized.gross, 16.9);
+  assert.equal(normalized.items[1].unitPrice, null);
+});

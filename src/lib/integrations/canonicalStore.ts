@@ -48,14 +48,23 @@ const RAW_MERGE_PRODUTOS = rawMerge("workspace_channel_products");
 /** Frete do comprador só avança; nunca volta a nulo por header incompleto. */
 const BUYER_SHIPPING_KEEP = "COALESCE(EXCLUDED.buyer_shipping, workspace_channel_orders.buyer_shipping)";
 
-/** Gross refinado pelas linhas não é sobrescrito pela aproximação do header. */
+/**
+ * Gross refinado pelas linhas não é sobrescrito pela aproximação do header.
+ *
+ * ⚠️ "Refinado" exige valor: `gross > 0`. Ter linhas não basta — na Amazon as
+ * linhas chegam com o pedido ainda `Pending`, SEM preço, e o que elas deixavam
+ * em `gross` era 0,00. Preservar esse zero bloqueava o `OrderTotal` que o header
+ * traz no envio (20/09/2026: ~97% dos enviados desde 31/08 valendo R$ 0,00).
+ * Zero ou nulo com linhas = ainda não refinado, então o header vale.
+ */
 const GROSS_KEEP_WHEN_ITEMS = `CASE WHEN EXISTS (
                  SELECT 1 FROM workspace_channel_order_items i
                   WHERE i.workspace_id = workspace_channel_orders.workspace_id
                     AND i.provider = workspace_channel_orders.provider
                     AND i.connection_id = workspace_channel_orders.connection_id
                     AND i.external_order_id = workspace_channel_orders.external_order_id
-               ) THEN workspace_channel_orders.gross ELSE EXCLUDED.gross END`;
+               ) AND workspace_channel_orders.gross > 0
+               THEN workspace_channel_orders.gross ELSE EXCLUDED.gross END`;
 
 export interface CanonicalScope {
   provider: IntegrationProvider;
@@ -297,9 +306,13 @@ export interface OrderItemsApplication {
   // fazia campo novo (list_price, promotion_discount) ser aceito num caminho e
   // rejeitado no outro.
   items: CanonicalOrderItem[];
-  /** Receita dos produtos calculada das linhas; substitui a aproximação do header. */
-  gross: number;
-  buyerShipping: number;
+  /**
+   * Receita dos produtos calculada das linhas; substitui a aproximação do header.
+   * `null` = as linhas vieram SEM preço (pedido `Pending` na Amazon): o valor que
+   * o pedido já tem é mantido, nunca trocado por zero.
+   */
+  gross: number | null;
+  buyerShipping: number | null;
 }
 
 /** Aplica linhas conciliadas e refina gross/buyer_shipping — um statement, atômico. */
@@ -375,12 +388,17 @@ export async function applyCanonicalOrderItems(
           ), 0)
      )
      UPDATE workspace_channel_orders orders
-        SET gross = refined.gross, buyer_shipping = refined.buyer_shipping, synced_at = now()
+        -- COALESCE: linhas sem preço (refined.gross NULL) não apagam o que o
+        -- pedido já sabe. Mesma guarda do ordered_gross em saveOrderedGross.
+        SET gross = COALESCE(refined.gross, orders.gross),
+            buyer_shipping = COALESCE(refined.buyer_shipping, orders.buyer_shipping),
+            synced_at = now()
        FROM jsonb_to_recordset($6::jsonb) AS refined(external_order_id text, gross numeric, buyer_shipping numeric)
       WHERE orders.workspace_id = $1 AND orders.provider = $2 AND orders.connection_id = $3
         AND orders.external_order_id = refined.external_order_id
         AND (orders.gross, orders.buyer_shipping)
-              IS DISTINCT FROM (refined.gross, refined.buyer_shipping)`,
+              IS DISTINCT FROM (COALESCE(refined.gross, orders.gross),
+                                COALESCE(refined.buyer_shipping, orders.buyer_shipping))`,
     [
       workspaceId,
       scope.provider,
