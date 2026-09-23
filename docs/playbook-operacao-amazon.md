@@ -142,3 +142,13 @@ Registrado para não ser reabsorvido:
 
 - **14/09/2026** — doc criado; regras adotadas pela Ana (piso de 25%, recompra
   ABC como feature, cupom de lançamento, ciclo mensal, rejeições registradas).
+
+## Lista de não-recomprar
+
+Produtos em queima ou eliminados — não voltam ao pedido de reposição (protocolo
+do §4). Remover daqui exige decisão nova da Ana.
+
+| SKU | desde | motivo | estado |
+|---|---|---|---|
+| `martelo-borracha` | 23/09/2026 | 111 unid. a 2/mês (~4,6 anos de cobertura) | queima: R$ 28,90 → 12,90, campanhas pausadas; Ads de liquidação só com degrau para R$ 14,90 |
+| `kitprote-32` | 23/09/2026 | 4/mês, ~3 meses de cobertura, capital parado | queima: R$ 56,90 → 44,90; mesmo esquema (Ads ⇒ R$ 47,90) |
