@@ -5,7 +5,16 @@ import { advanceCheckpoint, checkpointInBackoff, claimCheckpoint, clearCheckpoin
 export interface PipelineDb { query:DbQuery; transaction:<T>(work:(query:DbQuery)=>Promise<T>)=>Promise<T>; }
 export interface PipelineScope { workspaceId:string; connectionId:string; }
 export interface PipelineWindow { from:Date; to:Date; }
-export interface FinancialPipelineInput { db:PipelineDb; adapters:TiktokFinancialAdapters; scope:PipelineScope; window:PipelineWindow; ownerToken:string; paginationSeen?:FinancialPaginationSeen; }
+export interface FinancialPipelineInput { db:PipelineDb; adapters:TiktokFinancialAdapters; scope:PipelineScope; window:PipelineWindow; ownerToken:string; paginationSeen?:FinancialPaginationSeen;
+  /**
+   * Busca DIRIGIDA dos pedidos que o extrato citou e a conexao nao tem (ADR-039).
+   *
+   * ⚠️ Opcional para que o pipeline continue testavel sem rede — mas em producao
+   * ele vem preenchido pelo scheduler. Sem ele, transacao de pedido fora da
+   * janela de estreia volta a derrubar a janela inteira, que foi o travamento de
+   * 14 dias medido em 26/09/2026.
+   */
+  garantirPedidosCitados?:(ids:readonly string[])=>Promise<number>; }
 export interface FinancialPipelineResult { acquired:boolean; terminal:boolean; seen:number; written:number; }
 interface Cursor { cursor_token:string|null; page_number:number; rows_seen:string|number; rows_written:string|number; }
 interface LockedCursor extends Cursor { cursor_hash_history:string[]; }
@@ -15,7 +24,7 @@ async function cursor(query:DbQuery,scope:PipelineScope,resource:string,window:P
   return rows[0]??{cursor_token:null,page_number:0,rows_seen:0,rows_written:0};
 }
 
-async function runPage<T>(input:{db:PipelineDb;scope:PipelineScope;window:PipelineWindow;resource:string;ownerToken:string;paginationSeen?:FinancialPaginationSeen;read:(token:string|undefined)=>Promise<FinancialPage<T>>;write:(query:DbQuery,items:T[])=>Promise<number>}){
+async function runPage<T>(input:{db:PipelineDb;scope:PipelineScope;window:PipelineWindow;resource:string;ownerToken:string;paginationSeen?:FinancialPaginationSeen;read:(token:string|undefined)=>Promise<FinancialPage<T>>;write:(query:DbQuery,items:T[])=>Promise<number>;prepare?:(items:T[])=>Promise<void>}){
   if(await checkpointInBackoff(input.db.query,input.scope,input.resource,input.window))return {acquired:false,terminal:false,seen:0,written:0};
   const claimed=await claimCheckpoint(input.db.query,input.scope,input.resource as never,input.window,input.ownerToken);
   if(!claimed.acquired)return {acquired:false,terminal:false,seen:0,written:0};
@@ -25,6 +34,13 @@ async function runPage<T>(input:{db:PipelineDb;scope:PipelineScope;window:Pipeli
   const page=await input.read(state.cursor_token??undefined);
   if((page.rejected??0)!==0||(page.unknown??0)!==0||(page.diagnostics?.length??0)!==0)throw new Error("FINANCIAL_PAGE_VALIDATION_FAILED");
   validateFinancialPagination(input.resource,state.cursor_token,page.nextPageToken,input.paginationSeen);
+  // ⚠️ `prepare` roda AQUI, entre o `read` e a transacao, e a posicao e a parte
+  // que importa: ele faz chamada externa (buscar o pedido que o extrato citou), e
+  // chamada de rede DENTRO da transacao a manteria aberta pelo tempo da API —
+  // que e o jeito de transformar um conserto de conciliacao num incidente de
+  // banco. Falha aqui cai no `catch` de baixo e vira erro do checkpoint, como
+  // qualquer outra.
+  if(input.prepare)await input.prepare(page.items);
   return input.db.transaction(async query=>{
     const locked=await lockedCursor(query,input.scope,input.resource,input.window,input.ownerToken,claimed.fencingToken);
     validatePersistentFinancialPagination(input.resource,locked.cursor_token,page.nextPageToken,locked.cursor_hash_history);
@@ -48,12 +64,19 @@ async function lockedCursor(query:DbQuery,scope:PipelineScope,resource:string,wi
   return {...rows[0],cursor_hash_history:rows[0].cursor_hash_history??[]};
 }
 
-export async function processFinalStatementTransactions(input:{db:PipelineDb;adapters:TiktokFinancialAdapters;scope:PipelineScope;window:PipelineWindow;ownerToken:string;paginationSeen?:FinancialPaginationSeen;statement:StatementRecord}){
+export async function processFinalStatementTransactions(input:{db:PipelineDb;adapters:TiktokFinancialAdapters;scope:PipelineScope;window:PipelineWindow;ownerToken:string;paginationSeen?:FinancialPaginationSeen;garantirPedidosCitados?:(ids:readonly string[])=>Promise<number>;statement:StatementRecord}){
   if(!isFinalStatement(input.statement))return {acquired:false,terminal:false,seen:0,written:0};
   const resource=`statement_transactions:${input.statement.id}`;
   const done=await input.db.query<{completed_at:Date|null}>(`SELECT completed_at FROM workspace_financial_sync_checkpoints WHERE workspace_id=$1 AND provider=$2 AND connection_id=$3 AND resource=$4 AND window_from=$5 AND window_to=$6`,[input.scope.workspaceId,TIKTOK_FINANCIAL_PROVIDER,input.scope.connectionId,resource,input.window.from,input.window.to]);
   if(done[0]?.completed_at)return {acquired:true,terminal:true,seen:0,written:0};
-  return runPage<TransactionRecord>({...input,resource,read:token=>input.adapters.transactions(input.statement.id,token),write:(query,records)=>upsertLedger(query,input.scope,records.map(record=>normalizeTransaction(record,{final:true,source:"statement_transactions"})))});
+  const garantir=input.garantirPedidosCitados;
+  return runPage<TransactionRecord>({...input,resource,read:token=>input.adapters.transactions(input.statement.id,token),
+    // ⚠️ SO o processador do EXTRATO tem este gancho. `unsettled` e `payments`
+    // nao citam pedido que a estreia possa nao ter: o primeiro le pedidos que ja
+    // sao nossos, o segundo nao carrega `order_id`. Ganchar os tres seria custo
+    // sem defeito correspondente.
+    prepare:garantir?async records=>{await garantir(records.map(record=>record.orderId).filter((id):id is string=>!!id));}:undefined,
+    write:(query,records)=>upsertLedger(query,input.scope,records.map(record=>normalizeTransaction(record,{final:true,source:"statement_transactions"})))});
 }
 
 export async function processStatementsPage(input:FinancialPipelineInput):Promise<FinancialPipelineResult>{

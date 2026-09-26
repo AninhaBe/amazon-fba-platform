@@ -13,13 +13,15 @@ export async function runTiktokFinancialScheduler(input:{
   db:PipelineDb; adapters:TiktokFinancialAdapters; scope:PipelineScope;
   window:PipelineWindow; deadline:number; pageBudget?:number;
   paginationSeen?:FinancialPaginationSeen; ownerToken?:()=>string;
+  /** Repassado aos processadores: busca dirigida do pedido citado (ADR-039). */
+  garantirPedidosCitados?:(ids:readonly string[])=>Promise<number>;
   processors:readonly FinancialPageProcessor[];
 }):Promise<void>{
   const paginationSeen=input.paginationSeen??new Map<string,Set<string>>();
   for(const processPage of input.processors){
     const ownerToken=input.ownerToken?.()??crypto.randomUUID();
     for(let page=0;page<(input.pageBudget??TIKTOK_FINANCIAL_PAGE_BUDGET)&&Date.now()<input.deadline;page++){
-      const result=await processPage({db:input.db,adapters:input.adapters,scope:input.scope,window:input.window,ownerToken,paginationSeen});
+      const result=await processPage({db:input.db,adapters:input.adapters,scope:input.scope,window:input.window,ownerToken,paginationSeen,garantirPedidosCitados:input.garantirPedidosCitados});
       if(!result.acquired||result.terminal)break;
     }
   }

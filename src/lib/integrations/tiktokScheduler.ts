@@ -2,7 +2,7 @@ import { dbQuery, dbTransaction, hasDb } from "../db";
 import { filtroDeAcessoLiberado } from "./assinaturaPausaSync";
 import { getTiktokShops, refreshTiktokShopIfNeeded } from "../tiktokStore";
 import { runWithWorkspace } from "../workspaceScope";
-import { runTiktokSyncBatch, type TiktokSyncStatus } from "./tiktokSync";
+import { ingerirPedidosCitadosPeloExtrato, runTiktokSyncBatch, type TiktokSyncStatus } from "./tiktokSync";
 import { liveTiktokFinancialAdapters } from "./tiktokFinancialApi";
 import { isFinancialSchemaMissing } from "./tiktokFinancialLedger";
 import { processPaymentsPage, processStatementsPage, processUnsettledPage, selectFinancialWindows } from "./tiktokFinancialPipeline";
@@ -99,7 +99,7 @@ export async function runScheduledTiktokSync(
         const sync = await runTiktokSyncBatch(candidate.connection_id, budgetMs);
         try {
           const rawShop=(await getTiktokShops()).find(shop=>shop.shopId===candidate.shop_id);
-          if(rawShop){const shop=await refreshTiktokShopIfNeeded(rawShop);const adapters=liveTiktokFinancialAdapters({accessToken:shop.accessToken,shopCipher:shop.shopCipher,app:shop.app});const scope={workspaceId:candidate.workspace_id,connectionId:candidate.connection_id};const windows=await selectFinancialWindows(dbQuery,scope);await runTiktokFinancialScheduler({db:{query:dbQuery,transaction:dbTransaction},adapters,scope,window:windows.closed,deadline:Date.now()+Math.max(1_000,Math.floor(budgetMs/3)),processors:[processStatementsPage,processPaymentsPage,processUnsettledPage]});}
+          if(rawShop){const shop=await refreshTiktokShopIfNeeded(rawShop);const adapters=liveTiktokFinancialAdapters({accessToken:shop.accessToken,shopCipher:shop.shopCipher,app:shop.app});const scope={workspaceId:candidate.workspace_id,connectionId:candidate.connection_id};const windows=await selectFinancialWindows(dbQuery,scope);await runTiktokFinancialScheduler({db:{query:dbQuery,transaction:dbTransaction},adapters,scope,window:windows.closed,garantirPedidosCitados:ids=>ingerirPedidosCitadosPeloExtrato(shop,candidate.connection_id,ids),deadline:Date.now()+Math.max(1_000,Math.floor(budgetMs/3)),processors:[processStatementsPage,processPaymentsPage,processUnsettledPage]});}
         } catch(error) { if(!isFinancialSchemaMissing(error)) throw error; }
         return {
           workspaceId: candidate.workspace_id,

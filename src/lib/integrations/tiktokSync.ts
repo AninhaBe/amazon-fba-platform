@@ -458,6 +458,80 @@ async function saveOrderWindow(
 }
 
 /**
+ * BUSCA DIRIGIDA: os pedidos que o EXTRATO citou e que esta conexão não tem.
+ *
+ * ⚠️ O DEFEITO QUE ISTO CONSERTA TRAVOU A CONCILIAÇÃO DO PRIMEIRO CLIENTE REAL
+ * POR 14 DIAS (medido 20 e 26/09/2026). Duas regras corretas se cruzaram:
+ *
+ *   - a estreia importa só o MÊS VIGENTE (decisão da dona, 27/08) — conta nova
+ *     não tem pedido anterior ao dia 1º, e nunca vai ter;
+ *   - `upsertLedger` RECUSA transação cujo pedido não exista do nosso lado
+ *     (`TIKTOK_FINANCIAL_ORDER_ASSOCIATION_UNRESOLVED`) — dinheiro sem pedido
+ *     não entra.
+ *
+ * O extrato de um dia liquida pedidos criados dias ou semanas antes. Cada um
+ * desses derrubava a janela inteira, e como a seleção retoma sempre a janela
+ * incompleta mais antiga, o pipeline não saía dela: 2.461 pedidos entraram e
+ * nenhuma linha de extrato liquidado foi gravada.
+ *
+ * 📌 DECISÃO DA DONA DO PRODUTO (26/09/2026, opção C da ADR-039): buscar o
+ * pedido. Nada se perde e tudo fica associado — as duas garantias de pé.
+ *
+ * ⚠️ DIRIGIDA, NÃO ALARGAMENTO CEGO DE JANELA. Traz só os ids que o extrato
+ * citou: uma conta com meses de histórico não vira varredura retroativa, e o
+ * custo é proporcional ao que o dinheiro exige.
+ *
+ * ⚠️ E ELA NÃO TOCA EM ESTADO DE SYNC. Não avança cursor, não move
+ * `covered_from/covered_to`, não faz checkpoint — só o upsert idempotente do
+ * pedido. Por isso dispensa o lease do sync (que já foi liberado quando o
+ * financeiro roda) sem abrir a porta que o lease protege: o que o lease guarda é
+ * quem avança cobertura, e aqui ninguém avança.
+ *
+ * 📌 Consequência que a ADR-039 registra: a tabela passa a ter pedido FORA do
+ * intervalo que `covered_*` declara. Quem ler cobertura como "tudo o que existe"
+ * lerá menos do que há — nunca mais.
+ */
+export async function ingerirPedidosCitadosPeloExtrato(
+  loja: TiktokShop,
+  connectionId: string,
+  idsCitados: readonly string[]
+): Promise<number> {
+  const unicos = [...new Set(idsCitados.filter((id) => !!id))];
+  if (!unicos.length) return 0;
+
+  const existentes = await dbQuery<{ external_order_id: string }>(
+    `SELECT external_order_id FROM workspace_channel_orders
+      WHERE workspace_id = $1 AND provider = $2 AND connection_id = $3
+        AND external_order_id = ANY($4::text[])`,
+    [currentWorkspaceId(), PROVIDER, connectionId, unicos]
+  );
+  const jaTemos = new Set(existentes.map((linha) => linha.external_order_id));
+  const faltantes = unicos.filter((id) => !jaTemos.has(id));
+  if (!faltantes.length) return 0;
+
+  const shop = refDaLoja(loja);
+  let gravados = 0;
+  // Mesmo lote da varredura: `order/detail` aceita vários ids por chamada, e
+  // repetir o tamanho dela é o que mantém o custo dentro do limite já medido.
+  for (let i = 0; i < faltantes.length; i += ORDER_DETAIL_BATCH) {
+    const lote = faltantes.slice(i, i + ORDER_DETAIL_BATCH);
+    const pedidos = (await getTiktokOrderDetail(shop, lote)) as TiktokOrder[];
+    validateTiktokOrderBatch(lote, pedidos);
+    // Mesmas validações da varredura, e pelo mesmo motivo: status novo para a
+    // ingestão nomeando o que apareceu, em vez de inventar um canônico.
+    const statusNovos = tiktokUnmappedOrderStatuses(pedidos);
+    if (statusNovos.length) throw new TiktokUnmappedStatusError(statusNovos);
+    for (const pedido of pedidos) validateTiktokOrderForSync(pedido);
+    await saveCanonicalOrders(
+      { provider: PROVIDER, connectionId },
+      pedidos.map((pedido) => normalizeTiktokOrder(pedido))
+    );
+    gravados += pedidos.length;
+  }
+  return gravados;
+}
+
+/**
  * Conciliação do extrato: pedidos com receita e ainda sem tarifa gravada.
  * Roda depois dos pedidos, em lote pequeno — a tarifa só fecha no settlement e
  * não pode travar o faturamento.
