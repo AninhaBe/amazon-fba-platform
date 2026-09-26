@@ -63,14 +63,21 @@ test("documentação, registry e navegação refletem as capacidades TikTok e Sh
   for (const capability of ["catalog", "orders", "inventory", "finance"]) {
     assert.ok(shopee?.capabilities.includes(capability), `Shopee capability ${capability}`);
   }
-  // A trava é sobre o doc registrar que o Go Live da Shopee está PENDENTE e
-  // datado de 07/08 — não sobre as palavras exatas. A redação mudou para uma
-  // mais honesta ("último estado comprovado é 'under review'", com a ressalva
-  // de reconferir no console) e a versão literal anterior derrubou o teste por
-  // causa disso. Um guard de documentação não pode punir o doc por ficar mais
-  // preciso; ele existe para impedir que o doc AFIRME algo já superado.
-  assert.match(state, /Go Live[^\n]*(?:under review|em análise|submetido)/i);
-  assert.match(state, /Go Live[^\n]*07\/08/i);
+  // ⚠️ REAPONTADO EM 26/09/2026, com a intenção anterior registrada: as duas
+  // linhas exigiam que o doc registrasse o Go Live como PENDENTE ("under
+  // review", datado de 07/08) — verdade quando foram escritas. O Go Live foi
+  // APROVADO em 02/09/2026 (apps ONLINE no console, conferido com a dona na
+  // tela), e a partir daí a exigência antiga passou a DEFENDER a afirmação
+  // superada: quem corrigisse o doc quebraria a suíte. É a família da recusa
+  // temporária da Shopee de 31/08 (AGENTS.md) — recusa morre junto com a
+  // limitação que a justificou, e o teste se inverte registrando a intenção.
+  // A trava continua a MESMA de sempre: o doc não pode afirmar um estado do
+  // Go Live que já foi superado. Defeito real que este bloco reprova:
+  // docs/estado-atual.md afirmou "Live **BLOCKED**" (§5) por 24 dias depois da
+  // aprovação, contradizendo a própria tabela de Canais — corrigido em 26/09.
+  assert.match(state, /Go Live[^\n]*APROVADO[^\n]*02\/09/i);
+  assert.doesNotMatch(state, /Live \*\*BLOCKED\*\*/);
+  assert.doesNotMatch(state, /último estado comprovado é .under review./i);
   assert.doesNotMatch(state, /Shopee Go Live[^\n]*(?:depende[^\n]*ser submetido|aguarda(?:ndo)? submissão)/i);
   assert.match(canonicalSchema, /Shopee → canônico \(implementado e testado em sandbox\)/);
   assert.doesNotMatch(canonicalSchema, /Shopee → canônico \(quando chegar\)/i);
