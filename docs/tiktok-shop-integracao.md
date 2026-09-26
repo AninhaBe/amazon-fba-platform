@@ -1,22 +1,28 @@
 # Plano: Integração TikTok Shop
 
-> **Status (20/09/2026):** o app **público** está publicado no Service Market e é
+> **Status (26/09/2026):** o app **público** está publicado no Service Market e é
 > o **único** caminho de autorização. **Existe cliente real conectado por ele**
 > — a primeira loja entrou em 12/09/2026 e sincroniza pedidos normalmente
-> (1.863 pedidos, cobertura 01–20/09, último ciclo há minutos).
+> (2.461 pedidos, cobertura 01–26/09, último ciclo há minutos). O token renovou
+> pelo par do público em 26/09, então o público está provado em **assinar** e em
+> **renovar** — os dois caminhos que a etapa 1 não cobria.
 >
-> ⚠️ **A conciliação financeira desse cliente NUNCA rodou.** Medido em
-> 20/09/2026: o ledger está travado na primeira janela desde a estreia, oito
-> dias, por `TIKTOK_FINANCIAL_ORDER_ASSOCIATION_UNRESOLVED` — a colisão entre a
-> regra de estreia (só o mês vigente) e a recusa de gravar transação de pedido
-> que não temos. **Atinge todo vendedor novo, não é caso isolado.** Ver o
-> changelog de 20/09.
+> 🔴 **A conciliação financeira desse cliente NUNCA rodou — catorze dias.** O
+> ledger está preso na primeira janela (11→12/09) desde a estreia, e o contador
+> subiu de 176 erros (20/09) para **299** (26/09), sempre
+> `TIKTOK_FINANCIAL_ORDER_ASSOCIATION_UNRESOLVED`. É a colisão entre a regra de
+> estreia (só o mês vigente) e a recusa de gravar transação de pedido que não
+> temos. **Atinge todo vendedor novo, não é caso isolado**, e a decisão de
+> desenho está pendente com a dona do produto. Ver os changelogs de 20 e 26/09.
 >
-> ⚠️ **Não há mais migração custom→público.** A loja que usava o app custom era
-> **sonda** (serviu para medir o que a API entrega) e saiu do banco em 12/09.
-> Resta o custom apenas na conexão de demonstração — ver "Desligar o custom".
+> 📌 A forma do número é o diagnóstico: **pedido cresce, transação não.**
 >
-> Registrado em 2026-07-15, atualizado em 20/09/2026.
+> ⚠️ **Não há mais migração custom→público**, e **o link de convite morreu**
+> (23/09). A loja que usava o custom era **sonda** e saiu do banco em 12/09;
+> resta o custom apenas na conexão de demonstração. As duas remoções de código
+> — convite e custom — estão pendentes, com dono, na próxima leva de superfície.
+>
+> Registrado em 2026-07-15, atualizado em 26/09/2026.
 > Relacionado: [`estado-atual.md`](./estado-atual.md), [`arquitetura-plano.md`](./arquitetura-plano.md).
 
 ## Por que priorizar (vs. Shopee)
@@ -131,6 +137,26 @@ Mesma arquitetura já existente:
 | público não configurado | **recusa** (503), nunca cai no custom | `appDaAutorizacao()` |
 | como ler linha antiga | `custom` — é a verdade de quem nasceu antes da 0033 | `APP_DE_LINHA_ANTIGA` |
 | cartão habilitado na tela | depende das três `TIKTOK_PUBLIC_*` | `tiktokConfigured()` |
+
+⚠️ **O LINK DE CONVITE ESTÁ MORTO** (decisão da dona do produto, 23/09/2026).
+Ele existia por duas razões, e **as duas acabaram**:
+
+| razão do convite | por que caiu |
+|---|---|
+| o revisor do TikTok autorizava sem ter conta aqui | a revisão terminou — o app está **publicado** desde 11/09 |
+| vendedor sem conta no NEXO podia autorizar | o fluxo novo é **pagamento primeiro**, e depois a senha temporária por e-mail: quem chega ao botão **já tem conta** |
+
+📌 É a **recusa temporária que morre junto com a limitação**, na forma de
+caminho alternativo: o convite era o contorno para "o vendedor não tem conta", e
+o fluxo de conta pós-pagamento removeu a limitação. Enquanto sobrevivesse, seria
+uma segunda porta de autorização — e segunda porta é onde o defeito volta por
+caminho novo, como já aconteceu com o `tiktokScheduler`.
+
+⚠️ **A decisão está tomada; a remoção do código NÃO está feita.** `invite/route.ts`
+e `tiktokInvite.ts` seguem no repo, e o callback ainda tem o ramo sem cookie que
+o convite usava. Isso é **dívida com dono**, não desenho: entra na próxima leva
+de superfície, junto com a remoção do custom. Até lá o convite continua
+funcionando — e quem mexer nele precisa saber que está mexendo em coisa morta.
 
 ⚠️ **O Service Market NÃO é porta de entrada** (decisão de produto, 11/09/2026).
 Uma instalação iniciada lá chega ao callback **sem o nosso `state`**, e sem ele
@@ -580,6 +606,45 @@ adivinhar a forma de um lançamento de multa é errar dinheiro que o vendedor de
 ## Fontes
 
 ## Changelog observado
+
+- **26/09/2026 — ⏳ O LEDGER CONTINUA NA MESMA JANELA, E O CONTADOR DE ERROS
+  SUBIU DE 176 PARA 299.** Remedido hoje, sem nenhuma mudança de código no canal
+  desde 12/09:
+
+  | | 20/09 | 26/09 |
+  |---|---|---|
+  | janela travada | 11→12/09 | **a mesma** |
+  | erros em `statements` | 176 | **299** |
+  | erros no filho `statement_transactions` | 6 | 9 |
+  | transações gravadas | 59 (todas estimadas) | **59** |
+  | pedidos | 1.863 | 2.461 |
+
+  📌 **A forma do número é o diagnóstico:** pedido cresce, transação não. O canal
+  vende e a conciliação não anda — catorze dias. A decisão de desenho (a/b/c no
+  report de 20/09) segue pendente, e o custo dela é medido em dias de extrato que
+  ninguém vai buscar depois, porque a janela nunca avança.
+
+  ✅ **E uma boa notícia medida no caminho: o token renovou pelo público.** O
+  `access_token` da conexão real expirava **hoje** (26/09) e está válido até
+  **03/10** — ou seja, `refreshAccessToken` rodou com o par do público e foi
+  aceito. Somando com a assinatura de negócio de 12/09, o público está provado
+  nos **dois** caminhos que a etapa 1 não cobria: assinar chamada e **renovar
+  token**.
+
+- **23/09/2026 — ⚰️ O LINK DE CONVITE MORREU (decisão da dona do produto).** Ele
+  existia para o revisor do TikTok autorizar sem ter conta aqui — a revisão
+  acabou — e para vendedor sem conta no NEXO — o fluxo novo cobra **antes** e
+  manda senha temporária por e-mail, então quem chega ao botão já tem conta.
+
+  📌 É a **recusa temporária morrendo junto com a limitação**, na forma de caminho
+  alternativo. E o motivo de não deixá-lo apodrecer é concreto: segunda porta de
+  autorização é exatamente onde o defeito volta por caminho novo — foi assim que
+  o `tiktokScheduler` ficou de fora da correção do `app` em 11/09.
+
+  ⚠️ **Decisão tomada, remoção pendente.** `invite/route.ts`, `tiktokInvite.ts` e
+  o ramo sem cookie do callback continuam no repo, na próxima leva de superfície,
+  junto com a saída do custom. Registrado aqui para que "existe no código" não
+  seja lido como "é caminho vivo".
 
 - **20/09/2026 — 🔴 A CONCILIAÇÃO DO PRIMEIRO CLIENTE REAL NUNCA RODOU, E A CAUSA
   É A COLISÃO DE DUAS REGRAS CERTAS.** Medido no banco enquanto eu punha este doc
