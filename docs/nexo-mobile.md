@@ -45,7 +45,7 @@ vira spec quando a frente web correspondente fechar):
 - sincronização com problema que exige ação da pessoa (reconectar conta);
 - resumo do dia (a narração do NEXO, opt-in).
 
-## 3. Espelho das telas — estado em 20/09/2026
+## 3. Espelho das telas — estado em 26/09/2026
 
 | Tela web | Estado web | Nota mobile |
 |---|---|---|
@@ -59,6 +59,7 @@ vira spec quando a frente web correspondente fechar):
 | Pendências (custo, alíquota) | ✅ padrão consolidado (número + link) | Push + deep link para a tela de resolver. |
 | Monitor / Pedidos a revisar | ✅ fechado 11/09 (linguagem v3) | A tabela de 11 colunas vira **um cartão por pedido** (produto, data e as parcelas em pares chave-valor); o chip de margem é a face do cartão. Revisão em massa continua melhor no desktop. |
 | Bancadas (`/mercado-livre/bancada*`, `/lab/mercado-livre`, `/lab/amazon`) | ✅ 11/09 as do ML montam a tela real; 12–13/09 a **Amazon ganhou bancada em `/lab/amazon`** — sem ela, "repliquei" era declaração, porque nenhum canal traz dado nesta máquina | **Não existem no app.** Eram atalho de desenvolvimento; no mobile não há URL para colar. ⚠️ Mas o que elas provaram, o app precisa: foi a varredura do **DOM renderizado** da bancada que achou "Produto no FULL" dentro do "Radar do FBA" — grep no fonte não acharia. O equivalente no app é inspecionar a árvore renderizada, não o código. |
+| Páginas legais públicas (`/termos`, `/privacidade`, rodapé) | ✅ no ar desde 22/09 (`9667265`, `90a0f40`, `97112a2`), conferido em produção sem sessão: home, `/termos` e `/privacidade` respondem **200** com razão social, CNPJ, contato e os dois links. Nasceu da reprovação do cadastro na AbacatePay, que era de **visibilidade**, não de ausência. | **O app precisa das duas URLs no dia da submissão**: App Store e Play exigem link público de política de privacidade, e a Play pede também os termos. São estas — não uma cópia dentro do app, que divergiria no primeiro ajuste. O rodapé em si não se traduz: no celular a identificação mora numa tela de "Sobre", alcançável sem login. |
 | Faixa "Sincronização atrasada" (os 4 canais) | ❌ **removida em 13/09** por ordem dela — sincronização alarma para NÓS (vigia do `/api/health` + Grafana), não para a vendedora | **Não desenhar no app.** Nem a faixa de atraso, nem a linha "Sincronizado há X min": estado normal não é notícia. O que sobra para o celular é o push de **falha que exige ação dela** (reconectar conta), que já está na lista de candidatas acima. |
 
 ## 3.1 O que o v3 do ML fixou — e o app herda sem negociar
@@ -76,8 +77,17 @@ cair na tradução para telas estreitas:
 - **Lista recortada diz que é recorte.** "Pedidos a revisar" mostra cinco linhas
   debaixo de totais do período inteiro e a frase de escopo explica isso. No
   mobile a lista é ainda mais curta — a frase fica mais necessária, não menos.
-- **Estimativa marcada junto do número** (ADR-027), na face do cartão, não no
-  detalhe que abre. Tooltip não existe no celular: a marca tem de ser visível.
+- **A marca na face diz a PROCEDÊNCIA, e a palavra "estimativa" não existe
+  mais.** ⚠️ Esta regra MUDOU em 21/09/2026 e o espelho afirmava a
+  versão antiga: o ADR-030 emendou o ADR-027 por decisão dela, verbatim — *"não
+  existe estimado, se estamos fazendo o cálculo certo, é o certo, para de usar
+  essa palavra"*. O cálculo do NEXO **é** o número. O que continua na face,
+  porque o app não pode inventar procedência, é de ONDE a tarifa veio: "tabela
+  oficial Amazon", "tarifa já cobrada neste produto", "calculada pela Amazon
+  (API)" — e "origem não informada" quando não sabemos, que é defeito nosso e
+  por isso fica visível, não em tooltip. Tooltip não existe no celular.
+  O que a marca protegia (o valor mudar depois) segue tratado por MECANISMO:
+  pedido cancelado sai da conta, e a liquidação substitui o cálculo.
 - **Dia sem apuração fechada** fica só com o contorno da barra e não entra na
   média. Em tela pequena, a tentação é desenhar zero para a barra "não ficar
   vazia" — zero numa série temporal lê como queda, não como ausência.
@@ -100,11 +110,21 @@ primeiro dia, porque ele nasce com quatro canais.
   descontado do lucro acima (lá ele sai no fechamento); na Amazon ele **já está**
   — é a oitava coluna da faixa. Copiar a frase junto com o bloco teria posto na
   tela dela uma afirmação falsa sobre o próprio dinheiro.
-- **O contador de apuração não inventa fração.** A faixa diz "N pedidos
-  apurados" quando o período fechou, e "faltam apurar M de N pedidos" quando
-  não. Nunca "X de Y" com X e Y de universos diferentes — foi o "41 de 11" que
-  o print dela pegou em 12/09. No celular a frase é ainda mais curta; encurtar
-  não pode virar fração de novo.
+- **O contador de apuração não inventa fração — e na Amazon ele não existe
+  mais.** A regra nasceu do "41 de 11" que o print dela pegou em 12/09: nunca
+  "X de Y" com X e Y de universos diferentes. ⚠️ Em 20/09 ela
+  mandou a legenda embora DA AMAZON (verbatim: *"não vai existir X conciliados,
+  tem que mostrar todos, pode apagar essa legenda"*), porque lá o card de
+  Lucro/Margem já é sobre o faturamento inteiro desde 31/08 — o "apurado" só
+  sobrevivia naquele texto, contando um subconjunto que a conta não usa.
+  **ML, Shopee e TikTok seguem com a legenda**, porque nesses canais as bases
+  ainda diferem de verdade. Para o app: a peça é a mesma, o texto é DADO do
+  canal — string vazia é um estado legítimo, não um bug de layout.
+- **O Top de produtos da Amazon passou a ter margem REAL** (21/09, `9442bc2`):
+  contribuição por produto — venda menos tarifa, frete, custo e imposto —, e não
+  markup bruto. Quando a leva de 12/09 fechou, essa coluna era travessão na
+  Amazon; hoje os dois canais mostram o mesmo tipo de número, e o app não
+  precisa de dois desenhos.
 - **Prévia curta + frase de escopo andam juntas.** O bloco "Pedidos" mostra
   **5 linhas** e a lista inteira mora no monitor. Desde 13/09 o corte é do
   **servidor** (o dashboard recebe só as 5), e o escopo continua calculado sobre
@@ -131,6 +151,21 @@ duplicar toda tela. A doutrina "correção vale para todos" pesa contra manter
 três front-ends (web + iOS + Android) — trazer essa conta feita para a decisão.
 
 ## Changelog do espelho
+
+- 26/09/2026 — **duas regras que o espelho afirmava ERRADO, e o que entrou
+  depois de 20/09.** Corrigidas: (a) a marca de "estimativa" — o ADR-030
+  emendou o ADR-027 em 21/09 por decisão dela (*"não existe estimado […] para de
+  usar essa palavra"*), e o que fica na face é a **procedência** da tarifa, não
+  um adjetivo; (b) o contador de apuração, que **saiu da Amazon** em 20/09 por
+  ordem dela e **continua** no ML, Shopee e TikTok — a peça é a mesma, o texto é
+  dado do canal, e string vazia é estado legítimo. Entraram também: o Top de
+  produtos da Amazon com margem real (contribuição, não markup), o monitor da
+  Amazon com lucro por pedido em TODOS os pedidos e o card chamado "Lucro", o
+  pedido pendente valorizado pela nossa base em tempo real (nunca R$ 0,00), e a
+  linha nova das páginas legais públicas — que o app vai precisar no dia da
+  submissão às lojas.
+  ⚠️ Shopee e TikTok continuam sem a réplica do v3: o desenho
+  deles é o anterior, e cada réplica espera ordem dela.
 
 - 20/09/2026 — **fechamento da réplica da Amazon e a limpeza que veio com ela.**
   O que o espelho não cobria e agora cobre: (a) o canal Amazon fechou INTEIRO no
